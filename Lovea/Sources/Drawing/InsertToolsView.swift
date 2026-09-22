@@ -48,11 +48,13 @@ struct InsertToolsView: View {
                     .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 }
 
-                Section("Farbeimer") {
+                Section {
                     Slider(value: $session.fillTolerance, in: 0...0.5)
                     Text("Toleranz: \(Int(session.fillTolerance * 100)) %")
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                } header: {
+                    Text("Farbeimer")
                 } footer: {
                     Text("Füllen arbeitet auf dem sichtbaren zusammengesetzten Bild und legt die Füllung zerstörungsfrei als eigene Ebene ab.")
                 }
