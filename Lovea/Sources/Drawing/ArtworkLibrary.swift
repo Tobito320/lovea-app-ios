@@ -176,6 +176,24 @@ final class ArtworkLibrary: ObservableObject {
         layerAsset(fileName: layer.contentFile, artworkID: artworkID)
     }
 
+    func metalStrokes(for layer: ArtworkLayer, artworkID: UUID) -> [MetalPaintStroke] {
+        guard layer.kind == .paint,
+              let data = layerAsset(fileName: metalStrokesFile(for: layer), artworkID: artworkID),
+              let strokes = try? decoder.decode([MetalPaintStroke].self, from: data) else {
+            return []
+        }
+        return strokes
+    }
+
+    func saveMetalStrokes(_ strokes: [MetalPaintStroke], for layer: ArtworkLayer, artworkID: UUID) {
+        guard layer.kind == .paint, let data = try? encoder.encode(strokes) else { return }
+        saveLayerAsset(data, fileName: metalStrokesFile(for: layer), artworkID: artworkID)
+    }
+
+    func metalStrokesFile(for layer: ArtworkLayer) -> String {
+        "metal-\(layer.id.uuidString).json"
+    }
+
     func saveLayerAsset(_ data: Data, fileName: String, artworkID: UUID) {
         let folder = layersDirectory(for: artworkID)
         try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)

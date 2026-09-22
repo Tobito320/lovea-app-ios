@@ -1,9 +1,14 @@
 import Combine
-import PencilKit
 import UIKit
 
 @MainActor
 final class DrawingSession: ObservableObject {
+    private struct MetalHistoryEntry {
+        let layerID: UUID
+        let before: [MetalPaintStroke]
+        let after: [MetalPaintStroke]
+    }
+
     @Published var document: ArtworkDocument
     @Published var activeLayerID: UUID
     @Published var tool: StudioTool = .brush
@@ -23,9 +28,12 @@ final class DrawingSession: ObservableObject {
     @Published var fillTolerance = 0.12
     @Published private(set) var recentColors: [RGBAColor] = [.studioBlack, .blue, .red, .orange]
     @Published private(set) var recentBrushes: [BrushPreset] = [.pen, .pencil, .marker]
+    @Published private(set) var activeMetalStroke: MetalPaintStroke?
+    @Published private(set) var metalStrokesByLayer: [UUID: [MetalPaintStroke]] = [:]
 
     let library: ArtworkLibrary
-    private var drawings: [UUID: PKDrawing] = [:]
+    private var metalUndoStack: [MetalHistoryEntry] = []
+    private var metalRedoStack: [MetalHistoryEntry] = []
     private var previewTask: Task<Void, Never>?
 
     init(artworkID: UUID, library: ArtworkLibrary) {
@@ -42,7 +50,7 @@ final class DrawingSession: ObservableObject {
         self.activeLayerID = loadedDocument.layers.last(where: { $0.kind == .paint })?.id
             ?? loadedDocument.layers.last?.id
             ?? UUID()
-        loadPaintDrawings()
+        loadMetalStrokes()
     }
 
     var activeLayer: ArtworkLayer? {
@@ -58,21 +66,66 @@ final class DrawingSession: ObservableObject {
         CGSize(width: CGFloat(document.canvasWidth), height: CGFloat(document.canvasHeight))
     }
 
-    func drawing(for layerID: UUID) -> PKDrawing {
-        drawings[layerID] ?? PKDrawing()
+    var canUndo: Bool { !metalUndoStack.isEmpty }
+    var canRedo: Bool { !metalRedoStack.isEmpty }
+
+    func metalStrokes(for layerID: UUID) -> [MetalPaintStroke] {
+        metalStrokesByLayer[layerID] ?? []
     }
 
-    func updateDrawing(_ drawing: PKDrawing, for layerID: UUID) {
-        guard let layer = document.layers.first(where: { $0.id == layerID }),
-              layer.kind == .paint,
-              !layer.isLocked else { return }
-        drawings[layerID] = drawing
-        library.saveLayerData(drawing.dataRepresentation(), layer: layer, artworkID: document.id)
-        touchDocument()
+    func beginMetalStroke(at point: StrokePoint) {
+        guard canDraw, tool == .brush || tool == .eraser else { return }
+        activeMetalStroke = MetalPaintStroke(
+            points: [point],
+            color: color,
+            width: min(max(brushWidth, 1), 180),
+            opacity: min(max(brushOpacity, 0.05), 1),
+            tool: tool == .eraser ? .eraser : .brush,
+            brushPreset: brush.rawValue
+        )
+    }
+
+    func appendMetalStrokePoint(_ point: StrokePoint) {
+        activeMetalStroke?.points.append(point)
+    }
+
+    func endMetalStroke() {
+        guard let stroke = activeMetalStroke, let layer = activeLayer, canDraw else {
+            activeMetalStroke = nil
+            return
+        }
+        activeMetalStroke = nil
+        let before = metalStrokes(for: layer.id)
+        let after = before + [stroke]
+        metalUndoStack.append(MetalHistoryEntry(layerID: layer.id, before: before, after: after))
+        if metalUndoStack.count > 50 { metalUndoStack.removeFirst() }
+        metalRedoStack.removeAll()
+        saveMetalStrokes(after, for: layer)
+    }
+
+    func cancelMetalStroke() {
+        activeMetalStroke = nil
+    }
+
+    func undo() {
+        guard let entry = metalUndoStack.popLast(),
+              let layer = document.layers.first(where: { $0.id == entry.layerID }) else { return }
+        activeMetalStroke = nil
+        metalRedoStack.append(entry)
+        saveMetalStrokes(entry.before, for: layer)
+    }
+
+    func redo() {
+        guard let entry = metalRedoStack.popLast(),
+              let layer = document.layers.first(where: { $0.id == entry.layerID }) else { return }
+        activeMetalStroke = nil
+        metalUndoStack.append(entry)
+        saveMetalStrokes(entry.after, for: layer)
     }
 
     func selectLayer(_ id: UUID) {
         guard document.layers.contains(where: { $0.id == id }) else { return }
+        activeMetalStroke = nil
         activeLayerID = id
         if activeLayer?.kind == .image {
             tool = .brush
@@ -83,7 +136,8 @@ final class DrawingSession: ObservableObject {
         let number = document.layers.filter { $0.kind == .paint }.count + 1
         let layer = ArtworkLayer.paint(name: name ?? "Ebene \(number)")
         document.layers.append(layer)
-        drawings[layer.id] = PKDrawing()
+        metalStrokesByLayer[layer.id] = []
+        library.saveMetalStrokes([], for: layer, artworkID: document.id)
         activeLayerID = layer.id
         touchDocument()
     }
@@ -103,7 +157,8 @@ final class DrawingSession: ObservableObject {
         if asTemplate {
             let paint = ArtworkLayer.paint(name: "Zeichnen")
             document.layers.append(paint)
-            drawings[paint.id] = PKDrawing()
+            metalStrokesByLayer[paint.id] = []
+            library.saveMetalStrokes([], for: paint, artworkID: document.id)
             activeLayerID = paint.id
         } else {
             activeLayerID = layer.id
@@ -182,11 +237,16 @@ final class DrawingSession: ObservableObject {
               let index = document.layers.firstIndex(where: { $0.id == id }) else { return }
         let layer = document.layers[index]
         library.removeLayerAsset(fileName: layer.contentFile, artworkID: document.id)
+        if layer.kind == .paint {
+            library.removeLayerAsset(fileName: library.metalStrokesFile(for: layer), artworkID: document.id)
+        }
         if let maskFile = layer.alphaMaskFile {
             library.removeLayerAsset(fileName: maskFile, artworkID: document.id)
         }
         document.layers.remove(at: index)
-        drawings[id] = nil
+        metalStrokesByLayer[id] = nil
+        metalUndoStack.removeAll { $0.layerID == id }
+        metalRedoStack.removeAll { $0.layerID == id }
         if activeLayerID == id {
             activeLayerID = document.layers[min(index, document.layers.count - 1)].id
         }
@@ -209,9 +269,11 @@ final class DrawingSession: ObservableObject {
 
         if let data = library.layerData(original, artworkID: document.id) {
             library.saveLayerData(data, layer: copy, artworkID: document.id)
-            if copy.kind == .paint, let drawing = try? PKDrawing(data: data) {
-                drawings[copy.id] = drawing
-            }
+        }
+        if original.kind == .paint {
+            let strokes = metalStrokes(for: original.id)
+            metalStrokesByLayer[copy.id] = strokes
+            library.saveMetalStrokes(strokes, for: copy, artworkID: document.id)
         }
         if original.alphaLock,
            let originalMask = original.alphaMaskFile,
@@ -306,6 +368,7 @@ final class DrawingSession: ObservableObject {
         let lower = document.layers[lowerIndex]
         let upper = document.layers[upperIndex]
         var temp = document
+        temp.background = .transparent
         temp.layers = [lower, upper]
         let image = ArtworkRenderer.render(document: temp, library: library)
         guard let data = image.pngData() else { return }
@@ -314,8 +377,13 @@ final class DrawingSession: ObservableObject {
         library.saveLayerData(data, layer: merged, artworkID: document.id)
         document.layers.remove(at: upperIndex)
         document.layers[lowerIndex] = merged
-        drawings[upper.id] = nil
-        drawings[lower.id] = nil
+        metalStrokesByLayer[upper.id] = nil
+        metalStrokesByLayer[lower.id] = nil
+        for layer in [lower, upper] where layer.kind == .paint {
+            library.removeLayerAsset(fileName: library.metalStrokesFile(for: layer), artworkID: document.id)
+        }
+        metalUndoStack.removeAll { $0.layerID == lower.id || $0.layerID == upper.id }
+        metalRedoStack.removeAll { $0.layerID == lower.id || $0.layerID == upper.id }
         activeLayerID = merged.id
         touchDocument()
     }
@@ -345,15 +413,16 @@ final class DrawingSession: ObservableObject {
         touchDocument()
     }
 
-    private func loadPaintDrawings() {
+    private func loadMetalStrokes() {
         for layer in document.layers where layer.kind == .paint {
-            guard let data = library.layerData(layer, artworkID: document.id),
-                  let drawing = try? PKDrawing(data: data) else {
-                drawings[layer.id] = PKDrawing()
-                continue
-            }
-            drawings[layer.id] = drawing
+            metalStrokesByLayer[layer.id] = library.metalStrokes(for: layer, artworkID: document.id)
         }
+    }
+
+    private func saveMetalStrokes(_ strokes: [MetalPaintStroke], for layer: ArtworkLayer) {
+        metalStrokesByLayer[layer.id] = strokes
+        library.saveMetalStrokes(strokes, for: layer, artworkID: document.id)
+        touchDocument()
     }
 
     private func touchDocument() {

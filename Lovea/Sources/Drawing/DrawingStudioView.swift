@@ -1,11 +1,11 @@
 import PhotosUI
-import PencilKit
 import SwiftUI
 import UIKit
 
 struct DrawingStudioView: View {
     @StateObject private var session: DrawingSession
-    @StateObject private var canvasController = PencilCanvasController()
+    @StateObject private var canvasController = ArtworkMetalCanvasController()
+    @State private var canvasImages = ArtworkCanvasImageCache()
     @ObservedObject private var sharing: LoveaSharingService
     @State private var showsLayers = false
     @State private var showsInsertTools = false
@@ -26,22 +26,15 @@ struct DrawingStudioView: View {
                 .ignoresSafeArea()
 
             if let active = session.activeLayer, active.kind == .paint {
-                PencilCanvasRepresentable(
-                    drawing: session.drawing(for: active.id),
-                    canvasSize: session.canvasSize,
-                    tool: session.tool,
-                    brush: session.brush,
-                    color: session.color,
-                    brushWidth: session.brushWidth,
-                    brushOpacity: session.brushOpacity,
-                    drawsWithFinger: session.drawsWithFinger,
-                    rulerActive: session.rulerActive,
-                    isLocked: active.isLocked,
-                    backgroundImage: imageBelowActiveLayer,
-                    foregroundImage: imageAboveActiveLayer,
-                    controller: canvasController,
-                    onDrawingChanged: { session.updateDrawing($0, for: active.id) },
-                    onCanvasTap: { session.handleCanvasTap($0) }
+                let images = canvasImages.images(for: session)
+                ArtworkMetalCanvasRepresentable(
+                    session: session,
+                    backgroundImage: images.lower,
+                    legacyLayerImage: images.legacy,
+                    foregroundImage: images.upper,
+                    alphaMaskImage: images.alphaMask,
+                    clippingMaskImage: images.clippingMask,
+                    controller: canvasController
                 )
             } else if let active = session.activeLayer, active.kind == .image {
                 ImageLayerEditor(session: session, layerID: active.id)
@@ -140,8 +133,6 @@ struct DrawingStudioView: View {
                 Divider()
 
                 Toggle("Mit Finger zeichnen", isOn: $session.drawsWithFinger)
-                Toggle("Lineal", isOn: $session.rulerActive)
-
                 Button("Ansicht zurücksetzen") {
                     canvasController.resetView()
                 }
@@ -177,7 +168,7 @@ struct DrawingStudioView: View {
         VStack(spacing: 8) {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    ForEach(StudioTool.allCases) { tool in
+                    ForEach(StudioTool.allCases.filter { $0 != .lasso }) { tool in
                         Button {
                             session.tool = tool
                         } label: {
@@ -307,22 +298,6 @@ struct DrawingStudioView: View {
 
     private var isLiveShared: Bool {
         session.document.liveReadOnlyShare || currentProject?.sharedReadOnly == true
-    }
-
-    private var imageBelowActiveLayer: UIImage? {
-        guard let index = session.document.layers.firstIndex(where: { $0.id == session.activeLayerID }) else { return nil }
-        var doc = session.document
-        doc.layers = Array(doc.layers.prefix(index))
-        return ArtworkRenderer.render(document: doc, library: session.library)
-    }
-
-    private var imageAboveActiveLayer: UIImage? {
-        guard let index = session.document.layers.firstIndex(where: { $0.id == session.activeLayerID }),
-              index + 1 < session.document.layers.count else { return nil }
-        var doc = session.document
-        doc.background = .transparent
-        doc.layers = Array(doc.layers.suffix(from: index + 1))
-        return ArtworkRenderer.render(document: doc, library: session.library)
     }
 
     private func importPhoto(_ item: PhotosPickerItem?, asTemplate: Bool) {
@@ -507,5 +482,81 @@ private struct ImageLayerEditor: View {
         var doc = session.document
         doc.layers.removeAll { $0.id == layerID }
         return ArtworkRenderer.render(document: doc, library: session.library)
+    }
+}
+
+private final class ArtworkCanvasImageCache {
+    struct Images {
+        let lower: UIImage?
+        let legacy: UIImage?
+        let upper: UIImage?
+        let alphaMask: UIImage?
+        let clippingMask: UIImage?
+    }
+
+    private struct Key: Equatable {
+        let artworkID: UUID
+        let activeLayerID: UUID
+        let background: CanvasBackground
+        let layers: [ArtworkLayer]
+    }
+
+    private var key: Key?
+    private var cached: Images?
+
+    @MainActor
+    func images(for session: DrawingSession) -> Images {
+        let document = session.document
+        let nextKey = Key(
+            artworkID: document.id,
+            activeLayerID: session.activeLayerID,
+            background: document.background,
+            layers: document.layers
+        )
+        if key == nextKey, let cached { return cached }
+
+        guard let index = document.layers.firstIndex(where: { $0.id == session.activeLayerID }) else {
+            let empty = Images(lower: nil, legacy: nil, upper: nil, alphaMask: nil, clippingMask: nil)
+            key = nextKey
+            cached = empty
+            return empty
+        }
+
+        let active = document.layers[index]
+        var lowerDocument = document
+        lowerDocument.layers = Array(document.layers.prefix(index))
+        let lower = ArtworkRenderer.render(document: lowerDocument, library: session.library)
+
+        var upper: UIImage?
+        if index + 1 < document.layers.count {
+            var upperDocument = document
+            upperDocument.background = .transparent
+            upperDocument.layers = Array(document.layers.suffix(from: index + 1))
+            upper = ArtworkRenderer.render(document: upperDocument, library: session.library)
+        }
+
+        var alphaMask: UIImage?
+        if active.alphaLock,
+           let file = active.alphaMaskFile,
+           let data = session.library.layerAsset(fileName: file, artworkID: document.id) {
+            alphaMask = UIImage(data: data)
+        }
+
+        var clippingMask: UIImage?
+        if active.clipping,
+           let previous = document.layers[..<index].last(where: { $0.isVisible }) {
+            clippingMask = ArtworkRenderer.layerImage(previous, document: document, library: session.library)
+        }
+
+        let images = Images(
+            lower: lower,
+            legacy: ArtworkRenderer.legacyPaintImage(active, document: document, library: session.library),
+            upper: upper,
+            alphaMask: alphaMask,
+            clippingMask: clippingMask
+        )
+        key = nextKey
+        cached = images
+        return images
     }
 }

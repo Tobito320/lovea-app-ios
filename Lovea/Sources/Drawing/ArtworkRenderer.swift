@@ -59,15 +59,23 @@ enum ArtworkRenderer {
         document: ArtworkDocument,
         library: ArtworkLibrary
     ) -> UIImage? {
-        guard let data = library.layerData(layer, artworkID: document.id) else { return nil }
         let size = CGSize(width: CGFloat(document.canvasWidth), height: CGFloat(document.canvasHeight))
-        let bounds = CGRect(origin: .zero, size: size)
         let base: UIImage?
         switch layer.kind {
         case .paint:
-            guard let drawing = try? PKDrawing(data: data) else { return nil }
-            base = drawing.image(from: bounds, scale: 1)
+            let legacy = legacyPaintImage(layer, document: document, library: library)
+            let metalFile = library.metalStrokesFile(for: layer)
+            if library.layerAsset(fileName: metalFile, artworkID: document.id) != nil {
+                base = renderMetalStrokes(
+                    library.metalStrokes(for: layer, artworkID: document.id),
+                    size: size,
+                    over: legacy
+                )
+            } else {
+                base = legacy
+            }
         case .image:
+            guard let data = library.layerData(layer, artworkID: document.id) else { return nil }
             base = UIImage(data: data)
         }
 
@@ -79,6 +87,115 @@ enum ArtworkRenderer {
             image = clipped(image, toAlphaOf: mask, size: size)
         }
         return image
+    }
+
+    @MainActor
+    static func legacyPaintImage(
+        _ layer: ArtworkLayer,
+        document: ArtworkDocument,
+        library: ArtworkLibrary
+    ) -> UIImage? {
+        guard layer.kind == .paint,
+              let data = library.layerData(layer, artworkID: document.id),
+              let drawing = try? PKDrawing(data: data) else { return nil }
+        let bounds = CGRect(
+            x: 0,
+            y: 0,
+            width: CGFloat(document.canvasWidth),
+            height: CGFloat(document.canvasHeight)
+        )
+        return drawing.image(from: bounds, scale: 1)
+    }
+
+    private static func renderMetalStrokes(
+        _ strokes: [MetalPaintStroke],
+        size: CGSize,
+        over legacy: UIImage?
+    ) -> UIImage {
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: size, format: format).image { output in
+            let context = output.cgContext
+            legacy?.draw(in: CGRect(origin: .zero, size: size))
+            for stroke in strokes {
+                guard let first = stroke.points.first else { continue }
+                context.saveGState()
+                context.setBlendMode(stroke.tool == .eraser ? .destinationOut : .normal)
+                let hardness = brushHardness(for: stroke)
+                let alpha = min(max(stroke.color.alpha * stroke.opacity, 0), 1)
+                guard let gradient = stampGradient(color: stroke.color, alpha: alpha, hardness: hardness) else {
+                    context.restoreGState()
+                    continue
+                }
+
+                func stamp(_ center: CGPoint, radius: CGFloat) {
+                    context.drawRadialGradient(
+                        gradient,
+                        startCenter: center,
+                        startRadius: 0,
+                        endCenter: center,
+                        endRadius: max(radius, 0.5),
+                        options: []
+                    )
+                }
+
+                let firstPoint = CGPoint(x: first.x, y: first.y)
+                let firstRadius = CGFloat(max(stroke.width, 1) * max(first.pressure, 0.1) / 2)
+                stamp(firstPoint, radius: firstRadius)
+
+                for index in 1..<stroke.points.count {
+                    let previous = stroke.points[index - 1]
+                    let current = stroke.points[index]
+                    let from = CGPoint(x: previous.x, y: previous.y)
+                    let to = CGPoint(x: current.x, y: current.y)
+                    let previousRadius = CGFloat(max(stroke.width, 1) * max(previous.pressure, 0.1) / 2)
+                    let nextRadius = CGFloat(max(stroke.width, 1) * max(current.pressure, 0.1) / 2)
+                    let distance = hypot(to.x - from.x, to.y - from.y)
+                    let spacing = max(min(nextRadius * 0.4, 3), 0.5)
+                    let count = max(1, Int(ceil(distance / spacing)))
+                    for step in 1...count {
+                        let fraction = CGFloat(step) / CGFloat(count)
+                        let center = CGPoint(
+                            x: from.x + (to.x - from.x) * fraction,
+                            y: from.y + (to.y - from.y) * fraction
+                        )
+                        stamp(center, radius: previousRadius + (nextRadius - previousRadius) * fraction)
+                    }
+                }
+                context.restoreGState()
+            }
+        }
+    }
+
+    private static func brushHardness(for stroke: MetalPaintStroke) -> CGFloat {
+        if stroke.tool == .eraser { return 0.94 }
+        switch stroke.brushPreset {
+        case "airbrush", "watercolor": return 0.08
+        case "pencil", "chalk": return 0.55
+        case "highlighter": return 0.82
+        default: return 0.94
+        }
+    }
+
+    private static func stampGradient(
+        color: RGBAColor,
+        alpha: Double,
+        hardness: CGFloat
+    ) -> CGGradient? {
+        let steps = (0...16).map { CGFloat($0) / 16 }
+        let locations = [CGFloat(0)] + steps.map { hardness + (1 - hardness) * $0 }
+        let colors: [CGColor] = locations.enumerated().map { index, _ in
+            let t = index == 0 ? CGFloat(0) : steps[index - 1]
+            let coverage = index == 0 ? CGFloat(1) : 1 - t * t * (3 - 2 * t)
+            return UIColor(
+                red: CGFloat(color.red),
+                green: CGFloat(color.green),
+                blue: CGFloat(color.blue),
+                alpha: CGFloat(alpha) * coverage
+            ).cgColor
+        }
+        return CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors as CFArray, locations: locations)
     }
 
     private static func drawBackground(_ background: CanvasBackground, size: CGSize, in context: CGContext) {

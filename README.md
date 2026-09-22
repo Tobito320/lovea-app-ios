@@ -19,16 +19,16 @@ Das alte permanente Shared Board gehört nicht mehr zum Produktplan.
 - genau drei Tabs: Home, Zeichnen und Profil
 - `Meine Galerie` mit mehreren Zeichnungen und Projekten
 - lokale Artwork-Ordner mit Dokument, Vorschau und getrennten Layer-Dateien
-- PencilKit-Zeichenfläche für iPad/Apple Pencil und iPhone
+- MetalKit-Zeichenfläche für iPad/Apple Pencil und iPhone
 - zehn kuratierte Brush-Presets
-- Pinsel, Radierer, Lasso, Pipette und Farbeimer
+- Pinsel, Radierer, Pipette und Farbeimer
 - Foto aus der Mediathek als eigene Ebene
 - Schnellaktion `Foto als Schablone`
 - Paint- und Image-Layer
 - Sichtbarkeit, Sperren, Deckkraft, Duplizieren, Reihenfolge und Merge-down
 - acht Blend Modes, Clipping und Transparenz schützen
 - Formen und Text
-- Zoom, Verschieben, Lineal, Undo/Redo und Mehrfinger-Gesten
+- Zoom, Verschieben, Rotieren, Undo/Redo und Mehrfinger-Gesten
 - lokales Autosave, Galerie-Vorschauen und Bildexport
 - Level 2: Snapshot senden, read-only Live-Freigabe und Projektfreigabe über das private Lovea-Backend
 - iPhone und iPad ab iOS 18
@@ -37,11 +37,11 @@ Das alte permanente Shared Board gehört nicht mehr zum Produktplan.
 
 - `ArtworkLibrary` – Galerie, Projekte und lokale Dateien
 - `DrawingSession` – Dokumentzustand und Zeichenaktionen
-- `PencilCanvasRepresentable` – PencilKit-Eingabe
+- `ArtworkMetalCanvasRepresentable` – Metal-Eingabe und Darstellung neuer Striche
 - `ArtworkRenderer` – Ebenen-Compositing und Export
 - `LoveaSharingService` – Level-2-Freigaben
 
-Die alte Metal-Zeichenbasis liegt noch im Repository, ist aber nicht mehr der Hauptpfad des aktuellen Studios.
+Ältere PencilKit-Zeichnungen bleiben lesbar. Neue Striche werden getrennt gespeichert und im Studio mit Metal gerendert. Die ältere, getrennte Metal-Basis bleibt vorerst im Repository, ist aber nicht der aktive Studio-Pfad.
 
 ## Projekt erzeugen
 

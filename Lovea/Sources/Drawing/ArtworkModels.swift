@@ -106,6 +106,21 @@ struct ArtworkLayer: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
+enum MetalStrokeTool: String, Codable, Equatable, Sendable {
+    case brush
+    case eraser
+}
+
+struct MetalPaintStroke: Identifiable, Codable, Equatable, Sendable {
+    var id = UUID()
+    var points: [StrokePoint]
+    var color: RGBAColor
+    var width: Double
+    var opacity: Double
+    var tool: MetalStrokeTool
+    var brushPreset: String
+}
+
 struct ArtworkProject: Identifiable, Codable, Equatable, Sendable {
     var id = UUID()
     var name: String

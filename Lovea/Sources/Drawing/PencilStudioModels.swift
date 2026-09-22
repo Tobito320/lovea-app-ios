@@ -1,4 +1,3 @@
-import PencilKit
 import UIKit
 
 enum StudioTool: String, CaseIterable, Identifiable {
@@ -57,21 +56,6 @@ enum BrushPreset: String, CaseIterable, Identifiable {
         case .calligraphy: "Kalligrafie"
         case .highlighter: "Leuchtstift"
         case .pixel: "Pixel"
-        }
-    }
-
-    var inkType: PKInkingTool.InkType {
-        switch self {
-        case .pen: .pen
-        case .gPen: .fountainPen
-        case .pencil: .pencil
-        case .marker: .marker
-        case .airbrush: .watercolor
-        case .watercolor: .watercolor
-        case .chalk: .crayon
-        case .calligraphy: .fountainPen
-        case .highlighter: .marker
-        case .pixel: .monoline
         }
     }
 
