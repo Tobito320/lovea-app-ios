@@ -29,7 +29,7 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
     let color: RGBAColor
     let brushWidth: Double
     let brushOpacity: Double
-    let stabilizer: Double
+    var stabilizer: Double = 5
     let drawsWithFinger: Bool
     let rulerActive: Bool
     let isLocked: Bool
