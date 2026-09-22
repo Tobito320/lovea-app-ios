@@ -29,6 +29,7 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
     let color: RGBAColor
     let brushWidth: Double
     let brushOpacity: Double
+    let stabilizer: Double
     let drawsWithFinger: Bool
     let rulerActive: Bool
     let isLocked: Bool
@@ -167,6 +168,21 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard !isApplyingExternalDrawing else { return }
             parent.onDrawingChanged(canvasView.drawing)
+        }
+
+        func canvasViewDidEndUsingTool(_ canvasView: PKCanvasView) {
+            guard parent.tool == .brush, parent.stabilizer > 0 else { return }
+            let processed = StrokeProcessor.processLatestStroke(
+                in: canvasView.drawing,
+                stabilizer: parent.stabilizer,
+                pressureControlsSize: true,
+                pressureControlsOpacity: true
+            )
+            guard processed.dataRepresentation() != canvasView.drawing.dataRepresentation() else { return }
+            isApplyingExternalDrawing = true
+            canvasView.drawing = processed
+            isApplyingExternalDrawing = false
+            parent.onDrawingChanged(processed)
         }
 
         @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
