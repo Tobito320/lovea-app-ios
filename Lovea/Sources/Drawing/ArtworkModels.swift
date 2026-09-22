@@ -93,6 +93,7 @@ struct ArtworkLayer: Identifiable, Codable, Equatable, Sendable {
     var blendMode: LayerBlendMode = .normal
     var clipping = false
     var alphaLock = false
+    var alphaMaskFile: String?
     var transform = LayerTransform()
     var contentFile: String
 
@@ -123,7 +124,7 @@ struct ArtworkDocument: Identifiable, Codable, Equatable, Sendable {
     var background: CanvasBackground
     var createdAt = Date()
     var updatedAt = Date()
-    var schemaVersion = 1
+    var schemaVersion = 2
     var layers: [ArtworkLayer]
     var liveReadOnlyShare = false
 
