@@ -43,3 +43,4 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: com.ahmed.wirapp.tests
         GENERATE_INFOPLIST_FILE: YES
         SWIFT_VERSION: "6.0"
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Wir.app/Wir"
