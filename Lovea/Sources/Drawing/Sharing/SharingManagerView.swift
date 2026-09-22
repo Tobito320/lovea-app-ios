@@ -109,7 +109,7 @@ struct SharingManagerView: View {
         message = nil
         Task {
             do {
-                let image = ArtworkRenderer.render(document: artwork, library: library)
+                guard let image = await CanvasEngine.renderImage(document: artwork, library: library) else { throw SharingError(status: 0, message: "Bild konnte nicht erstellt werden.") }
                 try await sharing.sendSnapshot(document: artwork, image: image)
                 message = "Bild an \(partner.rawValue) gesendet."
             } catch {
@@ -126,7 +126,7 @@ struct SharingManagerView: View {
             do {
                 if enabled {
                     let project = artwork.projectID.flatMap { id in library.projects.first(where: { $0.id == id }) }
-                    let image = ArtworkRenderer.render(document: artwork, library: library)
+                    guard let image = await CanvasEngine.renderImage(document: artwork, library: library) else { throw SharingError(status: 0, message: "Bild konnte nicht erstellt werden.") }
                     try await sharing.publishLive(document: artwork, project: project, image: image)
                 } else {
                     try await sharing.stopLive(artworkID: artwork.id)
@@ -155,7 +155,7 @@ struct SharingManagerView: View {
                 let projectArtworks = library.artworks.filter { $0.projectID == project.id }
                 if enabled {
                     for artwork in projectArtworks {
-                        let image = ArtworkRenderer.render(document: artwork, library: library)
+                        guard let image = await CanvasEngine.renderImage(document: artwork, library: library) else { throw SharingError(status: 0, message: "Bild konnte nicht erstellt werden.") }
                         try await sharing.publishLive(document: artwork, project: project, image: image)
                     }
                 } else {

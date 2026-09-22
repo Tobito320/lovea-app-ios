@@ -17,6 +17,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea
         PRODUCT_NAME: Lovea
+        SWIFT_OPTIMIZATION_LEVEL: "-O"
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Lovea
@@ -37,12 +38,25 @@ targets:
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea.tests
+  LoveaUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - Lovea/UITests
+    dependencies:
+      - target: Lovea
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea.uitests
+        TEST_TARGET_NAME: Lovea
 schemes:
   Lovea:
     build:
       targets:
         Lovea: all
         LoveaTests: [test]
+        LoveaUITests: [test]
     test:
       targets:
         - LoveaTests
+        - LoveaUITests

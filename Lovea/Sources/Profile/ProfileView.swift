@@ -3,6 +3,7 @@ import SwiftUI
 struct ProfileView: View {
     let person: LoveaPerson
     let onChangePerson: () -> Void
+    @AppStorage("profile.performanceHUD") private var showsHUD = false
 
     var body: some View {
         NavigationStack {
@@ -16,6 +17,9 @@ struct ProfileView: View {
 
                 VStack(spacing: 0) {
                     LabeledContent("Partner", value: person.partner.rawValue)
+                        .frame(minHeight: 52)
+                    Divider()
+                    Toggle("Leistungsanzeige", isOn: $showsHUD)
                         .frame(minHeight: 52)
                     Divider()
                     Button("Person wechseln", action: onChangePerson)

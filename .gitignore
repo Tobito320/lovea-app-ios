@@ -14,3 +14,4 @@ AuthKey_*.p8
 *.csr
 signing/
 .superpowers/
+.claude/

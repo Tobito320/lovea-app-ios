@@ -100,6 +100,10 @@ struct LayerTransform: Codable, Equatable, Sendable {
     var rotation = 0.0
     var flipX = false
     var flipY = false
+    /// Height factor relative to `scale` for free (non-proportional) scaling. nil = proportional.
+    var stretch: Double?
+
+    var scaleY: Double { scale * (stretch ?? 1) }
 }
 
 struct ArtworkLayer: Identifiable, Codable, Equatable, Sendable {
@@ -117,64 +121,13 @@ struct ArtworkLayer: Identifiable, Codable, Equatable, Sendable {
     var contentFile: String
 
     static func paint(name: String = "Ebene 1") -> ArtworkLayer {
-        ArtworkLayer(name: name, kind: .paint, contentFile: "\(UUID().uuidString).drawing")
+        let id = UUID()
+        return ArtworkLayer(id: id, name: name, kind: .paint, contentFile: "\(id.uuidString).png")
     }
 
     static func image(name: String = "Bild") -> ArtworkLayer {
-        ArtworkLayer(name: name, kind: .image, contentFile: "\(UUID().uuidString).png")
-    }
-}
-
-enum MetalStrokeTool: String, Codable, Equatable, Sendable {
-    case brush
-    case eraser
-}
-
-struct MetalPaintStroke: Identifiable, Codable, Equatable, Sendable {
-    var id = UUID()
-    var points: [StrokePoint]
-    var color: RGBAColor
-    var width: Double
-    var opacity: Double
-    var tool: MetalStrokeTool
-    var brushPreset: String
-    var pressureControlsSize = true
-    var pressureControlsOpacity = false
-    var stabilizer = 0.0
-}
-
-extension MetalPaintStroke {
-    private enum CodingKeys: String, CodingKey {
-        case id, points, color, width, opacity, tool, brushPreset
-        case pressureControlsSize, pressureControlsOpacity, stabilizer
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        id = try values.decode(UUID.self, forKey: .id)
-        points = try values.decode([StrokePoint].self, forKey: .points)
-        color = try values.decode(RGBAColor.self, forKey: .color)
-        width = try values.decode(Double.self, forKey: .width)
-        opacity = try values.decode(Double.self, forKey: .opacity)
-        tool = try values.decode(MetalStrokeTool.self, forKey: .tool)
-        brushPreset = try values.decode(String.self, forKey: .brushPreset)
-        pressureControlsSize = try values.decodeIfPresent(Bool.self, forKey: .pressureControlsSize) ?? true
-        pressureControlsOpacity = try values.decodeIfPresent(Bool.self, forKey: .pressureControlsOpacity) ?? false
-        stabilizer = try values.decodeIfPresent(Double.self, forKey: .stabilizer) ?? 0
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var values = encoder.container(keyedBy: CodingKeys.self)
-        try values.encode(id, forKey: .id)
-        try values.encode(points, forKey: .points)
-        try values.encode(color, forKey: .color)
-        try values.encode(width, forKey: .width)
-        try values.encode(opacity, forKey: .opacity)
-        try values.encode(tool, forKey: .tool)
-        try values.encode(brushPreset, forKey: .brushPreset)
-        try values.encode(pressureControlsSize, forKey: .pressureControlsSize)
-        try values.encode(pressureControlsOpacity, forKey: .pressureControlsOpacity)
-        try values.encode(stabilizer, forKey: .stabilizer)
+        let id = UUID()
+        return ArtworkLayer(id: id, name: name, kind: .image, contentFile: "image-\(id.uuidString).png")
     }
 }
 
@@ -196,7 +149,7 @@ struct ArtworkDocument: Identifiable, Codable, Equatable, Sendable {
     var background: CanvasBackground
     var createdAt = Date()
     var updatedAt = Date()
-    var schemaVersion = 2
+    var schemaVersion = 3
     var layers: [ArtworkLayer]
     var liveReadOnlyShare = false
 

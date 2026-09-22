@@ -4,350 +4,302 @@ import UIKit
 
 struct DrawingStudioView: View {
     @StateObject private var session: DrawingSession
-    @StateObject private var canvasController = ArtworkMetalCanvasController()
-    @State private var canvasImages = ArtworkCanvasImageCache()
+    @StateObject private var palette: ColorPaletteStore
     @ObservedObject private var sharing: LoveaSharingService
-    @State private var showsLayers = false
-    @State private var showsInsertTools = false
-    @State private var showsBrushSettings = false
-    @State private var exportImage: UIImage?
+    @Environment(\.horizontalSizeClass) private var sizeClass
+    @Environment(\.scenePhase) private var scenePhase
+    @AppStorage("studio.glass") private var glass = true
+    @AppStorage("profile.performanceHUD") private var showsHUD = false
+    @State private var showsLayers = true
+    @State private var showsLayerSheet = false
+    @State private var showsText = false
+    @State private var showsExport = false
+    @State private var adjustment: Adjustment?
+    @State private var viewMirrored = false
     @State private var imageItem: PhotosPickerItem?
     @State private var templateItem: PhotosPickerItem?
+    @State private var templateData: Data?
     @State private var livePublishTask: Task<Void, Never>?
     @State private var shareMessage: String?
 
-    init(artworkID: UUID, library: ArtworkLibrary, sharing: LoveaSharingService) {
+    init(artworkID: UUID, library: ArtworkLibrary, sharing: LoveaSharingService, templateData: Data? = nil) {
         _session = StateObject(wrappedValue: DrawingSession(artworkID: artworkID, library: library))
+        _palette = StateObject(wrappedValue: ColorPaletteStore(person: sharing.person.apiID))
+        _templateData = State(initialValue: templateData)
         self.sharing = sharing
     }
 
+    private var compact: Bool { sizeClass == .compact }
+
     var body: some View {
-        ZStack(alignment: .top) {
-            Color(uiColor: .secondarySystemBackground)
-                .ignoresSafeArea()
-
-            if let active = session.activeLayer, active.kind == .paint {
-                let images = canvasImages.images(for: session)
-                ArtworkMetalCanvasRepresentable(
-                    session: session,
-                    backgroundImage: images.lower,
-                    legacyLayerImage: images.legacy,
-                    foregroundImage: images.upper,
-                    alphaMaskImage: images.alphaMask,
-                    clippingMaskImage: images.clippingMask,
-                    controller: canvasController
-                )
-            } else if let active = session.activeLayer, active.kind == .image {
-                ImageLayerEditor(session: session, layerID: active.id)
-            } else {
-                ContentUnavailableView("Keine Ebene", systemImage: "square.3.layers.3d")
+        ZStack {
+            Color(uiColor: .secondarySystemBackground).ignoresSafeArea()
+            CanvasRepresentable(session: session).ignoresSafeArea()
+            CanvasOverlay(state: session.canvasState, session: session).ignoresSafeArea()
+            if session.isTransforming {
+                TransformOverlay(state: session.canvasState, session: session).ignoresSafeArea(edges: .bottom)
             }
+        }
+        .overlay(alignment: .top) { topMessages }
+        .overlay(alignment: .topTrailing) {
+            if showsHUD { PerformanceHUD(session: session).padding(12) }
+        }
+        .overlay(alignment: .leading) {
+            if !compact, !session.isTransforming {
+                SizeOpacityRail(session: session, compact: false, glass: glass).padding(.leading, 12)
+            }
+        }
+        .overlay(alignment: .bottom) { bottomControls }
+        .overlay { QuickMenuOverlay(state: session.canvasState, session: session, palette: palette) }
+        .overlay(alignment: .trailing) {
+            if !compact, showsLayers {
+                ArtworkLayersView(session: session)
+                    .frame(width: 320)
+                    .background(.background)
+                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .shadow(color: .black.opacity(0.12), radius: 12)
+                    .padding(12)
+                    .transition(.move(edge: .trailing))
+            }
+        }
+        .navigationTitle(session.document.name)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar(.hidden, for: .tabBar)
+        .toolbar { studioToolbar }
+        .sheet(isPresented: $showsLayerSheet) { LayersSheet(session: session) }
+        .sheet(isPresented: $showsText) { TextSheet(session: session) }
+        .sheet(isPresented: $showsExport) {
+            ArtworkExportSheet(artwork: session.document, library: session.library)
+        }
+        .sheet(isPresented: compact ? $session.showsColorPanel : .constant(false)) {
+            colorPanel.presentationDetents([.medium, .large])
+        }
+        .alert("Speicher voll", isPresented: Binding(get: { session.memoryFull }, set: { if !$0 { session.dismissMemoryNotice() } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Speicher voll – Ebenen zusammenführen oder kleinere Leinwand wählen.")
+        }
+        .onAppear {
+            session.onColorUsed = { [weak palette] in palette?.use($0) }
+            if let templateData {
+                self.templateData = nil
+                Task { await session.importPhoto(templateData, asTemplate: true) }
+            }
+        }
+        .onChange(of: imageItem) { _, item in load(item, asTemplate: false) }
+        .onChange(of: templateItem) { _, item in load(item, asTemplate: true) }
+        .onChange(of: session.document.updatedAt) { _, _ in scheduleLivePublish() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { session.saveNow() }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIApplication.didReceiveMemoryWarningNotification)) { _ in
+            session.engine?.handleMemoryWarning()
+        }
+        .onDisappear {
+            livePublishTask?.cancel()
+            session.saveNow()
+        }
+    }
 
+    // MARK: Top bar
+
+    @ToolbarContentBuilder
+    private var studioToolbar: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            Button { session.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                .accessibilityLabel("Rückgängig")
+                .disabled(!session.canUndo)
+            Button { session.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                .accessibilityLabel("Wiederholen")
+                .disabled(!session.canRedo)
+            Button {
+                if compact { showsLayerSheet = true } else { withAnimation(.snappy) { showsLayers.toggle() } }
+            } label: { Image(systemName: "square.3.layers.3d") }
+                .accessibilityLabel("Ebenen")
+            moreMenu
+        }
+    }
+
+    private var moreMenu: some View {
+        Menu {
+            Menu {
+                ForEach(Adjustment.allCases) { item in
+                    Button(item.title) {
+                        adjustment = item
+                        session.previewAdjustment(item, amount: item.range.map { ($0.lowerBound + $0.upperBound) / 2 } ?? 0)
+                    }
+                }
+            } label: { Label("Anpassen", systemImage: "slider.horizontal.3") }
+            Menu {
+                ForEach(ShapeKind.allCases) { kind in
+                    Button {
+                        session.shapeKind = kind
+                        session.tool = .shape
+                    } label: { Label(kind.title, systemImage: kind.symbol) }
+                }
+                Toggle("Gefüllt", isOn: $session.shapeFilled)
+            } label: { Label("Formen", systemImage: "square.on.circle") }
+            Toggle(isOn: $session.lassoRectangle) { Label("Rechteck-Auswahl", systemImage: "rectangle.dashed") }
+            Toggle(isOn: $session.symmetry) { Label("Spiegelachse", systemImage: "square.split.2x1") }
+            Divider()
+            Toggle(isOn: $viewMirrored) { Label("Ansicht spiegeln", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right") }
+            Button { session.canvasState.resetView() } label: { Label("Ansicht zurücksetzen", systemImage: "arrow.up.left.and.down.right.magnifyingglass") }
+            Toggle(isOn: $session.drawsWithFinger) { Label("Mit Finger zeichnen", systemImage: "hand.draw") }
+            Divider()
+            Button { showsExport = true } label: { Label("Exportieren", systemImage: "square.and.arrow.up") }
+            if sharing.state == .connected {
+                Button("Als Bild an Partner senden") { sendSnapshot() }
+                if session.document.liveReadOnlyShare {
+                    Button("Live-Freigabe beenden", role: .destructive) { setLiveShare(false) }
+                } else {
+                    Button("Live ansehen lassen") { setLiveShare(true) }
+                }
+            }
+        } label: {
+            Image(systemName: "ellipsis.circle")
+        }
+        .accessibilityLabel("Mehr")
+        .onChange(of: viewMirrored) { _, value in session.canvasState.setMirrored(value) }
+    }
+
+    // MARK: Floating controls
+
+    @ViewBuilder
+    private var bottomControls: some View {
+        if let adjustment {
+            AdjustPanel(session: session, adjustment: adjustment, glass: glass) { self.adjustment = nil }
+                .padding(.bottom, 12)
+        } else if !session.isTransforming {
+            FloatingBarGroup {
+                VStack(spacing: 10) {
+                    if session.hasSelection { selectionBar }
+                    if session.tool == .fill { fillOptions }
+                    if compact, session.tool == .brush || session.tool == .eraser {
+                        SizeOpacityRail(session: session, compact: true, glass: glass)
+                    }
+                    ToolRail(
+                        session: session, compact: compact, glass: glass,
+                        templateItem: $templateItem, imageItem: $imageItem,
+                        onText: { showsText = true },
+                        onColor: { session.showsColorPanel = true },
+                        onLayers: { showsLayerSheet = true }
+                    )
+                    .popover(isPresented: compact ? .constant(false) : $session.showsColorPanel, arrowEdge: .bottom) {
+                        colorPanel.frame(width: 340, height: 560)
+                    }
+                }
+            }
+            .padding(.horizontal, 12)
+            .padding(.bottom, 8)
+        }
+    }
+
+    private var colorPanel: some View {
+        ColorPanel(
+            color: Binding(get: { session.color }, set: { session.setColor($0) }),
+            palette: palette,
+            onEyedropper: {
+                session.showsColorPanel = false
+                session.tool = .eyedropper
+            }
+        )
+    }
+
+    private var selectionBar: some View {
+        HStack(spacing: 2) {
+            ToolButton(title: "Auswahl aufheben", symbol: "xmark.circle") { session.clearSelection() }
+            ToolButton(title: "Auswahl umkehren", symbol: "circle.lefthalf.filled") { session.invertSelection() }
+            ToolButton(title: "Inhalt löschen", symbol: "trash") { session.deleteSelection() }
+            ToolButton(title: "Auf neue Ebene kopieren", symbol: "plus.square.on.square") { session.copySelection(cut: false) }
+            ToolButton(title: "Auf neue Ebene ausschneiden", symbol: "scissors") { session.copySelection(cut: true) }
+            ToolButton(title: "Transformieren", symbol: StudioTool.transform.symbol) {
+                session.tool = .transform
+                session.beginTransform()
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 2)
+        .floatingBar(glass: glass)
+    }
+
+    private var fillOptions: some View {
+        HStack(spacing: 12) {
+            Picker("Bezug", selection: $session.fillReference) {
+                ForEach(FillReference.allCases) { Text($0.title).tag($0) }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 240)
+            Text("Toleranz")
+                .font(.caption)
+            Slider(value: $session.fillTolerance, in: 0...0.5)
+                .frame(maxWidth: 180)
+                .accessibilityLabel("Toleranz")
+            Text("\(Int(session.fillTolerance * 100)) %")
+                .font(.caption.monospacedDigit())
+                .frame(minWidth: 40)
+        }
+        .padding(.horizontal, 16)
+        .frame(minHeight: 44)
+        .floatingBar(glass: glass)
+    }
+
+    @ViewBuilder
+    private var topMessages: some View {
+        VStack(spacing: 8) {
+            if let notice = session.notice {
+                HStack(spacing: 12) {
+                    Text(notice).font(.subheadline.weight(.medium))
+                    if session.noticeOffersRasterize {
+                        Button("Rastern") { session.rasterize(session.activeLayerID) }
+                            .buttonStyle(.bordered)
+                    }
+                }
+                .padding(.horizontal, 16)
+                .frame(minHeight: 44)
+                .background(.regularMaterial, in: Capsule())
+            }
+            if session.isBusy {
+                ProgressView().padding(10).background(.regularMaterial, in: Circle())
+            }
             if let shareMessage {
                 Text(shareMessage)
                     .font(.caption.weight(.medium))
                     .padding(.horizontal, 12)
                     .padding(.vertical, 7)
                     .background(.regularMaterial, in: Capsule())
-                    .padding(.top, 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
-        .navigationTitle(session.document.name)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar { studioToolbar }
-        .safeAreaInset(edge: .bottom) {
-            studioControls
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial)
-        }
-        .sheet(isPresented: $showsLayers) {
-            ArtworkLayersView(session: session)
-        }
-        .sheet(isPresented: $showsInsertTools) {
-            InsertToolsView(session: session)
-        }
-        .sheet(isPresented: $showsBrushSettings) {
-            BrushSettingsView(session: session)
-                .presentationDetents([.medium, .large])
-        }
-        .sheet(isPresented: Binding(
-            get: { exportImage != nil },
-            set: { if !$0 { exportImage = nil } }
-        )) {
-            if let exportImage {
-                ShareSheet(items: [exportImage])
+        .padding(.top, 8)
+        .animation(.snappy, value: session.notice)
+    }
+
+    // MARK: Photos
+
+    private func load(_ item: PhotosPickerItem?, asTemplate: Bool) {
+        guard let item else { return }
+        Task {
+            if let data = try? await item.loadTransferable(type: Data.self) {
+                await session.importPhoto(data, asTemplate: asTemplate)
             }
-        }
-        .onChange(of: imageItem) { _, item in
-            importPhoto(item, asTemplate: false)
-        }
-        .onChange(of: templateItem) { _, item in
-            importPhoto(item, asTemplate: true)
-        }
-        .onChange(of: session.document.updatedAt) { _, _ in
-            scheduleLivePublish()
-        }
-        .onDisappear {
-            livePublishTask?.cancel()
-            session.saveNow()
-            publishLiveImmediatelyIfNeeded()
+            if asTemplate { templateItem = nil } else { imageItem = nil }
         }
     }
 
-    @ToolbarContentBuilder
-    private var studioToolbar: some ToolbarContent {
-        ToolbarItemGroup(placement: .topBarLeading) {
-            Button {
-                canvasController.undo()
-            } label: {
-                Image(systemName: "arrow.uturn.backward")
-            }
-            .accessibilityLabel("Rückgängig")
-
-            Button {
-                canvasController.redo()
-            } label: {
-                Image(systemName: "arrow.uturn.forward")
-            }
-            .accessibilityLabel("Wiederholen")
-        }
-
-        ToolbarItemGroup(placement: .topBarTrailing) {
-            Button {
-                showsLayers = true
-            } label: {
-                Image(systemName: "square.3.layers.3d")
-            }
-            .accessibilityLabel("Ebenen")
-
-            Menu {
-                PhotosPicker(selection: $templateItem, matching: .images) {
-                    Label("Foto als Schablone", systemImage: "photo.badge.plus")
-                }
-                PhotosPicker(selection: $imageItem, matching: .images) {
-                    Label("Bild als Ebene importieren", systemImage: "photo.on.rectangle")
-                }
-                Button {
-                    showsInsertTools = true
-                } label: {
-                    Label("Formen, Text & Fülloptionen", systemImage: "square.on.circle")
-                }
-
-                Divider()
-
-                Toggle("Mit Finger zeichnen", isOn: $session.drawsWithFinger)
-                Button("Ansicht zurücksetzen") {
-                    canvasController.resetView()
-                }
-
-                Divider()
-
-                Button("Als PNG/Bild teilen") {
-                    exportImage = session.exportImage()
-                }
-
-                if sharing.state == .connected {
-                    Button("Als Bild an Partner senden") {
-                        sendSnapshot()
-                    }
-                    if session.document.liveReadOnlyShare {
-                        Button("Live-Freigabe beenden", role: .destructive) {
-                            setLiveShare(false)
-                        }
-                    } else {
-                        Button("Live ansehen lassen") {
-                            setLiveShare(true)
-                        }
-                    }
-                }
-            } label: {
-                Image(systemName: "ellipsis.circle")
-            }
-            .accessibilityLabel("Mehr")
-        }
-    }
-
-    private var studioControls: some View {
-        VStack(spacing: 8) {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    ForEach(StudioTool.allCases.filter { $0 != .lasso }) { tool in
-                        Button {
-                            session.tool = tool
-                        } label: {
-                            Image(systemName: tool.symbol)
-                                .frame(width: 42, height: 42)
-                                .background(session.tool == tool ? Color.accentColor.opacity(0.22) : Color.clear, in: Circle())
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(tool.title)
-                        .disabled(session.activeLayer?.kind != .paint)
-                    }
-
-                    Divider().frame(height: 30)
-
-                    Menu {
-                        ForEach(BrushPreset.allCases) { brush in
-                            Button {
-                                session.brush = brush
-                                session.tool = .brush
-                            } label: {
-                                if session.brush == brush {
-                                    Label(brush.title, systemImage: "checkmark")
-                                } else {
-                                    Text(brush.title)
-                                }
-                            }
-                        }
-                    } label: {
-                        Label(session.brush.title, systemImage: "paintbrush")
-                            .lineLimit(1)
-                    }
-                    .disabled(session.activeLayer?.kind != .paint)
-
-                    Button {
-                        showsBrushSettings = true
-                    } label: {
-                        Image(systemName: "slider.horizontal.3")
-                            .frame(width: 44, height: 44)
-                    }
-                    .accessibilityLabel("Pinsel einstellen")
-                    .disabled(session.activeLayer?.kind != .paint)
-
-                    ForEach(session.recentBrushes) { preset in
-                        Button {
-                            session.brush = preset
-                            session.tool = .brush
-                        } label: {
-                            Text(preset.title)
-                                .font(.caption.weight(.medium))
-                                .lineLimit(1)
-                                .padding(.horizontal, 8)
-                                .frame(height: 44)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Zuletzt benutzt: \(preset.title)")
-                    }
-
-                    ColorPicker("Farbe", selection: colorBinding, supportsOpacity: false)
-                        .labelsHidden()
-                        .disabled(session.activeLayer?.kind != .paint)
-                }
-            }
-
-            if session.activeLayer?.kind == .paint {
-                if session.tool == .fill {
-                    HStack(spacing: 8) {
-                        Text("Fülltoleranz")
-                            .font(.caption)
-                        Slider(value: $session.fillTolerance, in: 0...0.5)
-                        Text("\(Int(session.fillTolerance * 100))%")
-                            .font(.caption.monospacedDigit())
-                            .frame(width: 38)
-                    }
-                } else if session.tool == .brush || session.tool == .eraser {
-                    HStack(spacing: 8) {
-                        Text("Größe")
-                            .font(.caption)
-                        Slider(value: $session.brushWidth, in: 1...120)
-                        Text("\(Int(session.brushWidth))")
-                            .font(.caption.monospacedDigit())
-                            .frame(width: 32)
-                    }
-
-                    HStack(spacing: 8) {
-                        Text("Deckkraft")
-                            .font(.caption)
-                        Slider(value: $session.brushOpacity, in: 0.05...1)
-                        Text(session.brushOpacity, format: .percent.precision(.fractionLength(0)))
-                            .font(.caption.monospacedDigit())
-                            .frame(width: 42)
-                    }
-                } else {
-                    HStack {
-                        Text(session.tool == .eyedropper ? "Tippe auf eine Farbe in der Zeichnung." : "Auswahl mit dem Apple Pencil oder Finger umfahren.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                    }
-                }
-
-                HStack(spacing: 6) {
-                    ForEach(Array(session.recentColors.prefix(8).enumerated()), id: \.offset) { _, color in
-                        Button {
-                            session.setColor(color)
-                        } label: {
-                            Circle()
-                                .fill(Color(uiColor: color.uiColor))
-                                .frame(width: 26, height: 26)
-                                .overlay(Circle().stroke(.primary.opacity(0.15), lineWidth: 1))
-                                .frame(width: 38, height: 38)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                    Spacer()
-                    if isLiveShared {
-                        Label("Live · nur ansehen", systemImage: "eye.fill")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("✓ automatisch gespeichert")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            } else {
-                HStack {
-                    Image(systemName: "move.3d")
-                    Text("Bildebene: ziehen zum Verschieben, Regler zum Skalieren und Drehen")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                }
-            }
-        }
-    }
-
-    private var colorBinding: Binding<Color> {
-        Binding(
-            get: { Color(uiColor: session.color.uiColor) },
-            set: { newColor in
-                session.setColor(RGBAColor(uiColor: UIColor(newColor)))
-            }
-        )
-    }
+    // MARK: Level 2 (eingefroren, nur an die neue Export-Schnittstelle angepasst)
 
     private var currentProject: ArtworkProject? {
-        session.document.projectID.flatMap { id in
-            session.library.projects.first(where: { $0.id == id })
-        }
+        session.document.projectID.flatMap { id in session.library.projects.first(where: { $0.id == id }) }
     }
 
     private var isLiveShared: Bool {
         session.document.liveReadOnlyShare || currentProject?.sharedReadOnly == true
     }
 
-    private func importPhoto(_ item: PhotosPickerItem?, asTemplate: Bool) {
-        guard let item else { return }
-        Task {
-            guard let data = try? await item.loadTransferable(type: Data.self) else { return }
-            await MainActor.run {
-                session.addImageLayer(data: data, asTemplate: asTemplate)
-                if asTemplate {
-                    templateItem = nil
-                } else {
-                    imageItem = nil
-                }
-            }
-        }
-    }
-
     private func sendSnapshot() {
         Task {
+            guard let image = await session.flattenedImage() else { return }
             do {
-                try await sharing.sendSnapshot(document: session.document, image: session.exportImage())
+                try await sharing.sendSnapshot(document: session.document, image: image)
                 showShareMessage("Bild gesendet")
             } catch {
                 showShareMessage("Fehler beim Senden")
@@ -359,16 +311,14 @@ struct DrawingStudioView: View {
         Task {
             do {
                 if enabled {
-                    try await sharing.publishLive(
-                        document: session.document,
-                        project: currentProject,
-                        image: session.exportImage()
-                    )
+                    guard let image = await session.flattenedImage() else { return }
+                    try await sharing.publishLive(document: session.document, project: currentProject, image: image)
                 } else {
                     try await sharing.stopLive(artworkID: session.document.id)
                 }
-                session.document.liveReadOnlyShare = enabled
-                session.saveNow()
+                var document = session.document
+                document.liveReadOnlyShare = enabled
+                session.library.saveDocument(document)
                 showShareMessage(enabled ? "Live-Ansehen aktiv" : "Live-Ansehen beendet")
             } catch {
                 showShareMessage("Freigabe fehlgeschlagen")
@@ -376,28 +326,14 @@ struct DrawingStudioView: View {
         }
     }
 
+    /// Only runs when this drawing is actually shared.
     private func scheduleLivePublish() {
         guard isLiveShared, sharing.state == .connected else { return }
         livePublishTask?.cancel()
         livePublishTask = Task {
-            try? await Task.sleep(for: .seconds(1))
-            guard !Task.isCancelled else { return }
-            try? await sharing.publishLive(
-                document: session.document,
-                project: currentProject,
-                image: session.exportImage()
-            )
-        }
-    }
-
-    private func publishLiveImmediatelyIfNeeded() {
-        guard isLiveShared, sharing.state == .connected else { return }
-        Task {
-            try? await sharing.publishLive(
-                document: session.document,
-                project: currentProject,
-                image: session.exportImage()
-            )
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled, let image = await session.flattenedImage() else { return }
+            try? await sharing.publishLive(document: session.document, project: currentProject, image: image)
         }
     }
 
@@ -410,224 +346,148 @@ struct DrawingStudioView: View {
     }
 }
 
-private struct ImageLayerEditor: View {
+/// Live preview with one slider. "Fertig" writes into the layer, "Abbrechen" throws it away.
+private struct AdjustPanel: View {
     @ObservedObject var session: DrawingSession
-    let layerID: UUID
-    @State private var dragOrigin: LayerTransform?
+    let adjustment: Adjustment
+    let glass: Bool
+    let onClose: () -> Void
+    @State private var amount = 0.0
 
     var body: some View {
-        GeometryReader { proxy in
-            let size = proxy.size
-            let canvas = session.canvasSize
-            let fit = min(size.width / max(canvas.width, 1), size.height / max(canvas.height, 1))
-            let layer = session.document.layers.first(where: { $0.id == layerID })
-            let transform = layer?.transform ?? LayerTransform()
-            let activeImage = layer.flatMap {
-                ArtworkRenderer.layerImage($0, document: session.document, library: session.library)
+        VStack(spacing: 8) {
+            Text(adjustment.title).font(.subheadline.weight(.semibold))
+            if let range = adjustment.range {
+                Slider(value: $amount, in: range)
+                    .accessibilityLabel(adjustment.title)
+                    .onChange(of: amount) { _, value in session.previewAdjustment(adjustment, amount: value) }
             }
-
-            ZStack {
-                if let base = renderWithoutActive {
-                    Image(uiImage: base)
-                        .resizable()
-                        .scaledToFit()
+            HStack {
+                Button("Abbrechen", role: .cancel) {
+                    session.cancelAdjustment()
+                    onClose()
                 }
-
-                if let activeImage {
-                    Image(uiImage: activeImage)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: canvas.width * fit, height: canvas.height * fit)
-                        .scaleEffect(
-                            x: CGFloat(transform.scale) * (transform.flipX ? -1 : 1),
-                            y: CGFloat(transform.scale) * (transform.flipY ? -1 : 1)
-                        )
-                        .rotationEffect(.radians(transform.rotation))
-                        .offset(
-                            x: CGFloat(transform.offsetX) * fit,
-                            y: CGFloat(transform.offsetY) * fit
-                        )
-                        .opacity(layer?.opacity ?? 1)
-                        .gesture(
-                            DragGesture()
-                                .onChanged { value in
-                                    guard !(layer?.isLocked ?? true) else { return }
-                                    if dragOrigin == nil { dragOrigin = transform }
-                                    guard var next = dragOrigin else { return }
-                                    next.offsetX += Double(value.translation.width / max(fit, 0.001))
-                                    next.offsetY += Double(value.translation.height / max(fit, 0.001))
-                                    session.updateTransform(next, for: layerID)
-                                }
-                                .onEnded { _ in dragOrigin = nil }
-                        )
+                .frame(minHeight: 44)
+                Spacer()
+                Button("Fertig") {
+                    session.commitAdjustment()
+                    onClose()
                 }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .overlay(alignment: .bottom) {
-                if let layer {
-                    VStack(spacing: 8) {
-                        HStack {
-                            Text("Skalierung")
-                            Slider(
-                                value: Binding(
-                                    get: { session.document.layers.first(where: { $0.id == layerID })?.transform.scale ?? 1 },
-                                    set: { value in
-                                        var next = session.document.layers.first(where: { $0.id == layerID })?.transform ?? LayerTransform()
-                                        next.scale = value
-                                        session.updateTransform(next, for: layerID)
-                                    }
-                                ),
-                                in: 0.1...5
-                            )
-                        }
-                        HStack {
-                            Text("Drehung")
-                            Slider(
-                                value: Binding(
-                                    get: { session.document.layers.first(where: { $0.id == layerID })?.transform.rotation ?? 0 },
-                                    set: { value in
-                                        var next = session.document.layers.first(where: { $0.id == layerID })?.transform ?? LayerTransform()
-                                        next.rotation = value
-                                        session.updateTransform(next, for: layerID)
-                                    }
-                                ),
-                                in: -Double.pi...Double.pi
-                            )
-                            Button("↔") { session.flipActive(horizontal: true) }
-                            Button("↕") { session.flipActive(horizontal: false) }
-                        }
-                        .disabled(layer.isLocked)
-                    }
-                    .font(.caption)
-                    .padding(10)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
-                    .padding()
-                }
+                .buttonStyle(.borderedProminent)
+                .frame(minHeight: 44)
             }
         }
-    }
-
-    private var renderWithoutActive: UIImage? {
-        var doc = session.document
-        doc.layers.removeAll { $0.id == layerID }
-        return ArtworkRenderer.render(document: doc, library: session.library)
+        .padding(16)
+        .frame(maxWidth: 420)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 24))
+        .padding(.horizontal, 12)
+        .onAppear {
+            amount = adjustment.range.map { ($0.lowerBound + $0.upperBound) / 2 } ?? 0
+            session.previewAdjustment(adjustment, amount: amount)
+        }
     }
 }
 
-private final class ArtworkCanvasImageCache {
-    struct Images {
-        let lower: UIImage?
-        let legacy: UIImage?
-        let upper: UIImage?
-        let alphaMask: UIImage?
-        let clippingMask: UIImage?
-    }
-
-    private struct Key: Equatable {
-        let artworkID: UUID
-        let activeLayerID: UUID
-        let background: CanvasBackground
-        let layers: [ArtworkLayer]
-    }
-
-    private var key: Key?
-    private var cached: Images?
-
-    @MainActor
-    func images(for session: DrawingSession) -> Images {
-        let document = session.document
-        let nextKey = Key(
-            artworkID: document.id,
-            activeLayerID: session.activeLayerID,
-            background: document.background,
-            layers: document.layers
-        )
-        if key == nextKey, let cached { return cached }
-
-        guard let index = document.layers.firstIndex(where: { $0.id == session.activeLayerID }) else {
-            let empty = Images(lower: nil, legacy: nil, upper: nil, alphaMask: nil, clippingMask: nil)
-            key = nextKey
-            cached = empty
-            return empty
-        }
-
-        let active = document.layers[index]
-        var lowerDocument = document
-        lowerDocument.layers = Array(document.layers.prefix(index))
-        let lower = ArtworkRenderer.render(document: lowerDocument, library: session.library)
-
-        var upper: UIImage?
-        if index + 1 < document.layers.count {
-            var upperDocument = document
-            upperDocument.background = .transparent
-            upperDocument.layers = Array(document.layers.suffix(from: index + 1))
-            upper = ArtworkRenderer.render(document: upperDocument, library: session.library)
-        }
-
-        var alphaMask: UIImage?
-        if active.alphaLock,
-           let file = active.alphaMaskFile,
-           let data = session.library.layerAsset(fileName: file, artworkID: document.id) {
-            alphaMask = UIImage(data: data)
-        }
-
-        var clippingMask: UIImage?
-        if active.clipping,
-           let previous = document.layers[..<index].last(where: { $0.isVisible }) {
-            clippingMask = ArtworkRenderer.layerImage(previous, document: document, library: session.library)
-        }
-
-        let images = Images(
-            lower: lower,
-            legacy: ArtworkRenderer.legacyPaintImage(active, document: document, library: session.library),
-            upper: upper,
-            alphaMask: alphaMask,
-            clippingMask: clippingMask
-        )
-        key = nextKey
-        cached = images
-        return images
-    }
-}
-
-private struct BrushSettingsView: View {
+/// Text entry: 4 fonts and a size. The text then appears as transform content.
+private struct TextSheet: View {
     @ObservedObject var session: DrawingSession
+    @Environment(\.dismiss) private var dismiss
+    @State private var text = ""
+    @State private var font: TextFont = .system
+    @State private var size = 96.0
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("Aktueller Pinsel") {
-                    ArtworkBrushPreview(session: session)
-                        .frame(height: 90)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
-                    LabeledContent("Pinsel", value: session.brush.title)
-                    LabeledContent("Breite", value: "\(Int(session.brushWidth)) px")
-                    LabeledContent("Deckkraft", value: "\(Int(session.brushOpacity * 100)) %")
+                TextField("Text", text: $text, axis: .vertical)
+                    .lineLimit(1...5)
+                Picker("Schrift", selection: $font) {
+                    ForEach(TextFont.allCases) { Text($0.title).tag($0) }
                 }
+                .pickerStyle(.segmented)
+                LabeledContent("Größe") {
+                    Slider(value: $size, in: 16...400, step: 4)
+                }
+                Text("\(Int(size)) px").font(.caption).foregroundStyle(.secondary)
+            }
+            .navigationTitle("Text")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Einfügen") {
+                        session.tool = .transform
+                        session.insertText(text, font: font, size: size)
+                        dismiss()
+                    }
+                    .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
 
-                Section("Schnellgrößen") {
-                    HStack(spacing: 12) {
-                        ForEach([0.5, 1.0, 2.0], id: \.self) { factor in
-                            let width = min(max(Double(session.brush.defaultWidth) * factor, 1), 120)
-                            Button("\(Int(width)) px") {
-                                session.brushWidth = width
+#Preview("Studio – iPad") {
+    NavigationStack {
+        DrawingStudioView(
+            artworkID: UUID(),
+            library: ArtworkLibrary(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview")),
+            sharing: LoveaSharingService(person: .annika)
+        )
+    }
+    .environment(\.horizontalSizeClass, .regular)
+}
+
+#Preview("Studio – iPhone") {
+    NavigationStack {
+        DrawingStudioView(
+            artworkID: UUID(),
+            library: ArtworkLibrary(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview")),
+            sharing: LoveaSharingService(person: .annika)
+        )
+    }
+    .environment(\.horizontalSizeClass, .compact)
+}
+
+/// Opened by squeezing the Apple Pencil: last 3 brushes and 8 colors at the pencil tip.
+private struct QuickMenuOverlay: View {
+    @ObservedObject var state: CanvasViewState
+    @ObservedObject var session: DrawingSession
+    @ObservedObject var palette: ColorPaletteStore
+
+    var body: some View {
+        if let point = state.quickMenu {
+            ZStack {
+                Color.black.opacity(0.001)
+                    .onTapGesture { state.quickMenu = nil }
+                VStack(spacing: 8) {
+                    HStack(spacing: 4) {
+                        ForEach(session.recentBrushes) { preset in
+                            Button(preset.title) {
+                                session.brush = preset
+                                session.tool = .brush
+                                state.quickMenu = nil
                             }
                             .buttonStyle(.bordered)
-                            .frame(minWidth: 44, minHeight: 44)
+                            .frame(minHeight: 44)
+                        }
+                    }
+                    HStack(spacing: 4) {
+                        ForEach(Array(palette.recent.prefix(8).enumerated()), id: \.offset) { _, color in
+                            ColorSwatchButton(color: color) {
+                                session.setColor(color)
+                                state.quickMenu = nil
+                            }
                         }
                     }
                 }
-
-                Section("Druck und Glättung") {
-                    Toggle("Druck verändert Breite", isOn: $session.pressureControlsSize)
-                    Toggle("Druck verändert Deckkraft", isOn: $session.pressureControlsOpacity)
-                    LabeledContent("Stabilisator", value: "\(Int(session.stabilizer))")
-                    Slider(value: $session.stabilizer, in: 0...9, step: 1)
-                        .accessibilityLabel("Stabilisator")
-                }
+                .padding(12)
+                .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                .position(point)
             }
-            .navigationTitle("Pinsel einstellen")
-            .navigationBarTitleDisplayMode(.inline)
         }
     }
 }

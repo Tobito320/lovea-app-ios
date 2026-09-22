@@ -30,4 +30,19 @@ final class ArtworkCanvasViewportTests: XCTestCase {
         XCTAssertEqual(restored.x, original.x, accuracy: 0.001)
         XCTAssertEqual(restored.y, original.y, accuracy: 0.001)
     }
+
+    /// Z-10.5: mirroring flips only the view; document points still map back exactly.
+    func testMirroredViewRoundTrip() {
+        var viewport = ArtworkCanvasViewport()
+        viewport.fit(document: CGSize(width: 1000, height: 800), screen: CGSize(width: 500, height: 400))
+        let left = viewport.screenPoint(CGPoint(x: 100, y: 400))
+        viewport.setMirrored(true, around: CGPoint(x: 250, y: 200))
+        let mirrored = viewport.screenPoint(CGPoint(x: 100, y: 400))
+        XCTAssertGreaterThan(mirrored.x, left.x, "a point on the left now shows on the right")
+        viewport.rotate(by: 0.4, around: CGPoint(x: 100, y: 100))
+        let original = CGPoint(x: 321, y: 123)
+        let restored = viewport.documentPoint(viewport.screenPoint(original))
+        XCTAssertEqual(restored.x, original.x, accuracy: 0.001)
+        XCTAssertEqual(restored.y, original.y, accuracy: 0.001)
+    }
 }
