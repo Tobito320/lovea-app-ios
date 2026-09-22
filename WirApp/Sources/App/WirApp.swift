@@ -4,7 +4,7 @@ import SwiftUI
 struct WirApp: App {
     var body: some Scene {
         WindowGroup {
-            Text(AppConfiguration.title)
+            AppRootView()
         }
     }
 }
