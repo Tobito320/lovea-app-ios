@@ -1,0 +1,9 @@
+.DS_Store
+DerivedData/
+Lovea.xcodeproj/
+*.xcuserstate
+xcuserdata/
+GoogleService-Info.plist
+*.p12
+*.mobileprovision
+.env
