@@ -339,11 +339,11 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         }
     }
 
-    func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if gestureRecognizer is UILongPressGestureRecognizer, gestureRecognizer.numberOfTouches < 2 {
             return !fingerDraws && activeTouch?.type != .pencil
         }
-        return true
+        return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
 
     func gestureRecognizer(
