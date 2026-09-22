@@ -17,7 +17,7 @@ struct AppRootView: View {
                 .tabItem { Label("Home", systemImage: "house") }
                 .tag(AppTab.home)
 
-            DrawingView()
+            DrawingView(person: person)
                 .tabItem { Label("Zeichnen", systemImage: "paintbrush.pointed") }
                 .tag(AppTab.drawing)
 
