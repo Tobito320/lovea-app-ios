@@ -30,20 +30,17 @@ final class DrawingSession: ObservableObject {
 
     init(artworkID: UUID, library: ArtworkLibrary) {
         self.library = library
-        if let existing = library.document(artworkID) {
-            document = existing
-        } else {
-            document = ArtworkDocument.new(
-                name: "Neue Zeichnung",
-                projectID: nil,
-                format: .square,
-                width: 2048,
-                height: 2048,
-                background: .white
-            )
-        }
-        activeLayerID = document.layers.last(where: { $0.kind == .paint })?.id
-            ?? document.layers.last?.id
+        let loadedDocument = library.document(artworkID) ?? ArtworkDocument.new(
+            name: "Neue Zeichnung",
+            projectID: nil,
+            format: .square,
+            width: 2048,
+            height: 2048,
+            background: .white
+        )
+        self.document = loadedDocument
+        self.activeLayerID = loadedDocument.layers.last(where: { $0.kind == .paint })?.id
+            ?? loadedDocument.layers.last?.id
             ?? UUID()
         loadPaintDrawings()
     }
