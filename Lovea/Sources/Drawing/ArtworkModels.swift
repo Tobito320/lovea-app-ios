@@ -1,5 +1,24 @@
 import Foundation
 
+struct RGBAColor: Codable, Equatable, Sendable {
+    var red: Double
+    var green: Double
+    var blue: Double
+    var alpha: Double = 1
+
+    static let ink = RGBAColor(red: 0.96, green: 0.96, blue: 0.97)
+    static let blue = RGBAColor(red: 0.04, green: 0.52, blue: 1)
+    static let red = RGBAColor(red: 1, green: 0.27, blue: 0.23)
+    static let orange = RGBAColor(red: 1, green: 0.62, blue: 0.04)
+}
+
+struct StrokePoint: Codable, Equatable, Sendable {
+    var x: Double
+    var y: Double
+    var pressure: Double
+    var timestamp: TimeInterval = 0
+}
+
 enum CanvasBackground: Codable, Equatable, Sendable {
     case white
     case dark
