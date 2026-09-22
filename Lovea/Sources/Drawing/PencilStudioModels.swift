@@ -5,6 +5,8 @@ enum StudioTool: String, CaseIterable, Identifiable {
     case brush
     case eraser
     case lasso
+    case fill
+    case eyedropper
 
     var id: String { rawValue }
 
@@ -13,6 +15,8 @@ enum StudioTool: String, CaseIterable, Identifiable {
         case .brush: "Pinsel"
         case .eraser: "Radierer"
         case .lasso: "Auswahl"
+        case .fill: "Füllen"
+        case .eyedropper: "Pipette"
         }
     }
 
@@ -21,6 +25,8 @@ enum StudioTool: String, CaseIterable, Identifiable {
         case .brush: "paintbrush.pointed.fill"
         case .eraser: "eraser.fill"
         case .lasso: "lasso"
+        case .fill: "paintbucket.fill"
+        case .eyedropper: "eyedropper"
         }
     }
 }
