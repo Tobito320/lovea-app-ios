@@ -1,0 +1,42 @@
+name: WirApp
+options:
+  deploymentTarget:
+    iOS: "18.0"
+packages:
+  Firebase:
+    url: https://github.com/firebase/firebase-ios-sdk.git
+    exactVersion: 12.19.2
+targets:
+  WirApp:
+    type: application
+    platform: iOS
+    sources:
+      - Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ahmed.wirapp
+        PRODUCT_NAME: Wir
+        SWIFT_VERSION: "6.0"
+        TARGETED_DEVICE_FAMILY: "1,2"
+        INFOPLIST_KEY_CFBundleDisplayName: Wir
+    dependencies:
+      - package: Firebase
+        product: FirebaseAuth
+      - package: Firebase
+        product: FirebaseFirestore
+      - package: Firebase
+        product: FirebaseDatabase
+      - package: Firebase
+        product: FirebaseMessaging
+  WirAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests
+    dependencies:
+      - target: WirApp
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.ahmed.wirapp.tests
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"

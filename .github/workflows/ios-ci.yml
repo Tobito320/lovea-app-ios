@@ -1,0 +1,21 @@
+name: iOS CI
+
+on:
+  push:
+    branches: [main, codex/mvp-bootstrap]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: macos-26
+    defaults:
+      run:
+        working-directory: WirApp
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Run unit tests
+        run: xcodebuild test -project WirApp.xcodeproj -scheme WirAppTests -destination 'platform=iOS Simulator,name=iPhone 16 Pro'
