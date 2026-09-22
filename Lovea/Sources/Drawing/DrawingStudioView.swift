@@ -6,17 +6,21 @@ import UIKit
 struct DrawingStudioView: View {
     @StateObject private var session: DrawingSession
     @StateObject private var canvasController = PencilCanvasController()
+    @ObservedObject private var sharing: LoveaSharingService
     @State private var showsLayers = false
     @State private var exportImage: UIImage?
     @State private var imageItem: PhotosPickerItem?
     @State private var templateItem: PhotosPickerItem?
+    @State private var livePublishTask: Task<Void, Never>?
+    @State private var shareMessage: String?
 
-    init(artworkID: UUID, library: ArtworkLibrary) {
+    init(artworkID: UUID, library: ArtworkLibrary, sharing: LoveaSharingService) {
         _session = StateObject(wrappedValue: DrawingSession(artworkID: artworkID, library: library))
+        self.sharing = sharing
     }
 
     var body: some View {
-        ZStack {
+        ZStack(alignment: .top) {
             Color(uiColor: .secondarySystemBackground)
                 .ignoresSafeArea()
 
@@ -41,6 +45,16 @@ struct DrawingStudioView: View {
                 ImageLayerEditor(session: session, layerID: active.id)
             } else {
                 ContentUnavailableView("Keine Ebene", systemImage: "square.3.layers.3d")
+            }
+
+            if let shareMessage {
+                Text(shareMessage)
+                    .font(.caption.weight(.medium))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 7)
+                    .background(.regularMaterial, in: Capsule())
+                    .padding(.top, 8)
+                    .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
         .navigationTitle(session.document.name)
@@ -69,8 +83,13 @@ struct DrawingStudioView: View {
         .onChange(of: templateItem) { _, item in
             importPhoto(item, asTemplate: true)
         }
+        .onChange(of: session.document.updatedAt) { _, _ in
+            scheduleLivePublish()
+        }
         .onDisappear {
+            livePublishTask?.cancel()
             session.saveNow()
+            publishLiveImmediatelyIfNeeded()
         }
     }
 
@@ -121,6 +140,21 @@ struct DrawingStudioView: View {
 
                 Button("Als PNG/Bild teilen") {
                     exportImage = session.exportImage()
+                }
+
+                if sharing.state == .connected {
+                    Button("Als Bild an Partner senden") {
+                        sendSnapshot()
+                    }
+                    if session.document.liveReadOnlyShare {
+                        Button("Live-Freigabe beenden", role: .destructive) {
+                            setLiveShare(false)
+                        }
+                    } else {
+                        Button("Live ansehen lassen") {
+                            setLiveShare(true)
+                        }
+                    }
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -206,9 +240,15 @@ struct DrawingStudioView: View {
                         .buttonStyle(.plain)
                     }
                     Spacer()
-                    Text("✓ automatisch gespeichert")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                    if isLiveShared {
+                        Label("Live · nur ansehen", systemImage: "eye.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("✓ automatisch gespeichert")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             } else {
                 HStack {
@@ -229,6 +269,16 @@ struct DrawingStudioView: View {
                 session.setColor(RGBAColor(uiColor: UIColor(newColor)))
             }
         )
+    }
+
+    private var currentProject: ArtworkProject? {
+        session.document.projectID.flatMap { id in
+            session.library.projects.first(where: { $0.id == id })
+        }
+    }
+
+    private var isLiveShared: Bool {
+        session.document.liveReadOnlyShare || currentProject?.sharedReadOnly == true
     }
 
     private var imageBelowActiveLayer: UIImage? {
@@ -261,12 +311,77 @@ struct DrawingStudioView: View {
             }
         }
     }
+
+    private func sendSnapshot() {
+        Task {
+            do {
+                try await sharing.sendSnapshot(document: session.document, image: session.exportImage())
+                showShareMessage("Bild gesendet")
+            } catch {
+                showShareMessage("Fehler beim Senden")
+            }
+        }
+    }
+
+    private func setLiveShare(_ enabled: Bool) {
+        Task {
+            do {
+                if enabled {
+                    try await sharing.publishLive(
+                        document: session.document,
+                        project: currentProject,
+                        image: session.exportImage()
+                    )
+                } else {
+                    try await sharing.stopLive(artworkID: session.document.id)
+                }
+                session.document.liveReadOnlyShare = enabled
+                session.saveNow()
+                showShareMessage(enabled ? "Live-Ansehen aktiv" : "Live-Ansehen beendet")
+            } catch {
+                showShareMessage("Freigabe fehlgeschlagen")
+            }
+        }
+    }
+
+    private func scheduleLivePublish() {
+        guard isLiveShared, sharing.state == .connected else { return }
+        livePublishTask?.cancel()
+        livePublishTask = Task {
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            try? await sharing.publishLive(
+                document: session.document,
+                project: currentProject,
+                image: session.exportImage()
+            )
+        }
+    }
+
+    private func publishLiveImmediatelyIfNeeded() {
+        guard isLiveShared, sharing.state == .connected else { return }
+        Task {
+            try? await sharing.publishLive(
+                document: session.document,
+                project: currentProject,
+                image: session.exportImage()
+            )
+        }
+    }
+
+    private func showShareMessage(_ text: String) {
+        withAnimation { shareMessage = text }
+        Task {
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation { shareMessage = nil }
+        }
+    }
 }
 
 private struct ImageLayerEditor: View {
     @ObservedObject var session: DrawingSession
     let layerID: UUID
-    @State private var dragStart = LayerTransform()
+    @State private var dragOrigin: LayerTransform?
 
     var body: some View {
         GeometryReader { proxy in
@@ -305,11 +420,13 @@ private struct ImageLayerEditor: View {
                             DragGesture()
                                 .onChanged { value in
                                     guard !(layer?.isLocked ?? true) else { return }
-                                    var next = transform
+                                    if dragOrigin == nil { dragOrigin = transform }
+                                    guard var next = dragOrigin else { return }
                                     next.offsetX += Double(value.translation.width / max(fit, 0.001))
                                     next.offsetY += Double(value.translation.height / max(fit, 0.001))
                                     session.updateTransform(next, for: layerID)
                                 }
+                                .onEnded { _ in dragOrigin = nil }
                         )
                 }
             }
