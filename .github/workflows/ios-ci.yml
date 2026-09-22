@@ -20,6 +20,8 @@ jobs:
             echo "::error::UIGraphicsImageRenderer ausserhalb von Tests/ und Export"; fail=1
           fi
           exit $fail
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:latest -color
 
   build-and-test:
     runs-on: macos-26
