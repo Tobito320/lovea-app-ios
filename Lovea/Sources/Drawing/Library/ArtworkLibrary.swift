@@ -242,10 +242,6 @@ final class ArtworkLibrary: ObservableObject {
         directory(for: artworkID).appendingPathComponent("preview.jpg")
     }
 
-    func previewImage(for artworkID: UUID) -> UIImage? {
-        UIImage(contentsOfFile: previewURL(for: artworkID).path)
-    }
-
     func sortedArtworks(_ sort: ArtworkSort) -> [ArtworkDocument] {
         switch sort {
         case .newest:
