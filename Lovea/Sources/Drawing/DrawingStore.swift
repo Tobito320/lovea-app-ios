@@ -3,6 +3,11 @@ import Foundation
 
 @MainActor
 final class DrawingStore: ObservableObject {
+    private struct HistoryState {
+        var document: DrawingDocument
+        var activeLayerID: UUID
+    }
+
     @Published private(set) var document: DrawingDocument
     @Published private(set) var activeLayerID: UUID
     @Published var tool: DrawingTool = .brush
@@ -12,13 +17,14 @@ final class DrawingStore: ObservableObject {
     @Published var drawsWithFinger = false
 
     private(set) var activeStroke: DrawingStroke?
-    private var undoStack: [DrawingDocument] = []
-    private var redoStack: [DrawingDocument] = []
+    private var undoStack: [HistoryState] = []
+    private var redoStack: [HistoryState] = []
+    private var opacityTransaction: (layerID: UUID, before: HistoryState)?
     private let persistence: DrawingPersistence?
 
     init(document: DrawingDocument = .empty, persistence: DrawingPersistence? = nil) {
         self.document = document
-        self.activeLayerID = document.layers.first?.id ?? UUID()
+        self.activeLayerID = document.layers.last?.id ?? UUID()
         self.persistence = persistence
     }
 
@@ -28,7 +34,9 @@ final class DrawingStore: ObservableObject {
     func loadSavedDocument() async {
         guard let persistence, let saved = try? await persistence.load(), !saved.layers.isEmpty else { return }
         document = saved
-        activeLayerID = saved.layers[0].id
+        activeLayerID = saved.layers.last!.id
+        undoStack.removeAll()
+        redoStack.removeAll()
     }
 
     func beginStroke(at point: StrokePoint) {
@@ -46,10 +54,10 @@ final class DrawingStore: ObservableObject {
     }
 
     func endStroke() {
-        guard let stroke = activeStroke else { return }
+        guard let stroke = activeStroke,
+              let index = document.layers.firstIndex(where: { $0.id == activeLayerID }) else { return }
         activeStroke = nil
         recordUndo()
-        guard let index = document.layers.firstIndex(where: { $0.id == activeLayerID }) else { return }
         document.layers[index].strokes.append(stroke)
         persist()
     }
@@ -60,17 +68,15 @@ final class DrawingStore: ObservableObject {
 
     func undo() {
         guard let previous = undoStack.popLast() else { return }
-        redoStack.append(document)
-        document = previous
-        repairActiveLayer()
+        redoStack.append(currentState)
+        restore(previous)
         persist()
     }
 
     func redo() {
         guard let next = redoStack.popLast() else { return }
-        undoStack.append(document)
-        document = next
-        repairActiveLayer()
+        undoStack.append(currentState)
+        restore(next)
         persist()
     }
 
@@ -113,19 +119,64 @@ final class DrawingStore: ObservableObject {
 
     func updateLayerOpacity(_ value: Double, id: UUID) {
         guard let index = document.layers.firstIndex(where: { $0.id == id }) else { return }
-        document.layers[index].opacity = min(max(value, 0), 1)
+        let clamped = min(max(value, 0), 1)
+        guard document.layers[index].opacity != clamped else { return }
+        if opacityTransaction?.layerID != id {
+            recordUndo()
+        }
+        document.layers[index].opacity = clamped
+        if opacityTransaction == nil { persist() }
+    }
+
+    func beginLayerOpacityEditing(_ id: UUID) {
+        guard opacityTransaction == nil,
+              document.layers.contains(where: { $0.id == id }) else { return }
+        opacityTransaction = (id, currentState)
+    }
+
+    func endLayerOpacityEditing(_ id: UUID) {
+        guard let transaction = opacityTransaction, transaction.layerID == id else { return }
+        opacityTransaction = nil
+        guard transaction.before.document != document else { return }
+        undoStack.append(transaction.before)
+        trimUndoStack()
+        redoStack.removeAll()
+        persist()
+    }
+
+    func renameLayer(_ name: String, id: UUID) {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty,
+              let index = document.layers.firstIndex(where: { $0.id == id }),
+              document.layers[index].name != trimmed else { return }
+        recordUndo()
+        document.layers[index].name = trimmed
         persist()
     }
 
     private func recordUndo() {
-        undoStack.append(document)
-        if undoStack.count > 50 { undoStack.removeFirst() }
+        undoStack.append(currentState)
+        trimUndoStack()
         redoStack.removeAll()
+    }
+
+    private var currentState: HistoryState {
+        HistoryState(document: document, activeLayerID: activeLayerID)
+    }
+
+    private func restore(_ state: HistoryState) {
+        document = state.document
+        activeLayerID = state.activeLayerID
+        repairActiveLayer()
+    }
+
+    private func trimUndoStack() {
+        if undoStack.count > 50 { undoStack.removeFirst() }
     }
 
     private func repairActiveLayer() {
         if !document.layers.contains(where: { $0.id == activeLayerID }) {
-            activeLayerID = document.layers[0].id
+            activeLayerID = document.layers.last!.id
         }
     }
 

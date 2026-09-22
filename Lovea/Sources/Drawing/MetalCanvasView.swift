@@ -37,7 +37,13 @@ final class MetalCanvasView: MTKView, UIGestureRecognizerDelegate {
     func refresh() {
         var preview = store.activeStroke
         if !predictedPoints.isEmpty { preview?.points.append(contentsOf: predictedPoints) }
-        canvasRenderer?.update(document: store.document, previewStroke: preview, zoom: zoom, offset: contentOffset)
+        canvasRenderer?.update(
+            document: store.document,
+            activeLayerID: store.activeLayerID,
+            previewStroke: preview,
+            zoom: zoom,
+            offset: contentOffset
+        )
         setNeedsDisplay()
     }
 

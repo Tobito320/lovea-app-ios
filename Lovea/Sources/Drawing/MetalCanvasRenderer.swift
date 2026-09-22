@@ -8,10 +8,14 @@ private struct CanvasVertex {
 
 @MainActor
 final class MetalCanvasRenderer: NSObject, MTKViewDelegate {
+    private let device: MTLDevice
     private let commandQueue: MTLCommandQueue
     private let brushPipeline: MTLRenderPipelineState
     private let eraserPipeline: MTLRenderPipelineState
+    private let compositePipeline: MTLRenderPipelineState
+    private var layerTexture: MTLTexture?
     private var document: DrawingDocument = .empty
+    private var activeLayerID: UUID?
     private var previewStroke: DrawingStroke?
     private var zoom: CGFloat = 1
     private var offset: CGPoint = .zero
@@ -21,9 +25,11 @@ final class MetalCanvasRenderer: NSObject, MTKViewDelegate {
               let queue = device.makeCommandQueue(),
               let library = device.makeDefaultLibrary(),
               let vertex = library.makeFunction(name: "canvasVertex"),
-              let fragment = library.makeFunction(name: "canvasFragment") else { return nil }
+              let fragment = library.makeFunction(name: "canvasFragment"),
+              let compositeVertex = library.makeFunction(name: "compositeVertex"),
+              let compositeFragment = library.makeFunction(name: "compositeFragment") else { return nil }
 
-        func makePipeline(eraser: Bool) throws -> MTLRenderPipelineState {
+        func makeStrokePipeline(eraser: Bool) throws -> MTLRenderPipelineState {
             let descriptor = MTLRenderPipelineDescriptor()
             descriptor.vertexFunction = vertex
             descriptor.fragmentFunction = fragment
@@ -44,78 +50,189 @@ final class MetalCanvasRenderer: NSObject, MTKViewDelegate {
             return try device.makeRenderPipelineState(descriptor: descriptor)
         }
 
+        func makeCompositePipeline() throws -> MTLRenderPipelineState {
+            let descriptor = MTLRenderPipelineDescriptor()
+            descriptor.vertexFunction = compositeVertex
+            descriptor.fragmentFunction = compositeFragment
+            descriptor.colorAttachments[0].pixelFormat = view.colorPixelFormat
+            let attachment = descriptor.colorAttachments[0]!
+            attachment.isBlendingEnabled = true
+            attachment.sourceRGBBlendFactor = .one
+            attachment.destinationRGBBlendFactor = .oneMinusSourceAlpha
+            attachment.sourceAlphaBlendFactor = .one
+            attachment.destinationAlphaBlendFactor = .oneMinusSourceAlpha
+            return try device.makeRenderPipelineState(descriptor: descriptor)
+        }
+
         do {
-            brushPipeline = try makePipeline(eraser: false)
-            eraserPipeline = try makePipeline(eraser: true)
+            brushPipeline = try makeStrokePipeline(eraser: false)
+            eraserPipeline = try makeStrokePipeline(eraser: true)
+            compositePipeline = try makeCompositePipeline()
         } catch {
             return nil
         }
+        self.device = device
         commandQueue = queue
         super.init()
     }
 
-    func update(document: DrawingDocument, previewStroke: DrawingStroke?, zoom: CGFloat, offset: CGPoint) {
+    func update(
+        document: DrawingDocument,
+        activeLayerID: UUID,
+        previewStroke: DrawingStroke?,
+        zoom: CGFloat,
+        offset: CGPoint
+    ) {
         self.document = document
+        self.activeLayerID = activeLayerID
         self.previewStroke = previewStroke
         self.zoom = zoom
         self.offset = offset
     }
 
-    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {}
+    func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
+        layerTexture = nil
+    }
 
     func draw(in view: MTKView) {
-        guard let descriptor = view.currentRenderPassDescriptor,
-              let drawable = view.currentDrawable,
+        guard let drawable = view.currentDrawable,
               let commandBuffer = commandQueue.makeCommandBuffer(),
-              let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else { return }
+              let layerTexture = makeLayerTexture(for: drawable) else { return }
 
+        var hasDrawableContent = false
         for layer in document.layers where layer.isVisible {
-            for stroke in layer.strokes {
-                draw(stroke, layerOpacity: layer.opacity, in: view, encoder: encoder)
+            guard render(layer, into: layerTexture, viewport: view.bounds.size, commandBuffer: commandBuffer) else {
+                continue
             }
-        }
-        if let previewStroke {
-            draw(previewStroke, layerOpacity: 1, in: view, encoder: encoder)
+            composite(
+                layerTexture,
+                opacity: Float(layer.opacity),
+                into: drawable.texture,
+                clearFirst: !hasDrawableContent,
+                clearColor: view.clearColor,
+                commandBuffer: commandBuffer
+            )
+            hasDrawableContent = true
         }
 
-        encoder.endEncoding()
+        if !hasDrawableContent {
+            clear(drawable.texture, color: view.clearColor, commandBuffer: commandBuffer)
+        }
+
         commandBuffer.present(drawable)
         commandBuffer.commit()
     }
 
+    private func makeLayerTexture(for drawable: CAMetalDrawable) -> MTLTexture? {
+        if let layerTexture,
+           layerTexture.width == drawable.texture.width,
+           layerTexture.height == drawable.texture.height,
+           layerTexture.pixelFormat == drawable.texture.pixelFormat {
+            return layerTexture
+        }
+
+        let descriptor = MTLTextureDescriptor.texture2DDescriptor(
+            pixelFormat: drawable.texture.pixelFormat,
+            width: drawable.texture.width,
+            height: drawable.texture.height,
+            mipmapped: false
+        )
+        descriptor.storageMode = .private
+        descriptor.usage = [.renderTarget, .shaderRead]
+        let texture = device.makeTexture(descriptor: descriptor)
+        texture?.label = "Lovea Layer"
+        layerTexture = texture
+        return texture
+    }
+
+    private func render(
+        _ layer: DrawingLayer,
+        into texture: MTLTexture,
+        viewport: CGSize,
+        commandBuffer: MTLCommandBuffer
+    ) -> Bool {
+        let descriptor = MTLRenderPassDescriptor()
+        descriptor.colorAttachments[0].texture = texture
+        descriptor.colorAttachments[0].loadAction = .clear
+        descriptor.colorAttachments[0].storeAction = .store
+        descriptor.colorAttachments[0].clearColor = MTLClearColorMake(0, 0, 0, 0)
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else { return false }
+
+        for stroke in layer.strokes {
+            draw(stroke, viewport: viewport, encoder: encoder)
+        }
+        if layer.id == activeLayerID, let previewStroke {
+            draw(previewStroke, viewport: viewport, encoder: encoder)
+        }
+        encoder.endEncoding()
+        return true
+    }
+
+    private func composite(
+        _ layer: MTLTexture,
+        opacity: Float,
+        into destination: MTLTexture,
+        clearFirst: Bool,
+        clearColor: MTLClearColor,
+        commandBuffer: MTLCommandBuffer
+    ) {
+        let descriptor = MTLRenderPassDescriptor()
+        descriptor.colorAttachments[0].texture = destination
+        descriptor.colorAttachments[0].loadAction = clearFirst ? .clear : .load
+        descriptor.colorAttachments[0].storeAction = .store
+        descriptor.colorAttachments[0].clearColor = clearColor
+        guard let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor) else { return }
+
+        var opacity = min(max(opacity, 0), 1)
+        encoder.setRenderPipelineState(compositePipeline)
+        encoder.setFragmentTexture(layer, index: 0)
+        encoder.setFragmentBytes(&opacity, length: MemoryLayout<Float>.stride, index: 0)
+        encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: 3)
+        encoder.endEncoding()
+    }
+
+    private func clear(_ texture: MTLTexture, color: MTLClearColor, commandBuffer: MTLCommandBuffer) {
+        let descriptor = MTLRenderPassDescriptor()
+        descriptor.colorAttachments[0].texture = texture
+        descriptor.colorAttachments[0].loadAction = .clear
+        descriptor.colorAttachments[0].storeAction = .store
+        descriptor.colorAttachments[0].clearColor = color
+        let encoder = commandBuffer.makeRenderCommandEncoder(descriptor: descriptor)
+        encoder?.endEncoding()
+    }
+
     private func draw(
         _ stroke: DrawingStroke,
-        layerOpacity: Double,
-        in view: MTKView,
+        viewport: CGSize,
         encoder: MTLRenderCommandEncoder
     ) {
-        let vertices = vertices(for: stroke, layerOpacity: layerOpacity, viewport: view.bounds.size)
+        let vertices = vertices(for: stroke, viewport: viewport)
         guard !vertices.isEmpty else { return }
-        encoder.setRenderPipelineState(stroke.tool == .eraser ? eraserPipeline : brushPipeline)
-        vertices.withUnsafeBufferPointer { buffer in
-            guard let baseAddress = buffer.baseAddress else { return }
-            encoder.setVertexBytes(
-                baseAddress,
-                length: buffer.count * MemoryLayout<CanvasVertex>.stride,
-                index: 0
-            )
+        let length = vertices.count * MemoryLayout<CanvasVertex>.stride
+        let vertexBuffer = vertices.withUnsafeBufferPointer { buffer -> MTLBuffer? in
+            guard let baseAddress = buffer.baseAddress else { return nil }
+            return device.makeBuffer(bytes: baseAddress, length: length, options: .storageModeShared)
         }
+        guard let vertexBuffer else { return }
+
+        encoder.setRenderPipelineState(stroke.tool == .eraser ? eraserPipeline : brushPipeline)
+        encoder.setVertexBuffer(vertexBuffer, offset: 0, index: 0)
         encoder.drawPrimitives(type: .triangle, vertexStart: 0, vertexCount: vertices.count)
     }
 
     private func vertices(
         for stroke: DrawingStroke,
-        layerOpacity: Double,
         viewport: CGSize
     ) -> [CanvasVertex] {
         guard !stroke.points.isEmpty, viewport.width > 0, viewport.height > 0 else { return [] }
         let points = stroke.points.count == 1 ? [stroke.points[0], stroke.points[0]] : stroke.points
         var result: [CanvasVertex] = []
+        result.reserveCapacity((points.count - 1) * 6)
         let color = SIMD4<Float>(
             Float(stroke.color.red),
             Float(stroke.color.green),
             Float(stroke.color.blue),
-            Float(stroke.opacity * layerOpacity)
+            Float(stroke.opacity)
         )
 
         for index in 1..<points.count {
