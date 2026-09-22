@@ -56,9 +56,9 @@ struct CanvasTransform: Equatable, Sendable {
         )
     }
 
-    private mutating func reanchor(_ documentPoint: CGPoint, at screenPoint: CGPoint) {
+    private mutating func reanchor(_ documentPoint: CGPoint, at focusPoint: CGPoint) {
         let mapped = screenPoint(fromDocument: documentPoint)
-        offset.x += screenPoint.x - mapped.x
-        offset.y += screenPoint.y - mapped.y
+        offset.x += focusPoint.x - mapped.x
+        offset.y += focusPoint.y - mapped.y
     }
 }
