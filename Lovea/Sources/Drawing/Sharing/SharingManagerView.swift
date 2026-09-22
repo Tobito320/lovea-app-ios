@@ -1,3 +1,4 @@
+// ponytail: Level 2 eingefroren bis Level-1-Abnahme
 import SwiftUI
 
 struct SharingManagerView: View {

@@ -409,7 +409,7 @@ final class DrawingSession: ObservableObject {
         previewTask?.cancel()
         library.saveDocument(document)
         let preview = ArtworkRenderer.thumbnail(document: document, library: library)
-        library.savePreview(preview, artworkID: document.id)
+        if let data = preview.jpegData(compressionQuality: 0.78) { library.savePreview(jpeg: data, artworkID: document.id) }
     }
 
     private func updateLayer(_ id: UUID, change: (inout ArtworkLayer) -> Void) {
@@ -442,7 +442,7 @@ final class DrawingSession: ObservableObject {
             try? await Task.sleep(for: .milliseconds(650))
             guard !Task.isCancelled, let self else { return }
             let preview = ArtworkRenderer.thumbnail(document: self.document, library: self.library)
-            self.library.savePreview(preview, artworkID: self.document.id)
+            if let data = preview.jpegData(compressionQuality: 0.78) { self.library.savePreview(jpeg: data, artworkID: self.document.id) }
         }
     }
 

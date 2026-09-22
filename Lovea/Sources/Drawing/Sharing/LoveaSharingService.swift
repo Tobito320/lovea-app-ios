@@ -1,3 +1,4 @@
+// ponytail: Level 2 eingefroren bis Level-1-Abnahme
 import Combine
 import Foundation
 import UIKit
@@ -231,12 +232,7 @@ final class LoveaSharingService: ObservableObject {
         guard longest > maxSide else { return image }
         let scale = maxSide / longest
         let size = CGSize(width: image.size.width * scale, height: image.size.height * scale)
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = false
-        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
-            image.draw(in: CGRect(origin: .zero, size: size))
-        }
+        return image.preparingThumbnail(of: size) ?? image
     }
 }
 

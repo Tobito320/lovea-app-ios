@@ -302,6 +302,22 @@ final class ArtworkLibraryTests: XCTestCase {
         XCTAssertGreaterThan(edge.alpha, 0)
     }
 
+    func testRapidSavesLeaveValidLatestDocument() async throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = ArtworkLibrary(rootURL: root)
+        var artwork = library.createArtwork(name: "Schnell", projectID: nil, format: .square)
+        for index in 0..<100 {
+            artwork.name = "Stand \(index)"
+            library.saveDocument(artwork)
+        }
+        await library.waitForWrites()
+
+        let reloaded = ArtworkLibrary(rootURL: root)
+        XCTAssertEqual(reloaded.document(artwork.id)?.name, "Stand 99")
+    }
+
     private func temporaryRoot() -> URL {
         FileManager.default.temporaryDirectory
             .appendingPathComponent("LoveaTests-\(UUID().uuidString)", isDirectory: true)

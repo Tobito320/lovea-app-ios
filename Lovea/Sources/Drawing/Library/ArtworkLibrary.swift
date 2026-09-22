@@ -6,17 +6,20 @@ import UIKit
 final class ArtworkLibrary: ObservableObject {
     @Published private(set) var projects: [ArtworkProject] = []
     @Published private(set) var artworks: [ArtworkDocument] = []
+    @Published private(set) var previewVersion = 0
 
-    private let fileManager: FileManager
+    /// All disk writes run here, in order. Reads that must see earlier writes use `io.sync`.
+    /// ponytail: one queue for every library instance, so a reload always sees pending writes.
+    nonisolated static let io = DispatchQueue(label: "lovea.library.io", qos: .utility)
+
     private let rootURL: URL
     private let indexURL: URL
     private let artworksURL: URL
     private let encoder: JSONEncoder
     private let decoder: JSONDecoder
 
-    init(rootURL: URL? = nil, fileManager: FileManager = .default) {
-        self.fileManager = fileManager
-        let base = rootURL ?? fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+    init(rootURL: URL? = nil) {
+        let base = rootURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Lovea", isDirectory: true)
         self.rootURL = base
         self.indexURL = base.appendingPathComponent("library.json")
@@ -25,14 +28,17 @@ final class ArtworkLibrary: ObservableObject {
         decoder = JSONDecoder()
         encoder.dateEncodingStrategy = .iso8601
         decoder.dateDecodingStrategy = .iso8601
-        prepareDirectories()
+        let artworksURL = artworksURL
+        Self.io.sync {
+            try? FileManager.default.createDirectory(at: artworksURL, withIntermediateDirectories: true)
+        }
         load()
     }
 
     func load() {
-        guard fileManager.fileExists(atPath: indexURL.path),
-              let data = try? Data(contentsOf: indexURL),
-              let index = try? decoder.decode(ArtworkLibraryIndex.self, from: data) else {
+        let indexURL = indexURL
+        let data = Self.io.sync { try? Data(contentsOf: indexURL) }
+        guard let data, let index = try? decoder.decode(ArtworkLibraryIndex.self, from: data) else {
             projects = []
             artworks = discoverArtworkDocuments()
             persistIndex()
@@ -40,6 +46,13 @@ final class ArtworkLibrary: ObservableObject {
         }
         projects = index.projects
         artworks = index.artworkIDs.compactMap(loadDocument)
+    }
+
+    /// Resolves once every write queued so far is on disk.
+    func waitForWrites() async {
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            Self.io.async { continuation.resume() }
+        }
     }
 
     @discardableResult
@@ -85,8 +98,8 @@ final class ArtworkLibrary: ObservableObject {
         background: CanvasBackground = .white
     ) -> ArtworkDocument {
         let proposed = format.size()
-        let width = clampDimension(customWidth ?? proposed.width)
-        let height = clampDimension(customHeight ?? proposed.height)
+        let width = Self.clampDimension(customWidth ?? proposed.width)
+        let height = Self.clampDimension(customHeight ?? proposed.height)
         var document = ArtworkDocument.new(
             name: cleaned(name, fallback: "Neue Zeichnung"),
             projectID: projectID,
@@ -96,7 +109,6 @@ final class ArtworkLibrary: ObservableObject {
             background: background
         )
         document.updatedAt = Date()
-        prepareArtworkDirectory(document.id)
         artworks.append(document)
         persistDocument(document)
         persistIndex()
@@ -133,38 +145,33 @@ final class ArtworkLibrary: ObservableObject {
 
     @discardableResult
     func duplicateArtwork(_ id: UUID) -> ArtworkDocument? {
-        guard var original = document(id) else { return nil }
-        let oldDirectory = directory(for: original.id)
-        let oldID = original.id
-        original.id = UUID()
-        original.name = "\(original.name) Kopie"
-        original.createdAt = Date()
-        original.updatedAt = Date()
-        original.liveReadOnlyShare = false
-        let newDirectory = directory(for: original.id)
-        do {
-            if fileManager.fileExists(atPath: newDirectory.path) {
-                try fileManager.removeItem(at: newDirectory)
-            }
-            if fileManager.fileExists(atPath: oldDirectory.path) {
-                try fileManager.copyItem(at: oldDirectory, to: newDirectory)
-            } else {
-                prepareArtworkDirectory(original.id)
-            }
-            try? fileManager.removeItem(at: newDirectory.appendingPathComponent("document.json"))
-            artworks.append(original)
-            persistDocument(original)
-            persistIndex()
-            return original
-        } catch {
-            original.id = oldID
-            return nil
+        guard var copy = document(id) else { return nil }
+        let oldDirectory = directory(for: copy.id)
+        copy.id = UUID()
+        copy.name = "\(copy.name) Kopie"
+        copy.createdAt = Date()
+        copy.updatedAt = Date()
+        copy.liveReadOnlyShare = false
+        let newDirectory = directory(for: copy.id)
+        let copied: Bool = Self.io.sync {
+            let files = FileManager.default
+            try? files.removeItem(at: newDirectory)
+            guard files.fileExists(atPath: oldDirectory.path) else { return true }
+            guard (try? files.copyItem(at: oldDirectory, to: newDirectory)) != nil else { return false }
+            try? files.removeItem(at: newDirectory.appendingPathComponent("document.json"))
+            return true
         }
+        guard copied else { return nil }
+        artworks.append(copy)
+        persistDocument(copy)
+        persistIndex()
+        return copy
     }
 
     func deleteArtwork(_ id: UUID) {
         artworks.removeAll { $0.id == id }
-        try? fileManager.removeItem(at: directory(for: id))
+        let url = directory(for: id)
+        Self.io.async { try? FileManager.default.removeItem(at: url) }
         persistIndex()
     }
 
@@ -195,27 +202,48 @@ final class ArtworkLibrary: ObservableObject {
     }
 
     func saveLayerAsset(_ data: Data, fileName: String, artworkID: UUID) {
-        let folder = layersDirectory(for: artworkID)
-        try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
-        try? data.write(to: folder.appendingPathComponent(fileName), options: .atomic)
+        let url = layersDirectory(for: artworkID).appendingPathComponent(fileName)
+        Self.io.async { try? Self.atomicWrite(data, to: url) }
     }
 
     func layerAsset(fileName: String, artworkID: UUID) -> Data? {
-        try? Data(contentsOf: layersDirectory(for: artworkID).appendingPathComponent(fileName))
+        let url = layersDirectory(for: artworkID).appendingPathComponent(fileName)
+        return Self.io.sync { try? Data(contentsOf: url) }
+    }
+
+    func layerAssetURL(fileName: String, artworkID: UUID) -> URL {
+        layersDirectory(for: artworkID).appendingPathComponent(fileName)
     }
 
     func removeLayerAsset(fileName: String, artworkID: UUID) {
-        try? fileManager.removeItem(at: layersDirectory(for: artworkID).appendingPathComponent(fileName))
+        let url = layersDirectory(for: artworkID).appendingPathComponent(fileName)
+        Self.io.async { try? FileManager.default.removeItem(at: url) }
     }
 
-    func savePreview(_ image: UIImage, artworkID: UUID) {
-        guard let data = image.jpegData(compressionQuality: 0.78) else { return }
-        try? data.write(to: directory(for: artworkID).appendingPathComponent("preview.jpg"), options: .atomic)
-        objectWillChange.send()
+    func renameLayerAsset(fileName: String, to newName: String, artworkID: UUID) {
+        let folder = layersDirectory(for: artworkID)
+        Self.io.async {
+            try? FileManager.default.moveItem(
+                at: folder.appendingPathComponent(fileName),
+                to: folder.appendingPathComponent(newName)
+            )
+        }
+    }
+
+    func savePreview(jpeg data: Data, artworkID: UUID) {
+        let url = directory(for: artworkID).appendingPathComponent("preview.jpg")
+        Self.io.async {
+            try? Self.atomicWrite(data, to: url)
+            Task { @MainActor [weak self] in self?.previewVersion += 1 }
+        }
+    }
+
+    func previewURL(for artworkID: UUID) -> URL {
+        directory(for: artworkID).appendingPathComponent("preview.jpg")
     }
 
     func previewImage(for artworkID: UUID) -> UIImage? {
-        UIImage(contentsOfFile: directory(for: artworkID).appendingPathComponent("preview.jpg").path)
+        UIImage(contentsOfFile: previewURL(for: artworkID).path)
     }
 
     func sortedArtworks(_ sort: ArtworkSort) -> [ArtworkDocument] {
@@ -236,14 +264,17 @@ final class ArtworkLibrary: ObservableObject {
         persistIndex()
     }
 
-    private func prepareDirectories() {
-        try? fileManager.createDirectory(at: rootURL, withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: artworksURL, withIntermediateDirectories: true)
+    /// Writes via a temporary file and rename. A failed write leaves the old file untouched.
+    nonisolated static func atomicWrite(_ data: Data, to url: URL) throws {
+        try FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        try data.write(to: url, options: .atomic)
     }
 
-    private func prepareArtworkDirectory(_ id: UUID) {
-        try? fileManager.createDirectory(at: directory(for: id), withIntermediateDirectories: true)
-        try? fileManager.createDirectory(at: layersDirectory(for: id), withIntermediateDirectories: true)
+    nonisolated static func clampDimension(_ value: Double) -> Double {
+        min(max(value.rounded(), 64), 4096)
     }
 
     private func directory(for id: UUID) -> URL {
@@ -256,16 +287,19 @@ final class ArtworkLibrary: ObservableObject {
 
     private func loadDocument(_ id: UUID) -> ArtworkDocument? {
         let url = directory(for: id).appendingPathComponent("document.json")
-        guard let data = try? Data(contentsOf: url) else { return nil }
+        guard let data = Self.io.sync(execute: { try? Data(contentsOf: url) }) else { return nil }
         return try? decoder.decode(ArtworkDocument.self, from: data)
     }
 
     private func discoverArtworkDocuments() -> [ArtworkDocument] {
-        guard let urls = try? fileManager.contentsOfDirectory(
-            at: artworksURL,
-            includingPropertiesForKeys: nil,
-            options: [.skipsHiddenFiles]
-        ) else { return [] }
+        let artworksURL = artworksURL
+        let urls = Self.io.sync {
+            (try? FileManager.default.contentsOfDirectory(
+                at: artworksURL,
+                includingPropertiesForKeys: nil,
+                options: [.skipsHiddenFiles]
+            )) ?? []
+        }
         return urls.compactMap { url in
             guard let id = UUID(uuidString: url.lastPathComponent) else { return nil }
             return loadDocument(id)
@@ -273,19 +307,16 @@ final class ArtworkLibrary: ObservableObject {
     }
 
     private func persistDocument(_ document: ArtworkDocument) {
-        prepareArtworkDirectory(document.id)
         guard let data = try? encoder.encode(document) else { return }
-        try? data.write(to: directory(for: document.id).appendingPathComponent("document.json"), options: .atomic)
+        let url = directory(for: document.id).appendingPathComponent("document.json")
+        Self.io.async { try? Self.atomicWrite(data, to: url) }
     }
 
     private func persistIndex() {
         let index = ArtworkLibraryIndex(projects: projects, artworkIDs: artworks.map(\.id))
         guard let data = try? encoder.encode(index) else { return }
-        try? data.write(to: indexURL, options: .atomic)
-    }
-
-    private func clampDimension(_ value: Double) -> Double {
-        min(max(value, 64), 4096)
+        let url = indexURL
+        Self.io.async { try? Self.atomicWrite(data, to: url) }
     }
 
     private func cleaned(_ value: String, fallback: String) -> String {
