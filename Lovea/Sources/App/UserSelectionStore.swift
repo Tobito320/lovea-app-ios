@@ -8,6 +8,13 @@ enum LoveaPerson: String, CaseIterable, Equatable, Sendable {
     var partner: LoveaPerson {
         self == .ahmed ? .annika : .ahmed
     }
+
+    var apiID: String {
+        switch self {
+        case .ahmed: "ahmed"
+        case .annika: "annika"
+        }
+    }
 }
 
 @MainActor
