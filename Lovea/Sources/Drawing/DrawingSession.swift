@@ -20,6 +20,7 @@ final class DrawingSession: ObservableObject {
     @Published var drawsWithFinger = false
     @Published var rulerActive = false
     @Published var stabilizer = 5.0
+    @Published var fillTolerance = 0.12
     @Published private(set) var recentColors: [RGBAColor] = [.studioBlack, .blue, .red, .orange]
     @Published private(set) var recentBrushes: [BrushPreset] = [.pen, .pencil, .marker]
 
@@ -45,10 +46,6 @@ final class DrawingSession: ObservableObject {
             ?? document.layers.last?.id
             ?? UUID()
         loadPaintDrawings()
-    }
-
-    deinit {
-        previewTask?.cancel()
     }
 
     var activeLayer: ArtworkLayer? {
@@ -115,6 +112,72 @@ final class DrawingSession: ObservableObject {
             activeLayerID = layer.id
         }
         touchDocument()
+    }
+
+    func addGeneratedLayer(_ image: UIImage, name: String, select: Bool = true) {
+        guard let data = image.pngData() else { return }
+        let layer = ArtworkLayer.image(name: name)
+        let insertionIndex: Int
+        if let currentIndex = document.layers.firstIndex(where: { $0.id == activeLayerID }) {
+            insertionIndex = min(currentIndex + 1, document.layers.count)
+        } else {
+            insertionIndex = document.layers.count
+        }
+        document.layers.insert(layer, at: insertionIndex)
+        library.saveLayerData(data, layer: layer, artworkID: document.id)
+        if select { activeLayerID = layer.id }
+        touchDocument()
+    }
+
+    func handleCanvasTap(_ point: CGPoint) {
+        switch tool {
+        case .eyedropper:
+            let composed = exportImage()
+            if let sampled = RasterTools.sampleColor(in: composed, at: point) {
+                setColor(sampled)
+            }
+        case .fill:
+            let composed = exportImage()
+            if let fill = RasterTools.floodFillLayer(
+                source: composed,
+                start: point,
+                color: color,
+                tolerance: fillTolerance
+            ) {
+                let previous = activeLayerID
+                addGeneratedLayer(fill, name: "Füllung", select: false)
+                activeLayerID = previous
+            }
+        default:
+            break
+        }
+    }
+
+    func addShape(_ kind: ShapeKind, filled: Bool) {
+        let image = RasterTools.shapeLayer(
+            canvasSize: canvasSize,
+            kind: kind,
+            color: color,
+            lineWidth: CGFloat(max(brushWidth, 1)),
+            filled: filled
+        )
+        addGeneratedLayer(image, name: kind.title)
+    }
+
+    func addText(_ text: String, fontSize: CGFloat, fontIndex: Int) {
+        let clean = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !clean.isEmpty else { return }
+        let names = ["HelveticaNeue", "AvenirNext-Regular", "Georgia", "CourierNewPSMT"]
+        let index = min(max(fontIndex, 0), names.count - 1)
+        let font = UIFont(name: names[index], size: fontSize) ?? .systemFont(ofSize: fontSize)
+        let image = RasterTools.textLayer(
+            canvasSize: canvasSize,
+            text: clean,
+            color: color,
+            fontSize: fontSize,
+            font: font
+        )
+        addGeneratedLayer(image, name: "Text")
     }
 
     func deleteLayer(_ id: UUID) {
@@ -239,6 +302,7 @@ final class DrawingSession: ObservableObject {
     }
 
     func saveNow() {
+        previewTask?.cancel()
         library.saveDocument(document)
         let preview = ArtworkRenderer.thumbnail(document: document, library: library)
         library.savePreview(preview, artworkID: document.id)
