@@ -2,6 +2,18 @@
 
 Native SwiftUI-App für Ahmed und Annika. Die erste Version konzentriert sich auf Zeichnen.
 
+## Produktplan
+
+Der verbindliche Bauplan für den Zeichen-Bereich liegt unter [`docs/DRAWING-ROADMAP.md`](docs/DRAWING-ROADMAP.md).
+
+Priorität:
+
+1. Level 1 – vollständiges persönliches Zeichnen auf iPad/iPhone
+2. Level 2 – Projekte/Zeichnungen als Bild oder read-only teilen
+3. Level 3 – eine konkrete Zeichnung gemeinsam bearbeiten
+
+Das alte permanente Shared Board gehört nicht mehr zum Produktplan.
+
 ## Enthalten
 
 - Personenauswahl bei jedem App-Start: Ahmed oder Annika
