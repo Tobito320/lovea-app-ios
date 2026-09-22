@@ -3,11 +3,20 @@ import UIKit
 
 struct DrawingView: View {
     let person: LoveaPerson
-    @StateObject private var library = ArtworkLibrary()
+    @StateObject private var library: ArtworkLibrary
+    @StateObject private var sharing: LoveaSharingService
     @State private var sort: ArtworkSort = .newest
     @State private var showsNewArtwork = false
     @State private var showsNewProject = false
+    @State private var showsSharingConnection = false
+    @State private var showsSharingManager = false
     @State private var newProjectName = ""
+
+    init(person: LoveaPerson) {
+        self.person = person
+        _library = StateObject(wrappedValue: ArtworkLibrary())
+        _sharing = StateObject(wrappedValue: LoveaSharingService(person: person))
+    }
 
     var body: some View {
         NavigationStack {
@@ -16,12 +25,14 @@ struct DrawingView: View {
                     if let latest = library.artworks.max(by: { $0.updatedAt < $1.updatedAt }) {
                         sectionTitle("Zuletzt bearbeitet")
                         NavigationLink {
-                            DrawingStudioView(artworkID: latest.id, library: library)
+                            DrawingStudioView(artworkID: latest.id, library: library, sharing: sharing)
                         } label: {
                             LatestArtworkCard(artwork: latest, library: library)
                         }
                         .buttonStyle(.plain)
                     }
+
+                    SharingInboxSection(sharing: sharing, partner: person.partner)
 
                     HStack {
                         Button {
@@ -53,7 +64,12 @@ struct DrawingView: View {
                         LazyVGrid(columns: galleryColumns, spacing: 14) {
                             ForEach(library.projects) { project in
                                 NavigationLink {
-                                    ProjectGalleryView(projectID: project.id, library: library, sort: $sort)
+                                    ProjectGalleryView(
+                                        projectID: project.id,
+                                        library: library,
+                                        sharing: sharing,
+                                        sort: $sort
+                                    )
                                 } label: {
                                     ProjectCard(project: project, library: library)
                                 }
@@ -68,23 +84,33 @@ struct DrawingView: View {
                         ContentUnavailableView(
                             "Noch keine Zeichnung",
                             systemImage: "paintbrush",
-                            description: Text("Erstelle eine Zeichnung oder importiere später ein Foto als Schablone.")
+                            description: Text("Erstelle eine Zeichnung oder importiere ein Foto als Schablone.")
                         )
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 24)
                     } else {
                         LazyVGrid(columns: galleryColumns, spacing: 14) {
                             ForEach(ungrouped) { artwork in
-                                ArtworkCard(artwork: artwork, library: library)
+                                ArtworkCard(artwork: artwork, library: library, sharing: sharing)
                             }
                         }
                     }
                 }
                 .padding()
             }
+            .refreshable {
+                await sharing.refresh()
+            }
             .navigationTitle("Meine Galerie")
             .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button {
+                        openSharing()
+                    } label: {
+                        Image(systemName: sharingSymbol)
+                    }
+                    .accessibilityLabel("Mit \(person.partner.rawValue) teilen")
+
                     Text(person.rawValue)
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -92,6 +118,12 @@ struct DrawingView: View {
             }
             .sheet(isPresented: $showsNewArtwork) {
                 NewArtworkSheet(library: library, preselectedProjectID: nil)
+            }
+            .sheet(isPresented: $showsSharingConnection) {
+                SharingConnectionView(sharing: sharing)
+            }
+            .sheet(isPresented: $showsSharingManager) {
+                SharingManagerView(library: library, sharing: sharing, partner: person.partner)
             }
             .alert("Neues Projekt", isPresented: $showsNewProject) {
                 TextField("Name", text: $newProjectName)
@@ -101,13 +133,43 @@ struct DrawingView: View {
                     newProjectName = ""
                 }
             } message: {
-                Text("Ein Projekt sammelt mehrere Zeichnungen. Personen kommen erst in Level 2 dazu.")
+                Text("Ein Projekt sammelt mehrere Zeichnungen. Du kannst es später mit \(person.partner.rawValue) teilen.")
+            }
+            .task {
+                await sharing.checkSession()
+                if sharing.state == .connected {
+                    sharing.startAutoRefresh()
+                }
+            }
+            .onChange(of: sharing.state) { _, state in
+                if state == .connected {
+                    sharing.startAutoRefresh()
+                }
+            }
+            .onDisappear {
+                sharing.stopAutoRefresh()
             }
         }
     }
 
     private var galleryColumns: [GridItem] {
         [GridItem(.adaptive(minimum: 150, maximum: 230), spacing: 14)]
+    }
+
+    private var sharingSymbol: String {
+        switch sharing.state {
+        case .connected: "person.2.fill"
+        case .checking: "arrow.triangle.2.circlepath"
+        case .disconnected, .failed: "person.2"
+        }
+    }
+
+    private func openSharing() {
+        if sharing.state == .connected {
+            showsSharingManager = true
+        } else {
+            showsSharingConnection = true
+        }
     }
 
     private func sorted(_ values: [ArtworkDocument]) -> [ArtworkDocument] {
@@ -129,6 +191,7 @@ struct DrawingView: View {
 private struct ProjectGalleryView: View {
     let projectID: UUID
     @ObservedObject var library: ArtworkLibrary
+    @ObservedObject var sharing: LoveaSharingService
     @Binding var sort: ArtworkSort
     @State private var showsNewArtwork = false
     @State private var renameText = ""
@@ -152,7 +215,7 @@ private struct ProjectGalleryView: View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 230), spacing: 14)], spacing: 14) {
                 ForEach(artworks) { artwork in
-                    ArtworkCard(artwork: artwork, library: library)
+                    ArtworkCard(artwork: artwork, library: library, sharing: sharing)
                 }
             }
             .padding()
@@ -201,13 +264,14 @@ private struct ProjectGalleryView: View {
 private struct ArtworkCard: View {
     let artwork: ArtworkDocument
     @ObservedObject var library: ArtworkLibrary
+    @ObservedObject var sharing: LoveaSharingService
     @State private var renameText = ""
     @State private var showsRename = false
     @State private var showsDelete = false
 
     var body: some View {
         NavigationLink {
-            DrawingStudioView(artworkID: artwork.id, library: library)
+            DrawingStudioView(artworkID: artwork.id, library: library, sharing: sharing)
         } label: {
             VStack(alignment: .leading, spacing: 8) {
                 preview
@@ -216,9 +280,14 @@ private struct ArtworkCard: View {
                 Text(artwork.name)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                Text(artwork.updatedAt, format: .dateTime.day().month().hour().minute())
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
+                HStack(spacing: 5) {
+                    Text(artwork.updatedAt, format: .dateTime.day().month().hour().minute())
+                    if artwork.liveReadOnlyShare {
+                        Image(systemName: "eye.fill")
+                    }
+                }
+                .font(.caption2)
+                .foregroundStyle(.secondary)
             }
         }
         .buttonStyle(.plain)
@@ -326,9 +395,16 @@ private struct ProjectCard: View {
                 }
             }
             .frame(height: 112)
-            Text(project.name)
-                .font(.subheadline.weight(.semibold))
-                .lineLimit(1)
+            HStack(spacing: 5) {
+                Text(project.name)
+                    .font(.subheadline.weight(.semibold))
+                    .lineLimit(1)
+                if project.sharedReadOnly {
+                    Image(systemName: "person.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
             Text("\(library.artworks.filter { $0.projectID == project.id }.count) Zeichnungen")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -391,7 +467,7 @@ private struct NewArtworkSheet: View {
                 }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Erstellen") {
-                        let artwork = library.createArtwork(
+                        _ = library.createArtwork(
                             name: name,
                             projectID: projectID,
                             format: format,
@@ -399,7 +475,6 @@ private struct NewArtworkSheet: View {
                             customHeight: format == .custom ? customHeight : nil,
                             background: background.canvasBackground
                         )
-                        _ = artwork
                         dismiss()
                     }
                 }
