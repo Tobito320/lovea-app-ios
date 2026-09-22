@@ -89,10 +89,11 @@ final class ArtworkLibraryTests: XCTestCase {
 
         session.addImageLayer(data: try XCTUnwrap(image.pngData()), asTemplate: true)
 
-        XCTAssertEqual(session.document.layers.first?.name, "Schablone")
-        XCTAssertEqual(session.document.layers.first?.kind, .image)
-        XCTAssertEqual(session.document.layers.first?.opacity, 0.35, accuracy: 0.0001)
-        XCTAssertEqual(session.document.layers.first?.isLocked, true)
+        let template = try XCTUnwrap(session.document.layers.first)
+        XCTAssertEqual(template.name, "Schablone")
+        XCTAssertEqual(template.kind, .image)
+        XCTAssertEqual(template.opacity, 0.35, accuracy: 0.0001)
+        XCTAssertEqual(template.isLocked, true)
         XCTAssertEqual(session.activeLayer?.kind, .paint)
         XCTAssertEqual(session.activeLayer?.name, "Zeichnen")
     }
