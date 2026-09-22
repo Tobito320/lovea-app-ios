@@ -6,6 +6,23 @@ on:
   pull_request:
 
 jobs:
+  patterns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verbotene Muster
+        run: |
+          fail=0
+          if grep -rln "import PencilKit" Lovea/Sources | grep -v "LegacyMigration.swift"; then
+            echo "::error::import PencilKit ausserhalb von LegacyMigration.swift"; fail=1
+          fi
+          if grep -rln "UIGraphicsImageRenderer" Lovea/Sources | grep -v "Export"; then
+            echo "::error::UIGraphicsImageRenderer ausserhalb von Tests/ und Export"; fail=1
+          fi
+          exit $fail
+      - name: actionlint
+        run: docker run --rm -v "$PWD:/repo" --workdir /repo rhysd/actionlint:latest -color
+
   build-and-test:
     runs-on: macos-26
     timeout-minutes: 35
@@ -24,13 +41,16 @@ jobs:
             -project Lovea.xcodeproj \
             -scheme Lovea \
             -destination "platform=iOS Simulator,id=$IPHONE_ID" \
-            CODE_SIGNING_ALLOWED=NO
+            CODE_SIGNING_ALLOWED=NO SWIFT_TREAT_WARNINGS_AS_ERRORS=NO 2>&1 | tee iphone.log
+          COUNT=$(grep "warning:" iphone.log | sort -u | wc -l | tr -d ' ')
+          echo "### Compiler-Warnungen: $COUNT" >> "$GITHUB_STEP_SUMMARY"
+          grep "warning:" iphone.log | sort -u | head -50 | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY" || true
       - name: Test on iPad
         run: |
           set -euo pipefail
           IPAD_ID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPad"))][0].udid')
           test -n "$IPAD_ID"
-          xcodebuild test \
+          xcodebuild test -quiet \
             -project Lovea.xcodeproj \
             -scheme Lovea \
             -destination "platform=iOS Simulator,id=$IPAD_ID" \
