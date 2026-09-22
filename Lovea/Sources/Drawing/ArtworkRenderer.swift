@@ -60,19 +60,25 @@ enum ArtworkRenderer {
         library: ArtworkLibrary
     ) -> UIImage? {
         guard let data = library.layerData(layer, artworkID: document.id) else { return nil }
-        let bounds = CGRect(
-            x: 0,
-            y: 0,
-            width: CGFloat(document.canvasWidth),
-            height: CGFloat(document.canvasHeight)
-        )
+        let size = CGSize(width: CGFloat(document.canvasWidth), height: CGFloat(document.canvasHeight))
+        let bounds = CGRect(origin: .zero, size: size)
+        let base: UIImage?
         switch layer.kind {
         case .paint:
             guard let drawing = try? PKDrawing(data: data) else { return nil }
-            return drawing.image(from: bounds, scale: 1)
+            base = drawing.image(from: bounds, scale: 1)
         case .image:
-            return UIImage(data: data)
+            base = UIImage(data: data)
         }
+
+        guard var image = base else { return nil }
+        if layer.alphaLock,
+           let maskFile = layer.alphaMaskFile,
+           let maskData = library.layerAsset(fileName: maskFile, artworkID: document.id),
+           let mask = UIImage(data: maskData) {
+            image = clipped(image, toAlphaOf: mask, size: size)
+        }
+        return image
     }
 
     private static func drawBackground(_ background: CanvasBackground, size: CGSize, in context: CGContext) {
