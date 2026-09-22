@@ -169,13 +169,25 @@ final class ArtworkLibrary: ObservableObject {
     }
 
     func saveLayerData(_ data: Data, layer: ArtworkLayer, artworkID: UUID) {
-        let folder = layersDirectory(for: artworkID)
-        try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
-        try? data.write(to: folder.appendingPathComponent(layer.contentFile), options: .atomic)
+        saveLayerAsset(data, fileName: layer.contentFile, artworkID: artworkID)
     }
 
     func layerData(_ layer: ArtworkLayer, artworkID: UUID) -> Data? {
-        try? Data(contentsOf: layersDirectory(for: artworkID).appendingPathComponent(layer.contentFile))
+        layerAsset(fileName: layer.contentFile, artworkID: artworkID)
+    }
+
+    func saveLayerAsset(_ data: Data, fileName: String, artworkID: UUID) {
+        let folder = layersDirectory(for: artworkID)
+        try? fileManager.createDirectory(at: folder, withIntermediateDirectories: true)
+        try? data.write(to: folder.appendingPathComponent(fileName), options: .atomic)
+    }
+
+    func layerAsset(fileName: String, artworkID: UUID) -> Data? {
+        try? Data(contentsOf: layersDirectory(for: artworkID).appendingPathComponent(fileName))
+    }
+
+    func removeLayerAsset(fileName: String, artworkID: UUID) {
+        try? fileManager.removeItem(at: layersDirectory(for: artworkID).appendingPathComponent(fileName))
     }
 
     func savePreview(_ image: UIImage, artworkID: UUID) {
@@ -188,18 +200,14 @@ final class ArtworkLibrary: ObservableObject {
         UIImage(contentsOfFile: directory(for: artworkID).appendingPathComponent("preview.jpg").path)
     }
 
-    func sortedArtworks(_ sort: ArtworkSort, projectID: UUID?? = nil) -> [ArtworkDocument] {
-        var values = artworks
-        if let projectID {
-            values = values.filter { $0.projectID == projectID }
-        }
+    func sortedArtworks(_ sort: ArtworkSort) -> [ArtworkDocument] {
         switch sort {
         case .newest:
-            return values.sorted { $0.updatedAt > $1.updatedAt }
+            return artworks.sorted { $0.updatedAt > $1.updatedAt }
         case .name:
-            return values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            return artworks.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
         case .oldest:
-            return values.sorted { $0.createdAt < $1.createdAt }
+            return artworks.sorted { $0.createdAt < $1.createdAt }
         }
     }
 
