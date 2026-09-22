@@ -183,6 +183,11 @@ final class DrawingSession: ObservableObject {
     func deleteLayer(_ id: UUID) {
         guard document.layers.count > 1,
               let index = document.layers.firstIndex(where: { $0.id == id }) else { return }
+        let layer = document.layers[index]
+        library.removeLayerAsset(fileName: layer.contentFile, artworkID: document.id)
+        if let maskFile = layer.alphaMaskFile {
+            library.removeLayerAsset(fileName: maskFile, artworkID: document.id)
+        }
         document.layers.remove(at: index)
         drawings[id] = nil
         if activeLayerID == id {
@@ -210,6 +215,13 @@ final class DrawingSession: ObservableObject {
             if copy.kind == .paint, let drawing = try? PKDrawing(data: data) {
                 drawings[copy.id] = drawing
             }
+        }
+        if original.alphaLock,
+           let originalMask = original.alphaMaskFile,
+           let maskData = library.layerAsset(fileName: originalMask, artworkID: document.id) {
+            let copyMask = "alpha-\(copy.id.uuidString).png"
+            copy.alphaMaskFile = copyMask
+            library.saveLayerAsset(maskData, fileName: copyMask, artworkID: document.id)
         }
         document.layers.insert(copy, at: index + 1)
         activeLayerID = copy.id
@@ -254,7 +266,29 @@ final class DrawingSession: ObservableObject {
     }
 
     func toggleAlphaLock(_ id: UUID) {
-        updateLayer(id) { $0.alphaLock.toggle() }
+        guard let index = document.layers.firstIndex(where: { $0.id == id }),
+              document.layers[index].kind == .paint else { return }
+
+        if document.layers[index].alphaLock {
+            if let maskFile = document.layers[index].alphaMaskFile {
+                library.removeLayerAsset(fileName: maskFile, artworkID: document.id)
+            }
+            document.layers[index].alphaLock = false
+            document.layers[index].alphaMaskFile = nil
+            touchDocument()
+            return
+        }
+
+        var sourceLayer = document.layers[index]
+        sourceLayer.alphaLock = false
+        sourceLayer.alphaMaskFile = nil
+        guard let image = ArtworkRenderer.layerImage(sourceLayer, document: document, library: library),
+              let data = image.pngData() else { return }
+        let maskFile = "alpha-\(id.uuidString).png"
+        library.saveLayerAsset(data, fileName: maskFile, artworkID: document.id)
+        document.layers[index].alphaMaskFile = maskFile
+        document.layers[index].alphaLock = true
+        touchDocument()
     }
 
     func updateTransform(_ transform: LayerTransform, for id: UUID) {
