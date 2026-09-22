@@ -28,6 +28,9 @@ targets:
         product: FirebaseDatabase
       - package: Firebase
         product: FirebaseMessaging
+    scheme:
+      testTargets:
+        - WirAppTests
   WirAppTests:
     type: bundle.unit-test
     platform: iOS
