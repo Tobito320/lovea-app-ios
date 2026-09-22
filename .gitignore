@@ -7,3 +7,10 @@ GoogleService-Info.plist
 *.p12
 *.mobileprovision
 .env
+AuthKey_*.p8
+*.key
+*.pem
+*.cer
+*.csr
+signing/
+.superpowers/
