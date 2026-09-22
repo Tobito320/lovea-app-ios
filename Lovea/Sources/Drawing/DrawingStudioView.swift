@@ -8,6 +8,7 @@ struct DrawingStudioView: View {
     @StateObject private var canvasController = PencilCanvasController()
     @ObservedObject private var sharing: LoveaSharingService
     @State private var showsLayers = false
+    @State private var showsInsertTools = false
     @State private var exportImage: UIImage?
     @State private var imageItem: PhotosPickerItem?
     @State private var templateItem: PhotosPickerItem?
@@ -39,7 +40,8 @@ struct DrawingStudioView: View {
                     backgroundImage: imageBelowActiveLayer,
                     foregroundImage: imageAboveActiveLayer,
                     controller: canvasController,
-                    onDrawingChanged: { session.updateDrawing($0, for: active.id) }
+                    onDrawingChanged: { session.updateDrawing($0, for: active.id) },
+                    onCanvasTap: { session.handleCanvasTap($0) }
                 )
             } else if let active = session.activeLayer, active.kind == .image {
                 ImageLayerEditor(session: session, layerID: active.id)
@@ -68,6 +70,9 @@ struct DrawingStudioView: View {
         }
         .sheet(isPresented: $showsLayers) {
             ArtworkLayersView(session: session)
+        }
+        .sheet(isPresented: $showsInsertTools) {
+            InsertToolsView(session: session)
         }
         .sheet(isPresented: Binding(
             get: { exportImage != nil },
@@ -126,6 +131,11 @@ struct DrawingStudioView: View {
                 PhotosPicker(selection: $imageItem, matching: .images) {
                     Label("Bild als Ebene importieren", systemImage: "photo.on.rectangle")
                 }
+                Button {
+                    showsInsertTools = true
+                } label: {
+                    Label("Formen, Text & Fülloptionen", systemImage: "square.on.circle")
+                }
 
                 Divider()
 
@@ -165,65 +175,83 @@ struct DrawingStudioView: View {
 
     private var studioControls: some View {
         VStack(spacing: 8) {
-            HStack(spacing: 8) {
-                ForEach(StudioTool.allCases) { tool in
-                    Button {
-                        session.tool = tool
-                    } label: {
-                        Image(systemName: tool.symbol)
-                            .frame(width: 42, height: 42)
-                            .background(session.tool == tool ? Color.accentColor.opacity(0.22) : Color.clear, in: Circle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel(tool.title)
-                    .disabled(session.activeLayer?.kind != .paint)
-                }
-
-                Divider().frame(height: 30)
-
-                Menu {
-                    ForEach(BrushPreset.allCases) { brush in
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    ForEach(StudioTool.allCases) { tool in
                         Button {
-                            session.brush = brush
-                            session.tool = .brush
+                            session.tool = tool
                         } label: {
-                            if session.brush == brush {
-                                Label(brush.title, systemImage: "checkmark")
-                            } else {
-                                Text(brush.title)
+                            Image(systemName: tool.symbol)
+                                .frame(width: 42, height: 42)
+                                .background(session.tool == tool ? Color.accentColor.opacity(0.22) : Color.clear, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel(tool.title)
+                        .disabled(session.activeLayer?.kind != .paint)
+                    }
+
+                    Divider().frame(height: 30)
+
+                    Menu {
+                        ForEach(BrushPreset.allCases) { brush in
+                            Button {
+                                session.brush = brush
+                                session.tool = .brush
+                            } label: {
+                                if session.brush == brush {
+                                    Label(brush.title, systemImage: "checkmark")
+                                } else {
+                                    Text(brush.title)
+                                }
                             }
                         }
+                    } label: {
+                        Label(session.brush.title, systemImage: "paintbrush")
+                            .lineLimit(1)
                     }
-                } label: {
-                    Label(session.brush.title, systemImage: "paintbrush")
-                        .lineLimit(1)
-                }
-                .disabled(session.activeLayer?.kind != .paint)
-
-                Spacer(minLength: 4)
-
-                ColorPicker("Farbe", selection: colorBinding, supportsOpacity: false)
-                    .labelsHidden()
                     .disabled(session.activeLayer?.kind != .paint)
+
+                    ColorPicker("Farbe", selection: colorBinding, supportsOpacity: false)
+                        .labelsHidden()
+                        .disabled(session.activeLayer?.kind != .paint)
+                }
             }
 
             if session.activeLayer?.kind == .paint {
-                HStack(spacing: 8) {
-                    Text("Größe")
-                        .font(.caption)
-                    Slider(value: $session.brushWidth, in: 1...120)
-                    Text("\(Int(session.brushWidth))")
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 32)
-                }
+                if session.tool == .fill {
+                    HStack(spacing: 8) {
+                        Text("Fülltoleranz")
+                            .font(.caption)
+                        Slider(value: $session.fillTolerance, in: 0...0.5)
+                        Text("\(Int(session.fillTolerance * 100))%")
+                            .font(.caption.monospacedDigit())
+                            .frame(width: 38)
+                    }
+                } else if session.tool == .brush || session.tool == .eraser {
+                    HStack(spacing: 8) {
+                        Text("Größe")
+                            .font(.caption)
+                        Slider(value: $session.brushWidth, in: 1...120)
+                        Text("\(Int(session.brushWidth))")
+                            .font(.caption.monospacedDigit())
+                            .frame(width: 32)
+                    }
 
-                HStack(spacing: 8) {
-                    Text("Deckkraft")
-                        .font(.caption)
-                    Slider(value: $session.brushOpacity, in: 0.05...1)
-                    Text(session.brushOpacity, format: .percent.precision(.fractionLength(0)))
-                        .font(.caption.monospacedDigit())
-                        .frame(width: 42)
+                    HStack(spacing: 8) {
+                        Text("Deckkraft")
+                            .font(.caption)
+                        Slider(value: $session.brushOpacity, in: 0.05...1)
+                        Text(session.brushOpacity, format: .percent.precision(.fractionLength(0)))
+                            .font(.caption.monospacedDigit())
+                            .frame(width: 42)
+                    }
+                } else {
+                    HStack {
+                        Text(session.tool == .eyedropper ? "Tippe auf eine Farbe in der Zeichnung." : "Auswahl mit dem Apple Pencil oder Finger umfahren.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
                 }
 
                 HStack(spacing: 6) {
