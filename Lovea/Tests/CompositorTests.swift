@@ -42,7 +42,8 @@ final class CompositorTests: XCTestCase {
         let png = try XCTUnwrap(RasterOps.encode(RasterOps.Pixels(bytes: bytes, width: 64, height: 64)))
         let id = UUID()
         try store.load(pngData: png, for: id)
-        let saved = try XCTUnwrap(await store.pngData(for: id))
+        let savedData = await store.pngData(for: id)
+        let saved = try XCTUnwrap(savedData)
         let decoded = try XCTUnwrap(RasterOps.decode(saved))
         XCTAssertEqual(decoded.bytes.count, bytes.count)
         for index in bytes.indices {
@@ -161,7 +162,8 @@ final class CompositorTests: XCTestCase {
         XCTAssertEqual(TestGPU.pixel(flat.bytes, width: 64, x: 10, y: 10)[3], 0)
 
         let white = try await TestGPU.engine(TestGPU.document(background: .white))
-        XCTAssertEqual(TestGPU.pixel(await TestGPU.flatten(white).bytes, width: 64, x: 10, y: 10), [255, 255, 255, 255])
+        let whiteFlat = await TestGPU.flatten(white)
+        XCTAssertEqual(TestGPU.pixel(whiteFlat.bytes, width: 64, x: 10, y: 10), [255, 255, 255, 255])
     }
 
     // MARK: Z-2.8 caches / Z-5.12 opacity without rebuild

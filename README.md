@@ -16,32 +16,22 @@ Das alte permanente Shared Board gehört nicht mehr zum Produktplan.
 
 ## Aktueller Zeichen-Stand
 
-- genau drei Tabs: Home, Zeichnen und Profil
-- `Meine Galerie` mit mehreren Zeichnungen und Projekten
-- lokale Artwork-Ordner mit Dokument, Vorschau und getrennten Layer-Dateien
-- MetalKit-Zeichenfläche für iPad/Apple Pencil und iPhone
-- zehn kuratierte Brush-Presets
-- Pinsel, Radierer, Pipette und Farbeimer
-- Foto aus der Mediathek als eigene Ebene
-- Schnellaktion `Foto als Schablone`
-- Paint- und Image-Layer
-- Sichtbarkeit, Sperren, Deckkraft, Duplizieren, Reihenfolge und Merge-down
-- acht Blend Modes, Clipping und Transparenz schützen
-- Formen und Text
-- Zoom, Verschieben, Rotieren, Undo/Redo und Mehrfinger-Gesten
-- lokales Autosave, Galerie-Vorschauen und Bildexport
-- Level 2: Snapshot senden, read-only Live-Freigabe und Projektfreigabe über das private Lovea-Backend
-- iPhone und iPad ab iOS 18
+Level 1 ist gebaut und wartet auf die Abnahme am iPad: [`docs/LEVEL1-ABNAHME.md`](docs/LEVEL1-ABNAHME.md).
 
-## Architektur
+## Zeichen-Engine (Level 1)
 
-- `ArtworkLibrary` – Galerie, Projekte und lokale Dateien
-- `DrawingSession` – Dokumentzustand und Zeichenaktionen
-- `ArtworkMetalCanvasRepresentable` – Metal-Eingabe und Darstellung neuer Striche
-- `ArtworkRenderer` – Ebenen-Compositing und Export
-- `LoveaSharingService` – Level-2-Freigaben
+1. Jede Ebene ist eine GPU-Textur in Dokumentgröße (`LayerTextureStore`, `rgba8Unorm`, vormultipliziert). Bildebenen behalten ihr Foto als eigene Textur plus `LayerTransform`.
+2. Ein Strich wird zu Stempeln (`StrokeSampler`: Live-Stabilisator, Druckkurve, Neigung, Abstand). `BrushStamper` malt alle neuen Stempel eines Frames mit einem instanzierten Draw in eine Scratch-Textur.
+3. Die Scratch-Textur wird live über der aktiven Ebene gezeigt und beim Absetzen einmal übernommen (normal, Radierer, Alpha Lock). So baut sich die Deckkraft im Strich nicht auf.
+4. `Compositor` setzt die Ebenen auf der GPU zusammen (8 Mischmodi nach W3C, Clipping wie ibisPaint). Alles unter und über der aktiven Ebene liegt als Cache bereit. Ein Frame blendet nur unten + aktiv (+ Strich) + oben.
+5. `MTKView` zeichnet nur bei Eingabe, Geste oder Änderung. Im Stillstand gibt es keine Frames.
+6. Undo speichert pro Strich nur das betroffene Rechteck (`UndoHistory`, 256 MiB). Ebenen-Aktionen sind Dokument-Schritte.
+7. Gespeichert wird 1 s nach der letzten Änderung, im Hintergrund und atomar: erst die geänderten Ebenen als PNG, dann `document.json`.
+8. Füllen, Pipette, Auswahl, Transformieren, Formen, Text und Anpassungen laufen über dieselbe Engine. Readbacks sind asynchron, CPU-Arbeit läuft im Hintergrund.
+9. Alte Zeichnungen (Schema 2: JSON-Striche und PencilKit) werden beim Öffnen einmal in Texturen gerastert (`LegacyMigration`). Die alten Dateien bekommen die Endung `.migrated`.
+10. `CanvasEngine` ist die einzige Schnittstelle für Pixel. `DrawingSession` hält nur Werkzeug, Pinsel, Farben und die aktive Ebene.
 
-Ältere PencilKit-Zeichnungen bleiben lesbar. Neue Striche werden getrennt gespeichert und im Studio mit Metal gerendert. Die ältere, getrennte Metal-Basis bleibt vorerst im Repository, ist aber nicht der aktive Studio-Pfad.
+Code: `Lovea/Sources/Drawing/Engine` (Pixel), `Studio` (Oberfläche), `Library` (Galerie, Dateien), `Sharing` (Level 2, eingefroren).
 
 ## Projekt erzeugen
 

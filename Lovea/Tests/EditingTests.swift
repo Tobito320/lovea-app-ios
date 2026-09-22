@@ -235,7 +235,8 @@ final class EditingTests: XCTestCase {
     func testSampleColorReadsOnePixel() async throws {
         let engine = try await TestGPU.engine(TestGPU.document())
         TestGPU.fill(engine, engine.activeLayerID, RGBAColor(red: 0.2, green: 0.6, blue: 1))
-        let color = try XCTUnwrap(await engine.sampleColor(at: CGPoint(x: 7, y: 9)))
+        let sampled = await engine.sampleColor(at: CGPoint(x: 7, y: 9))
+        let color = try XCTUnwrap(sampled)
         XCTAssertEqual(color.red, 0.2, accuracy: 0.01)
         XCTAssertEqual(color.green, 0.6, accuracy: 0.01)
         XCTAssertEqual(color.blue, 1, accuracy: 0.01)
@@ -495,7 +496,8 @@ final class EditingTests: XCTestCase {
     func testExportHasFullSizeAndPixels() async throws {
         let engine = try await TestGPU.engine(TestGPU.document(width: 120, height: 80, background: .white))
         TestGPU.fill(engine, engine.activeLayerID, RGBAColor(red: 0, green: 0, blue: 1))
-        let image = try XCTUnwrap(await engine.flattenedImage())
+        let flattened = await engine.flattenedImage()
+        let image = try XCTUnwrap(flattened)
         XCTAssertEqual(image.size, CGSize(width: 120, height: 80))
         let decoded = try XCTUnwrap(RasterOps.decode(try XCTUnwrap(ArtworkExport.encode(image, format: .png))))
         XCTAssertEqual(TestGPU.pixel(decoded.bytes, width: 120, x: 60, y: 40), [0, 0, 255, 255])
@@ -503,7 +505,8 @@ final class EditingTests: XCTestCase {
 
     func testTransparentExportKeepsAlphaInPNG() async throws {
         let engine = try await TestGPU.engine(TestGPU.document(background: .transparent))
-        let image = try XCTUnwrap(await engine.flattenedImage())
+        let flattened = await engine.flattenedImage()
+        let image = try XCTUnwrap(flattened)
         let decoded = try XCTUnwrap(RasterOps.decode(try XCTUnwrap(ArtworkExport.encode(image, format: .png))))
         XCTAssertEqual(TestGPU.pixel(decoded.bytes, width: 64, x: 5, y: 5)[3], 0)
     }

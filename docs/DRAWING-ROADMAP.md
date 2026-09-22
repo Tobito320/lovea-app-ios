@@ -70,64 +70,53 @@ Es bleibt trotzdem **kein globales Shared Board**.
 
 # 3. Aktueller Stand des nativen iOS-Projekts
 
-Aktives Repository: `Tobito320/lovea-app-ios`
+Stand: Level 1 gebaut, wartet auf die Abnahme am iPad (`docs/LEVEL1-ABNAHME.md`).
 
-Das Repo `Tobito320/lovea-onlyus-ios-leer` ist nicht die Arbeitsbasis.
+Aktives Repository: `Tobito320/lovea-app-ios`. Das Repo `Tobito320/lovea-onlyus-ios-leer` ist nicht die Arbeitsbasis.
 
-Bereits vorhanden:
+## Engine in 10 Zeilen
 
-- native SwiftUI-App
-- iOS 18+
-- iPhone und iPad
-- drei Tabs: Home, Zeichnen, Profil
-- Zeichnen ist aktuell der Start-Tab
-- Personenauswahl Ahmed/Annika beim Start
-- MetalKit-Zeichenfläche
-- Apple-Pencil-/Touch-Grundlage
-- Pinsel
-- Radierer
-- vier feste Farben
-- Strichstärke
-- Deckkraft im Datenmodell
-- Undo/Redo
-- Alles löschen
-- Ebenen hinzufügen
-- Ebene auswählen
-- Ebene anzeigen/verstecken
-- Ebene löschen
-- Ebene umbenennen
-- Ebenen-Deckkraft
-- Zoom/Verschieben/Rotation der Ansicht
-- lokales Speichern einer Zeichnung
-- Bildexport
-- Unit-Tests für mehrere Kernteile
-- GitHub-Actions-Konfiguration für macOS/Xcode
+1. Eine GPU-Textur pro Ebene in Dokumentgröße (`LayerTextureStore`), Bildebenen als Foto-Textur plus Transform.
+2. Striche werden zu Stempeln (`StrokeSampler`: Live-Stabilisator, Druckkurve, Neigung, Abstand).
+3. `BrushStamper` malt die neuen Stempel eines Frames mit einem instanzierten Draw in eine Scratch-Textur.
+4. Beim Absetzen wird der Strich einmal in die Ebene übernommen (normal, Radierer, Alpha Lock).
+5. `Compositor` setzt alle Ebenen auf der GPU zusammen: 8 Mischmodi, Clipping wie ibisPaint, Caches unter und über der aktiven Ebene.
+6. Die Leinwand zeichnet nur bei Eingabe oder Änderung, bis 120 Hz.
+7. Undo speichert pro Strich nur das betroffene Rechteck; Ebenen-Aktionen sind Dokument-Schritte (256 MiB Budget).
+8. Autosave 1 s nach der letzten Änderung: PNG pro geänderter Ebene, dann `document.json`, atomar und im Hintergrund.
+9. Füllen, Pipette, Auswahl, Transformieren, Formen, Text und Anpassungen nutzen dieselbe Engine.
+10. Alte Zeichnungen (JSON-Striche, PencilKit) werden beim ersten Öffnen einmal gerastert.
 
-Aktuelle große Grenzen:
+## Vorhanden
 
-- nur **eine** gespeicherte Zeichnung statt Galerie
-- keine Projekte
-- keine Bild-/Fotoebenen
-- kein Foto aus der Galerie als Schablone
-- Ebenen enthalten aktuell nur Vektor-Striche
-- nur Pinsel und Radierer als Werkzeuge
-- keine richtige Brush-Auswahl
-- kein Stabilisator
-- keine Pipette
-- kein Farbeimer
-- keine Auswahl/Lasso
-- keine Inhalts-Transformation
-- keine Blend Modes
-- kein Clipping
-- kein Alpha Lock / Transparenz schützen
-- keine Ebenen-Sperre
-- keine Ebenen-Duplizierung oder Merge-down
-- kein Text
-- keine Formen
-- keine lokale Galerie mit Vorschauen
-- kein Projekt-/Ordnersystem
-- keine Freigaben
-- kein gemeinsames Zeichnen
+- drei Tabs: Home, Zeichnen, Profil; Personenwahl Ahmed/Annika
+- Galerie mit Projekten, Zuletzt bearbeitet, Sortierung, Kontextmenü, Export, leerer Zustand
+- Neue Zeichnung: Formate, eigene Größe bis 4096, Hintergrund Weiß/Dunkel/Transparent/Farbe
+- Foto als Ebene und „Als Schablone“ (unten, 35 %, gesperrt, neue Ebene darüber, ein Undo-Schritt)
+- 10 Pinsel (Stift, Tinte, Bleistift, Marker, Airbrush, Aquarell, Kreide, Kalligrafie, Leuchtstift, Pixel)
+- Druck → Größe/Deckkraft, Neigung, Stabilisator 0–9, Predicted Touches, Palm Rejection, Pencil-Doppeltippen, Squeeze-Schnellmenü, Hover-Pinselkreis
+- Radierer, Füllen (Toleranz, diese Ebene/alle Ebenen, 1-px-Überlappung), Pipette (Werkzeug und langer Druck mit Lupe)
+- Farbpanel mit Farbring, Quadrat, Hex, HSB-Reglern, 16 Palettenplätzen und letzten 8 Farben pro Person
+- Ebenen: neu, duplizieren, löschen, umbenennen, sperren, verstecken, Reihenfolge per Drag & Drop, Deckkraft, 8 Mischmodi, Clipping, Alpha Lock, nach unten zusammenführen, Rastern, Leeren, Spiegeln, mindestens 32 Ebenen
+- Lasso- und Rechteck-Auswahl mit laufenden Ameisen: Aufheben, Umkehren, Löschen, Kopieren, Ausschneiden, Transformieren
+- Transformieren für Ebene oder Auswahl: verschieben, skalieren (proportional oder frei), drehen mit Einrasten, spiegeln
+- Linie, Rechteck, Ellipse (auch gefüllt, zweiter Finger = Quadrat/Kreis/45°), Text mit 4 Schriften, Spiegelachse
+- Ansicht: Zoom, Verschieben, Drehen (Einrasten bei 0°), Ansicht spiegeln, Zurücksetzen per Doppeltippen mit zwei Fingern
+- Anpassen: Weichzeichnen, Graustufen, Umkehren, Helligkeit, Sättigung, Farbton (mit Vorschau, respektiert Auswahl)
+- Undo/Redo (mindestens 50 Schritte), Gesten mit 2 und 3 Fingern
+- Export PNG (mit Transparenz), JPEG, In Fotos sichern, Teilen
+- iPad-Layout mit Größe/Deckkraft-Leiste links, Ebenen-Panel rechts, schwebender Werkzeugleiste; iPhone kompakt; Liquid Glass ab iOS 26
+- Leistungsanzeige (Profil → Leistungsanzeige), CI mit Muster-Check und Warnungs-Zählung
+- TestFlight-Workflow (`docs/TESTFLIGHT.md`), wartet auf Secrets
+- Level 2 (Bild senden, live ansehen, Projekt freigeben) eingefroren
+
+## Fehlt noch
+
+- Abnahme auf dem echten iPad mit Apple Pencil (`docs/LEVEL1-ABNAHME.md`)
+- Messwerte der Leistungsanzeige auf iPhone 14, iPhone 16 Pro Max und iPad
+- TestFlight: App in App Store Connect, Secrets, App-Icon
+- Kacheln statt ganzer Texturen, falls der Speicher auf dem iPhone knapp wird
+- Level 2 und Level 3
 
 ---
 
