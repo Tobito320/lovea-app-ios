@@ -2,6 +2,42 @@
 import simd
 import UIKit
 
+/// One source of truth for saved stroke dynamics in live rendering and export.
+enum MetalStrokeRenderingProfile {
+    static func smoothedPoints(_ stroke: MetalPaintStroke) -> [StrokePoint] {
+        let source = stroke.points
+        let radius = min(max(Int(stroke.stabilizer.rounded()), 0), 9)
+        guard radius > 0, source.count > 2 else { return source }
+        var result = source
+        for index in 1..<(source.count - 1) {
+            let lower = max(0, index - radius)
+            let upper = min(source.count - 1, index + radius)
+            var total = 0.0
+            var x = 0.0
+            var y = 0.0
+            for neighbor in lower...upper {
+                let weight = 1.0 / Double(1 + abs(neighbor - index))
+                total += weight
+                x += source[neighbor].x * weight
+                y += source[neighbor].y * weight
+            }
+            result[index].x = x / total
+            result[index].y = y / total
+        }
+        return result
+    }
+
+    static func radius(_ stroke: MetalPaintStroke, pressure: Double) -> Double {
+        let factor = stroke.pressureControlsSize ? min(max(pressure, 0.1), 1) : 1
+        return max(stroke.width, 1) * factor / 2
+    }
+
+    static func alpha(_ stroke: MetalPaintStroke, pressure: Double) -> Double {
+        let factor = stroke.pressureControlsOpacity ? min(max(pressure, 0.2), 1) : 1
+        return min(max(stroke.opacity * stroke.color.alpha * factor, 0), 1)
+    }
+}
+
 private struct ArtworkMetalVertex {
     var position: SIMD2<Float>
     var texCoord: SIMD2<Float>
@@ -295,29 +331,37 @@ final class ArtworkMetalRenderer: NSObject, MTKViewDelegate {
 
     private func strokeVertices(_ stroke: MetalPaintStroke, in size: CGSize) -> [ArtworkMetalVertex] {
         guard !stroke.points.isEmpty, size.width > 0, size.height > 0 else { return [] }
-        let alpha = Float(min(max(stroke.opacity * stroke.color.alpha, 0), 1))
-        let color = SIMD4<Float>(Float(stroke.color.red), Float(stroke.color.green), Float(stroke.color.blue), alpha)
+        let sampled = MetalStrokeRenderingProfile.smoothedPoints(stroke)
+        func color(pressure: Double) -> SIMD4<Float> {
+            SIMD4<Float>(
+                Float(stroke.color.red),
+                Float(stroke.color.green),
+                Float(stroke.color.blue),
+                Float(MetalStrokeRenderingProfile.alpha(stroke, pressure: pressure))
+            )
+        }
         var vertices: [ArtworkMetalVertex] = []
-        vertices.reserveCapacity(stroke.points.count * 36)
+        vertices.reserveCapacity(sampled.count * 36)
 
-        let points = stroke.points.map { point in
+        let points = sampled.map { point in
             viewport.screenPoint(transformActivePoint(CGPoint(x: CGFloat(point.x), y: CGFloat(point.y))))
         }
-        let radii = stroke.points.map { point in
-            CGFloat(max(stroke.width, 1) * max(point.pressure, 0.1) / 2)
-                * viewport.scale * CGFloat(activeTransform.scale)
+        let documentRadii = sampled.map { point in
+            CGFloat(MetalStrokeRenderingProfile.radius(stroke, pressure: point.pressure))
         }
+        let radiusScale = max(viewport.scale * CGFloat(activeTransform.scale), 0.0001)
+        let radii = documentRadii.map { $0 * radiusScale }
 
         for index in points.indices {
             let start = points[index]
-            let radius = max(radii[index], 0.5)
+            let radius = max(radii[index], 0.5 * radiusScale)
             if index == 0 {
-                appendStamp(center: start, radius: radius, size: size, color: color, to: &vertices)
+                appendStamp(center: start, radius: radius, size: size, color: color(pressure: sampled[index].pressure), to: &vertices)
                 continue
             }
             let previous = points[index - 1]
             let distance = hypot(start.x - previous.x, start.y - previous.y)
-            let spacing = max(min(radius * 0.4, 3), 0.5)
+            let spacing = max(min(documentRadii[index] * 0.4, 3), 0.5) * radiusScale
             let count = max(1, Int(ceil(distance / spacing)))
             for step in 1...count {
                 let fraction = CGFloat(step) / CGFloat(count)
@@ -325,8 +369,13 @@ final class ArtworkMetalRenderer: NSObject, MTKViewDelegate {
                     x: previous.x + (start.x - previous.x) * fraction,
                     y: previous.y + (start.y - previous.y) * fraction
                 )
-                let interpolatedRadius = max(radii[index - 1] + (radii[index] - radii[index - 1]) * fraction, 0.5)
-                appendStamp(center: center, radius: interpolatedRadius, size: size, color: color, to: &vertices)
+                let interpolatedRadius = max(
+                    radii[index - 1] + (radii[index] - radii[index - 1]) * fraction,
+                    0.5 * radiusScale
+                )
+                let pressure = sampled[index - 1].pressure
+                    + (sampled[index].pressure - sampled[index - 1].pressure) * Double(fraction)
+                appendStamp(center: center, radius: interpolatedRadius, size: size, color: color(pressure: pressure), to: &vertices)
             }
         }
         return vertices

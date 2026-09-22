@@ -119,17 +119,18 @@ enum ArtworkRenderer {
             let context = output.cgContext
             legacy?.draw(in: CGRect(origin: .zero, size: size))
             for stroke in strokes {
-                guard let first = stroke.points.first else { continue }
+                let points = MetalStrokeRenderingProfile.smoothedPoints(stroke)
+                guard let first = points.first else { continue }
                 context.saveGState()
                 context.setBlendMode(stroke.tool == .eraser ? .destinationOut : .normal)
                 let hardness = brushHardness(for: stroke)
-                let alpha = min(max(stroke.color.alpha * stroke.opacity, 0), 1)
-                guard let gradient = stampGradient(color: stroke.color, alpha: alpha, hardness: hardness) else {
+                guard let gradient = stampGradient(color: stroke.color, alpha: 1, hardness: hardness) else {
                     context.restoreGState()
                     continue
                 }
 
-                func stamp(_ center: CGPoint, radius: CGFloat) {
+                func stamp(_ center: CGPoint, radius: CGFloat, pressure: Double) {
+                    context.setAlpha(CGFloat(MetalStrokeRenderingProfile.alpha(stroke, pressure: pressure)))
                     context.drawRadialGradient(
                         gradient,
                         startCenter: center,
@@ -141,16 +142,16 @@ enum ArtworkRenderer {
                 }
 
                 let firstPoint = CGPoint(x: first.x, y: first.y)
-                let firstRadius = CGFloat(max(stroke.width, 1) * max(first.pressure, 0.1) / 2)
-                stamp(firstPoint, radius: firstRadius)
+                let firstRadius = CGFloat(MetalStrokeRenderingProfile.radius(stroke, pressure: first.pressure))
+                stamp(firstPoint, radius: firstRadius, pressure: first.pressure)
 
-                for index in 1..<stroke.points.count {
-                    let previous = stroke.points[index - 1]
-                    let current = stroke.points[index]
+                for index in 1..<points.count {
+                    let previous = points[index - 1]
+                    let current = points[index]
                     let from = CGPoint(x: previous.x, y: previous.y)
                     let to = CGPoint(x: current.x, y: current.y)
-                    let previousRadius = CGFloat(max(stroke.width, 1) * max(previous.pressure, 0.1) / 2)
-                    let nextRadius = CGFloat(max(stroke.width, 1) * max(current.pressure, 0.1) / 2)
+                    let previousRadius = CGFloat(MetalStrokeRenderingProfile.radius(stroke, pressure: previous.pressure))
+                    let nextRadius = CGFloat(MetalStrokeRenderingProfile.radius(stroke, pressure: current.pressure))
                     let distance = hypot(to.x - from.x, to.y - from.y)
                     let spacing = max(min(nextRadius * 0.4, 3), 0.5)
                     let count = max(1, Int(ceil(distance / spacing)))
@@ -160,7 +161,12 @@ enum ArtworkRenderer {
                             x: from.x + (to.x - from.x) * fraction,
                             y: from.y + (to.y - from.y) * fraction
                         )
-                        stamp(center, radius: previousRadius + (nextRadius - previousRadius) * fraction)
+                        let pressure = previous.pressure + (current.pressure - previous.pressure) * Double(fraction)
+                        stamp(
+                            center,
+                            radius: previousRadius + (nextRadius - previousRadius) * fraction,
+                            pressure: pressure
+                        )
                     }
                 }
                 context.restoreGState()

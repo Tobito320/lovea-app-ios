@@ -24,6 +24,8 @@ final class DrawingSession: ObservableObject {
     @Published var color: RGBAColor = .studioBlack
     @Published var drawsWithFinger = false
     @Published var rulerActive = false
+    @Published var pressureControlsSize = true
+    @Published var pressureControlsOpacity = true
     @Published var stabilizer = 5.0
     @Published var fillTolerance = 0.12
     @Published private(set) var recentColors: [RGBAColor] = [.studioBlack, .blue, .red, .orange]
@@ -81,7 +83,10 @@ final class DrawingSession: ObservableObject {
             width: min(max(brushWidth, 1), 180),
             opacity: min(max(brushOpacity, 0.05), 1),
             tool: tool == .eraser ? .eraser : .brush,
-            brushPreset: brush.rawValue
+            brushPreset: brush.rawValue,
+            pressureControlsSize: pressureControlsSize,
+            pressureControlsOpacity: pressureControlsOpacity,
+            stabilizer: min(max(stabilizer, 0), 9)
         )
     }
 

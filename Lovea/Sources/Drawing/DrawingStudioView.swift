@@ -9,6 +9,7 @@ struct DrawingStudioView: View {
     @ObservedObject private var sharing: LoveaSharingService
     @State private var showsLayers = false
     @State private var showsInsertTools = false
+    @State private var showsBrushSettings = false
     @State private var exportImage: UIImage?
     @State private var imageItem: PhotosPickerItem?
     @State private var templateItem: PhotosPickerItem?
@@ -66,6 +67,10 @@ struct DrawingStudioView: View {
         }
         .sheet(isPresented: $showsInsertTools) {
             InsertToolsView(session: session)
+        }
+        .sheet(isPresented: $showsBrushSettings) {
+            BrushSettingsView(session: session)
+                .presentationDetents([.medium, .large])
         }
         .sheet(isPresented: Binding(
             get: { exportImage != nil },
@@ -201,6 +206,30 @@ struct DrawingStudioView: View {
                             .lineLimit(1)
                     }
                     .disabled(session.activeLayer?.kind != .paint)
+
+                    Button {
+                        showsBrushSettings = true
+                    } label: {
+                        Image(systemName: "slider.horizontal.3")
+                            .frame(width: 44, height: 44)
+                    }
+                    .accessibilityLabel("Pinsel einstellen")
+                    .disabled(session.activeLayer?.kind != .paint)
+
+                    ForEach(session.recentBrushes) { preset in
+                        Button {
+                            session.brush = preset
+                            session.tool = .brush
+                        } label: {
+                            Text(preset.title)
+                                .font(.caption.weight(.medium))
+                                .lineLimit(1)
+                                .padding(.horizontal, 8)
+                                .frame(height: 44)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("Zuletzt benutzt: \(preset.title)")
+                    }
 
                     ColorPicker("Farbe", selection: colorBinding, supportsOpacity: false)
                         .labelsHidden()
@@ -558,5 +587,47 @@ private final class ArtworkCanvasImageCache {
         key = nextKey
         cached = images
         return images
+    }
+}
+
+private struct BrushSettingsView: View {
+    @ObservedObject var session: DrawingSession
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section("Aktueller Pinsel") {
+                    ArtworkBrushPreview(session: session)
+                        .frame(height: 90)
+                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                    LabeledContent("Pinsel", value: session.brush.title)
+                    LabeledContent("Breite", value: "\(Int(session.brushWidth)) px")
+                    LabeledContent("Deckkraft", value: "\(Int(session.brushOpacity * 100)) %")
+                }
+
+                Section("Schnellgrößen") {
+                    HStack(spacing: 12) {
+                        ForEach([0.5, 1.0, 2.0], id: \.self) { factor in
+                            let width = min(max(Double(session.brush.defaultWidth) * factor, 1), 120)
+                            Button("\(Int(width)) px") {
+                                session.brushWidth = width
+                            }
+                            .buttonStyle(.bordered)
+                            .frame(minWidth: 44, minHeight: 44)
+                        }
+                    }
+                }
+
+                Section("Druck und Glättung") {
+                    Toggle("Druck verändert Breite", isOn: $session.pressureControlsSize)
+                    Toggle("Druck verändert Deckkraft", isOn: $session.pressureControlsOpacity)
+                    LabeledContent("Stabilisator", value: "\(Int(session.stabilizer))")
+                    Slider(value: $session.stabilizer, in: 0...9, step: 1)
+                        .accessibilityLabel("Stabilisator")
+                }
+            }
+            .navigationTitle("Pinsel einstellen")
+            .navigationBarTitleDisplayMode(.inline)
+        }
     }
 }

@@ -164,6 +164,49 @@ final class ArtworkLibraryTests: XCTestCase {
         XCTAssertEqual(library.metalStrokes(for: copy, artworkID: artwork.id).count, 1)
     }
 
+    func testPressureAndStabilizerSettingsAreCapturedPerStrokeAndSurviveReload() throws {
+        let root = temporaryRoot()
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        let library = ArtworkLibrary(rootURL: root)
+        let artwork = library.createArtwork(
+            name: "Druck",
+            projectID: nil,
+            format: .square,
+            background: .white
+        )
+        let session = DrawingSession(artworkID: artwork.id, library: library)
+        let layerID = session.activeLayerID
+        session.pressureControlsSize = false
+        session.pressureControlsOpacity = true
+        session.stabilizer = 9
+        session.beginMetalStroke(at: StrokePoint(x: 1, y: 2, pressure: 0.4))
+        session.pressureControlsSize = true
+        session.pressureControlsOpacity = false
+        session.stabilizer = 0
+        session.endMetalStroke()
+
+        let stroke = try XCTUnwrap(session.metalStrokes(for: layerID).first)
+        XCTAssertFalse(stroke.pressureControlsSize)
+        XCTAssertTrue(stroke.pressureControlsOpacity)
+        XCTAssertEqual(stroke.stabilizer, 9)
+
+        session.undo()
+        session.redo()
+        let reloaded = DrawingSession(artworkID: artwork.id, library: ArtworkLibrary(rootURL: root))
+        XCTAssertEqual(reloaded.metalStrokes(for: layerID).first, stroke)
+    }
+
+    func testOldMetalSidecarDecodesWithPreviousPressureBehavior() throws {
+        let json = #"[{"id":"DE5E401B-99F6-474C-9880-32F47A6DB92A","points":[{"x":1,"y":2,"pressure":0.4,"timestamp":0}],"color":{"red":1,"green":0,"blue":0,"alpha":1},"width":7,"opacity":1,"tool":"brush","brushPreset":"pen"}]"#
+
+        let strokes = try JSONDecoder().decode([MetalPaintStroke].self, from: Data(json.utf8))
+        let stroke = try XCTUnwrap(strokes.first)
+        XCTAssertTrue(stroke.pressureControlsSize)
+        XCTAssertFalse(stroke.pressureControlsOpacity)
+        XCTAssertEqual(stroke.stabilizer, 0)
+    }
+
     func testMetalStrokeSidecarAppearsInLayerImageAndExport() throws {
         let root = temporaryRoot()
         defer { try? FileManager.default.removeItem(at: root) }
