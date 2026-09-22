@@ -55,7 +55,7 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
         canvas.alwaysBounceVertical = true
         canvas.drawing = drawing
         context.coordinator.installLayerViews(in: canvas, size: canvasSize)
-        context.coordinator.installTapGesture(in: canvas)
+        context.coordinator.installGestures(in: canvas)
         controller.canvasView = canvas
         applyConfiguration(to: canvas, coordinator: context.coordinator)
         return canvas
@@ -129,12 +129,24 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
             keepOverlayOrder(in: canvas)
         }
 
-        func installTapGesture(in canvas: PKCanvasView) {
-            let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
-            recognizer.cancelsTouchesInView = false
-            recognizer.isEnabled = false
-            canvas.addGestureRecognizer(recognizer)
-            tapRecognizer = recognizer
+        func installGestures(in canvas: PKCanvasView) {
+            let toolTap = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+            toolTap.cancelsTouchesInView = false
+            toolTap.isEnabled = false
+            canvas.addGestureRecognizer(toolTap)
+            tapRecognizer = toolTap
+
+            let undoTap = UITapGestureRecognizer(target: self, action: #selector(handleUndo(_:)))
+            undoTap.numberOfTouchesRequired = 2
+            undoTap.numberOfTapsRequired = 1
+            undoTap.cancelsTouchesInView = false
+            canvas.addGestureRecognizer(undoTap)
+
+            let redoTap = UITapGestureRecognizer(target: self, action: #selector(handleRedo(_:)))
+            redoTap.numberOfTouchesRequired = 3
+            redoTap.numberOfTapsRequired = 1
+            redoTap.cancelsTouchesInView = false
+            canvas.addGestureRecognizer(redoTap)
         }
 
         func resizeLayerViews(to size: CGSize) {
@@ -160,6 +172,14 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
         @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
             guard let canvas = recognizer.view as? PKCanvasView else { return }
             parent.onCanvasTap(recognizer.location(in: canvas))
+        }
+
+        @objc private func handleUndo(_ recognizer: UITapGestureRecognizer) {
+            (recognizer.view as? PKCanvasView)?.undoManager?.undo()
+        }
+
+        @objc private func handleRedo(_ recognizer: UITapGestureRecognizer) {
+            (recognizer.view as? PKCanvasView)?.undoManager?.redo()
         }
     }
 }
