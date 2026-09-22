@@ -39,6 +39,14 @@ final class DrawingStore: ObservableObject {
         redoStack.removeAll()
     }
 
+    func setBrushWidth(_ value: Double) {
+        brushWidth = min(max(value, 1), 200)
+    }
+
+    func setBrushOpacity(_ value: Double) {
+        opacity = min(max(value, 0), 1)
+    }
+
     func beginStroke(at point: StrokePoint) {
         activeStroke = DrawingStroke(
             points: [point],
