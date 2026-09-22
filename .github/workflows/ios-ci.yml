@@ -18,4 +18,4 @@ jobs:
       - name: Generate project
         run: xcodegen generate
       - name: Run unit tests
-        run: xcodebuild test -project WirApp.xcodeproj -scheme WirAppTests -destination 'platform=iOS Simulator,name=iPhone 17'
+        run: xcodebuild test -project WirApp.xcodeproj -scheme WirApp -destination 'platform=iOS Simulator,name=iPhone 17'
