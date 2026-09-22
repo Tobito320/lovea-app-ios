@@ -22,6 +22,7 @@ targets:
         TARGETED_DEVICE_FAMILY: "1,2"
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Lovea
+        INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
         INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Lovea speichert deine fertigen Bilder in Fotos."
         MARKETING_VERSION: 0.1.0
         CURRENT_PROJECT_VERSION: 1
