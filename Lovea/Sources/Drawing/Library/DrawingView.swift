@@ -1,16 +1,24 @@
+import PhotosUI
 import SwiftUI
 import UIKit
+
+private enum GalleryRoute: Hashable {
+    case artwork(UUID, templateData: Data? = nil)
+    case project(UUID)
+}
 
 struct DrawingView: View {
     let person: LoveaPerson
     @StateObject private var library: ArtworkLibrary
     @StateObject private var sharing: LoveaSharingService
+    @State private var path: [GalleryRoute] = []
     @State private var sort: ArtworkSort = .newest
     @State private var showsNewArtwork = false
     @State private var showsNewProject = false
     @State private var showsSharingConnection = false
     @State private var showsSharingManager = false
     @State private var newProjectName = ""
+    @State private var templateItem: PhotosPickerItem?
 
     init(person: LoveaPerson) {
         self.person = person
@@ -19,14 +27,12 @@ struct DrawingView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 22) {
-                    if let latest = library.artworks.max(by: { $0.updatedAt < $1.updatedAt }) {
+                    if let latest = library.sortedArtworks(.newest).first {
                         sectionTitle("Zuletzt bearbeitet")
-                        NavigationLink {
-                            DrawingStudioView(artworkID: latest.id, library: library, sharing: sharing)
-                        } label: {
+                        NavigationLink(value: GalleryRoute.artwork(latest.id)) {
                             LatestArtworkCard(artwork: latest, library: library)
                         }
                         .buttonStyle(.plain)
@@ -63,14 +69,7 @@ struct DrawingView: View {
                         sectionTitle("Projekte")
                         LazyVGrid(columns: galleryColumns, spacing: 14) {
                             ForEach(library.projects) { project in
-                                NavigationLink {
-                                    ProjectGalleryView(
-                                        projectID: project.id,
-                                        library: library,
-                                        sharing: sharing,
-                                        sort: $sort
-                                    )
-                                } label: {
+                                NavigationLink(value: GalleryRoute.project(project.id)) {
                                     ProjectCard(project: project, library: library)
                                 }
                                 .buttonStyle(.plain)
@@ -78,20 +77,22 @@ struct DrawingView: View {
                         }
                     }
 
-                    sectionTitle("Ohne Projekt")
-                    let ungrouped = sorted(library.artworks.filter { $0.projectID == nil })
-                    if ungrouped.isEmpty {
-                        ContentUnavailableView(
-                            "Noch keine Zeichnung",
-                            systemImage: "paintbrush",
-                            description: Text("Erstelle eine Zeichnung oder importiere ein Foto als Schablone.")
-                        )
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 24)
+                    if library.artworks.isEmpty {
+                        emptyState
                     } else {
-                        LazyVGrid(columns: galleryColumns, spacing: 14) {
-                            ForEach(ungrouped) { artwork in
-                                ArtworkCard(artwork: artwork, library: library, sharing: sharing)
+                        sectionTitle("Ohne Projekt")
+                        let ungrouped = library.sortedArtworks(sort).filter { $0.projectID == nil }
+                        if ungrouped.isEmpty {
+                            Text("Alle Zeichnungen liegen in Projekten.")
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                        } else {
+                            LazyVGrid(columns: galleryColumns, spacing: 14) {
+                                ForEach(ungrouped) { artwork in
+                                    ArtworkCard(artwork: artwork, library: library) {
+                                        path.append(.artwork(artwork.id))
+                                    }
+                                }
                             }
                         }
                     }
@@ -102,6 +103,16 @@ struct DrawingView: View {
                 await sharing.refresh()
             }
             .navigationTitle("Meine Galerie")
+            .navigationDestination(for: GalleryRoute.self) { route in
+                switch route {
+                case .artwork(let id, let templateData):
+                    DrawingStudioView(artworkID: id, library: library, sharing: sharing, templateData: templateData)
+                case .project(let id):
+                    ProjectGalleryView(projectID: id, library: library, sort: $sort) { artworkID in
+                        path.append(.artwork(artworkID))
+                    }
+                }
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button {
@@ -135,6 +146,15 @@ struct DrawingView: View {
             } message: {
                 Text("Ein Projekt sammelt mehrere Zeichnungen. Du kannst es später mit \(person.partner.rawValue) teilen.")
             }
+            .onChange(of: templateItem) { _, item in
+                guard let item else { return }
+                templateItem = nil
+                Task { @MainActor in
+                    guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+                    let artwork = library.createArtwork(name: "Schablone", projectID: nil, format: .square)
+                    path.append(.artwork(artwork.id, templateData: data))
+                }
+            }
             .task {
                 await sharing.checkSession()
                 if sharing.state == .connected {
@@ -150,6 +170,21 @@ struct DrawingView: View {
                 sharing.stopAutoRefresh()
             }
         }
+    }
+
+    private var emptyState: some View {
+        ContentUnavailableView {
+            Label("Noch keine Zeichnung", systemImage: "paintbrush")
+        } description: {
+            Text("Fang mit einer leeren Seite an oder zeichne ein Foto nach.")
+        } actions: {
+            Button("Neue Zeichnung") { showsNewArtwork = true }
+                .buttonStyle(.borderedProminent)
+            PhotosPicker("Foto als Schablone", selection: $templateItem, matching: .images)
+                .buttonStyle(.bordered)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 24)
     }
 
     private var galleryColumns: [GridItem] {
@@ -172,14 +207,6 @@ struct DrawingView: View {
         }
     }
 
-    private func sorted(_ values: [ArtworkDocument]) -> [ArtworkDocument] {
-        switch sort {
-        case .newest: values.sorted { $0.updatedAt > $1.updatedAt }
-        case .name: values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        case .oldest: values.sorted { $0.createdAt < $1.createdAt }
-        }
-    }
-
     @ViewBuilder
     private func sectionTitle(_ text: String) -> some View {
         Text(text)
@@ -191,8 +218,9 @@ struct DrawingView: View {
 private struct ProjectGalleryView: View {
     let projectID: UUID
     @ObservedObject var library: ArtworkLibrary
-    @ObservedObject var sharing: LoveaSharingService
     @Binding var sort: ArtworkSort
+    let open: (UUID) -> Void
+    @Environment(\.dismiss) private var dismiss
     @State private var showsNewArtwork = false
     @State private var renameText = ""
     @State private var showsRename = false
@@ -202,20 +230,11 @@ private struct ProjectGalleryView: View {
         library.projects.first(where: { $0.id == projectID })
     }
 
-    private var artworks: [ArtworkDocument] {
-        let values = library.artworks.filter { $0.projectID == projectID }
-        switch sort {
-        case .newest: return values.sorted { $0.updatedAt > $1.updatedAt }
-        case .name: return values.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
-        case .oldest: return values.sorted { $0.createdAt < $1.createdAt }
-        }
-    }
-
     var body: some View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 230), spacing: 14)], spacing: 14) {
-                ForEach(artworks) { artwork in
-                    ArtworkCard(artwork: artwork, library: library, sharing: sharing)
+                ForEach(library.sortedArtworks(sort).filter { $0.projectID == projectID }) { artwork in
+                    ArtworkCard(artwork: artwork, library: library) { open(artwork.id) }
                 }
             }
             .padding()
@@ -228,6 +247,7 @@ private struct ProjectGalleryView: View {
                 } label: {
                     Image(systemName: "plus")
                 }
+                .accessibilityLabel("Neue Zeichnung")
                 Menu {
                     Button("Umbenennen") {
                         renameText = project?.name ?? ""
@@ -239,6 +259,7 @@ private struct ProjectGalleryView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .accessibilityLabel("Projekt")
             }
         }
         .sheet(isPresented: $showsNewArtwork) {
@@ -250,31 +271,65 @@ private struct ProjectGalleryView: View {
             Button("Umbenennen") { library.renameProject(projectID, to: renameText) }
         }
         .confirmationDialog("Projekt löschen?", isPresented: $showsDelete, titleVisibility: .visible) {
-            Button("Projekt löschen, Zeichnungen behalten", role: .destructive) {
+            Button("Zeichnungen behalten", role: .destructive) {
                 library.deleteProject(projectID, deleteArtworks: false)
+                dismiss()
             }
-            Button("Projekt und Zeichnungen löschen", role: .destructive) {
+            Button("Zeichnungen mit löschen", role: .destructive) {
                 library.deleteProject(projectID, deleteArtworks: true)
+                dismiss()
             }
             Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Was passiert mit den Zeichnungen in diesem Projekt?")
         }
+    }
+}
+
+private struct ArtworkThumbnail: View {
+    let artwork: ArtworkDocument
+    @ObservedObject var library: ArtworkLibrary
+    @State private var image: UIImage?
+
+    var body: some View {
+        backgroundColor(artwork.background)
+            .overlay {
+                if let image {
+                    Image(uiImage: image).resizable().scaledToFill()
+                } else {
+                    Image(systemName: "paintbrush.pointed")
+                        .font(.title)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .clipped()
+            .task(id: "\(artwork.id)-\(library.previewVersion)") {
+                let url = library.previewURL(for: artwork.id)
+                image = await Task.detached(priority: .utility) { () -> UIImage? in
+                    guard let full = UIImage(contentsOfFile: url.path) else { return nil }
+                    let scale = min(1, 480 / max(full.size.width, full.size.height, 1))
+                    return full.preparingThumbnail(of: CGSize(
+                        width: full.size.width * scale,
+                        height: full.size.height * scale
+                    ))
+                }.value
+            }
     }
 }
 
 private struct ArtworkCard: View {
     let artwork: ArtworkDocument
     @ObservedObject var library: ArtworkLibrary
-    @ObservedObject var sharing: LoveaSharingService
+    let open: () -> Void
     @State private var renameText = ""
     @State private var showsRename = false
     @State private var showsDelete = false
+    @State private var showsExport = false
 
     var body: some View {
-        NavigationLink {
-            DrawingStudioView(artworkID: artwork.id, library: library, sharing: sharing)
-        } label: {
+        Button(action: open) {
             VStack(alignment: .leading, spacing: 8) {
-                preview
+                ArtworkThumbnail(artwork: artwork, library: library)
                     .aspectRatio(CGFloat(artwork.canvasWidth / artwork.canvasHeight), contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
                 Text(artwork.name)
@@ -292,18 +347,26 @@ private struct ArtworkCard: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button("Umbenennen") {
+            Button("Öffnen", systemImage: "arrow.up.forward.app", action: open)
+            Button("Umbenennen", systemImage: "pencil") {
                 renameText = artwork.name
                 showsRename = true
             }
-            Button("Duplizieren") { _ = library.duplicateArtwork(artwork.id) }
-            Menu("In Projekt verschieben") {
+            Button("Duplizieren", systemImage: "plus.square.on.square") {
+                _ = library.duplicateArtwork(artwork.id)
+            }
+            Menu("In Projekt verschieben", systemImage: "folder") {
                 Button("Ohne Projekt") { library.moveArtwork(artwork.id, to: nil) }
                 ForEach(library.projects) { project in
                     Button(project.name) { library.moveArtwork(artwork.id, to: project.id) }
                 }
             }
-            Button("Löschen", role: .destructive) { showsDelete = true }
+            Button("Exportieren", systemImage: "square.and.arrow.up") { showsExport = true }
+            Divider()
+            Button("Löschen", systemImage: "trash", role: .destructive) { showsDelete = true }
+        }
+        .sheet(isPresented: $showsExport) {
+            ArtworkExportSheet(artwork: artwork, library: library)
         }
         .alert("Zeichnung umbenennen", isPresented: $showsRename) {
             TextField("Name", text: $renameText)
@@ -315,22 +378,6 @@ private struct ArtworkCard: View {
             Button("Abbrechen", role: .cancel) {}
         }
     }
-
-    @ViewBuilder
-    private var preview: some View {
-        if let image = library.previewImage(for: artwork.id) {
-            Image(uiImage: image)
-                .resizable()
-                .scaledToFill()
-        } else {
-            ZStack {
-                backgroundColor(artwork.background)
-                Image(systemName: "paintbrush.pointed")
-                    .font(.title)
-                    .foregroundStyle(.secondary)
-            }
-        }
-    }
 }
 
 private struct LatestArtworkCard: View {
@@ -339,15 +386,9 @@ private struct LatestArtworkCard: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Group {
-                if let image = library.previewImage(for: artwork.id) {
-                    Image(uiImage: image).resizable().scaledToFill()
-                } else {
-                    backgroundColor(artwork.background)
-                }
-            }
-            .frame(width: 92, height: 72)
-            .clipShape(RoundedRectangle(cornerRadius: 12))
+            ArtworkThumbnail(artwork: artwork, library: library)
+                .frame(width: 92, height: 72)
+                .clipShape(RoundedRectangle(cornerRadius: 12))
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(artwork.name).font(.headline)
@@ -369,26 +410,19 @@ private struct ProjectCard: View {
     @ObservedObject var library: ArtworkLibrary
 
     var body: some View {
+        let items = library.sortedArtworks(.newest).filter { $0.projectID == project.id }
         VStack(alignment: .leading, spacing: 8) {
             ZStack {
                 RoundedRectangle(cornerRadius: 14)
                     .fill(.thinMaterial)
-                let items = Array(library.artworks.filter { $0.projectID == project.id }.prefix(4))
                 if items.isEmpty {
                     Image(systemName: "folder")
                         .font(.largeTitle)
                         .foregroundStyle(.secondary)
                 } else {
                     HStack(spacing: 2) {
-                        ForEach(items) { artwork in
-                            if let image = library.previewImage(for: artwork.id) {
-                                Image(uiImage: image)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .clipped()
-                            } else {
-                                backgroundColor(artwork.background)
-                            }
+                        ForEach(items.prefix(4)) { artwork in
+                            ArtworkThumbnail(artwork: artwork, library: library)
                         }
                     }
                     .clipShape(RoundedRectangle(cornerRadius: 14))
@@ -405,7 +439,7 @@ private struct ProjectCard: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            Text("\(library.artworks.filter { $0.projectID == project.id }.count) Zeichnungen")
+            Text(items.count == 1 ? "1 Zeichnung" : "\(items.count) Zeichnungen")
                 .font(.caption2)
                 .foregroundStyle(.secondary)
         }
@@ -414,18 +448,17 @@ private struct ProjectCard: View {
 
 private struct NewArtworkSheet: View {
     @ObservedObject var library: ArtworkLibrary
-    let preselectedProjectID: UUID?
     @Environment(\.dismiss) private var dismiss
     @State private var name = ""
     @State private var format: ArtworkFormat = .square
     @State private var background: BackgroundChoice = .white
+    @State private var color = backgroundSwatches[0].color
     @State private var projectID: UUID?
     @State private var customWidth = 2048.0
     @State private var customHeight = 2048.0
 
     init(library: ArtworkLibrary, preselectedProjectID: UUID?) {
         self.library = library
-        self.preselectedProjectID = preselectedProjectID
         _projectID = State(initialValue: preselectedProjectID)
     }
 
@@ -441,15 +474,41 @@ private struct NewArtworkSheet: View {
                 }
 
                 if format == .custom {
-                    TextField("Breite", value: $customWidth, format: .number)
-                        .keyboardType(.numberPad)
-                    TextField("Höhe", value: $customHeight, format: .number)
-                        .keyboardType(.numberPad)
+                    Section {
+                        TextField("Breite", value: $customWidth, format: .number)
+                            .keyboardType(.numberPad)
+                        TextField("Höhe", value: $customHeight, format: .number)
+                            .keyboardType(.numberPad)
+                    } footer: {
+                        Text("64 bis 4096 Pixel pro Seite.")
+                    }
                 }
 
                 Picker("Hintergrund", selection: $background) {
                     ForEach(BackgroundChoice.allCases) { choice in
                         Text(choice.title).tag(choice)
+                    }
+                }
+
+                if background == .color {
+                    HStack {
+                        ForEach(0..<backgroundSwatches.count, id: \.self) { index in
+                            let swatch = backgroundSwatches[index]
+                            Button {
+                                color = swatch.color
+                            } label: {
+                                Circle()
+                                    .fill(Color(uiColor: swatch.color.uiColor))
+                                    .frame(width: 30, height: 30)
+                                    .overlay {
+                                        Circle().stroke(Color.primary.opacity(color == swatch.color ? 1 : 0.15), lineWidth: 2)
+                                    }
+                            }
+                            .buttonStyle(.borderless)
+                            .accessibilityLabel(swatch.name)
+                            .accessibilityAddTraits(color == swatch.color ? .isSelected : [])
+                            .frame(maxWidth: .infinity)
+                        }
                     }
                 }
 
@@ -473,7 +532,7 @@ private struct NewArtworkSheet: View {
                             format: format,
                             customWidth: format == .custom ? customWidth : nil,
                             customHeight: format == .custom ? customHeight : nil,
-                            background: background.canvasBackground
+                            background: canvasBackground
                         )
                         dismiss()
                     }
@@ -481,12 +540,33 @@ private struct NewArtworkSheet: View {
             }
         }
     }
+
+    private var canvasBackground: CanvasBackground {
+        switch background {
+        case .white: .white
+        case .dark: .dark
+        case .transparent: .transparent
+        case .color: .color(color)
+        }
+    }
 }
+
+private let backgroundSwatches: [(name: String, color: RGBAColor)] = [
+    ("Creme", RGBAColor(red: 1, green: 0.96, blue: 0.88)),
+    ("Rosa", RGBAColor(red: 1, green: 0.84, blue: 0.88)),
+    ("Pfirsich", RGBAColor(red: 1, green: 0.8, blue: 0.65)),
+    ("Gelb", RGBAColor(red: 1, green: 0.93, blue: 0.55)),
+    ("Mint", RGBAColor(red: 0.75, green: 0.93, blue: 0.82)),
+    ("Himmelblau", RGBAColor(red: 0.72, green: 0.86, blue: 1)),
+    ("Lavendel", RGBAColor(red: 0.84, green: 0.8, blue: 1)),
+    ("Grau", RGBAColor(red: 0.55, green: 0.56, blue: 0.6)),
+]
 
 private enum BackgroundChoice: String, CaseIterable, Identifiable {
     case white
     case dark
     case transparent
+    case color
 
     var id: String { rawValue }
     var title: String {
@@ -494,13 +574,7 @@ private enum BackgroundChoice: String, CaseIterable, Identifiable {
         case .white: "Weiß"
         case .dark: "Dunkel"
         case .transparent: "Transparent"
-        }
-    }
-    var canvasBackground: CanvasBackground {
-        switch self {
-        case .white: .white
-        case .dark: .dark
-        case .transparent: .transparent
+        case .color: "Farbe"
         }
     }
 }
@@ -513,13 +587,14 @@ private func backgroundColor(_ background: CanvasBackground) -> some View {
     case .dark:
         Color(white: 0.07)
     case .transparent:
-        ZStack {
-            Color.white
-            Image(systemName: "square.grid.3x3.fill")
-                .resizable()
-                .scaledToFill()
-                .foregroundStyle(.gray.opacity(0.15))
-        }
+        Color.white
+            .overlay {
+                Image(systemName: "square.grid.3x3.fill")
+                    .resizable()
+                    .scaledToFill()
+                    .foregroundStyle(.gray.opacity(0.15))
+            }
+            .clipped()
     case .color(let color):
         Color(uiColor: color.uiColor)
     }
