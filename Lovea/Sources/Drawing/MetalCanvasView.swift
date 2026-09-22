@@ -6,8 +6,7 @@ final class MetalCanvasView: MTKView, UIGestureRecognizerDelegate {
     private let store: DrawingStore
     private var canvasRenderer: MetalCanvasRenderer?
     private var predictedPoints: [StrokePoint] = []
-    private var zoom: CGFloat = 1
-    private var contentOffset: CGPoint = .zero
+    private var canvasTransform = CanvasTransform()
 
     init(store: DrawingStore) {
         self.store = store
@@ -41,14 +40,19 @@ final class MetalCanvasView: MTKView, UIGestureRecognizerDelegate {
             document: store.document,
             activeLayerID: store.activeLayerID,
             previewStroke: preview,
-            zoom: zoom,
-            offset: contentOffset
+            transform: canvasTransform
         )
         setNeedsDisplay()
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
         guard touches.count == 1, let touch = touches.first, accepts(touch) else { return }
+        if touch.type == .direct {
+            let activeTouchCount = event?.allTouches?.filter {
+                $0.phase != .ended && $0.phase != .cancelled
+            }.count ?? 1
+            guard activeTouchCount == 1 else { return }
+        }
         predictedPoints.removeAll()
         store.beginStroke(at: drawingPoint(for: touch))
         refresh()
@@ -85,10 +89,11 @@ final class MetalCanvasView: MTKView, UIGestureRecognizerDelegate {
 
     private func drawingPoint(for touch: UITouch) -> StrokePoint {
         let point = touch.location(in: self)
+        let documentPoint = canvasTransform.documentPoint(fromScreen: point)
         let pressure = touch.maximumPossibleForce > 0 ? touch.force / touch.maximumPossibleForce : 1
         return StrokePoint(
-            x: Double((point.x - contentOffset.x) / zoom),
-            y: Double((point.y - contentOffset.y) / zoom),
+            x: Double(documentPoint.x),
+            y: Double(documentPoint.y),
             pressure: Double(max(pressure, 0.2)),
             timestamp: touch.timestamp
         )
@@ -99,6 +104,10 @@ final class MetalCanvasView: MTKView, UIGestureRecognizerDelegate {
         pinch.delegate = self
         addGestureRecognizer(pinch)
 
+        let rotation = UIRotationGestureRecognizer(target: self, action: #selector(didRotate(_:)))
+        rotation.delegate = self
+        addGestureRecognizer(rotation)
+
         let pan = UIPanGestureRecognizer(target: self, action: #selector(didPan(_:)))
         pan.minimumNumberOfTouches = 2
         pan.maximumNumberOfTouches = 2
@@ -107,18 +116,33 @@ final class MetalCanvasView: MTKView, UIGestureRecognizerDelegate {
     }
 
     @objc private func didPinch(_ gesture: UIPinchGestureRecognizer) {
-        guard gesture.state == .changed else { return }
-        zoom = min(max(zoom * gesture.scale, 0.25), 6)
+        if gesture.state == .began { cancelDrawingForNavigation() }
+        guard gesture.state == .began || gesture.state == .changed else { return }
+        canvasTransform.zoom(by: gesture.scale, around: gesture.location(in: self))
         gesture.scale = 1
         refresh()
     }
 
+    @objc private func didRotate(_ gesture: UIRotationGestureRecognizer) {
+        if gesture.state == .began { cancelDrawingForNavigation() }
+        guard gesture.state == .began || gesture.state == .changed else { return }
+        canvasTransform.rotate(by: gesture.rotation, around: gesture.location(in: self))
+        gesture.rotation = 0
+        refresh()
+    }
+
     @objc private func didPan(_ gesture: UIPanGestureRecognizer) {
+        if gesture.state == .began { cancelDrawingForNavigation() }
+        guard gesture.state == .began || gesture.state == .changed else { return }
         let translation = gesture.translation(in: self)
-        contentOffset.x += translation.x
-        contentOffset.y += translation.y
+        canvasTransform.pan(by: translation)
         gesture.setTranslation(.zero, in: self)
         refresh()
+    }
+
+    private func cancelDrawingForNavigation() {
+        predictedPoints.removeAll()
+        store.cancelStroke()
     }
 
     func gestureRecognizer(

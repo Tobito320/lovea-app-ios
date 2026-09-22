@@ -17,8 +17,7 @@ final class MetalCanvasRenderer: NSObject, MTKViewDelegate {
     private var document: DrawingDocument = .empty
     private var activeLayerID: UUID?
     private var previewStroke: DrawingStroke?
-    private var zoom: CGFloat = 1
-    private var offset: CGPoint = .zero
+    private var transform = CanvasTransform()
 
     init?(view: MTKView) {
         guard let device = view.device,
@@ -80,14 +79,12 @@ final class MetalCanvasRenderer: NSObject, MTKViewDelegate {
         document: DrawingDocument,
         activeLayerID: UUID,
         previewStroke: DrawingStroke?,
-        zoom: CGFloat,
-        offset: CGPoint
+        transform: CanvasTransform
     ) {
         self.document = document
         self.activeLayerID = activeLayerID
         self.previewStroke = previewStroke
-        self.zoom = zoom
-        self.offset = offset
+        self.transform = transform
     }
 
     func mtkView(_ view: MTKView, drawableSizeWillChange size: CGSize) {
@@ -243,7 +240,7 @@ final class MetalCanvasRenderer: NSObject, MTKViewDelegate {
             let length = max(simd_length(direction), 0.001)
             let normal = SIMD2<Float>(-direction.y, direction.x) / length
             let pressure = max(0.2, (points[index - 1].pressure + points[index].pressure) / 2)
-            let radius = Float(stroke.width * pressure) * Float(zoom) / 2
+            let radius = Float(stroke.width * pressure) * Float(transform.scale) / 2
             let delta = normal * radius
             let a = ndc(CGPoint(x: start.x + CGFloat(delta.x), y: start.y + CGFloat(delta.y)), viewport)
             let b = ndc(CGPoint(x: start.x - CGFloat(delta.x), y: start.y - CGFloat(delta.y)), viewport)
@@ -258,9 +255,8 @@ final class MetalCanvasRenderer: NSObject, MTKViewDelegate {
     }
 
     private func screenPoint(_ point: StrokePoint) -> CGPoint {
-        CGPoint(
-            x: CGFloat(point.x) * zoom + offset.x,
-            y: CGFloat(point.y) * zoom + offset.y
+        transform.screenPoint(
+            fromDocument: CGPoint(x: CGFloat(point.x), y: CGFloat(point.y))
         )
     }
 
