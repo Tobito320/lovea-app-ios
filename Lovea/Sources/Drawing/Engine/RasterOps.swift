@@ -212,7 +212,7 @@ enum RasterOps {
         var height: Int
     }
 
-    nonisolated(unsafe) static let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
+    static let colorSpace = CGColorSpace(name: CGColorSpace.sRGB) ?? CGColorSpaceCreateDeviceRGB()
 
     /// Decodes an image to premultiplied RGBA8. `maxPixelSize` downsamples and applies EXIF orientation.
     static func decode(_ data: Data, maxPixelSize: Int? = nil) -> Pixels? {

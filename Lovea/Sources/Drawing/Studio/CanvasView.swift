@@ -147,6 +147,10 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         pencil.delegate = self
         addInteraction(pencil)
         updateAppearance()
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: CanvasView, _: UITraitCollection) in
+            view.updateAppearance()
+            view.setNeedsDisplay()
+        }
     }
 
     required init(coder: NSCoder) {
@@ -162,12 +166,6 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         guard let session, bounds.width > 0, bounds.height > 0, fittedBounds != bounds.size else { return }
         fittedBounds = bounds.size
         viewport.fit(document: session.canvasSize, screen: bounds.size)
-        setNeedsDisplay()
-    }
-
-    override func traitCollectionDidChange(_ previousTraitCollection: UITraitCollection?) {
-        super.traitCollectionDidChange(previousTraitCollection)
-        updateAppearance()
         setNeedsDisplay()
     }
 

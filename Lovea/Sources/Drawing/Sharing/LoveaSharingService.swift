@@ -140,7 +140,7 @@ final class LoveaSharingService: ObservableObject {
         let body: SnapshotRequest = .init(
             artworkID: document.id.uuidString,
             name: document.name,
-            bild: try Self.dataURL(for: image)
+            bild: try await Self.encodedInBackground(image)
         )
         _ = try await request(path: "freigabe/snapshot", method: "POST", body: body)
     }
@@ -155,7 +155,7 @@ final class LoveaSharingService: ObservableObject {
             projectID: project?.id.uuidString,
             projectName: project?.name,
             name: document.name,
-            bild: try Self.dataURL(for: image)
+            bild: try await Self.encodedInBackground(image)
         )
         _ = try await request(path: "freigabe/live", method: "POST", body: body)
     }
@@ -216,7 +216,12 @@ final class LoveaSharingService: ObservableObject {
         return data
     }
 
-    private static func dataURL(for image: UIImage) throws -> String {
+    /// PNG encoding runs off the main thread.
+    private static func encodedInBackground(_ image: UIImage) async throws -> String {
+        try await Task.detached(priority: .userInitiated) { try dataURL(for: image) }.value
+    }
+
+    private nonisolated static func dataURL(for image: UIImage) throws -> String {
         let limits: [CGFloat] = [1400, 1100, 900, 720, 560]
         for maxSide in limits {
             let resized = resized(image, maxSide: maxSide)
@@ -227,7 +232,7 @@ final class LoveaSharingService: ObservableObject {
         throw SharingError(status: 0, message: "Das Bild ist für die Freigabe noch zu groß.")
     }
 
-    private static func resized(_ image: UIImage, maxSide: CGFloat) -> UIImage {
+    private nonisolated static func resized(_ image: UIImage, maxSide: CGFloat) -> UIImage {
         let longest = max(image.size.width, image.size.height)
         guard longest > maxSide else { return image }
         let scale = maxSide / longest
