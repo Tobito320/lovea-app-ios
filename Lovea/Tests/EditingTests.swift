@@ -594,3 +594,30 @@ final class EditingTests: XCTestCase {
         XCTAssertEqual(session.engine?.frameCount, frames)
     }
 }
+
+/// Z-14.6: frame cost in the simulator, printed for the PR text. Glass can only be measured on a device.
+@MainActor
+final class FrameCostTests: XCTestCase {
+    func testPrintFrameCost2048TenLayers() async throws {
+        let engine = try await TestGPU.engine(TestGPU.document(width: 2048, height: 2048, background: .white))
+        for index in 2...10 { engine.addLayer(.paint(name: "Ebene \(index)")) }
+        engine.activeLayerID = engine.document.layers[5].id
+        engine.beginStroke(StrokeInput(location: CGPoint(x: 100, y: 100)), settings: TestGPU.settings(size: 20), layerID: engine.activeLayerID)
+        engine.renderOffscreen()
+        var cpu: [Double] = []
+        var gpu: [Double] = []
+        for frame in 0..<60 {
+            engine.continueStroke([StrokeInput(location: CGPoint(x: 100 + Double(frame) * 20, y: 100 + Double(frame) * 10))], predicted: [])
+            let start = CACurrentMediaTime()
+            engine.renderOffscreen()
+            cpu.append((CACurrentMediaTime() - start) * 1000)
+            _ = await GPU.readBytes(try XCTUnwrap(engine.texture(for: engine.activeLayerID)), region: MTLRegionMake2D(0, 0, 1, 1))
+            await Task.yield()
+            gpu.append(engine.lastGPUTime * 1000)
+        }
+        engine.cancelStroke()
+        let cpuAverage = cpu.reduce(0, +) / Double(cpu.count)
+        let gpuAverage = gpu.reduce(0, +) / Double(gpu.count)
+        print(String(format: "FRAMECOST 2048² 10 Ebenen: CPU %.2f ms (max %.2f), GPU %.2f ms (max %.2f)", cpuAverage, cpu.max() ?? 0, gpuAverage, gpu.max() ?? 0))
+    }
+}

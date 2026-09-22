@@ -142,7 +142,7 @@ private struct LayerRow: View {
             .accessibilityLabel(layer.isVisible ? "Ausblenden" : "Einblenden")
         }
         .padding(.leading, layer.clipping ? 8 : 0)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
         .accessibilityAddTraits(layer.id == session.activeLayerID ? .isSelected : [])
     }
 }
@@ -186,6 +186,7 @@ private struct LayerFooter: View {
                 }
             }
             .toggleStyle(.button)
+            .frame(minHeight: 44)
             .font(.caption)
 
             HStack(spacing: 4) {

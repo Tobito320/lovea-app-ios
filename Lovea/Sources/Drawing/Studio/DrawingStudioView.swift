@@ -8,6 +8,7 @@ struct DrawingStudioView: View {
     @ObservedObject private var sharing: LoveaSharingService
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("studio.glass") private var glass = true
     @AppStorage("profile.performanceHUD") private var showsHUD = false
     @State private var showsLayers = true
@@ -113,7 +114,7 @@ struct DrawingStudioView: View {
                 .accessibilityLabel("Wiederholen")
                 .disabled(!session.canRedo)
             Button {
-                if compact { showsLayerSheet = true } else { withAnimation(.snappy) { showsLayers.toggle() } }
+                if compact { showsLayerSheet = true } else { withAnimation(reduceMotion ? nil : .snappy) { showsLayers.toggle() } }
             } label: { Image(systemName: "square.3.layers.3d") }
                 .accessibilityLabel("Ebenen")
             moreMenu
@@ -270,7 +271,7 @@ struct DrawingStudioView: View {
             }
         }
         .padding(.top, 8)
-        .animation(.snappy, value: session.notice)
+        .animation(reduceMotion ? nil : .snappy, value: session.notice)
     }
 
     // MARK: Photos

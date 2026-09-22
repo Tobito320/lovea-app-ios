@@ -92,8 +92,8 @@ enum GPU {
         let descriptor = MTLSamplerDescriptor()
         descriptor.minFilter = nearest ? .nearest : .linear
         descriptor.magFilter = nearest ? .nearest : .linear
-        descriptor.sAddressMode = .clampToZero
-        descriptor.tAddressMode = .clampToZero
+        descriptor.sAddressMode = .clampToEdge
+        descriptor.tAddressMode = .clampToEdge
         return device.makeSamplerState(descriptor: descriptor)
     }
 

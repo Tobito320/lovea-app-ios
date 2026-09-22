@@ -31,7 +31,9 @@ final class CanvasEngine {
     private let preview: MTLTexture
     private var offscreen: MTLTexture?
 
-    var activeLayerID: UUID
+    var activeLayerID: UUID {
+        didSet { if oldValue != activeLayerID { onChange?() } }
+    }
     /// R8 mask in document size. Painting, filling and filters only act inside it.
     var selection: MTLTexture? { didSet { onChange?() } }
     /// Symmetry axis x in document pixels.
@@ -218,6 +220,10 @@ final class CanvasEngine {
         if offscreen == nil { offscreen = GPU.makeTexture(device, width: 64, height: 64, format: .bgra8Unorm) }
         guard let offscreen, let command = queue.makeCommandBuffer() else { return }
         render(into: offscreen, viewport: viewport, command: command)
+        command.addCompletedHandler { [weak self] buffer in
+            let time = buffer.gpuEndTime - buffer.gpuStartTime
+            Task { @MainActor in self?.lastGPUTime = time }
+        }
         command.commit()
     }
 
