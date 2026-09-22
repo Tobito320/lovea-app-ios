@@ -36,6 +36,7 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
     let foregroundImage: UIImage?
     let controller: PencilCanvasController
     let onDrawingChanged: (PKDrawing) -> Void
+    let onCanvasTap: (CGPoint) -> Void
 
     func makeCoordinator() -> Coordinator {
         Coordinator(parent: self)
@@ -54,6 +55,7 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
         canvas.alwaysBounceVertical = true
         canvas.drawing = drawing
         context.coordinator.installLayerViews(in: canvas, size: canvasSize)
+        context.coordinator.installTapGesture(in: canvas)
         controller.canvasView = canvas
         applyConfiguration(to: canvas, coordinator: context.coordinator)
         return canvas
@@ -80,6 +82,9 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
         canvas.drawingPolicy = drawsWithFinger ? .anyInput : .pencilOnly
         canvas.isRulerActive = rulerActive
         canvas.isUserInteractionEnabled = !isLocked
+        let usesTapTool = tool == .fill || tool == .eyedropper
+        canvas.drawingGestureRecognizer.isEnabled = !usesTapTool && !isLocked
+        coordinator.tapRecognizer?.isEnabled = usesTapTool && !isLocked
 
         switch tool {
         case .brush:
@@ -93,12 +98,15 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
             canvas.tool = PKEraserTool(.vector)
         case .lasso:
             canvas.tool = PKLassoTool()
+        case .fill, .eyedropper:
+            canvas.tool = PKLassoTool()
         }
     }
 
     final class Coordinator: NSObject, PKCanvasViewDelegate {
         var parent: PencilCanvasRepresentable
         var isApplyingExternalDrawing = false
+        var tapRecognizer: UITapGestureRecognizer?
         private let backgroundView = UIImageView()
         private let foregroundView = UIImageView()
 
@@ -121,6 +129,14 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
             keepOverlayOrder(in: canvas)
         }
 
+        func installTapGesture(in canvas: PKCanvasView) {
+            let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleTap(_:)))
+            recognizer.cancelsTouchesInView = false
+            recognizer.isEnabled = false
+            canvas.addGestureRecognizer(recognizer)
+            tapRecognizer = recognizer
+        }
+
         func resizeLayerViews(to size: CGSize) {
             backgroundView.frame = CGRect(origin: .zero, size: size)
             foregroundView.frame = CGRect(origin: .zero, size: size)
@@ -139,6 +155,11 @@ struct PencilCanvasRepresentable: UIViewRepresentable {
         func canvasViewDrawingDidChange(_ canvasView: PKCanvasView) {
             guard !isApplyingExternalDrawing else { return }
             parent.onDrawingChanged(canvasView.drawing)
+        }
+
+        @objc private func handleTap(_ recognizer: UITapGestureRecognizer) {
+            guard let canvas = recognizer.view as? PKCanvasView else { return }
+            parent.onCanvasTap(recognizer.location(in: canvas))
         }
     }
 }
