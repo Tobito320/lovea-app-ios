@@ -1,6 +1,6 @@
 import Foundation
 
-enum CanvasBackground: Codable, Equatable, Hashable, Sendable {
+enum CanvasBackground: Codable, Equatable, Sendable {
     case white
     case dark
     case transparent
