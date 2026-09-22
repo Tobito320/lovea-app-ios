@@ -90,4 +90,40 @@ final class DrawingStoreTests: XCTestCase {
         store.undo()
         XCTAssertEqual(store.document.layers[0].name, "Ebene 1")
     }
+
+    func testBrushWidthIsClampedToSupportedRange() {
+        let store = DrawingStore(document: .empty)
+
+        store.setBrushWidth(0)
+        XCTAssertEqual(store.brushWidth, 1)
+
+        store.setBrushWidth(201)
+        XCTAssertEqual(store.brushWidth, 200)
+    }
+
+    func testBrushOpacityIsClampedToSupportedRange() {
+        let store = DrawingStore(document: .empty)
+
+        store.setBrushOpacity(-0.1)
+        XCTAssertEqual(store.opacity, 0)
+
+        store.setBrushOpacity(1.1)
+        XCTAssertEqual(store.opacity, 1)
+    }
+
+    func testFinishedStrokeStoresCurrentBrushAppearance() {
+        let store = DrawingStore(document: .empty)
+        let color = RGBAColor(red: 0.2, green: 0.4, blue: 0.6, alpha: 0.8)
+        store.color = color
+        store.setBrushWidth(42)
+        store.setBrushOpacity(0.35)
+
+        store.beginStroke(at: StrokePoint(x: 10, y: 20, pressure: 1))
+        store.endStroke()
+
+        let stroke = store.document.layers[0].strokes[0]
+        XCTAssertEqual(stroke.width, 42)
+        XCTAssertEqual(stroke.opacity, 0.35)
+        XCTAssertEqual(stroke.color, color)
+    }
 }
