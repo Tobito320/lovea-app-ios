@@ -44,4 +44,50 @@ final class DrawingStoreTests: XCTestCase {
 
         XCTAssertFalse(store.document.layers[0].isVisible)
     }
+
+    func testLayerOpacityIsClampedToValidRange() {
+        let store = DrawingStore(document: .empty)
+        let layerID = store.document.layers[0].id
+
+        store.updateLayerOpacity(-0.5, id: layerID)
+        XCTAssertEqual(store.document.layers[0].opacity, 0)
+
+        store.updateLayerOpacity(1.5, id: layerID)
+        XCTAssertEqual(store.document.layers[0].opacity, 1)
+    }
+
+    func testLayerOpacityCanBeUndoneAndRedone() {
+        let store = DrawingStore(document: .empty)
+        let layerID = store.document.layers[0].id
+
+        store.updateLayerOpacity(0.4, id: layerID)
+        store.undo()
+        XCTAssertEqual(store.document.layers[0].opacity, 1)
+
+        store.redo()
+        XCTAssertEqual(store.document.layers[0].opacity, 0.4)
+    }
+
+    func testNewLayerOpacityChangeDiscardsRedo() {
+        let store = DrawingStore(document: .empty)
+        let layerID = store.document.layers[0].id
+
+        store.updateLayerOpacity(0.4, id: layerID)
+        store.undo()
+        XCTAssertTrue(store.canRedo)
+
+        store.updateLayerOpacity(0.7, id: layerID)
+        XCTAssertFalse(store.canRedo)
+    }
+
+    func testRenamingLayerCanBeUndone() {
+        let store = DrawingStore(document: .empty)
+        let layerID = store.document.layers[0].id
+
+        store.renameLayer("Skizze", id: layerID)
+        XCTAssertEqual(store.document.layers[0].name, "Skizze")
+
+        store.undo()
+        XCTAssertEqual(store.document.layers[0].name, "Ebene 1")
+    }
 }
