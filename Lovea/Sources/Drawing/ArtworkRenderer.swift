@@ -8,7 +8,7 @@ enum ArtworkRenderer {
         library: ArtworkLibrary,
         excluding excludedID: UUID? = nil
     ) -> UIImage {
-        let size = CGSize(width: document.canvasWidth, height: document.canvasHeight)
+        let size = CGSize(width: CGFloat(document.canvasWidth), height: CGFloat(document.canvasHeight))
         let format = UIGraphicsImageRendererFormat()
         format.scale = 1
         format.opaque = false
@@ -60,7 +60,12 @@ enum ArtworkRenderer {
         library: ArtworkLibrary
     ) -> UIImage? {
         guard let data = library.layerData(layer, artworkID: document.id) else { return nil }
-        let bounds = CGRect(x: 0, y: 0, width: document.canvasWidth, height: document.canvasHeight)
+        let bounds = CGRect(
+            x: 0,
+            y: 0,
+            width: CGFloat(document.canvasWidth),
+            height: CGFloat(document.canvasHeight)
+        )
         switch layer.kind {
         case .paint:
             guard let drawing = try? PKDrawing(data: data) else { return nil }
@@ -81,10 +86,10 @@ enum ArtworkRenderer {
             color = nil
         case .color(let value):
             color = UIColor(
-                red: value.red,
-                green: value.green,
-                blue: value.blue,
-                alpha: value.alpha
+                red: CGFloat(value.red),
+                green: CGFloat(value.green),
+                blue: CGFloat(value.blue),
+                alpha: CGFloat(value.alpha)
             )
         }
         if let color {
@@ -95,8 +100,8 @@ enum ArtworkRenderer {
 
     private static func draw(_ image: UIImage, transform: LayerTransform, size: CGSize, in context: CGContext) {
         let center = CGPoint(
-            x: size.width / 2 + transform.offsetX,
-            y: size.height / 2 + transform.offsetY
+            x: size.width / 2 + CGFloat(transform.offsetX),
+            y: size.height / 2 + CGFloat(transform.offsetY)
         )
         context.translateBy(x: center.x, y: center.y)
         context.rotate(by: CGFloat(transform.rotation))
