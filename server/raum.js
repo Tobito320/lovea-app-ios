@@ -27,7 +27,6 @@ import {
   offeneTreffen,
   offeneAngeheftet,
   offeneSpielEinladungen,
-  streakLaeuftHeuteAb,
   alarmErledigt,
   alarmAlsErledigtMarkieren,
   letzteZufaelligNahMs,
@@ -55,7 +54,6 @@ const ALARM_TEXT = {
   vorabend: { titel: "Lovea", text: "Morgen seht ihr euch", stufe: "laut", kategorie: "kalender" },
   stundeVorher: { titel: "Lovea", text: "In einer Stunde geht's los", stufe: "laut", kategorie: "kalender" },
   frageDesTages: { titel: "Lovea", text: "Die Frage des Tages ist da", stufe: "leise", kategorie: "frage" },
-  streakWarnung: { titel: "Lovea", text: "Euer Streak läuft heute ab!", stufe: "laut", kategorie: "streak" },
   // Z-22.3: nur eine Mitteilung, der Server rechnet keine Punkte -- die App zeigt beim Öffnen, wie's steht.
   challengeEndspurtWoche: { titel: "Lovea", text: "Letzter Tag für die Wochen-Challenges!", stufe: "laut", kategorie: "challenge" },
   challengeEndeWoche: { titel: "Lovea", text: "Die Wochen-Challenges sind vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
@@ -314,7 +312,9 @@ export class Raum {
 
     const token = geraetToken(this.sql, empfaenger);
     if (!token) return;
-    const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton: r.ton });
+    // Z-32.1: Antippen springt im Chat zur Nachricht, die App liest `userInfo["nachrichtId"]`.
+    const daten = op.art.startsWith("nachricht.") && typeof op.d.id === "string" ? { art: op.art, nachrichtId: op.d.id } : undefined;
+    const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton: r.ton, daten });
     if (!res.ok) this.#log("APNs-Antwort", op.art, "->", res.status);
     if (res.expired) geraetLoeschen(this.sql, empfaenger);
   }
@@ -335,9 +335,7 @@ export class Raum {
     if (letzteWarnungMs !== null && jetztMs - letzteWarnungMs < 6 * 3_600_000) return;
     zufaelligNahAlsGemeldetMarkieren(this.sql, jetztMs);
 
-    // Eine Op "an beide" -- nicht zwei separate, sonst zwei System-Bubbles im
-    // Chat und doppelte Streak-Zählung (siehe auch: Systemnachrichten zählen
-    // ohnehin nicht für den Streak).
+    // Eine Op "an beide" -- nicht zwei separate, sonst zwei System-Bubbles im Chat.
     const op = { id: `nah-${jetztMs}`, art: "nachricht.neu", von: person, zeit: new Date(jetztMs).toISOString(), d: { system: "nah" } };
     const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
     const bestaetigt = { ...op, seq };
@@ -485,10 +483,8 @@ export class Raum {
       treffen: offeneTreffen(this.sql, kontextAb),
       angeheftet: offeneAngeheftet(this.sql),
       spielEinladungen: offeneSpielEinladungen(this.sql),
-      streakLaeuftHeuteAb: streakLaeuftHeuteAb(this.sql, jetztMs),
       erinnerungenHeute: {
         frage: alarmErledigt(this.sql, "frageDesTages", heute),
-        streak: alarmErledigt(this.sql, "streakWarnung", heute),
       },
       challengeErledigt: {
         endspurtWoche: alarmErledigt(this.sql, "challengeEndspurtWoche", montagDerWoche(heute)),
@@ -526,8 +522,7 @@ export class Raum {
         await this.#pushBeide({ stufe: "still" }); // still: keine mitteilungen.<kategorie>-Prüfung nötig
         break;
       }
-      case "frageDesTages":
-      case "streakWarnung": {
+      case "frageDesTages": {
         const schluessel = berlinDatum(jetztMs);
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);

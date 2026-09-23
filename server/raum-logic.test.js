@@ -17,7 +17,6 @@ import {
   offeneTreffen,
   offeneAngeheftet,
   offeneSpielEinladungen,
-  streakLaeuftHeuteAb,
   alarmErledigt,
   alarmAlsErledigtMarkieren,
   ortInfo,
@@ -375,45 +374,6 @@ test("offeneSpielEinladungen: angenommene und verfallene fallen raus", () => {
 
   const ergebnis = offeneSpielEinladungen(sql);
   assert.deepEqual(ergebnis, [{ id: "s1", bis: "2026-10-01T00:00:00.000Z", von: "ahmed" }]);
-});
-
-test("streakLaeuftHeuteAb: gestern beide aktiv, heute noch keiner -> true", () => {
-  const sql = raum();
-  const snap = { snap: { bleibt: false } };
-  opEinfuegen(sql, op("n1", "nachricht.neu", "ahmed", snap, "2026-10-24T10:00:00.000Z"));
-  opEinfuegen(sql, op("n2", "nachricht.neu", "annika", snap, "2026-10-24T11:00:00.000Z"));
-  const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
-
-  opEinfuegen(sql, op("n3", "nachricht.neu", "ahmed", snap, "2026-10-25T09:00:00.000Z"));
-  opEinfuegen(sql, op("n4", "nachricht.neu", "annika", snap, "2026-10-25T09:30:00.000Z"));
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
-});
-
-// I-3: Die App zählt nur Snaps (Streak.swift), die Push-Warnung also auch.
-test("streakLaeuftHeuteAb: normale Chat-Nachrichten zählen nicht, nur Snaps", () => {
-  const sql = raum();
-  opEinfuegen(sql, op("t1", "nachricht.neu", "ahmed", { text: "hi" }, "2026-10-24T10:00:00.000Z"));
-  opEinfuegen(sql, op("t2", "nachricht.neu", "annika", { text: "hey" }, "2026-10-24T11:00:00.000Z"));
-  const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
-
-  opEinfuegen(sql, op("s1", "nachricht.neu", "ahmed", { snap: { bleibt: false } }, "2026-10-24T12:00:00.000Z"));
-  opEinfuegen(sql, op("s2", "nachricht.neu", "annika", { snap: { bleibt: true } }, "2026-10-24T13:00:00.000Z"));
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
-  // Heute nur Text: der Snap-Streak läuft weiter ab.
-  opEinfuegen(sql, op("t3", "nachricht.neu", "ahmed", { text: "morgen" }, "2026-10-25T08:00:00.000Z"));
-  opEinfuegen(sql, op("t4", "nachricht.neu", "annika", { text: "morgen" }, "2026-10-25T08:30:00.000Z"));
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
-});
-
-test("streakLaeuftHeuteAb: Systemnachrichten (z. B. Zufällig nah) zählen nicht als Aktivität", () => {
-  const sql = raum();
-  opEinfuegen(sql, op("s1", "nachricht.neu", "ahmed", { system: "nah" }, "2026-10-24T10:00:00.000Z"));
-  opEinfuegen(sql, op("s2", "nachricht.neu", "annika", { system: "nah" }, "2026-10-24T11:00:00.000Z"));
-  const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
-  // Beide "aktiv" gestern, aber nur über Systemnachrichten -> kein echter Streak-Tag.
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
 });
 
 test("alarmErledigt: Markierung ist idempotent, wird gefunden, landet nicht in den Ops", () => {

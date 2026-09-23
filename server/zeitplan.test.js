@@ -45,8 +45,7 @@ test("naechsterAlarm: findet fällige und nächste Ereignisse, dedupliziert per 
     treffen: [{ datum: "2026-10-25", uhrzeit: "14:00" }],
     angeheftet: [{ id: "p1", bis: "2026-10-25T09:00:00.000Z" }], // schon fällig
     spielEinladungen: [{ id: "s1", bis: "2026-10-25T11:00:00.000Z" }], // noch nicht
-    streakLaeuftHeuteAb: true,
-    erinnerungenHeute: { frage: true, streak: false },
+    erinnerungenHeute: { frage: true },
   };
   const { faellig, naechste } = naechsterAlarm(kontext, jetzt);
   assert.ok(faellig.some((f) => f.art === "nachrichtLoesen" && f.id === "p1"));
@@ -56,9 +55,8 @@ test("naechsterAlarm: findet fällige und nächste Ereignisse, dedupliziert per 
 
 // Regressionstest: naechsteTageszeit lieferte früher IMMER einen Zeitpunkt in
 // der Zukunft, auch wenn das Ereignis heute noch nicht erledigt war -- die
-// Frage des Tages (18 Uhr) und die Streak-Warnung (21 Uhr) sind dadurch nie
-// ausgelöst worden, ein Alarm um 18:00 hat einfach auf "morgen 18:00"
-// umgeplant. naechsteFaelligeTageszeit muss den heutigen, ggf. schon
+// Frage des Tages (18 Uhr) ist dadurch nie ausgelöst worden, ein Alarm um
+// 18:00 hat einfach auf "morgen 18:00" umgeplant. naechsteFaelligeTageszeit muss den heutigen, ggf. schon
 // vergangenen Zeitpunkt liefern, solange er nicht erledigt ist.
 test("naechsteFaelligeTageszeit: heute (auch rückwirkend), solange nicht erledigt; sonst morgen", () => {
   const nach18 = Date.parse("2026-06-15T17:00:00.000Z"); // 19:00 Berlin, also nach 18:00
@@ -72,7 +70,7 @@ test("naechsteFaelligeTageszeit: heute (auch rückwirkend), solange nicht erledi
 
 test("naechsterAlarm: Frage des Tages wird fällig, wenn 18 Uhr vorbei und noch nicht erledigt", () => {
   const nach18 = Date.parse("2026-06-15T17:30:00.000Z"); // 19:30 Berlin
-  const kontext = { erinnerungenHeute: { frage: false, streak: false }, streakLaeuftHeuteAb: false };
+  const kontext = { erinnerungenHeute: { frage: false } };
   const { faellig } = naechsterAlarm(kontext, nach18);
   assert.ok(faellig.some((f) => f.art === "frageDesTages"));
 });
@@ -82,7 +80,7 @@ test("naechsterAlarm: bleibt nie ohne nächsten Wach-Zeitpunkt (frageDesTages is
   // ein "naechste" für morgen 18 Uhr geplant sein, sonst wacht der DO-Alarm
   // nie wieder von selbst auf.
   const heuteFrueh = Date.parse("2026-06-15T05:00:00.000Z"); // 07:00 Berlin
-  const kontext = { erinnerungenHeute: { frage: true, streak: true }, streakLaeuftHeuteAb: false };
+  const kontext = { erinnerungenHeute: { frage: true } };
   const { faellig, naechste } = naechsterAlarm(kontext, heuteFrueh);
   assert.equal(faellig.length, 0);
   assert.ok(naechste !== null);
@@ -92,8 +90,7 @@ test("naechsterAlarm: Pünktlich-Karte wird am Morgen nach einem (auch gestrigen
   const morgenDanach = Date.parse("2026-10-24T08:00:00.000Z"); // 25.10. ist ein Sonntag danach; hier: Treffen am Vortag
   const kontext = {
     treffen: [{ datum: "2026-10-23" }], // "gestern" relativ zu morgenDanach (24.10.)
-    erinnerungenHeute: { frage: true, streak: true },
-    streakLaeuftHeuteAb: false,
+    erinnerungenHeute: { frage: true },
   };
   const { faellig } = naechsterAlarm(kontext, morgenDanach);
   assert.ok(faellig.some((f) => f.art === "puenktlichKarte" && f.datum === "2026-10-23"));
@@ -177,9 +174,10 @@ test("naechsterAlarm: mitten in Woche und Monat ist nichts 'vorbei' (kein falsch
   assert.ok(!arten.includes("challengeEndeMonat"));
 });
 
-// Z-31.4: die Zeitkapsel ist weg (Spec 2.10), auch ein alter Kontext plant keinen Kapsel-Alarm mehr.
-test("naechsterAlarm: keine kapselOeffnet-Kandidaten mehr", () => {
-  const kontext = { erinnerungenHeute: {}, kapseln: [{ id: "msg-1", oeffnetAm: "2026-09-01" }] };
-  const { faellig } = naechsterAlarm(kontext, Date.parse("2026-09-23T10:00:00.000Z"));
-  assert.ok(!faellig.some((f) => f.art === "kapselOeffnet"));
+// Z-31.4 und Controller-Entscheid: Zeitkapsel und Streak sind weg (Spec 2.10) -- auch ein alter
+// Kontext plant weder den Kapsel-Alarm noch die 21-Uhr-Streak-Warnung.
+test("naechsterAlarm: keine kapselOeffnet- und streakWarnung-Kandidaten mehr", () => {
+  const kontext = { erinnerungenHeute: {}, streakLaeuftHeuteAb: true, kapseln: [{ id: "msg-1", oeffnetAm: "2026-09-01" }] };
+  const { faellig } = naechsterAlarm(kontext, Date.parse("2026-09-23T19:30:00.000Z")); // 21:30 Berlin
+  assert.ok(!faellig.some((f) => f.art === "kapselOeffnet" || f.art === "streakWarnung"));
 });

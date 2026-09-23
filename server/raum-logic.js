@@ -1,7 +1,6 @@
 // Pure Raum (Durable Object "Wir") logic. No cloudflare:workers import here on
 // purpose, so this file loads and runs under plain Node for tests. raum.js
 // wires this up against the real ctx.storage.sql and WebSocket API.
-import { berlinDatum } from "./zeitplan.js";
 
 export const SEITE = 500;
 // C-1: Eine Seite geht als EIN WebSocket-Frame raus. Ein Strich kann 10-30 KB
@@ -162,7 +161,7 @@ export function opsSeit(sql, seit, limit = SEITE, maxBytes = SEITE_BYTES, fuer =
   return { ops, mehr: false };
 }
 
-// Letzte Op einer Art von einer Person (für Einstellungen, Streak, etc.).
+// Letzte Op einer Art von einer Person (für Einstellungen etc.).
 export function letzteOpVon(sql, von, art) {
   const rows = sql
     .exec(`SELECT seq, id, art, von, zeit, d FROM ops WHERE von = ? AND art = ? ORDER BY seq DESC LIMIT 50`, von, art)
@@ -517,33 +516,8 @@ export function ortInfo(sql, ortId) {
   return treffer.length ? treffer[treffer.length - 1].d : null;
 }
 
-// Streak: beide aktiv (mind. ein Snap, also nachricht.neu mit d.snap) an
-// aufeinanderfolgenden Tagen. "läuft heute ab": gestern waren beide aktiv,
-// heute (bisher) noch nicht beide. Auf die letzten Tage begrenzt (Last, Spec 13).
-function aktiveTage(sql, person, seitIso) {
-  const rows = sql
-    .exec(`SELECT zeit, d FROM ops WHERE art = 'nachricht.neu' AND von = ? AND zeit >= ? ORDER BY seq ASC`, person, seitIso)
-    .toArray();
-  const tage = new Set();
-  for (const row of rows) {
-    const d = JSON.parse(row.d);
-    if (!d.snap) continue; // I-3: nur Snaps zählen, wie in der App (Streak.swift, Spec 6).
-    tage.add(berlinDatum(Date.parse(row.zeit)));
-  }
-  return tage;
-}
-
-export function streakLaeuftHeuteAb(sql, jetztMs) {
-  const heute = berlinDatum(jetztMs);
-  const gestern = berlinDatum(jetztMs - 86_400_000);
-  const seit = new Date(jetztMs - 3 * 86_400_000).toISOString(); // Puffer über Zeitzone/DST
-  const ahmed = aktiveTage(sql, "ahmed", seit);
-  const annika = aktiveTage(sql, "annika", seit);
-  return ahmed.has(gestern) && annika.has(gestern) && !(ahmed.has(heute) && annika.has(heute));
-}
-
 // Markiert, dass ein zeitgesteuertes Ereignis (Vorabend, 1h-vorher,
-// Frage-des-Tages, Streak-Warnung, ...) für einen Schlüssel schon erledigt
+// Frage-des-Tages, ...) für einen Schlüssel schon erledigt
 // ist -- damit der nächste Alarm es nicht noch einmal auslöst. Liegt im
 // Merker, nicht in den Ops: das ist Server-Buchhaltung, kein Chat-Ereignis,
 // und soll nicht als unbekannte Op-Art beim Client ankommen.

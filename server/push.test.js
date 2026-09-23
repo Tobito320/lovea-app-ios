@@ -57,6 +57,16 @@ test("apnsPayload: laut mit Ton, leise ohne Ton, still ohne Text", () => {
   assert.deepEqual(still, { aps: { "content-available": 1 } });
 });
 
+// Z-32.1: `daten` landet oben neben `aps` (die App liest `userInfo["nachrichtId"]`).
+test("apnsPayload: daten stehen oben neben aps", () => {
+  const payload = apnsPayload({ stufe: "laut", titel: "Lovea", text: "Annika: hi", daten: { art: "nachricht.neu", nachrichtId: "m1" } });
+  assert.deepEqual(payload, {
+    art: "nachricht.neu",
+    nachrichtId: "m1",
+    aps: { alert: { title: "Lovea", body: "Annika: hi" }, "interruption-level": "active", "thread-id": "wir" },
+  });
+});
+
 test("push: schickt an api.push.apple.com mit apns-topic und passendem push-type", async () => {
   const { env } = await testEnv();
   const calls = [];
