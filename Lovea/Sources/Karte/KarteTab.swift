@@ -160,8 +160,10 @@ struct KarteTab: View {
         let hoehe = (lats.max()! - lats.min()!) * 111_000
         let breite = (lons.max()! - lons.min()!) * 111_000 * cos(mitte.latitude * .pi / 180)
         fokus = nil
-        if max(hoehe, breite) < 1500 {
-            kameraSetzen(mitte, distanz: max(max(hoehe, breite) * 2.2 + 350, 500), animiert: animiert)
+        if max(hoehe, breite) < 800 {
+            // Close together: the pitched 3D look. ponytail: hand-tuned distance factor, generous so
+            // both fit the narrow portrait width; the exact fit below takes over for anything wider.
+            kameraSetzen(mitte, distanz: max(max(hoehe, breite) * 3 + 400, 500), animiert: animiert)
         } else {
             // Far apart, MapKit fits the region itself: the old capped 3D distance put both figures
             // off-screen once they were ~10 km apart (the "empty" satellite map, Z-41.3).
@@ -189,11 +191,16 @@ struct KarteTab: View {
         bewegen(.region(MKCoordinateRegion(center: p.punkt, latitudinalMeters: 8000, longitudinalMeters: 8000)))
     }
 
+    /// What the 3D/2D label shows: the camera as it is (overview moves are flat), else the wish.
+    private var zeigt3D: Bool { aktuelleKamera.map { $0.pitch > 1 } ?? dreiD }
+
     private func dreiDSchalten() {
-        dreiD.toggle()
+        dreiD = !zeigt3D
         Haptik.auswahl()
         guard let k = aktuelleKamera else { return }
-        bewegen(.camera(MapCamera(centerCoordinate: k.centerCoordinate, distance: k.distance, heading: k.heading, pitch: dreiD ? 55 : 0)))
+        let neu = MapCamera(centerCoordinate: k.centerCoordinate, distance: k.distance, heading: k.heading, pitch: dreiD ? 55 : 0)
+        aktuelleKamera = neu // label flips right away; onMapCameraChange confirms when the move ends
+        bewegen(.camera(neu))
     }
 
     private func satellitSchalten() {
@@ -280,13 +287,13 @@ struct KarteTab: View {
     private var stilSchalter: some View {
         HStack(spacing: 0) {
             Button(action: dreiDSchalten) {
-                Text(dreiD ? "3D" : "2D")
+                Text(zeigt3D ? "3D" : "2D")
                     .font(.footnote.weight(.bold))
                     .frame(width: 44, height: 44)
                     .contentShape(.rect)
             }
             .accessibilityLabel("3D-Ansicht")
-            .accessibilityValue(dreiD ? "an" : "aus")
+            .accessibilityValue(zeigt3D ? "an" : "aus")
             .accessibilityAddTraits(.isToggle)
             Button(action: satellitSchalten) {
                 Image(systemName: satellit ? "globe.europe.africa.fill" : "map")
