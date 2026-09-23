@@ -178,6 +178,27 @@ echte Wartezeit oder eine Ortsveränderung brauchen, stehen gesammelt im letzten
 - [ ] Live-Funktionen (Duell, Mitzeichnen, Spiele) zeigen sichtbar, dass sie pausiert sind.
 - [ ] Flugmodus aus: alle offline erstellten Nachrichten und Termine senden sich automatisch nach, Partner erhält sie.
 
+## Nach Ahmeds Test (Block 18)
+
+- [ ] Chat-Tab zeigt zuerst die Chat-Liste mit einer Zeile: Figur, Name, Status, letzte Nachricht, Streak.
+- [ ] In der Unterhaltung vom linken Rand nach rechts wischen: zurück zur Liste.
+- [ ] Eingabeleiste ist einzeilig: Kamera links, Textfeld mit Mikrofon innen rechts, Bilder und Spiele rechts daneben. Erst bei mehr Text wird sie höher.
+- [ ] Über dem Verlauf nach unten wischen: Tastatur geht mit dem Finger weg.
+- [ ] Fotos auswählen: sie landen erst klein in der Eingabeleiste, nichts wird direkt gesendet. Antippen öffnet die Bearbeitung.
+- [ ] Mehrere Fotos nacheinander senden: sie erscheinen als Stapel, Antippen öffnet die Galerie.
+- [ ] Nach einer Snap-Aufnahme kommt immer der Editor mit Senden-Knopf.
+- [ ] Partner-Profil: Wallpaper änderbar (beide sehen es), Chatfarbe, Medien, Im Chat suchen, Chat-Hintergrund.
+- [ ] Profil: FaceTime Audio und Video rufen direkt an. Vorher trägt jeder in den Einstellungen seine eigene Nummer ein.
+- [ ] Figuren-Editor hat Gesicht, Frisuren, Kleidung, Hose, Schuhe, Accessoires. Karte und Profil zeigen die Figur ganz.
+- [ ] Schritte: nach Erlaubnis zeigt das Profil die heutigen Schritte beider.
+- [ ] Karte ist gekippt, Figur mit Namensschild, Akku und „vor … min“.
+- [ ] Spiele-Menü ist ein 3er-Raster mit Covers. Neue Einladung ersetzt die offene, eine Einladung lässt sich abbrechen.
+- [ ] Kritzel-Duell startet mit 1 Runde. Bei 3 Runden: leicht, mittel, schwer.
+- [ ] Im Zeichen-Studio führt Rand-Wischen nicht zurück, nur der Knopf oben links.
+- [ ] Leeres Projekt schlägt „Neue Zeichnung“ vor. Zeichnungen lassen sich per Mehrfachauswahl in ein Projekt verschieben.
+- [ ] Kalender: Schultage blau umrandet, Arbeitstage in der anderen Farbe, mit Legende.
+- [ ] Zeichnen fühlt sich flüssig an, auch mit mehreren Ebenen.
+
 ## Braucht Wartezeit oder echte Ortsveränderung
 
 Diese Punkte lassen sich nicht in einer Minute prüfen. Über mehrere Tage oder bei Gelegenheit
