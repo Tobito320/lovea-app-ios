@@ -49,10 +49,15 @@ final class KalenderModell {
     }
 
     static let arten: Set<String> = [
-        "muster.setzen", "muster.loeschen", "ausnahme.setzen", "termin.setzen", "termin.loeschen",
+        "muster.setzen", "muster.loeschen", "ausnahme.setzen", "ausnahme.loeschen", "termin.setzen", "termin.loeschen",
         "treffen.setzen", "treffen.loeschen", "notiz.setzen", "checkliste.setzen", "checkliste.loeschen",
         "stimmung.setzen", "puenktlich.setzen", "jahrestag.setzen",
     ]
+
+    /// Z-42.1: fertige Monatsraster, neu erst, wenn sich Muster, Ausnahmen, Termine oder Treffen
+    /// ändern (Notizen und Stimmung lassen sie stehen). Nicht beobachtet: das Füllen beim Rendern
+    /// darf keine neue Render-Runde auslösen.
+    @ObservationIgnored private var raster: (daten: KalenderDaten, monate: [String: MonatsRaster])?
 
     private init() {
         Raum.shared.beobachtenStapel(Self.arten) { [weak self] ops in
@@ -99,9 +104,11 @@ final class KalenderModell {
             if let d = op.daten(MitId.self) { z.daten.muster.removeAll { $0.id == d.id } }
         case "ausnahme.setzen":
             if let a = op.daten(Ausnahme.self) {
-                z.daten.ausnahmen.removeAll { $0.person == a.person && $0.datum == a.datum && $0.musterId == a.musterId }
+                z.daten.ausnahmen.removeAll(where: AusnahmeSchluessel(a).passt)
                 z.daten.ausnahmen.append(a)
             }
+        case "ausnahme.loeschen":
+            if let schluessel = op.daten(AusnahmeSchluessel.self) { z.daten.ausnahmen.removeAll(where: schluessel.passt) }
         case "termin.setzen":
             if let t = op.daten(Termin.self) {
                 z.daten.termine.removeAll { $0.id == t.id }
@@ -146,10 +153,16 @@ final class KalenderModell {
     private nonisolated static func treffenSetzen(_ von: Person, _ zeit: Date, _ d: TreffenD, in z: inout Zustand) {
         let vorher = z.treffenText[d.datum]
         var vorherige = vorher?.vorherige
-        if let alt = vorher, alt.text != d.wasMachenWir {
+        // Z-42.2: nur ein Wechsel der Person hält die alte Fassung fest. Das Autosave schickt beim
+        // Tippen mehrere Fassungen derselben Person, die sonst die Fassung des Partners verdrängen.
+        // ponytail: dieselbe Person auf zwei Geräten zugleich (Annika iPhone + iPad) behält keine
+        // vorige Fassung; Upgrade: das Gerät als Autor mitsenden.
+        if let alt = vorher, alt.text != d.wasMachenWir, alt.von != von {
             vorherige = TreffenEintrag.Vorherige(von: alt.von, text: alt.text ?? "", zeit: alt.zeit)
         }
-        let neu = TreffenEintrag(von: von, text: d.wasMachenWir, uhrzeit: d.uhrzeit ?? vorher?.uhrzeit, zeit: zeit, vorherige: vorherige)
+        // `uhrzeit` "" nimmt die Uhrzeit zurück; fehlt sie ganz („Machen wir"), bleibt die alte.
+        let uhrzeit = d.uhrzeit == "" ? nil : (d.uhrzeit ?? vorher?.uhrzeit)
+        let neu = TreffenEintrag(von: von, text: d.wasMachenWir, uhrzeit: uhrzeit, zeit: zeit, vorherige: vorherige)
         z.treffenText[d.datum] = neu
         z.daten.treffen.removeAll { $0.datum == d.datum }
         z.daten.treffen.append(Treffen(datum: d.datum, uhrzeit: neu.uhrzeit, wasMachenWir: neu.text))
@@ -209,6 +222,16 @@ final class KalenderModell {
 
     // MARK: - Home-Hilfen
 
+    /// Z-42.1: das Raster des Monats, der am 1. `erster` (`yyyy-MM-dd`) beginnt, aus dem Speicher.
+    func monatsRaster(_ erster: String) -> MonatsRaster {
+        let daten = zustand.daten // gelesen, damit die Ansicht bei jeder Änderung neu rendert
+        if raster?.daten != daten { raster = (daten, [:]) }
+        if let fertig = raster?.monate[erster] { return fertig }
+        let neu = MonatsRaster(erster: erster, daten: daten)
+        raster?.monate[erster] = neu
+        return neu
+    }
+
     /// Nächster Treffen-Tag ab heute (heute eingeschlossen), für den Countdown auf Home.
     var naechstesTreffen: Treffen? {
         let heute = Datum.text(Date())
@@ -229,7 +252,6 @@ final class KalenderModell {
 
 private struct MitId: Codable { var id: String }
 private struct MitDatum: Codable { var datum: String }
-private struct TreffenD: Codable { var datum: String; var uhrzeit: String?; var wasMachenWir: String? }
 private struct NotizD: Codable { var datum: String; var text: String }
 private struct ChecklisteD: Codable { var datum: String; var id: String; var text: String; var erledigt: Bool }
 private struct ChecklisteLoeschenD: Codable { var datum: String; var id: String }
