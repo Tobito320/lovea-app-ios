@@ -459,7 +459,7 @@ private struct ProfilInhalt: View {
 
     @ViewBuilder
     private var dieKarte: some View {
-        KartenVorschau(person: gegenueber) { tipps += 1; karteOffen = true }
+        ProfilKarte(person: gegenueber) { tipps += 1; karteOffen = true }
         Divider()
         zeile("bell.badge", "Ankunftsbenachrichtigungen", "Wenn jemand an einem Ort ankommt oder geht.") { blatt = .orte }
     }
