@@ -32,20 +32,3 @@ struct AppRootView: View {
     }
 }
 
-struct ChatTab: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView("Chat", systemImage: "bubble.left.and.bubble.right")
-                .navigationTitle("Chat")
-        }
-    }
-}
-
-struct KarteTab: View {
-    var body: some View {
-        NavigationStack {
-            ContentUnavailableView("Karte", systemImage: "map")
-                .navigationTitle("Karte")
-        }
-    }
-}

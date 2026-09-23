@@ -2,8 +2,10 @@ import SwiftUI
 
 @main
 struct LoveaApp: App {
+    @UIApplicationDelegateAdaptor(LoveaAppDelegate.self) private var appDelegate
     @StateObject private var session = PersonSession()
     @AppStorage("lovea.ersterStartFertig") private var ersterStartFertig = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -18,6 +20,13 @@ struct LoveaApp: App {
                         ersterStartFertig = true
                     }
                 }
+            }
+            .onChange(of: session.person, initial: true) { _, person in
+                Raum.shared.ich = person
+                if person != nil { Raum.shared.start() }
+            }
+            .onChange(of: scenePhase) { _, phase in
+                Raum.shared.aktiv(phase == .active)
             }
         }
     }
