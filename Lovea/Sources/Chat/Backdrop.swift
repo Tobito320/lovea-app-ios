@@ -21,7 +21,7 @@ struct Backdrop: Identifiable, Sendable {
 /// own kinds carry the id of an uploaded medium, so the partner's phone can show them too.
 enum BackdropWahl: Equatable, Sendable { case vorlage(String), foto(String), zeichnung(String) }
 
-/// The 16 backdrops in picker order, plus `neutral` for photo, drawing or no choice. Every
+/// The 9 backdrops with a picture, in picker order (Ahmed: the others without a picture are gone), plus `neutral` for photo, drawing or no choice. Every
 /// bubble/text pair reaches 4.5 : 1 in light and dark, own gradients at every point
 /// (`BackdropTests`).
 @MainActor
@@ -45,20 +45,6 @@ enum Backdrops {
                 ersatz: [0xF6F1E7, 0xEDE3D1, 0xF4EEE3, 0xE3D6BF, 0xD9C8AA, 0xE9DECB, 0xC7AE88, 0xB89D76, 0xD2BD9A]),
         eintrag("night-sky", "Night Sky", [0x5A48D6, 0x3A2FA8, 0x241F73], hell: 0xECEEF8, dunkel: 0x222536,
                 ersatz: [0x0B1026, 0x141A3D, 0x0D1330, 0x1B1E4A, 0x2A2059, 0x131B47, 0x2D1B50, 0x3B2568, 0x1B1542], .funkeln),
-        eintrag("kirschbluete", "Kirschblüte", [0xC64272, 0xAB3868, 0x8F2F63], hell: 0xFDF0F5, dunkel: 0x33262C,
-                ersatz: [0xEAF3FF, 0xFFF1F6, 0xFCE3EC, 0xFBD6E4, 0xFFF8FB, 0xF7C6D8, 0xF3B6CC, 0xFADCE7, 0xEBA5C0], .blueten),
-        eintrag("sunset", "Sunset", [0xC9421F, 0xB3306A, 0x6B2C8F], hell: 0xFDF0EA, dunkel: 0x342720,
-                ersatz: [0xFFC48A, 0xFFAD7E, 0xFF9B8A, 0xFF8A6E, 0xF0708C, 0xD85D9C, 0x9E4CAE, 0x7A3FA3, 0x4B2F85]),
-        eintrag("ocean", "Ocean", [0x0B7A99, 0x0A5F8A, 0x1D3F8F], hell: 0xEBF5F8, dunkel: 0x1F2C33,
-                ersatz: [0xC8F0F4, 0x9EE0EA, 0xB4E6F3, 0x5DBDD3, 0x7ACDDD, 0x3A9CC0, 0x1E77A0, 0x176287, 0x0E466E]),
-        eintrag("film-grain", "Film Grain", [0x8C5A3C, 0x6B422B, 0x4A2C1C], hell: 0xF3EEE6, dunkel: 0x2D2925,
-                ersatz: [0xE9DDC9, 0xDDCBAE, 0xF0E6D4, 0xCDB794, 0xDFCFB4, 0xBBA17C, 0xA98E6B, 0xC1AA88, 0x927A5C]),
-        eintrag("paris", "Paris", [0xB03F69, 0x7D3F7E, 0x3E4C8C], hell: 0xF6EFF3, dunkel: 0x2B2731,
-                ersatz: [0xF4DCE4, 0xE8D6E8, 0xDADFED, 0xEDC7D5, 0xDCCBE1, 0xC1CCE3, 0xCBABBF, 0xADABCA, 0x919EC1]),
-        eintrag("herbst", "Herbst", [0xB3441C, 0x923519, 0x6E2A14], hell: 0xFBF0E6, dunkel: 0x33281F,
-                ersatz: [0xF7D8A3, 0xEEB26A, 0xF3C888, 0xDD8844, 0xCD7236, 0xE3A15A, 0xAD5630, 0x924426, 0xBD6A35], .blaetter),
-        eintrag("schnee", "Schnee", [0x3A6CAB, 0x2D568F, 0x223F6E], hell: 0xEEF3F9, dunkel: 0x232A33,
-                ersatz: [0xEEF4FA, 0xE1EAF4, 0xF5F8FC, 0xC4D4E6, 0xD4E0EE, 0xB4C7DE, 0x94ABC9, 0xA7BBD5, 0x8199BC], .schnee),
     ]
 
     /// Calm, follows light and dark mode: the chat before anyone picked, and the bubbles over an own picture.

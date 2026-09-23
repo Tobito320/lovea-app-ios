@@ -11,13 +11,15 @@ struct KussSzene: View {
         let modell = FigurenModell.shared
         let kuesst = modell.anzeige(person).haupt == .kuss || modell.anzeige(person.partner).haupt == .kuss
         ZStack {
-            if kuesst, let bild = UIImage(named: "kuss-szene") {
-                Image(uiImage: bild)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(maxWidth: 260)
-                    .transition(.scale(scale: 0.6).combined(with: .opacity))
-                if !reduceMotion { SteigendeHerzen() }
+            if kuesst {
+                if let bild = UIImage(named: "kuss-szene") {
+                    Image(uiImage: bild)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: 260)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                }
+                if !reduceMotion { SteigendeHerzen().transition(.opacity) }
             }
         }
         .animation(.spring(response: 0.4, dampingFraction: 0.7), value: kuesst)
@@ -33,12 +35,15 @@ private struct SteigendeHerzen: View {
         TimelineView(.animation) { kontext in
             let t = kontext.date.timeIntervalSince(start)
             Canvas { g, groesse in
-                let herz = g.resolve(Text(Image(systemName: "heart.fill")).foregroundColor(.pink))
-                for k in 0..<8 {
-                    let p = (t * 0.35 + Double(k) / 8).truncatingRemainder(dividingBy: 1)
-                    let x = groesse.width * (0.2 + 0.6 * Double((k * 37) % 10) / 10)
+                for k in 0..<12 {
+                    let p = (t * 0.32 + Double(k) / 12).truncatingRemainder(dividingBy: 1)
+                    let basis = groesse.width * (0.25 + 0.5 * Double((k * 37) % 10) / 10)
+                    let x = basis + sin(t * 2.2 + Double(k)) * 10
+                    let herz = g.resolve(Text(Image(systemName: "heart.fill"))
+                        .font(.system(size: CGFloat(16 + (k * 7) % 16)))
+                        .foregroundColor(k % 3 == 0 ? .red : .pink))
                     g.opacity = 1 - p
-                    g.draw(herz, at: CGPoint(x: x, y: groesse.height * (1 - p)))
+                    g.draw(herz, at: CGPoint(x: x, y: groesse.height * (0.85 - 0.8 * p)))
                 }
             }
         }
