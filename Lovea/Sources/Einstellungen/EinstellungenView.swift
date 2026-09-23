@@ -106,9 +106,12 @@ private struct MitteilungenListe: View {
 
 // MARK: - Figuren-Editor-Seite
 
-private struct FigurEditorSeite: View {
+/// Internal (not `private`): Profile/ProfileView.swift's "Figur bearbeiten" reuses this exact
+/// wrapper (Shop button included) instead of duplicating the `FigurEditor` navigation chrome.
+struct FigurEditorSeite: View {
     let person: Person
     @Environment(\.dismiss) private var dismiss
+    @State private var shopOffen = false
 
     var body: some View {
         FigurEditor(start: FigurenModell.shared.aussehen(person)) { neu in
@@ -117,6 +120,11 @@ private struct FigurEditorSeite: View {
         }
         .navigationTitle("Figuren-Editor")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            // Z-23.2: Shop reachable from the figure editor too (Spec §4.3).
+            ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
+        }
+        .sheet(isPresented: $shopOffen) { ShopView() }
     }
 }
 

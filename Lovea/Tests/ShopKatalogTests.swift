@@ -75,7 +75,7 @@ final class ShopKatalogTests: XCTestCase {
             case "mode", "brille": XCTAssertNotNil(FigurAussehen.shopTeile[a.id], a.id)
             case "chatTheme": XCTAssertNotNil(ChatThemes.von(a.id), a.id)
             case "flamme": XCTAssertNotNil(Flammen.von(a.id), a.id)
-            case "backdrop": break // Zeichnung folgt in Block 25
+            case "backdrop": XCTAssertNotNil(BackdropKatalog.eintrag(a.id), a.id)
             default: XCTFail("unbekannte Kategorie \(a.kategorie)")
             }
         }

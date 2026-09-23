@@ -18,6 +18,14 @@ final class FigurenModell {
     private(set) var geste: [Person: (art: FigurZustand, bis: Date)] = [:]
     /// Counts "herz" gestures per sender for the current Berlin day, for the profile.
     private(set) var herzHeute: [Person: Int] = [:]
+    /// Z-24.3: newest `kuss` op per sender, updated on EVERY delivery (live and replay alike, unlike
+    /// `geste` above which only tracks the 4s-fresh window) — lets the profile show a missed kiss
+    /// once, the next time it's opened.
+    private(set) var letzterKuss: [Person: Date] = [:]
+    /// Bumped whenever a kiss becomes live-visible (own send, optimistic echo; or a fresh partner
+    /// receive) — a plain `Int` is a safe Equatable trigger for SwiftUI without relying on
+    /// `FigurZustand`'s `RawRepresentable`-derived `==`.
+    private(set) var kussEreignis = 0
     /// Z-7.2: last time the partner was seen (`da`), polled below — for "zuletzt online vor …"
     /// once `partnerDa` goes false. `Raum.partnerDa` itself carries no timestamp.
     private(set) var partnerZuletztGesehen: [Person: Date] = [:]
@@ -35,10 +43,12 @@ final class FigurenModell {
         raum.beobachten(["geste"]) { [weak self] op in
             guard let self, let art = op.daten([String: String].self)?["art"] else { return }
             if Calendar.berlin.isDateInToday(op.zeit), art == "herz" { herzHeute[op.von, default: 0] += 1 }
+            if art == "kuss", (letzterKuss[op.von] ?? .distantPast) < op.zeit { letzterKuss[op.von] = op.zeit }
             // Only fresh gestures animate; replayed history just counts.
             guard op.von != raum.ich, Date().timeIntervalSince(op.zeit) < 30, let z = FigurZustand(rawValue: art) else { return }
             geste[op.von] = (z, Date().addingTimeInterval(4))
             Herzschlag.geste(art)
+            if art == "kuss" { kussEreignis += 1 }
             aufFrischeGeste?(op.von, z)
         }
         raum.fluechtigBeobachten("zustand") { [weak self] person, data in
@@ -71,8 +81,26 @@ final class FigurenModell {
         return zustand[p] ?? Zustand(haupt: .ruhig)
     }
 
+    /// Z-24.3: replays a MISSED kiss's live visual once — the profile calls this after comparing
+    /// `letzterKuss` against its own "seen" marker (UserDefaults). Reuses the same 4s `geste`
+    /// window a fresh receive uses, so the figure/animation code needs no separate "replay" path.
+    func kussReplay(_ von: Person) {
+        geste[von] = (.kuss, Date().addingTimeInterval(4))
+        kussEreignis += 1
+    }
+
     func aussehenSichern(_ a: FigurAussehen) { Raum.shared.senden("figur.aussehen", a) }
-    func gesteSenden(_ art: String) { Raum.shared.senden("geste", ["art": art]) }
+
+    /// Z-24.3: for "kuss" this also echoes optimistically into `geste`/`letzterKuss` — the replay
+    /// guard above (`op.von != raum.ich`) intentionally skips the sender's own round-tripped op, so
+    /// without this the sender would never see/hear their own profile kiss animation.
+    func gesteSenden(_ art: String) {
+        Raum.shared.senden("geste", ["art": art])
+        guard art == "kuss", let ich = Raum.shared.ich else { return }
+        geste[ich] = (.kuss, Date().addingTimeInterval(4))
+        letzterKuss[ich] = Date()
+        kussEreignis += 1
+    }
 
     /// Block 7 (Z-7.1) reinterpretation: screens still call this with their own activity as
     /// `haupt` (`.imChat`, `.tippt`, `.zeichnet`, … or `.ruhig`/`nil` when they leave) — it's now

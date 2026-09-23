@@ -96,10 +96,31 @@ final class PunkteModell {
 
     // MARK: - Shop / Besitz (BesitzLogik aus Z-23.1)
 
-    /// `preis`: noch nicht verdrahtet — künftig `ShopKatalog.artikel(id)?.preis` (Katalog kommt aus
-    /// einem anderen Block, siehe Bericht). `nil` heißt "kein solcher Artikel".
+    /// `preis`: `{ ShopKatalog.artikel($0)?.preis }` (Katalog kommt aus einem anderen Block).
+    /// `nil` heißt "kein solcher Artikel".
     func besitzt(_ artikel: String, _ person: Person, preis: (String) -> Int?) -> Bool {
         BesitzLogik.auswerten(kaeufe, verdient: stand, preis: preis).besitzt(artikel, person)
+    }
+
+    /// Z-23.2: ein Fold-Durchlauf für den ganzen Shop-Bildschirm statt einem pro Kachel — `stand`
+    /// ist der LEBENSZEIT-verdiente Punktestand (für den Profil-Chip), `verfuegbar` zieht bereits
+    /// ausgegebene Punkte ab (Review-Fokus 3) und ist, was der Shop gegen den Preis prüft.
+    func einkaufsStand(preis: (String) -> Int?) -> (verfuegbar: [Person: Int], besitz: BesitzLogik.Ergebnis) {
+        let s = stand
+        let ergebnis = BesitzLogik.auswerten(kaeufe, verdient: s, preis: preis)
+        var verfuegbar: [Person: Int] = [:]
+        for p in Person.allCases { verfuegbar[p] = (s[p] ?? 0) - (ergebnis.ausgegeben[p] ?? 0) }
+        return (verfuegbar, ergebnis)
+    }
+
+    /// Z-23.2: gifts `person` received (`fuer == person`, `von != person`), confirmed and not
+    /// rejected, newest first — for the profile's "gift received" celebration. Only called once on
+    /// `onAppear`, not per-tile, so a second full fold here is fine.
+    func geschenkeErhalten(_ person: Person, preis: (String) -> Int?) -> [BesitzLogik.Kauf] {
+        let ergebnis = BesitzLogik.auswerten(kaeufe, verdient: stand, preis: preis)
+        return kaeufe
+            .filter { $0.fuer == person && $0.von != person && $0.seq != nil && !ergebnis.abgelehnt.contains($0.id) }
+            .sorted { ($0.seq ?? 0) > ($1.seq ?? 0) }
     }
 
     /// Prüft den Stand VOR dem Senden (sofortige "Nicht genug Punkte"-Rückmeldung); die Faltung über

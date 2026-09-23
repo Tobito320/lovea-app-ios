@@ -56,6 +56,8 @@ const TABELLE = {
     titel: "Lovea",
     text: `${NAME[von]} hat ${d.art === "bildschirmaufnahme" ? "den Bildschirm aufgenommen" : "einen Screenshot gemacht"}`,
   }),
+  // Z-23.2: nur bei einem Geschenk (fuer != von) - ein Kauf fuer sich selbst loest keine Push aus.
+  "shop.kauf": (von, d) => (d.fuer === von ? null : { stufe: "laut", kategorie: "shop", titel: "Lovea", text: `${NAME[von]} hat dir etwas geschenkt` }),
 };
 
 // Liefert die Push-Regel für eine Op, oder null, wenn diese Art keine Push
