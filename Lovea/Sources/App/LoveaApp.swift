@@ -21,21 +21,26 @@ struct LoveaApp: App {
                     }
                 }
             }
-            .onChange(of: session.person, initial: true) { _, person in
-                Raum.shared.ich = person
-                if person != nil {
-                    // Bundle JSON (questions, date ideas) is read on first access; do that off the main thread.
-                    Task.detached(priority: .utility) { _ = FrageDesTages.vorrat; _ = WirModell.ideenVorrat }
-                    // Register every fold before the log replays.
-                    _ = (FigurenModell.shared, ChatModell.shared, ChatEinstellungen.shared, OrteModell.shared, KalenderModell.shared, WirModell.shared, SpieleModell.shared, EinstellungenModell.shared, TeilenModell.shared, LiveZeichnung.shared, UmzugImport.shared, SchritteModell.shared)
-                    Raum.shared.start()
-                    Standort.shared.start()
-                }
-            }
-            .onChange(of: scenePhase) { _, phase in
-                Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
-            }
+            .onChange(of: session.person, initial: true) { _, person in starten(person) }
+            .onChange(of: scenePhase) { _, phase in phaseGewechselt(phase) }
         }
+    }
+
+    private func starten(_ person: Person?) {
+        Raum.shared.ich = person
+        guard person != nil else { return }
+        // Bundle JSON (questions, date ideas) is read on first access; do that off the main thread.
+        Task.detached(priority: .utility) { _ = FrageDesTages.vorrat; _ = WirModell.ideenVorrat }
+        // Register every fold before the log replays.
+        _ = FigurenModell.shared; _ = ChatModell.shared; _ = ChatEinstellungen.shared; _ = OrteModell.shared
+        _ = KalenderModell.shared; _ = WirModell.shared; _ = SpieleModell.shared; _ = EinstellungenModell.shared
+        _ = TeilenModell.shared; _ = LiveZeichnung.shared; _ = UmzugImport.shared; _ = SchritteModell.shared
+        Raum.shared.start()
+        Standort.shared.start()
+    }
+
+    private func phaseGewechselt(_ phase: ScenePhase) {
+        Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
     }
 }
 
