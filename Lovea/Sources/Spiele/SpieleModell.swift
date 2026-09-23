@@ -199,7 +199,10 @@ final class SpieleModell {
     func ziehen(_ spielId: String, _ aendern: (inout Zug) -> Void) {
         guard let ich = Raum.shared.ich else { return }
         let aktuell = partie(spielId)
-        var z = zug(spielId, ich) ?? Zug(id: spielId, partie: aktuell)
+        // ponytail: live snapshots live in memory only. After an app restart a reopened game
+        // continues at partie = gespielt instead of replaying round 0 (same seed, result dropped).
+        let boden = max(aktuell, spiele[spielId]?.ergebnis?.gespielt ?? 0)
+        var z = zug(spielId, ich) ?? Zug(id: spielId, partie: boden)
         if z.partie < aktuell { z = Zug(id: spielId, partie: aktuell) }
         aendern(&z)
         zuege[spielId, default: [:]][ich] = z
@@ -218,7 +221,8 @@ final class SpieleModell {
 
     /// Called every 2 s by the open game: resend my snapshot (or announce myself).
     func erneutSenden(_ spielId: String) {
-        guard let ich = Raum.shared.ich else { return }
+        // After "Fertig" the sheet still animates out; a tick then must not clear `raus`.
+        guard offen?.id == spielId, let ich = Raum.shared.ich else { return }
         if let z = zug(spielId, ich), z.partie >= partie(spielId) {
             var z = z
             z.raus = nil
