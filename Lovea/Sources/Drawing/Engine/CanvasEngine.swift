@@ -40,6 +40,8 @@ final class CanvasEngine {
     var mirrorX: Float?
     /// Called after every change to the document or its pixels.
     var onChange: (() -> Void)?
+    /// Called once per finished own non-stroke action (fill, layer change, transform …), for `zeichnung.op`.
+    var onAction: (() -> Void)?
     private(set) var loading: Task<Void, Never>?
 
     private var sampler: StrokeSampler?
@@ -47,6 +49,8 @@ final class CanvasEngine {
     private var pending: [Stamp] = []
     private var predicted: [Stamp] = []
     private var detached: [UUID: MTLTexture] = [:]
+    private var remoteStrokes: [String: RemoteStroke] = [:]
+    private var spareScratches: [MTLTexture] = []
     private(set) var dirtyLayers: Set<UUID> = []
     private(set) var frameCount = 0
     private(set) var fixedStampsEncoded = 0
@@ -95,18 +99,49 @@ final class CanvasEngine {
 
     private func loadContents() async {
         await library.waitForWrites()
-        let artworkID = document.id
         for layer in document.layers {
-            let url = library.layerAssetURL(fileName: layer.contentFile, artworkID: artworkID)
-            let isImage = layer.kind == .image
-            let limit = Int(max(canvasSize.width, canvasSize.height) * 2)
-            let pixels = await Task.detached(priority: .userInitiated) { () -> RasterOps.Pixels? in
-                guard url.pathExtension == "png", let data = try? Data(contentsOf: url) else { return nil }
-                return RasterOps.decode(data, maxPixelSize: isImage ? limit : nil)
-            }.value
-            if let pixels { try? store.setPixels(pixels, for: layer.id) }
+            if let pixels = await decodeLayer(layer, artworkID: document.id) { try? store.setPixels(pixels, for: layer.id) }
         }
         if document.schemaVersion < 3 { await migrateLegacyLayers() }
+        compositor.invalidateCaches()
+        onChange?()
+    }
+
+    private func decodeLayer(_ layer: ArtworkLayer, artworkID: UUID) async -> RasterOps.Pixels? {
+        let url = library.layerAssetURL(fileName: layer.contentFile, artworkID: artworkID)
+        let isImage = layer.kind == .image
+        let limit = Int(max(canvasSize.width, canvasSize.height) * 2)
+        return await Task.detached(priority: .userInitiated) { () -> RasterOps.Pixels? in
+            guard url.pathExtension == "png", let data = try? Data(contentsOf: url) else { return nil }
+            return RasterOps.decode(data, maxPixelSize: isImage ? limit : nil)
+        }.value
+    }
+
+    /// Swaps in a newer version of the same artwork from the library (a partner's shared stand).
+    /// Decodes everything first so the canvas never shows empty layers. Remote strokes in flight stay.
+    func reload(_ next: ArtworkDocument) async {
+        await library.waitForWrites()
+        var decoded: [UUID: RasterOps.Pixels] = [:]
+        for layer in next.layers {
+            decoded[layer.id] = await decodeLayer(layer, artworkID: next.id)
+        }
+        resetStroke()
+        undo.removeAll()
+        detached.removeAll()
+        let keep = Set(next.layers.map(\.id))
+        for layer in document.layers where !keep.contains(layer.id) {
+            store.remove(layer.id)
+        }
+        document = next
+        for layer in next.layers {
+            if let pixels = decoded[layer.id] {
+                try? store.setPixels(pixels, for: layer.id)
+            } else if layer.kind == .paint {
+                try? store.makeEmpty(for: layer.id)
+            }
+        }
+        dirtyLayers.removeAll()
+        if !keep.contains(activeLayerID) { activeLayerID = next.layers.last?.id ?? activeLayerID }
         compositor.invalidateCaches()
         onChange?()
     }
@@ -159,6 +194,16 @@ final class CanvasEngine {
         }
         pending += sampler.finish()
         flushStamps(command: command)
+        land(scratch, sampler: sampler, into: target, layerID: layerID, mirrorX: mirrorX, autor: nil, command: command)
+        resetStroke()
+        didEditPixels(of: layerID)
+    }
+
+    /// Puts a finished stroke from its scratch onto the layer and records one undo step.
+    private func land(
+        _ scratch: MTLTexture, sampler: StrokeSampler, into target: MTLTexture, layerID: UUID,
+        mirrorX: Float?, autor: String?, command: MTLCommandBuffer
+    ) {
         let settings = sampler.settings
         let alphaLock = layer(layerID)?.alphaLock ?? false
         var bounds = sampler.bounds
@@ -172,10 +217,68 @@ final class CanvasEngine {
         let after = region.flatMap { snapshot(target, region: $0, command: command) }
         command.commit()
         if let region, let before, let after {
-            undo.push(.pixels(layerID: layerID, region: region, before: before, after: after))
+            undo.push(.pixels(layerID: layerID, region: region, before: before, after: after), autor: autor)
         }
-        resetStroke()
-        didEditPixels(of: layerID)
+    }
+
+    // MARK: Remote strokes
+
+    /// A partner's stroke in progress: own sampler and scratch, same stamping path as a local stroke.
+    private struct RemoteStroke {
+        var sampler: StrokeSampler
+        let layerID: UUID
+        let scratch: MTLTexture
+        let mirrorX: Float?
+        let autor: String?
+    }
+
+    func hasRemoteStroke(_ id: String) -> Bool {
+        remoteStrokes[id] != nil
+    }
+
+    /// Starts a stroke from someone else. It ignores the local selection and lock; the caller redraws.
+    func remoteBegin(id: String, layerID: UUID, settings: BrushSettings, first: StrokeInput, mirrorX: Float? = nil, autor: String? = nil) {
+        guard remoteStrokes[id] == nil, layer(layerID)?.kind == .paint, store.texture(for: layerID) != nil,
+              let scratch = spareScratches.popLast() ?? GPU.makeTexture(device, width: store.width, height: store.height),
+              let command = queue.makeCommandBuffer() else { return }
+        GPU.fill(scratch, command: command)
+        var sampler = StrokeSampler(settings: settings)
+        stamper.encode(sampler.add(first), tip: sampler.tip, color: settings.color, into: scratch,
+                       mask: nil, mirrorX: mirrorX, command: command)
+        command.commit()
+        remoteStrokes[id] = RemoteStroke(sampler: sampler, layerID: layerID, scratch: scratch, mirrorX: mirrorX, autor: autor)
+    }
+
+    func remoteContinue(id: String, _ inputs: [StrokeInput]) {
+        guard var stroke = remoteStrokes[id], let command = queue.makeCommandBuffer() else { return }
+        var stamps: [Stamp] = []
+        for input in inputs { stamps += stroke.sampler.add(input) }
+        stamper.encode(stamps, tip: stroke.sampler.tip, color: stroke.sampler.settings.color, into: stroke.scratch,
+                       mask: nil, mirrorX: stroke.mirrorX, command: command)
+        command.commit()
+        remoteStrokes[id] = stroke
+    }
+
+    /// Lands the stroke. The undo step carries `autor`, so local undo never takes it back.
+    func remoteEnd(id: String) {
+        guard var stroke = remoteStrokes.removeValue(forKey: id), let target = store.texture(for: stroke.layerID),
+              let command = queue.makeCommandBuffer() else { return }
+        stamper.encode(stroke.sampler.finish(), tip: stroke.sampler.tip, color: stroke.sampler.settings.color,
+                       into: stroke.scratch, mask: nil, mirrorX: stroke.mirrorX, command: command)
+        land(stroke.scratch, sampler: stroke.sampler, into: target, layerID: stroke.layerID,
+             mirrorX: stroke.mirrorX, autor: stroke.autor, command: command)
+        keepSpare(stroke.scratch)
+        didEditPixels(of: stroke.layerID)
+    }
+
+    func remoteCancel(id: String) {
+        if let stroke = remoteStrokes.removeValue(forKey: id) { keepSpare(stroke.scratch) }
+    }
+
+    /// A partner draws several strokes a second; a document-sized scratch each would churn 16 MB at 2048².
+    /// Reuse is safe: everything runs on one queue, so the next clear waits for the last use.
+    private func keepSpare(_ scratch: MTLTexture) {
+        if spareScratches.count < 2 { spareScratches.append(scratch) }
     }
 
     func cancelStroke() {
@@ -246,8 +349,17 @@ final class CanvasEngine {
                 alphaLock: layer(layerID)?.alphaLock ?? false
             )
         }
+        var remote: [UUID: [LiveStroke]] = [:]
+        for stroke in remoteStrokes.values {
+            remote[stroke.layerID, default: []].append(LiveStroke(
+                scratch: stroke.scratch,
+                opacity: stroke.sampler.settings.strokeOpacity,
+                isEraser: stroke.sampler.settings.isEraser,
+                alphaLock: layer(stroke.layerID)?.alphaLock ?? false
+            ))
+        }
         compositor.encodeFrame(document: document, activeLayerID: activeLayerID, store: store,
-                               stroke: live, viewport: viewport, into: target, command: command)
+                               stroke: live, remote: remote, viewport: viewport, into: target, command: command)
     }
 
     // MARK: Undo
@@ -287,14 +399,20 @@ final class CanvasEngine {
         guard next != document else { return }
         let before = document
         setDocument(next, removed: removed)
-        if undoable { undo.push(.document(before: before, after: next, removedTextures: removed)) }
+        if undoable { record(.document(before: before, after: next, removedTextures: removed)) }
         onChange?()
     }
 
     /// Records a document step that already happened in several silent updates (slider gestures).
     func recordDocumentStep(from before: ArtworkDocument) {
         guard before != document else { return }
-        undo.push(.document(before: before, after: document, removedTextures: [:]))
+        record(.document(before: before, after: document, removedTextures: [:]))
+    }
+
+    /// Own non-stroke action: one undo step, then `onAction`.
+    private func record(_ entry: UndoEntry) {
+        undo.push(entry)
+        onAction?()
     }
 
     private func setDocument(_ next: ArtworkDocument, removed: [UUID: MTLTexture]) {
@@ -350,7 +468,7 @@ final class CanvasEngine {
         let after = snapshot(target, region: region, command: command)
         command.commit()
         if let before, let after {
-            undo.push(.pixels(layerID: layerID, region: region, before: before, after: after))
+            record(.pixels(layerID: layerID, region: region, before: before, after: after))
         }
         didEditPixels(of: layerID)
     }
@@ -532,6 +650,7 @@ final class CanvasEngine {
     func handleMemoryWarning() {
         undo.dropOldestHalf()
         detached.removeAll()
+        spareScratches.removeAll()
         compositor.releaseCaches()
         onChange?()
     }

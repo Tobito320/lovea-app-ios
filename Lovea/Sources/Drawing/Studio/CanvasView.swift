@@ -82,6 +82,15 @@ struct ArtworkCanvasViewport: Equatable {
         reanchor(anchored, at: focus)
     }
 
+    /// Shows `center` in the screen middle with `span` document pixels across the short side ("Folgen").
+    mutating func show(center: CGPoint, span: CGFloat, rotation: CGFloat, screen: CGSize) {
+        guard span > 0, span.isFinite, rotation.isFinite, screen.width > 0, screen.height > 0 else { return }
+        scale = min(max(min(screen.width, screen.height) / span, fittedScale * 0.2), fittedScale * 40)
+        self.rotation = rotation
+        offset = .zero
+        reanchor(center, at: CGPoint(x: screen.width / 2, y: screen.height / 2))
+    }
+
     private mutating func reanchor(_ point: CGPoint, at focus: CGPoint) {
         let mapped = screenPoint(point)
         offset.x += focus.x - mapped.x
@@ -100,6 +109,8 @@ final class CanvasViewState: ObservableObject {
     @Published var hover: (center: CGPoint, diameter: CGFloat)?
     @Published var loupe: (point: CGPoint, color: RGBAColor)?
     @Published var quickMenu: CGPoint?
+    /// Viewer: move the own view along with the drawer's.
+    @Published var folgen = false
     weak var canvas: CanvasView?
 
     func resetView() { canvas?.resetView() }
@@ -123,7 +134,10 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     private weak var session: DrawingSession?
     private let state: CanvasViewState
     private var viewport = ArtworkCanvasViewport() {
-        didSet { state.viewport = viewport }
+        didSet {
+            state.viewport = viewport
+            session?.live.ansichtGeaendert(viewport, screen: bounds.size)
+        }
     }
     private var fittedBounds: CGSize = .zero
     private weak var activeTouch: UITouch?
@@ -182,6 +196,23 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         setNeedsDisplay()
     }
 
+    func folgen(_ ansicht: AnsichtNachricht.Transform) {
+        viewport.show(
+            center: CGPoint(x: ansicht.x, y: ansicht.y), span: CGFloat(ansicht.spanne),
+            rotation: CGFloat(ansicht.drehung), screen: bounds.size
+        )
+        setNeedsDisplay()
+    }
+
+    /// Own pen for the partner's screen.
+    private func sendPen(_ touch: UITouch, active: Bool) {
+        guard let session else { return }
+        session.live.stift(
+            viewport.documentPoint(touch.location(in: self)), werkzeug: session.werkzeugName,
+            farbe: session.color, groesse: session.brushSize, schwebt: false, aktiv: active
+        )
+    }
+
     // MARK: Touches
 
     private var fingerDraws: Bool {
@@ -210,7 +241,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
-        guard let session else { return }
+        guard let session, !session.nurAnsehen else { return }
         let live = event?.allTouches?.filter { $0.phase != .ended && $0.phase != .cancelled } ?? touches
         if activeTouch != nil, live.count > 1 {
             // A second finger during a stroke means "I want to zoom", not "draw".
@@ -227,6 +258,12 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
             session.markColorUsed()
             activeTouch = touch
             session.engine?.beginStroke(input(touch), settings: session.brushSettings, layerID: session.activeLayerID)
+            if let engine = session.engine, engine.isStroking {
+                session.live.strichBeginnen(
+                    input(touch), settings: session.brushSettings, ebene: session.activeLayerID,
+                    spiegel: engine.mirrorX, auswahl: engine.selection != nil
+                )
+            }
         case .lasso:
             activeTouch = touch
             state.lasso = [point]
@@ -240,6 +277,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         case .transform, .text:
             return
         }
+        if session.tool != .brush, session.tool != .eraser { sendPen(touch, active: true) }
         setNeedsDisplay()
     }
 
@@ -251,6 +289,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
             let samples = (event?.coalescedTouches(for: touch) ?? [touch]).map(input)
             let predicted = (event?.predictedTouches(for: touch) ?? []).map(input)
             session.engine?.continueStroke(samples, predicted: predicted)
+            session.live.strichWeiter(samples)
         case .lasso:
             state.lasso.append(point)
         case .shape:
@@ -263,6 +302,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         case .transform, .text:
             break
         }
+        if session.tool != .brush, session.tool != .eraser { sendPen(touch, active: true) }
         setNeedsDisplay()
     }
 
@@ -274,6 +314,8 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         case .brush, .eraser:
             session.engine?.continueStroke([input(touch)], predicted: [])
             session.engine?.endStroke()
+            session.live.strichWeiter([input(touch)])
+            session.live.strichEnde()
         case .lasso:
             let polygon = session.lassoRectangle && state.lasso.count > 1
                 ? Selection.rectangle(from: state.lasso[0], to: point)
@@ -290,6 +332,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         case .transform, .text:
             break
         }
+        if session.tool != .brush, session.tool != .eraser { sendPen(touch, active: false) }
         setNeedsDisplay()
     }
 
@@ -304,6 +347,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         state.lasso = []
         state.shapePreview = []
         session?.engine?.cancelStroke()
+        session?.live.strichEnde(abbruch: true)
         setNeedsDisplay()
     }
 
@@ -354,6 +398,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         case .began:
             cancelActive()
             state.gestureActive = true
+            state.folgen = false
         case .ended, .cancelled, .failed:
             if viewport.snapRotation(around: recognizer.location(in: self)) {
                 UISelectionFeedbackGenerator().selectionChanged()
@@ -401,6 +446,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     @objc private func didLoupe(_ gesture: UILongPressGestureRecognizer) {
+        guard session?.nurAnsehen == false else { return }
         let screen = gesture.location(in: self)
         switch gesture.state {
         case .began, .changed:
@@ -424,7 +470,13 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     @objc private func didHover(_ gesture: UIHoverGestureRecognizer) {
-        guard let session, session.tool == .brush || session.tool == .eraser else {
+        guard let session, !session.nurAnsehen else { return }
+        let hovering = gesture.state == .began || gesture.state == .changed
+        session.live.stift(
+            viewport.documentPoint(gesture.location(in: self)), werkzeug: session.werkzeugName,
+            farbe: session.color, groesse: session.brushSize, schwebt: hovering, aktiv: false
+        )
+        guard session.tool == .brush || session.tool == .eraser else {
             state.hover = nil
             return
         }
@@ -439,6 +491,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     // MARK: Apple Pencil
 
     func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveTap tap: UIPencilInteraction.Tap) {
+        guard session?.nurAnsehen == false else { return }
         switch UIPencilInteraction.preferredTapAction {
         case .switchEraser:
             session?.toggleEraser()
@@ -452,7 +505,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     func pencilInteraction(_ interaction: UIPencilInteraction, didReceiveSqueeze squeeze: UIPencilInteraction.Squeeze) {
-        guard squeeze.phase == .ended else { return }
+        guard squeeze.phase == .ended, session?.nurAnsehen == false else { return }
         state.quickMenu = squeeze.hoverPose?.location ?? CGPoint(x: bounds.midX, y: bounds.midY)
     }
 
