@@ -34,6 +34,17 @@ struct ChatTab: View {
                 SnapKameraFluss(ich: ich, antwortAuf: nil) { kameraOffen = false }
             }
         }
+        // Profile → "Kamera": close the profile first; a cover can't present while a sheet is closing.
+        .onChange(of: AppNavigation.shared.kameraOeffnen, initial: true) { _, an in
+            guard an else { return }
+            AppNavigation.shared.kameraOeffnen = false
+            let warten = profilOffen
+            profilOffen = false
+            Task {
+                if warten { try? await Task.sleep(for: .milliseconds(500)) }
+                kameraOffen = true
+            }
+        }
         // Profile → "Im Chat suchen": close the profile, open the conversation in search mode.
         .onChange(of: AppNavigation.shared.chatSuche, initial: true) { _, an in
             guard an else { return }
@@ -92,21 +103,22 @@ private struct ChatZeile: View {
     var body: some View {
         TimelineView(.everyMinute) { _ in
             let anzeige = FigurenModell.shared.anzeige(partner)
+            let nachrichten = modell.nachrichten.filter { ChatModell.sichtbar($0) }
             let vorschau = ChatVorschau.zeile(
-                nachrichten: modell.nachrichten, ich: ich,
+                nachrichten: nachrichten, ich: ich,
                 gelesenVonPartner: modell.gelesenBis[partner], gelesenVonMir: modell.gelesenBis[ich],
                 partnerTippt: anzeige.haupt == .tippt
             )
             HStack(spacing: 12) {
                 FigurView(FigurenModell.shared.aussehen(partner), zustand: anzeige.haupt, groesse: 52)
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(partner.name).font(.headline).foregroundStyle(.primary)
+                    Text(partner.name).font(.headline).foregroundStyle(ChatFarbe.farbe(partner))
                     HStack(spacing: 5) {
                         Image(systemName: vorschau.symbol)
                             .font(.caption)
                             .foregroundStyle(vorschau.neu ? Color.person(partner) : Color.secondary)
                         Text(vorschau.text).lineLimit(1)
-                        if let zeit = modell.nachrichten.last?.zeit {
+                        if let zeit = nachrichten.last?.zeit {
                             Text("· " + zeit.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
                                 .lineLimit(1)
                                 .layoutPriority(1)

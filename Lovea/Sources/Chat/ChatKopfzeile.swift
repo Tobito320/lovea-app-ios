@@ -13,7 +13,7 @@ struct ChatPartnerKopf: View {
             HStack(spacing: 8) {
                 FigurView(FigurenModell.shared.aussehen(partner), zustand: zustand, groesse: 34)
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(partner.name).font(.headline).lineLimit(1)
+                    Text(partner.name).font(.headline).foregroundStyle(ChatFarbe.farbe(partner)).lineLimit(1)
                     Text(statusText(zustand))
                         .font(.caption)
                         .foregroundStyle(zustand == .tippt ? Color.person(partner) : Color.secondary)

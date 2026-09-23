@@ -226,9 +226,11 @@ private struct ProfilInhalt: View {
     private var aktionen: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
-                // Kamera: switches to Chat; opening the snap camera there needs the
-                // `AppNavigation.kameraOeffnen` hook (see block-18-profil-report.md).
-                aktion("camera.fill", "Kamera") { navigieren("chat") }
+                // Kamera: switches to Chat, which opens the snap camera via `AppNavigation.kameraOeffnen`.
+                aktion("camera.fill", "Kamera") {
+                    AppNavigation.shared.kameraOeffnen = true
+                    navigieren("chat")
+                }
                 aktion("message.fill", "Chat") { navigieren("chat") }
                 aktion("phone.fill", "FaceTime Audio") { anrufen(audio: true) }
                 aktion("video.fill", "FaceTime Video") { anrufen(audio: false) }
