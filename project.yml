@@ -36,6 +36,7 @@ targets:
         NSCalendarsFullAccessUsageDescription: "Lovea liest deinen Kalender, um Termine mit deinem Partner abzugleichen."
         NSCalendarsWriteOnlyAccessUsageDescription: "Lovea trägt gemeinsame Termine in deinen Kalender ein."
         NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte von heute."
+        NSHealthUpdateUsageDescription: "Lovea schreibt nichts in Health. Apple verlangt diesen Text trotzdem."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea
