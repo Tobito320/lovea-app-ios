@@ -69,6 +69,7 @@ struct PartieEnde: Equatable, Sendable {
     var punkte: SpielPunkte
     var sieger: Person?
     var text: String
+    var titel: String?
 }
 
 /// SplitMix64. Deterministic on every device, unlike `SystemRandomNumberGenerator` or `hashValue`.
