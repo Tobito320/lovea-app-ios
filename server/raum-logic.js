@@ -4,6 +4,9 @@
 import { berlinDatum } from "./zeitplan.js";
 
 export const SEITE = 500;
+// C-1: Eine Seite geht als EIN WebSocket-Frame raus. Ein Strich kann 10-30 KB
+// sein, 500 davon sprengen jede Frame-Grenze -- daher zusätzlich nach Größe.
+export const SEITE_BYTES = 512 * 1024;
 
 export function initSchema(sql) {
   sql.exec(`CREATE TABLE IF NOT EXISTS ops (
@@ -117,6 +120,7 @@ export function opEinfuegenMitStatus(sql, op) {
   const vorher = sql.exec(`SELECT seq FROM ops WHERE id = ?`, op.id).toArray();
   if (vorher.length) return { seq: vorher[0].seq, neu: false };
   const seq = opEinfuegen(sql, op);
+  if (op.art === "zeichnung.stand") standMedienAufraeumen(sql, op.d, seq);
   return { seq, neu: true };
 }
 
@@ -124,14 +128,20 @@ function zeileZuOp(row) {
   return { seq: row.seq, id: row.id, art: row.art, von: row.von, zeit: row.zeit, d: JSON.parse(row.d) };
 }
 
-// Seite von Ops ab (ausschließlich) `seit`, höchstens `SEITE` Stück.
-export function opsSeit(sql, seit, limit = SEITE) {
-  const rows = sql
-    .exec(`SELECT seq, id, art, von, zeit, d FROM ops WHERE seq > ? ORDER BY seq ASC LIMIT ?`, seit, limit + 1)
-    .toArray();
-  const mehr = rows.length > limit;
-  const ops = rows.slice(0, limit).map(zeileZuOp);
-  return { ops, mehr };
+// Seite von Ops ab (ausschließlich) `seit`: höchstens `limit` Stück und etwa
+// `maxBytes` groß, aber immer mindestens eine Op, damit der Cursor weiterkommt.
+// ponytail: `d.length` zählt UTF-16-Zeichen, nicht Bytes (Umlaute/Emoji bis 3x);
+// bei 512 KB gegen die 32-MiB-Grenze des Clients egal.
+export function opsSeit(sql, seit, limit = SEITE, maxBytes = SEITE_BYTES) {
+  const ops = [];
+  let bytes = 0;
+  for (const row of sql.exec(`SELECT seq, id, art, von, zeit, d FROM ops WHERE seq > ? ORDER BY seq ASC LIMIT ?`, seit, limit + 1)) {
+    const groesse = row.d.length + 200; // + Kopf (seq, id, art, von, zeit)
+    if (ops.length === limit || (ops.length > 0 && bytes + groesse > maxBytes)) return { ops, mehr: true };
+    ops.push(zeileZuOp(row));
+    bytes += groesse;
+  }
+  return { ops, mehr: false };
 }
 
 // Letzte Op einer Art von einer Person (für Einstellungen, Streak, etc.).
@@ -250,6 +260,48 @@ function medienBytes(sql, id, rolle) {
 function medienLoeschen(sql, id, rolle) {
   sql.exec(`DELETE FROM medien WHERE id = ? AND rolle = ?`, id, rolle);
   sql.exec(`DELETE FROM medien_info WHERE id = ? AND rolle = ?`, id, rolle);
+}
+
+// I-5: Medien-IDs eines Stands (Dokument-JSON, Vorschau, Ebenen).
+function standMedien(d) {
+  const ebenen = Array.isArray(d?.ebenen) ? d.ebenen.map((e) => e?.medienId) : [];
+  return [d?.medienId, d?.vorschau, ...ebenen].filter((id) => typeof id === "string" && id.length > 0);
+}
+
+// I-5: Ein neuer Stand ersetzt den vorigen derselben Zeichnung, dessen Medien
+// kommen weg. Das Handy vergibt pro Inhalt EINE Medien-ID (Hash-Cache über alle
+// Zeichnungen und Ops), also bleibt alles, was der neueste Stand irgendeiner
+// Zeichnung oder eine noch nicht im Stand steckende zeichnung.op (seq > basis)
+// nennt.
+// ponytail: nur der direkt vorige Stand wird geprüft, damals Geschütztes bleibt
+// liegen; Medien von .pixel-Ops werden nie gelöscht. Upgrade: alle Stände der
+// Zeichnung prüfen und Op-Medien bis zur Stand-basis mitnehmen.
+function standMedienAufraeumen(sql, d, seq) {
+  const zeichnungId = d?.zeichnungId;
+  if (typeof zeichnungId !== "string") return;
+  const vorige = sql
+    .exec(
+      `SELECT d FROM ops WHERE art = 'zeichnung.stand' AND seq < ? AND json_extract(d, '$.zeichnungId') = ? ORDER BY seq DESC LIMIT 1`,
+      seq,
+      zeichnungId
+    )
+    .toArray();
+  if (!vorige.length) return;
+  const bleibt = new Set();
+  const neueste = sql
+    .exec(
+      `SELECT d FROM ops WHERE seq IN (SELECT MAX(seq) FROM ops WHERE art = 'zeichnung.stand' GROUP BY json_extract(d, '$.zeichnungId'))`
+    )
+    .toArray();
+  for (const row of neueste) for (const id of standMedien(JSON.parse(row.d))) bleibt.add(id);
+  const basis = Number.isInteger(d.basis) ? d.basis : 0;
+  for (const id of standMedien(JSON.parse(vorige[0].d))) {
+    if (bleibt.has(id)) continue;
+    const inOp = sql.exec(`SELECT seq FROM ops WHERE seq > ? AND art = 'zeichnung.op' AND instr(d, ?) > 0 LIMIT 1`, basis, id).toArray();
+    if (inOp.length) continue;
+    sql.exec(`DELETE FROM medien WHERE id = ?`, id);
+    sql.exec(`DELETE FROM medien_info WHERE id = ?`, id);
+  }
 }
 
 // Original löschen, sobald der Partner es geholt hat und `klein` existiert.
@@ -409,7 +461,7 @@ export function ortInfo(sql, ortId) {
   return treffer.length ? treffer[treffer.length - 1].d : null;
 }
 
-// Streak: beide aktiv (mind. eine echte, nicht-System-nachricht.neu) an
+// Streak: beide aktiv (mind. ein Snap, also nachricht.neu mit d.snap) an
 // aufeinanderfolgenden Tagen. "läuft heute ab": gestern waren beide aktiv,
 // heute (bisher) noch nicht beide. Auf die letzten Tage begrenzt (Last, Spec 13).
 function aktiveTage(sql, person, seitIso) {
@@ -419,7 +471,7 @@ function aktiveTage(sql, person, seitIso) {
   const tage = new Set();
   for (const row of rows) {
     const d = JSON.parse(row.d);
-    if (d.system) continue; // Systemnachrichten (z. B. "zufällig nah") zählen nicht für den Streak.
+    if (!d.snap) continue; // I-3: nur Snaps zählen, wie in der App (Streak.swift, Spec 6).
     tage.add(berlinDatum(Date.parse(row.zeit)));
   }
   return tage;

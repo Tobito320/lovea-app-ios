@@ -29,6 +29,9 @@ final class WebSocketTransport: RaumTransport, @unchecked Sendable {
         var request = URLRequest(url: url)
         for (feld, wert) in headers { request.setValue(wert, forHTTPHeaderField: feld) }
         let neu = session.webSocketTask(with: request)
+        // C-1: the default is 1 MB. A bigger frame made receive() throw and reconnect forever with
+        // the same cursor. The server keeps pages near 512 KB; this is the headroom for one big op.
+        neu.maximumMessageSize = 32 * 1024 * 1024
         task = neu
         neu.resume()
         Task { await Self.empfangsSchleife(neu, nachricht: nachricht, getrennt: getrennt) }
