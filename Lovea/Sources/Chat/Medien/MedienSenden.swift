@@ -85,6 +85,31 @@ enum ChatMedien {
         await hochladenUndSenden(id: id, ergebnis: ergebnis, typ: "foto", antwortAuf: antwortAuf)
     }
 
+    // MARK: - Snaps (Z-6.2): editor hands the already-flattened photo/video to these
+
+    static func snapFotoSenden(png: Data, breite: Double, hoehe: Double, bleibt: Bool, antwortAuf: String? = nil) async {
+        let id = UUID().uuidString
+        guard let originalURL = MedienKodierung.schreibeStaging(png, id: id, rolle: "original", ext: "png") else { return }
+        eigeneQuellen[id] = originalURL
+        merkeAusstehend(id: id, original: originalURL, klein: nil)
+        ChatModell.shared.snapSenden(ChatModell.MedienEintrag(id: id, typ: "foto", breite: breite, hoehe: hoehe, dauer: nil, pegel: nil), bleibt: bleibt, antwortAuf: antwortAuf)
+        await hochladen(id: id, ergebnis: MedienKodierung.Ergebnis(original: originalURL, klein: nil, breite: breite, hoehe: hoehe, dauer: nil))
+    }
+
+    /// `quelle` is `SnapExport.video`'s already-flattened output — just needs staging + upload, no
+    /// further encoding (that already happened at the capped 30s/HEVC-preset export step).
+    static func snapVideoSenden(quelle: URL, breite: Double, hoehe: Double, dauer: Double, bleibt: Bool, antwortAuf: String? = nil) async {
+        let id = UUID().uuidString
+        let ziel = MedienKodierung.stagingURL(id: id, rolle: "original", ext: "mov")
+        guard (try? FileManager.default.createDirectory(at: ziel.deletingLastPathComponent(), withIntermediateDirectories: true)) != nil,
+              (try? FileManager.default.copyItem(at: quelle, to: ziel)) != nil
+        else { return }
+        eigeneQuellen[id] = ziel
+        merkeAusstehend(id: id, original: ziel, klein: nil)
+        ChatModell.shared.snapSenden(ChatModell.MedienEintrag(id: id, typ: "video", breite: breite, hoehe: hoehe, dauer: dauer, pegel: nil), bleibt: bleibt, antwortAuf: antwortAuf)
+        await hochladen(id: id, ergebnis: MedienKodierung.Ergebnis(original: ziel, klein: nil, breite: breite, hoehe: hoehe, dauer: dauer))
+    }
+
     /// Sticker/figure-sticker upload (Z-5.3): returns the medium id for `nachricht.neu {sticker:{medienId}}`.
     static func stickerHochladen(png: Data) async -> String? {
         let id = UUID().uuidString

@@ -2,8 +2,8 @@ import LinkPresentation
 import SwiftUI
 import UIKit
 
-/// One bubble (Z-4.2, Z-4.3, Z-5.1–Z-5.3). Renders `text`, `medien` (photo/video/voice), `gif` and
-/// `sticker` for real; `snap`/`spiel`/`system` still show a neutral placeholder row (Blocks 6/14).
+/// One bubble (Z-4.2, Z-4.3, Z-5.1–Z-5.3, Z-6.3). Renders `text`, `medien` (photo/video/voice),
+/// `gif`, `sticker` and `snap` for real; `spiel` still shows a neutral placeholder row (Block 14).
 struct ChatNachrichtRow: View {
     let nachricht: ChatModell.Nachricht
     let ich: Person
@@ -95,9 +95,11 @@ struct ChatNachrichtRow: View {
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                // Z-5.1/Z-5.2/Z-5.3: real media views. Snap/Spiel/System (Block 6/14) still fall
-                // through to `platzhalter` below.
-                if let medium = nachricht.medien.first {
+                // Z-5.1/Z-5.2/Z-5.3/Z-6.2–6.3: real media views. Spiel/System still fall through to
+                // `platzhalter` below; a snap is never rendered via the plain medium path (view-once).
+                if let snap = nachricht.snap {
+                    SnapZeile(nachricht: nachricht, snap: snap, ich: ich, eigene: eigene)
+                } else if let medium = nachricht.medien.first {
                     if medium.typ == "sprache" {
                         SprachBlase(medium: medium)
                     } else {
@@ -136,9 +138,8 @@ struct ChatNachrichtRow: View {
         }
     }
 
-    /// Block 6/14 replace this with the real Snap/Spiel views; `system` stays text-only.
+    /// Block 14 still replaces `spiel`'s row with the real game view; `system` stays text-only.
     private var platzhalter: (text: String, symbol: String)? {
-        if nachricht.snap != nil { return ("Snap", "bolt.fill") }
         if nachricht.spiel != nil { return ("Spiel", "gamecontroller.fill") }
         if let system = nachricht.system { return (system, "info.circle") }
         return nil
@@ -173,6 +174,53 @@ struct ChatNachrichtRow: View {
 
     private func naechsteBerlinMitternacht() -> Date {
         Calendar.berlin.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime) ?? Date().addingTimeInterval(86_400)
+    }
+}
+
+/// The snap row (Z-6.3): before viewing, a tappable "Snap" bubble; after, a text-only spur
+/// ("Snap angesehen"/"Snap lange angesehen") unless `bleibt` or saved — those show the real photo
+/// like any other medium. Long-press on the spur offers "Erneut ansehen" (no new op — the viewer
+/// only sends `snap.angesehen` once) and "Speichern".
+private struct SnapZeile: View {
+    let nachricht: ChatModell.Nachricht
+    let snap: ChatModell.SnapInfo
+    let ich: Person
+    let eigene: Bool
+
+    @State private var vollbild = false
+
+    private var alsFoto: Bool { snap.bleibt || nachricht.snapGespeichert }
+
+    var body: some View {
+        Group {
+            if alsFoto, let medium = nachricht.medien.first {
+                MedienNachrichtView(medium: medium, eigene: eigene)
+            } else if nachricht.snapAngesehen {
+                spur(nachricht.snapLange ? "Snap lange angesehen" : "Snap angesehen")
+                    .contextMenu {
+                        Button("Erneut ansehen", systemImage: "arrow.clockwise") { vollbild = true }
+                        Button("Speichern", systemImage: "square.and.arrow.down") {
+                            ChatModell.shared.snapGespeichertSenden(nachricht.id)
+                        }
+                    }
+            } else {
+                spur(eigene ? "Snap" : "Snap ansehen")
+            }
+        }
+        .fullScreenCover(isPresented: $vollbild) {
+            SnapViewer(nachricht: nachricht, ich: ich)
+        }
+    }
+
+    private func spur(_ text: String) -> some View {
+        Button { vollbild = true } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "bolt.fill")
+                Text(text)
+            }
+            .font(.subheadline)
+        }
+        .buttonStyle(.plain)
     }
 }
 
