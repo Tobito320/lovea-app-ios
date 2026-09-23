@@ -291,6 +291,9 @@ private struct StickerAnsicht: View {
 enum MitgelieferteSticker {
     static let praefix = "asset:"
     static let alle = [
+        "wir-annika-kuss-winken", "wir-annika-rosen", "wir-annika-kichern", "wir-annika-schuechtern",
+        "wir-annika-finger-grinsen", "wir-annika-finger-sw", "wir-annika-frech", "wir-annika-schulterblick",
+        "wir-annika-zunge", "wir-annika-augenrollen", "wir-annika-telefon", "wir-annika-cheers",
         "wir-kuss", "wir-umarmung", "wir-selfie", "wir-kino", "wir-gym",
         "wir-ich", "wir-du", "wir-zuhause", "wir-vermisse-dich", "wir-so-suess", "wir-lieblingsmensch",
         "wir-nur-wir", "wir-wir-immer", "wir-fuer-dich", "wir-danke", "wir-danke-dass-es-dich-gibt",
