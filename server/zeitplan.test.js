@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   vorabendZeit, stundeVorherZeit, puenktlichZeit, naechsteTageszeit, naechsteFaelligeTageszeit, naechsterAlarm,
   challengeEndspurtWocheZeit, challengeEndeWocheZeit, challengeEndspurtMonatZeit, challengeEndeMonatZeit,
-  kapselOeffnetZeit,
 } from "./zeitplan.js";
 
 // Review-Fokus 4: Tageswechsel in Europe/Berlin über die Zeitumstellung
@@ -28,12 +27,6 @@ test("Pünktlich-Karte am Morgen danach liegt im neuen Kalendertag", () => {
   const ms = puenktlichZeit("2026-10-24");
   const berlin = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" }).format(ms);
   assert.match(berlin, /^25\.10\.(20)?26, 09:00$/);
-});
-
-// Z-27.2: Zeitkapsel-Push, 09:00 Berlin am Öffnungstag, auch über die Zeitumstellung hinweg.
-test("kapselOeffnetZeit: 09:00 Berlin, vor und nach der Zeitumstellung", () => {
-  assert.equal(new Date(kapselOeffnetZeit("2026-10-24")).toISOString(), "2026-10-24T07:00:00.000Z"); // CEST, UTC+2
-  assert.equal(new Date(kapselOeffnetZeit("2026-10-26")).toISOString(), "2026-10-26T08:00:00.000Z"); // CET, UTC+1
 });
 
 test("naechsteTageszeit: heute, falls noch nicht vorbei, sonst morgen", () => {
@@ -182,4 +175,11 @@ test("naechsterAlarm: mitten in Woche und Monat ist nichts 'vorbei' (kein falsch
   const arten = faelligeArten("2026-09-30T10:00:00.000Z"); // Mi 30.09. 12:00, nichts erledigt
   assert.ok(!arten.includes("challengeEndeWoche"));
   assert.ok(!arten.includes("challengeEndeMonat"));
+});
+
+// Z-31.4: die Zeitkapsel ist weg (Spec 2.10), auch ein alter Kontext plant keinen Kapsel-Alarm mehr.
+test("naechsterAlarm: keine kapselOeffnet-Kandidaten mehr", () => {
+  const kontext = { erinnerungenHeute: {}, kapseln: [{ id: "msg-1", oeffnetAm: "2026-09-01" }] };
+  const { faellig } = naechsterAlarm(kontext, Date.parse("2026-09-23T10:00:00.000Z"));
+  assert.ok(!faellig.some((f) => f.art === "kapselOeffnet"));
 });

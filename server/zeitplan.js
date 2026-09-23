@@ -76,14 +76,6 @@ export function puenktlichZeit(treffenDatum) {
   return berlinInstant(t.y, t.mo, t.d, 9, 0, 0);
 }
 
-// Z-27.2: Zeitkapsel öffnet sich für den Client am Kalendertag `oeffnetAm` (Datum.tageZwischen-
-// Vergleich, siehe ChatModell.verschlossen) -- die Push-Mitteilung dazu feuert bewusst erst später
-// am selben Tag (09:00), nicht um Mitternacht.
-export function kapselOeffnetZeit(oeffnetAmDatum) {
-  const [y, mo, d] = oeffnetAmDatum.split("-").map(Number);
-  return berlinInstant(y, mo, d, 9, 0, 0);
-}
-
 // Kalendertag in Europe/Berlin als "YYYY-MM-DD", für Streak & Tages-Dedupe.
 export function berlinDatum(ms) {
   const p = berlinParts(ms);
@@ -185,9 +177,6 @@ export function naechsterAlarm(kontext, jetztMs) {
   }
   for (const s of kontext.spielEinladungen ?? []) {
     if (s.bis) kandidaten.push({ art: "spielVerfallen", id: s.id, von: s.von, zeitMs: Date.parse(s.bis) });
-  }
-  for (const k of kontext.kapseln ?? []) {
-    kandidaten.push({ art: "kapselOeffnet", id: k.id, zeitMs: kapselOeffnetZeit(k.oeffnetAm) });
   }
   // Immer einen Kandidaten für die Frage des Tages einplanen: entweder heute
   // (falls noch offen -- kann in der Vergangenheit liegen und wird nachgeholt)

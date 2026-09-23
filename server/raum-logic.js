@@ -53,12 +53,8 @@ export function initSchema(sql) {
   // Jede Kontext-Berechnung für den Zeitplan fragt mehrfach "alle Ops einer
   // Art" ab (Last: Spec 13) -- ohne Index wäre das ein Full-Table-Scan pro Op.
   sql.exec(`CREATE INDEX IF NOT EXISTS ops_art_von_zeit ON ops (art, von, zeit)`);
-  // Final-Review I-8: noch nicht geöffnete Zeitkapseln (Nachrichten-id -> oeffnetAm), gepflegt beim
-  // Einfügen (opEinfuegenMitStatus) statt pro Op den ganzen Chat zu lesen.
-  sql.exec(`CREATE TABLE IF NOT EXISTS kapseln_offen (
-    id TEXT PRIMARY KEY,
-    oeffnetAm TEXT NOT NULL
-  )`);
+  // Runde 3 (Spec 2.10): die Zeitkapsel ist weg. Ältere Räume behalten ihre Tabelle `kapseln_offen`
+  // ungenutzt, neue legen sie nicht mehr an.
 }
 
 // --- Merker (Server-interner Zustand, kein Op) ------------------------------
@@ -131,11 +127,6 @@ export function opEinfuegenMitStatus(sql, op) {
   if (vorher.length) return { seq: vorher[0].seq, neu: false };
   const seq = opEinfuegen(sql, op);
   if (op.art === "zeichnung.stand") standMedienAufraeumen(sql, op.d, seq);
-  const kapselAm = op.d?.kapsel?.oeffnetAm;
-  if (op.art === "nachricht.neu" && typeof op.d?.id === "string" && typeof kapselAm === "string") {
-    sql.exec(`INSERT OR IGNORE INTO kapseln_offen (id, oeffnetAm) VALUES (?, ?)`, op.d.id, kapselAm);
-  }
-  if (op.art === "nachricht.geloescht" && typeof op.d?.id === "string") kapselEntfernen(sql, op.d.id);
   return { seq, neu: true };
 }
 
@@ -518,38 +509,6 @@ export function offeneSpielEinladungen(sql) {
   const byId = new Map();
   for (const op of gesetzt) byId.set(op.d.id, { id: op.d.id, bis: op.d.bis, von: op.von });
   return [...byId.values()].filter((x) => !erledigt.has(x.id));
-}
-
-// Noch nicht geöffnete Zeitkapseln (`nachricht.neu` mit `d.kapsel.oeffnetAm`), aus `kapseln_offen`.
-// Final-Review I-8: #alarmAktualisieren läuft nach JEDER Op -- vorher las das jedes Mal alle
-// nachricht.neu-Zeilen (Rows-read-Limit im Free-Plan). Jetzt nur die paar offenen Kapseln.
-// `id` ist die Nachrichten-id aus `d.id` (schnittstellen.md), NICHT die Op-id (Zeile `ops.id`) --
-// dieselbe id, gegen die auch `nachricht.bearbeitet`/`nachricht.geloescht`/... referenzieren.
-export function offeneKapseln(sql) {
-  kapselIndexEinmalFuellen(sql);
-  return sql
-    .exec(`SELECT id, oeffnetAm FROM kapseln_offen`)
-    .toArray()
-    .map((row) => ({ id: row.id, oeffnetAm: row.oeffnetAm }));
-}
-
-// Geöffnet (Push raus) oder Nachricht gelöscht: Kapsel ist nicht mehr offen.
-export function kapselEntfernen(sql, id) {
-  sql.exec(`DELETE FROM kapseln_offen WHERE id = ?`, id);
-}
-
-// Einmalig (Merker-Flag) die Kapseln übernehmen, die schon vor der Tabelle in `ops` lagen -- ohne
-// schon geöffnete (alarm.kapselOeffnet.<id>) und ohne gelöschte Nachrichten.
-function kapselIndexEinmalFuellen(sql) {
-  if (merkerLesen(sql, "kapseln.index") !== null) return;
-  sql.exec(
-    `INSERT OR IGNORE INTO kapseln_offen (id, oeffnetAm)
-     SELECT json_extract(d, '$.id'), json_extract(d, '$.kapsel.oeffnetAm') FROM ops
-     WHERE art = 'nachricht.neu' AND json_extract(d, '$.id') IS NOT NULL AND json_extract(d, '$.kapsel.oeffnetAm') IS NOT NULL
-       AND NOT EXISTS (SELECT 1 FROM merker WHERE schluessel = 'alarm.kapselOeffnet.' || json_extract(ops.d, '$.id'))`
-  );
-  sql.exec(`DELETE FROM kapseln_offen WHERE id IN (SELECT json_extract(d, '$.id') FROM ops WHERE art = 'nachricht.geloescht')`);
-  merkerSchreiben(sql, "kapseln.index", "1");
 }
 
 // Neueste Fassung eines Orts (für Namen/`melden` bei ort.ereignis-Push).

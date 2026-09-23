@@ -24,8 +24,6 @@ import {
   opGueltig,
   verbindungIstLebendig,
   PING_TIMEOUT_MS,
-  offeneKapseln,
-  kapselEntfernen,
   gemeinsamPruefen,
   spotifyTokenLesen,
   spotifyTokenSchreiben,
@@ -308,14 +306,6 @@ test("gemeinsamPruefen: außerhalb 150 m oder mit einem zu alten Punkt setzt zur
   assert.equal(gemeinsamPruefen({ a, b: zweiStundenAlt, jetztMs: jetzt, seitMs: jetzt - 40 * 60_000 }).nah, true);
 });
 
-test("offeneKapseln: nur nachricht.neu mit d.kapsel.oeffnetAm, Nachrichten-id nicht Op-id", () => {
-  const sql = raum();
-  opEinfuegen(sql, op("op-1", "nachricht.neu", "ahmed", { id: "msg-1", text: "hi" })); // keine Kapsel
-  opEinfuegen(sql, op("op-2", "nachricht.neu", "annika", { id: "msg-2", text: "geheim", kapsel: { oeffnetAm: "2026-12-24" } }));
-  const kapseln = offeneKapseln(sql);
-  assert.deepEqual(kapseln, [{ id: "msg-2", oeffnetAm: "2026-12-24" }]);
-});
-
 // Minor 2: `entwurf.setzen` ist nur für den Absender -- auch beim Nachholen nie beim Partner.
 test("opsSeit: fremde Entwürfe werden für `fuer` im SQL ausgefiltert, eigene bleiben", () => {
   const sql = raum();
@@ -325,34 +315,6 @@ test("opsSeit: fremde Entwürfe werden für `fuer` im SQL ausgefiltert, eigene b
   assert.deepEqual(opsSeit(sql, 0, 500, 512 * 1024, "annika").ops.map((o) => o.id), ["e-annika", "n-1"]);
   assert.deepEqual(opsSeit(sql, 0, 500, 512 * 1024, "ahmed").ops.map((o) => o.id), ["e-ahmed", "n-1"]);
   assert.equal(opsSeit(sql, 0).ops.length, 3, "ohne `fuer` (Tests/Tools) ungefiltert");
-});
-
-// Final-Review I-8: offeneKapseln läuft nach jeder Op und darf den Chat nicht mehr scannen.
-test("offeneKapseln: Index statt Chat-Scan -- gepflegt beim Einfügen, geleert bei Löschen/Öffnen", () => {
-  const sql = raum();
-  offeneKapseln(sql); // leere Datenbank: einmalige Übernahme ist erledigt
-  opEinfuegenMitStatus(sql, op("op-1", "nachricht.neu", "ahmed", { id: "msg-1", text: "hi" }));
-  opEinfuegenMitStatus(sql, op("op-2", "nachricht.neu", "annika", { id: "msg-2", kapsel: { oeffnetAm: "2026-12-24" } }));
-  opEinfuegenMitStatus(sql, op("op-3", "nachricht.neu", "ahmed", { id: "msg-3", kapsel: { oeffnetAm: "2027-01-01" } }));
-  // Beweis, dass nichts mehr aus `ops` gelesen wird: ohne die Ops kommen die Kapseln trotzdem.
-  sql.exec(`DELETE FROM ops`);
-  assert.deepEqual(offeneKapseln(sql).map((k) => k.id).sort(), ["msg-2", "msg-3"]);
-
-  opEinfuegenMitStatus(sql, op("op-4", "nachricht.geloescht", "annika", { id: "msg-2" }));
-  assert.deepEqual(offeneKapseln(sql), [{ id: "msg-3", oeffnetAm: "2027-01-01" }], "gelöschte Kapsel pusht nicht mehr");
-
-  kapselEntfernen(sql, "msg-3"); // kapselOeffnet-Alarm verarbeitet
-  assert.deepEqual(offeneKapseln(sql), []);
-});
-
-test("offeneKapseln: einmalige Übernahme alter Kapseln ohne schon geöffnete und gelöschte", () => {
-  const sql = raum();
-  opEinfuegen(sql, op("op-1", "nachricht.neu", "ahmed", { id: "alt-offen", kapsel: { oeffnetAm: "2026-12-24" } }));
-  opEinfuegen(sql, op("op-2", "nachricht.neu", "ahmed", { id: "alt-geoeffnet", kapsel: { oeffnetAm: "2026-09-01" } }));
-  opEinfuegen(sql, op("op-3", "nachricht.neu", "ahmed", { id: "alt-geloescht", kapsel: { oeffnetAm: "2026-12-31" } }));
-  opEinfuegen(sql, op("op-4", "nachricht.geloescht", "ahmed", { id: "alt-geloescht" }));
-  alarmAlsErledigtMarkieren(sql, "kapselOeffnet", "alt-geoeffnet", "2026-09-01T07:00:00.000Z");
-  assert.deepEqual(offeneKapseln(sql), [{ id: "alt-offen", oeffnetAm: "2026-12-24" }]);
 });
 
 test("Spotify: Token und Cache im Merker, roundtrip", () => {

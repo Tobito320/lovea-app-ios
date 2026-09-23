@@ -15,9 +15,9 @@ const SYSTEM_TEXT = {
 function nachrichtText(von, d) {
   const name = NAME[von];
   if (d.system) return SYSTEM_TEXT[d.system] ?? `${name} hat dir geschrieben`;
-  // Z-27.2: der Inhalt einer Zeitkapsel/eines Briefs darf nie im Push-Text stehen -- vor allen
-  // anderen Feldern geprüft, auch wenn `d.text`/`d.medien` zusätzlich gesetzt sind.
-  if (d.kapsel) return `${name} hat dir eine Zeitkapsel geschickt`;
+  // Z-27.2: der Inhalt eines Briefs darf nie im Push-Text stehen -- vor allen anderen Feldern
+  // geprüft, auch wenn `d.text`/`d.medien` zusätzlich gesetzt sind. `d.kapsel` zählt seit Runde 3
+  // nicht mehr (Spec 2.10), so eine Nachricht bekommt den normalen Text.
   if (d.brief) return `${name} hat dir einen Brief geschrieben`;
   const typ = d.medien?.[0]?.typ;
   if (typ === "foto") return `${name} hat ein Foto geschickt`;

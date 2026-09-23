@@ -33,8 +33,6 @@ import {
   letzteZufaelligNahMs,
   zufaelligNahAlsGemeldetMarkieren,
   ortInfo,
-  offeneKapseln,
-  kapselEntfernen,
   gemeinsamPruefen,
   gemeinsamSeitMs,
   gemeinsamSeitSetzen,
@@ -63,7 +61,6 @@ const ALARM_TEXT = {
   challengeEndeWoche: { titel: "Lovea", text: "Die Wochen-Challenges sind vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
   challengeEndspurtMonat: { titel: "Lovea", text: "Letzter Tag für Gemeinsam Monat!", stufe: "laut", kategorie: "challenge" },
   challengeEndeMonat: { titel: "Lovea", text: "Der Monats-Challenge ist vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
-  kapselOeffnet: { titel: "Lovea", text: "Eure Zeitkapsel hat sich geöffnet", stufe: "laut", kategorie: "chat" },
 };
 
 export class Raum {
@@ -488,7 +485,6 @@ export class Raum {
       treffen: offeneTreffen(this.sql, kontextAb),
       angeheftet: offeneAngeheftet(this.sql),
       spielEinladungen: offeneSpielEinladungen(this.sql),
-      kapseln: offeneKapseln(this.sql),
       streakLaeuftHeuteAb: streakLaeuftHeuteAb(this.sql, jetztMs),
       erinnerungenHeute: {
         frage: alarmErledigt(this.sql, "frageDesTages", heute),
@@ -563,14 +559,6 @@ export class Raum {
         const schluessel = berlinDatum(jetztMs).slice(0, 7);
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
-        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
-        break;
-      }
-      case "kapselOeffnet": {
-        // Schlüssel = Nachrichten-id (offeneKapseln): jede Zeitkapsel öffnet einmal.
-        kapselEntfernen(this.sql, ereignis.id); // I-8: vor dem erledigt-Check, sonst bliebe sie ewig "offen"
-        if (alarmErledigt(this.sql, ereignis.art, ereignis.id)) return;
-        alarmAlsErledigtMarkieren(this.sql, ereignis.art, ereignis.id, jetztIso);
         await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
         break;
       }
