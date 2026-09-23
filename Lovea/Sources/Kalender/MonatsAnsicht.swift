@@ -44,7 +44,6 @@ struct MonatsAnsicht: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .accessibilityHidden(true)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 4) {
@@ -56,10 +55,10 @@ struct MonatsAnsicht: View {
                     }
                 }
             }
-            // Sieben Spalten passen ab AX-Größen nicht mehr; wie der System-Kalender deckeln statt
-            // abschneiden. VoiceOver liest jeden Tag ohnehin voll vor.
-            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         }
+        // Sieben Spalten (und der Monatsname zwischen den Pfeilen) passen ab AX-Größen nicht mehr;
+        // wie der System-Kalender deckeln statt abschneiden. VoiceOver liest jeden Tag voll vor.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .contentShape(Rectangle())
         .gesture(
             DragGesture(minimumDistance: 24)

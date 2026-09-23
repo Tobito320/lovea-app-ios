@@ -29,6 +29,8 @@ struct PuenktlichCard: View {
             .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
             .offset(x: versatz)
             .opacity(Double(1 - min(abs(versatz) / 200, 1)))
+            // After a skip the next unrated meeting reuses this view; start it in place again.
+            .onChange(of: kandidat.datum, initial: true) { versatz = 0 }
             .gesture(
                 DragGesture()
                     .onChanged { versatz = $0.translation.width }
