@@ -84,7 +84,7 @@ struct MemorySpiel: View {
 
     /// 8 motifs: up to 4 chat photos or stickers, up to 2 Duell drawings, the rest friendship
     /// stickers. Only synced media, so the partner can load every card.
-    static func motiveWaehlen(seed: UInt64) -> [String] {
+    @MainActor static func motiveWaehlen(seed: UInt64) -> [String] {
         var z = Zufall(seed &+ 1)
         let fotos = ChatModell.shared.nachrichten
             .filter { !$0.geloescht && $0.snap == nil }
@@ -205,7 +205,7 @@ struct KennenSpiel: View {
 
     /// Questions from own data: own answers to the question of the day, own places, the next
     /// date. Options are shuffled by the seed so the true answer isn't always first.
-    static func eigeneFragen(ich: Person, seed: UInt64) -> [KennenFrage] {
+    @MainActor static func eigeneFragen(ich: Person, seed: UInt64) -> [KennenFrage] {
         var z = Zufall(seed &+ 7)
         var ergebnis: [KennenFrage] = []
         func kurz(_ s: String) -> String { s.count > 60 ? String(s.prefix(59)) + "…" : s }
@@ -214,8 +214,8 @@ struct KennenSpiel: View {
         var texte: [String: String] = [:]
         for f in FrageDesTages.vorrat { texte[f.id] = f.text }
         for f in wir.eigeneFragen { texte[f.id] = f.text }
-        let meine = wir.antworten.compactMap { id, a -> (frage: String, antwort: String)? in
-            guard let frage = texte[id], let text = a[ich]?.text, !text.isEmpty else { return nil }
+        let meine = wir.antworten.compactMap { eintrag -> (frage: String, antwort: String)? in
+            guard let frage = texte[eintrag.key], let text = eintrag.value[ich]?.text, !text.isEmpty else { return nil }
             return (frage, kurz(text))
         }.sorted { $0.frage < $1.frage }
         let alleAntworten = Array(Set(meine.map(\.antwort))).sorted()
