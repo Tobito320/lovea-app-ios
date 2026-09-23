@@ -23,7 +23,7 @@ struct SpieleStarter: View {
                     }
                 }
                 .padding(.horizontal, 16)
-                .padding(.top, 8)
+                .padding(.top, 16)
                 Text(Raum.shared.partnerDa
                     ? "\(partner) hat 2 Minuten zum Annehmen."
                     : "\(partner) ist gerade nicht online. Die Einladung gilt 2 Minuten.")
