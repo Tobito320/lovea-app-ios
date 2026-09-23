@@ -56,39 +56,41 @@ struct FigurView: View {
 
 // MARK: - Helpers
 
-fileprivate func P(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: y) }
+/// ponytail: these primitives were fileprivate (single-file drawing engine); widened to internal
+/// so the new Shop-Zubehör drawers (Zubehoer/) can reuse them instead of duplicating geometry helpers.
+func P(_ x: CGFloat, _ y: CGFloat) -> CGPoint { CGPoint(x: x, y: y) }
 
-fileprivate func kreis(_ c: CGPoint, _ r: CGFloat) -> Path {
+func kreis(_ c: CGPoint, _ r: CGFloat) -> Path {
     Path(ellipseIn: CGRect(x: c.x - r, y: c.y - r, width: r * 2, height: r * 2))
 }
 
-fileprivate func oval(_ c: CGPoint, _ rx: CGFloat, _ ry: CGFloat) -> Path {
+func oval(_ c: CGPoint, _ rx: CGFloat, _ ry: CGFloat) -> Path {
     Path(ellipseIn: CGRect(x: c.x - rx, y: c.y - ry, width: rx * 2, height: ry * 2))
 }
 
-fileprivate func box(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat = 0) -> Path {
+func box(_ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat, _ r: CGFloat = 0) -> Path {
     Path(roundedRect: CGRect(x: x, y: y, width: w, height: h), cornerRadius: r)
 }
 
-fileprivate func strich(_ a: CGPoint, _ b: CGPoint) -> Path {
+func strich(_ a: CGPoint, _ b: CGPoint) -> Path {
     Path { p in
         p.move(to: a)
         p.addLine(to: b)
     }
 }
 
-fileprivate func bogen(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint) -> Path {
+func bogen(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint) -> Path {
     Path { p in
         p.move(to: a)
         p.addQuadCurve(to: b, control: c)
     }
 }
 
-fileprivate func gespiegelt(_ p: Path) -> Path {
+func gespiegelt(_ p: Path) -> Path {
     p.applying(CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 200, ty: 0))
 }
 
-fileprivate func herzPfad(_ c: CGPoint, _ s: CGFloat) -> Path {
+func herzPfad(_ c: CGPoint, _ s: CGFloat) -> Path {
     Path { p in
         p.move(to: P(c.x, c.y + s * 0.85))
         p.addCurve(to: P(c.x - s, c.y - s * 0.2), control1: P(c.x - s * 0.5, c.y + s * 0.5), control2: P(c.x - s, c.y + s * 0.15))
@@ -120,12 +122,12 @@ fileprivate func tropfenPfad(_ c: CGPoint) -> Path {
 }
 
 /// Fill plus the thick soft outline derived from the fill.
-fileprivate func teil(_ g: GraphicsContext, _ p: Path, _ f: FigurFarbe, _ breite: CGFloat = 3.5) {
+func teil(_ g: GraphicsContext, _ p: Path, _ f: FigurFarbe, _ breite: CGFloat = 3.5) {
     g.fill(p, with: .color(f.farbe))
     g.stroke(p, with: .color(f.kontur), style: StrokeStyle(lineWidth: breite, lineCap: .round, lineJoin: .round))
 }
 
-fileprivate func linie(_ g: GraphicsContext, _ p: Path, _ c: Color, _ breite: CGFloat) {
+func linie(_ g: GraphicsContext, _ p: Path, _ c: Color, _ breite: CGFloat) {
     g.stroke(p, with: .color(c), style: StrokeStyle(lineWidth: breite, lineCap: .round, lineJoin: .round))
 }
 
@@ -144,12 +146,12 @@ fileprivate func zwischen(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
 }
 
 /// Fills several overlapping parts as one piece: all outlines first, then all fills.
-fileprivate func verbunden(_ g: GraphicsContext, _ teile: [Path], _ f: FigurFarbe, _ breite: CGFloat = 3.5) {
+func verbunden(_ g: GraphicsContext, _ teile: [Path], _ f: FigurFarbe, _ breite: CGFloat = 3.5) {
     for p in teile { g.stroke(p, with: .color(f.kontur), style: StrokeStyle(lineWidth: breite, lineCap: .round, lineJoin: .round)) }
     for p in teile { g.fill(p, with: .color(f.farbe)) }
 }
 
-fileprivate enum Pal {
+enum Pal {
     static let weiss = FigurFarbe(0xFFFFFF)
     static let tinte = FigurFarbe(0x3A2630)
     static let rose = FigurFarbe(0xFF3B5C)
@@ -224,6 +226,10 @@ private struct Zeichner {
     let frisur, oberteil, brille, bart, gesichtsform, augenform, brauenStil, nasenStil, mundStil: Int
     let ohrring, muetze, jacke, hose, schuhe, koerperform, groesseStufe: Int
     let wimpern, sommersprossen, muttermal, rouge: Bool
+    // v3 (Z-24.2): worn shop parts, forwarded to the Zubehoer/ drawers as-is (nil = nothing).
+    let tascheId, uhrId, schmuckId, poseId, tierId: String?
+    /// `hosenFarbe` below hardcodes a denim wash for hose 0/1/2 unless a free color was picked.
+    let hosenHexAktiv: Bool
 
     init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool) {
         typealias A = FigurAussehen
@@ -234,9 +240,19 @@ private struct Zeichner {
         self.ganz = ganz
         haut = A.hautToene.wahl(a.haut).farbe
         let hf = A.haarfarben.wahl(a.haarfarbe)
-        haar = hf.farbe
-        straehne = hf.straehne
+        if let hex = a.haarfarbeHex, let frei = FigurFarbe(hex: hex) {
+            haar = frei
+            straehne = nil // free color replaces the swatch, including its highlight streak
+        } else {
+            haar = hf.farbe
+            straehne = hf.straehne
+        }
         iris = A.augenfarben.wahl(a.augen).farbe
+        tascheId = a.tasche
+        uhrId = a.uhr
+        schmuckId = a.schmuck
+        poseId = a.pose
+        tierId = a.tier
         frisur = grenze(a.frisur, A.frisuren.count)
         brille = grenze(a.brille, A.brillen.count)
         bart = grenze(a.bart, A.baerte.count)
@@ -253,16 +269,17 @@ private struct Zeichner {
         koerperform = grenze(a.koerperform, A.koerperformen.count)
         groesseStufe = grenze(a.groesse, A.groessen.count)
         schuhe = grenze(a.schuhe, A.schuhArten.count)
-        schuhF = A.farben.wahl(a.schuhfarbe).farbe
+        schuhF = a.schuhfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.schuhfarbe).farbe
         muetzeF = A.farben.wahl(a.muetzenfarbe).farbe
-        jackeF = A.farben.wahl(a.jackenfarbe).farbe
+        jackeF = a.jackenfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.jackenfarbe).farbe
         let schlafanzug = z == .abend
-        let oberteilFarbe = schlafanzug ? FigurFarbe(0xAFC8EE) : A.farben.wahl(a.oberteilfarbe).farbe
+        let oberteilFarbe = schlafanzug ? FigurFarbe(0xAFC8EE) : (a.oberteilfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.oberteilfarbe).farbe)
         top = oberteilFarbe
         oberteil = schlafanzug ? 2 : grenze(a.oberteil, A.oberteile.count)
         jacke = schlafanzug ? 0 : grenze(a.jacke, A.jacken.count)
         hose = schlafanzug ? 3 : grenze(a.hose, A.hosen.count)
-        hoseF = schlafanzug ? oberteilFarbe : A.farben.wahl(a.hosenfarbe).farbe
+        hoseF = schlafanzug ? oberteilFarbe : (a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.hosenfarbe).farbe)
+        hosenHexAktiv = !schlafanzug && a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } != nil
         let ohneHut = schlafanzug || z == .rad || z == .schlaeft
         muetze = ohneHut ? 0 : grenze(a.kopfbedeckung, A.kopfbedeckungen.count)
     }
@@ -307,8 +324,20 @@ private struct Zeichner {
         requisite(g, arme.r?.hand ?? P(142, 252))
         if let l = arme.l { teil(g, kreis(l.hand, 9.5), haut) }
         if let r = arme.r { teil(g, kreis(r.hand, 9.5), haut) }
+        zubehoer(g, arme)
         effekte(g)
         abzeichenVorn(g)
+    }
+
+    /// Z-24.2: worn shop parts (bag on the free hand, watch on the other wrist, necklace at the collar).
+    func zubehoer(_ g: GraphicsContext, _ arme: (l: Arm?, r: Arm?)) {
+        if let id = tascheId { zeichneTasche(g, id: id, an: arme.r?.hand ?? P(142, 252)) }
+        if let id = uhrId {
+            // Wrist, not the hand itself — a hand-centered watch would just replace the hand circle.
+            let handgelenk = arme.l.map { zwischen($0.ellbogen, $0.hand, 0.72) } ?? P(54, 235)
+            zeichneUhr(g, id: id, an: handgelenk)
+        }
+        if let id = schmuckId { zeichneSchmuck(g, id: id, hals: P(100, 162)) }
     }
 
     /// Head, face, hair and everything worn on the head, in the half-figure space.
@@ -365,7 +394,7 @@ private struct Zeichner {
     var aermel: Aermel {
         if jacke > 0 { return .lang }
         switch oberteil {
-        case 1, 2, 3, 5, 10, 13: return .lang
+        case 1, 2, 3, 5, 10, 13, 14, 16: return .lang
         case 6: return .keine
         default: return .kurz
         }
@@ -573,6 +602,28 @@ private struct Zeichner {
             for x in stride(from: CGFloat(28), to: 180, by: 16) { h.fill(box(x, 150, 6, 170), with: .color(streifen)) }
             for y in stride(from: CGFloat(172), to: 320, by: 16) { h.fill(box(20, y, 160, 6), with: .color(streifen)) }
             hemdKragen(g)
+        case 14:
+            // Logo-Hoodie: reuses the hoodie hood (case 1) plus a small round chest patch.
+            let kapuze = bogen(P(70, 164), P(130, 164), P(100, 196))
+            linie(g, kapuze, top.kontur, 13)
+            linie(g, kapuze, top.mal(0.88).farbe, 8.5)
+            teil(h, kreis(P(100, 210), 9), Pal.gold, 2)
+        case 15:
+            // Statement-Shirt: bold diagonal brand stripe across the chest.
+            var streifenH = h
+            streifenH.rotate(by: .degrees(-18))
+            streifenH.fill(box(50, 180, 100, 16, 4), with: .color(top.mix(Pal.weiss, 0.7).farbe))
+        case 16:
+            // Seidenbluse: soft sheen band plus a tie-neck bow.
+            for y in stride(from: CGFloat(176), to: 300, by: 20) { h.fill(box(20, y, 160, 4), with: .color(.white.opacity(0.18))) }
+            let schleife = Path { p in
+                p.move(to: P(100, 178))
+                p.addLine(to: P(88, 170))
+                p.addLine(to: P(88, 186))
+                p.closeSubpath()
+            }
+            teil(g, schleife, top.mal(0.85), 2)
+            teil(g, gespiegelt(schleife), top.mal(0.85), 2)
         default:
             break
         }
@@ -651,6 +702,26 @@ private struct Zeichner {
                     linie(h, bogen(P(0, y), P(200, y), P(100, y + 6 * s)), f.kontur, 2)
                 }
             }
+        case 6:
+            // Pelzkragen-Jacke: puffer trim (case 5) plus a fluffy dotted collar.
+            for seite in [links, rechts] {
+                var h = innen
+                h.clip(to: seite)
+                for i in 0..<9 {
+                    let y: CGFloat = oben + (18 + CGFloat(i) * 17) * s
+                    linie(h, bogen(P(0, y), P(200, y), P(100, y + 6 * s)), f.kontur, 2)
+                }
+            }
+            for dx in stride(from: CGFloat(-26), through: 26, by: 9) {
+                teil(g, kreis(P(100 + dx * s, oben + 2 * s), 4 * s), Pal.weiss, 1)
+            }
+        case 7:
+            // Cape: poncho bund (case 3) with a gem clasp instead of the zip strap.
+            let bund = bogen(P(100 - 30 * s, oben + 1), P(100 + 30 * s, oben + 1), P(100, oben + 30 * s))
+            linie(g, bund, f.kontur, 9 * s)
+            linie(g, bund, f.mal(0.75).farbe, 6.5 * s)
+            teil(innen, box(0, unten - 12 * s, 200, 40), f.mal(0.75), 2)
+            teil(g, kreis(P(100, oben + 6 * s), 4 * s), Pal.gold, 1.5)
         default:
             break
         }
@@ -1047,6 +1118,25 @@ private struct Zeichner {
                 p.closeSubpath()
             }
             teil(g, lang, haar, 2.5)
+            teil(h, schnurr, haar, 2)
+        case 9:
+            // Fu-Manchu: mustache with two long strands drooping past the jaw.
+            teil(h, schnurr, haar, 2)
+            for seite in [CGFloat(-1), 1] {
+                let strang = strich(P(100 + seite * 15, 128), P(100 + seite * 12, 152))
+                linie(h, strang, haar.kontur, 4.5)
+                linie(h, strang, haar.farbe, 2.5)
+            }
+        case 10:
+            // Anker-Bart: mustache plus a thin chin stripe (anchor beard).
+            teil(h, schnurr, haar, 2)
+            teil(h, box(97, 128, 6, 24, 3), haar, 1.5)
+        case 11:
+            bartZone(h, innen: 126, deckung: 0.55)
+            teil(h, schnurr, haar, 2)
+        case 12:
+            // Backenbart mit Schnurrbart: sideburns connected to the mustache, no chin.
+            for x in [CGFloat(42), 146] { h.fill(box(x, 80, 14, 46, 4), with: .color(haar.farbe)) }
             teil(h, schnurr, haar, 2)
         default:
             for x in [CGFloat(42), 146] { h.fill(box(x, 80, 12, 40, 4), with: .color(haar.farbe)) }
@@ -1496,11 +1586,11 @@ private struct Zeichner {
 
     func brillen(_ g: GraphicsContext) {
         guard brille > 0 else { return }
-        let sonne = [3, 8, 9, 10].contains(brille)
+        let sonne = [3, 8, 9, 10, 11].contains(brille)
         let rahmen: Color
         switch brille {
-        case 7: rahmen = Pal.tinte.farbe.opacity(0.5)
-        case 8: rahmen = Pal.gold.mal(0.8).farbe
+        case 7, 12: rahmen = Pal.tinte.farbe.opacity(0.5)
+        case 8, 11: rahmen = Pal.gold.mal(0.8).farbe
         case 9: rahmen = Pal.rose.kontur
         default: rahmen = Pal.tinte.farbe
         }
@@ -1540,6 +1630,10 @@ private struct Zeichner {
                 p.addQuadCurve(to: P(60, 106), control: P(100, 116))
                 p.closeSubpath()
             }
+        case 11:
+            links = oval(P(80, 97), 20, 15)
+        case 12:
+            links = kreis(P(80, 98), 11)
         default:
             links = box(64, 86, 32, 25, 7)
         }
@@ -1550,7 +1644,7 @@ private struct Zeichner {
         case 10: glas = Pal.himmel.mal(0.7).farbe.opacity(0.9)
         default: glas = sonne ? Pal.tinte.farbe.opacity(0.9) : .white.opacity(0.15)
         }
-        let dicke: CGFloat = brille == 6 ? 5 : brille == 7 ? 1.4 : 3
+        let dicke: CGFloat = brille == 6 ? 5 : (brille == 7 || brille == 12) ? 1.4 : 3
         for l in glaeser { g.fill(l, with: .color(glas)) }
         if sonne {
             linie(g, strich(P(70, 92), P(78, 90)), .white.opacity(0.6), 2.5)
@@ -1649,6 +1743,30 @@ private struct Zeichner {
 
     // MARK: Poses
 
+    /// Z-23.3/Z-24.2: a bought pose/dance shows while the figure is just idling (Profil, Karte) —
+    /// it never fights a meaningful activity pose (typing, sleeping, …).
+    func poseUeberschreibung() -> (l: Arm?, r: Arm?)? {
+        guard let id = poseId else { return nil }
+        switch id {
+        case "pose.tanz1":
+            let s = w(6)
+            return (Arm(P(42, 216), P(46 + s * 10, 250)), Arm(P(158, 200), P(154 - s * 14, 150)))
+        case "pose.tanz2":
+            let s = w(5)
+            return (Arm(P(42, 200), P(30, 150 + s * 10)), Arm(P(158, 200), P(170, 150 - s * 10)))
+        case "pose.tanz3":
+            let s = w(7, 1.5)
+            return (Arm(P(50, 210), P(70 + s * 10, 190)), Arm(P(150, 210), P(130 - s * 10, 190)))
+        case "pose.tanz4":
+            let s = w(4)
+            return (Arm(P(40, 190 - s * 6), P(30, 140 - s * 10)), Arm(P(160, 190 + s * 6), P(170, 140 + s * 10)))
+        case "pose.model":
+            return (Arm(P(46, 216), P(66, 206)), Arm(P(160, 176), P(178, 130)))
+        default:
+            return nil
+        }
+    }
+
     func pose() -> (l: Arm?, r: Arm?) {
         let restL = Arm(P(42, 216), P(46, 252))
         let restR = Arm(P(158, 216), P(154, 252))
@@ -1721,7 +1839,9 @@ private struct Zeichner {
         case .pokal:
             return (Arm(P(50, 224), P(80, 206)), Arm(P(172, 160), P(168, 100)))
         default:
-            return (restL, restR)
+            // Z-23.3/Z-24.2: a bought pose/dance shows whenever nothing more specific is going on
+            // (Profil, Karte, "zuhause", …) — it never overrides a real activity pose above.
+            return poseUeberschreibung() ?? (restL, restR)
         }
     }
 
@@ -2292,6 +2412,8 @@ extension Zeichner {
         let hand: CGFloat = 10 * m.arm
         teil(u, kreis(arme.l.hand, hand), haut, 2.5)
         teil(u, kreis(arme.r.hand, hand), haut, 2.5)
+        zubehoerGanz(u, arme, m)
+        if let id = tierId { zeichneHaustier(g, id: id, boden: P(174, Masse.fussY), groesse: 0.8) }
         auto(g, m, oben)
         switch z {
         case .laeuft, .rennt, .rad: tempoStriche(g, m.schulterY + oben)
@@ -2299,6 +2421,17 @@ extension Zeichner {
         default: effekte(k)
         }
         abzeichenVorn(k)
+    }
+
+    /// Z-24.2: worn shop parts, scaled like `jackeZeichnen`'s `s: 0.66` onto the full-body torso.
+    func zubehoerGanz(_ g: GraphicsContext, _ arme: (l: Arm, r: Arm), _ m: Masse) {
+        let s: CGFloat = 0.66
+        if let id = tascheId { zeichneTasche(g, id: id, an: arme.r.hand, groesse: s) }
+        if let id = uhrId {
+            // Wrist, not the hand itself — a hand-centered watch would just replace the hand circle.
+            zeichneUhr(g, id: id, an: zwischen(arme.l.ellbogen, arme.l.hand, 0.72), groesse: s)
+        }
+        if let id = schmuckId { zeichneSchmuck(g, id: id, hals: P(100, m.schulterY - 6), groesse: s) }
     }
 
     func masse() -> Masse {
@@ -2382,6 +2515,9 @@ extension Zeichner {
     }
 
     var hosenFarbe: FigurFarbe {
+        // ponytail: 0/1/2 are named denim washes, not freely dyeable — a picked swatch is ignored
+        // there for v2 back-compat, but a free hex color (Z-24.1) always wins.
+        if hosenHexAktiv { return hoseF }
         switch hose {
         case 0, 2: FigurFarbe(0x9DB8D9)
         case 1: FigurFarbe(0x34507A)
@@ -2469,6 +2605,17 @@ extension Zeichner {
                 let x: CGFloat = mp.x + s.seite * b * 0.25 - 6
                 teil(g, box(x, mp.y - 8, 12, 16, 3), farbe.mal(0.88), 1.8)
             }
+        case 10:
+            // Anzughose: crease line plus a thin belt at the waist.
+            for bn in [l, r] { linie(g, strich(P(bn.h.x, bn.h.y + 14), P(bn.f.x, bn.f.y - 4)), farbe.kontur.opacity(0.4), 1.2) }
+            linie(g, strich(P(100 - m.h, hy - 8), P(100 + m.h, hy - 8)), Pal.dunkel.farbe, 3)
+        case 11:
+            // Glitzerhose: scattered sparkles over the whole leg.
+            for i in 0..<10 {
+                let bn = i % 2 == 0 ? l : r
+                let y = bn.h.y + CGFloat(i) * 8 + 6
+                g.fill(funkel(P(bn.h.x + (i % 3 == 0 ? -6 : 6), y), 2.5), with: .color(.white.opacity(0.8)))
+            }
         default:
             break
         }
@@ -2509,6 +2656,16 @@ extension Zeichner {
             teil(g, box(x - 12, y - 3, 24, 13, 6), c, 3)
             g.fill(box(x - 7, y, 14, 4, 2), with: .color(c.mal(0.75).farbe))
             g.fill(box(x - 12, y + 8, 24, 3, 1.5), with: .color(c.mal(0.55).farbe))
+        case 8:
+            // Logo-Sneaker: base sneaker plus a diagonal side swoosh.
+            teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
+            g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
+            linie(g, bogen(P(x - 9, y + 3), P(x + 6, y - 4), P(x - 3, y - 2)), Pal.gold.farbe, 2.5)
+        case 9:
+            // Two-Tone-Sneaker: base sneaker with a contrasting toe cap.
+            teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
+            teil(g, box(x - 12, y - 5, 11, 15, 7), c.mix(Pal.weiss, 0.35), 2)
+            g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
         default:
             teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
             g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
@@ -2596,6 +2753,30 @@ extension Zeichner {
 
     // MARK: Arms and props
 
+    /// Full-body counterpart to `poseUeberschreibung()` — same pose ids, coordinates in body space.
+    func poseGanzUeberschreibung(_ m: Masse) -> (l: Arm, r: Arm)? {
+        guard let id = poseId else { return nil }
+        let lx: CGFloat = 100 - m.s + 6, rx: CGFloat = 100 + m.s - 6, y = m.schulterY
+        switch id {
+        case "pose.tanz1":
+            let s = w(6)
+            return (Arm(P(lx - 6, y + 50), P(lx - 4, y + 92)), Arm(P(rx + 10, y + 10 - s * 10), P(rx + 30, y - 30 + s * 14)))
+        case "pose.tanz2":
+            let s = w(5)
+            return (Arm(P(lx - 20, y + 10 - s * 8), P(lx - 40, y - 20 + s * 10)), Arm(P(rx + 20, y + 10 + s * 8), P(rx + 40, y - 20 - s * 10)))
+        case "pose.tanz3":
+            let s = w(7, 1.5)
+            return (Arm(P(lx - 10, y + 40), P(lx - 30 + s * 10, y + 10)), Arm(P(rx + 10, y + 40), P(rx + 30 - s * 10, y + 10)))
+        case "pose.tanz4":
+            let s = w(4)
+            return (Arm(P(lx - 10, y + 10 - s * 6), P(lx - 30, y - 30 - s * 10)), Arm(P(rx + 10, y + 10 + s * 6), P(rx + 30, y - 30 + s * 10)))
+        case "pose.model":
+            return (Arm(P(lx - 4, y + 48), P(86, y + 84)), Arm(P(rx + 20, y - 4), P(rx + 34, y - 40)))
+        default:
+            return nil
+        }
+    }
+
     func poseGanz(_ m: Masse) -> (l: Arm, r: Arm) {
         let lx: CGFloat = 100 - m.s + 6
         let rx: CGFloat = 100 + m.s - 6
@@ -2647,7 +2828,9 @@ extension Zeichner {
         case .zuhause, .schule, .schautVideo, .ruhe:
             return (Arm(P(lx - 6, y + 48), P(86, y + 84)), Arm(P(rx + 6, y + 48), P(114, y + 84)))
         default:
-            return (restL, restR)
+            // Z-23.3/Z-24.2: a bought pose/dance shows whenever nothing more specific is going on
+            // (Profil, Karte, "ruhig", …) — it never overrides a real activity pose above.
+            return poseGanzUeberschreibung(m) ?? (restL, restR)
         }
     }
 

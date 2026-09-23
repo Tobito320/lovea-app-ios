@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Bitmoji-style figure builder: big live full-body preview (zooms to the head for face categories),
 /// category bar, option tiles drawn with the figure itself, color swatches, dice. The caller sends `figur.aussehen` in `onSave`.
@@ -13,6 +14,10 @@ struct FigurEditor: View {
         self.onSave = onSave
     }
 
+    /// Z-24.1: gender filter is fixed per person, no switch in this editor — derived from the own
+    /// account rather than a parameter, so callers (Profil, Einstellungen) stay unchanged.
+    private var person: Person { Raum.shared.ich ?? .ahmed }
+
     private static let akzent = Color(red: 1, green: 59 / 255, blue: 92 / 255)
 
     /// How an option tile shows the figure.
@@ -25,8 +30,10 @@ struct FigurEditor: View {
     }
 
     fileprivate enum Abschnitt {
-        case optionen(String, WritableKeyPath<FigurAussehen, Int>, [String], Kachel)
-        case farben(String, WritableKeyPath<FigurAussehen, Int>, [Farbwahl])
+        /// `erlaubte`: indices this person may pick (gender + shop filter), `nil` = every index.
+        case optionen(String, WritableKeyPath<FigurAussehen, Int>, [String], Kachel, erlaubte: [Int]?)
+        /// `hexPfad`: free-color override field, `nil` = swatches only (no `ColorPicker`).
+        case farben(String, WritableKeyPath<FigurAussehen, Int>, [Farbwahl], hexPfad: WritableKeyPath<FigurAussehen, String?>?)
         case schalter(String, WritableKeyPath<FigurAussehen, Bool>)
     }
 
@@ -44,53 +51,70 @@ struct FigurEditor: View {
             }
         }
 
-        var abschnitte: [Abschnitt] {
+        /// Bart only makes sense for Ahmed (männlich) — Annika would see just "Keiner".
+        static func sichtbar(fuer person: Person) -> [Kategorie] {
+            person.figurGeschlecht == .m ? allCases : allCases.filter { $0 != .bart }
+        }
+
+        func abschnitte(fuer person: Person) -> [Abschnitt] {
             typealias A = FigurAussehen
             let kleidung = A.farben.map { Farbwahl(name: $0.name, farbe: $0.farbe) }
             switch self {
             case .gesicht:
                 return [
-                    .optionen("Gesichtsform", \.gesichtsform, A.gesichtsformen, .gesicht),
-                    .farben("Hautton", \.haut, A.hautToene.map { Farbwahl(name: $0.name, farbe: $0.farbe) }),
-                    .optionen("Nase", \.nase, A.nasen, .gesicht),
-                    .optionen("Mund", \.mund, A.muender, .gesicht),
+                    .optionen("Gesichtsform", \.gesichtsform, A.gesichtsformen, .gesicht, erlaubte: nil),
+                    .farben("Hautton", \.haut, A.hautToene.map { Farbwahl(name: $0.name, farbe: $0.farbe) }, hexPfad: nil),
+                    .optionen("Nase", \.nase, A.nasen, .gesicht, erlaubte: nil),
+                    .optionen("Mund", \.mund, A.muender, .gesicht, erlaubte: nil),
                     .schalter("Sommersprossen", \.sommersprossen),
                     .schalter("Muttermal", \.muttermal),
                     .schalter("Rouge", \.rouge),
                 ]
             case .haare:
                 return [
-                    .optionen("Frisur", \.frisur, A.frisuren, .kopf),
-                    .farben("Haarfarbe", \.haarfarbe, A.haarfarben.map { Farbwahl(name: $0.name, farbe: $0.farbe, straehne: $0.straehne) }),
+                    .optionen("Frisur", \.frisur, A.frisuren, .kopf, erlaubte: A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person)),
+                    .farben("Haarfarbe", \.haarfarbe, A.haarfarben.map { Farbwahl(name: $0.name, farbe: $0.farbe, straehne: $0.straehne) }, hexPfad: \.haarfarbeHex),
                 ]
             case .augen:
                 return [
-                    .optionen("Augenform", \.augenform, A.augenformen, .gesicht),
-                    .farben("Augenfarbe", \.augen, A.augenfarben.map { Farbwahl(name: $0.name, farbe: $0.farbe) }),
-                    .optionen("Augenbrauen", \.brauen, A.augenbrauen, .gesicht),
+                    .optionen("Augenform", \.augenform, A.augenformen, .gesicht, erlaubte: nil),
+                    .farben("Augenfarbe", \.augen, A.augenfarben.map { Farbwahl(name: $0.name, farbe: $0.farbe) }, hexPfad: nil),
+                    .optionen("Augenbrauen", \.brauen, A.augenbrauen, .gesicht, erlaubte: nil),
                     .schalter("Wimpern", \.wimpern),
                 ]
             case .bart:
-                return [.optionen("Bart", \.bart, A.baerte, .gesicht)]
+                return [.optionen("Bart", \.bart, A.baerte, .gesicht, erlaubte: A.erlaubt(A.baerte, geschlecht: A.baerteGeschlecht, fuer: person))]
             case .oberteil:
-                return [.optionen("Oberteil", \.oberteil, A.oberteile, .koerper), .farben("Farbe", \.oberteilfarbe, kleidung)]
+                return [
+                    .optionen("Oberteil", \.oberteil, A.oberteile, .koerper, erlaubte: A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person)),
+                    .farben("Farbe", \.oberteilfarbe, kleidung, hexPfad: \.oberteilfarbeHex),
+                ]
             case .jacke:
-                return [.optionen("Jacke", \.jacke, A.jacken, .koerper), .farben("Farbe", \.jackenfarbe, kleidung)]
+                return [
+                    .optionen("Jacke", \.jacke, A.jacken, .koerper, erlaubte: A.erlaubt(A.jacken, shop: A.jackenShop, fuer: person)),
+                    .farben("Farbe", \.jackenfarbe, kleidung, hexPfad: \.jackenfarbeHex),
+                ]
             case .hose:
-                return [.optionen("Hose oder Rock", \.hose, A.hosen, .koerper), .farben("Farbe", \.hosenfarbe, kleidung)]
+                return [
+                    .optionen("Hose oder Rock", \.hose, A.hosen, .koerper, erlaubte: A.erlaubt(A.hosen, geschlecht: A.hosenGeschlecht, shop: A.hosenShop, fuer: person)),
+                    .farben("Farbe", \.hosenfarbe, kleidung, hexPfad: \.hosenfarbeHex),
+                ]
             case .schuhe:
-                return [.optionen("Schuhe", \.schuhe, A.schuhArten, .koerper), .farben("Farbe", \.schuhfarbe, kleidung)]
+                return [
+                    .optionen("Schuhe", \.schuhe, A.schuhArten, .koerper, erlaubte: A.erlaubt(A.schuhArten, shop: A.schuheShop, fuer: person)),
+                    .farben("Farbe", \.schuhfarbe, kleidung, hexPfad: \.schuhfarbeHex),
+                ]
             case .accessoires:
                 return [
-                    .optionen("Brille", \.brille, A.brillen, .gesicht),
-                    .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht),
-                    .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf),
-                    .farben("Farbe der Kopfbedeckung", \.muetzenfarbe, kleidung),
+                    .optionen("Brille", \.brille, A.brillen, .gesicht, erlaubte: A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person)),
+                    .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht, erlaubte: nil),
+                    .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf, erlaubte: nil),
+                    .farben("Farbe der Kopfbedeckung", \.muetzenfarbe, kleidung, hexPfad: nil),
                 ]
             case .koerper:
                 return [
-                    .optionen("Körperform", \.koerperform, A.koerperformen, .koerperMitName),
-                    .optionen("Größe", \.groesse, A.groessen, .koerperMitName),
+                    .optionen("Körperform", \.koerperform, A.koerperformen, .koerperMitName, erlaubte: nil),
+                    .optionen("Größe", \.groesse, A.groessen, .koerperMitName, erlaubte: nil),
                 ]
             }
         }
@@ -101,7 +125,7 @@ struct FigurEditor: View {
             vorschau
             kategorienLeiste
             Divider()
-            let liste = kategorie.abschnitte
+            let liste = kategorie.abschnitte(fuer: person)
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     ForEach(liste.indices, id: \.self) { i in
@@ -125,6 +149,9 @@ struct FigurEditor: View {
         .sensoryFeedback(.selection, trigger: aussehen)
         .sensoryFeedback(.selection, trigger: kategorie)
         .sensoryFeedback(.impact(weight: .medium), trigger: wuerfe)
+        .onAppear {
+            if !Kategorie.sichtbar(fuer: person).contains(kategorie) { kategorie = .gesicht }
+        }
     }
 
     private var vorschau: some View {
@@ -154,7 +181,7 @@ struct FigurEditor: View {
     private var kategorienLeiste: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Kategorie.allCases) { k in
+                ForEach(Kategorie.sichtbar(fuer: person)) { k in
                     Button(k.rawValue) {
                         withAnimation(.snappy) { kategorie = k }
                     }
@@ -175,15 +202,15 @@ struct FigurEditor: View {
     @ViewBuilder
     private func abschnitt(_ a: Abschnitt) -> some View {
         switch a {
-        case let .optionen(titel, pfad, namen, kachel):
+        case let .optionen(titel, pfad, namen, kachel, erlaubte):
             VStack(alignment: .leading, spacing: 10) {
                 Text(titel).font(.headline)
-                kacheln(pfad, namen, kachel)
+                kacheln(pfad, namen, kachel, erlaubte ?? Array(namen.indices))
             }
-        case let .farben(titel, pfad, liste):
+        case let .farben(titel, pfad, liste, hexPfad):
             VStack(alignment: .leading, spacing: 10) {
                 Text(titel).font(.headline)
-                farbReihe(pfad, liste)
+                farbReihe(pfad, liste, hexPfad)
             }
         case let .schalter(titel, pfad):
             Toggle(titel, isOn: $aussehen[dynamicMember: pfad])
@@ -198,9 +225,9 @@ struct FigurEditor: View {
         return a
     }
 
-    private func kacheln(_ pfad: WritableKeyPath<FigurAussehen, Int>, _ namen: [String], _ kachel: Kachel) -> some View {
+    private func kacheln(_ pfad: WritableKeyPath<FigurAussehen, Int>, _ namen: [String], _ kachel: Kachel, _ erlaubte: [Int]) -> some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 76), spacing: 10)], spacing: 10) {
-            ForEach(namen.indices, id: \.self) { i in
+            ForEach(erlaubte, id: \.self) { i in
                 let gewaehlt = aussehen[keyPath: pfad] == i
                 Button {
                     aussehen[keyPath: pfad] = i
@@ -242,13 +269,15 @@ struct FigurEditor: View {
         }
     }
 
-    private func farbReihe(_ pfad: WritableKeyPath<FigurAussehen, Int>, _ liste: [Farbwahl]) -> some View {
+    private func farbReihe(_ pfad: WritableKeyPath<FigurAussehen, Int>, _ liste: [Farbwahl], _ hexPfad: WritableKeyPath<FigurAussehen, String?>?) -> some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 6) {
                 ForEach(liste.indices, id: \.self) { i in
-                    let gewaehlt = aussehen[keyPath: pfad] == i
+                    let hexAktiv = hexPfad.map { aussehen[keyPath: $0] != nil } ?? false
+                    let gewaehlt = !hexAktiv && aussehen[keyPath: pfad] == i
                     Button {
                         aussehen[keyPath: pfad] = i
+                        if let hexPfad { aussehen[keyPath: hexPfad] = nil }
                     } label: {
                         Circle()
                             .fill(liste[i].farbe.farbe)
@@ -268,30 +297,69 @@ struct FigurEditor: View {
                     .accessibilityLabel(liste[i].name)
                     .accessibilityAddTraits(gewaehlt ? .isSelected : [])
                 }
+                if let hexPfad {
+                    freieFarbe(pfad, liste, hexPfad)
+                }
             }
             .padding(.vertical, 2)
         }
     }
 
-    /// New look: hair, clothes and accessories; face, skin and body stay.
+    /// Z-24.1: free color picker for Haare/Kleidung — writes a hex string, clearing it falls back
+    /// to the swatch index above.
+    private func freieFarbe(_ pfad: WritableKeyPath<FigurAussehen, Int>, _ liste: [Farbwahl], _ hexPfad: WritableKeyPath<FigurAussehen, String?>) -> some View {
+        let hexAktiv = aussehen[keyPath: hexPfad]
+        let binding = Binding<Color>(
+            get: {
+                if let hexAktiv, let f = FigurFarbe(hex: hexAktiv) { return f.farbe }
+                let i = min(max(aussehen[keyPath: pfad], 0), liste.count - 1)
+                return liste[i].farbe.farbe
+            },
+            set: { neu in aussehen[keyPath: hexPfad] = hexVon(neu) }
+        )
+        return ColorPicker("Freie Farbe", selection: binding, supportsOpacity: false)
+            .labelsHidden()
+            .frame(width: 38, height: 38)
+            .padding(4)
+            .overlay(Circle().strokeBorder(hexAktiv != nil ? Self.akzent : Color.clear, lineWidth: 3))
+            .frame(width: 48, height: 48)
+            .accessibilityLabel("Freie Farbe wählen")
+    }
+
+    /// `ColorPicker` can hand back extended-sRGB/P3 components outside 0...1 — clamp before hex.
+    private func hexVon(_ farbe: Color) -> String {
+        let ui = UIColor(farbe)
+        var r: CGFloat = 0, g: CGFloat = 0, b: CGFloat = 0, a: CGFloat = 0
+        ui.getRed(&r, green: &g, blue: &b, alpha: &a)
+        func kanal(_ x: CGFloat) -> String { String(format: "%02X", Int((min(max(x, 0), 1) * 255).rounded())) }
+        return kanal(r) + kanal(g) + kanal(b)
+    }
+
+    /// New look: hair, clothes and accessories; face, skin and body stay. Only picks options this
+    /// person's gender filter allows, and never a shop-only item (that would make buying pointless).
     private func zufall() {
         typealias A = FigurAussehen
-        func eins(_ n: Int) -> Int { Int.random(in: 0..<n) }
-        func oftKeins(_ n: Int) -> Int { Bool.random() ? 0 : eins(n) }
+        func eins(_ erlaubte: [Int]) -> Int { erlaubte.randomElement() ?? 0 }
+        func oftKeins(_ erlaubte: [Int]) -> Int { Bool.random() ? 0 : eins(erlaubte) }
         var a = aussehen
-        a.frisur = eins(A.frisuren.count)
-        a.haarfarbe = eins(A.haarfarben.count)
-        a.oberteil = eins(A.oberteile.count)
-        a.oberteilfarbe = eins(A.farben.count)
-        a.jacke = oftKeins(A.jacken.count)
-        a.jackenfarbe = eins(A.farben.count)
-        a.hose = eins(A.hosen.count)
-        a.hosenfarbe = eins(A.farben.count)
-        a.schuhe = eins(A.schuhArten.count)
-        a.schuhfarbe = eins(A.farben.count)
-        a.kopfbedeckung = oftKeins(A.kopfbedeckungen.count)
-        a.muetzenfarbe = eins(A.farben.count)
-        a.brille = oftKeins(A.brillen.count)
+        a.frisur = eins(A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person))
+        a.haarfarbe = eins(Array(A.haarfarben.indices))
+        a.haarfarbeHex = nil
+        a.oberteil = eins(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person))
+        a.oberteilfarbe = eins(Array(A.farben.indices))
+        a.oberteilfarbeHex = nil
+        a.jacke = oftKeins(A.erlaubt(A.jacken, shop: A.jackenShop, fuer: person))
+        a.jackenfarbe = eins(Array(A.farben.indices))
+        a.jackenfarbeHex = nil
+        a.hose = eins(A.erlaubt(A.hosen, geschlecht: A.hosenGeschlecht, shop: A.hosenShop, fuer: person))
+        a.hosenfarbe = eins(Array(A.farben.indices))
+        a.hosenfarbeHex = nil
+        a.schuhe = eins(A.erlaubt(A.schuhArten, shop: A.schuheShop, fuer: person))
+        a.schuhfarbe = eins(Array(A.farben.indices))
+        a.schuhfarbeHex = nil
+        a.kopfbedeckung = oftKeins(Array(A.kopfbedeckungen.indices))
+        a.muetzenfarbe = eins(Array(A.farben.indices))
+        a.brille = oftKeins(A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person))
         withAnimation(.snappy) { aussehen = a }
         wuerfe += 1
     }
