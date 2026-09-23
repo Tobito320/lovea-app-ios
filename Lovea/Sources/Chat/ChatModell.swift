@@ -32,7 +32,9 @@ final class ChatModell {
     }
 
     // Blocks 5/6 extend these; fields already match the op payloads in schnittstellen.md.
-    struct MedienEintrag: Codable, Sendable, Equatable { let id: String; let typ: String; let breite: Double; let hoehe: Double; var dauer: Double? }
+    // `pegel` (Z-5.2 waveform, ≤64 dB-derived values) is an extra field beyond schnittstellen.md,
+    // fine per Block 5's decision — Optional, so older `nachricht.neu` payloads decode unchanged.
+    struct MedienEintrag: Codable, Sendable, Equatable { let id: String; let typ: String; let breite: Double; let hoehe: Double; var dauer: Double?; var pegel: [Float]? }
     struct SnapInfo: Codable, Sendable, Equatable { let bleibt: Bool }
     struct GifInfo: Codable, Sendable, Equatable { let url: String; let breite: Double; let hoehe: Double }
     struct StickerInfo: Codable, Sendable, Equatable { let medienId: String }
@@ -41,6 +43,9 @@ final class ChatModell {
     private(set) var nachrichten: [Nachricht] = []
     private(set) var gelesenBis: [Person: Date] = [:]
     private(set) var letzteAktivitaet: [Person: Date] = [:]
+    /// Voice message transcripts (Z-5.2), keyed by the medium's `id`. Kept out of `Nachricht`
+    /// because that struct's init is called positionally all over this file and its tests.
+    private(set) var abschriften: [String: String] = [:]
 
     private var byID: [String: Nachricht] = [:]
     private let registrieren: Bool
@@ -48,6 +53,7 @@ final class ChatModell {
     static let arten: Set<String> = [
         "nachricht.neu", "nachricht.bearbeitet", "nachricht.geloescht", "nachricht.reaktion",
         "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern",
+        "medium.abschrift",
     ]
 
     init(registrieren: Bool = true) {
@@ -110,6 +116,9 @@ final class ChatModell {
             // only ever shows a person their own stars (see `meineSterne`).
             guard let p = op.daten(SternPayload.self) else { return }
             if p.an { byID[p.id]?.gesternt.insert(op.von) } else { byID[p.id]?.gesternt.remove(op.von) }
+        case "medium.abschrift":
+            guard let p = op.daten(AbschriftPayload.self) else { return }
+            abschriften[p.id] = p.text
         default:
             break
         }
@@ -174,6 +183,35 @@ final class ChatModell {
         Raum.shared.senden("stern", SternPayload(id: id, an: an))
     }
 
+    // MARK: - Sending media (Z-5.1/Z-5.2/Z-5.3/Z-5.5)
+
+    /// One or more media entries (multi-photo select shares one `nachricht.neu`, Z-5.1).
+    @discardableResult
+    func medienSenden(_ medien: [MedienEintrag], antwortAuf: String? = nil) -> String {
+        let id = UUID().uuidString
+        Raum.shared.senden("nachricht.neu", NachrichtNeuPayload(id: id, medien: medien, antwortAuf: antwortAuf))
+        return id
+    }
+
+    func gifSenden(url: String, breite: Double, hoehe: Double, antwortAuf: String? = nil) {
+        Raum.shared.senden(
+            "nachricht.neu",
+            NachrichtNeuPayload(id: UUID().uuidString, antwortAuf: antwortAuf, gif: GifInfo(url: url, breite: breite, hoehe: hoehe))
+        )
+    }
+
+    func stickerSenden(medienId: String, antwortAuf: String? = nil) {
+        Raum.shared.senden(
+            "nachricht.neu",
+            NachrichtNeuPayload(id: UUID().uuidString, antwortAuf: antwortAuf, sticker: StickerInfo(medienId: medienId))
+        )
+    }
+
+    /// Voice-message transcript (Z-5.2), attached after the message itself is already sent.
+    func abschriftSenden(medienId: String, text: String) {
+        Raum.shared.senden("medium.abschrift", AbschriftPayload(id: medienId, text: text))
+    }
+
     // MARK: - ISO dates for `bis` fields (Op itself formats `zeit` the same way, but keeps that formatter private)
 
     private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
@@ -209,3 +247,4 @@ private struct ReaktionPayload: Codable { let id: String; let emoji: String? }
 private struct GelesenPayload: Codable { let bis: String }
 private struct AngeheftetPayload: Codable { let id: String; let bis: String? }
 private struct SternPayload: Codable { let id: String; let an: Bool }
+private struct AbschriftPayload: Codable { let id: String; let text: String }
