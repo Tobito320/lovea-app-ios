@@ -30,6 +30,7 @@ final class SnapKameraSteuerung: NSObject {
         session.beginConfiguration()
         session.sessionPreset = .high
         einrichtenEingang(position: position)
+        einrichtenAudioEingang()
         if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
         if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
         session.commitConfiguration()
@@ -49,10 +50,19 @@ final class SnapKameraSteuerung: NSObject {
         session.stopRunning()
     }
 
+    /// Camera access is required; microphone (Z-6.1 videos have sound) is requested too but a "no"
+    /// there doesn't block the camera itself — it just records silent video, same as the system
+    /// Camera app does when mic access is denied.
     private func berechtigung() async -> Bool {
-        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        let kamera = await berechtigungFuer(.video)
+        _ = await berechtigungFuer(.audio)
+        return kamera
+    }
+
+    private func berechtigungFuer(_ typ: AVMediaType) async -> Bool {
+        switch AVCaptureDevice.authorizationStatus(for: typ) {
         case .authorized: true
-        case .notDetermined: await AVCaptureDevice.requestAccess(for: .video)
+        case .notDetermined: await AVCaptureDevice.requestAccess(for: typ)
         default: false
         }
     }
@@ -67,6 +77,14 @@ final class SnapKameraSteuerung: NSObject {
         eingang = neuerEingang
         self.position = position
         zoom = 1
+    }
+
+    private func einrichtenAudioEingang() {
+        guard let geraet = AVCaptureDevice.default(for: .audio),
+              let eingang = try? AVCaptureDeviceInput(device: geraet),
+              session.canAddInput(eingang)
+        else { return }
+        session.addInput(eingang)
     }
 
     func kameraWechseln() {
@@ -91,6 +109,15 @@ final class SnapKameraSteuerung: NSObject {
         verbindung.videoRotationAngle = 90
     }
 
+    /// The front camera has no flash — `capturePhoto` throws if `flashMode` isn't one of
+    /// `supportedFlashModes`, so this checks rather than assuming `.on` always works.
+    private func taschenlampeSchalten(an: Bool) {
+        guard let geraet = eingang?.device, geraet.hasTorch, geraet.isTorchModeSupported(an ? .on : .off) else { return }
+        try? geraet.lockForConfiguration()
+        geraet.torchMode = an ? .on : .off
+        geraet.unlockForConfiguration()
+    }
+
     // MARK: - Foto (Z-6.1: Tippen)
 
     func fotoAufnehmen() async -> UIImage? {
@@ -98,7 +125,7 @@ final class SnapKameraSteuerung: NSObject {
         return await withCheckedContinuation { continuation in
             fotoContinuation = continuation
             let einstellungen = AVCapturePhotoSettings()
-            einstellungen.flashMode = blitzAn ? .on : .off
+            einstellungen.flashMode = blitzAn && photoOutput.supportedFlashModes.contains(.on) ? .on : .off
             photoOutput.capturePhoto(with: einstellungen, delegate: self)
         }
     }
@@ -107,6 +134,7 @@ final class SnapKameraSteuerung: NSObject {
 
     func videoStarten() async -> URL? {
         aufAufrechtAusrichten(movieOutput.connection(with: .video))
+        if blitzAn { taschenlampeSchalten(an: true) }
         movieOutput.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
         return await withCheckedContinuation { continuation in
             videoContinuation = continuation
@@ -148,6 +176,7 @@ extension SnapKameraSteuerung: AVCaptureFileOutputRecordingDelegate {
             nimmtVideoAuf = false
             fortschrittTask?.cancel()
             videoFortschritt = 0
+            taschenlampeSchalten(an: false)
             videoContinuation?.resume(returning: erfolgreich ? outputFileURL : nil)
             videoContinuation = nil
         }
@@ -214,9 +243,13 @@ struct SnapKameraView: View {
     private var obereLeiste: some View {
         HStack {
             Button { onAbbrechen() } label: { Image(systemName: "xmark") }
+                .accessibilityLabel("Abbrechen")
             Spacer()
             Button { steuerung.blitzAn.toggle() } label: { Image(systemName: steuerung.blitzAn ? "bolt.fill" : "bolt.slash.fill") }
+                .accessibilityLabel("Blitz")
+                .accessibilityValue(steuerung.blitzAn ? "an" : "aus")
             Button { steuerung.kameraWechseln() } label: { Image(systemName: "arrow.triangle.2.circlepath.camera") }
+                .accessibilityLabel("Kamera wechseln")
         }
         .font(.title2)
         .foregroundStyle(.white)
@@ -234,6 +267,8 @@ struct SnapKameraView: View {
             Circle().fill(.white).frame(width: 62, height: 62)
         }
         .contentShape(Circle())
+        .accessibilityLabel("Auslöser")
+        .accessibilityHint("Tippen für ein Foto, halten für ein Video")
         // One `DragGesture(minimumDistance: 0)` covers tap, hold-to-record AND the drag-up-to-zoom
         // while recording — deliberately not `onLongPressGesture` + a second `simultaneousGesture`:
         // `onLongPressGesture`'s `maximumDistance` cancels the whole press once the same finger

@@ -26,7 +26,9 @@ struct SnapViewer: View {
         ZStack {
             Color.black.ignoresSafeArea()
             if let spieler {
-                VideoPlayer(player: spieler).ignoresSafeArea()
+                // `.allowsHitTesting(false)` — otherwise `VideoPlayer`'s own controls swallow the
+                // tap this view uses to dismiss, and a first tap just pauses/plays instead.
+                VideoPlayer(player: spieler).ignoresSafeArea().allowsHitTesting(false)
             } else if let bild {
                 Image(uiImage: bild).resizable().scaledToFit()
             } else {
@@ -65,7 +67,9 @@ struct SnapViewer: View {
     private func anzeigen(_ url: URL) {
         begonnen = Date()
         if istVideo {
-            spieler = AVPlayer(url: url)
+            let player = AVPlayer(url: url)
+            spieler = player
+            player.play()
         } else {
             bild = UIImage(contentsOfFile: url.path)
         }
@@ -80,6 +84,9 @@ struct SnapViewer: View {
     }
 
     private func aufnahmeMelden(art: String) {
+        // Spec 6: the notice is for the sender ("X hat einen Screenshot gemacht") — the sender
+        // previewing their own still-unviewed snap and screenshotting it is not that.
+        guard binEmpfaenger else { return }
         // ponytail: at most one `snap.aufnahme` per type per viewing (not one per screenshot) —
         // enough to notify without spamming the chat if someone mashes the screenshot shortcut.
         guard gemeldeteAufnahmeArten.insert(art).inserted else { return }

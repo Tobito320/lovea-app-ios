@@ -6,15 +6,18 @@ import UIKit
 /// (Z-6.2). Manual `UIGraphicsImageRenderer`/`AVVideoCompositionCoreAnimationTool` compositing is
 /// restricted to files named `*Export.swift` (mirrors Drawing's own export rule) — this is that file.
 enum SnapExport {
+    /// Capped to the same long edge Z-5.1's `klein` derives from — flattening a full-resolution
+    /// (often 12+ MP) photo on the main thread would freeze the UI for real (global.md: "Main
+    /// Thread frei"), and nothing about a Snap needs the camera's native resolution.
     @MainActor
     static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText) -> UIImage {
-        let groesse = quelle.size
+        let groesse = MedienKodierung.skaliert(quelle.size, langeKante: 2048)
         let renderer = ImageRenderer(content: SnapUeberlagerung(linien: linien, sticker: sticker, text: text, groesse: groesse))
-        renderer.scale = quelle.scale
+        renderer.scale = 1
         let overlayBild = renderer.uiImage
 
         let format = UIGraphicsImageRendererFormat()
-        format.scale = quelle.scale
+        format.scale = 1
         return UIGraphicsImageRenderer(size: groesse, format: format).image { _ in
             quelle.draw(in: CGRect(origin: .zero, size: groesse))
             overlayBild?.draw(in: CGRect(origin: .zero, size: groesse))

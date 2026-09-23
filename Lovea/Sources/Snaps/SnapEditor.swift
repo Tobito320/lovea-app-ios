@@ -235,10 +235,15 @@ struct SnapEditor: View {
     private var obereLeiste: some View {
         HStack {
             Button { onFertig() } label: { Image(systemName: "xmark") }
+                .accessibilityLabel("Abbrechen")
             Spacer()
             Button { textBearbeitenOffen = true } label: { Image(systemName: "textformat") }
+                .accessibilityLabel("Text hinzufügen")
             Button { zeichnenAktiv.toggle() } label: { Image(systemName: zeichnenAktiv ? "pencil.circle.fill" : "pencil.circle") }
+                .accessibilityLabel("Kritzeln")
+                .accessibilityValue(zeichnenAktiv ? "an" : "aus")
             Button { stickerBlattOffen = true } label: { Image(systemName: "face.smiling") }
+                .accessibilityLabel("Sticker hinzufügen")
         }
         .font(.title2)
         .foregroundStyle(.white)
@@ -276,6 +281,7 @@ struct SnapEditor: View {
                 }
             }
             .disabled(sendetGerade)
+            .accessibilityLabel("Senden")
         }
         .padding()
         .background(.black.opacity(0.35))
@@ -283,31 +289,25 @@ struct SnapEditor: View {
 
     // MARK: - Send (Z-6.2: flatten, then reuse Block 5's upload helpers)
 
+    /// Dismisses as soon as the flatten step is done and the op is queued — NOT after the network
+    /// upload finishes, which `ChatMedien.snapFotoSenden`/`snapVideoSenden` would otherwise make
+    /// this whole function (and the spinner) wait on for a possibly large file.
     private func senden() {
         guard !sendetGerade else { return }
         sendetGerade = true
-        Task {
-            switch inhalt {
-            case .foto(let bild):
-                let flach = SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text)
-                if let png = flach.pngData() {
-                    await ChatMedien.snapFotoSenden(
-                        png: png, breite: flach.size.width * flach.scale, hoehe: flach.size.height * flach.scale,
-                        bleibt: bleibt, antwortAuf: antwortAuf
-                    )
-                }
-            case .video(let url):
-                if let exportURL = await SnapExport.video(quelle: url, linien: linien, sticker: sticker, text: text) {
-                    let asset = AVURLAsset(url: exportURL)
-                    let dauer = (try? await asset.load(.duration))?.seconds ?? 0
-                    var groesse = CGSize.zero
-                    if let spur = try? await asset.loadTracks(withMediaType: .video).first, let natural = try? await spur.load(.naturalSize) {
-                        groesse = natural
-                    }
-                    await ChatMedien.snapVideoSenden(quelle: exportURL, breite: groesse.width, hoehe: groesse.height, dauer: dauer, bleibt: bleibt, antwortAuf: antwortAuf)
-                }
+        switch inhalt {
+        case .foto(let bild):
+            let flach = SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text)
+            if let jpeg = flach.jpegData(compressionQuality: 0.85) {
+                Task { await ChatMedien.snapFotoSenden(jpeg: jpeg, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
             onFertig()
+        case .video(let url):
+            Task {
+                defer { onFertig() }
+                guard let exportURL = await SnapExport.video(quelle: url, linien: linien, sticker: sticker, text: text) else { return }
+                Task { await ChatMedien.snapVideoSenden(quelle: exportURL, bleibt: bleibt, antwortAuf: antwortAuf) }
+            }
         }
     }
 }

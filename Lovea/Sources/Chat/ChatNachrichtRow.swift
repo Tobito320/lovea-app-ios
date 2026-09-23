@@ -189,7 +189,10 @@ private struct SnapZeile: View {
 
     @State private var vollbild = false
 
-    private var alsFoto: Bool { snap.bleibt || nachricht.snapGespeichert }
+    // `bleibt` only stops the snap from collapsing into a spur *after* it's been viewed once — a
+    // still-unviewed `bleibt` snap goes through the fullscreen viewer like any other (Spec 6),
+    // `snap.angesehen` still has to fire. `snapGespeichert`, by contrast, is a photo immediately.
+    private var alsFoto: Bool { nachricht.snapGespeichert || (snap.bleibt && nachricht.snapAngesehen) }
 
     var body: some View {
         Group {

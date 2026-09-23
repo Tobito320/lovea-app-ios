@@ -85,29 +85,35 @@ enum ChatMedien {
         await hochladenUndSenden(id: id, ergebnis: ergebnis, typ: "foto", antwortAuf: antwortAuf)
     }
 
-    // MARK: - Snaps (Z-6.2): editor hands the already-flattened photo/video to these
+    // MARK: - Snaps (Z-6.2): editor hands the already-flattened photo/video to these — from here on
+    // it's exactly Z-5.1's own pipeline (original + `klein`, off the main thread), just filed under
+    // `snap.bleibt` instead of a plain `nachricht.neu`.
 
-    static func snapFotoSenden(png: Data, breite: Double, hoehe: Double, bleibt: Bool, antwortAuf: String? = nil) async {
+    static func snapFotoSenden(jpeg: Data, bleibt: Bool, antwortAuf: String? = nil) async {
         let id = UUID().uuidString
-        guard let originalURL = MedienKodierung.schreibeStaging(png, id: id, rolle: "original", ext: "png") else { return }
-        eigeneQuellen[id] = originalURL
-        merkeAusstehend(id: id, original: originalURL, klein: nil)
-        ChatModell.shared.snapSenden(ChatModell.MedienEintrag(id: id, typ: "foto", breite: breite, hoehe: hoehe, dauer: nil, pegel: nil), bleibt: bleibt, antwortAuf: antwortAuf)
-        await hochladen(id: id, ergebnis: MedienKodierung.Ergebnis(original: originalURL, klein: nil, breite: breite, hoehe: hoehe, dauer: nil))
+        guard let ergebnis = await Task.detached(priority: .userInitiated) { MedienKodierung.foto(jpeg, id: id) }.value else { return }
+        eigeneQuellen[id] = ergebnis.original
+        merkeAusstehend(id: id, original: ergebnis.original, klein: ergebnis.klein)
+        ChatModell.shared.snapSenden(
+            ChatModell.MedienEintrag(id: id, typ: "foto", breite: ergebnis.breite, hoehe: ergebnis.hoehe, dauer: nil, pegel: nil),
+            bleibt: bleibt, antwortAuf: antwortAuf
+        )
+        await hochladen(id: id, ergebnis: ergebnis)
     }
 
-    /// `quelle` is `SnapExport.video`'s already-flattened output — just needs staging + upload, no
-    /// further encoding (that already happened at the capped 30s/HEVC-preset export step).
-    static func snapVideoSenden(quelle: URL, breite: Double, hoehe: Double, dauer: Double, bleibt: Bool, antwortAuf: String? = nil) async {
+    /// `quelle` is `SnapExport.video`'s already-flattened (overlay burned in) output — `MedienKodierung.video`
+    /// re-encodes it the same way any other chat video is (720p original + 480p `klein`, ≤30s trim,
+    /// redundant here since it's already ≤30s, but keeps one encoding path instead of two).
+    static func snapVideoSenden(quelle: URL, bleibt: Bool, antwortAuf: String? = nil) async {
         let id = UUID().uuidString
-        let ziel = MedienKodierung.stagingURL(id: id, rolle: "original", ext: "mov")
-        guard (try? FileManager.default.createDirectory(at: ziel.deletingLastPathComponent(), withIntermediateDirectories: true)) != nil,
-              (try? FileManager.default.copyItem(at: quelle, to: ziel)) != nil
-        else { return }
-        eigeneQuellen[id] = ziel
-        merkeAusstehend(id: id, original: ziel, klein: nil)
-        ChatModell.shared.snapSenden(ChatModell.MedienEintrag(id: id, typ: "video", breite: breite, hoehe: hoehe, dauer: dauer, pegel: nil), bleibt: bleibt, antwortAuf: antwortAuf)
-        await hochladen(id: id, ergebnis: MedienKodierung.Ergebnis(original: ziel, klein: nil, breite: breite, hoehe: hoehe, dauer: dauer))
+        guard let ergebnis = await MedienKodierung.video(quelle, id: id) else { return }
+        eigeneQuellen[id] = ergebnis.original
+        merkeAusstehend(id: id, original: ergebnis.original, klein: ergebnis.klein)
+        ChatModell.shared.snapSenden(
+            ChatModell.MedienEintrag(id: id, typ: "video", breite: ergebnis.breite, hoehe: ergebnis.hoehe, dauer: ergebnis.dauer, pegel: nil),
+            bleibt: bleibt, antwortAuf: antwortAuf
+        )
+        await hochladen(id: id, ergebnis: ergebnis)
     }
 
     /// Sticker/figure-sticker upload (Z-5.3): returns the medium id for `nachricht.neu {sticker:{medienId}}`.
