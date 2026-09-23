@@ -1,5 +1,9 @@
 import SwiftUI
 
+/// Z-39.4: small extras on the figure, drawn in half and full body. The map derives them from the
+/// weather (rain, sun, cold, snow) and from charging.
+enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, muetzeSchal, handyKabel, schneeflocken }
+
 /// Bitmoji-style figure. `groesse` is the height. Half figure (chat, stickers): width is 5/6 of the height.
 /// `ganzkoerper` (map, profile): head, body, legs and shoes with standing/walking/sitting poses; width is 1/2 of the height.
 /// Abzeichen: "partyhut", "herzaugen", "outfit", "uhrwerk", "schnecke", "krone".
@@ -12,6 +16,7 @@ struct FigurView: View {
     private let bildrate: Double
     private let ganzkoerper: Bool
     private let poseImmer: Bool
+    private let extras: Set<FigurExtra>
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
@@ -22,7 +27,8 @@ struct FigurView: View {
     /// state except sleeping/offline/low-battery/bad-mood/a live Geste, which always win. Substitutes
     /// `.ruhig` for `zustand` in `leinwand` rather than only swapping the arms, so props/scenery/
     /// pajamas tied to the real `zustand` (barbell, sofa, phone, …) don't linger under the pose.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false) {
+    /// `extras` (Z-39.4): umbrella, sunglasses, hat and scarf, phone with a white cable, snowflakes.
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false, extras: Set<FigurExtra> = []) {
         self.aussehen = aussehen
         self.zustand = zustand
         self.abzeichen = abzeichen
@@ -31,6 +37,7 @@ struct FigurView: View {
         self.bildrate = bildrate
         self.ganzkoerper = ganzkoerper
         self.poseImmer = poseImmer
+        self.extras = extras
     }
 
     var body: some View {
@@ -60,7 +67,7 @@ struct FigurView: View {
         // this reuses that existing "idle" path — with none of `zustand`'s props/scene/pajamas —
         // instead of teaching `Zeichner` a second pose-priority system.
         let posiert = poseImmer && aussehen.pose != nil && !Zeichner.keinePoseUeberschreibung.contains(zustand)
-        let zeichner = Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper)
+        let zeichner = Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper, extras: extras)
         return Canvas { g, size in zeichner.zeichne(g, size) }
     }
 }
@@ -241,14 +248,28 @@ private struct Zeichner {
     let tascheId, uhrId, schmuckId, poseId, tierId: String?
     /// `hosenFarbe` below hardcodes a denim wash for hose 0/1/2 unless a free color was picked.
     let hosenHexAktiv: Bool
+    // v4 (Z-39.3): free everyday jewelry, 0 = none.
+    let kette, ring, armband, uhrAlltag: Int
+    let extras: Set<FigurExtra>
+    /// Gym look (Brief D addendum): Ahmed trains shirtless, Annika in a sleeveless sports top.
+    let oberkoerperFrei, sportTop: Bool
 
-    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool) {
+    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>) {
         typealias A = FigurAussehen
         self.z = z
         self.abz = Set(abz)
         self.t = t
         self.statisch = statisch
         self.ganz = ganz
+        self.extras = extras
+        kette = grenze(a.kette, A.ketten.count)
+        ring = grenze(a.ring, A.ringe.count)
+        armband = grenze(a.armband, A.armbaender.count)
+        uhrAlltag = grenze(a.uhrAlltag, A.uhrenAlltag.count)
+        let gym = z == .gym && a.person != nil
+        let mannImGym = gym && a.person?.figurGeschlecht == .m
+        oberkoerperFrei = mannImGym
+        sportTop = gym && !mannImGym
         haut = A.hautToene.wahl(a.haut).farbe
         let hf = A.haarfarben.wahl(a.haarfarbe)
         if let hex = a.haarfarbeHex, let frei = FigurFarbe(hex: hex) {
@@ -265,7 +286,9 @@ private struct Zeichner {
         poseId = a.pose
         tierId = a.tier
         frisur = grenze(a.frisur, A.frisuren.count)
-        brille = grenze(a.brille, A.brillen.count)
+        let eigeneBrille = grenze(a.brille, A.brillen.count)
+        // Sun extra: own sunglasses stay, anything else becomes plain sunglasses.
+        brille = extras.contains(.sonnenbrille) && !Self.sonnenbrillen.contains(eigeneBrille) ? 3 : eigeneBrille
         bart = grenze(a.bart, A.baerte.count)
         gesichtsform = grenze(a.gesichtsform, A.gesichtsformen.count)
         augenform = grenze(a.augenform, A.augenformen.count)
@@ -277,22 +300,28 @@ private struct Zeichner {
         sommersprossen = a.sommersprossen
         muttermal = a.muttermal
         rouge = a.rouge
-        koerperform = grenze(a.koerperform, A.koerperformen.count)
+        let form = grenze(a.koerperform, A.koerperformen.count)
+        // A trained body in the gym: below "Athletisch" the shirtless look switches to it.
+        koerperform = mannImGym && A.koerper[form].muskel < 0.6 ? 3 : form
         groesseStufe = grenze(a.groesse, A.groessen.count)
         schuhe = grenze(a.schuhe, A.schuhArten.count)
         schuhF = a.schuhfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.schuhfarbe).farbe
-        muetzeF = A.farben.wahl(a.muetzenfarbe).farbe
         jackeF = a.jackenfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.jackenfarbe).farbe
         let schlafanzug = z == .abend
         let oberteilFarbe = schlafanzug ? FigurFarbe(0xAFC8EE) : (a.oberteilfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.oberteilfarbe).farbe)
         top = oberteilFarbe
-        oberteil = schlafanzug ? 2 : grenze(a.oberteil, A.oberteile.count)
-        jacke = schlafanzug ? 0 : grenze(a.jacke, A.jacken.count)
-        hose = schlafanzug ? 3 : grenze(a.hose, A.hosen.count)
-        hoseF = schlafanzug ? oberteilFarbe : (a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.hosenfarbe).farbe)
-        hosenHexAktiv = !schlafanzug && a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } != nil
+        let freiesOberteil = grenze(a.oberteil, A.oberteile.count)
+        oberteil = schlafanzug ? 2 : (gym && !mannImGym ? 11 : freiesOberteil)
+        jacke = schlafanzug || gym ? 0 : grenze(a.jacke, A.jacken.count)
+        let freieHose = grenze(a.hose, A.hosen.count)
+        hose = schlafanzug ? 3 : (gym ? (mannImGym ? 6 : 9) : freieHose)
+        let freieHosenFarbe = a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.hosenfarbe).farbe
+        hoseF = schlafanzug ? oberteilFarbe : (gym ? FigurFarbe(0x2B2830) : freieHosenFarbe)
+        hosenHexAktiv = !schlafanzug && !gym && a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } != nil
+        let winter = extras.contains(.muetzeSchal)
+        muetzeF = winter ? FigurFarbe(0xB33A4A) : A.farben.wahl(a.muetzenfarbe).farbe
         let ohneHut = schlafanzug || z == .rad || z == .schlaeft
-        muetze = ohneHut ? 0 : grenze(a.kopfbedeckung, A.kopfbedeckungen.count)
+        muetze = ohneHut ? 0 : (winter ? 3 : grenze(a.kopfbedeckung, A.kopfbedeckungen.count))
     }
 
     // MARK: Time
@@ -324,31 +353,68 @@ private struct Zeichner {
         g.translateBy(x: -100, y: bew.hoch - 240)
 
         hintergrund(g)
+        if extras.contains(.schneeflocken) { schneeflocken(g, CGRect(x: 0, y: 0, width: 200, height: 240)) }
+        let arme = mitExtras(pose())
+        if let dach = schirmDachMitte(halb: true) { schirmDach(g, dach, radius: 42) }
         haareHinten(haarKontext(g))
         koerper(g)
+        if extras.contains(.muetzeSchal) { schal(g, P(100, 160), s: 1) }
         kopfGruppe(g)
         mitte(g)
-        let arme = pose()
         let schulter: CGFloat = 40 * breite
-        if let l = arme.l { arm(g, P(100 - schulter, 184), l) }
-        if let r = arme.r { arm(g, P(100 + schulter, 184), r) }
-        requisite(g, arme.r?.hand ?? P(142, 252))
-        if let l = arme.l { teil(g, kreis(l.hand, 9.5), haut) }
-        if let r = arme.r { teil(g, kreis(r.hand, 9.5), haut) }
+        let d = km.armHalb
+        if let l = arme.l { arm(g, P(100 - schulter, 184), l, d) }
+        if let r = arme.r { arm(g, P(100 + schulter, 184), r, d) }
+        if !rechteHandBelegt { requisite(g, arme.r?.hand ?? P(142, 252)) }
+        extrasInHand(g, l: arme.l?.hand, r: arme.r?.hand, dach: schirmDachMitte(halb: true), groesse: 1)
+        let hand: CGFloat = 9.5 * min(d, 1.12)
+        if let l = arme.l { teil(g, kreis(l.hand, hand), haut) }
+        if let r = arme.r { teil(g, kreis(r.hand, hand), haut) }
         zubehoer(g, arme)
         effekte(g)
         abzeichenVorn(g)
     }
 
-    /// Z-24.2: worn shop parts (bag on the free hand, watch on the other wrist, necklace at the collar).
+    /// Z-24.2/Z-39.3: worn shop parts and free jewelry (bag on the free hand, watch on the other
+    /// wrist, necklace at the collar, rings and bracelets on the hands).
     func zubehoer(_ g: GraphicsContext, _ arme: (l: Arm?, r: Arm?)) {
         if let id = tascheId { zeichneTasche(g, id: id, an: arme.r?.hand ?? P(142, 252)) }
+        uhrZeichnen(g, arme.l.map { zwischen($0.ellbogen, $0.hand, 0.72) } ?? P(54, 235), groesse: 1)
+        schmuckZeichnen(g, hals: P(100, 162), linkerArm: arme.l, rechterArm: arme.r, groesse: 1)
+    }
+
+    /// Wrist, not the hand itself — a hand-centered watch would just replace the hand circle.
+    /// A shop watch wins over the free everyday one.
+    func uhrZeichnen(_ g: GraphicsContext, _ handgelenk: CGPoint, groesse: CGFloat) {
         if let id = uhrId {
-            // Wrist, not the hand itself — a hand-centered watch would just replace the hand circle.
-            let handgelenk = arme.l.map { zwischen($0.ellbogen, $0.hand, 0.72) } ?? P(54, 235)
-            zeichneUhr(g, id: id, an: handgelenk)
+            zeichneUhr(g, id: id, an: handgelenk, groesse: groesse)
+        } else if uhrAlltag > 0 {
+            let u = alltagsUhren[uhrAlltag - 1]
+            zeichneUhr(g, u.stil, band: u.band, gehaeuse: u.gehaeuse, an: handgelenk, groesse: groesse)
         }
-        if let id = schmuckId { zeichneSchmuck(g, id: id, hals: P(100, 162)) }
+    }
+
+    /// Necklaces at the collar; the free ring sits on the left hand, the free bracelet on the right
+    /// wrist; a shop ring goes on the right hand, a shop bracelet on the left wrist above the watch.
+    func schmuckZeichnen(_ g: GraphicsContext, hals: CGPoint, linkerArm: Arm?, rechterArm: Arm?, groesse: CGFloat) {
+        let links = linkerArm.map { (ellbogen: $0.ellbogen, hand: $0.hand) }
+        let rechts = rechterArm.map { (ellbogen: $0.ellbogen, hand: $0.hand) }
+        if kette > 0 {
+            let e = alltagsKetten[kette - 1]
+            zeichneSchmuck(g, e.stil, e.farbe, hals: hals, arm: nil, groesse: groesse)
+        }
+        if ring > 0 {
+            let e = alltagsRinge[ring - 1]
+            zeichneSchmuck(g, e.stil, e.farbe, hals: hals, arm: links, groesse: groesse)
+        }
+        if armband > 0 {
+            let e = alltagsArmbaender[armband - 1]
+            zeichneSchmuck(g, e.stil, e.farbe, hals: hals, arm: rechts, groesse: groesse)
+        }
+        if let id = schmuckId, let e = schmuckKatalog[id] {
+            let unterarm = e.stil.ort == .hand ? rechts : links
+            zeichneSchmuck(g, id: id, hals: hals, arm: unterarm, groesse: groesse)
+        }
     }
 
     /// Head, face, hair and everything worn on the head, in the half-figure space.
@@ -364,16 +430,18 @@ private struct Zeichner {
 
     /// Under a covering hat the hair stops at the hat line, so tall styles never poke through.
     func haarKontext(_ g: GraphicsContext) -> GraphicsContext {
-        guard (1...4).contains(muetze) else { return g }
+        guard (1...4).contains(muetze) || muetze == 7 else { return g }
         var h = g
         h.clip(to: Path(CGRect(x: -100, y: 34, width: 400, height: 400)))
         return h
     }
 
-    var breite: CGFloat {
-        let werte: [CGFloat] = [0.93, 1, 1.07]
-        return werte[koerperform]
-    }
+    /// Z-38.2: the body type's measures (`FigurAussehen.koerper`).
+    var km: FigurAussehen.Koerper { FigurAussehen.koerper[koerperform] }
+
+    var breite: CGFloat { km.breite }
+
+    static let sonnenbrillen: Set<Int> = [3, 8, 9, 10, 11]
 
     func bewegung() -> (winkel: Double, hoch: CGFloat) {
         switch z {
@@ -403,9 +471,10 @@ private struct Zeichner {
     // MARK: Body
 
     var aermel: Aermel {
+        if oberkoerperFrei || sportTop { return .keine }
         if jacke > 0 { return .lang }
         switch oberteil {
-        case 1, 2, 3, 5, 10, 13, 14, 16: return .lang
+        case 1, 2, 3, 5, 10, 13, 14, 16, 18, 19, 24, 25, 26: return .lang
         case 6: return .keine
         default: return .kurz
         }
@@ -476,7 +545,14 @@ private struct Zeichner {
         k.scaleBy(x: breite, y: 1)
         k.translateBy(x: -100, y: 0)
 
-        if oberteil == 6 {
+        if oberkoerperFrei {
+            let form = rumpf(0)
+            teil(k, form, haut)
+            k.fill(box(80, 150, 40, 28), with: .color(haut.farbe))
+            var h = k
+            h.clip(to: form)
+            koerperDetails(h, nackt: true)
+        } else if oberteil == 6 {
             let form = rumpf(0)
             teil(k, form, haut)
             k.fill(box(80, 150, 40, 28), with: .color(haut.farbe))
@@ -506,9 +582,39 @@ private struct Zeichner {
                 h.fill(oval(P(100, 234), 1.6, 2.4), with: .color(haut.kontur))
             }
             oberteilDetails(k, h)
+            koerperDetails(h, nackt: false)
             if [7, 12, 13].contains(oberteil) { linie(k, form, top.kontur, 3.5) }
         }
         if jacke > 0 { jackeZeichnen(k, form: rumpf(0), oben: 161, unten: 240, s: 1) }
+    }
+
+    /// Z-38.2 body cues in the half-figure torso space (`h` is clipped to the torso; the full body
+    /// maps this space onto its torso): chest lines on muscular bodies, a bust line on curvy ones,
+    /// and on the bare gym torso collarbones, chest and a light six-pack.
+    func koerperDetails(_ h: GraphicsContext, nackt: Bool) {
+        let k = km
+        let farbe: Color = nackt ? haut.kontur.opacity(0.45) : top.kontur.opacity(0.18 + 0.2 * k.muskel)
+        if nackt || k.muskel >= 0.5 {
+            for seite in [CGFloat(-1), 1] {
+                linie(h, bogen(P(100 + seite * 36, 198), P(100 + seite * 3, 206), P(100 + seite * 20, 218)), farbe, 2.4)
+            }
+        } else if k.kurve > 0 {
+            for seite in [CGFloat(-1), 1] {
+                linie(h, bogen(P(100 + seite * 32, 202), P(100 + seite * 5, 206), P(100 + seite * 19, 216)), top.kontur.opacity(0.28), 2)
+                h.fill(oval(P(100 + seite * 19, 196), 7, 3.5), with: .color(.white.opacity(0.14)))
+            }
+        }
+        guard nackt else { return }
+        for seite in [CGFloat(-1), 1] {
+            linie(h, bogen(P(100 + seite * 8, 172), P(100 + seite * 30, 170), P(100 + seite * 18, 176)), farbe, 2)
+            // Outer edges of the abs.
+            linie(h, bogen(P(100 + seite * 22, 222), P(100 + seite * 16, 286), P(100 + seite * 25, 256)), farbe, 2)
+        }
+        linie(h, strich(P(100, 214), P(100, 280)), farbe, 2)
+        for y in [CGFloat(234), 252, 268] {
+            linie(h, bogen(P(84, y), P(116, y), P(100, y + 4)), farbe, 1.8)
+        }
+        h.fill(oval(P(100, 284), 2, 3), with: .color(haut.kontur.opacity(0.6)))
     }
 
     func hemdKragen(_ g: GraphicsContext) {
@@ -746,16 +852,70 @@ private struct Zeichner {
         teil(g, kopfPfad, haut)
     }
 
-    /// `d` scales the thickness (1 for the half figure, thinner on the full body).
+    /// `d` scales the thickness (the body type's `armHalb` in the half figure, `arm` on the full body).
     func arm(_ g: GraphicsContext, _ schulter: CGPoint, _ a: Arm, _ d: CGFloat = 1) {
         let oben = strich(schulter, a.ellbogen)
         let unten = strich(a.ellbogen, a.hand)
         let obenFarbe = aermel == .keine ? haut : aermelFarbe
         let untenFarbe = aermel == .lang ? aermelFarbe : haut
+        let muskeln = muskelBeulen(schulter, a.ellbogen, d)
         linie(g, oben, obenFarbe.kontur, 25 * d)
+        for m in muskeln { g.fill(kreis(m.c, m.r + 3 * d), with: .color(obenFarbe.kontur)) }
         linie(g, unten, untenFarbe.kontur, 21 * d)
         linie(g, unten, untenFarbe.farbe, 15.5 * d)
         linie(g, oben, obenFarbe.farbe, 19 * d)
+        for m in muskeln { g.fill(kreis(m.c, m.r), with: .color(obenFarbe.farbe)) }
+        aermelDetails(g, schulter, a, d)
+    }
+
+    /// Z-38.2: shoulder cap and biceps of the muscular body types, as round bulges on the upper arm.
+    func muskelBeulen(_ s: CGPoint, _ e: CGPoint, _ d: CGFloat) -> [(c: CGPoint, r: CGFloat)] {
+        let m = km.muskel
+        guard m > 0 else { return [] }
+        let dx = e.x - s.x
+        let dy = e.y - s.y
+        let laenge = max(1, (dx * dx + dy * dy).squareRoot())
+        // Unit normal pointing away from the body's middle (x = 100).
+        var nx = -dy / laenge
+        var ny = dx / laenge
+        if (s.x - 100) * nx < 0 {
+            nx = -nx
+            ny = -ny
+        }
+        let kappe = P(s.x + dx * 0.14 + nx * 1.5 * d, s.y + dy * 0.14 + ny * 1.5 * d)
+        let innen: CGFloat = 2 * m * d
+        let bizeps = P(s.x + dx * 0.55 - nx * innen, s.y + dy * 0.55 - ny * innen)
+        let kappeR: CGFloat = (10.5 + 2.5 * m) * d
+        let bizepsR: CGFloat = (9.5 + 2.2 * m) * d
+        return [(c: kappe, r: kappeR), (c: bizeps, r: bizepsR)]
+    }
+
+    /// Z-39.1 sleeve cues: Adidas three stripes down the whole arm, colored cuffs on the Nike jersey.
+    func aermelDetails(_ g: GraphicsContext, _ s: CGPoint, _ a: Arm, _ d: CGFloat) {
+        if jacke == 8 {
+            dreiStreifen(g, s, a.ellbogen, d)
+            dreiStreifen(g, a.ellbogen, a.hand, d)
+        } else if jacke == 0 && oberteil == 20 && aermel == .kurz {
+            let band = strich(zwischen(s, a.ellbogen, 0.8), zwischen(s, a.ellbogen, 0.97))
+            linie(g, band, trikotBesatz.farbe, 19 * d)
+        }
+    }
+
+    /// Three parallel stripes along a limb segment (Adidas); `d` scales their spacing.
+    func dreiStreifen(_ g: GraphicsContext, _ a: CGPoint, _ b: CGPoint, _ d: CGFloat, farbe: Color = .white) {
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let laenge = max(1, (dx * dx + dy * dy).squareRoot())
+        let nx: CGFloat = -dy / laenge * 3.4 * d
+        let ny: CGFloat = dx / laenge * 3.4 * d
+        for k in [CGFloat(-1), 0, 1] {
+            linie(g, strich(P(a.x + nx * k, a.y + ny * k), P(b.x + nx * k, b.y + ny * k)), farbe, 1.6 * d)
+        }
+    }
+
+    /// Nike jersey trim: Brazil green on a yellow jersey, white otherwise.
+    var trikotBesatz: FigurFarbe {
+        top.r > 0.8 && top.g > 0.65 && top.b < 0.5 ? FigurFarbe(0x1E8A4C) : Pal.weiss
     }
 
     // MARK: Face
@@ -1597,7 +1757,7 @@ private struct Zeichner {
 
     func brillen(_ g: GraphicsContext) {
         guard brille > 0 else { return }
-        let sonne = [3, 8, 9, 10, 11].contains(brille)
+        let sonne = Self.sonnenbrillen.contains(brille)
         let rahmen: Color
         switch brille {
         case 7, 12: rahmen = Pal.tinte.farbe.opacity(0.5)
@@ -1668,6 +1828,11 @@ private struct Zeichner {
     }
 
     func ohrringeZeichnen(_ g: GraphicsContext) {
+        // A shop earring (Z-39.2) replaces the free pair.
+        if let id = schmuckId, schmuckKatalog[id]?.stil.ort == .ohr {
+            zeichneOhrschmuck(g, id: id)
+            return
+        }
         guard ohrring > 0 else { return }
         for x in [CGFloat(42), 158] {
             switch ohrring {
@@ -1679,6 +1844,18 @@ private struct Zeichner {
             case 3:
                 linie(g, strich(P(x, 110), P(x, 121)), Pal.gold.farbe, 2)
                 teil(g, oval(P(x, 126), 3.5, 5), Pal.gold, 1.5)
+            case 5:
+                // Diamant-Stecker
+                teil(g, kreis(P(x, 111), 3.4), FigurFarbe(0xE6F3FF), 1.2)
+                g.fill(funkel(P(x, 111), 2.6), with: .color(.white))
+            case 6:
+                // Große Kreolen
+                linie(g, kreis(P(x, 124), 13), Pal.gold.kontur, 4.5)
+                linie(g, kreis(P(x, 124), 13), Pal.gold.farbe, 2.6)
+            case 7:
+                // Herz-Hänger
+                linie(g, strich(P(x, 110), P(x, 118)), Pal.gold.farbe, 1.6)
+                teil(g, herzPfad(P(x, 122), 4.2), Pal.rose, 1.2)
             default:
                 teil(g, kreis(P(x, 112), 4.2), FigurFarbe(0xF4EEE6), 1.5)
                 g.fill(kreis(P(x - 1.3, 110.7), 1.3), with: .color(.white))
@@ -1722,6 +1899,30 @@ private struct Zeichner {
             var h = g
             h.clip(to: bund)
             for x in stride(from: CGFloat(42), to: 164, by: 9) { linie(h, strich(P(x, 50), P(x, 72)), f.kontur, 1.5) }
+            if extras.contains(.muetzeSchal) {
+                // Winter extra: pompom on top.
+                teil(g, kreis(P(100, 8), 9), Pal.weiss, 2.5)
+                for dx in [CGFloat(-4), 0, 4] { linie(g, strich(P(100 + dx, 3), P(100 + dx * 1.3, 13)), Pal.weiss.kontur.opacity(0.5), 1.2) }
+            }
+        case 7:
+            // Carhartt Beanie: short watch cap high on the head, deep cuff with the square label.
+            let form = Path { p in
+                p.move(to: P(42, 62))
+                p.addCurve(to: P(100, 8), control1: P(40, 26), control2: P(66, 8))
+                p.addCurve(to: P(158, 62), control1: P(134, 8), control2: P(160, 26))
+                p.closeSubpath()
+            }
+            teil(g, form, f)
+            var r = g
+            r.clip(to: form)
+            for x in stride(from: CGFloat(50), to: 156, by: 8) { linie(r, strich(P(x, 8), P(x, 44)), f.kontur.opacity(0.35), 1.4) }
+            let bund = box(38, 40, 124, 26, 11)
+            teil(g, bund, f.mal(0.9))
+            var h = g
+            h.clip(to: bund)
+            for x in stride(from: CGFloat(44), to: 160, by: 7) { linie(h, strich(P(x, 40), P(x, 66)), f.kontur.opacity(0.7), 1.3) }
+            teil(g, box(90, 45, 20, 16, 2.5), FigurFarbe(0xE3A33A), 1.6)
+            linie(g, Path { p in p.addArc(center: P(100, 53), radius: 4, startAngle: .degrees(40), endAngle: .degrees(320), clockwise: false) }, Pal.tinte.farbe, 2)
         case 4:
             let krone = Path { p in
                 p.move(to: P(50, 58))
@@ -2417,16 +2618,21 @@ extension Zeichner {
         k.scaleBy(x: 0.8, y: 0.8)
 
         if z == .morgen || z == .abend { hintergrund(k) }
+        if extras.contains(.schneeflocken) { schneeflocken(g, CGRect(x: 0, y: 0, width: 200, height: 400)) }
         szeneHinten(g, m, oben)
+        let arme = mitExtrasGanz(poseGanz(m), m)
+        let dach = schirmDachMitte(halb: false, m)
+        if let dach { schirmDach(u, dach, radius: 40) }
         haareHinten(haarKontext(k))
         if hal != .fahren { beine(g, m, hal, oben) }
         rumpfGanz(u, m)
+        if extras.contains(.muetzeSchal) { schal(u, P(100, m.schulterY - 4), s: 0.66) }
         kopfGruppe(k)
         vorArmen(g, u, m, oben)
-        let arme = poseGanz(m)
         arm(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm)
         arm(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm)
-        handRequisite(u, arme, m)
+        if !rechteHandBelegt { handRequisite(u, arme, m) }
+        extrasInHand(u, l: arme.l.hand, r: arme.r.hand, dach: dach, groesse: 0.66)
         let hand: CGFloat = 10 * m.arm
         teil(u, kreis(arme.l.hand, hand), haut, 2.5)
         teil(u, kreis(arme.r.hand, hand), haut, 2.5)
@@ -2441,28 +2647,20 @@ extension Zeichner {
         abzeichenVorn(k)
     }
 
-    /// Z-24.2: worn shop parts, scaled like `jackeZeichnen`'s `s: 0.66` onto the full-body torso.
+    /// Z-24.2/Z-39.3: worn shop parts and free jewelry, scaled like `jackeZeichnen`'s `s: 0.66` onto the full-body torso.
     func zubehoerGanz(_ g: GraphicsContext, _ arme: (l: Arm, r: Arm), _ m: Masse) {
         let s: CGFloat = 0.66
         if let id = tascheId { zeichneTasche(g, id: id, an: arme.r.hand, groesse: s) }
-        if let id = uhrId {
-            // Wrist, not the hand itself — a hand-centered watch would just replace the hand circle.
-            zeichneUhr(g, id: id, an: zwischen(arme.l.ellbogen, arme.l.hand, 0.72), groesse: s)
-        }
-        if let id = schmuckId { zeichneSchmuck(g, id: id, hals: P(100, m.schulterY - 6), groesse: s) }
+        uhrZeichnen(g, zwischen(arme.l.ellbogen, arme.l.hand, 0.72), groesse: s)
+        schmuckZeichnen(g, hals: P(100, m.schulterY - 6), linkerArm: arme.l, rechterArm: arme.r, groesse: s)
     }
 
     func masse() -> Masse {
         let beinLaengen: [CGFloat] = [112, 124, 136]
-        let schultern: [CGFloat] = [37, 41, 46]
-        let taillen: [CGFloat] = [26, 30, 37]
-        let hueften: [CGFloat] = [29, 32, 38]
-        let arme: [CGFloat] = [0.6, 0.66, 0.74]
-        let beine: [CGFloat] = [15, 17, 20]
-        let f = koerperform
+        let k = km
         let beinL = beinLaengen[groesseStufe]
         let hueftY = Masse.fussY - beinL
-        return Masse(s: schultern[f], t: taillen[f], h: hueften[f], arm: arme[f], bein: beine[f],
+        return Masse(s: k.s, t: k.t, h: k.h, arm: k.arm, bein: k.bein,
                      hueftY: hueftY, schulterY: hueftY - 96, knieY: hueftY + beinL * 0.5)
     }
 
@@ -2698,14 +2896,18 @@ extension Zeichner {
         let sY = m.schulterY
         let taille: CGFloat = min(sY + 58, unten - 4)
         let saum: CGFloat = unten < m.hueftY ? m.t + 1 : m.h
+        // Z-38.2: chest (muscular) or bust (curvy) bows the flank outward; 0 keeps the old straight flank.
+        let bauch: CGFloat = 5 * km.muskel + 4 * km.kurve
+        let flankeX: CGFloat = (m.s + m.t) / 2 + bauch
+        let flankeY: CGFloat = (sY + 14 + taille) / 2
         return Path { p in
             p.move(to: P(89, sY - 2))
             p.addQuadCurve(to: P(100 - m.s, sY + 14), control: P(104 - m.s, sY - 2))
-            p.addLine(to: P(100 - m.t, taille))
+            p.addQuadCurve(to: P(100 - m.t, taille), control: P(100 - flankeX, flankeY))
             p.addLine(to: P(100 - saum, unten))
             p.addQuadCurve(to: P(100 + saum, unten), control: P(100, unten + 4))
             p.addLine(to: P(100 + m.t, taille))
-            p.addLine(to: P(100 + m.s, sY + 14))
+            p.addQuadCurve(to: P(100 + m.s, sY + 14), control: P(100 + flankeX, flankeY))
             p.addQuadCurve(to: P(111, sY - 2), control: P(96 + m.s, sY - 2))
             p.addQuadCurve(to: P(89, sY - 2), control: P(100, sY + 10))
             p.closeSubpath()
@@ -2718,6 +2920,17 @@ extension Zeichner {
         teil(g, box(91, sY - 28, 18, 34, 8), haut)
         g.fill(oval(P(100, sY - 14), 9, 3.5), with: .color(haut.mal(0.8).farbe.opacity(0.6)))
         let voll = rumpfPfad(m, unten: unten)
+        if oberkoerperFrei {
+            teil(g, voll, haut)
+            g.fill(box(90, sY - 8, 20, 14), with: .color(haut.farbe))
+            var d = g
+            d.clip(to: voll)
+            d.translateBy(x: 100, y: sY - 2)
+            d.scaleBy(x: 0.66, y: 0.8)
+            d.translateBy(x: -100, y: -161)
+            koerperDetails(d, nackt: true)
+            return
+        }
         let form: Path
         switch oberteil {
         case 6:
@@ -2752,6 +2965,7 @@ extension Zeichner {
             d.scaleBy(x: 0.66, y: 0.8)
             d.translateBy(x: -100, y: -161)
             oberteilDetails(dg, d)
+            koerperDetails(d, nackt: false)
             if [7, 12, 13].contains(oberteil) { linie(g, form, top.kontur, 3.5) }
         }
         if oberteil == 8 {
@@ -3019,6 +3233,163 @@ extension Zeichner {
             let y: CGFloat = y0 + 30 + CGFloat(i) * 22
             let x: CGFloat = 6 + zyklus(0.5, Double(i) * 0.17) * 10
             linie(g, strich(P(x, y), P(x + 20, y)), Pal.silber.kontur.opacity(0.7), 3.5)
+        }
+    }
+}
+
+// MARK: - Extras (Z-39.4)
+
+extension Zeichner {
+    /// No umbrella in a vehicle, in bed or on the sofa: the arms are busy there.
+    var schirmAktiv: Bool {
+        extras.contains(.schirm) && ![.faehrt, .fahrschule, .rad, .schlaeft, .zuhause, .ruhe].contains(z)
+    }
+
+    /// The right hand holds the phone or the umbrella, so the state's own hand prop steps aside.
+    var rechteHandBelegt: Bool { extras.contains(.handyKabel) || schirmAktiv }
+
+    /// Half figure: the right hand holds the phone (the left one the cable) or the umbrella; with
+    /// both, the umbrella moves to the left hand.
+    func mitExtras(_ arme: (l: Arm?, r: Arm?)) -> (l: Arm?, r: Arm?) {
+        var a = arme
+        let mitHandy = extras.contains(.handyKabel)
+        if mitHandy {
+            a.l = Arm(P(40, 222), P(62, 206))
+            a.r = Arm(P(160, 222), P(140, 196))
+        }
+        if schirmAktiv {
+            if mitHandy { a.l = Arm(P(30, 188), P(28, 142)) } else { a.r = Arm(P(170, 188), P(172, 142)) }
+        }
+        return a
+    }
+
+    /// Full-body counterpart of `mitExtras`, in body space.
+    func mitExtrasGanz(_ arme: (l: Arm, r: Arm), _ m: Masse) -> (l: Arm, r: Arm) {
+        var a = arme
+        let lx: CGFloat = 100 - m.s + 6
+        let rx: CGFloat = 100 + m.s - 6
+        let y = m.schulterY
+        let mitHandy = extras.contains(.handyKabel)
+        if mitHandy {
+            a.l = Arm(P(lx - 6, y + 46), P(lx + 8, y + 44))
+            a.r = Arm(P(rx + 6, y + 46), P(rx - 8, y + 30))
+        }
+        if schirmAktiv {
+            if mitHandy { a.l = Arm(P(lx - 16, y + 30), P(lx - 18, y - 22)) } else { a.r = Arm(P(rx + 16, y + 30), P(rx + 18, y - 22)) }
+        }
+        return a
+    }
+
+    /// Umbrella canopy center, beside the head on the holding hand's side (`nil` = no umbrella).
+    func schirmDachMitte(halb: Bool, _ m: Masse? = nil) -> CGPoint? {
+        guard schirmAktiv else { return nil }
+        let links = extras.contains(.handyKabel)
+        if halb { return P(links ? 46 : 154, 38) }
+        let s: CGFloat = m?.s ?? 41
+        let y: CGFloat = (m?.schulterY ?? 152) - 112
+        return P(links ? 100 - s + 4 : 100 + s - 4, y)
+    }
+
+    /// Canopy leaning toward the head, drawn behind it; the shaft comes with the hands.
+    func schirmDach(_ g: GraphicsContext, _ c: CGPoint, radius r: CGFloat) {
+        var h = g
+        h.translateBy(x: c.x, y: c.y)
+        h.rotate(by: .degrees(c.x > 100 ? -12 : 12))
+        let n = 4
+        let feld: CGFloat = 2 * r / CGFloat(n)
+        let form = Path { p in
+            p.move(to: P(-r, 0))
+            p.addCurve(to: P(r, 0), control1: P(-r * 0.98, -r * 1.28), control2: P(r * 0.98, -r * 1.28))
+            for i in 0..<n {
+                let x0: CGFloat = r - CGFloat(i) * feld
+                p.addQuadCurve(to: P(x0 - feld, 0), control: P(x0 - feld / 2, -r * 0.2))
+            }
+            p.closeSubpath()
+        }
+        let f = FigurFarbe(0xFF6F8A)
+        teil(h, form, f)
+        var innen = h
+        innen.clip(to: form)
+        for i in [1, 3] {
+            let x0: CGFloat = -r + CGFloat(i) * feld
+            let keil = Path { p in
+                p.move(to: P(0, -r * 0.96))
+                p.addLine(to: P(x0, 2))
+                p.addLine(to: P(x0 + feld, 2))
+                p.closeSubpath()
+            }
+            innen.fill(keil, with: .color(Pal.weiss.farbe.opacity(0.5)))
+        }
+        for i in 1..<n {
+            let x: CGFloat = -r + CGFloat(i) * feld
+            linie(h, bogen(P(0, -r * 0.96), P(x, 0), P(x * 0.55, -r * 0.62)), f.kontur, 1.6)
+        }
+        teil(h, kreis(P(0, -r * 0.97), 3), Pal.dunkel, 1.5)
+    }
+
+    /// What the hands hold: the umbrella shaft with its hook, the phone (right) and the white
+    /// charging cable ending in a plug in the left hand. `s` scales it (0.66 on the full body).
+    func extrasInHand(_ g: GraphicsContext, l: CGPoint?, r: CGPoint?, dach: CGPoint?, groesse s: CGFloat) {
+        let mitHandy = extras.contains(.handyKabel)
+        if let dach, let griff = mitHandy ? l : r {
+            let stock = strich(griff, dach)
+            linie(g, stock, Pal.dunkel.kontur, 6 * s)
+            linie(g, stock, Pal.silber.farbe, 3.6 * s)
+            let seite: CGFloat = griff.x < 100 ? 1 : -1
+            let haken = bogen(P(griff.x, griff.y + 2 * s), P(griff.x + seite * 9 * s, griff.y + 13 * s), P(griff.x + seite * s, griff.y + 19 * s))
+            linie(g, haken, Pal.holz.kontur, 6.5 * s)
+            linie(g, haken, Pal.holz.farbe, 4 * s)
+        }
+        guard mitHandy, let r else { return }
+        let ziel = l ?? P(r.x - 60 * s, r.y + 20 * s)
+        let start = P(r.x, r.y + 6 * s)
+        let kabel = Path { p in
+            p.move(to: start)
+            p.addCurve(to: P(ziel.x, ziel.y - 6 * s), control1: P(start.x - 4 * s, start.y + 46 * s), control2: P(ziel.x + 4 * s, ziel.y + 44 * s))
+        }
+        linie(g, kabel, Pal.weiss.kontur, 5.5 * s)
+        linie(g, kabel, .white, 3.2 * s)
+        var t = g
+        t.translateBy(x: r.x, y: r.y - 14 * s)
+        t.scaleBy(x: s * 0.9, y: s * 0.9)
+        handy(t, .zero, rueckseite: true)
+        if let l {
+            teil(g, box(l.x - 4 * s, l.y - 17 * s, 8 * s, 12 * s, 2.5 * s), Pal.weiss, 1.6 * s)
+            g.fill(box(l.x - 2.4 * s, l.y - 22 * s, 4.8 * s, 6 * s, s), with: .color(Pal.silber.farbe))
+        }
+    }
+
+    /// Scarf around the neck with a hanging end, in the winter hat's color. `c`: collar point.
+    func schal(_ g: GraphicsContext, _ c: CGPoint, s: CGFloat) {
+        var h = g
+        h.translateBy(x: c.x, y: c.y)
+        h.scaleBy(x: s, y: s)
+        let f = muetzeF
+        teil(h, box(5, 2, 15, 46, 5), f.mal(0.92), 3)
+        for y in [CGFloat(14), 30] { linie(h, strich(P(6, y), P(19, y)), Pal.weiss.farbe, 3) }
+        for x in stride(from: CGFloat(7), through: 18, by: 3.6) { linie(h, strich(P(x, 48), P(x, 55)), f.farbe, 2) }
+        let band = bogen(P(-26, -6), P(26, -6), P(0, 16))
+        linie(h, band, f.kontur, 18)
+        linie(h, band, f.farbe, 13.5)
+        linie(h, bogen(P(-20, -3), P(20, -3), P(0, 14)), Pal.weiss.farbe.opacity(0.85), 2.5)
+    }
+
+    /// Slowly falling snowflakes over `bereich`, behind the figure.
+    func schneeflocken(_ g: GraphicsContext, _ bereich: CGRect) {
+        let n = 9
+        for i in 0..<n {
+            let p = zyklus(7, Double(i) * 7 / Double(n))
+            let x: CGFloat = bereich.minX + bereich.width * (CGFloat(i) + 0.5) / CGFloat(n) + w(1.3, Double(i)) * 6
+            let y: CGFloat = bereich.minY + bereich.height * (CGFloat((i * 37) % 100) / 100 + p).truncatingRemainder(dividingBy: 1)
+            let r: CGFloat = bereich.height / 60 + CGFloat(i % 3)
+            for k in 0..<3 {
+                let a = Double(k) * Double.pi / 3 + Double(i)
+                let dx = CGFloat(cos(a)) * r
+                let dy = CGFloat(sin(a)) * r
+                let strahl = strich(P(x - dx, y - dy), P(x + dx, y + dy))
+                linie(g, strahl, Pal.himmel.kontur.opacity(0.55), 3.2)
+                linie(g, strahl, .white, 1.7)
+            }
         }
     }
 }
