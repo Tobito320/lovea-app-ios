@@ -35,6 +35,19 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(modell.nachrichten.map(\.id), ["b", "a", "c"], "seq 2 vor seq 5 vor unbestätigt (Int.max)")
     }
 
+    // MARK: - zeichnung.einladung (Block 13)
+
+    func testEinladungWirdEineLokaleZeileAuchNachEcho() {
+        let modell = ChatModell(registrieren: false)
+        let optimistisch = op("zeichnung.einladung", ["zeichnungId": "z1", "name": "Katze"], von: .annika)
+        let echo = Op(id: optimistisch.id, seq: 9, art: optimistisch.art, von: .annika, zeit: optimistisch.zeit, d: optimistisch.d)
+        modell.anwenden([optimistisch])
+        modell.anwenden([echo])
+        XCTAssertEqual(modell.nachrichten.count, 1)
+        XCTAssertEqual(modell.nachrichten[0].einladung, ChatModell.EinladungInfo(zeichnungId: "z1", name: "Katze"))
+        XCTAssertEqual(modell.nachrichten[0].seq, 9)
+    }
+
     // MARK: - nachricht.bearbeitet
 
     func testBearbeitenErsetztTextUndSetztFlag() {

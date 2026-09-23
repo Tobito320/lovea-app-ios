@@ -94,7 +94,7 @@ struct SpielBuehne: View {
         }
     }
 
-    static func ende(_ k: SpielKontext) -> PartieEnde? {
+    @MainActor static func ende(_ k: SpielKontext) -> PartieEnde? {
         switch k.spiel.art {
         case .duell: DuellSpiel(k: k).ende
         case .xo: XOSpiel(k: k).ende

@@ -42,30 +42,45 @@ struct ZeichnungStand: Codable, Equatable, Sendable {
     var zeichnungId: String
     /// The document JSON.
     var medienId: String
-    /// Highest `seq` of this drawing's `zeichnung.op` contained in the stand.
+    /// Highest `seq` of this drawing's ops contained in the stand.
     var basis: Int
     var ebenen: [Ebene]
     var name: String?
     var projektId: String?
     var vorschau: String?
-    /// Last live stroke (`strichId`) already in the stand. The viewer replays the ones after it.
-    var strich: String?
+    /// Owner's own ops contained although still unconfirmed at saving: skipped when catching up.
+    var offen: [String]?
     /// `updatedAt` of the uploaded document (seconds since 1970), so the owner can skip unchanged publishes.
     var gespeichert: Double?
 }
 
-/// One finished non-stroke action. Strokes (also the eraser) travel as `strich.live`.
+/// One finished action. Strokes and fills are replayed from their data, so the partner's work
+/// underneath stays; everything else (transform, adjust, clear, text …) travels as the resulting pixels.
 enum ZeichnungAktion: Codable, Equatable, Sendable {
+    /// The whole stroke. ponytail: exact points, so the replay matches the local pixels; a long
+    /// stroke is some 10–30 KB of JSON. Delta-encode the points if the op log gets heavy.
+    case strich(LiveStrich)
     case fuellen(x: Double, y: Double, farbe: String, toleranz: Double, alleEbenen: Bool, ebene: String)
-    /// ponytail: every other action (layers, transform, adjust, undo …). Level 2 viewers wait for the
-    /// next stand; Block 13 replaces this with one case per action and applies it.
-    case anderes
+    /// Region of a layer replaced by an uploaded PNG.
+    case pixel(ebene: String, x: Int, y: Int, breite: Int, hoehe: Int, medienId: String)
+    /// Layers added, removed, changed or moved (also the partner lock, Z-13.3).
+    case ebenen(EbenenAenderung)
 }
 
 struct ZeichnungOp: Codable, Sendable {
+    /// Domain id; `zeichnung.rueckgaengig.opId` points here, since `Raum.senden` hands out no `Op.id`.
+    var id: String
     var zeichnungId: String
+    /// Highest `seq` the sender had applied.
     var basis: Int
     var aktion: ZeichnungAktion
+}
+
+/// `zeichnung.rueckgaengig`: the author takes back one own op. `wieder` (extension): redo it.
+struct ZeichnungRueckgaengig: Codable, Sendable {
+    var zeichnungId: String
+    var opId: String
+    var wieder: Bool?
 }
 
 /// Pure fold of all drawing-sharing ops of both people.
@@ -81,10 +96,12 @@ struct TeilenStand: Sendable {
     private(set) var rechte: [String: Eintrag<ZeichnungRecht>] = [:]
     private(set) var einladungen: [String: Eintrag<ZeichnungEinladung>] = [:]
     private(set) var staende: [String: Eintrag<ZeichnungStand>] = [:]
-    /// Highest confirmed `seq` of `zeichnung.op` per drawing, the owner's `basis`.
-    private(set) var letzteOpSeq: [String: Int] = [:]
-    /// Confirmed `zeichnung.op` newer than the drawing's latest stand.
+    /// Confirmed `zeichnung.op` and `zeichnung.rueckgaengig` newer than the drawing's latest stand.
     private var opsNachStand: [String: [Op]] = [:]
+
+    private struct Kopf: Decodable {
+        var zeichnungId: String
+    }
 
     mutating func anwenden(_ op: Op) {
         switch op.art {
@@ -99,9 +116,8 @@ struct TeilenStand: Sendable {
             Self.setzen(&staende, d.zeichnungId, op, d)
             let basis = staende[d.zeichnungId]?.wert.basis ?? 0
             opsNachStand[d.zeichnungId]?.removeAll { ($0.seq ?? 0) <= basis }
-        case "zeichnung.op":
-            guard let seq = op.seq, let d = op.daten(ZeichnungOp.self) else { return }
-            letzteOpSeq[d.zeichnungId] = max(letzteOpSeq[d.zeichnungId] ?? 0, seq)
+        case "zeichnung.op", "zeichnung.rueckgaengig":
+            guard let seq = op.seq, let d = op.daten(Kopf.self) else { return }
             let bekannt = opsNachStand[d.zeichnungId]?.contains { $0.id == op.id } ?? false
             if seq > staende[d.zeichnungId]?.wert.basis ?? 0, !bekannt { opsNachStand[d.zeichnungId, default: []].append(op) }
         default:
@@ -136,7 +152,7 @@ struct TeilenStand: Sendable {
         return imProjekt || einladungen[stand.zeichnungId] != nil
     }
 
-    /// For Block 13 (co-editing). Level 2 viewers always get locked tools.
+    /// The partner may edit (project level or per drawing, Z-13.1).
     func darfBearbeiten(zeichnungId: String, projektId: String?) -> Bool {
         projektId.map { stufe(projekt: $0) == .bearbeiten } ?? false || rechte[zeichnungId]?.wert.bearbeiten == true
     }
@@ -169,12 +185,15 @@ final class TeilenModell {
             rootURL: FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
                 .appendingPathComponent("Lovea/Geteilt", isDirectory: true)
         )
-        Raum.shared.beobachten(["projekt.teilen", "zeichnung.recht", "zeichnung.einladung", "zeichnung.stand", "zeichnung.op"]) { [weak self] op in
+        Raum.shared.beobachten([
+            "projekt.teilen", "zeichnung.recht", "zeichnung.einladung", "zeichnung.stand", "zeichnung.op", "zeichnung.rueckgaengig"
+        ]) { [weak self] op in
             guard let self else { return }
             self.stand.anwenden(op)
-            guard op.von != Raum.shared.ich, let offen = LiveZeichnung.shared.offen else { return }
-            if op.art == "zeichnung.stand", let d = op.daten(ZeichnungStand.self) { offen.standEmpfangen(d) }
-            if op.art == "zeichnung.op" { offen.opEmpfangen(op) }
+            guard let offen = LiveZeichnung.shared.offen else { return }
+            if op.art == "zeichnung.stand", op.von != Raum.shared.ich, let d = op.daten(ZeichnungStand.self) { offen.standEmpfangen(d) }
+            // Own echoes too: they confirm the own ops.
+            if op.art == "zeichnung.op" || op.art == "zeichnung.rueckgaengig" { offen.opEmpfangen(op) }
         }
     }
 
@@ -183,7 +202,7 @@ final class TeilenModell {
         Raum.shared.senden("projekt.teilen", ProjektTeilen(projektId: project.id.uuidString, name: project.name, stufe: stufe))
         guard stufe != .aus else { return }
         for artwork in library.artworks where artwork.projectID == project.id {
-            StandPaket.planen(artwork.id, library: library, strich: nil)
+            StandPaket.planen(artwork.id, library: library)
         }
     }
 

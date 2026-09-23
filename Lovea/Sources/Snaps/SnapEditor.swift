@@ -323,7 +323,11 @@ enum SnapBildQuelle {
     }
 
     static func medium(_ id: String) async -> UIImage? {
-        let url = ChatMedien.eigeneQuellen[id] ?? Medien.lokal(id) ?? (try? await Medien.holen(id))
+        // Split, not `A ?? B ?? (try? await C)`: an `await` buried in a `??` chain doesn't
+        // type-check ("'async' call in a function that does not support concurrency") — same fix
+        // already applied project-wide in `StickerKachel`/`GifStickerBlatt`.
+        var url = ChatMedien.eigeneQuellen[id] ?? Medien.lokal(id)
+        if url == nil { url = try? await Medien.holen(id) }
         guard let url else { return nil }
         return UIImage(contentsOfFile: url.path)
     }

@@ -20,11 +20,11 @@ struct DrawingStudioView: View {
     @State private var templateItem: PhotosPickerItem?
     @State private var templateData: Data?
 
-    /// `nurAnsehen`: a partner drawing from the shared library, `stand` the stand it was loaded from.
+    /// `fremd`: a partner drawing from the shared library, `stand` the stand it was loaded from.
     init(artworkID: UUID, library: ArtworkLibrary, person: Person, templateData: Data? = nil,
-         nurAnsehen: Bool = false, stand: ZeichnungStand? = nil) {
-        _session = StateObject(wrappedValue: {
-            let session = DrawingSession(artworkID: artworkID, library: library, nurAnsehen: nurAnsehen)
+         fremd: Bool = false, stand: ZeichnungStand? = nil) {
+        _session = StateObject(wrappedValue: { () -> DrawingSession in
+            let session = DrawingSession(artworkID: artworkID, library: library, fremd: fremd)
             session.live.geladen = stand
             return session
         }())
@@ -39,16 +39,15 @@ struct DrawingStudioView: View {
             Color(uiColor: .secondarySystemBackground).ignoresSafeArea()
             CanvasRepresentable(session: session).ignoresSafeArea()
             CanvasOverlay(state: session.canvasState, session: session).ignoresSafeArea()
-            PartnerStiftOverlay(state: session.canvasState).ignoresSafeArea()
+            PartnerStiftOverlay(state: session.canvasState, live: session.live).ignoresSafeArea()
+            GemeinsamOverlay(state: session.canvasState, live: session.live).ignoresSafeArea()
             if session.isTransforming {
                 TransformOverlay(state: session.canvasState, session: session).ignoresSafeArea(edges: .bottom)
             }
         }
         .overlay(alignment: .top) { topMessages }
-        .overlay(alignment: .topLeading) {
-            PartnerFigurAmRand(zeichnungId: session.live.zeichnungId)
-                .padding(.leading, 12)
-                .padding(.top, 8)
+        .overlay {
+            PartnerFigurAmRand(zeichnungId: session.live.zeichnungId, state: session.canvasState)
                 .animation(reduceMotion ? nil : .snappy, value: LiveZeichnung.shared.partnerDrin)
         }
         .overlay(alignment: .topTrailing) {
@@ -120,6 +119,13 @@ struct DrawingStudioView: View {
     @ToolbarContentBuilder
     private var studioToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
+            if LiveZeichnung.shared.partnerIstDrin(session.live.zeichnungId) {
+                Button { LiveZeichnung.shared.fertigDruecken() } label: {
+                    Image(systemName: LiveZeichnung.shared.ichFertig ? "checkmark.circle.fill" : "checkmark.circle")
+                }
+                .accessibilityLabel("Gemeinsam fertig")
+                .accessibilityHint("Wenn ihr beide fertig drückt, landet das Bild im Chat")
+            }
             if session.nurAnsehen {
                 FolgenKnopf(state: session.canvasState)
             } else {
@@ -185,7 +191,9 @@ struct DrawingStudioView: View {
         Divider()
         Button { showsExport = true } label: { Label("Exportieren", systemImage: "square.and.arrow.up") }
         Button { session.alsBildSenden() } label: { Label("Als Bild senden", systemImage: "paperplane") }
-        Button { session.einladen() } label: { Label("Zum Mitzeichnen einladen", systemImage: "person.2") }
+        if !session.fremd {
+            Button { session.einladen() } label: { Label("Zum Mitzeichnen einladen", systemImage: "person.2") }
+        }
     }
 
     // MARK: Floating controls
@@ -289,9 +297,24 @@ struct DrawingStudioView: View {
             if session.isBusy {
                 ProgressView().padding(10).background(.regularMaterial, in: Circle())
             }
+            if let fertig = fertigHinweis {
+                Text(fertig)
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
+                    .background(.regularMaterial, in: Capsule())
+            }
         }
         .padding(.top, 8)
         .animation(reduceMotion ? nil : .snappy, value: session.notice)
+    }
+
+    private var fertigHinweis: String? {
+        let hub = LiveZeichnung.shared
+        guard hub.partnerIstDrin(session.live.zeichnungId), let partner = Raum.shared.ich?.partner.name else { return nil }
+        if hub.ichFertig { return "Wartet auf \(partner) …" }
+        if hub.partnerFertig { return "\(partner) ist fertig – du auch?" }
+        return nil
     }
 
     // MARK: Photos

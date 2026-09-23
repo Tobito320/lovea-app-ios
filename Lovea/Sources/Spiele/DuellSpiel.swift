@@ -273,6 +273,8 @@ private struct DuellZeichnen: View {
             try? await Task.sleep(for: .milliseconds(200))
         }
         await library.waitForWrites()
+        // Leaving the studio resets the figure (LiveZeichnung.verlassen); we are still playing.
+        FigurenModell.shared.zustandSenden(FigurenModell.Zustand(haupt: .spielt))
 
         var daten: Data?
         var endung = "png"

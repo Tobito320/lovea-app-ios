@@ -6,6 +6,7 @@ struct EinstellungenView: View {
     @ObservedObject var session: PersonSession
     @AppStorage("profile.performanceHUD") private var showsHUD = false
     @State private var zeigtOrte = false
+    @State private var zeigtHintergrund = false
     @State private var zeigtEntwickler = false
 
     var body: some View {
@@ -18,7 +19,8 @@ struct EinstellungenView: View {
                 NavigationLink("Flammen-Emoji") { FlammeEditor() }
             }
             Section("Chat") {
-                NavigationLink("Chat-Hintergrund") { ChatHintergrundPicker() }
+                Button("Chat-Hintergrund") { zeigtHintergrund = true }
+                    .foregroundStyle(.primary)
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
             }
             Section("Wir") {
@@ -50,6 +52,7 @@ struct EinstellungenView: View {
         .navigationTitle("Einstellungen")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $zeigtOrte) { OrteListeView() }
+        .sheet(isPresented: $zeigtHintergrund) { ChatHintergrundEinstellung(ich: person) }
     }
 }
 
@@ -134,63 +137,6 @@ private struct FlammeEditor: View {
         // ponytail: erstes Grapheme-Cluster statt Emoji-Validierung — reicht für "ein Emoji tippen".
         guard let erstes = text.first else { return }
         modell.setzen("flamme", .string(String(erstes)))
-    }
-}
-
-// MARK: - Chat-Hintergrund
-//
-// `Chat/Medien/ChatEinstellungen.swift` (Block 5, noch nicht auf app-komplett gemergt) faltet
-// `einstellung.setzen{schluessel:"hintergrund"}` bereits selbst, mit `wert` als Objekt
-// `{art:"farbe"|"foto"|"zeichnung", farbe:{red,green,blue,alpha}?, medienId, abgedunkelt}`
-// (`RGBAColor` aus Drawing/Library/ArtworkModels.swift, gehört keinem Block allein). Block 15
-// schreibt hier absichtlich dasselbe Objekt-Format (nur Farb-Presets, kein Foto/Zeichnung-Picker
-// — das bleibt Chat/**), statt einen eigenen, kollidierenden String-Wert unter demselben
-// Schlüssel zu senden. `HintergrundWert` unten ist eine lokale Kopie der Form, kein Import von
-// Chat/**, damit dieser Block ohne die noch ungemergte Datei baut.
-
-private struct HintergrundWert: Codable, Equatable {
-    enum Art: String, Codable { case farbe, foto, zeichnung }
-    var art: Art
-    var farbe: RGBAColor?
-    var medienId: String?
-    var abgedunkelt = false
-
-    static let standard = HintergrundWert(art: .farbe, farbe: nil)
-}
-
-private struct EinstellungWertPayload<Wert: Codable>: Codable {
-    var schluessel: String
-    var wert: Wert
-}
-
-private struct ChatHintergrundPicker: View {
-    let modell = EinstellungenModell.shared
-    private static let optionen: [(titel: String, wert: HintergrundWert)] = [
-        ("Standard", .standard),
-        ("Rose", HintergrundWert(art: .farbe, farbe: RGBAColor(red: 1, green: 59 / 255, blue: 92 / 255))),
-        ("Mitternacht", HintergrundWert(art: .farbe, farbe: RGBAColor(red: 0.06, green: 0.07, blue: 0.14))),
-        ("Pfirsich", HintergrundWert(art: .farbe, farbe: RGBAColor(red: 0.94, green: 0.75, blue: 0.61))),
-    ]
-
-    private var aktuell: HintergrundWert { modell.dekodiert("hintergrund", als: HintergrundWert.self) ?? .standard }
-
-    var body: some View {
-        List(Self.optionen.indices, id: \.self) { i in
-            let option = Self.optionen[i]
-            Button {
-                Raum.shared.senden("einstellung.setzen", EinstellungWertPayload(schluessel: "hintergrund", wert: option.wert))
-            } label: {
-                HStack {
-                    Text(option.titel).foregroundStyle(.primary)
-                    Spacer()
-                    if aktuell == option.wert {
-                        Image(systemName: "checkmark").foregroundStyle(Color.loveaRose)
-                    }
-                }
-            }
-        }
-        .navigationTitle("Chat-Hintergrund")
-        .navigationBarTitleDisplayMode(.inline)
     }
 }
 

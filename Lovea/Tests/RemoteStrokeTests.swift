@@ -96,15 +96,17 @@ final class RemoteStrokeTests: XCTestCase {
     func testStandAndOpsAfterBasis() {
         var stand = TeilenStand()
         let fill = ZeichnungAktion.fuellen(x: 1, y: 2, farbe: "#FF0000FF", toleranz: 0.1, alleEbenen: false, ebene: "e")
-        stand.anwenden(op("zeichnung.op", ZeichnungOp(zeichnungId: "z", basis: 0, aktion: fill), seq: 5))
-        stand.anwenden(op("zeichnung.op", ZeichnungOp(zeichnungId: "z", basis: 5, aktion: .anderes), seq: 8))
-        XCTAssertEqual(stand.letzteOpSeq["z"], 8)
+        let pixel = ZeichnungAktion.pixel(ebene: "e", x: 1, y: 2, breite: 3, hoehe: 4, medienId: "m1")
+        stand.anwenden(op("zeichnung.op", ZeichnungOp(id: "a", zeichnungId: "z", basis: 0, aktion: fill), seq: 5))
+        stand.anwenden(op("zeichnung.op", ZeichnungOp(id: "b", zeichnungId: "z", basis: 5, aktion: pixel), seq: 8))
         stand.anwenden(op("zeichnung.stand", ZeichnungStand(zeichnungId: "z", medienId: "m", basis: 5, ebenen: [], projektId: "p"), seq: 9))
-        XCTAssertEqual(stand.ops(nach: 5, zeichnungId: "z").map(\.seq), [8])
+        stand.anwenden(op("zeichnung.rueckgaengig", ZeichnungRueckgaengig(zeichnungId: "z", opId: "b"), seq: 11))
+        XCTAssertEqual(stand.ops(nach: 5, zeichnungId: "z").map(\.seq), [8, 11], "undo ops are kept for the catch-up")
         XCTAssertFalse(stand.sichtbar(stand.staende["z"]!.wert), "project not shared")
         stand.anwenden(op("zeichnung.einladung", ZeichnungEinladung(zeichnungId: "z", name: "Katze"), seq: 10))
         XCTAssertEqual(stand.geteilteStaende(von: .ahmed).map(\.zeichnungId), ["z"])
         let decoded = stand.ops(nach: 0, zeichnungId: "z").first?.daten(ZeichnungOp.self)
-        XCTAssertEqual(decoded?.aktion, .anderes)
+        XCTAssertEqual(decoded?.aktion, pixel)
+        XCTAssertEqual(decoded?.id, "b")
     }
 }

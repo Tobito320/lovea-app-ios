@@ -21,6 +21,14 @@ struct ChatNachrichtRow: View {
     private var eigene: Bool { nachricht.von == ich }
 
     var body: some View {
+        if let einladung = nachricht.einladung {
+            ZeichnungEinladungZeile(zeichnungId: einladung.zeichnungId, name: einladung.name, von: nachricht.von, ich: ich)
+        } else {
+            zeile
+        }
+    }
+
+    private var zeile: some View {
         VStack(alignment: .center, spacing: 4) {
             if zeigeDatumstrenner {
                 Text(nachricht.zeit.formatted(date: .abbreviated, time: .omitted))

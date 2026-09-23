@@ -78,6 +78,12 @@ struct ArtworkLayersView: View {
         Button { session.toggleLock(layer.id) } label: {
             Label(layer.isLocked ? "Entsperren" : "Sperren", systemImage: layer.isLocked ? "lock.open" : "lock")
         }
+        if session.live.verlauf != nil, let ich = Raum.shared.ich, layer.gesperrtVon == nil || layer.gesperrtVon == ich.rawValue {
+            Button { session.sperreFuerPartner(layer.id) } label: {
+                Label(layer.gesperrtVon == nil ? "Für \(ich.partner.name) sperren" : "Für \(ich.partner.name) entsperren",
+                      systemImage: layer.gesperrtVon == nil ? "lock.shield" : "lock.open")
+            }
+        }
         Button(role: .destructive) { requestDelete(layer.id) } label: { Label("Löschen", systemImage: "trash") }
             .disabled(session.document.layers.count <= 1)
     }
@@ -131,6 +137,16 @@ private struct LayerRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .accessibilityLabel("Gesperrt")
+            }
+            if let sperre = layer.gesperrtVon.flatMap(Person.init(rawValue:)) {
+                // Lock with the figure of the one locked out (Z-13.3).
+                HStack(spacing: 2) {
+                    Image(systemName: "lock.fill").font(.caption)
+                    FigurView(FigurenModell.shared.aussehen(sperre.partner), zustand: .ruhig, groesse: 22, animiert: false)
+                }
+                .foregroundStyle(Color.person(sperre))
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Für \(sperre.partner.name) gesperrt")
             }
             Button {
                 session.toggleVisibility(layer.id)

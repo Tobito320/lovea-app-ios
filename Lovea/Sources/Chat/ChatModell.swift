@@ -34,7 +34,11 @@ final class ChatModell {
         var snapAngesehen = false
         var snapLange = false
         var snapGespeichert = false
+        /// Local chat line for a `zeichnung.einladung` (no own op, so no second push).
+        var einladung: EinladungInfo?
     }
+
+    struct EinladungInfo: Sendable, Equatable { let zeichnungId: String; let name: String }
 
     // Blocks 5/6 extend these; fields already match the op payloads in schnittstellen.md.
     // `pegel` (Z-5.2 waveform, ≤64 dB-derived values) is an extra field beyond schnittstellen.md,
@@ -58,7 +62,7 @@ final class ChatModell {
     static let arten: Set<String> = [
         "nachricht.neu", "nachricht.bearbeitet", "nachricht.geloescht", "nachricht.reaktion",
         "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern",
-        "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme",
+        "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme", "zeichnung.einladung",
     ]
 
     init(registrieren: Bool = true) {
@@ -142,6 +146,18 @@ final class ChatModell {
             } else {
                 let text = op.von.name + (p.art == "bildschirmaufnahme" ? " hat den Bildschirm aufgenommen" : " hat einen Screenshot gemacht")
                 byID[op.id] = Nachricht(id: op.id, von: op.von, zeit: op.zeit, seq: op.seq, system: text)
+            }
+        case "zeichnung.einladung":
+            // Keyed by the op id: the optimistic op and its echo share it.
+            guard let p = op.daten(EinladungPayload.self) else { return }
+            let id = "einladung-\(op.id)"
+            if var vorhanden = byID[id] {
+                if let seq = op.seq { vorhanden.seq = seq }
+                byID[id] = vorhanden
+            } else {
+                var zeile = Nachricht(id: id, von: op.von, zeit: op.zeit, seq: op.seq)
+                zeile.einladung = EinladungInfo(zeichnungId: p.zeichnungId, name: p.name)
+                byID[id] = zeile
             }
         default:
             break
@@ -306,3 +322,4 @@ private struct SternPayload: Codable { let id: String; let an: Bool }
 private struct AbschriftPayload: Codable { let id: String; let text: String }
 private struct SnapAngesehenPayload: Codable { let id: String; let lange: Bool }
 private struct SnapAufnahmePayload: Codable { let id: String; let art: String }
+private struct EinladungPayload: Codable { let zeichnungId: String; let name: String }

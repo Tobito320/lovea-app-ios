@@ -5,8 +5,7 @@ import SwiftUI
 struct ProfileView: View {
     let person: Person
     @ObservedObject var session: PersonSession
-    /// Spiele-Bilanz aus Block 14 (`SpieleModell`). Leer, bis der Controller sie verdrahtet —
-    /// siehe Bericht "Integration: bilanz".
+    /// Spiele-Bilanz aus Block 14 (`SpieleModell`), vom Controller in `AppRootView.swift` verdrahtet.
     var bilanz: [(spiel: String, ahmed: Int, annika: Int)] = []
 
     var body: some View {
@@ -27,8 +26,9 @@ struct ProfileView: View {
     }
 }
 
-/// Für Chat und Karte: gleiches Layout, ohne Zahnrad, als Sheet präsentierbar (ersetzt den
-/// Platzhalter `PartnerProfilKarte` — siehe Bericht "Integration: Chat").
+/// Für Chat und Karte: gleiches Layout, ohne Zahnrad, als Sheet präsentierbar. `ChatTab.swift`
+/// präsentiert diese statt des alten Platzhalters `PartnerProfilKarte` (der noch als tote Datei
+/// in `Chat/PartnerProfilKarte.swift` liegt, außerhalb dieses Blocks — nicht hier gelöscht).
 struct PartnerProfilView: View {
     let person: Person
     @Environment(\.dismiss) private var dismiss

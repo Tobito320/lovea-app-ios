@@ -1,4 +1,6 @@
 import AVFoundation
+import CoreMedia
+import QuartzCore
 import SwiftUI
 import UIKit
 
