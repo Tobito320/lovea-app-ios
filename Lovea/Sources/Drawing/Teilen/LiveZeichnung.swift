@@ -454,8 +454,7 @@ final class ZeichnungLive {
         FigurenModell.shared.zustandSenden(.init(haupt: .ruhig))
     }
 
-    /// "Zum Mitzeichnen einladen": push for the partner (server side), shares this drawing to edit.
-    /// ponytail: the chat hint needs `ChatModell` to fold `zeichnung.einladung` (Chat folder, see report).
+    /// "Zum Mitzeichnen einladen": push (server side) and chat line (`ChatModell` folds the op), shares this drawing to edit.
     func einladen() {
         guard !fremd, let session else { return }
         Raum.shared.senden("zeichnung.einladung", ZeichnungEinladung(zeichnungId: zeichnungId, name: session.document.name))
