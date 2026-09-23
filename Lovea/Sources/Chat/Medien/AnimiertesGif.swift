@@ -3,7 +3,11 @@ import SwiftUI
 import UIKit
 
 private enum AnimiertesGifCache {
-    static let bilder = NSCache<NSURL, UIImage>()
+    // ponytail: `NSCache` is documented thread-safe (Apple: "you can add, remove, and query items
+    // in the cache from different threads without having to lock the cache yourself"), it's just
+    // not marked `Sendable`. `nonisolated(unsafe)` instead of `@MainActor` — `lade(_:)` below reads
+    // it from a background `Task`, not the main actor.
+    nonisolated(unsafe) static let bilder = NSCache<NSURL, UIImage>()
 }
 
 /// GIF playback via `UIImage.animatedImage` built from ImageIO frames — no third-party GIF library
