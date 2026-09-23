@@ -44,6 +44,7 @@ struct IPhoneKalenderExportBlatt: View {
     let titel: String
     let start: Date
     let ende: Date
+    var ganztaegig = false
     @Environment(\.dismiss) private var dismiss
     @State private var store = EKEventStore()
     @State private var status: ExportStatus = .laedt
@@ -82,6 +83,7 @@ struct IPhoneKalenderExportBlatt: View {
         event.title = titel
         event.startDate = start
         event.endDate = ende
+        event.isAllDay = ganztaegig
         event.calendar = store.defaultCalendarForNewEvents
         return event
     }
