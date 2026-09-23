@@ -82,7 +82,8 @@ private struct ProfilInhalt: View {
                     chips
                     aktionen
                     abschnitt("Unser Chat") { unserChat }
-                    abschnitt("Die Karte") { dieKarte }
+                    // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
+                    if !istEigenes { abschnitt("Die Karte") { dieKarte } }
                     abschnitt("Wir") { wir }
                 }
                 .padding(.horizontal, 16)

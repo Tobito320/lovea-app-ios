@@ -89,11 +89,13 @@ struct KarteTab: View {
             ForEach(Person.allCases, id: \.self) { person in
                 if let d = standort.positionen[person] {
                     let punkt = CLLocationCoordinate2D(latitude: d.lat, longitude: d.lon)
+                    // Z-19.3: `Annotation`s eigener Titel würde den Namen zusätzlich zu `namensSchild` zeigen.
                     Annotation(person.name, coordinate: punkt) {
                         FigurPin(person: person, daten: d, zustand: zustand(person), aussehen: figuren.aussehen(person), istIch: person == Raum.shared.ich) {
                             figurTippen(person)
                         }
                     }
+                    .annotationTitles(.hidden)
                     if d.genau > 20 {
                         MapCircle(center: punkt, radius: d.genau)
                             .foregroundStyle(Color.person(person).opacity(0.12))
@@ -103,8 +105,6 @@ struct KarteTab: View {
             }
         }
         .mapStyle(satellit ? .imagery(elevation: .realistic) : .standard(elevation: .realistic, pointsOfInterest: .including(Self.poiKategorien)))
-        // Z-19.3: `Annotation`s eigener Titel würde den Namen zusätzlich zu `namensSchild` zeigen.
-        .annotationTitles(.hidden)
         .mapControls { MapCompass() }
         .onAppear { kameraZentrieren() }
         .onChange(of: standort.positionen.count) { _, _ in kameraZentrieren() }
