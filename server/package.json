@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --test .",
+    "test": "node --test",
     "deploy:test": "wrangler deploy --env test",
     "deploy:live": "wrangler deploy --env live"
   },

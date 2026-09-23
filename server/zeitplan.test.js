@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { vorabendZeit, stundeVorherZeit, puenktlichZeit, naechsteTageszeit, naechsterAlarm } from "./zeitplan.js";
+import { vorabendZeit, stundeVorherZeit, puenktlichZeit, naechsteTageszeit, naechsteFaelligeTageszeit, naechsterAlarm } from "./zeitplan.js";
 
 // Review-Fokus 4: Tageswechsel in Europe/Berlin über die Zeitumstellung
 // 25.10.2026 (03:00 CEST -> 02:00 CET, Uhren eine Stunde zurück).
@@ -49,4 +49,49 @@ test("naechsterAlarm: findet fällige und nächste Ereignisse, dedupliziert per 
   assert.ok(faellig.some((f) => f.art === "nachrichtLoesen" && f.id === "p1"));
   assert.ok(!faellig.some((f) => f.art === "frageDesTages"));
   assert.ok(naechste !== null && naechste > jetzt);
+});
+
+// Regressionstest: naechsteTageszeit lieferte früher IMMER einen Zeitpunkt in
+// der Zukunft, auch wenn das Ereignis heute noch nicht erledigt war -- die
+// Frage des Tages (18 Uhr) und die Streak-Warnung (21 Uhr) sind dadurch nie
+// ausgelöst worden, ein Alarm um 18:00 hat einfach auf "morgen 18:00"
+// umgeplant. naechsteFaelligeTageszeit muss den heutigen, ggf. schon
+// vergangenen Zeitpunkt liefern, solange er nicht erledigt ist.
+test("naechsteFaelligeTageszeit: heute (auch rückwirkend), solange nicht erledigt; sonst morgen", () => {
+  const nach18 = Date.parse("2026-06-15T17:00:00.000Z"); // 19:00 Berlin, also nach 18:00
+  const heuteNochOffen = naechsteFaelligeTageszeit(nach18, 18, 0, false);
+  assert.equal(new Date(heuteNochOffen).toISOString(), "2026-06-15T16:00:00.000Z"); // 18:00 Berlin, heute, in der Vergangenheit
+  assert.ok(heuteNochOffen <= nach18); // -> in naechsterAlarm().faellig
+
+  const heuteErledigt = naechsteFaelligeTageszeit(nach18, 18, 0, true);
+  assert.equal(new Date(heuteErledigt).toISOString(), "2026-06-16T16:00:00.000Z"); // morgen
+});
+
+test("naechsterAlarm: Frage des Tages wird fällig, wenn 18 Uhr vorbei und noch nicht erledigt", () => {
+  const nach18 = Date.parse("2026-06-15T17:30:00.000Z"); // 19:30 Berlin
+  const kontext = { erinnerungenHeute: { frage: false, streak: false }, streakLaeuftHeuteAb: false };
+  const { faellig } = naechsterAlarm(kontext, nach18);
+  assert.ok(faellig.some((f) => f.art === "frageDesTages"));
+});
+
+test("naechsterAlarm: bleibt nie ohne nächsten Wach-Zeitpunkt (frageDesTages ist immer ein Kandidat)", () => {
+  // Alles für heute schon erledigt, nichts anderes ansteht -> trotzdem muss
+  // ein "naechste" für morgen 18 Uhr geplant sein, sonst wacht der DO-Alarm
+  // nie wieder von selbst auf.
+  const heuteFrueh = Date.parse("2026-06-15T05:00:00.000Z"); // 07:00 Berlin
+  const kontext = { erinnerungenHeute: { frage: true, streak: true }, streakLaeuftHeuteAb: false };
+  const { faellig, naechste } = naechsterAlarm(kontext, heuteFrueh);
+  assert.equal(faellig.length, 0);
+  assert.ok(naechste !== null);
+});
+
+test("naechsterAlarm: Pünktlich-Karte wird am Morgen nach einem (auch gestrigen) Treffen fällig", () => {
+  const morgenDanach = Date.parse("2026-10-24T08:00:00.000Z"); // 25.10. ist ein Sonntag danach; hier: Treffen am Vortag
+  const kontext = {
+    treffen: [{ datum: "2026-10-23" }], // "gestern" relativ zu morgenDanach (24.10.)
+    erinnerungenHeute: { frage: true, streak: true },
+    streakLaeuftHeuteAb: false,
+  };
+  const { faellig } = naechsterAlarm(kontext, morgenDanach);
+  assert.ok(faellig.some((f) => f.art === "puenktlichKarte" && f.datum === "2026-10-23"));
 });

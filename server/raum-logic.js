@@ -41,6 +41,30 @@ export function initSchema(sql) {
     d TEXT NOT NULL,
     zeit TEXT NOT NULL
   )`);
+  // Kleiner Key-Value-Speicher für Server-internen Zustand (erledigte Alarme,
+  // letzte "Zufällig nah"-Meldung), der NICHT als Op an die Clients geht.
+  sql.exec(`CREATE TABLE IF NOT EXISTS merker (
+    schluessel TEXT PRIMARY KEY,
+    wert TEXT NOT NULL
+  )`);
+  // Jede Kontext-Berechnung für den Zeitplan fragt mehrfach "alle Ops einer
+  // Art" ab (Last: Spec 13) -- ohne Index wäre das ein Full-Table-Scan pro Op.
+  sql.exec(`CREATE INDEX IF NOT EXISTS ops_art_von_zeit ON ops (art, von, zeit)`);
+}
+
+// --- Merker (Server-interner Zustand, kein Op) ------------------------------
+
+export function merkerLesen(sql, schluessel) {
+  const rows = sql.exec(`SELECT wert FROM merker WHERE schluessel = ?`, schluessel).toArray();
+  return rows.length ? rows[0].wert : null;
+}
+
+export function merkerSchreiben(sql, schluessel, wert) {
+  sql.exec(
+    `INSERT INTO merker (schluessel, wert) VALUES (?, ?) ON CONFLICT(schluessel) DO UPDATE SET wert = excluded.wert`,
+    schluessel,
+    wert
+  );
 }
 
 // --- Ops ---------------------------------------------------------------
@@ -257,12 +281,15 @@ export function geraetLoeschen(sql, person) {
   sql.exec(`DELETE FROM geraete WHERE person = ?`, person);
 }
 
-// Letzter Zeitpunkt (ms) einer "Zufällig nah"-Systemnachricht, für die
-// 6h-Drossel -- aus den Ops gelesen, überlebt also DO-Hibernation.
+// Letzter Zeitpunkt (ms) einer "Zufällig nah"-Meldung, für die 6h-Drossel --
+// im Merker gespeichert (kein Op), überlebt also DO-Hibernation.
 export function letzteZufaelligNahMs(sql) {
-  const rows = alleOpsArt(sql, "nachricht.neu").filter((op) => op.d.system === "nah");
-  if (!rows.length) return null;
-  return Date.parse(rows[rows.length - 1].zeit);
+  const wert = merkerLesen(sql, "nah.letzte");
+  return wert === null ? null : Number(wert);
+}
+
+export function zufaelligNahAlsGemeldetMarkieren(sql, jetztMs) {
+  merkerSchreiben(sql, "nah.letzte", String(jetztMs));
 }
 
 // --- Zufällig nah (Z-1.8) --------------------------------------------------
@@ -326,34 +353,46 @@ export function offeneSpielEinladungen(sql) {
   return [...byId.values()].filter((x) => !erledigt.has(x.id));
 }
 
-// Streak: beide aktiv (mind. eine nachricht.neu) an aufeinanderfolgenden Tagen.
-// "läuft heute ab": gestern waren beide aktiv, heute (bisher) noch nicht beide.
-function aktiveTage(sql, person) {
-  return new Set(alleOpsVon(sql, person, "nachricht.neu").map((op) => berlinDatum(Date.parse(op.zeit))));
+// Neueste Fassung eines Orts (für Namen/`melden` bei ort.ereignis-Push).
+export function ortInfo(sql, ortId) {
+  const treffer = alleOpsArt(sql, "ort.setzen").filter((op) => op.d.id === ortId);
+  return treffer.length ? treffer[treffer.length - 1].d : null;
+}
+
+// Streak: beide aktiv (mind. eine echte, nicht-System-nachricht.neu) an
+// aufeinanderfolgenden Tagen. "läuft heute ab": gestern waren beide aktiv,
+// heute (bisher) noch nicht beide. Auf die letzten Tage begrenzt (Last, Spec 13).
+function aktiveTage(sql, person, seitIso) {
+  const rows = sql
+    .exec(`SELECT zeit, d FROM ops WHERE art = 'nachricht.neu' AND von = ? AND zeit >= ? ORDER BY seq ASC`, person, seitIso)
+    .toArray();
+  const tage = new Set();
+  for (const row of rows) {
+    const d = JSON.parse(row.d);
+    if (d.system) continue; // Systemnachrichten (z. B. "zufällig nah") zählen nicht für den Streak.
+    tage.add(berlinDatum(Date.parse(row.zeit)));
+  }
+  return tage;
 }
 
 export function streakLaeuftHeuteAb(sql, jetztMs) {
   const heute = berlinDatum(jetztMs);
   const gestern = berlinDatum(jetztMs - 86_400_000);
-  const ahmed = aktiveTage(sql, "ahmed");
-  const annika = aktiveTage(sql, "annika");
+  const seit = new Date(jetztMs - 3 * 86_400_000).toISOString(); // Puffer über Zeitzone/DST
+  const ahmed = aktiveTage(sql, "ahmed", seit);
+  const annika = aktiveTage(sql, "annika", seit);
   return ahmed.has(gestern) && annika.has(gestern) && !(ahmed.has(heute) && annika.has(heute));
 }
 
 // Markiert, dass ein zeitgesteuertes Ereignis (Vorabend, 1h-vorher,
 // Frage-des-Tages, Streak-Warnung, ...) für einen Schlüssel schon erledigt
-// ist -- damit der nächste Alarm es nicht noch einmal auslöst. Deterministische
-// id -> INSERT OR IGNORE macht das robust gegen doppeltes Feuern.
+// ist -- damit der nächste Alarm es nicht noch einmal auslöst. Liegt im
+// Merker, nicht in den Ops: das ist Server-Buchhaltung, kein Chat-Ereignis,
+// und soll nicht als unbekannte Op-Art beim Client ankommen.
 export function alarmErledigt(sql, art, schluessel) {
-  return alleOpsArt(sql, "system.alarmErledigt").some((o) => o.d.art === art && o.d.schluessel === schluessel);
+  return merkerLesen(sql, `alarm.${art}.${schluessel}`) !== null;
 }
 
 export function alarmAlsErledigtMarkieren(sql, art, schluessel, jetztIso) {
-  opEinfuegen(sql, {
-    id: `alarm-${art}-${schluessel}`,
-    art: "system.alarmErledigt",
-    von: "ahmed",
-    zeit: jetztIso,
-    d: { art, schluessel },
-  });
+  merkerSchreiben(sql, `alarm.${art}.${schluessel}`, jetztIso);
 }

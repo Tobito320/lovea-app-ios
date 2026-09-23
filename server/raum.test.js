@@ -109,6 +109,36 @@ test("fl (außer standort) geht nur an den Partner, nie an einen selbst, wird ni
   assert.ok(!websockets.ahmed.gesendet.some((m) => m.t === "fl"));
 });
 
+// Regressionstest: standortSchreiben() drosselt nur das Wegschreiben in die
+// Tabelle, nicht die Live-Weiterleitung an den Partner. Früher hat ein
+// `return` bei geschrieben===false auch die Weiterleitung verschluckt -- die
+// Live-Karte hätte dann nur einen Punkt pro Minute bekommen.
+test("standort (fl): geht live bei jedem Update an den Partner, auch innerhalb der Schreib-Drossel", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "standort", d: { lat: 1, lon: 1 } }));
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "standort", d: { lat: 1.0001, lon: 1 } }));
+  const empfangen = websockets.annika.gesendet.filter((m) => m.t === "standort");
+  assert.equal(empfangen.length, 2);
+});
+
+// Review-Fokus / Z-1.8: "an beide eine Op", nicht zwei separate Bubbles.
+test("Zufällig nah: genau eine Op an beide, laute Push nur einmal pro 6h", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0, lon: 7.0 } }));
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0005, lon: 7.0 } })); // ~56 m entfernt
+
+  const nahOpsAhmed = websockets.ahmed.gesendet.filter((m) => m.t === "ops" && m.ops[0]?.d?.system === "nah");
+  const nahOpsAnnika = websockets.annika.gesendet.filter((m) => m.t === "ops" && m.ops[0]?.d?.system === "nah");
+  assert.equal(nahOpsAhmed.length, 1);
+  assert.equal(nahOpsAnnika.length, 1);
+  assert.equal(nahOpsAhmed[0].ops[0].id, nahOpsAnnika[0].ops[0].id); // dieselbe Op, nicht zwei
+
+  // Noch einmal ganz nah -> keine zweite Meldung innerhalb von 6h.
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0005, lon: 7.0001 } }));
+  const nochmal = websockets.ahmed.gesendet.filter((m) => m.t === "ops" && m.ops[0]?.d?.system === "nah");
+  assert.equal(nochmal.length, 1);
+});
+
 test("Medien: PUT Teile, fertig erst wenn alle da, GET liefert Bytes, fehlend meldet Lücken", async () => {
   const { raum } = raumMitVerbindung([]);
   const put = (teil, bytes) => raum.fetch(new Request(`https://x/medien/m1/original/${teil}`, { method: "PUT", body: bytes, headers: { "X-Lovea-Person": "ahmed" } }));

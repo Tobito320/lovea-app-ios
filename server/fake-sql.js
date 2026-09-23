@@ -9,7 +9,7 @@ export function fakeSql() {
   return {
     exec(query, ...bindings) {
       const stmt = db.prepare(query);
-      if (/^\s*(select|pragma)/i.test(query)) {
+      if (/^\s*(select|pragma|explain)/i.test(query)) {
         const rows = stmt.all(...bindings);
         return {
           toArray: () => rows,

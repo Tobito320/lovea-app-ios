@@ -77,6 +77,21 @@ export function naechsteTageszeit(jetztMs, hh, mm = 0) {
   return kandidat;
 }
 
+// Nächster fälliger Zeitpunkt für ein tägliches Ereignis (Frage des Tages,
+// Streak-Warnung): wenn es heute noch nicht erledigt ist, ist der Kandidat
+// HEUTE hh:mm -- auch wenn das schon in der Vergangenheit liegt (dann wird es
+// beim nächsten Alarm sofort nachgeholt, statt nie zu feuern). Ist es heute
+// schon erledigt, ist der Kandidat morgen hh:mm, damit dauerhaft ein
+// Wach-Zeitpunkt geplant bleibt (sonst würde die letzte Erinnerung des Tages
+// den DO-Alarm ganz abschalten und der nächste Tag nie mehr aufwachen).
+export function naechsteFaelligeTageszeit(jetztMs, hh, mm, heuteErledigt) {
+  if (!heuteErledigt) {
+    const p = berlinParts(jetztMs);
+    return berlinInstant(p.y, p.mo, p.d, hh, mm, 0);
+  }
+  return naechsteTageszeit(jetztMs, hh, mm);
+}
+
 // kontext, von raum.js aus den Ops gebaut:
 // {
 //   treffen: [{datum:"YYYY-MM-DD", uhrzeit?:"HH:mm"}],
@@ -93,16 +108,18 @@ export function naechsterAlarm(kontext, jetztMs) {
     kandidaten.push({ art: "puenktlichKarte", datum: t.datum, zeitMs: puenktlichZeit(t.datum) });
   }
   for (const m of kontext.angeheftet ?? []) {
-    if (m.bis) kandidaten.push({ art: "nachrichtLoesen", id: m.id, zeitMs: Date.parse(m.bis) });
+    if (m.bis) kandidaten.push({ art: "nachrichtLoesen", id: m.id, von: m.von, zeitMs: Date.parse(m.bis) });
   }
   for (const s of kontext.spielEinladungen ?? []) {
-    if (s.bis) kandidaten.push({ art: "spielVerfallen", id: s.id, zeitMs: Date.parse(s.bis) });
+    if (s.bis) kandidaten.push({ art: "spielVerfallen", id: s.id, von: s.von, zeitMs: Date.parse(s.bis) });
   }
-  if (!kontext.erinnerungenHeute?.frage) {
-    kandidaten.push({ art: "frageDesTages", zeitMs: naechsteTageszeit(jetztMs, 18, 0) });
-  }
-  if (kontext.streakLaeuftHeuteAb && !kontext.erinnerungenHeute?.streak) {
-    kandidaten.push({ art: "streakWarnung", zeitMs: naechsteTageszeit(jetztMs, 21, 0) });
+  // Immer einen Kandidaten für die Frage des Tages einplanen: entweder heute
+  // (falls noch offen -- kann in der Vergangenheit liegen und wird nachgeholt)
+  // oder morgen (falls heute schon erledigt). So bleibt immer ein Wach-
+  // Zeitpunkt geplant, auch wenn sonst nichts ansteht.
+  kandidaten.push({ art: "frageDesTages", zeitMs: naechsteFaelligeTageszeit(jetztMs, 18, 0, kontext.erinnerungenHeute?.frage) });
+  if (kontext.streakLaeuftHeuteAb) {
+    kandidaten.push({ art: "streakWarnung", zeitMs: naechsteFaelligeTageszeit(jetztMs, 21, 0, kontext.erinnerungenHeute?.streak) });
   }
 
   const faellig = kandidaten.filter((k) => k.zeitMs <= jetztMs).sort((a, b) => a.zeitMs - b.zeitMs);

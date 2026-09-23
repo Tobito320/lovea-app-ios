@@ -19,6 +19,7 @@ import {
   streakLaeuftHeuteAb,
   alarmErledigt,
   alarmAlsErledigtMarkieren,
+  ortInfo,
 } from "./raum-logic.js";
 
 function raum() {
@@ -147,6 +148,23 @@ test("offeneTreffen: neueste Fassung gewinnt, gelöschte und vergangene fallen r
   assert.deepEqual(ergebnis, [{ datum: "2026-10-25", uhrzeit: "15:00" }]);
 });
 
+test("offeneTreffen: ein Cutoff auf 'gestern' liefert das gestrige Treffen noch (für die Pünktlich-Karte am Morgen danach)", () => {
+  const sql = raum();
+  opEinfuegen(sql, op("t1", "treffen.setzen", "ahmed", { datum: "2026-10-23" }));
+  // "heute" = 2026-10-24 -> Treffen gestern ist raus, wenn man ab "heute" filtert...
+  assert.deepEqual(offeneTreffen(sql, "2026-10-24"), []);
+  // ...aber noch drin, wenn man ab "gestern" filtert.
+  assert.deepEqual(offeneTreffen(sql, "2026-10-23"), [{ datum: "2026-10-23", uhrzeit: undefined }]);
+});
+
+test("ortInfo: neueste Fassung eines Orts, oder null", () => {
+  const sql = raum();
+  assert.equal(ortInfo(sql, "o1"), null);
+  opEinfuegen(sql, op("s1", "ort.setzen", "ahmed", { id: "o1", name: "Zuhause", kategorie: "zuhause", melden: "beides" }));
+  opEinfuegen(sql, op("s2", "ort.setzen", "ahmed", { id: "o1", name: "Zuhause", kategorie: "zuhause", melden: "nichts" }));
+  assert.equal(ortInfo(sql, "o1").melden, "nichts");
+});
+
 test("offeneAngeheftet: gelöste Nachrichten fallen raus", () => {
   const sql = raum();
   opEinfuegen(sql, op("p1", "nachricht.angeheftet", "ahmed", { id: "m1", bis: "2026-10-01T00:00:00.000Z" }));
@@ -179,11 +197,21 @@ test("streakLaeuftHeuteAb: gestern beide aktiv, heute noch keiner -> true", () =
   assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
 });
 
-test("alarmErledigt: Markierung ist idempotent und wird gefunden", () => {
+test("streakLaeuftHeuteAb: Systemnachrichten (z. B. Zufällig nah) zählen nicht als Aktivität", () => {
+  const sql = raum();
+  opEinfuegen(sql, op("s1", "nachricht.neu", "ahmed", { system: "nah" }, "2026-10-24T10:00:00.000Z"));
+  opEinfuegen(sql, op("s2", "nachricht.neu", "annika", { system: "nah" }, "2026-10-24T11:00:00.000Z"));
+  const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
+  // Beide "aktiv" gestern, aber nur über Systemnachrichten -> kein echter Streak-Tag.
+  assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
+});
+
+test("alarmErledigt: Markierung ist idempotent, wird gefunden, landet nicht in den Ops", () => {
   const sql = raum();
   assert.equal(alarmErledigt(sql, "frageDesTages", "2026-10-25"), false);
   alarmAlsErledigtMarkieren(sql, "frageDesTages", "2026-10-25", "2026-10-25T18:00:00.000Z");
   alarmAlsErledigtMarkieren(sql, "frageDesTages", "2026-10-25", "2026-10-25T18:00:00.000Z"); // doppelt, harmlos
   assert.equal(alarmErledigt(sql, "frageDesTages", "2026-10-25"), true);
-  assert.equal(opsSeit(sql, 0).ops.length, 1);
+  // Server-Buchhaltung, kein Chat-Ereignis: darf dem Client nicht als Op ankommen.
+  assert.equal(opsSeit(sql, 0).ops.length, 0);
 });

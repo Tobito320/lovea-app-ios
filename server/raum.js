@@ -11,6 +11,7 @@ import {
   medienFertig,
   medienFehlend,
   medienLesen,
+  medienNachFertigAufraeumen,
   standortSchreiben,
   letzterStandort,
   zufaelligNah,
@@ -25,6 +26,8 @@ import {
   alarmErledigt,
   alarmAlsErledigtMarkieren,
   letzteZufaelligNahMs,
+  zufaelligNahAlsGemeldetMarkieren,
+  ortInfo,
 } from "./raum-logic.js";
 import { push } from "./push.js";
 import { regel } from "./regeln.js";
@@ -96,7 +99,7 @@ export class Raum {
       ws.send(JSON.stringify({ t: "ops", ops: [bestaetigt], mehr: false }));
       if (neu) {
         this.#sendeAnPartner(person, { t: "ops", ops: [bestaetigt], mehr: false });
-        await this.#pushFuerOp(bestaetigt).catch(() => {});
+        await this.#pushFuerOp(bestaetigt).catch((err) => this.#log("push für Op fehlgeschlagen", bestaetigt.art, err));
         await this.#alarmAktualisieren();
       }
     } else if (msg.t === "nachholen") {
@@ -126,25 +129,50 @@ export class Raum {
 
   #sendePraesenz() {
     const status = { t: "da", ahmed: this.#istVerbunden("ahmed"), annika: this.#istVerbunden("annika") };
-    for (const ws of this.ctx.getWebSockets()) ws.send(JSON.stringify(status));
+    this.#sendeAn(this.ctx.getWebSockets(), status);
   }
 
   #sendeAnPartner(von, nachricht) {
-    for (const ws of this.ctx.getWebSockets(partnerVon(von))) ws.send(JSON.stringify(nachricht));
+    this.#sendeAn(this.ctx.getWebSockets(partnerVon(von)), nachricht);
+  }
+
+  // Ein throw in send() (z. B. ein Socket, der zwischen getWebSockets() und
+  // hier schon weg ist) darf die anderen Empfänger nicht mitreißen.
+  #sendeAn(sockets, nachricht) {
+    const text = JSON.stringify(nachricht);
+    for (const ws of sockets) {
+      try {
+        ws.send(text);
+      } catch {
+        // ignorieren -- Präsenz/Broadcast an einen toten Socket ist kein Fehler.
+      }
+    }
   }
 
   async #standort(person, d) {
     const jetzt = Date.now();
-    const geschrieben = standortSchreiben(this.sql, person, d, new Date(jetzt).toISOString(), jetzt);
-    if (!geschrieben) return;
+    const jetztIso = new Date(jetzt).toISOString();
+    // Live geht immer sofort an den Partner (der Client steuert selbst, wie
+    // oft er sendet). Nur das Wegschreiben in die Tabelle standort ist
+    // gedrosselt (überlebt Reconnect/Hibernation), siehe schnittstellen.md.
     this.#sendeAnPartner(person, { t: "standort", person, d });
-    await this.#pruefeZufaelligNah(person, d, jetzt).catch(() => {});
+    standortSchreiben(this.sql, person, d, jetztIso, jetzt);
+    await this.#pruefeZufaelligNah(person, d, jetzt).catch((err) => this.#log("Zufällig-nah-Prüfung fehlgeschlagen", err));
   }
 
   // --- Push für eintreffende Ops (Z-1.6) ------------------------------------
 
   async #pushFuerOp(op) {
-    const r = regel(op.art, op.von, op.d);
+    let kontext;
+    if (op.art === "ort.ereignis") {
+      const ort = ortInfo(this.sql, op.d.ortId);
+      // Kein bekannter Ort, oder für diese Richtung abgeschaltet (melden:
+      // "nichts"/"ankunft"/"verlassen"/"beides") -> keine Push (Spec 12:
+      // "Ankunft oder Verlassen gewählter Orte").
+      if (!ort || !(ort.melden === "beides" || ort.melden === op.d.art)) return;
+      kontext = { ortName: ort.name };
+    }
+    const r = regel(op.art, op.von, op.d, kontext);
     if (!r || r.stufe === "inapp") return;
     const empfaenger = partnerVon(op.von);
     if (einstellung(this.sql, empfaenger, `mitteilungen.${r.kategorie}`) === false) return;
@@ -155,6 +183,7 @@ export class Raum {
     const token = geraetToken(this.sql, empfaenger);
     if (!token) return;
     const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton: r.ton });
+    if (!res.ok) this.#log("APNs-Antwort", op.art, "->", res.status);
     if (res.expired) geraetLoeschen(this.sql, empfaenger);
   }
 
@@ -166,40 +195,35 @@ export class Raum {
     if (!b) return;
     const a = { d, zeit: new Date(jetztMs).toISOString() };
     const heute = berlinDatum(jetztMs);
-    const heuteTreffen = offeneTreffen(this.sql, heute).some((t) => t.datum === heute);
+    const kontextAb = berlinDatum(jetztMs - 2 * 86_400_000);
+    const heuteTreffen = offeneTreffen(this.sql, kontextAb).some((t) => t.datum === heute);
     if (!zufaelligNah({ a, b, jetztMs, heuteTreffen })) return;
 
     const letzteWarnungMs = letzteZufaelligNahMs(this.sql);
     if (letzteWarnungMs !== null && jetztMs - letzteWarnungMs < 6 * 3_600_000) return;
+    zufaelligNahAlsGemeldetMarkieren(this.sql, jetztMs);
 
-    for (const von of [person, partner]) {
-      const op = {
-        id: `nah-${jetztMs}-${von}`,
-        art: "nachricht.neu",
-        von,
-        zeit: new Date(jetztMs).toISOString(),
-        d: { system: "nah" },
-      };
-      const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
-      const bestaetigt = { ...op, seq };
-      for (const ws of this.ctx.getWebSockets(von)) ws.send(JSON.stringify({ t: "ops", ops: [bestaetigt], mehr: false }));
-      this.#sendeAnPartner(von, { t: "ops", ops: [bestaetigt], mehr: false });
-      if (neu) await this.#pushFuerOp(bestaetigt).catch(() => {});
-    }
+    // Eine Op "an beide" -- nicht zwei separate, sonst zwei System-Bubbles im
+    // Chat und doppelte Streak-Zählung (siehe auch: Systemnachrichten zählen
+    // ohnehin nicht für den Streak).
+    const op = { id: `nah-${jetztMs}`, art: "nachricht.neu", von: person, zeit: new Date(jetztMs).toISOString(), d: { system: "nah" } };
+    const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
+    const bestaetigt = { ...op, seq };
+    this.#sendeAn(this.ctx.getWebSockets(), { t: "ops", ops: [bestaetigt], mehr: false });
+    if (neu) await this.#pushBeide({ stufe: "laut", titel: "Lovea", text: "Ihr seid gerade zufällig ganz nah beieinander" }, "orte");
   }
 
   // --- Ops-Batch (Umzugsskript, Z-1.9) ---------------------------------------
 
   async #opsBatch(request) {
+    // Nur fürs Umzugsskript: Bulk-Import historischer Ops. Absichtlich keine
+    // Push -- sonst spammen hunderte migrierte Ops beide Handys wach.
     const { ops } = await request.json();
     let letzteSeq = 0;
     for (const op of ops ?? []) {
       const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
       letzteSeq = seq;
-      if (neu) {
-        this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
-        await this.#pushFuerOp({ ...op, seq }).catch(() => {});
-      }
+      if (neu) this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
     }
     await this.#alarmAktualisieren();
     return Response.json({ seq: letzteSeq });
@@ -226,6 +250,7 @@ export class Raum {
       const { teile: anzahl, typ, bytes } = await request.json();
       const ergebnis = medienFertig(this.sql, id, rolle, { teile: anzahl, typ, bytes, von: person });
       if (!ergebnis.fertig) return Response.json(ergebnis, { status: 409 });
+      medienNachFertigAufraeumen(this.sql, id, rolle); // falls "original" schon vorher abgeholt wurde
       return Response.json(ergebnis);
     }
 
@@ -257,8 +282,13 @@ export class Raum {
 
   #kontext(jetztMs) {
     const heute = berlinDatum(jetztMs);
+    // -2 Tage, nicht "heute": die Pünktlich-Karte für ein gestriges Treffen
+    // braucht dessen treffen.setzen noch in der Liste (sie feuert erst am
+    // Morgen danach). Die schon vergangenen vorabend/stundeVorher-Kandidaten
+    // für so ein Treffen sind längst erledigt-markiert und damit ein No-op.
+    const kontextAb = berlinDatum(jetztMs - 2 * 86_400_000);
     return {
-      treffen: offeneTreffen(this.sql, heute),
+      treffen: offeneTreffen(this.sql, kontextAb),
       angeheftet: offeneAngeheftet(this.sql),
       spielEinladungen: offeneSpielEinladungen(this.sql),
       streakLaeuftHeuteAb: streakLaeuftHeuteAb(this.sql, jetztMs),
@@ -273,7 +303,7 @@ export class Raum {
     const jetzt = Date.now();
     const { faellig } = naechsterAlarm(this.#kontext(jetzt), jetzt);
     for (const ereignis of faellig) {
-      await this.#verarbeiteAlarm(ereignis, jetzt).catch(() => {});
+      await this.#verarbeiteAlarm(ereignis, jetzt).catch((err) => this.#log("Alarm fehlgeschlagen", ereignis.art, err));
     }
     await this.#alarmAktualisieren();
   }
@@ -286,14 +316,14 @@ export class Raum {
         const schluessel = `${ereignis.datum}-${ereignis.art}`;
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
-        await this.#pushBeide(ALARM_TEXT[ereignis.art]);
+        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
         break;
       }
       case "puenktlichKarte": {
         const schluessel = ereignis.datum;
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
-        await this.#pushBeide({ stufe: "still" });
+        await this.#pushBeide({ stufe: "still" }); // still: keine mitteilungen.<kategorie>-Prüfung nötig
         break;
       }
       case "frageDesTages":
@@ -301,31 +331,43 @@ export class Raum {
         const schluessel = berlinDatum(jetztMs);
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
-        await this.#pushBeide(ALARM_TEXT[ereignis.art]);
+        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
         break;
       }
       case "nachrichtLoesen": {
-        const op = { id: `los-${ereignis.id}`, art: "nachricht.losgeloest", von: "ahmed", zeit: jetztIso, d: { id: ereignis.id } };
+        const op = { id: `los-${ereignis.id}`, art: "nachricht.losgeloest", von: ereignis.von ?? "ahmed", zeit: jetztIso, d: { id: ereignis.id } };
         const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
-        if (neu) for (const person of PERSONEN) this.#sendeAnPartner(partnerVon(person), { t: "ops", ops: [{ ...op, seq }], mehr: false });
+        if (neu) this.#sendeAn(this.ctx.getWebSockets(), { t: "ops", ops: [{ ...op, seq }], mehr: false });
         break;
       }
       case "spielVerfallen": {
-        const op = { id: `verfallen-${ereignis.id}`, art: "spiel.verfallen", von: "ahmed", zeit: jetztIso, d: { id: ereignis.id } };
+        const op = { id: `verfallen-${ereignis.id}`, art: "spiel.verfallen", von: ereignis.von ?? "ahmed", zeit: jetztIso, d: { id: ereignis.id } };
         const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
-        if (neu) for (const person of PERSONEN) this.#sendeAnPartner(partnerVon(person), { t: "ops", ops: [{ ...op, seq }], mehr: false });
+        if (neu) this.#sendeAn(this.ctx.getWebSockets(), { t: "ops", ops: [{ ...op, seq }], mehr: false });
         break;
       }
     }
   }
 
-  async #pushBeide(nachricht) {
+  async #pushBeide(nachricht, kategorie) {
     for (const person of PERSONEN) {
       if (this.#istVerbunden(person)) continue;
+      if (kategorie && einstellung(this.sql, person, `mitteilungen.${kategorie}`) === false) continue;
       const token = geraetToken(this.sql, person);
       if (!token) continue;
-      const res = await push(this.env, token, nachricht).catch(() => null);
+      const res = await push(this.env, token, nachricht).catch((err) => {
+        this.#log("push (beide) fehlgeschlagen", err);
+        return null;
+      });
+      if (res && !res.ok) this.#log("APNs-Antwort (beide)", "->", res.status);
       if (res?.expired) geraetLoeschen(this.sql, person);
     }
+  }
+
+  // ponytail: console.error statt stillem Schlucken -- sichtbar in
+  // `wrangler tail`. Kein strukturiertes Logging, das lohnt sich erst mit
+  // echtem Volumen.
+  #log(...teile) {
+    console.error("[raum]", ...teile);
   }
 }
