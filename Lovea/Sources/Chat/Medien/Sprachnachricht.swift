@@ -73,6 +73,8 @@ struct SprachAufnahmeButton: View {
     let ich: Person
     let antwortAuf: String?
     let onGesendet: () -> Void
+    /// Block 18: true while recording or previewing, so the input bar can give this the whole field.
+    var onBelegt: (Bool) -> Void = { _ in }
 
     private enum Modus { case ruhe, haltend, tippModus }
 
@@ -82,15 +84,18 @@ struct SprachAufnahmeButton: View {
     @State private var druckBeginn: Date?
 
     var body: some View {
-        if let vorschau {
-            VorschauLeiste(
-                aufnahme: vorschau,
-                onSenden: { senden(vorschau); self.vorschau = nil },
-                onVerwerfen: { try? FileManager.default.removeItem(at: vorschau.url); self.vorschau = nil }
-            )
-        } else {
-            aufnahmeKnopf
+        Group {
+            if let vorschau {
+                VorschauLeiste(
+                    aufnahme: vorschau,
+                    onSenden: { senden(vorschau); self.vorschau = nil },
+                    onVerwerfen: { try? FileManager.default.removeItem(at: vorschau.url); self.vorschau = nil }
+                )
+            } else {
+                aufnahmeKnopf
+            }
         }
+        .onChange(of: modus != .ruhe || vorschau != nil) { _, belegt in onBelegt(belegt) }
     }
 
     // The gesture stays on ONE view across the whole recording — swapping to a different view
@@ -107,7 +112,7 @@ struct SprachAufnahmeButton: View {
                 }
             }
         }
-        .frame(minWidth: 32, minHeight: 44)
+        .frame(minWidth: 34, minHeight: 36) // Block 18: same height as the input bar icons
         .contentShape(Rectangle())
         .onLongPressGesture(minimumDuration: 0.3, maximumDistance: 40) {} onPressingChanged: { druecken in
             handlePress(druecken)
@@ -132,6 +137,7 @@ struct SprachAufnahmeButton: View {
         if druecken {
             if modus == .ruhe {
                 druckBeginn = Date()
+                ChatHaptik.mittel()
                 steuerung.start()
                 modus = .haltend
             }
@@ -154,6 +160,7 @@ struct SprachAufnahmeButton: View {
     }
 
     private func senden(_ aufnahme: (url: URL, dauer: TimeInterval, pegel: [Float])) {
+        ChatHaptik.leicht()
         Task {
             await ChatMedien.sprachSenden(aufnahme.url, dauer: aufnahme.dauer, pegel: aufnahme.pegel, antwortAuf: antwortAuf)
             onGesendet()
@@ -184,7 +191,7 @@ private struct VorschauLeiste: View {
             Button { onSenden() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
                 .accessibilityLabel("Sprachnachricht senden")
         }
-        .frame(minHeight: 44)
-        .padding(.horizontal, 8)
+        .frame(minHeight: 36)
+        .padding(.horizontal, 4)
     }
 }

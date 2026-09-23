@@ -40,21 +40,33 @@ enum ChatMedien {
     private static let warteschlangeURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Lovea/chat-hochladen.json")
 
-    // MARK: - Photos + videos, mixed PhotosPicker selection (Z-5.1)
+    // MARK: - Photos + videos from the input bar's attachment tray (Z-5.1, Block 18)
 
-    /// One `PhotosPicker` selects both kinds (`matching: .any(of: [.images, .videos])`); each item
-    /// becomes its own `nachricht.neu` — simplest correct mapping onto the one-id-per-upload model,
-    /// and matches sending several photos "auf einmal" as several bubbles instead of a multi-image one.
-    static func auswahlSenden(_ items: [PhotosPickerItem], antwortAuf: String? = nil) async {
-        for item in items {
-            if let video = try? await item.loadTransferable(type: VideoDatei.self) {
-                await videoSenden(video.url, antwortAuf: antwortAuf)
-            } else if let daten = try? await item.loadTransferable(type: Data.self) {
-                let id = UUID().uuidString
-                guard let ergebnis = await Task.detached(priority: .userInitiated) { MedienKodierung.foto(daten, id: id) }.value else { continue }
-                await hochladenUndSenden(id: id, ergebnis: ergebnis, typ: "foto", antwortAuf: antwortAuf)
+    /// Each item becomes its own `nachricht.neu` (one id per upload, wire shape unchanged); the
+    /// chat shows consecutive ones as one photo stack. All messages go out first, uploads after,
+    /// so a slow upload never pushes the next photo out of the stack's 60 s window. Only the
+    /// first message carries the reply reference.
+    static func anhaengeSenden(_ inhalte: [ChatAnhang.Inhalt], antwortAuf: String? = nil) async {
+        var antwort = antwortAuf
+        var hochzuladen: [(id: String, ergebnis: MedienKodierung.Ergebnis)] = []
+        for inhalt in inhalte {
+            let id = UUID().uuidString
+            let ergebnis: MedienKodierung.Ergebnis?
+            let typ: String
+            switch inhalt {
+            case .foto(let daten):
+                ergebnis = await Task.detached(priority: .userInitiated) { MedienKodierung.foto(daten, id: id) }.value
+                typ = "foto"
+            case .video(let quelle):
+                ergebnis = await MedienKodierung.video(quelle, id: id)
+                typ = "video"
             }
+            guard let fertig = ergebnis else { continue }
+            vormerkenUndSenden(id: id, ergebnis: fertig, typ: typ, antwortAuf: antwort)
+            hochzuladen.append((id: id, ergebnis: fertig))
+            antwort = nil
         }
+        for eintrag in hochzuladen { await hochladen(id: eintrag.id, ergebnis: eintrag.ergebnis) }
     }
 
     static func videoSenden(_ quelle: URL, antwortAuf: String? = nil) async {
@@ -142,13 +154,17 @@ enum ChatMedien {
     // MARK: - Upload + send
 
     private static func hochladenUndSenden(id: String, ergebnis: MedienKodierung.Ergebnis, typ: String, antwortAuf: String?) async {
+        vormerkenUndSenden(id: id, ergebnis: ergebnis, typ: typ, antwortAuf: antwortAuf)
+        await hochladen(id: id, ergebnis: ergebnis)
+    }
+
+    private static func vormerkenUndSenden(id: String, ergebnis: MedienKodierung.Ergebnis, typ: String, antwortAuf: String?) {
         eigeneQuellen[id] = ergebnis.original
         merkeAusstehend(id: id, original: ergebnis.original, klein: ergebnis.klein)
         ChatModell.shared.medienSenden(
             [ChatModell.MedienEintrag(id: id, typ: typ, breite: ergebnis.breite, hoehe: ergebnis.hoehe, dauer: ergebnis.dauer, pegel: nil)],
             antwortAuf: antwortAuf
         )
-        await hochladen(id: id, ergebnis: ergebnis)
     }
 
     private static func hochladen(id: String, ergebnis: MedienKodierung.Ergebnis) async {

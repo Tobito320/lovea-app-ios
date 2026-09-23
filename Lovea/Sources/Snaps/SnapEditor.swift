@@ -18,6 +18,11 @@ struct SnapEditor: View {
     let ich: Person
     let antwortAuf: String?
     let onFertig: () -> Void
+    /// Block 18 tray mode (chat photo attachments): the check button hands the flattened JPEG back
+    /// instead of sending a snap; nothing is ever sent from here in this mode.
+    var onUebernehmen: ((Data) -> Void)? = nil
+    /// X button. Defaults to `onFertig`; the camera flow uses it to go back to the camera (Snapchat).
+    var onVerwerfen: (() -> Void)? = nil
 
     struct SnapText { var text = ""; var y: CGFloat = 0.5; var skala: CGFloat = 1 }
     struct SnapSticker: Identifiable { let id = UUID(); let bild: UIImage; var x: CGFloat = 0.5; var y: CGFloat = 0.5 }
@@ -234,8 +239,8 @@ struct SnapEditor: View {
 
     private var obereLeiste: some View {
         HStack {
-            Button { onFertig() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                .accessibilityLabel("Abbrechen")
+            Button { UIImpactFeedbackGenerator(style: .light).impactOccurred(); (onVerwerfen ?? onFertig)() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
+                .accessibilityLabel(onVerwerfen == nil ? "Abbrechen" : "Verwerfen")
             Spacer()
             Button { textBearbeitenOffen = true } label: { Image(systemName: "textformat").frame(width: 44, height: 44) }
                 .accessibilityLabel("Text hinzufügen")
@@ -274,11 +279,13 @@ struct SnapEditor: View {
 
     private var untereLeiste: some View {
         HStack {
-            Toggle("bleibt im Chat", isOn: $bleibt)
-                .toggleStyle(.switch)
-                .tint(Color.loveaRose)
-                .fixedSize()
-                .foregroundStyle(.white)
+            if onUebernehmen == nil {
+                Toggle("bleibt im Chat", isOn: $bleibt)
+                    .toggleStyle(.switch)
+                    .tint(Color.loveaRose)
+                    .fixedSize()
+                    .foregroundStyle(.white)
+            }
 
             Spacer()
 
@@ -286,11 +293,12 @@ struct SnapEditor: View {
                 if sendetGerade {
                     ProgressView().tint(.white)
                 } else {
-                    Image(systemName: "arrow.up.circle.fill").font(.system(size: 40)).foregroundStyle(.white)
+                    Image(systemName: onUebernehmen == nil ? "arrow.up.circle.fill" : "checkmark.circle.fill")
+                        .font(.system(size: 40)).foregroundStyle(.white)
                 }
             }
             .disabled(sendetGerade)
-            .accessibilityLabel("Senden")
+            .accessibilityLabel(onUebernehmen == nil ? "Senden" : "Übernehmen")
         }
         .padding()
         .background(.black.opacity(0.35))
@@ -304,6 +312,16 @@ struct SnapEditor: View {
     private func senden() {
         guard !sendetGerade else { return }
         sendetGerade = true
+        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        if let onUebernehmen {
+            // ponytail: tray mode edits photos only (videos in the tray aren't editable yet).
+            guard case .foto(let bild) = inhalt else { onFertig(); return }
+            Task {
+                if let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text) { onUebernehmen(jpeg) }
+                onFertig()
+            }
+            return
+        }
         switch inhalt {
         case .foto(let bild):
             Task {

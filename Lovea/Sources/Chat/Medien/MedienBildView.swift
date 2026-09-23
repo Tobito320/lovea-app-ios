@@ -6,8 +6,8 @@ import SwiftUI
 import UIKit
 
 /// Photo/video bubble content (Z-5.1): "wird geladen" placeholder until the file is local, then a
-/// thumbnail that opens a fullscreen zoomable/playable viewer. Long-press on a photo offers
-/// "In Galerie speichern" (Z-5.5).
+/// thumbnail that opens a fullscreen zoomable/playable viewer. "In Galerie speichern" (Z-5.5) lives
+/// in the bubble's long-press menu (`ChatNachrichtRow`) together with reply/react.
 struct MedienNachrichtView: View {
     let medium: ChatModell.MedienEintrag
     let eigene: Bool
@@ -24,13 +24,6 @@ struct MedienNachrichtView: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel(medium.typ == "video" ? "Video" : "Foto")
                 .accessibilityHint("Im Vollbild öffnen")
-                .contextMenu {
-                    if medium.typ == "foto" {
-                        Button("In Galerie speichern", systemImage: "photo.badge.plus") {
-                            ChatGalerie.inGaleriesSpeichern(bildURL: localURL)
-                        }
-                    }
-                }
                 .fullScreenCover(isPresented: $vollbild) {
                     MedienVollbild(url: localURL, istVideo: medium.typ == "video")
                 }
@@ -40,21 +33,47 @@ struct MedienNachrichtView: View {
         }
         .frame(width: 220, height: medium.hoehe > 0 ? 220 * medium.hoehe / max(medium.breite, 1) : 220)
         .clipShape(RoundedRectangle(cornerRadius: 14))
-        .task(id: medium.id) { await laden() }
+        .task(id: medium.id) { if let gefunden = await MedienDatei.url(medium, eigene: eigene) { localURL = gefunden } }
     }
+}
 
-    private func laden() async {
-        if eigene, let quelle = ChatMedien.eigeneQuellen[medium.id] { localURL = quelle; return }
-        if let vorhanden = Medien.lokal(medium.id) { localURL = vorhanden; return }
-        // Retries while the row is on screen (`.task(id:)` cancels when it scrolls away and restarts
-        // when it reappears) — never caches a failed attempt as final, matches Review-Fokus #5.
+/// Where a chat medium's file is, waiting for it if needed.
+@MainActor
+enum MedienDatei {
+    /// Retries while the caller's `.task(id:)` runs (it cancels when the row scrolls away and
+    /// restarts when it reappears) — never caches a failed attempt as final, Review-Fokus #5.
+    static func url(_ medium: ChatModell.MedienEintrag, eigene: Bool) async -> URL? {
+        if eigene, let quelle = ChatMedien.eigeneQuellen[medium.id] { return quelle }
+        if let vorhanden = Medien.lokal(medium.id) { return vorhanden }
         while !Task.isCancelled {
-            if let geholt = try? await Medien.holen(medium.id) {
-                localURL = geholt
-                return
-            }
+            if let geholt = try? await Medien.holen(medium.id) { return geholt }
             try? await Task.sleep(for: .seconds(5))
         }
+        return nil
+    }
+
+    /// Already-local file only (for menu actions that must not wait).
+    static func lokal(_ medium: ChatModell.MedienEintrag) -> URL? {
+        ChatMedien.eigeneQuellen[medium.id] ?? Medien.lokal(medium.id)
+    }
+}
+
+/// Bare thumbnail of one medium (photo stack cards, Block 18): no button, no viewer.
+struct MedienKachel: View {
+    let medium: ChatModell.MedienEintrag
+    let eigene: Bool
+    @State private var url: URL?
+
+    var body: some View {
+        ZStack {
+            if let url {
+                MedienVorschau(url: url, istVideo: medium.typ == "video")
+            } else {
+                Rectangle().fill(.thinMaterial)
+                ProgressView()
+            }
+        }
+        .task(id: medium.id) { if let gefunden = await MedienDatei.url(medium, eigene: eigene) { url = gefunden } }
     }
 }
 

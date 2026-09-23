@@ -59,7 +59,8 @@ struct ChatHintergrundAnsicht: View {
     }
 }
 
-/// Settings sheet for the above (Z-5.4), reached from `ChatKopfzeile`'s menu.
+/// Settings sheet for the above (Z-5.4). Block 18: presented from the partner profile ("Unser Chat")
+/// and from Einstellungen, no longer from the chat header.
 struct ChatHintergrundEinstellung: View {
     let ich: Person
     @Environment(\.dismiss) private var dismiss
