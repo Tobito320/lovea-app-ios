@@ -16,7 +16,7 @@ struct Muster: Codable, Hashable {
     var ab: String // yyyy-MM-dd
 }
 
-struct Ausnahme: Codable, Hashable {
+struct Ausnahme: Codable, Hashable, Identifiable {
     var person: String
     var datum: String
     var musterId: String?
@@ -24,9 +24,30 @@ struct Ausnahme: Codable, Hashable {
     var bisDatum: String?
     var start: String?
     var ende: String?
+
+    /// Der Schlüssel, nach dem `ausnahme.setzen` ersetzt und `ausnahme.loeschen` entfernt.
+    var id: String { "\(person)|\(datum)|\(musterId ?? "")" }
 }
 
-struct Termin: Codable, Hashable {
+/// Z-42.2: `d` von `ausnahme.loeschen {person, datum, musterId?}`, genau der Schlüssel, nach dem
+/// `ausnahme.setzen` eine bestehende Ausnahme ersetzt.
+struct AusnahmeSchluessel: Codable, Equatable {
+    var person: String
+    var datum: String
+    var musterId: String?
+
+    func passt(_ ausnahme: Ausnahme) -> Bool {
+        ausnahme.person == person && ausnahme.datum == datum && ausnahme.musterId == musterId
+    }
+}
+
+extension AusnahmeSchluessel {
+    init(_ ausnahme: Ausnahme) {
+        self.init(person: ausnahme.person, datum: ausnahme.datum, musterId: ausnahme.musterId)
+    }
+}
+
+struct Termin: Codable, Hashable, Identifiable {
     var id: String
     var fuer: [String]
     var titel: String
@@ -42,9 +63,17 @@ struct Treffen: Codable, Hashable {
     var wasMachenWir: String?
 }
 
+/// `d` von `treffen.setzen {datum, uhrzeit?, wasMachenWir?}`. `uhrzeit` fehlt: die alte bleibt
+/// („Machen wir"); `uhrzeit` "": die Uhrzeit wird zurückgenommen (Z-42.2).
+struct TreffenD: Codable, Equatable {
+    var datum: String
+    var uhrzeit: String?
+    var wasMachenWir: String?
+}
+
 /// Der aktuelle Stand aller Kalender-Ops, gefaltet. Andere Blöcke bauen das aus Ops auf
 /// (gelöschte Einträge sind hier bereits entfernt); dieser Block liest daraus nur.
-struct KalenderDaten {
+struct KalenderDaten: Equatable {
     var muster: [Muster] = []
     var ausnahmen: [Ausnahme] = []
     var termine: [Termin] = []
@@ -68,4 +97,7 @@ struct Block: Equatable {
     var quelle: String // "muster" | "termin" | "treffen"
     /// Nur bei `quelle == "termin"`: für „Zum iPhone-Kalender" pro Termin (Z-9.6).
     var terminId: String? = nil
+    /// Nur bei `quelle == "muster"`: die Ausnahme, die auf den Block wirkt (Z-42.2: ändern oder
+    /// zurücknehmen).
+    var ausnahme: Ausnahme? = nil
 }

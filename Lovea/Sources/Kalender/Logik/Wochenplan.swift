@@ -2,10 +2,11 @@ import Foundation
 
 enum Wochenplan {
     /// Die Blöcke eines Tages für eine Person: Muster (nach Wechselwoche, Ferien und Feiertagen
-    /// gefiltert), Ausnahmen darauf angewandt, dazu Termine und Treffen des Tages.
-    static func tag(_ tag: String, person: String, daten: KalenderDaten) -> [Block] {
+    /// gefiltert), Ausnahmen darauf angewandt, dazu Termine und Treffen des Tages. `feiertage`:
+    /// vorberechnete NRW-Feiertage des Jahres (Monatsraster), sonst hier berechnet.
+    static func tag(_ tag: String, person: String, daten: KalenderDaten, feiertage: Set<String>? = nil) -> [Block] {
         let jahr = Int(tag.prefix(4)) ?? 0
-        let istFeiertag = Feiertage.nrw(jahr: jahr).contains(tag)
+        let istFeiertag = (feiertage ?? Feiertage.nrw(jahr: jahr)).contains(tag)
         let istFerien = Ferien.istFerien(tag)
         let wochentag = Datum.wochentag(tag)
         let woche = Datum.wechselwoche(tag)
@@ -33,6 +34,7 @@ enum Wochenplan {
             for i in eintraege.indices {
                 if let musterId = ausnahme.musterId, eintraege[i].muster.id != musterId { continue }
                 eintraege[i].block.status = ausnahme.status
+                eintraege[i].block.ausnahme = ausnahme
                 if let start = ausnahme.start { eintraege[i].block.start = start }
                 if let ende = ausnahme.ende { eintraege[i].block.ende = ende }
             }
