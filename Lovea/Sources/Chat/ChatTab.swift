@@ -49,7 +49,7 @@ struct ChatTab: View {
                 ChatEingabeleiste(ich: ich, antwortAuf: $antwortAuf)
             }
         }
-        .sheet(isPresented: $profilOffen) { PartnerProfilKarte(person: partner) }
+        .sheet(isPresented: $profilOffen) { PartnerProfilView(person: partner) }
         .alert("Nachricht bearbeiten", isPresented: Binding(get: { bearbeitenNachricht != nil }, set: { if !$0 { bearbeitenNachricht = nil } })) {
             TextField("Text", text: $bearbeitenText)
             Button("Speichern") {
@@ -108,6 +108,11 @@ private struct NachrichtenListe: View {
             ScrollView {
                 LazyVStack(spacing: 2) {
                     ForEach(Array(modell.nachrichten.enumerated()), id: \.element.id) { eintrag in
+                        if let spiel = eintrag.element.spiel {
+                            if SpieleModell.shared.sichtbar(spiel.id) {
+                                SpielKarte(nachricht: eintrag.element).id(eintrag.element.id)
+                            }
+                        } else {
                         ChatNachrichtRow(
                             nachricht: eintrag.element, ich: ich,
                             zeigeDatumstrenner: zeigtDatumstrenner(eintrag.offset),
@@ -117,6 +122,7 @@ private struct NachrichtenListe: View {
                             onSpringeZu: { zielID = $0 }
                         )
                         .id(eintrag.element.id)
+                        }
                     }
                 }
                 .padding(.vertical, 8)

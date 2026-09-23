@@ -194,6 +194,7 @@ enum Medien {
         switch url.pathExtension.lowercased() {
         case "mov", "mp4": "video/mp4"
         case "m4a", "caf", "wav": "audio/m4a"
+        case "png": "image/png"
         default: "image/jpeg"
         }
     }

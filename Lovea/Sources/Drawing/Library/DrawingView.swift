@@ -15,6 +15,7 @@ struct DrawingView: View {
     @State private var path: [GalleryRoute] = []
     @State private var sort: ArtworkSort = .newest
     @State private var showsNewArtwork = false
+    @State private var duellOffen = false
     @State private var showsNewProject = false
     @State private var newProjectName = ""
     @State private var templateItem: PhotosPickerItem?
@@ -124,11 +125,14 @@ struct DrawingView: View {
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { duellOffen = true } label: { Image(systemName: "timer") }
+                        .accessibilityLabel("Kritzel-Duell")
                     Text(person.name)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
+            .sheet(isPresented: $duellOffen) { SpieleStarter(vorauswahl: .duell) }
             .sheet(isPresented: $showsNewArtwork) {
                 NewArtworkSheet(library: library, preselectedProjectID: nil)
             }

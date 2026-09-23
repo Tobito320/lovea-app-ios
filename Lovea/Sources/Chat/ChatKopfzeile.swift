@@ -10,6 +10,7 @@ struct ChatKopfzeile: View {
     @Binding var profilOffen: Bool
     @State private var medienOffen = false
     @State private var hintergrundOffen = false
+    @State private var spieleOffen = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -34,8 +35,9 @@ struct ChatKopfzeile: View {
                 .sheet(isPresented: $medienOffen) { MedienUebersicht(ich: ich) }
                 .sheet(isPresented: $hintergrundOffen) { ChatHintergrundEinstellung(ich: ich) }
 
-                Button {} label: { Image(systemName: "gamecontroller.fill") }
-                    .disabled(true) // ponytail: Spiele im Chat kommen in Block 14
+                Button { spieleOffen = true } label: { Image(systemName: "gamecontroller.fill") }
+                    .accessibilityLabel("Spiel starten")
+                    .sheet(isPresented: $spieleOffen) { SpieleStarter() }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)

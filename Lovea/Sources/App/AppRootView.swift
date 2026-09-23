@@ -24,11 +24,21 @@ struct AppRootView: View {
                 KarteTab()
             }
             Tab("Profil", systemImage: "person.crop.circle", value: AppTab.profile) {
-                ProfileView(person: person, session: session)
+                ProfileView(person: person, session: session, bilanz: spieleBilanz)
             }
         }
         .tabViewStyle(.sidebarAdaptable)
         .tint(Color.loveaRose)
+        .spieleBuehne()
     }
 }
 
+
+private extension AppRootView {
+    var spieleBilanz: [(spiel: String, ahmed: Int, annika: Int)] {
+        SpielArt.allCases.compactMap { art in
+            guard let p = SpieleModell.shared.bilanz[art] else { return nil }
+            return (art.titel, p.ahmed, p.annika)
+        }
+    }
+}
