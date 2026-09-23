@@ -44,6 +44,7 @@ test("weitere Arten: Einladungen laut, Termin/Frage/Screenshot leise", () => {
   assert.equal(regel("zeichnung.einladung", "annika", {}).stufe, "laut");
   assert.equal(regel("spiel.einladung", "annika", {}).stufe, "laut");
   assert.equal(regel("termin.setzen", "annika", {}).stufe, "leise");
+  assert.equal(regel("termin.setzen", "annika", {}).text, "Annika hat einen Termin eingetragen oder geändert");
   assert.equal(regel("frage.antwort", "annika", {}).stufe, "leise");
   assert.equal(regel("snap.aufnahme", "annika", { art: "screenshot" }).stufe, "leise");
 });

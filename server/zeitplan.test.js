@@ -53,6 +53,14 @@ test("naechsterAlarm: findet fällige und nächste Ereignisse, dedupliziert per 
   assert.ok(naechste !== null && naechste > jetzt);
 });
 
+// `uhrzeit: ""` heißt "ohne Uhrzeit" (neuer Client): kein "In einer Stunde", Vorabend und Pünktlich bleiben.
+test("naechsterAlarm: Treffen mit leerer Uhrzeit plant kein stundeVorher", () => {
+  const kontext = { treffen: [{ datum: "2026-10-25", uhrzeit: "" }], erinnerungenHeute: {} };
+  const { faellig } = naechsterAlarm(kontext, Date.parse("2026-10-26T12:00:00.000Z"));
+  const arten = faellig.filter((f) => f.datum === "2026-10-25").map((f) => f.art).sort();
+  assert.deepEqual(arten, ["puenktlichKarte", "vorabend"]);
+});
+
 // Regressionstest: naechsteTageszeit lieferte früher IMMER einen Zeitpunkt in
 // der Zukunft, auch wenn das Ereignis heute noch nicht erledigt war -- die
 // Frage des Tages (18 Uhr) ist dadurch nie ausgelöst worden, ein Alarm um

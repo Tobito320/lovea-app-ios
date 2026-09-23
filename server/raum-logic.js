@@ -476,15 +476,16 @@ export function gemeinsamZuruecksetzen(sql) {
 // zeitplan.naechsterAlarm() braucht. Reine Ableitung, keine Zeitpläne selbst. --
 
 // Offene Treffen ab `heuteDatum` (>=), jüngste Fassung pro Kalendertag gewinnt.
+// Ein Löschen zählt nur bis zum nächsten `setzen` für denselben Tag (abgesagt, später neu geplant).
 export function offeneTreffen(sql, heuteDatum) {
-  const gesetzt = alleOpsArt(sql, "treffen.setzen");
-  const geloescht = new Set(alleOpsArt(sql, "treffen.loeschen").map((o) => o.d.datum));
+  const geloeschtSeq = new Map();
+  for (const op of alleOpsArt(sql, "treffen.loeschen")) geloeschtSeq.set(op.d.datum, op.seq);
   const byDatum = new Map();
-  for (const op of gesetzt) byDatum.set(op.d.datum, op.d); // aufsteigende seq: später überschreibt früher
+  for (const op of alleOpsArt(sql, "treffen.setzen")) byDatum.set(op.d.datum, op); // aufsteigende seq: später überschreibt früher
   const ergebnis = [];
-  for (const [datum, d] of byDatum) {
-    if (geloescht.has(datum) || datum < heuteDatum) continue;
-    ergebnis.push({ datum, uhrzeit: d.uhrzeit });
+  for (const [datum, op] of byDatum) {
+    if (datum < heuteDatum || (geloeschtSeq.get(datum) ?? 0) > op.seq) continue;
+    ergebnis.push({ datum, uhrzeit: op.d.uhrzeit });
   }
   return ergebnis;
 }

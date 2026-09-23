@@ -339,6 +339,17 @@ test("offeneTreffen: neueste Fassung gewinnt, gelöschte und vergangene fallen r
   assert.deepEqual(ergebnis, [{ datum: "2026-10-25", uhrzeit: "15:00" }]);
 });
 
+test("offeneTreffen: abgesagt und später am selben Tag neu geplant ist wieder offen", () => {
+  const sql = raum();
+  opEinfuegen(sql, op("t1", "treffen.setzen", "ahmed", { datum: "2026-10-25", uhrzeit: "14:00" }));
+  opEinfuegen(sql, op("l1", "treffen.loeschen", "ahmed", { datum: "2026-10-25" }));
+  assert.deepEqual(offeneTreffen(sql, "2026-10-01"), []);
+  opEinfuegen(sql, op("t2", "treffen.setzen", "annika", { datum: "2026-10-25", uhrzeit: "" }));
+  assert.deepEqual(offeneTreffen(sql, "2026-10-01"), [{ datum: "2026-10-25", uhrzeit: "" }]);
+  opEinfuegen(sql, op("l2", "treffen.loeschen", "annika", { datum: "2026-10-25" }));
+  assert.deepEqual(offeneTreffen(sql, "2026-10-01"), []);
+});
+
 test("offeneTreffen: ein Cutoff auf 'gestern' liefert das gestrige Treffen noch (für die Pünktlich-Karte am Morgen danach)", () => {
   const sql = raum();
   opEinfuegen(sql, op("t1", "treffen.setzen", "ahmed", { datum: "2026-10-23" }));

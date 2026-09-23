@@ -62,7 +62,7 @@ const TABELLE = {
     titel: "Lovea",
     text: `${NAME[von]} ist ${d.art === "ankunft" ? "bei" : "weg von"} ${kontext?.ortName ?? "einem Ort"} ${d.art === "ankunft" ? "angekommen" : ""}`.trim(),
   }),
-  "termin.setzen": (von) => ({ stufe: "leise", kategorie: "kalender", titel: "Lovea", text: `${NAME[von]} hat einen neuen Termin eingetragen` }),
+  "termin.setzen": (von) => ({ stufe: "leise", kategorie: "kalender", titel: "Lovea", text: `${NAME[von]} hat einen Termin eingetragen oder geändert` }),
   "frage.antwort": (von) => ({ stufe: "leise", kategorie: "frage", titel: "Lovea", text: `${NAME[von]} hat die Frage des Tages beantwortet` }),
   "snap.aufnahme": (von, d) => ({
     stufe: "leise",
