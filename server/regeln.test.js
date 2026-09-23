@@ -51,3 +51,11 @@ test("weitere Arten: Einladungen laut, Termin/Frage/Screenshot leise", () => {
 test("nicht gelistete Art hat keine Push", () => {
   assert.equal(regel("nachricht.gelesen", "annika", { bis: "x" }), null);
 });
+
+test("shop.kauf: Geschenk (fuer != von) ist laut, eigener Kauf keine Push", () => {
+  const geschenk = regel("shop.kauf", "ahmed", { id: "k1", artikel: "tasche.gucci-tasche", fuer: "annika" });
+  assert.equal(geschenk.stufe, "laut");
+  assert.equal(geschenk.text, "Ahmed hat dir etwas geschenkt");
+  assert.equal(geschenk.kategorie, "shop");
+  assert.equal(regel("shop.kauf", "ahmed", { id: "k2", artikel: "socken", fuer: "ahmed" }), null);
+});

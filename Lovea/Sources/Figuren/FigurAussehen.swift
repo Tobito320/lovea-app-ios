@@ -260,11 +260,15 @@ extension FigurAussehen {
     /// `tasche`/`uhr`/`schmuck`/`pose`/`tier` need no mapping, the shop id is stored directly.
     mutating func anziehen(_ artikelId: String) {
         guard let e = FigurAussehen.shopTeile[artikelId] else { return }
+        // Always assign the hex (even nil): several ids share one (feld, index) with different
+        // hex (e.g. `mode.tshirt-logo`/`mode.guess-hoodie`/`mode.nike-hoodie` all set `.oberteil`
+        // 14) — leaving a stale hex from a PREVIOUS item would make Z-23.2's "is this worn?" check
+        // match the wrong one of them.
         switch e.feld {
-        case .oberteil: oberteil = e.index; if let hex = e.hex { oberteilfarbeHex = hex }
-        case .jacke: jacke = e.index; if let hex = e.hex { jackenfarbeHex = hex }
-        case .hose: hose = e.index; if let hex = e.hex { hosenfarbeHex = hex }
-        case .schuhe: schuhe = e.index; if let hex = e.hex { schuhfarbeHex = hex }
+        case .oberteil: oberteil = e.index; oberteilfarbeHex = e.hex
+        case .jacke: jacke = e.index; jackenfarbeHex = e.hex
+        case .hose: hose = e.index; hosenfarbeHex = e.hex
+        case .schuhe: schuhe = e.index; schuhfarbeHex = e.hex
         case .brille: brille = e.index // keine freie Farbe für Brillen
         }
     }

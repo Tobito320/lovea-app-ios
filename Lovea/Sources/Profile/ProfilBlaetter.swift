@@ -52,6 +52,12 @@ private struct ZeichnungEintrag: Identifiable {
 /// gets a `medienId` that isn't on the server yet.
 struct WallpaperAuswahl: View {
     let partner: Person
+    /// Z-25.2: what to write once the upload finishes — the shared `profilWallpaper` key by
+    /// default (unchanged R1 behavior), or the per-person `profil.hintergrund` for the own profile.
+    var speichern: (String) -> Void = { id in EinstellungenModell.shared.setzen("profilWallpaper", .object(["medienId": .string(id)])) }
+    /// The per-person background always has a backdrop fallback, so it skips the "remove" row —
+    /// only the shared wallpaper (which falls back to a plain gradient) offers it.
+    var zeigtEntfernen = true
     @Environment(\.dismiss) private var dismiss
     @State private var fotoAuswahl: PhotosPickerItem?
     @State private var zeichnungen: [ZeichnungEintrag] = []
@@ -94,7 +100,7 @@ struct WallpaperAuswahl: View {
                 if let fehler {
                     Section { Text(fehler).foregroundStyle(.red) }
                 }
-                if ProfilWallpaper.medienId != nil {
+                if zeigtEntfernen, ProfilWallpaper.medienId != nil {
                     Section {
                         Button("Wallpaper entfernen", role: .destructive) {
                             EinstellungenModell.shared.setzen("profilWallpaper", .object([:]))
@@ -149,7 +155,7 @@ struct WallpaperAuswahl: View {
         ChatMedien.eigeneQuellen[id] = ergebnis.original
         do {
             try await Medien.hochladen(id: id, original: ergebnis.original, klein: ergebnis.klein)
-            EinstellungenModell.shared.setzen("profilWallpaper", .object(["medienId": .string(id)]))
+            speichern(id)
             fertig += 1
             dismiss()
         } catch {
