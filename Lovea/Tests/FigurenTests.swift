@@ -62,6 +62,17 @@ final class FigurenTests: XCTestCase {
         XCTAssertFalse(a.wimpern)
     }
 
+    func testV1AussehenBekommtStandardOutfit() throws {
+        let json = #"{"haut":2,"frisur":8,"haarfarbe":3,"augen":1,"brille":0,"bart":0,"oberteil":4,"oberteilfarbe":1}"#
+        let alt = try JSONDecoder().decode(FigurAussehen.self, from: Data(json.utf8))
+        let a = FigurAussehen.ausV1(alt, fuer: .annika)
+        XCTAssertEqual(a.frisur, 8)
+        XCTAssertEqual(a.haut, 2)
+        XCTAssertEqual(a.oberteilfarbe, 1)
+        XCTAssertEqual(a.jacke, 1)
+        XCTAssertEqual(a.hose, FigurAussehen.standard(for: .annika).hose)
+    }
+
     func testNeuesAussehenRundreise() throws {
         for p in [Person.ahmed, .annika] {
             let a = FigurAussehen.standard(for: p)

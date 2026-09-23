@@ -1114,7 +1114,7 @@ private struct Zeichner {
         case 7, 8, 20, 29:
             haarTeil(g, langHinten(222))
         case 26:
-            haarTeil(g, kreis(P(100, 20), 11))
+            haarTeil(g, kreis(P(100, 12), 13))
             haarTeil(g, langHinten(222))
         case 21:
             haarTeil(g, langHinten(222))
@@ -1240,6 +1240,7 @@ private struct Zeichner {
             let strang = frisur == 8 ? straehneWellig : straehneGlatt()
             haarTeil(g, strang)
             haarTeil(g, gespiegelt(strang))
+            if frisur == 26 { teil(g, box(89, 13, 22, 6, 3), Pal.rose, 1.5) }
         case 9, 10, 24:
             haarTeil(g, kappe(top: 20, scheitel: 100, ansatz: 54, unten: 96))
         case 11:

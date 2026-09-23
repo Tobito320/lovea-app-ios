@@ -136,6 +136,20 @@ struct FigurAussehen: Codable, Equatable, Sendable {
 }
 
 extension FigurAussehen {
+    /// A look saved before v2 keeps its 8 fields on top of the person's v2 standard (outfit, face details).
+    static func ausV1(_ alt: FigurAussehen, fuer person: Person) -> FigurAussehen {
+        var a = standard(for: person)
+        a.haut = alt.haut
+        a.frisur = alt.frisur
+        a.haarfarbe = alt.haarfarbe
+        a.augen = alt.augen
+        a.brille = alt.brille
+        a.bart = alt.bart
+        a.oberteil = alt.oberteil
+        a.oberteilfarbe = alt.oberteilfarbe
+        return a
+    }
+
     /// Tolerant: every key is optional, so v1 JSON (8 keys) and future JSON both decode.
     init(from decoder: any Decoder) throws {
         self.init()
