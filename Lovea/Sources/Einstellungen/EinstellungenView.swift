@@ -5,6 +5,7 @@ struct EinstellungenView: View {
     let person: Person
     @ObservedObject var session: PersonSession
     @AppStorage("profile.performanceHUD") private var showsHUD = false
+    @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
     @State private var zeigtOrte = false
     @State private var zeigtHintergrund = false
     @State private var zeigtEntwickler = false
@@ -45,6 +46,7 @@ struct EinstellungenView: View {
                 SpotifyVerbindenRow()
             }
             Section {
+                Toggle("Haptik", isOn: $haptik)
                 Toggle("Leistungsanzeige", isOn: $showsHUD)
             }
             Section {
