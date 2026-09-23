@@ -5,6 +5,8 @@ import UIKit
 private enum GalleryRoute: Hashable {
     case artwork(UUID, templateData: Data? = nil)
     case project(UUID)
+    /// A partner drawing, by `zeichnungId`.
+    case geteilt(String)
 }
 
 struct DrawingView: View {
@@ -16,6 +18,7 @@ struct DrawingView: View {
     @State private var showsNewProject = false
     @State private var newProjectName = ""
     @State private var templateItem: PhotosPickerItem?
+    @State private var teilenProjekt: ArtworkProject?
 
     init(person: Person) {
         self.person = person
@@ -67,9 +70,14 @@ struct DrawingView: View {
                                     ProjectCard(project: project, library: library)
                                 }
                                 .buttonStyle(.plain)
+                                .contextMenu {
+                                    Button("Teilen …", systemImage: "person.crop.circle.badge.plus") { teilenProjekt = project }
+                                }
                             }
                         }
                     }
+
+                    GeteiltBereich(person: person) { path.append(.geteilt($0)) }
 
                     if library.artworks.isEmpty {
                         emptyState
@@ -102,7 +110,17 @@ struct DrawingView: View {
                     ProjectGalleryView(projectID: id, library: library, sort: $sort) { artworkID in
                         path.append(.artwork(artworkID))
                     }
+                case .geteilt(let id):
+                    GeteiltStudioView(zeichnungId: id, person: person)
                 }
+            }
+            .sheet(item: $teilenProjekt) { project in
+                TeilenSheet(project: project, library: library)
+            }
+            .onAppear {
+                // Start listening early, so shares and "partner is drawing" are known before a studio opens.
+                _ = TeilenModell.shared
+                _ = LiveZeichnung.shared
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
@@ -173,6 +191,7 @@ private struct ProjectGalleryView: View {
     @State private var renameText = ""
     @State private var showsRename = false
     @State private var showsDelete = false
+    @State private var showsTeilen = false
 
     private var project: ArtworkProject? {
         library.projects.first(where: { $0.id == projectID })
@@ -197,6 +216,7 @@ private struct ProjectGalleryView: View {
                 }
                 .accessibilityLabel("Neue Zeichnung")
                 Menu {
+                    Button("Teilen …", systemImage: "person.crop.circle.badge.plus") { showsTeilen = true }
                     Button("Umbenennen") {
                         renameText = project?.name ?? ""
                         showsRename = true
@@ -212,6 +232,9 @@ private struct ProjectGalleryView: View {
         }
         .sheet(isPresented: $showsNewArtwork) {
             NewArtworkSheet(library: library, preselectedProjectID: projectID)
+        }
+        .sheet(isPresented: $showsTeilen) {
+            if let project { TeilenSheet(project: project, library: library) }
         }
         .alert("Projekt umbenennen", isPresented: $showsRename) {
             TextField("Name", text: $renameText)
@@ -285,8 +308,9 @@ private struct ArtworkCard: View {
                     .lineLimit(1)
                 HStack(spacing: 5) {
                     Text(artwork.updatedAt, format: .dateTime.day().month().hour().minute())
-                    if artwork.liveReadOnlyShare {
-                        Image(systemName: "eye.fill")
+                    if TeilenModell.shared.stand.istGeteilt(artwork) {
+                        Image(systemName: "person.2.fill")
+                            .accessibilityLabel("Geteilt")
                     }
                 }
                 .font(.caption2)
@@ -381,8 +405,9 @@ private struct ProjectCard: View {
                 Text(project.name)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
-                if project.sharedReadOnly {
-                    Image(systemName: "person.fill")
+                if TeilenModell.shared.stand.stufe(projekt: project.id.uuidString) != .aus {
+                    Image(systemName: "person.2.fill")
+                        .accessibilityLabel("Geteilt")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

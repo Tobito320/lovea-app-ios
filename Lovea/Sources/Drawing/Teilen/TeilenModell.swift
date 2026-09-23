@@ -72,6 +72,7 @@ struct TeilenStand: Sendable {
         var id: String
         var seq: Int?
         var von: Person
+        var zeit: Date
         var wert: T
     }
 
@@ -113,7 +114,7 @@ struct TeilenStand: Sendable {
         if let alt = tabelle[schluessel], alt.id != op.id, let seq = op.seq {
             guard let altSeq = alt.seq, seq >= altSeq else { return }
         }
-        tabelle[schluessel] = Eintrag(id: op.id, seq: op.seq, von: op.von, wert: wert)
+        tabelle[schluessel] = Eintrag(id: op.id, seq: op.seq, von: op.von, zeit: op.zeit, wert: wert)
     }
 
     // MARK: Queries

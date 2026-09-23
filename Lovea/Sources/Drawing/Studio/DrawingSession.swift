@@ -53,6 +53,9 @@ final class DrawingSession: ObservableObject {
     let engine: CanvasEngine?
     let library: ArtworkLibrary
     let canvasState = CanvasViewState()
+    /// Partner drawing opened to watch: tools locked, no saving, nothing sent.
+    let nurAnsehen: Bool
+    let live: ZeichnungLive
     /// Called with the color the person just used, so the palette can remember it.
     var onColorUsed: ((RGBAColor) -> Void)?
     private var previousTool: StudioTool = .brush
@@ -62,15 +65,19 @@ final class DrawingSession: ObservableObject {
     private var thumbnailTasks: [UUID: Task<Void, Never>] = [:]
     private var opacityGestureStart: ArtworkDocument?
 
-    init(artworkID: UUID, library: ArtworkLibrary) {
+    init(artworkID: UUID, library: ArtworkLibrary, nurAnsehen: Bool = false) {
         self.library = library
+        self.nurAnsehen = nurAnsehen
         let loaded = library.document(artworkID) ?? .new(
             name: "Neue Zeichnung", projectID: nil, format: .square, width: 2048, height: 2048, background: .white
         )
         document = loaded
+        live = ZeichnungLive(zeichnungId: loaded.id.uuidString, nurAnsehen: nurAnsehen)
         engine = try? CanvasEngine(document: loaded, library: library)
         activeLayerID = engine?.activeLayerID ?? loaded.layers.last?.id ?? UUID()
         engine?.onChange = { [weak self] in self?.engineChanged() }
+        engine?.onAction = { [weak self] in self?.live.aktionGeschehen() }
+        live.session = self
     }
 
     var activeLayer: ArtworkLayer? {
@@ -116,11 +123,14 @@ final class DrawingSession: ObservableObject {
     // MARK: Saving
 
     private func scheduleSave() {
+        guard !nurAnsehen else { return }
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled, let self else { return }
+            let strich = self.live.letzterStrich
             await self.engine?.saveDirtyLayers()
+            self.live.gespeichert(strich: strich)
             self.schedulePreview()
         }
     }
@@ -141,11 +151,14 @@ final class DrawingSession: ObservableObject {
 
     /// Saves right away: leaving the studio or going to the background.
     func saveNow() {
+        guard !nurAnsehen else { return }
         saveTask?.cancel()
         previewTask?.cancel()
+        let strich = live.letzterStrich
         Task {
             await engine?.saveDirtyLayers()
             await writePreview()
+            live.gespeichert(strich: strich)
         }
     }
 
@@ -219,8 +232,14 @@ final class DrawingSession: ObservableObject {
             guard ensureDrawable() else { return }
             markColorUsed()
             isBusy = true
+            let fill = ZeichnungAktion.fuellen(
+                x: Double(point.x), y: Double(point.y), farbe: color.hex8, toleranz: fillTolerance,
+                alleEbenen: fillReference == .allVisible, ebene: activeLayerID.uuidString
+            )
             Task {
+                live.fuellung = fill
                 await engine.fill(at: point, color: color, tolerance: fillTolerance, reference: fillReference, layerID: activeLayerID)
+                live.fuellung = nil
                 isBusy = false
             }
         default:
@@ -237,7 +256,11 @@ final class DrawingSession: ObservableObject {
     func drawShape(_ points: [CGPoint]) {
         guard let engine, ensureDrawable() else { return }
         let filled = shapeFilled && shapeKind != .line
-        Task { await engine.drawShape(points, filled: filled, settings: brushSettings, layerID: activeLayerID) }
+        Task {
+            await engine.drawShape(points, filled: filled, settings: brushSettings, layerID: activeLayerID)
+            // An outline lands like a stroke, without `onAction`.
+            if !(filled && points.count >= 3) { live.aktionGeschehen() }
+        }
     }
 
     func selectTopLayer(at point: CGPoint) {
@@ -250,14 +273,16 @@ final class DrawingSession: ObservableObject {
     }
 
     func undo(fromGesture: Bool = false) {
-        guard canUndo else { return }
+        guard canUndo, !nurAnsehen else { return }
         engine?.performUndo()
+        live.aktionGeschehen()
         if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     }
 
     func redo(fromGesture: Bool = false) {
-        guard canRedo else { return }
+        guard canRedo, !nurAnsehen else { return }
         engine?.performRedo()
+        live.aktionGeschehen()
         if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     }
 
@@ -483,9 +508,33 @@ final class DrawingSession: ObservableObject {
     func commitAdjustment() { engine?.commitAdjustment() }
     func cancelAdjustment() { engine?.cancelAdjustment() }
 
-    // MARK: Export
+    // MARK: Export and sharing
 
     func flattenedImage() async -> UIImage? {
         await engine?.flattenedImage()
+    }
+
+    /// Name for the partner's pen icon: the brush preset, else the tool.
+    var werkzeugName: String {
+        tool == .brush ? brush.rawValue : tool.rawValue
+    }
+
+    func alsBildSenden() {
+        guard let engine, !isBusy else { return }
+        isBusy = true
+        Task {
+            do {
+                try await StandPaket.alsBildSenden(engine)
+                show("Im Chat gesendet")
+            } catch {
+                show("Senden hat nicht geklappt")
+            }
+            isBusy = false
+        }
+    }
+
+    func einladen() {
+        live.einladen()
+        show("Eingeladen – \(Raum.shared.ich?.partner.name ?? "dein Schatz") kann jederzeit einsteigen")
     }
 }

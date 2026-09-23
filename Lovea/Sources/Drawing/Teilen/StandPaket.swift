@@ -34,7 +34,10 @@ enum StandPaket {
 
     private static func veroeffentlichen(_ artworkID: UUID, library: ArtworkLibrary) async {
         let id = artworkID.uuidString
-        guard let document = library.document(artworkID), TeilenModell.shared.stand.istGeteilt(document) else { return }
+        let teilen = TeilenModell.shared.stand
+        guard let document = library.document(artworkID), teilen.istGeteilt(document) else { return }
+        // Already published after the last save (also across app starts, from the op log).
+        if let letzter = teilen.staende[id], letzter.von == Raum.shared.ich, letzter.zeit >= document.updatedAt { return }
         await library.waitForWrites()
         do {
             var ebenen: [ZeichnungStand.Ebene] = []

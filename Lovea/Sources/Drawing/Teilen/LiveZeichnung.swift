@@ -243,6 +243,8 @@ final class ZeichnungLive {
     private var veraltet = true
     private var laedt = false
     private var wartenderStand: ZeichnungStand?
+    /// Set once the studio appeared. Keeps a bare session (tests, previews) away from the network.
+    private var geoeffnet = false
 
     init(zeichnungId: String, nurAnsehen: Bool) {
         self.zeichnungId = zeichnungId
@@ -250,7 +252,7 @@ final class ZeichnungLive {
     }
 
     private var partnerSchaut: Bool {
-        !nurAnsehen && LiveZeichnung.shared.partnerIstDrin(zeichnungId)
+        geoeffnet && !nurAnsehen && LiveZeichnung.shared.partnerIstDrin(zeichnungId)
     }
 
     private var autor: String? { Raum.shared.ich?.partner.rawValue }
@@ -258,6 +260,7 @@ final class ZeichnungLive {
     // MARK: Enter and leave
 
     func betreten() {
+        geoeffnet = true
         LiveZeichnung.shared.offen = self
         FigurenModell.shared.zustandSenden(.init(haupt: .zeichnet))
         guard let session else { return }
@@ -386,14 +389,19 @@ final class ZeichnungLive {
 
     /// After every own autosave. `strich` is `letzterStrich` from before the save started.
     func gespeichert(strich: String?) {
-        guard !nurAnsehen, let session, TeilenModell.shared.stand.istGeteilt(session.document) else { return }
+        guard geoeffnet, !nurAnsehen, let session, TeilenModell.shared.stand.istGeteilt(session.document) else { return }
         StandPaket.planen(session.document.id, library: session.library, strich: strich)
     }
 
     // MARK: Incoming (viewer)
 
     func strichEmpfangen(_ strich: LiveStrich) {
-        guard strich.zeichnungId == zeichnungId, let engine = session?.engine else { return }
+        guard strich.zeichnungId == zeichnungId, let session, let engine = session.engine else { return }
+        // The viewer's active layer follows the partner: keeps the compositor caches valid and shows the layer.
+        if nurAnsehen, let layerID = UUID(uuidString: strich.ebene), session.activeLayerID != layerID,
+           session.document.layers.contains(where: { $0.id == layerID }) {
+            session.activeLayerID = layerID
+        }
         if laufend[strich.strichId] == nil, strich.anfang != true { veraltet = true }
         if strich.auswahl == true { veraltet = true }
         laufend[strich.strichId, default: []].append(strich)
@@ -409,7 +417,7 @@ final class ZeichnungLive {
                 farbe: strich.farbe, groesse: strich.groesse, schwebt: false, aktiv: !strich.istZuEnde
             ))
         }
-        session?.requestRedraw()
+        session.requestRedraw()
     }
 
     func opEmpfangen(_ op: Op) {

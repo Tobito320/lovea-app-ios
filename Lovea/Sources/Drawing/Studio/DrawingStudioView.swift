@@ -20,8 +20,14 @@ struct DrawingStudioView: View {
     @State private var templateItem: PhotosPickerItem?
     @State private var templateData: Data?
 
-    init(artworkID: UUID, library: ArtworkLibrary, person: Person, templateData: Data? = nil) {
-        _session = StateObject(wrappedValue: DrawingSession(artworkID: artworkID, library: library))
+    /// `nurAnsehen`: a partner drawing from the shared library, `stand` the stand it was loaded from.
+    init(artworkID: UUID, library: ArtworkLibrary, person: Person, templateData: Data? = nil,
+         nurAnsehen: Bool = false, stand: ZeichnungStand? = nil) {
+        _session = StateObject(wrappedValue: {
+            let session = DrawingSession(artworkID: artworkID, library: library, nurAnsehen: nurAnsehen)
+            session.live.geladen = stand
+            return session
+        }())
         _palette = StateObject(wrappedValue: ColorPaletteStore(person: person.rawValue))
         _templateData = State(initialValue: templateData)
     }
@@ -33,16 +39,23 @@ struct DrawingStudioView: View {
             Color(uiColor: .secondarySystemBackground).ignoresSafeArea()
             CanvasRepresentable(session: session).ignoresSafeArea()
             CanvasOverlay(state: session.canvasState, session: session).ignoresSafeArea()
+            PartnerStiftOverlay(state: session.canvasState).ignoresSafeArea()
             if session.isTransforming {
                 TransformOverlay(state: session.canvasState, session: session).ignoresSafeArea(edges: .bottom)
             }
         }
         .overlay(alignment: .top) { topMessages }
+        .overlay(alignment: .topLeading) {
+            PartnerFigurAmRand(zeichnungId: session.live.zeichnungId)
+                .padding(.leading, 12)
+                .padding(.top, 8)
+                .animation(reduceMotion ? nil : .snappy, value: LiveZeichnung.shared.partnerDrin)
+        }
         .overlay(alignment: .topTrailing) {
             if showsHUD { PerformanceHUD(session: session).padding(12) }
         }
         .overlay(alignment: .leading) {
-            if !compact, !session.isTransforming {
+            if !compact, !session.isTransforming, !session.nurAnsehen {
                 SizeOpacityRail(session: session, compact: false, glass: glass).padding(.leading, 12)
             }
         }
@@ -51,6 +64,7 @@ struct DrawingStudioView: View {
         .overlay(alignment: .trailing) {
             if !compact, showsLayers {
                 ArtworkLayersView(session: session)
+                    .disabled(session.nurAnsehen)
                     .frame(width: 320)
                     .background(.background)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -63,7 +77,7 @@ struct DrawingStudioView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar { studioToolbar }
-        .sheet(isPresented: $showsLayerSheet) { LayersSheet(session: session) }
+        .sheet(isPresented: $showsLayerSheet) { LayersSheet(session: session).disabled(session.nurAnsehen) }
         .sheet(isPresented: $showsText) { TextSheet(session: session) }
         .sheet(isPresented: $showsExport) {
             ArtworkExportSheet(artwork: session.document, library: session.library)
@@ -77,6 +91,8 @@ struct DrawingStudioView: View {
             Text("Speicher voll – Ebenen zusammenführen oder kleinere Leinwand wählen.")
         }
         .onAppear {
+            session.live.betreten()
+            if session.nurAnsehen { session.show("Nur ansehen – Werkzeuge sind gesperrt") }
             session.onColorUsed = { [weak palette] in palette?.use($0) }
             if let templateData {
                 self.templateData = nil
@@ -93,6 +109,7 @@ struct DrawingStudioView: View {
         }
         .onDisappear {
             session.saveNow()
+            session.live.verlassen()
         }
     }
 
@@ -101,12 +118,16 @@ struct DrawingStudioView: View {
     @ToolbarContentBuilder
     private var studioToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button { session.undo() } label: { Image(systemName: "arrow.uturn.backward") }
-                .accessibilityLabel("Rückgängig")
-                .disabled(!session.canUndo)
-            Button { session.redo() } label: { Image(systemName: "arrow.uturn.forward") }
-                .accessibilityLabel("Wiederholen")
-                .disabled(!session.canRedo)
+            if session.nurAnsehen {
+                FolgenKnopf(state: session.canvasState)
+            } else {
+                Button { session.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                    .accessibilityLabel("Rückgängig")
+                    .disabled(!session.canUndo)
+                Button { session.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                    .accessibilityLabel("Wiederholen")
+                    .disabled(!session.canRedo)
+            }
             Button {
                 if compact { showsLayerSheet = true } else { withAnimation(reduceMotion ? nil : .snappy) { showsLayers.toggle() } }
             } label: { Image(systemName: "square.3.layers.3d") }
@@ -117,31 +138,11 @@ struct DrawingStudioView: View {
 
     private var moreMenu: some View {
         Menu {
-            Menu {
-                ForEach(Adjustment.allCases) { item in
-                    Button(item.title) {
-                        adjustment = item
-                        session.previewAdjustment(item, amount: item.range.map { ($0.lowerBound + $0.upperBound) / 2 } ?? 0)
-                    }
-                }
-            } label: { Label("Anpassen", systemImage: "slider.horizontal.3") }
-            Menu {
-                ForEach(ShapeKind.allCases) { kind in
-                    Button {
-                        session.shapeKind = kind
-                        session.tool = .shape
-                    } label: { Label(kind.title, systemImage: kind.symbol) }
-                }
-                Toggle("Gefüllt", isOn: $session.shapeFilled)
-            } label: { Label("Formen", systemImage: "square.on.circle") }
-            Toggle(isOn: $session.lassoRectangle) { Label("Rechteck-Auswahl", systemImage: "rectangle.dashed") }
-            Toggle(isOn: $session.symmetry) { Label("Spiegelachse", systemImage: "square.split.2x1") }
-            Divider()
-            Toggle(isOn: $viewMirrored) { Label("Ansicht spiegeln", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right") }
-            Button { session.canvasState.resetView() } label: { Label("Ansicht zurücksetzen", systemImage: "arrow.up.left.and.down.right.magnifyingglass") }
-            Toggle(isOn: $session.drawsWithFinger) { Label("Mit Finger zeichnen", systemImage: "hand.draw") }
-            Divider()
-            Button { showsExport = true } label: { Label("Exportieren", systemImage: "square.and.arrow.up") }
+            if session.nurAnsehen {
+                viewMenu
+            } else {
+                editMenu
+            }
         } label: {
             Image(systemName: "ellipsis.circle")
         }
@@ -149,11 +150,49 @@ struct DrawingStudioView: View {
         .onChange(of: viewMirrored) { _, value in session.canvasState.setMirrored(value) }
     }
 
+    @ViewBuilder
+    private var viewMenu: some View {
+        Toggle(isOn: $viewMirrored) { Label("Ansicht spiegeln", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right") }
+        Button { session.canvasState.resetView() } label: { Label("Ansicht zurücksetzen", systemImage: "arrow.up.left.and.down.right.magnifyingglass") }
+    }
+
+    @ViewBuilder
+    private var editMenu: some View {
+        Menu {
+            ForEach(Adjustment.allCases) { item in
+                Button(item.title) {
+                    adjustment = item
+                    session.previewAdjustment(item, amount: item.range.map { ($0.lowerBound + $0.upperBound) / 2 } ?? 0)
+                }
+            }
+        } label: { Label("Anpassen", systemImage: "slider.horizontal.3") }
+        Menu {
+            ForEach(ShapeKind.allCases) { kind in
+                Button {
+                    session.shapeKind = kind
+                    session.tool = .shape
+                } label: { Label(kind.title, systemImage: kind.symbol) }
+            }
+            Toggle("Gefüllt", isOn: $session.shapeFilled)
+        } label: { Label("Formen", systemImage: "square.on.circle") }
+        Toggle(isOn: $session.lassoRectangle) { Label("Rechteck-Auswahl", systemImage: "rectangle.dashed") }
+        Toggle(isOn: $session.symmetry) { Label("Spiegelachse", systemImage: "square.split.2x1") }
+        Divider()
+        viewMenu
+        Toggle(isOn: $session.drawsWithFinger) { Label("Mit Finger zeichnen", systemImage: "hand.draw") }
+        Divider()
+        Button { showsExport = true } label: { Label("Exportieren", systemImage: "square.and.arrow.up") }
+        Button { session.alsBildSenden() } label: { Label("Als Bild senden", systemImage: "paperplane") }
+        Button { session.einladen() } label: { Label("Zum Mitzeichnen einladen", systemImage: "person.2") }
+    }
+
     // MARK: Floating controls
 
     @ViewBuilder
     private var bottomControls: some View {
-        if let adjustment {
+        if session.nurAnsehen {
+            EmptyView()
+        } else if let adjustment {
             AdjustPanel(session: session, adjustment: adjustment, glass: glass) { self.adjustment = nil }
                 .padding(.bottom, 12)
         } else if !session.isTransforming {
