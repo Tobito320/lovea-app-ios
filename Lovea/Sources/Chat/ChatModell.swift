@@ -171,8 +171,7 @@ final class ChatModell {
                 if let seq = op.seq { vorhanden.seq = seq }
                 byID[op.id] = vorhanden
             } else {
-                let text = op.von.name + (p.art == "bildschirmaufnahme" ? " hat den Bildschirm aufgenommen" : " hat einen Screenshot gemacht")
-                byID[op.id] = Nachricht(id: op.id, von: op.von, zeit: op.zeit, seq: op.seq, system: text)
+                byID[op.id] = Nachricht(id: op.id, von: op.von, zeit: op.zeit, seq: op.seq, system: ChatHinweis.text(von: op.von.name, art: p.art))
             }
         case "entwurf.setzen":
             entwuerfe[op.von, default: EntwurfFaltung()].anwenden(op)

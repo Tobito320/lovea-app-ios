@@ -39,6 +39,8 @@ private struct Unterhaltung: View {
     @State private var flaeche = CGSize(width: 390, height: 900)
     /// Left-edge swipe back to Home: how far the conversation follows the finger.
     @State private var randZug: CGFloat = 0
+    /// Short confirmation under the header ("In Aufnahmen gespeichert").
+    @State private var toast: String?
 
     var body: some View {
         NachrichtenListe(modell: modell, ich: ich, zielID: $zielID, aktionen: aktionen)
@@ -59,6 +61,7 @@ private struct Unterhaltung: View {
             .toolbar(.hidden, for: .tabBar)
             .modifier(UnterhaltungBlaetter(ich: ich, blatt: $blatt))
             .modifier(Lesebestaetigung(ich: ich, modell: modell))
+            .modifier(ChatAufnahmeHinweise())
             .modifier(Spruenge(modell: modell, zielID: $zielID, sucheAktiv: $sucheAktiv, blatt: $blatt))
             .task { ReaktionsBilder.shared.vorwaermen(ich) }
     }
@@ -108,6 +111,18 @@ private struct Unterhaltung: View {
     private var oben: some View {
         VStack(spacing: 6) {
             ChatKopf(partner: ich.partner, modell: modell, onZurueck: zuHome) { blatt.profil = true }
+            if let toast {
+                Text(toast)
+                    .font(.footnote.weight(.medium))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .glassEffect(.regular, in: .capsule)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .task(id: toast) {
+                        try? await Task.sleep(for: .seconds(2))
+                        withAnimation(Feder.weich) { self.toast = nil }
+                    }
+            }
             if sucheAktiv {
                 ChatSuchleiste(modell: modell, onSpringeZu: { zielID = $0 }) {
                     withAnimation(Feder.schnell) { sucheAktiv = false }
@@ -148,7 +163,33 @@ private struct Unterhaltung: View {
         case .bearbeiten: blatt.bearbeiten = nachricht
         case .reaktionen: blatt.reaktionen = nachricht
         case .snapAnsehen: blatt.snap = nachricht
+        case .aufnahmenSpeichern:
+            let ids = fokus?.stapel ?? [nachricht.id]
+            Task { await inAufnahmenSpeichern(ids) }
         }
+    }
+
+    /// Fix round 3: save straight from the bubble, then haptic + toast, and a grey line for the partner.
+    private func inAufnahmenSpeichern(_ ids: [String]) async {
+        let medien = ids.compactMap { modell.nachricht($0) }.flatMap(\.medien).filter { $0.typ == "foto" || $0.typ == "video" }
+        guard !medien.isEmpty else { return }
+        do {
+            try await AufnahmenSpeichern.speichern(medien)
+            Haptik.erfolg()
+            zeigen(medien.count > 1 ? "\(medien.count) in Aufnahmen gespeichert" : "In Aufnahmen gespeichert")
+            let nurVideo = medien.allSatisfy { $0.typ == "video" }
+            modell.snapAufnahmeSenden(ids.first ?? "chat", art: nurVideo ? ChatHinweis.gespeichertVideo : ChatHinweis.gespeichertFoto)
+        } catch AufnahmenSpeichern.Fehler.keineErlaubnis {
+            Haptik.warnung()
+            zeigen("Kein Zugriff auf Fotos. In den Einstellungen erlauben.")
+        } catch {
+            Haptik.warnung()
+            zeigen("Speichern hat nicht geklappt")
+        }
+    }
+
+    private func zeigen(_ text: String) {
+        withAnimation(Feder.federnd) { toast = text }
     }
 }
 

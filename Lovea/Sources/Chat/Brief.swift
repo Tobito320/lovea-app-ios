@@ -47,6 +47,7 @@ struct BriefBlase: View {
     }
 
     private func oeffnen() {
+        guard !LangDruck.geradeEben else { return }
         Haptik.mittel()
         withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Feder.federnd) { geoeffnet = true }
     }

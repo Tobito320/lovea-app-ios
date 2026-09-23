@@ -29,6 +29,7 @@ struct MedienNachrichtView: View {
                     .overlay(alignment: .bottomLeading) { if beschnitten { ganzesBildHinweis } }
                     .contentShape(.rect)
                     .onTapGesture {
+                        guard !LangDruck.geradeEben else { return }
                         Haptik.leicht()
                         vollbild = true
                     }

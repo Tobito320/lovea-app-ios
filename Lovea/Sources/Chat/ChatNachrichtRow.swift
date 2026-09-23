@@ -128,7 +128,11 @@ struct ChatNachrichtRow: View {
             .onGeometryChange(for: CGRect.self) { geo in geo.frame(in: .global) } action: { rahmen.wert = $0 }
             .onTapGesture(count: 2) { herzReaktion() }
             .onTapGesture { effektNochmal() }
-            .onLongPressGesture(minimumDuration: 0.35) { fokussieren() }
+            // Fix round 3: simultaneous, not `.onLongPressGesture`. Photos, videos, snaps and letters
+            // carry their own tap gesture; SwiftUI let that child tap win over an exclusive parent
+            // long press, so holding a photo often opened nothing. `LangDruck` stops the child tap
+            // that ends the same touch.
+            .simultaneousGesture(LongPressGesture(minimumDuration: 0.35).onEnded { _ in fokussieren() })
             .onAppear { ChatEffektSpieler.shared.erstesSehen(nachricht) }
     }
 
@@ -205,11 +209,12 @@ struct ChatNachrichtRow: View {
     }
 
     private func effektNochmal() {
-        guard let effekt = nachricht.effekt else { return }
+        guard let effekt = nachricht.effekt, !LangDruck.geradeEben else { return }
         ChatEffektSpieler.shared.spielen(effekt)
     }
 
     private func fokussieren() {
+        LangDruck.merken()
         Haptik.leicht()
         let ids = (stapel.isEmpty ? [nachricht] : stapel).map(\.id)
         aktionen.fokussieren(ChatFokus(id: nachricht.id, stapel: ids, rahmen: rahmen.wert))
@@ -443,6 +448,7 @@ private struct SnapZeile: View {
             .blase(eigene: eigene, schwanz: schwanz, backdrop: backdrop)
             .contentShape(.rect)
             .onTapGesture {
+                guard !LangDruck.geradeEben else { return }
                 Haptik.leicht()
                 vollbild = true
             }

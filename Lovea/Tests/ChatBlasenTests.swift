@@ -39,6 +39,21 @@ final class ChatBlasenTests: XCTestCase {
         XCTAssertEqual(ChatKopfLogik.ortLabel(name: "Oma", kategorie: "sonstiges"), "Oma")
     }
 
+    // Fix round 3: screenshot/recording notices, at most one per 10 s.
+    func testHinweisDrosselZehnSekunden() {
+        XCTAssertTrue(ChatHinweis.darfMelden(letzte: nil, jetzt: t0))
+        XCTAssertFalse(ChatHinweis.darfMelden(letzte: t0, jetzt: t0.addingTimeInterval(9.9)))
+        XCTAssertTrue(ChatHinweis.darfMelden(letzte: t0, jetzt: t0.addingTimeInterval(10)))
+    }
+
+    func testHinweisTexte() {
+        XCTAssertEqual(ChatHinweis.text(von: "Ahmed", art: ChatHinweis.gespeichertFoto), "Ahmed hat ein Bild in Aufnahmen gespeichert")
+        XCTAssertEqual(ChatHinweis.text(von: "Annika", art: ChatHinweis.gespeichertVideo), "Annika hat ein Video in Aufnahmen gespeichert")
+        XCTAssertEqual(ChatHinweis.text(von: "Ahmed", art: ChatHinweis.chatScreenshot), "Ahmed hat einen Screenshot vom Chat gemacht")
+        XCTAssertEqual(ChatHinweis.text(von: "Ahmed", art: ChatHinweis.chatAufnahme), "Ahmed nimmt den Chat auf")
+        XCTAssertEqual(ChatHinweis.text(von: "Annika", art: "screenshot"), "Annika hat einen Screenshot gemacht", "snap screenshots unchanged")
+    }
+
     func testNurEmoji() {
         XCTAssertTrue(NachrichtBlase.nurEmoji("😂"))
         XCTAssertTrue(NachrichtBlase.nurEmoji("❤️ 😘"))

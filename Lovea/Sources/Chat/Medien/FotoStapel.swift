@@ -35,6 +35,7 @@ struct FotoStapel: View {
         }
         .contentShape(Rectangle())
         .onTapGesture {
+            guard !LangDruck.geradeEben else { return }
             Haptik.leicht()
             galerieOffen = true
         }

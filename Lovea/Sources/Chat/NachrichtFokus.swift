@@ -9,7 +9,21 @@ struct ChatFokus: Equatable {
 }
 
 /// Menu items that need the conversation's own state.
-enum FokusWunsch { case antworten, bearbeiten, reaktionen, snapAnsehen }
+enum FokusWunsch { case antworten, bearbeiten, reaktionen, snapAnsehen, aufnahmenSpeichern }
+
+/// Fix round 3: when a long press opened the focus layer, the tap that ends the same touch must not
+/// also open the photo, snap or letter underneath.
+/// Swallows at most one tap, within 2 s of the long press, so a later real tap always works.
+@MainActor
+enum LangDruck {
+    private static var zeit: Date?
+    static func merken() { zeit = Date() }
+    static var geradeEben: Bool {
+        guard let zeit else { return false }
+        Self.zeit = nil
+        return Date().timeIntervalSince(zeit) < 2
+    }
+}
 
 /// Vertical placement around the focused bubble `rahmen`, inside `oben…unten`: the reaction bar
 /// above the bubble (below it when there is no room), the menu below (above everything when there
@@ -158,6 +172,10 @@ struct NachrichtFokusEbene: View {
         let jetzt = Date()
         let text = nachricht.text ?? ""
         var liste = [MenuePunkt(id: "antworten", titel: "Antworten", symbol: "arrowshape.turn.up.left") { tun(.antworten) }]
+        // Fix round 3: straight from the bubble, no need to open the photo first.
+        if nachricht.snap == nil, fokusMedien.contains(where: { $0.typ == "foto" || $0.typ == "video" }) {
+            liste.append(MenuePunkt(id: "aufnahmen", titel: "In Aufnahmen speichern", symbol: "square.and.arrow.down") { tun(.aufnahmenSpeichern) })
+        }
         if !text.isEmpty {
             liste.append(MenuePunkt(id: "kopieren", titel: "Kopieren", symbol: "doc.on.doc") {
                 UIPasteboard.general.string = text
@@ -179,7 +197,7 @@ struct NachrichtFokusEbene: View {
         }
         let fotos = lokaleFotos
         if nachricht.snap == nil, !fotos.isEmpty {
-            liste.append(MenuePunkt(id: "galerie", titel: fotos.count > 1 ? "Alle in Galerie speichern" : "In Galerie speichern", symbol: "photo.badge.plus") {
+            liste.append(MenuePunkt(id: "galerie", titel: fotos.count > 1 ? "Alle in Zeichnungen speichern" : "In Zeichnungen speichern", symbol: "paintbrush.pointed") {
                 for url in fotos { ChatGalerie.inGaleriesSpeichern(bildURL: url) }
                 Haptik.erfolg()
                 schliessen()
@@ -224,9 +242,12 @@ struct NachrichtFokusEbene: View {
         return punkt
     }
 
+    private var fokusMedien: [ChatModell.MedienEintrag] {
+        fokus.stapel.compactMap { ChatModell.shared.nachricht($0) }.flatMap(\.medien)
+    }
+
     private var lokaleFotos: [URL] {
-        let stapel = fokus.stapel.compactMap { ChatModell.shared.nachricht($0) }
-        return stapel.flatMap(\.medien).filter { $0.typ == "foto" }.compactMap { MedienDatei.lokal($0) }
+        fokusMedien.filter { $0.typ == "foto" }.compactMap { MedienDatei.lokal($0) }
     }
 
     /// Unsend with the puff (the row animates `geloescht`). Re-checked at tap time: a menu opened
