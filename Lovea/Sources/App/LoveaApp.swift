@@ -23,7 +23,10 @@ struct LoveaApp: App {
             }
             .onChange(of: session.person, initial: true) { _, person in
                 Raum.shared.ich = person
-                if person != nil { Raum.shared.start() }
+                if person != nil {
+                    Raum.shared.start()
+                    Standort.shared.start()
+                }
             }
             .onChange(of: scenePhase) { _, phase in
                 Raum.shared.aktiv(phase == .active)
