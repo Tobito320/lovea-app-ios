@@ -86,7 +86,6 @@ final class WidgetStandSchreiber {
         var stand = WidgetStand(eigenePerson: ich.rawValue)
         healthEintragen(&stand)
         challengeEintragen(&stand)
-        treffenEintragen(&stand)
         partnerEintragen(&stand, partner: ich.partner)
         stand.frageDesTages = FrageDesTages.waehlen(vorrat: FrageDesTages.vorrat, tag: Datum.text(Date()))?.text
         return stand
@@ -102,8 +101,13 @@ final class WidgetStandSchreiber {
         // `verfuegbar` (Kontostand nach Käufen), nicht `stand` (Lebenszeit-verdient) — sonst zeigt
         // das Widget nach dem ersten Kauf eine andere Zahl als die Punktestand-Kapsel in der App.
         let verfuegbar = PunkteModell.shared.einkaufsStand(preis: { ShopKatalog.artikel($0)?.preis }).verfuegbar
+        var km: [String: Double] = [:]
+        var etagen: [String: Int] = [:]
+        defer { stand.kmHeute = km; stand.etagenHeute = etagen }
         for person in Person.allCases {
             stand.schritteHeute[person.rawValue] = health.heuteSchritte(person)
+            km[person.rawValue] = health.kmAm(person, heute)
+            etagen[person.rawValue] = health.etagenAm(person, heute)
             stand.zielSchritte[person.rawValue] = health.zielSchritte(person)
             stand.zielGymWoche[person.rawValue] = health.zielGym(person)
             stand.gymLetzte7[person.rawValue] = (0..<7).map { versatz in
@@ -118,12 +122,6 @@ final class WidgetStandSchreiber {
         guard let woche = PunkteModell.shared.aktuelleWoche else { return }
         stand.gemeinsamZielWoche = woche.gemeinsamZiel
         stand.gemeinsamSchritteWoche = woche.schritteGesamt
-    }
-
-    private func treffenEintragen(_ stand: inout WidgetStand) {
-        guard let treffen = KalenderModell.shared.naechstesTreffen else { return }
-        stand.naechstesTreffenDatum = treffen.datum
-        stand.naechstesTreffenText = treffen.wasMachenWir
     }
 
     private func partnerEintragen(_ stand: inout WidgetStand, partner: Person) {

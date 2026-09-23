@@ -8,7 +8,6 @@ struct LoveaWidgetsBundle: WidgetBundle {
         GymDuellWidget()
         SchritteDuellWidget()
         PartnerWidget()
-        TreffenWidget()
         PunkteChallengeWidget()
         FotoFrageWidget()
     }

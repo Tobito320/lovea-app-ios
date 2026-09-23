@@ -15,6 +15,9 @@ struct WidgetStand: Codable, Sendable, Equatable {
     /// `nil`/fehlender Schlüssel = "keine Daten" (Review-Fokus 4: nie 0 zeigen, das ein Duell verlieren lässt).
     var schritteHeute: [String: Int] = [:]
     var zielSchritte: [String: Int] = [:]
+    /// Today's distance and floors. Optional so snapshot files written before these fields still decode.
+    var kmHeute: [String: Double]?
+    var etagenHeute: [String: Int]?
 
     /// Montag bis Sonntag der Woche, in der zuletzt geschrieben wurde (7 Einträge), wie `zielGym`/
     /// `ChallengeLogik`. Der Intent bestimmt "heute" selbst über `WidgetDatum.heute()`, statt sich
@@ -27,9 +30,6 @@ struct WidgetStand: Codable, Sendable, Equatable {
 
     var gemeinsamZielWoche: Int?
     var gemeinsamSchritteWoche: Int?
-
-    var naechstesTreffenDatum: String?
-    var naechstesTreffenText: String?
 
     var partnerOrtName: String?
     /// 0...1, gerundet auf 5 % — kein Grund, den exakten Wert in eine Datei zu schreiben, die vom

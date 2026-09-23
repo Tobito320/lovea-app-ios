@@ -20,6 +20,7 @@ private struct GymWocheView: View {
 
     var body: some View {
         let person = entry.stand.eigenePerson
+        let farbe = WidgetStil.farbe(person)
         let tage = entry.stand.gymLetzte7[person] ?? []
         let heute = WidgetDatum.heute()
         let heuteErledigt = tage.first(where: { $0.datum == heute })?.erledigt ?? false
@@ -27,39 +28,45 @@ private struct GymWocheView: View {
         let erledigtAnzahl = tage.filter(\.erledigt).count
 
         VStack(alignment: .leading, spacing: 6) {
-            Label("Gym-Woche", systemImage: "figure.strengthtraining.traditional")
-                .font(.caption2).bold()
-                .foregroundStyle(.secondary)
-            GymTageReihe(tage: tage, heute: heute)
+            WidgetKopf(titel: "Gym-Woche", symbol: "figure.strengthtraining.traditional", farbe: farbe)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(erledigtAnzahl)").widgetZahl().widgetAccentable()
+                Text("von \(ziel)").widgetEtikett()
+            }
+            GymTageReihe(tage: tage, heute: heute, farbe: farbe, groesse: 14)
             Spacer(minLength: 0)
             Button(intent: GymHeuteIntent()) {
                 Label(heuteErledigt ? "Erledigt" : "Abhaken", systemImage: heuteErledigt ? "checkmark.circle.fill" : "circle")
                     .font(.caption.bold())
+                    .frame(maxWidth: .infinity)
             }
             .buttonStyle(.borderedProminent)
-            .tint(heuteErledigt ? .green : .accentColor)
-            Text("\(erledigtAnzahl) von \(ziel) diese Woche")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
+            .tint(heuteErledigt ? .green : farbe)
         }
         .widgetURL(URL(string: "lovea://health"))
-        .containerBackground(.background, for: .widget)
+        .widgetHintergrund(farbe)
     }
 }
 
-private struct GymTageReihe: View {
+/// Mo–So als Punkte, erledigte Tage gefüllt mit Haken, heute umrandet. Auch vom Gym-Duell genutzt.
+struct GymTageReihe: View {
     let tage: [WidgetStand.TagEintrag]
     let heute: String
+    let farbe: Color
+    let groesse: CGFloat
 
     var body: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             ForEach(tage, id: \.datum) { tag in
-                Circle()
-                    .fill(tag.erledigt ? Color.green : Color.secondary.opacity(0.25))
-                    .overlay {
-                        if tag.datum == heute { Circle().stroke(Color.accentColor, lineWidth: 2) }
+                ZStack {
+                    Circle().fill(tag.erledigt ? farbe : Color.secondary.opacity(0.18))
+                    if tag.erledigt {
+                        Image(systemName: "checkmark").font(.system(size: groesse * 0.5, weight: .bold)).foregroundStyle(.white)
                     }
-                    .frame(width: 16, height: 16)
+                    if tag.datum == heute { Circle().stroke(farbe, lineWidth: 1.5).padding(-2) }
+                }
+                .frame(width: groesse, height: groesse)
+                .widgetAccentable(tag.erledigt)
             }
         }
     }
