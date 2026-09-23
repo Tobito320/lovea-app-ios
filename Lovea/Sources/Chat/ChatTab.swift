@@ -146,7 +146,12 @@ private struct Lesebestaetigung: ViewModifier {
                 leseBestaetigen()
                 FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
             }
-            .onDisappear { sichtbar = false }
+            // Z-33.5: leaving the tab used to leave the partner seeing "ist im Chat" until the next
+            // screen reported something. Covers (camera, viewer) send their own state right after.
+            .onDisappear {
+                sichtbar = false
+                FigurenModell.shared.zustandSenden(.init(haupt: .ruhig))
+            }
             .onChange(of: scenePhase) { _, _ in leseBestaetigen() }
             .onChange(of: modell.nachrichten.count) { _, _ in
                 leseBestaetigen()

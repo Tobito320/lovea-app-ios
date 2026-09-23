@@ -341,28 +341,33 @@ struct ChatEingabeleiste: View {
         }
     }
 
+    /// Z-33.5: the edited bytes go in synchronously, before the re-upload starts — the upload used
+    /// to read the old photo while the new one was still waiting for its thumbnail.
     private func ersetzen(_ id: UUID, durch jpeg: Data) {
+        guard let index = anhaenge.firstIndex(where: { $0.id == id }) else { return }
+        anhaenge[index].inhalt = .foto(jpeg)
+        anhaenge[index].hochgeladen = nil // Z-26.2: content changed, the old id no longer matches
+        entwurfAktualisieren()
+        hochladenFuerEntwurf(id)
         Task {
             let vorschau = await ChatAnhang.vorschau(jpeg)
-            guard let index = anhaenge.firstIndex(where: { $0.id == id }) else { return }
-            anhaenge[index].inhalt = .foto(jpeg)
-            anhaenge[index].vorschau = vorschau
-            anhaenge[index].hochgeladen = nil // Z-26.2: content changed, the old id no longer matches
-            entwurfAktualisieren()
+            guard let aktIndex = anhaenge.firstIndex(where: { $0.id == id }) else { return }
+            anhaenge[aktIndex].vorschau = vorschau
         }
-        hochladenFuerEntwurf(id)
     }
 
     /// Z-26.2: uploads (or re-uploads, after `ersetzen`) a draft photo attachment right away, so
-    /// its id can go into `entwurf.setzen`. Ignored if the attachment was removed/replaced again
-    /// by the time it finishes.
+    /// its id can go into `entwurf.setzen`. Ignored if the attachment was removed or its photo
+    /// replaced again by the time it finishes.
     private func hochladenFuerEntwurf(_ anhangId: UUID) {
         Task {
             guard let index = anhaenge.firstIndex(where: { $0.id == anhangId }),
                   case .foto(let daten) = anhaenge[index].inhalt
             else { return }
             guard let ergebnis = await ChatMedien.entwurfBildHochladen(daten) else { return }
-            guard let aktIndex = anhaenge.firstIndex(where: { $0.id == anhangId }) else { return }
+            guard let aktIndex = anhaenge.firstIndex(where: { $0.id == anhangId }),
+                  case .foto(let jetzt) = anhaenge[aktIndex].inhalt, jetzt == daten
+            else { return }
             anhaenge[aktIndex].hochgeladen = ergebnis
             entwurfAktualisieren()
         }

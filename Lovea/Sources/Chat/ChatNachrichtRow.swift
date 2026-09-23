@@ -289,8 +289,7 @@ struct NachrichtBlase: View {
     @ViewBuilder private var medienTeil: some View {
         let mitSchwanz = schwanz && text.isEmpty
         if let snap = nachricht.snap {
-            SnapZeile(nachricht: nachricht, snap: snap, ich: ich, eigene: eigene)
-                .blase(eigene: eigene, schwanz: mitSchwanz, backdrop: backdrop)
+            SnapZeile(nachricht: nachricht, snap: snap, ich: ich, eigene: eigene, schwanz: mitSchwanz, backdrop: backdrop)
         } else if let medium = nachricht.medien.first {
             if medium.typ == "sprache" {
                 SprachBlase(medium: medium).blase(eigene: eigene, schwanz: mitSchwanz, backdrop: backdrop)
@@ -412,6 +411,8 @@ private struct SnapZeile: View {
     let snap: ChatModell.SnapInfo
     let ich: Person
     let eigene: Bool
+    let schwanz: Bool
+    let backdrop: Backdrop
 
     @State private var vollbild = false
 
@@ -439,6 +440,7 @@ private struct SnapZeile: View {
     private func spur(_ text: String) -> some View {
         Label(text, systemImage: "bolt.fill")
             .font(.subheadline.weight(.medium))
+            .blase(eigene: eigene, schwanz: schwanz, backdrop: backdrop)
             .contentShape(.rect)
             .onTapGesture {
                 Haptik.leicht()
