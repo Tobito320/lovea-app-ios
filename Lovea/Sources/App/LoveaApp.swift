@@ -35,6 +35,7 @@ struct LoveaApp: App {
         _ = FigurenModell.shared; _ = ChatModell.shared; _ = ChatEinstellungen.shared; _ = OrteModell.shared
         _ = KalenderModell.shared; _ = WirModell.shared; _ = SpieleModell.shared; _ = EinstellungenModell.shared
         _ = TeilenModell.shared; _ = LiveZeichnung.shared; _ = UmzugImport.shared; _ = SchritteModell.shared
+        _ = UmzugAufraeumen.shared
         Raum.shared.start()
         Standort.shared.start()
     }

@@ -105,7 +105,12 @@ final class ChatModell {
             byID[p.id]?.bearbeitet = true
         case "nachricht.geloescht":
             guard let p = op.daten(IDPayload.self) else { return }
-            byID[p.id]?.geloescht = true
+            if p.id.hasPrefix("umzug:zeichnung/") {
+                // Z-26.4: "aus dem Chat gelöscht" — vanishes outright, no "Nachricht gelöscht" spur.
+                byID.removeValue(forKey: p.id)
+            } else {
+                byID[p.id]?.geloescht = true
+            }
         case "nachricht.reaktion":
             guard let p = op.daten(ReaktionPayload.self) else { return }
             byID[p.id]?.reaktionen[op.von] = p.emoji

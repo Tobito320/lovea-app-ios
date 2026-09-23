@@ -236,25 +236,27 @@ enum ChatGalerie {
     // up there. That tab's already-open instance won't refresh until it re-`load()`s though — Chat
     // doesn't own Drawing/**, so this is reported instead of fixed here.
     static func inGaleriesSpeichern(bildURL: URL) {
-        Task {
-            // Decode + PNG encode off the main actor (Z-16.2); only the library calls stay on it.
-            let geladen = await Task.detached(priority: .userInitiated) { () -> (png: Data, breite: Double, hoehe: Double)? in
-                guard let image = UIImage(contentsOfFile: bildURL.path), let png = image.pngData() else { return nil }
-                return (png, Double(image.size.width * image.scale), Double(image.size.height * image.scale))
-            }.value
-            guard let geladen else { return }
-            speichern(png: geladen.png, pixelBreite: geladen.breite, pixelHoehe: geladen.hoehe)
-        }
+        Task { _ = await speichernUndWarten(bildURL: bildURL, name: "Aus dem Chat") }
     }
 
-    private static func speichern(png: Data, pixelBreite: Double, pixelHoehe: Double) {
+    /// Awaitable variant (Z-26.4's umzug cleanup needs to know the write finished before deleting
+    /// the chat message it came from). `true` once the artwork is fully on disk.
+    static func speichernUndWarten(bildURL: URL, name: String) async -> Bool {
+        // Decode + PNG encode off the main actor (Z-16.2); only the library calls stay on it.
+        let geladen = await Task.detached(priority: .userInitiated) { () -> (png: Data, breite: Double, hoehe: Double)? in
+            guard let image = UIImage(contentsOfFile: bildURL.path), let png = image.pngData() else { return nil }
+            return (png, Double(image.size.width * image.scale), Double(image.size.height * image.scale))
+        }.value
+        guard let geladen else { return false }
         let library = ArtworkLibrary()
-        let breite = ArtworkLibrary.clampDimension(pixelBreite)
-        let hoehe = ArtworkLibrary.clampDimension(pixelHoehe)
-        var artwork = library.createArtwork(name: "Aus dem Chat", projectID: nil, format: .custom, customWidth: breite, customHeight: hoehe, background: .white)
+        let breite = ArtworkLibrary.clampDimension(geladen.breite)
+        let hoehe = ArtworkLibrary.clampDimension(geladen.hoehe)
+        var artwork = library.createArtwork(name: name, projectID: nil, format: .custom, customWidth: breite, customHeight: hoehe, background: .white)
         let bildEbene = ArtworkLayer.image(name: "Bild")
         artwork.layers.append(bildEbene)
-        library.saveLayerData(png, layer: bildEbene, artworkID: artwork.id)
+        library.saveLayerData(geladen.png, layer: bildEbene, artworkID: artwork.id)
         library.saveDocument(artwork)
+        await library.waitForWrites()
+        return true
     }
 }

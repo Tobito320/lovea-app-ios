@@ -130,6 +130,14 @@ struct ChatEingabeleiste: View {
             Task { await SnapKameraSteuerung.geteilt.vorwaermen() }
         }
         .onDisappear { SnapKameraSteuerung.geteilt.loslassen() }
+        // Z-26.4: same poll-for-`nachgeholt` idiom as `KalenderModell` — runs once the log has
+        // fully caught up, so `UmzugAufraeumen`'s own `aufgeraeumt` fold has already replayed.
+        .task {
+            while !Raum.shared.nachgeholt {
+                try? await Task.sleep(for: .seconds(1))
+            }
+            UmzugAufraeumen.shared.versuchen()
+        }
     }
 
     /// The rounded outline field: text, then GIF/sticker and mic (or send) inside on the right.
