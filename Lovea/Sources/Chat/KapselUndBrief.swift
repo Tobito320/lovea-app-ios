@@ -1,4 +1,6 @@
+import PhotosUI
 import SwiftUI
+import UIKit
 
 /// Z-27.2: Zeitkapsel und Liebesbrief. Verschlossene Kapsel mit Countdown (`ChatNachrichtRow`),
 /// Brief mit Siegel und Öffnen-Animation. Composer-Einstieg: `KapselBriefBlatt` (in `ChatEingabeleiste`).
@@ -95,8 +97,27 @@ struct KapselBriefBlatt: View {
     @State private var text = ""
     @State private var titel = ""
     @State private var oeffnetAm = Date().addingTimeInterval(86_400)
+    // Z-27.2/Spec 9 "Nachricht, Foto oder Zeichnung": ein optionales Foto für die Zeitkapsel
+    // (eine geteilte Zeichnung kommt ebenfalls als Foto-Medium an, wie überall sonst im Chat).
+    @State private var fotoAuswahl: PhotosPickerItem?
+    @State private var fotoVorschau: UIImage?
+    @State private var hochgeladenesFoto: (medienId: String, breite: Double, hoehe: Double)?
+    @State private var fotoLaedt = false
 
     private enum Art: String, CaseIterable { case kapsel = "Zeitkapsel", brief = "Brief" }
+
+    // Z-27.2: frühestens morgen -- "heute" wäre sofort offen (`ChatModell.verschlossen` vergleicht
+    // nur den Kalendertag), eine "Zeitkapsel" mit Öffnungsdatum heute wäre also nie verschlossen.
+    private var fruehesteOeffnung: Date { Datum.datum(Datum.addTage(Datum.text(Date()), 1)) }
+
+    /// Spec 9: die Zeitkapsel braucht Nachricht ODER Foto, nicht beides; der Brief braucht Titel und Text.
+    private var kannSenden: Bool {
+        let textVorhanden = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        switch art {
+        case .kapsel: return textVorhanden || hochgeladenesFoto != nil
+        case .brief: return textVorhanden && !titel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        }
+    }
 
     var body: some View {
         NavigationStack {
@@ -109,10 +130,11 @@ struct KapselBriefBlatt: View {
 
                 if art == .kapsel {
                     Section("Öffnet am") {
-                        DatePicker("Öffnet am", selection: $oeffnetAm, in: Date()..., displayedComponents: .date)
+                        DatePicker("Öffnet am", selection: $oeffnetAm, in: fruehesteOeffnung..., displayedComponents: .date)
                             .datePickerStyle(.graphical)
                             .labelsHidden()
                     }
+                    fotoAuswahlZeile
                 } else {
                     Section("Titel") {
                         TextField("z. B. Für dich", text: $titel)
@@ -128,16 +150,49 @@ struct KapselBriefBlatt: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Senden") { senden() }
-                        .disabled(text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || (art == .brief && titel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
+                        .disabled(!kannSenden)
                 }
             }
         }
         .presentationDetents([.large])
+        .onChange(of: fotoAuswahl) { _, neu in fotoUebernehmen(neu) }
+    }
+
+    private var fotoAuswahlZeile: some View {
+        Section("Foto") {
+            PhotosPicker(selection: $fotoAuswahl, matching: .images) {
+                if let fotoVorschau {
+                    Image(uiImage: fotoVorschau).resizable().scaledToFill()
+                        .frame(width: 60, height: 60).clipShape(RoundedRectangle(cornerRadius: 10))
+                } else if fotoLaedt {
+                    ProgressView().frame(width: 60, height: 60)
+                } else {
+                    Label("Foto hinzufügen", systemImage: "photo.badge.plus")
+                }
+            }
+            if fotoVorschau != nil {
+                Button("Foto entfernen", role: .destructive) {
+                    fotoAuswahl = nil; fotoVorschau = nil; hochgeladenesFoto = nil
+                }
+            }
+        }
+    }
+
+    private func fotoUebernehmen(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        fotoLaedt = true
+        Task {
+            defer { fotoLaedt = false }
+            guard let daten = try? await item.loadTransferable(type: Data.self) else { return }
+            fotoVorschau = await ChatAnhang.vorschau(daten)
+            hochgeladenesFoto = await ChatMedien.entwurfBildHochladen(daten)
+        }
     }
 
     private func senden() {
+        let medium = hochgeladenesFoto.map { ChatModell.MedienEintrag(id: $0.medienId, typ: "foto", breite: $0.breite, hoehe: $0.hoehe) }
         switch art {
-        case .kapsel: ChatModell.shared.kapselSenden(text: text, oeffnetAm: oeffnetAm)
+        case .kapsel: ChatModell.shared.kapselSenden(text: text, oeffnetAm: oeffnetAm, medium: medium)
         case .brief: ChatModell.shared.briefSenden(titel: titel, text: text)
         }
         ChatHaptik.leicht()

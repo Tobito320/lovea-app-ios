@@ -60,7 +60,9 @@ struct ChatAngeheftetLeiste: View {
                         Button { ChatHaptik.auswahl(); onSpringeZu(nachricht.id) } label: {
                             HStack(spacing: 4) {
                                 Image(systemName: "pin.fill")
-                                Text(nachricht.text ?? ChatVorschau.inhalt(nachricht)).lineLimit(1)
+                                // Z-27.2: `ChatVorschau.inhalt` alone, not `nachricht.text ?? ...` --
+                                // that would show a locked capsule's real text.
+                                Text(ChatVorschau.inhalt(nachricht)).lineLimit(1)
                             }
                             .font(.caption)
                             .padding(.horizontal, 10)

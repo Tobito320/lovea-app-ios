@@ -128,11 +128,19 @@ private struct ChatPartnerKarte: View {
             .accessibilityElement(children: .combine)
             .accessibilityHint("Chat öffnen")
 
+            // Z-27.6: eigene Zeile, nicht in den Karten-`Button` verschachtelt (kein Button im Button).
+            if SpotifyModell.shared.partner != nil {
+                HStack { Spacer(); SpotifyHoertGeradeChip() }
+            }
             spieleKnopf
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
         .sheet(isPresented: $spieleOffen) { SpieleStarter() }
+        // Spec 9 "nur wenn der Partner hinschaut": die Chat-Tab-Startkarte zeigt den Partner
+        // prominent, zählt also als "hinschauen", ref-gezählt zusammen mit der Konversation/Karte.
+        .task { SpotifyModell.shared.schauen() }
+        .onDisappear { SpotifyModell.shared.wegschauen() }
     }
 
     /// Figur, Name, Streak, Status und die letzte-Nachricht-Vorschau – getrennt vom `Button` und
@@ -166,6 +174,8 @@ private struct ChatPartnerKarte: View {
                     .foregroundStyle(zustand == .tippt ? Color.person(partner) : Color.secondary)
             }
             Spacer(minLength: 0)
+            // Z-27.5: Wetter an der Partner-Figur.
+            if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
         }
     }
 

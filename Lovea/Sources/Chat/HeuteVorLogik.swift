@@ -25,11 +25,15 @@ enum HeuteVorLogik {
 
     /// First matching offset wins (1 Monat vor 3 Monaten vor 1 Jahr, wie in der Spec-Reihenfolge),
     /// newest message of that day if several qualify.
+    /// `dateInterval(of:for:)` once per offset (not `isDate(_:inSameDayAs:)` per message, Z-16.2:
+    /// this runs on every Home/Chat-tab render, potentially over 10,000 messages).
     static func auswahl(_ nachrichten: [ChatModell.Nachricht], jetzt: Date = Date()) -> (nachricht: ChatModell.Nachricht, zeitraum: Zeitraum)? {
         for zeitraum in Zeitraum.allCases {
-            guard let zielTag = Calendar.berlin.date(byAdding: zeitraum.versatz, to: jetzt) else { continue }
+            guard let zielTag = Calendar.berlin.date(byAdding: zeitraum.versatz, to: jetzt),
+                  let tagesfenster = Calendar.berlin.dateInterval(of: .day, for: zielTag)
+            else { continue }
             if let treffer = nachrichten
-                .filter({ istKandidat($0) && Calendar.berlin.isDate($0.zeit, inSameDayAs: zielTag) })
+                .filter({ tagesfenster.contains($0.zeit) && istKandidat($0) })
                 .max(by: { $0.zeit < $1.zeit }) {
                 return (treffer, zeitraum)
             }

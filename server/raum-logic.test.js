@@ -299,8 +299,12 @@ test("gemeinsamPruefen: außerhalb 150 m oder mit einem zu alten Punkt setzt zur
   const weitWeg = { d: { lat: 51.01, lon: 7.0 }, zeit: new Date(jetzt).toISOString() }; // >150 m
   assert.deepEqual(gemeinsamPruefen({ a, b: weitWeg, jetztMs: jetzt, seitMs: jetzt - 40 * 60_000 }), { nah: false, seit: null, melden: false });
 
-  const alt = { d: { lat: 51.0005, lon: 7.0 }, zeit: new Date(jetzt - 46 * 60_000).toISOString() };
+  const alt = { d: { lat: 51.0005, lon: 7.0 }, zeit: new Date(jetzt - 4 * 3_600_000 - 60_000).toISOString() }; // > 4h stale
   assert.deepEqual(gemeinsamPruefen({ a, b: alt, jetztMs: jetzt, seitMs: jetzt - 40 * 60_000 }), { nah: false, seit: null, melden: false });
+
+  // Ein 2h alter Punkt (Handys in der Tasche zwischen Ankunfts-/Abfahrts-Visit) zählt noch.
+  const zweiStundenAlt = { d: { lat: 51.0005, lon: 7.0 }, zeit: new Date(jetzt - 2 * 3_600_000).toISOString() };
+  assert.equal(gemeinsamPruefen({ a, b: zweiStundenAlt, jetztMs: jetzt, seitMs: jetzt - 40 * 60_000 }).nah, true);
 });
 
 test("offeneKapseln: nur nachricht.neu mit d.kapsel.oeffnetAm, Nachrichten-id nicht Op-id", () => {

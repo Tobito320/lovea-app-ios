@@ -230,12 +230,16 @@ final class ChatModell {
     }
 
     /// Z-27.2: Zeitkapsel — `oeffnetAm` ist der Öffnungstag (Europe/Berlin), verschlossen bis dahin.
-    func kapselSenden(text: String, oeffnetAm: Date) {
+    /// Spec 9 "Nachricht, Foto oder Zeichnung": `medium` ist optional, Text oder Foto reicht.
+    func kapselSenden(text: String, oeffnetAm: Date, medium: MedienEintrag? = nil) {
         let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !getrimmt.isEmpty else { return }
+        guard !getrimmt.isEmpty || medium != nil else { return }
         Raum.shared.senden(
             "nachricht.neu",
-            NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, kapsel: KapselInfo(oeffnetAm: Datum.text(oeffnetAm)))
+            NachrichtNeuPayload(
+                id: UUID().uuidString, text: getrimmt.isEmpty ? nil : getrimmt, medien: medium.map { [$0] },
+                kapsel: KapselInfo(oeffnetAm: Datum.text(oeffnetAm))
+            )
         )
     }
 

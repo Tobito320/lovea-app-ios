@@ -427,9 +427,13 @@ export function zufaelligNah({ a, b, jetztMs, heuteTreffen }) {
 //
 // Reine Zustandsübergangsfunktion: `seitMs` ist der vorherige Merker-Wert (oder null), das
 // Ergebnis sagt, ob (noch) nah, seit wann, und ob jetzt gemeldet werden soll (>= 30 min am Stück).
-// Ein großzügiges Stale-Fenster (45 min), weil Hintergrund-Punkte selten sind -- kein neuer Punkt
-// heißt hier "hat sich nicht wegbewegt", nicht "kaputt".
-export function gemeinsamPruefen({ a, b, jetztMs, seitMs, radius = 150, mindestDauerMs = 30 * 60_000, staleMs = 45 * 60_000 }) {
+// ponytail: großzügiges Stale-Fenster (4h) -- zwei Handys in der Tasche beim Essen senden zwischen
+// Ankunfts- und Abfahrts-Visit (`startMonitoringSignificantLocationChanges`, ~500 m Auflösung)
+// nichts; ein zu enges Fenster würde den Aufenthalt beim Abfahrts-Check schon als "zu alt" verwerfen
+// und nie melden. Obergrenze des Kompromisses: ein liegen gelassenes/totes Handy in der Nähe kann
+// einen Aufenthalt künstlich verlängern. Upgrade-Weg: `CLBackgroundActivitySession` für dichtere
+// Hintergrund-Punkte, dann das Fenster wieder verkleinern.
+export function gemeinsamPruefen({ a, b, jetztMs, seitMs, radius = 150, mindestDauerMs = 30 * 60_000, staleMs = 4 * 60 * 60_000 }) {
   if (!a || !b) return { nah: false, seit: null, melden: false };
   if (jetztMs - Date.parse(a.zeit) >= staleMs) return { nah: false, seit: null, melden: false };
   if (jetztMs - Date.parse(b.zeit) >= staleMs) return { nah: false, seit: null, melden: false };
