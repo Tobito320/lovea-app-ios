@@ -106,24 +106,30 @@ struct ProfilSzeneHintergrund: View {
     var animiert = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
+    @State private var sichtbar = false
 
     var body: some View {
+        let bett = UIImage(named: "szene-bett-\(zimmer.bett)")
         Color.clear
             .overlay {
                 if let bild = asset {
                     Image(uiImage: bild).resizable().scaledToFill()
                 } else if animiert && bewegt && !reduceMotion {
-                    TimelineView(.animation(minimumInterval: 1.0 / 15, paused: scenePhase != .active)) { k in
-                        leinwand(k.date.timeIntervalSinceReferenceDate)
+                    TimelineView(.animation(minimumInterval: 1.0 / 15, paused: !sichtbar || scenePhase != .active)) { k in
+                        leinwand(k.date.timeIntervalSinceReferenceDate, bett: bett)
                     }
                 } else {
-                    leinwand(0.4)
+                    leinwand(0.4, bett: bett)
                 }
             }
             .overlay {
                 if imZimmer { FotoRahmen(zimmer: zimmer, nacht: nacht || szene != .zimmer) }
             }
             .clipped()
+            .onAppear { sichtbar = true }
+            .onDisappear { sichtbar = false }
+            // Same as FigurView: the profile's plain scroll view never calls onDisappear.
+            .onScrollVisibilityChange(threshold: 0.05) { sichtbar = $0 }
             .accessibilityHidden(true)
     }
 
@@ -151,11 +157,10 @@ struct ProfilSzeneHintergrund: View {
         }
     }
 
-    private func leinwand(_ t: Double) -> some View {
+    private func leinwand(_ t: Double, bett: UIImage?) -> some View {
         let szene = szene
         let zimmer = zimmer
         let nacht = nacht
-        let bett = UIImage(named: "szene-bett-\(zimmer.bett)")
         return Canvas { g, size in
             let r = SzenenZeichnung.raum(g, size)
             switch szene {

@@ -40,7 +40,7 @@ struct Zimmer: Equatable, Sendable {
         z.wand = index("wand", waende.count) ?? 0
         z.boden = index("boden", boeden.count) ?? 0
         if case .array(let liste)? = o["deko"] {
-            let bekannt = Set(dekoArten.map(\.id))
+            let bekannt = Set(dekoArten.map { $0.id })
             var gesehen = Set<String>()
             z.deko = liste.compactMap { eintrag -> String? in
                 guard case .string(let id) = eintrag, bekannt.contains(id), gesehen.insert(id).inserted else { return nil }
@@ -235,12 +235,12 @@ enum SzenenZeichnung {
 
     private static func poster(_ g: GraphicsContext) {
         var h = g
-        h.translateBy(x: 264, y: 186)
-        h.rotate(by: .degrees(-3))
-        teil(h, box(-28, -36, 56, 72, 2), FigurFarbe(0xFF8FA3), 2)
-        h.fill(herzPfad(P(0, -6), 14), with: .color(.white))
-        h.draw(Text("amore").font(.system(size: 9, weight: .heavy, design: .rounded)).foregroundStyle(Color.white), at: P(0, 24))
-        h.fill(box(-9, -40, 18, 8, 1), with: .color(.white.opacity(0.7)))
+        h.translateBy(x: 316, y: 244)
+        h.rotate(by: .degrees(-4))
+        teil(h, box(-22, -29, 44, 58, 2), FigurFarbe(0xFF8FA3), 2)
+        h.fill(herzPfad(P(0, -6), 11), with: .color(.white))
+        h.draw(Text("amore").font(.system(size: 8, weight: .heavy, design: .rounded)).foregroundStyle(Color.white), at: P(0, 18))
+        h.fill(box(-8, -33, 16, 7, 1), with: .color(.white.opacity(0.7)))
     }
 
     private static func regal(_ g: GraphicsContext) {
