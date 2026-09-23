@@ -292,7 +292,16 @@ enum MitgelieferteSticker {
     static let praefix = "asset:"
     static let alle = [
         "wir-kuss", "wir-umarmung", "wir-selfie", "wir-kino", "wir-gym",
-        "meme-drake", "meme-this-is-fine",
+        "wir-ich", "wir-du", "wir-zuhause", "wir-vermisse-dich", "wir-so-suess", "wir-lieblingsmensch",
+        "wir-nur-wir", "wir-wir-immer", "wir-fuer-dich", "wir-danke", "wir-danke-dass-es-dich-gibt",
+        "wir-du-bist-meine", "wir-pass-auf-dich-auf", "wir-so-gluecklich", "wir-gluecklich", "wir-mit-dir-besser",
+        "wir-zusammen-besser", "wir-wenn-wir-zusammen", "wir-alles-wird-gut", "wir-so-gut-aus",
+        "wir-gute-nacht", "wir-gute-nacht-bett", "wir-schlafen-gehen", "wir-noch-5-minuten", "wir-nur-noch-5-minuten",
+        "wir-gelesen", "wir-gleich-schreiben", "wir-wer-hat-geschrieben", "wir-schon-wieder-online",
+        "wir-hmm", "wir-interessant", "wir-interessant-tasse", "wir-interessant-trinken", "wir-echt-jetzt",
+        "wir-keine-ahnung", "wir-keine-ahnung-2", "wir-nicht-frech", "wir-essen", "wir-wochenende",
+        "wir-lernen-arbeit", "wir-zu-viel-zu-tun",
+        "meme-drake", "meme-this-is-fine", "meme-side-eye",
     ]
 
     static func assetName(_ medienId: String) -> String? {
