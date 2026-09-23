@@ -1,0 +1,104 @@
+import SwiftUI
+import UIKit
+
+/// Input bar (Z-4.3): multi-line field, camera/media/GIF placeholders, send, reply quote.
+/// Throttles the own "tippt" signal and the figure state while typing (Z-4.5).
+struct ChatEingabeleiste: View {
+    let ich: Person
+    @Binding var antwortAuf: ChatModell.Nachricht?
+    @State private var eingabe = AttributedString()
+    @State private var tippen = TippenSender()
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if let antwortAuf {
+                ZitatLeiste(nachricht: antwortAuf, ich: ich) { self.antwortAuf = nil }
+            }
+            HStack(alignment: .bottom, spacing: 10) {
+                Button {} label: { Image(systemName: "camera.fill") }
+                    .disabled(true) // ponytail: Snap-Kamera kommt in Block 6
+                Button {} label: { Image(systemName: "photo.on.rectangle") }
+                    .disabled(true) // ponytail: Medien-Auswahl kommt in Block 5
+                Button {} label: { Image(systemName: "face.smiling") }
+                    .disabled(true) // ponytail: GIF/Sticker-Suche kommt in Block 5
+
+                TextEditor(text: $eingabe)
+                    .supportsAdaptiveImageGlyph(true)
+                    .frame(minHeight: 34, maxHeight: 110)
+                    .scrollContentBackground(.hidden)
+                    .padding(6)
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+                    .onChange(of: eingabe) { _, _ in tippen.tastenanschlag() }
+
+                Button { senden() } label: {
+                    Image(systemName: "arrow.up.circle.fill").font(.title2)
+                }
+                .disabled(String(eingabe.characters).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            }
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
+    private func senden() {
+        // ponytail: adaptive Bild-Glyphen (Genmoji/Memoji/Sticker) werden hier noch zu reinem
+        // Text vereinfacht. Block 5/6 wandelt jeden NSAdaptiveImageGlyph-Lauf in einen `medien`-Eintrag.
+        ChatModell.shared.nachrichtSenden(text: String(eingabe.characters), antwortAuf: antwortAuf?.id)
+        eingabe = AttributedString()
+        antwortAuf = nil
+        tippen.beenden()
+    }
+}
+
+private struct ZitatLeiste: View {
+    let nachricht: ChatModell.Nachricht
+    let ich: Person
+    let onAbbrechen: () -> Void
+
+    var body: some View {
+        HStack {
+            Rectangle().fill(Color.person(nachricht.von)).frame(width: 3)
+            VStack(alignment: .leading, spacing: 1) {
+                Text(nachricht.von == ich ? "Du" : nachricht.von.name).font(.caption.bold())
+                Text(nachricht.text ?? "Nachricht").font(.caption).lineLimit(1)
+            }
+            Spacer()
+            Button { onAbbrechen() } label: { Image(systemName: "xmark.circle.fill") }
+                .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .padding(.horizontal, 12)
+    }
+}
+
+/// Throttles `tippt` and the own figure state: sends at most every 2 s, ends after 5 s idle (Z-4.5).
+@MainActor
+private final class TippenSender {
+    private var letzteSendung: Date?
+    private var endeTask: Task<Void, Never>?
+
+    func tastenanschlag() {
+        let jetzt = Date()
+        if letzteSendung == nil || jetzt.timeIntervalSince(letzteSendung!) >= 2 {
+            letzteSendung = jetzt
+            Raum.shared.fluechtig("tippt", ["an": true])
+            FigurenModell.shared.zustandSenden(.init(haupt: .tippt))
+        }
+        endeTask?.cancel()
+        endeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(5))
+            guard !Task.isCancelled else { return }
+            self?.beenden()
+        }
+    }
+
+    func beenden() {
+        endeTask?.cancel()
+        endeTask = nil
+        guard letzteSendung != nil else { return }
+        letzteSendung = nil
+        Raum.shared.fluechtig("tippt", ["an": false])
+        FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
+    }
+}

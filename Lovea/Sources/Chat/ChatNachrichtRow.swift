@@ -1,0 +1,208 @@
+import LinkPresentation
+import SwiftUI
+import UIKit
+
+/// One bubble (Z-4.2, Z-4.3). Renders `text` today; `medien`/`gif`/`sticker`/`snap`/`spiel`/`system`
+/// show a neutral placeholder row until Blocks 5/6 replace it.
+struct ChatNachrichtRow: View {
+    let nachricht: ChatModell.Nachricht
+    let ich: Person
+    let zeigeDatumstrenner: Bool
+    let zeigeZeitstempel: Bool
+    let zustellStatus: String?
+    let onAntworten: (ChatModell.Nachricht) -> Void
+    let onBearbeiten: (ChatModell.Nachricht) -> Void
+    let onLoeschen: (String) -> Void
+    let onSpringeZu: (String) -> Void
+
+    @State private var wischOffset: CGFloat = 0
+    @State private var zeigeReaktionen = false
+
+    private var eigene: Bool { nachricht.von == ich }
+
+    var body: some View {
+        VStack(alignment: .center, spacing: 4) {
+            if zeigeDatumstrenner {
+                Text(nachricht.zeit.formatted(date: .abbreviated, time: .omitted))
+                    .font(.caption).foregroundStyle(.secondary)
+                    .padding(.top, 8)
+            }
+            if zeigeZeitstempel {
+                Text(nachricht.zeit.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2).foregroundStyle(.secondary)
+            }
+
+            HStack {
+                if eigene { Spacer(minLength: 40) }
+                VStack(alignment: eigene ? .trailing : .leading, spacing: 3) {
+                    if let antwortAuf = nachricht.antwortAuf {
+                        Button { onSpringeZu(antwortAuf) } label: {
+                            Label("Antwort", systemImage: "arrowshape.turn.up.left.fill")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+
+                    blase
+
+                    if !nachricht.reaktionen.isEmpty {
+                        Text(nachricht.reaktionen.values.joined())
+                            .font(.caption)
+                            .padding(4)
+                            .background(.thinMaterial, in: Capsule())
+                    }
+
+                    if let zustellStatus {
+                        Text(zustellStatus).font(.caption2).foregroundStyle(.secondary)
+                    }
+                }
+                if !eigene { Spacer(minLength: 40) }
+            }
+        }
+        .padding(.horizontal, 12)
+        .offset(x: wischOffset)
+        // `.simultaneousGesture` (not `.gesture`) so this never steals the ScrollView's vertical
+        // pan; the width-vs-height check keeps it from reacting to an ordinary vertical scroll touch.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 20)
+                .onChanged { value in
+                    guard value.translation.width > 0, value.translation.width > abs(value.translation.height) else { return }
+                    wischOffset = min(value.translation.width, 70)
+                }
+                .onEnded { value in
+                    if wischOffset > 50 { onAntworten(nachricht) }
+                    withAnimation(.spring(duration: 0.25)) { wischOffset = 0 }
+                }
+        )
+        .onTapGesture(count: 2) { zeigeReaktionen = true }
+        .popover(isPresented: $zeigeReaktionen) {
+            ReaktionsAuswahl(aktuell: nachricht.reaktionen[ich]) { emoji in
+                ChatModell.shared.reagieren(nachricht.id, emoji: emoji)
+                zeigeReaktionen = false
+            }
+            .presentationCompactAdaptation(.popover)
+        }
+        .contextMenu { kontextMenu }
+    }
+
+    @ViewBuilder private var blase: some View {
+        if nachricht.geloescht {
+            Text("Nachricht gelöscht")
+                .italic()
+                .foregroundStyle(.secondary)
+                .padding(10)
+                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+        } else {
+            VStack(alignment: .leading, spacing: 6) {
+                if let text = nachricht.text, !text.isEmpty {
+                    Text(text)
+                    if let url = ersteURL(in: text) {
+                        LinkVorschau(url: url)
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                    }
+                }
+                if let platzhalter {
+                    HStack(spacing: 4) {
+                        Image(systemName: platzhalter.symbol)
+                        Text(platzhalter.text)
+                    }
+                    .font(.subheadline)
+                }
+                if nachricht.bearbeitet {
+                    Text("bearbeitet").font(.caption2).opacity(0.7)
+                }
+            }
+            .padding(10)
+            .foregroundStyle(Color.personText(nachricht.von))
+            .background(Color.person(nachricht.von), in: RoundedRectangle(cornerRadius: 18))
+        }
+    }
+
+    /// Blocks 5/6 replace this with the real photo/video/GIF/sticker/snap/game views.
+    private var platzhalter: (text: String, symbol: String)? {
+        if let medium = nachricht.medien.first {
+            switch medium.typ {
+            case "video": return ("Video", "video.fill")
+            case "sprache": return ("Sprachnachricht", "waveform")
+            default: return ("Foto", "photo.fill")
+            }
+        }
+        if nachricht.gif != nil { return ("GIF", "square.grid.2x2") }
+        if nachricht.sticker != nil { return ("Sticker", "seal") }
+        if nachricht.snap != nil { return ("Snap", "bolt.fill") }
+        if nachricht.spiel != nil { return ("Spiel", "gamecontroller.fill") }
+        if let system = nachricht.system { return (system, "info.circle") }
+        return nil
+    }
+
+    private func ersteURL(in text: String) -> URL? {
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
+        let bereich = NSRange(text.startIndex..., in: text)
+        return detector.firstMatch(in: text, range: bereich)?.url
+    }
+
+    @ViewBuilder private var kontextMenu: some View {
+        if eigene, !nachricht.geloescht { Button("Bearbeiten", systemImage: "pencil") { onBearbeiten(nachricht) } }
+        Button("Antworten", systemImage: "arrowshape.turn.up.left") { onAntworten(nachricht) }
+        Menu("Anheften") {
+            Button("Für immer") { ChatModell.shared.anheften(nachricht.id, bis: nil) }
+            Button("Bis morgen") { ChatModell.shared.anheften(nachricht.id, bis: naechsteBerlinMitternacht()) }
+            Button("1 Woche") { ChatModell.shared.anheften(nachricht.id, bis: Date().addingTimeInterval(7 * 86_400)) }
+        }
+        if nachricht.angeheftet {
+            Button("Lösen", systemImage: "pin.slash") { ChatModell.shared.loesen(nachricht.id) }
+        }
+        Button {
+            ChatModell.shared.sternSetzen(nachricht.id, an: !nachricht.gesternt.contains(ich))
+        } label: {
+            HStack {
+                Image(systemName: nachricht.gesternt.contains(ich) ? "star.slash" : "star")
+                Text(nachricht.gesternt.contains(ich) ? "Stern entfernen" : "Stern")
+            }
+        }
+        if let text = nachricht.text {
+            Button("Kopieren", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+        }
+        if eigene {
+            Button("Löschen", systemImage: "trash", role: .destructive) { onLoeschen(nachricht.id) }
+        }
+    }
+
+    private func naechsteBerlinMitternacht() -> Date {
+        Calendar.berlin.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime) ?? Date().addingTimeInterval(86_400)
+    }
+}
+
+/// Small emoji bar, opened by a double tap (Spec 5.2).
+private struct ReaktionsAuswahl: View {
+    let aktuell: String?
+    let onWahl: (String?) -> Void
+    private let emojis = ["❤️", "😂", "👍", "😮", "😢", "🙏"]
+
+    var body: some View {
+        HStack(spacing: 14) {
+            ForEach(emojis, id: \.self) { emoji in
+                Button {
+                    onWahl(aktuell == emoji ? nil : emoji)
+                } label: {
+                    Text(emoji).font(.title2)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+    }
+}
+
+/// `LPLinkView` wrapper for `Z-4.2`'s link preview.
+// ponytail: shows the bare `LPLinkView(url:)` card (no title/thumbnail) rather than fetching rich
+// `LPLinkMetadata` — `LPMetadataProvider`'s completion hands back a non-Sendable link view across
+// an arbitrary queue, which is a real Swift 6 strict-concurrency risk with no local compiler to
+// check it against. Upgrade: fetch metadata through a `Coordinator` once confirmed safe on iOS 26.
+private struct LinkVorschau: UIViewRepresentable {
+    let url: URL
+
+    func makeUIView(context: Context) -> LPLinkView { LPLinkView(url: url) }
+    func updateUIView(_ uiView: LPLinkView, context: Context) {}
+}
