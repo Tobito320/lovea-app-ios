@@ -51,45 +51,135 @@ private struct GifSuche: View {
     @State private var zustand = Zustand.laden
     @State private var sucheTask: Task<Void, Never>?
 
-    var body: some View {
-        VStack(spacing: 8) {
-            TextField("Suchen", text: $suchtext)
-                .textFieldStyle(.roundedBorder)
-                .padding(.horizontal)
-                .onChange(of: suchtext) { _, neu in debounceSuche(neu) }
+    /// Fix round 2: quick searches under the field; tapping one runs it.
+    private static let kategorien = [
+        "Gym", "Schlafen", "Guten Morgen", "Gute Nacht", "Liebe", "Kuss", "Lustig",
+        "Hunger", "Traurig", "Wütend", "Party", "Ja", "Nein",
+    ]
 
+    var body: some View {
+        VStack(spacing: 10) {
+            suchfeld
+            kategorieLeiste
             switch zustand {
             case .laden:
-                ProgressView().frame(maxWidth: .infinity, maxHeight: .infinity)
+                ladeRaster
             case .nichtEingerichtet:
                 ContentUnavailableView("Nicht eingerichtet", systemImage: "photo.badge.exclamationmark")
             case .fehler:
                 ContentUnavailableView("Fehler beim Laden", systemImage: "wifi.slash")
             case .ok:
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120))], spacing: 8) {
-                        ForEach(ergebnisse) { gif in
-                            if let url = URL(string: gif.url) {
-                                AnimiertesGif(url: url)
-                                    .aspectRatio(gif.breite > 0 && gif.hoehe > 0 ? gif.breite / gif.hoehe : 1, contentMode: .fit)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    .onTapGesture { senden(gif) }
-                                    .accessibilityAddTraits(.isButton)
-                                    .contextMenu {
-                                        Button("Zu Favoriten", systemImage: "star") {
-                                            ChatEinstellungen.shared.favoritSchalten(
-                                                .init(art: .gif, wert: gif.url, breite: gif.breite, hoehe: gif.hoehe), ich: ich
-                                            )
-                                        }
-                                    }
-                            }
-                        }
-                    }
-                    .padding(.horizontal)
+                if ergebnisse.isEmpty {
+                    ContentUnavailableView.search(text: suchtext)
+                } else {
+                    ScrollView { masonry(KlipyClient.spalten(ergebnisse)) }
                 }
             }
         }
+        .onChange(of: suchtext) { _, neu in debounceSuche(neu) }
         .task { debounceSuche("") }
+    }
+
+    /// System-style search field (tinted fill, magnifier, clear button) instead of a bordered box.
+    private var suchfeld: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "magnifyingglass").foregroundStyle(.secondary)
+            TextField("GIFs suchen", text: $suchtext)
+                .submitLabel(.search)
+                .autocorrectionDisabled()
+            if !suchtext.isEmpty {
+                Button { suchtext = "" } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary).frame(width: 32, height: 36)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Suche löschen")
+            }
+        }
+        .padding(.horizontal, 10)
+        .frame(minHeight: 40)
+        .background(Color(uiColor: .tertiarySystemFill), in: .rect(cornerRadius: 12))
+        .padding(.horizontal)
+    }
+
+    private var kategorieLeiste: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                ForEach(Self.kategorien, id: \.self) { kategorie in
+                    let aktiv = suchtext == kategorie
+                    Button {
+                        Haptik.auswahl()
+                        suchtext = aktiv ? "" : kategorie
+                    } label: {
+                        Text(kategorie)
+                            .font(.subheadline.weight(.medium))
+                            .padding(.horizontal, 14)
+                            .frame(minHeight: 36)
+                            .foregroundStyle(aktiv ? Color.white : Color.primary)
+                            .background(aktiv ? Color.loveaRose : Color(uiColor: .tertiarySystemFill), in: .capsule)
+                    }
+                    .buttonStyle(.federnd)
+                    .accessibilityAddTraits(aktiv ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// Two columns, each cell exactly its GIF's aspect ratio, clipped to its own rounded rect.
+    private func masonry(_ spalten: (links: [KlipyClient.Gif], rechts: [KlipyClient.Gif])) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            spalte(spalten.links)
+            spalte(spalten.rechts)
+        }
+        .padding(.horizontal)
+        .padding(.bottom)
+    }
+
+    private func spalte(_ gifs: [KlipyClient.Gif]) -> some View {
+        LazyVStack(spacing: 8) {
+            ForEach(gifs) { gif in
+                if let url = URL(string: gif.url) { zelle(gif, url) }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .top)
+    }
+
+    private func zelle(_ gif: KlipyClient.Gif, _ url: URL) -> some View {
+        Color.clear
+            .aspectRatio(gif.breite > 0 && gif.hoehe > 0 ? gif.breite / gif.hoehe : 1, contentMode: .fit)
+            .overlay { AnimiertesGif(url: url) }
+            .clipShape(.rect(cornerRadius: 12))
+            .contentShape(.rect(cornerRadius: 12))
+            .onTapGesture { senden(gif) }
+            .accessibilityElement()
+            .accessibilityLabel("GIF")
+            .accessibilityAddTraits(.isButton)
+            .contextMenu {
+                Button("Zu Favoriten", systemImage: "star") {
+                    ChatEinstellungen.shared.favoritSchalten(
+                        .init(art: .gif, wert: gif.url, breite: gif.breite, hoehe: gif.hoehe), ich: ich
+                    )
+                }
+            }
+    }
+
+    /// Shimmering cells while the list loads, same masonry shape.
+    private var ladeRaster: some View {
+        HStack(alignment: .top, spacing: 8) {
+            ForEach(0..<2, id: \.self) { spalte in
+                VStack(spacing: 8) {
+                    ForEach(0..<4, id: \.self) { zeile in
+                        LadeSchimmer()
+                            .frame(height: CGFloat([120, 90, 150, 110][(zeile + spalte) % 4]))
+                            .clipShape(.rect(cornerRadius: 12))
+                    }
+                }
+            }
+        }
+        .padding(.horizontal)
+        .frame(maxHeight: .infinity, alignment: .top)
+        .accessibilityLabel("GIFs werden geladen")
     }
 
     /// Klipy's test key allows 100 calls/hour — debounced so typing doesn't burn through it.
@@ -368,7 +458,7 @@ struct StickerKachel: View {
     var body: some View {
         // Mitgelieferte Sticker mit Bewegung liegen zusätzlich als `<name>.gif` im Bundle (StickerGIFs/).
         if let name = MitgelieferteSticker.assetName(medienId), let gif = Bundle.main.url(forResource: name, withExtension: "gif") {
-            AnimiertesGif(url: gif)
+            AnimiertesGif(url: gif, fuellen: false)
         } else {
             standbild
         }

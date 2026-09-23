@@ -37,6 +37,8 @@ private struct Unterhaltung: View {
     @State private var blatt = ChatBlaetter()
     @State private var sucheAktiv = false
     @State private var flaeche = CGSize(width: 390, height: 900)
+    /// Left-edge swipe back to Home: how far the conversation follows the finger.
+    @State private var randZug: CGFloat = 0
 
     var body: some View {
         NachrichtenListe(modell: modell, ich: ich, zielID: $zielID, aktionen: aktionen)
@@ -50,7 +52,11 @@ private struct Unterhaltung: View {
             .onGeometryChange(for: CGSize.self) { geo in
                 CGSize(width: geo.size.width, height: geo.frame(in: .global).maxY)
             } action: { flaeche = $0 }
+            .offset(x: randZug)
+            .overlay(alignment: .leading) { randStreifen }
             .toolbar(.hidden, for: .navigationBar)
+            // Fix round 2: the open conversation is full screen; the tab bar returns on Home.
+            .toolbar(.hidden, for: .tabBar)
             .modifier(UnterhaltungBlaetter(ich: ich, blatt: $blatt))
             .modifier(Lesebestaetigung(ich: ich, modell: modell))
             .modifier(Spruenge(modell: modell, zielID: $zielID, sucheAktiv: $sucheAktiv, blatt: $blatt))
@@ -70,9 +76,38 @@ private struct Unterhaltung: View {
         )
     }
 
+    /// Back to Home (header chevron and left-edge swipe), so leaving the chat never gets lost.
+    private func zuHome() {
+        Haptik.leicht()
+        ChatTastatur.schliessen()
+        AppNavigation.shared.tabWunsch = "home"
+    }
+
+    /// A 14 pt strip on the left edge: swiping right from it leaves the chat. Rows ignore touches that
+    /// start within 30 pt of the edge, so reply-swipes never compete with it; the header chevron and
+    /// camera button start right of it.
+    private var randStreifen: some View {
+        Color.clear
+            .frame(width: 14)
+            .contentShape(.rect)
+            .gesture(
+                DragGesture(minimumDistance: 10)
+                    .onChanged { wert in randZug = max(0, wert.translation.width) * 0.6 }
+                    .onEnded { wert in
+                        if wert.translation.width > 80 || wert.predictedEndTranslation.width > 200 {
+                            randZug = 0
+                            zuHome()
+                        } else {
+                            withAnimation(Feder.schnell) { randZug = 0 }
+                        }
+                    }
+            )
+            .accessibilityHidden(true)
+    }
+
     private var oben: some View {
         VStack(spacing: 6) {
-            ChatKopf(partner: ich.partner, modell: modell) { blatt.profil = true }
+            ChatKopf(partner: ich.partner, modell: modell, onZurueck: zuHome) { blatt.profil = true }
             if sucheAktiv {
                 ChatSuchleiste(modell: modell, onSpringeZu: { zielID = $0 }) {
                     withAnimation(Feder.schnell) { sucheAktiv = false }
@@ -82,6 +117,7 @@ private struct Unterhaltung: View {
             ChatAngeheftetLeiste(modell: modell) { zielID = $0 }
             SyncStatusZeile()
         }
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.bottom, 4)
         .tastaturWischen()
     }
