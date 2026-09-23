@@ -25,7 +25,7 @@ struct LoveaApp: App {
                 Raum.shared.ich = person
                 if person != nil {
                     // Register every fold before the log replays.
-                    _ = (FigurenModell.shared, ChatModell.shared, ChatEinstellungen.shared, OrteModell.shared, KalenderModell.shared, WirModell.shared, SpieleModell.shared, EinstellungenModell.shared, TeilenModell.shared, LiveZeichnung.shared)
+                    _ = (FigurenModell.shared, ChatModell.shared, ChatEinstellungen.shared, OrteModell.shared, KalenderModell.shared, WirModell.shared, SpieleModell.shared, EinstellungenModell.shared, TeilenModell.shared, LiveZeichnung.shared, UmzugImport.shared)
                     Raum.shared.start()
                     Standort.shared.start()
                 }
