@@ -29,9 +29,9 @@ enum GesichtsFilter {
         return (try? JSONDecoder().decode([String: Bool].self, from: data)) ?? [:]
     }
 
+    /// `cache` in memory is the truth; the file only gets ordered snapshots, off the main thread (Z-16.2).
     private static func speichern() {
-        try? FileManager.default.createDirectory(at: cacheURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard let data = try? JSONEncoder().encode(cache) else { return }
-        try? data.write(to: cacheURL, options: .atomic)
+        KleineDatei.schreiben(data, nach: cacheURL)
     }
 }

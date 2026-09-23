@@ -48,10 +48,11 @@ struct ChatHintergrundAnsicht: View {
             // function that does not support concurrency").
             var url = ChatMedien.eigeneQuellen[medienId] ?? Medien.lokal(medienId)
             if url == nil { url = try? await Medien.holen(medienId) }
-            bild = url.flatMap { UIImage(contentsOfFile: $0.path) }
+            guard let url else { bild = nil; return }
+            bild = await Bilddatei.laden(url, maxPixel: 2800) // screen-sized, decoded off the main actor
         case .zeichnung:
             guard let id = UUID(uuidString: medienId) else { return }
-            bild = UIImage(contentsOfFile: ArtworkLibrary().previewURL(for: id).path)
+            bild = await Bilddatei.laden(ArtworkLibrary().previewURL(for: id), maxPixel: 2800)
         case .farbe:
             bild = nil
         }
@@ -125,7 +126,8 @@ struct ChatHintergrundEinstellung: View {
             defer { laedt = false }
             guard let daten = try? await item.loadTransferable(type: Data.self) else { return }
             let id = UUID().uuidString
-            guard let ergebnis = MedienKodierung.foto(daten, id: id) else { return }
+            guard let ergebnis = await Task.detached(priority: .userInitiated, operation: { MedienKodierung.foto(daten, id: id) }).value
+            else { return }
             ChatMedien.eigeneQuellen[id] = ergebnis.original
             fotoMedienId = id
             try? await Medien.hochladen(id: id, original: ergebnis.original, klein: ergebnis.klein)

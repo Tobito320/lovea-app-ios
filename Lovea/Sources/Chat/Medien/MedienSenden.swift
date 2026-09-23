@@ -67,7 +67,9 @@ enum ChatMedien {
 
     static func sprachSenden(_ m4a: URL, dauer: Double, pegel: [Float], antwortAuf: String? = nil) async {
         let id = UUID().uuidString
-        guard let originalURL = MedienKodierung.schreibeStaging((try? Data(contentsOf: m4a)) ?? Data(), id: id, rolle: "original", ext: "m4a") else { return }
+        guard let originalURL = await Task.detached(priority: .userInitiated, operation: {
+            MedienKodierung.schreibeStaging((try? Data(contentsOf: m4a)) ?? Data(), id: id, rolle: "original", ext: "m4a")
+        }).value else { return }
         let ergebnis = MedienKodierung.Ergebnis(original: originalURL, klein: nil, breite: 0, hoehe: 0, dauer: dauer)
         eigeneQuellen[id] = originalURL
         merkeAusstehend(id: id, original: originalURL, klein: nil)
@@ -82,7 +84,9 @@ enum ChatMedien {
 
     static func bildSenden(png: Data, breite: Double, hoehe: Double, antwortAuf: String? = nil) async {
         let id = UUID().uuidString
-        guard let originalURL = MedienKodierung.schreibeStaging(png, id: id, rolle: "original", ext: "png") else { return }
+        guard let originalURL = await Task.detached(priority: .userInitiated, operation: {
+            MedienKodierung.schreibeStaging(png, id: id, rolle: "original", ext: "png")
+        }).value else { return }
         let ergebnis = MedienKodierung.Ergebnis(original: originalURL, klein: nil, breite: breite, hoehe: hoehe, dauer: nil)
         await hochladenUndSenden(id: id, ergebnis: ergebnis, typ: "foto", antwortAuf: antwortAuf)
     }
@@ -121,7 +125,9 @@ enum ChatMedien {
     /// Sticker/figure-sticker upload (Z-5.3): returns the medium id for `nachricht.neu {sticker:{medienId}}`.
     static func stickerHochladen(png: Data) async -> String? {
         let id = UUID().uuidString
-        guard let originalURL = MedienKodierung.schreibeStaging(png, id: id, rolle: "original", ext: "png") else { return nil }
+        guard let originalURL = await Task.detached(priority: .userInitiated, operation: {
+            MedienKodierung.schreibeStaging(png, id: id, rolle: "original", ext: "png")
+        }).value else { return nil }
         eigeneQuellen[id] = originalURL
         merkeAusstehend(id: id, original: originalURL, klein: nil)
         do {
@@ -188,9 +194,25 @@ enum ChatMedien {
         return (try? JSONDecoder().decode([AusstehendeUpload].self, from: data)) ?? []
     }
 
+    // ponytail: the manifest stays a synchronous (tiny) main-actor write on purpose — it must be on
+    // disk before `nachricht.neu` goes out, or an app kill in between loses the resume entry
+    // (Review-Fokus #5). Upgrade: an actor-owned manifest if it ever grows beyond a few entries.
     private static func speichereAusstehend(_ liste: [AusstehendeUpload]) {
         try? FileManager.default.createDirectory(at: warteschlangeURL.deletingLastPathComponent(), withIntermediateDirectories: true)
         guard let data = try? JSONEncoder().encode(liste) else { return }
         try? data.write(to: warteschlangeURL, options: .atomic)
+    }
+}
+
+/// Snapshot writes for small JSON stores whose source of truth is already in memory
+/// (`EigeneSticker`, `GesichtsFilter`): one serial queue, so writes land in order, off the main thread.
+enum KleineDatei {
+    private static let schlange = DispatchQueue(label: "lovea.chat.kleine-datei", qos: .utility)
+
+    static func schreiben(_ daten: Data, nach url: URL) {
+        schlange.async {
+            try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try? daten.write(to: url, options: .atomic)
+        }
     }
 }

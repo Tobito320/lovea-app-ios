@@ -25,6 +25,10 @@ struct ChatKopfzeile: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(partner.name), \(statusText), \(FigurenModell.shared.anzeige(partner).haupt.titel)")
+                .accessibilityHint("Profil öffnen")
+                .accessibilityAddTraits(.isButton)
 
                 Spacer()
 
@@ -33,11 +37,12 @@ struct ChatKopfzeile: View {
                 Menu {
                     Button("Medien", systemImage: "photo.on.rectangle") { medienOffen = true }
                     Button("Chat-Hintergrund", systemImage: "photo.artframe") { hintergrundOffen = true }
-                } label: { Image(systemName: "ellipsis.circle") }
+                } label: { Image(systemName: "ellipsis.circle").frame(minWidth: 36, minHeight: 44) }
+                .accessibilityLabel("Mehr")
                 .sheet(isPresented: $medienOffen) { MedienUebersicht(ich: ich) }
                 .sheet(isPresented: $hintergrundOffen) { ChatHintergrundEinstellung(ich: ich) }
 
-                Button { spieleOffen = true } label: { Image(systemName: "gamecontroller.fill") }
+                Button { spieleOffen = true } label: { Image(systemName: "gamecontroller.fill").frame(minWidth: 36, minHeight: 44) }
                     .accessibilityLabel("Spiel starten")
                     .sheet(isPresented: $spieleOffen) { SpieleStarter() }
             }
@@ -96,6 +101,8 @@ private struct StreakAnzeige: View {
                     if streak.laeuftAb { Image(systemName: "hourglass").foregroundStyle(.secondary) }
                 }
                 .font(.subheadline)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Streak \(streak.tage) \(streak.tage == 1 ? "Tag" : "Tage")\(streak.laeuftAb ? ", läuft heute ab" : "")")
             }
         }
     }

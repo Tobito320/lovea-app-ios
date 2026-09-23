@@ -12,6 +12,8 @@ struct PartnerFigurLeiste: View {
         return Self.sichtbareZustaende.contains(z.haupt) ? z : nil
     }
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     var body: some View {
         VStack(spacing: 0) {
             if let zustand {
@@ -24,7 +26,10 @@ struct PartnerFigurLeiste: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 6)
-                .transition(.move(edge: .bottom).combined(with: .opacity))
+                // One element: figure + its state as text, not "Figur" followed by the same state twice.
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(partner.name): \(zustand.haupt.titel)")
+                .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.move(edge: .bottom).combined(with: .opacity))
             }
         }
         .animation(.spring(duration: 0.3), value: zustand?.haupt)

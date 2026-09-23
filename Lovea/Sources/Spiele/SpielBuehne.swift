@@ -109,6 +109,7 @@ struct SpielBuehne: View {
         let gesamt = k.spiel.ergebnis?.punkte ?? SpielPunkte()
         let da = modell.partnerGesehen[spielId].map { jetzt.timeIntervalSince($0) < 7 } ?? false
         let raus = k.partnerZug?.raus == true
+        let status = raus ? "\(k.partner.name) ist raus" : (da ? "\(k.spiel.ergebnis?.gespielt ?? 0)× gespielt" : "Warte auf \(k.partner.name) …")
         return HStack(alignment: .bottom) {
             spieler(k.ich, name: "Du", da: true)
             Spacer()
@@ -116,7 +117,7 @@ struct SpielBuehne: View {
                 Text("\(gesamt[k.ich]) : \(gesamt[k.partner])")
                     .font(.system(.title, design: .rounded).weight(.bold).monospacedDigit())
                     .contentTransition(.numericText())
-                Text(raus ? "\(k.partner.name) ist raus" : (da ? "\(k.spiel.ergebnis?.gespielt ?? 0)× gespielt" : "Warte auf \(k.partner.name) …"))
+                Text(status)
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -127,7 +128,7 @@ struct SpielBuehne: View {
         .padding(.horizontal, 24)
         .padding(.top, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Du \(gesamt[k.ich]), \(k.partner.name) \(gesamt[k.partner])")
+        .accessibilityLabel("Du \(gesamt[k.ich]), \(k.partner.name) \(gesamt[k.partner]), \(status)")
     }
 
     private func spieler(_ p: Person, name: String, da: Bool) -> some View {
@@ -154,6 +155,7 @@ private struct EndeKarte: View {
         VStack(spacing: 12) {
             if let s = ende.sieger {
                 FigurView(FigurenModell.shared.aussehen(s), zustand: .pokal, groesse: 120)
+                    .accessibilityLabel(s.name)
             } else {
                 HStack(spacing: -10) {
                     FigurKopf(person: k.ich, groesse: 64, zustand: .lacht)

@@ -37,6 +37,13 @@ struct SnapViewer: View {
         }
         .contentShape(Rectangle())
         .onTapGesture { schliessen() }
+        // VoiceOver (Z-16.3): one element, activate or scrub (escape) to close.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(istVideo ? "Video-Snap von \(nachricht.von.name)" : "Foto-Snap von \(nachricht.von.name)")
+        .accessibilityHint("Tippen zum Schließen")
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { schliessen() }
+        .accessibilityAction(.escape) { schliessen() }
         .gesture(DragGesture().onEnded { wert in if wert.translation.height > 60 { schliessen() } })
         .task { await laden() }
         .onAppear { FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild)) }
@@ -52,27 +59,27 @@ struct SnapViewer: View {
     private func laden() async {
         guard let medium = nachricht.medien.first else { return }
         if let quelle = ChatMedien.eigeneQuellen[medium.id] ?? Medien.lokal(medium.id) {
-            anzeigen(quelle)
+            await anzeigen(quelle)
             return
         }
         while !Task.isCancelled {
             if let geholt = try? await Medien.holen(medium.id) {
-                anzeigen(geholt)
+                await anzeigen(geholt)
                 return
             }
             try? await Task.sleep(for: .seconds(2))
         }
     }
 
-    private func anzeigen(_ url: URL) {
-        begonnen = Date()
+    private func anzeigen(_ url: URL) async {
         if istVideo {
             let player = AVPlayer(url: url)
             spieler = player
             player.play()
         } else {
-            bild = UIImage(contentsOfFile: url.path)
+            bild = await Bilddatei.laden(url) // decoded off the main actor (Z-16.2)
         }
+        begonnen = Date() // only once it's actually on screen
     }
 
     private func schliessen() {

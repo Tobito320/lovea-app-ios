@@ -3,6 +3,14 @@ import CoreMedia
 import SwiftUI
 import UIKit
 
+/// `startRunning()`/`stopRunning()` block until the camera is up or down; Apple says to call them
+/// off the main thread. One serial queue keeps start and stop in order (Z-16.2).
+private let sessionSchlange = DispatchQueue(label: "lovea.snap.kamera", qos: .userInitiated)
+
+/// Carries the session onto `sessionSchlange`. Only start/stop run there, and the session is
+/// documented safe to start/stop from its own queue.
+private struct SessionBox: @unchecked Sendable { let session: AVCaptureSession }
+
 /// `AVCaptureSession` coordinator (Z-6.1): photo + movie file outputs, front/back, flash, zoom.
 /// Delegates fire on an AVFoundation-internal queue, not necessarily the main actor — every
 /// callback hops back explicitly, same pattern as `SprachSpieler`/`AVAudioPlayerDelegate`.
@@ -36,11 +44,8 @@ final class SnapKameraSteuerung: NSObject {
         if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
         session.commitConfiguration()
         laeuft = true
-        // ponytail: starts on the main actor instead of Apple's usual dedicated session queue —
-        // hopping `session.startRunning()` (a non-`Sendable` `AVCaptureSession`) onto a background
-        // `Task` isn't something to guess at with no local compiler to check it against, and
-        // `startRunning()` only blocks for a session's brief setup, not indefinitely.
-        session.startRunning()
+        let box = SessionBox(session: session)
+        sessionSchlange.async { box.session.startRunning() }
         FigurenModell.shared.zustandSenden(.init(haupt: .kamera))
     }
 
@@ -48,7 +53,8 @@ final class SnapKameraSteuerung: NSObject {
         guard laeuft else { return }
         laeuft = false
         FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
-        session.stopRunning()
+        let box = SessionBox(session: session)
+        sessionSchlange.async { box.session.stopRunning() }
     }
 
     /// Camera access is required; microphone (Z-6.1 videos have sound) is requested too but a "no"
@@ -243,17 +249,18 @@ struct SnapKameraView: View {
 
     private var obereLeiste: some View {
         HStack {
-            Button { onAbbrechen() } label: { Image(systemName: "xmark") }
+            Button { onAbbrechen() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
                 .accessibilityLabel("Abbrechen")
             Spacer()
-            Button { steuerung.blitzAn.toggle() } label: { Image(systemName: steuerung.blitzAn ? "bolt.fill" : "bolt.slash.fill") }
+            Button { steuerung.blitzAn.toggle() } label: { Image(systemName: steuerung.blitzAn ? "bolt.fill" : "bolt.slash.fill").frame(width: 44, height: 44) }
                 .accessibilityLabel("Blitz")
                 .accessibilityValue(steuerung.blitzAn ? "an" : "aus")
-            Button { steuerung.kameraWechseln() } label: { Image(systemName: "arrow.triangle.2.circlepath.camera") }
+            Button { steuerung.kameraWechseln() } label: { Image(systemName: "arrow.triangle.2.circlepath.camera").frame(width: 44, height: 44) }
                 .accessibilityLabel("Kamera wechseln")
         }
         .font(.title2)
         .foregroundStyle(.white)
+        .shadow(color: .black.opacity(0.5), radius: 3) // stays readable over a bright scene
         .padding()
     }
 
@@ -268,8 +275,17 @@ struct SnapKameraView: View {
             Circle().fill(.white).frame(width: 62, height: 62)
         }
         .contentShape(Circle())
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel("Auslöser")
         .accessibilityHint("Tippen für ein Foto, halten für ein Video")
+        .accessibilityAddTraits(.isButton)
+        // A drag gesture alone isn't reliably activatable by VoiceOver: the default action takes a photo.
+        .accessibilityAction {
+            guard modus == .ruhe, !steuerung.nimmtVideoAuf else { return }
+            Task {
+                if let bild = await steuerung.fotoAufnehmen() { onFoto(bild) }
+            }
+        }
         // One `DragGesture(minimumDistance: 0)` covers tap, hold-to-record AND the drag-up-to-zoom
         // while recording — deliberately not `onLongPressGesture` + a second `simultaneousGesture`:
         // `onLongPressGesture`'s `maximumDistance` cancels the whole press once the same finger

@@ -73,6 +73,7 @@ private struct GifSuche: View {
                                     .aspectRatio(gif.breite > 0 && gif.hoehe > 0 ? gif.breite / gif.hoehe : 1, contentMode: .fit)
                                     .clipShape(RoundedRectangle(cornerRadius: 10))
                                     .onTapGesture { senden(gif) }
+                                    .accessibilityAddTraits(.isButton)
                                     .contextMenu {
                                         Button("Zu Favoriten", systemImage: "star") {
                                             ChatEinstellungen.shared.favoritSchalten(
@@ -140,6 +141,9 @@ private struct FavoritenAnsicht: View {
                                 .frame(height: 100)
                                 .clipShape(RoundedRectangle(cornerRadius: 10))
                                 .onTapGesture { senden(eintrag) }
+                                .accessibilityElement()
+                                .accessibilityLabel(eintrag.art == .gif ? "GIF" : "Sticker")
+                                .accessibilityAddTraits(.isButton)
                                 .contextMenu {
                                     Button("Aus Favoriten entfernen", systemImage: "star.slash", role: .destructive) {
                                         ChatEinstellungen.shared.favoritSchalten(eintrag, ich: ich)
@@ -202,6 +206,7 @@ private struct StickerAnsicht: View {
                     }
                 }
                 .frame(width: 90, height: 90)
+                .accessibilityLabel("Sticker aus Foto erstellen")
 
                 ForEach(FreundschaftsSticker.alle) { figurenSticker in
                     figurenSticker.ansicht(ahmed: FigurenModell.shared.aussehen(.ahmed), annika: FigurenModell.shared.aussehen(.annika))
@@ -209,6 +214,9 @@ private struct StickerAnsicht: View {
                         .frame(width: 90, height: 90)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .onTapGesture { senden(figurenSticker: figurenSticker) }
+                        .accessibilityElement()
+                        .accessibilityLabel(figurenSticker.titel)
+                        .accessibilityAddTraits(.isButton)
                 }
 
                 ForEach(EigeneSticker.alle(ich: ich), id: \.self) { id in
@@ -216,6 +224,9 @@ private struct StickerAnsicht: View {
                         .frame(width: 90, height: 90)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
                         .onTapGesture { sendenEigenerSticker(id) }
+                        .accessibilityElement()
+                        .accessibilityLabel("Eigener Sticker")
+                        .accessibilityAddTraits(.isButton)
                         .contextMenu {
                             Button("Zu Favoriten", systemImage: "star") {
                                 ChatEinstellungen.shared.favoritSchalten(.init(art: .sticker, wert: id, breite: nil, hoehe: nil), ich: ich)
@@ -286,7 +297,8 @@ struct StickerKachel: View {
         .task(id: medienId) {
             var url = ChatMedien.eigeneQuellen[medienId] ?? Medien.lokal(medienId)
             if url == nil { url = try? await Medien.holen(medienId) }
-            bild = url.flatMap { UIImage(contentsOfFile: $0.path) }
+            guard let url else { return }
+            bild = await Bilddatei.laden(url, maxPixel: 420)
         }
     }
 }

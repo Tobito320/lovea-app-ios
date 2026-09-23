@@ -15,22 +15,27 @@ private enum AnimiertesGifCache {
 struct AnimiertesGif: View {
     let url: URL
     @State private var bild: UIImage?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         Group {
             if let bild {
-                AnimiertesGifDarstellung(bild: bild)
+                // Reduce Motion (Z-16.3): the first frame stands still instead of looping forever.
+                AnimiertesGifDarstellung(bild: reduceMotion ? (bild.images?.first ?? bild) : bild)
             } else {
                 Rectangle().fill(.thinMaterial)
             }
         }
+        .accessibilityElement()
+        .accessibilityLabel("GIF")
         .task(id: url) { bild = await lade(url) }
     }
 
     private func lade(_ url: URL) async -> UIImage? {
         if let cached = AnimiertesGifCache.bilder.object(forKey: url as NSURL) { return cached }
-        guard let (data, _) = try? await URLSession.shared.data(from: url),
-              let bild = Self.animiertesBild(from: data)
+        guard let (data, _) = try? await URLSession.shared.data(from: url) else { return nil }
+        // Every frame is decoded here — detached, or it would run on the main actor with this View (Z-16.2).
+        guard let bild = await Task.detached(priority: .userInitiated, operation: { AnimiertesGif.animiertesBild(from: data) }).value
         else { return nil }
         AnimiertesGifCache.bilder.setObject(bild, forKey: url as NSURL)
         return bild

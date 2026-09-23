@@ -19,7 +19,8 @@ struct ChatEingabeleiste: View {
                 ZitatLeiste(nachricht: antwortAuf, ich: ich) { self.antwortAuf = nil }
             }
             HStack(alignment: .bottom, spacing: 10) {
-                Button { kameraOffen = true } label: { Image(systemName: "camera.fill") }
+                Button { kameraOffen = true } label: { Image(systemName: "camera.fill").frame(minWidth: 32, minHeight: 44) }
+                    .accessibilityLabel("Snap aufnehmen")
                     .fullScreenCover(isPresented: $kameraOffen) {
                         SnapKameraFluss(ich: ich, antwortAuf: antwortAuf?.id) {
                             kameraOffen = false
@@ -27,10 +28,12 @@ struct ChatEingabeleiste: View {
                         }
                     }
                 PhotosPicker(selection: $fotoAuswahl, matching: .any(of: [.images, .videos])) {
-                    Image(systemName: "photo.on.rectangle")
+                    Image(systemName: "photo.on.rectangle").frame(minWidth: 32, minHeight: 44)
                 }
+                .accessibilityLabel("Fotos und Videos")
                 .onChange(of: fotoAuswahl) { _, neu in sendeAuswahl(neu) }
-                Button { gifBlattOffen = true } label: { Image(systemName: "face.smiling") }
+                Button { gifBlattOffen = true } label: { Image(systemName: "face.smiling").frame(minWidth: 32, minHeight: 44) }
+                    .accessibilityLabel("GIFs und Sticker")
                     .sheet(isPresented: $gifBlattOffen) {
                         GifStickerBlatt(ich: ich, antwortAuf: antwortAuf?.id) {
                             gifBlattOffen = false
@@ -41,6 +44,7 @@ struct ChatEingabeleiste: View {
                 ZStack(alignment: .topLeading) {
                     if eingabe.isEmpty {
                         Text("Nachricht").foregroundStyle(.tertiary).padding(.horizontal, 5).padding(.vertical, 8)
+                            .accessibilityHidden(true) // the text view itself carries the label
                     }
                     GenmojiEingabefeld(text: $eingabe)
                         .frame(minHeight: 34, maxHeight: 110)
@@ -53,8 +57,9 @@ struct ChatEingabeleiste: View {
                     SprachAufnahmeButton(ich: ich, antwortAuf: antwortAuf?.id) { self.antwortAuf = nil }
                 } else {
                     Button { senden() } label: {
-                        Image(systemName: "arrow.up.circle.fill").font(.title2)
+                        Image(systemName: "arrow.up.circle.fill").font(.title2).frame(minWidth: 32, minHeight: 44)
                     }
+                    .accessibilityLabel("Senden")
                 }
             }
         }
@@ -94,6 +99,8 @@ private struct GenmojiEingabefeld: UIViewRepresentable {
     func makeUIView(context: Context) -> UITextView {
         let view = UITextView()
         view.font = .preferredFont(forTextStyle: .body)
+        view.adjustsFontForContentSizeCategory = true // Dynamic Type changes apply live (Z-16.3)
+        view.accessibilityLabel = "Nachricht"
         view.backgroundColor = .clear
         view.isScrollEnabled = true
         view.supportsAdaptiveImageGlyph = true
@@ -127,8 +134,9 @@ private struct ZitatLeiste: View {
                 Text(nachricht.text ?? "Nachricht").font(.caption).lineLimit(1)
             }
             Spacer()
-            Button { onAbbrechen() } label: { Image(systemName: "xmark.circle.fill") }
+            Button { onAbbrechen() } label: { Image(systemName: "xmark.circle.fill").frame(minWidth: 32, minHeight: 32) }
                 .foregroundStyle(.secondary)
+                .accessibilityLabel("Antwort abbrechen")
         }
         .padding(8)
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))

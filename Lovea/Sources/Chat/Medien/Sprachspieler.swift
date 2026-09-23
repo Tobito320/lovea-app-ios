@@ -94,11 +94,14 @@ struct SprachBlase: View {
             HStack(spacing: 8) {
                 Button { schalten() } label: {
                     Image(systemName: spielt ? "pause.fill" : "play.fill")
+                        .frame(minWidth: 32, minHeight: 44)
                 }
                 .disabled(localURL == nil)
+                .accessibilityLabel(spielt ? "Sprachnachricht pausieren" : "Sprachnachricht abspielen")
 
                 WellenformAnsicht(pegel: medium.pegel ?? [], anteil: fortschrittAnteil)
                     .frame(width: 120, height: 22)
+                    .accessibilityHidden(true)
 
                 Text(zeit(spielt ? SprachSpieler.shared.fortschritt : (medium.dauer ?? 0)))
                     .font(.caption2).monospacedDigit()

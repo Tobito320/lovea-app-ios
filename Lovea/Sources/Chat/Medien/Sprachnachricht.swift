@@ -107,9 +107,20 @@ struct SprachAufnahmeButton: View {
                 }
             }
         }
+        .frame(minWidth: 32, minHeight: 44)
         .contentShape(Rectangle())
         .onLongPressGesture(minimumDuration: 0.3, maximumDistance: 40) {} onPressingChanged: { druecken in
             handlePress(druecken)
+        }
+        // VoiceOver (Z-16.3): a double tap is one short press, so the first activation starts
+        // tap+tap mode and the second stops into the preview bar.
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(modus == .ruhe ? "Sprachnachricht aufnehmen" : "Aufnahme beenden")
+        .accessibilityValue(modus == .ruhe ? "" : zeit(steuerung.dauer))
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction {
+            handlePress(true)
+            handlePress(false)
         }
     }
 
@@ -162,14 +173,18 @@ private struct VorschauLeiste: View {
     var body: some View {
         HStack(spacing: 10) {
             Button(role: .destructive) { onVerwerfen() } label: { Image(systemName: "trash") }
+                .accessibilityLabel("Aufnahme verwerfen")
             Button {
                 SprachSpieler.shared.spielen(id: "vorschau", url: aufnahme.url)
             } label: { Image(systemName: "play.fill") }
+                .accessibilityLabel("Anhören")
             Text(String(format: "%d:%02d", Int(aufnahme.dauer) / 60, Int(aufnahme.dauer) % 60))
                 .font(.caption2).monospacedDigit()
             Spacer()
             Button { onSenden() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
+                .accessibilityLabel("Sprachnachricht senden")
         }
+        .frame(minHeight: 44)
         .padding(.horizontal, 8)
     }
 }

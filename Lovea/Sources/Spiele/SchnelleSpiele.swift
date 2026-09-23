@@ -155,8 +155,10 @@ struct SSPSpiel: View {
                 .animation(wackelt && !reduceMotion ? .easeInOut(duration: 0.2).repeatCount(6, autoreverses: true) : .default, value: wackelt)
                 .opacity(hand == nil && !wackelt ? 0.3 : 1)
                 .frame(height: 90)
+                .accessibilityLabel(wackelt ? "" : (hand?.titel ?? "Noch keine Hand"))
             FigurView(FigurenModell.shared.aussehen(p), zustand: zustand, groesse: 140)
                 .scaleEffect(x: gespiegelt ? -1 : 1, y: 1)
+                .accessibilityLabel(p.name)
             Text(p == k.ich ? "Du" : p.name).font(.subheadline.weight(.semibold))
         }
         .frame(maxWidth: .infinity)

@@ -30,14 +30,15 @@ struct MedienUebersicht: View {
     }
 
     var body: some View {
+        let liste = eintraege // one filter pass over the whole history per render, not two
         NavigationStack {
             Group {
-                if eintraege.isEmpty {
+                if liste.isEmpty {
                     ContentUnavailableView("Keine Medien", systemImage: "photo.on.rectangle.angled")
                 } else {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 4) {
-                            ForEach(eintraege) { nachricht in UebersichtKachel(nachricht: nachricht) }
+                            ForEach(liste) { nachricht in UebersichtKachel(nachricht: nachricht) }
                         }
                         .padding(4)
                     }
@@ -52,6 +53,7 @@ struct MedienUebersicht: View {
                         Toggle("Mit Gesichtern", isOn: $nurGesichter)
                         Toggle("Meine Sterne", isOn: $nurSterne)
                     } label: { Image(systemName: "line.3.horizontal.decrease.circle") }
+                    .accessibilityLabel("Filtern")
                 }
             }
         }
@@ -104,15 +106,19 @@ private struct UebersichtKachel: View {
         if medium.typ == "video" {
             bild = await Videobild.erstesBild(url)
         } else {
-            bild = UIImage(contentsOfFile: url.path)
+            bild = await Bilddatei.laden(url, maxPixel: 400)
             await GesichtsFilter.pruefen(id: medium.id, dateiURL: url)
         }
     }
 }
 
+/// Built once: creating an `NSDataDetector` per chat row cost more than the match itself (Z-16.2).
+// ponytail: `NSRegularExpression` (and so `NSDataDetector`) is documented thread-safe, just not `Sendable`.
+nonisolated(unsafe) private let linkErkenner = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue)
+
 /// Pure: first URL in a text, or nil. Shared by the overview and the chat bubble's link preview.
 func ersterLink(in text: String) -> URL? {
-    guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
+    guard let linkErkenner else { return nil }
     let bereich = NSRange(text.startIndex..., in: text)
-    return detector.firstMatch(in: text, range: bereich)?.url
+    return linkErkenner.firstMatch(in: text, range: bereich)?.url
 }

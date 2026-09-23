@@ -1,6 +1,7 @@
 import AVFoundation
 import AVKit
 import CoreMedia
+import ImageIO
 import SwiftUI
 import UIKit
 
@@ -21,6 +22,8 @@ struct MedienNachrichtView: View {
                     MedienVorschau(url: localURL, istVideo: medium.typ == "video")
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel(medium.typ == "video" ? "Video" : "Foto")
+                .accessibilityHint("Im Vollbild öffnen")
                 .contextMenu {
                     if medium.typ == "foto" {
                         Button("In Galerie speichern", systemImage: "photo.badge.plus") {
@@ -93,7 +96,7 @@ private struct MedienVorschau: View {
             }
         }
         .task(id: url) {
-            bild = istVideo ? await Videobild.erstesBild(url) : UIImage(contentsOfFile: url.path)
+            bild = istVideo ? await Videobild.erstesBild(url) : await Bilddatei.laden(url, maxPixel: 700)
         }
     }
 }
@@ -126,13 +129,14 @@ private struct MedienVollbild: View {
             }
         }
         .overlay(alignment: .topTrailing) {
-            Button { dismiss() } label: { Image(systemName: "xmark.circle.fill") }
+            Button { dismiss() } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44) }
                 .font(.title2)
                 .foregroundStyle(.white)
+                .accessibilityLabel("Schließen")
                 .padding()
         }
         .task {
-            if !istVideo { bild = UIImage(contentsOfFile: url.path) }
+            if !istVideo { bild = await Bilddatei.laden(url) }
             FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild))
         }
         .onDisappear { FigurenModell.shared.zustandSenden(.init(haupt: .imChat)) }
@@ -145,9 +149,40 @@ enum Videobild {
         await Task.detached(priority: .userInitiated) {
             let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
             generator.appliesPreferredTrackTransform = true
+            generator.maximumSize = CGSize(width: 700, height: 700)
             guard let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) else { return nil }
             return UIImage(cgImage: cgImage)
         }.value
+    }
+}
+
+/// Decodes an image file off the main actor (Z-16.2). ImageIO downsamples to `maxPixel` on the long
+/// edge (never upscales), so a chat bubble never decodes a 12 MP camera original on the main thread.
+/// Small previews are cached, so scrolling back up doesn't flash placeholders.
+enum Bilddatei {
+    // ponytail: same reasoning as `AnimiertesGifCache`, `NSCache` is documented thread-safe, just not `Sendable`.
+    nonisolated(unsafe) private static let vorschauen: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 150
+        return cache
+    }()
+
+    static func laden(_ url: URL, maxPixel: Int = 4096) async -> UIImage? {
+        let schluessel = "\(url.path)#\(maxPixel)" as NSString
+        if let bild = vorschauen.object(forKey: schluessel) { return bild }
+        let bild = await Task.detached(priority: .userInitiated) { () -> UIImage? in
+            guard let quelle = CGImageSourceCreateWithURL(url as CFURL, nil),
+                  let cgImage = CGImageSourceCreateThumbnailAtIndex(quelle, 0, [
+                      kCGImageSourceCreateThumbnailFromImageAlways: true,
+                      kCGImageSourceCreateThumbnailWithTransform: true,
+                      kCGImageSourceShouldCacheImmediately: true,
+                      kCGImageSourceThumbnailMaxPixelSize: maxPixel,
+                  ] as CFDictionary)
+            else { return nil }
+            return UIImage(cgImage: cgImage)
+        }.value
+        if let bild, maxPixel <= 1024 { vorschauen.setObject(bild, forKey: schluessel) }
+        return bild
     }
 }
 
@@ -159,10 +194,21 @@ enum ChatGalerie {
     // up there. That tab's already-open instance won't refresh until it re-`load()`s though — Chat
     // doesn't own Drawing/**, so this is reported instead of fixed here.
     static func inGaleriesSpeichern(bildURL: URL) {
-        guard let image = UIImage(contentsOfFile: bildURL.path), let png = image.pngData() else { return }
+        Task {
+            // Decode + PNG encode off the main actor (Z-16.2); only the library calls stay on it.
+            let geladen = await Task.detached(priority: .userInitiated) { () -> (png: Data, breite: Double, hoehe: Double)? in
+                guard let image = UIImage(contentsOfFile: bildURL.path), let png = image.pngData() else { return nil }
+                return (png, Double(image.size.width * image.scale), Double(image.size.height * image.scale))
+            }.value
+            guard let geladen else { return }
+            speichern(png: geladen.png, pixelBreite: geladen.breite, pixelHoehe: geladen.hoehe)
+        }
+    }
+
+    private static func speichern(png: Data, pixelBreite: Double, pixelHoehe: Double) {
         let library = ArtworkLibrary()
-        let breite = ArtworkLibrary.clampDimension(image.size.width * image.scale)
-        let hoehe = ArtworkLibrary.clampDimension(image.size.height * image.scale)
+        let breite = ArtworkLibrary.clampDimension(pixelBreite)
+        let hoehe = ArtworkLibrary.clampDimension(pixelHoehe)
         var artwork = library.createArtwork(name: "Aus dem Chat", projectID: nil, format: .custom, customWidth: breite, customHeight: hoehe, background: .white)
         let bildEbene = ArtworkLayer.image(name: "Bild")
         artwork.layers.append(bildEbene)

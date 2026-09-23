@@ -72,7 +72,7 @@ struct SpielBild: View {
         .task(id: medienId) {
             guard !medienId.isEmpty else { return }
             for _ in 0..<20 {
-                if let url = try? await Medien.holen(medienId), let b = UIImage(contentsOfFile: url.path) {
+                if let url = try? await Medien.holen(medienId), let b = await Bilddatei.laden(url, maxPixel: 800) {
                     bild = b
                     return
                 }
