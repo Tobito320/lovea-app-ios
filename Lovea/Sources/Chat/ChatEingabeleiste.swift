@@ -6,7 +6,7 @@ import UIKit
 struct ChatEingabeleiste: View {
     let ich: Person
     @Binding var antwortAuf: ChatModell.Nachricht?
-    @State private var eingabe = AttributedString()
+    @State private var eingabe = ""
     @State private var tippen = TippenSender()
 
     var body: some View {
@@ -22,18 +22,21 @@ struct ChatEingabeleiste: View {
                 Button {} label: { Image(systemName: "face.smiling") }
                     .disabled(true) // ponytail: GIF/Sticker-Suche kommt in Block 5
 
-                TextEditor(text: $eingabe)
-                    .supportsAdaptiveImageGlyph(true)
-                    .frame(minHeight: 34, maxHeight: 110)
-                    .scrollContentBackground(.hidden)
-                    .padding(6)
-                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
-                    .onChange(of: eingabe) { _, _ in tippen.tastenanschlag() }
+                ZStack(alignment: .topLeading) {
+                    if eingabe.isEmpty {
+                        Text("Nachricht").foregroundStyle(.tertiary).padding(.horizontal, 5).padding(.vertical, 8)
+                    }
+                    GenmojiEingabefeld(text: $eingabe)
+                        .frame(minHeight: 34, maxHeight: 110)
+                        .onChange(of: eingabe) { _, _ in tippen.tastenanschlag() }
+                }
+                .padding(2)
+                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
 
                 Button { senden() } label: {
                     Image(systemName: "arrow.up.circle.fill").font(.title2)
                 }
-                .disabled(String(eingabe.characters).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(eingabe.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(.horizontal, 12)
@@ -41,12 +44,43 @@ struct ChatEingabeleiste: View {
     }
 
     private func senden() {
-        // ponytail: adaptive Bild-Glyphen (Genmoji/Memoji/Sticker) werden hier noch zu reinem
-        // Text vereinfacht. Block 5/6 wandelt jeden NSAdaptiveImageGlyph-Lauf in einen `medien`-Eintrag.
-        ChatModell.shared.nachrichtSenden(text: String(eingabe.characters), antwortAuf: antwortAuf?.id)
-        eingabe = AttributedString()
+        ChatModell.shared.nachrichtSenden(text: eingabe, antwortAuf: antwortAuf?.id)
+        eingabe = ""
         antwortAuf = nil
         tippen.beenden()
+    }
+}
+
+/// Multi-line `UITextView` wrapper (Z-4.2/Z-4.3): `supportsAdaptiveImageGlyph` — so Genmoji/Memoji/
+/// iOS-Sticker from the keyboard can be typed at all — is a `UITextInput` property, not a SwiftUI
+/// `View` modifier (confirmed against developer.apple.com/documentation/uikit/uitextinput/
+/// supportsadaptiveimageglyph; SwiftUI's `TextField`/`TextEditor` don't expose it), hence UIKit here.
+// ponytail: binds plain `String` for now — the typed glyphs render as placeholder characters until
+// Block 5/6 switches this to `NSAttributedString` and turns each `NSAdaptiveImageGlyph` run into a
+// `medien` upload before sending, per the decision to defer media/glyph handling to those blocks.
+private struct GenmojiEingabefeld: UIViewRepresentable {
+    @Binding var text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.font = .preferredFont(forTextStyle: .body)
+        view.backgroundColor = .clear
+        view.isScrollEnabled = true
+        view.supportsAdaptiveImageGlyph = true
+        view.delegate = context.coordinator
+        return view
+    }
+
+    func updateUIView(_ uiView: UITextView, context: Context) {
+        if uiView.text != text { uiView.text = text }
+    }
+
+    func makeCoordinator() -> Coordinator { Coordinator(text: $text) }
+
+    final class Coordinator: NSObject, UITextViewDelegate {
+        let text: Binding<String>
+        init(text: Binding<String>) { self.text = text }
+        func textViewDidChange(_ textView: UITextView) { text.wrappedValue = textView.text }
     }
 }
 

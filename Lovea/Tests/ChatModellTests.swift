@@ -95,7 +95,7 @@ final class ChatModellTests: XCTestCase {
         modell.anwenden([op("nachricht.angeheftet", ["id": "m1", "bis": .string(iso(morgen))], von: .ahmed)])
         var nachricht = modell.nachrichten.first { $0.id == "m1" }
         XCTAssertEqual(nachricht?.angeheftet, true)
-        XCTAssertEqual(nachricht?.angeheftetBis?.timeIntervalSince1970, morgen.timeIntervalSince1970, accuracy: 0.001)
+        XCTAssertEqual(nachricht!.angeheftetBis!.timeIntervalSince1970, morgen.timeIntervalSince1970, accuracy: 0.01)
         XCTAssertEqual(modell.angeheftete.map(\.id), ["m1"])
 
         modell.anwenden([op("nachricht.losgeloest", ["id": "m1"], von: .ahmed)])

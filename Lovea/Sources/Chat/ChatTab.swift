@@ -11,6 +11,7 @@ struct ChatTab: View {
     @State private var loeschenID: String?
     @State private var profilOffen = false
     @State private var chatSichtbar = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -65,13 +66,22 @@ struct ChatTab: View {
         }
         .onAppear { chatWurdeSichtbar(ich: ich) }
         .onDisappear { chatSichtbar = false }
-        .onChange(of: modell.nachrichten.count) { _, _ in if chatSichtbar { modell.gelesenSenden() } }
+        .onChange(of: modell.nachrichten.count) { _, _ in leseBestaetigen(ich: ich) }
     }
 
     private func chatWurdeSichtbar(ich: Person) {
         chatSichtbar = true
-        if modell.ungelesen(fuer: ich) > 0 { modell.gelesenSenden() }
+        leseBestaetigen(ich: ich)
         FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
+    }
+
+    /// Sends `nachricht.gelesen` only while the chat is actually on screen and the app is active,
+    /// and only up to the newest partner message — not `Date()`, which a clock-skewed partner
+    /// device could read as "not yet sent" and leave the badge stuck forever (Z-4.6).
+    private func leseBestaetigen(ich: Person) {
+        guard chatSichtbar, scenePhase == .active, modell.ungelesen(fuer: ich) > 0 else { return }
+        guard let letztePartnerZeit = modell.nachrichten.last(where: { $0.von != ich })?.zeit else { return }
+        modell.gelesenSenden(bis: letztePartnerZeit)
     }
 
     private func sucheSpringen() {

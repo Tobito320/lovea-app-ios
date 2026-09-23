@@ -65,7 +65,7 @@ final class ChatModell {
     /// `id` field is what edits/reactions/deletes reference).
     func anwenden(_ ops: [Op]) {
         for op in ops { anwendenEins(op) }
-        nachrichten = byID.values.sorted { ($0.seq ?? .max, $0.zeit) < ($1.seq ?? .max, $1.zeit) }
+        nachrichten = byID.values.sorted { ($0.seq ?? Int.max, $0.zeit) < ($1.seq ?? Int.max, $1.zeit) }
         if registrieren { badgeAktualisieren() }
     }
 
