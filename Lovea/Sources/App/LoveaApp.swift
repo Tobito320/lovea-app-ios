@@ -27,7 +27,7 @@ struct LoveaApp: App {
                     // Bundle JSON (questions, date ideas) is read on first access; do that off the main thread.
                     Task.detached(priority: .utility) { _ = FrageDesTages.vorrat; _ = WirModell.ideenVorrat }
                     // Register every fold before the log replays.
-                    _ = (FigurenModell.shared, ChatModell.shared, ChatEinstellungen.shared, OrteModell.shared, KalenderModell.shared, WirModell.shared, SpieleModell.shared, EinstellungenModell.shared, TeilenModell.shared, LiveZeichnung.shared, UmzugImport.shared)
+                    _ = (FigurenModell.shared, ChatModell.shared, ChatEinstellungen.shared, OrteModell.shared, KalenderModell.shared, WirModell.shared, SpieleModell.shared, EinstellungenModell.shared, TeilenModell.shared, LiveZeichnung.shared, UmzugImport.shared, SchritteModell.shared)
                     Raum.shared.start()
                     Standort.shared.start()
                 }
