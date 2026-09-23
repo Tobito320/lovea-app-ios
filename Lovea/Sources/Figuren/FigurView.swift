@@ -1746,7 +1746,7 @@ private struct Zeichner {
     /// Z-23.3/Z-24.2: a bought pose/dance shows while the figure is just idling (Profil, Karte) —
     /// it never fights a meaningful activity pose (typing, sleeping, …).
     func poseUeberschreibung() -> (l: Arm?, r: Arm?)? {
-        guard let id = poseId else { return nil }
+        guard let id = poseId, ![.schlaeft, .offline, .akkuLeer, .schlecht].contains(z) else { return nil }
         switch id {
         case "pose.tanz1":
             let s = w(6)
@@ -1841,7 +1841,8 @@ private struct Zeichner {
         default:
             // Z-23.3/Z-24.2: a bought pose/dance shows whenever nothing more specific is going on
             // (Profil, Karte, "zuhause", …) — it never overrides a real activity pose above.
-            return poseUeberschreibung() ?? (restL, restR)
+            if let o = poseUeberschreibung() { return o }
+            return (restL, restR)
         }
     }
 
@@ -2755,7 +2756,7 @@ extension Zeichner {
 
     /// Full-body counterpart to `poseUeberschreibung()` — same pose ids, coordinates in body space.
     func poseGanzUeberschreibung(_ m: Masse) -> (l: Arm, r: Arm)? {
-        guard let id = poseId else { return nil }
+        guard let id = poseId, ![.schlaeft, .offline, .akkuLeer, .schlecht].contains(z) else { return nil }
         let lx: CGFloat = 100 - m.s + 6, rx: CGFloat = 100 + m.s - 6, y = m.schulterY
         switch id {
         case "pose.tanz1":
