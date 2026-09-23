@@ -14,6 +14,8 @@ private enum AnimiertesGifCache {
 /// (Z-5.3). `UIImageView` then free-runs the animation itself.
 struct AnimiertesGif: View {
     let url: URL
+    /// GIFs fill their cell (cropped); transparent sticker GIFs pass `false` and fit instead.
+    var fuellen = true
     @State private var bild: UIImage?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -21,9 +23,11 @@ struct AnimiertesGif: View {
         Group {
             if let bild {
                 // Reduce Motion (Z-16.3): the first frame stands still instead of looping forever.
-                AnimiertesGifDarstellung(bild: reduceMotion ? (bild.images?.first ?? bild) : bild)
+                AnimiertesGifDarstellung(bild: reduceMotion ? (bild.images?.first ?? bild) : bild, fuellen: fuellen)
+            } else if fuellen {
+                LadeSchimmer()
             } else {
-                Rectangle().fill(.thinMaterial)
+                Color.clear
             }
         }
         .accessibilityElement()
@@ -65,14 +69,58 @@ struct AnimiertesGif: View {
     }
 }
 
+/// Fix round 2: a bare `UIImageView` reports the GIF's pixel size as its intrinsic size, so SwiftUI
+/// laid GIFs out at full pixel size and they spilled over their cells. It now takes exactly the
+/// size SwiftUI proposes, fills it and clips.
 private struct AnimiertesGifDarstellung: UIViewRepresentable {
     let bild: UIImage
+    let fuellen: Bool
 
     func makeUIView(context: Context) -> UIImageView {
         let view = UIImageView(image: bild)
-        view.contentMode = .scaleAspectFit
+        view.contentMode = fuellen ? .scaleAspectFill : .scaleAspectFit
+        view.clipsToBounds = true
+        view.setContentHuggingPriority(.defaultLow, for: .horizontal)
+        view.setContentHuggingPriority(.defaultLow, for: .vertical)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+        view.setContentCompressionResistancePriority(.defaultLow, for: .vertical)
         return view
     }
 
     func updateUIView(_ uiView: UIImageView, context: Context) { uiView.image = bild }
+
+    func sizeThatFits(_ proposal: ProposedViewSize, uiView: UIImageView, context: Context) -> CGSize? {
+        let seite = bild.size
+        let verhaeltnis = seite.height > 0 && seite.width > 0 ? seite.width / seite.height : 1
+        let breite = proposal.width.flatMap { $0.isFinite ? $0 : nil }
+        let hoehe = proposal.height.flatMap { $0.isFinite ? $0 : nil }
+        switch (breite, hoehe) {
+        case let (b?, h?): return CGSize(width: b, height: h)
+        case let (b?, nil): return CGSize(width: b, height: b / verhaeltnis)
+        case let (nil, h?): return CGSize(width: h * verhaeltnis, height: h)
+        default: return CGSize(width: 120, height: 120 / verhaeltnis)
+        }
+    }
+}
+
+/// Neutral loading placeholder with a soft moving sheen (still under Reduce Motion).
+struct LadeSchimmer: View {
+    @State private var phase: CGFloat = -1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        Rectangle()
+            .fill(Color(uiColor: .tertiarySystemFill))
+            .overlay {
+                LinearGradient(colors: [.clear, .white.opacity(0.18), .clear], startPoint: .leading, endPoint: .trailing)
+                    .scaleEffect(x: 0.6, anchor: .center)
+                    .offset(x: phase * 160)
+                    .opacity(reduceMotion ? 0 : 1)
+            }
+            .clipped()
+            .onAppear {
+                guard !reduceMotion else { return }
+                withAnimation(.linear(duration: 1.2).repeatForever(autoreverses: false)) { phase = 1 }
+            }
+    }
 }

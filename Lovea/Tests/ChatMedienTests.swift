@@ -88,6 +88,18 @@ final class ChatMedienTests: XCTestCase {
         XCTAssertFalse(MedienNachrichtView.istHoch(breite: 0, hoehe: 0))
     }
 
+    // MARK: - GIF masonry (fix round 2)
+
+    func testMasonryFuelltDieKuerzereSpalte() {
+        let hoch = KlipyClient.Gif(id: "h", url: "u", breite: 100, hoehe: 300)
+        let flach = { (id: String) in KlipyClient.Gif(id: id, url: "u", breite: 200, hoehe: 100) }
+        // h is 3 widths tall; the flat ones (0.5 each) fill the right column until it catches up.
+        let s = KlipyClient.spalten([hoch, flach("a"), flach("b"), flach("c"), flach("d"), flach("e"), flach("f"), flach("g")])
+        XCTAssertEqual(s.links.map(\.id), ["h", "g"])
+        XCTAssertEqual(s.rechts.map(\.id), ["a", "b", "c", "d", "e", "f"])
+        XCTAssertEqual(KlipyClient.spalten([]).links.count, 0)
+    }
+
     // MARK: - KlipyClient.parse (Z-5.3 GIF search/trends JSON)
 
     func testKlipyParseExtractsMdFileURL() {
