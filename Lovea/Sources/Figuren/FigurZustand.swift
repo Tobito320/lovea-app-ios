@@ -114,9 +114,11 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         // ponytail: offline sits above App and Ort (brief test "Offline schlägt Ort"); the spec lists Gerät below Ort.
         if !e.online { return .offline }
         if let app = e.app { return app }
+        // Schlafen nur automatisch: Schlaf-Fokus/-Fenster UND zu Hause UND keine Bewegung. Schlägt
+        // "zu Hause"; unterwegs oder woanders nie schlafend, dann nur "nicht stören".
+        if e.fokus == "schlafen", e.ort == .zuhause, e.bewegung == nil { return .schlaeft }
         if let ort = e.ort { return ort }
         if let bewegung = e.bewegung { return bewegung }
-        if e.fokus == "schlafen" { return .schlaeft }
         if e.fokus != nil { return .nichtStoeren }
         if e.laedt { return .laedt }
         if let akku = e.akku, akku < 0.15 { return .akkuLeer }

@@ -91,7 +91,6 @@ final class FigurenModell {
     /// What to draw for a person right now: fresh gesture > "Gute Nacht" override > live state > offline.
     func anzeige(_ p: Person) -> Zustand {
         if let g = geste[p], g.bis > Date() { return Zustand(haupt: g.art) }
-        if let bis = grussSchlaeft[p], bis > Date() { return Zustand(haupt: .schlaeft, abzeichen: zustand[p]?.abzeichen ?? []) }
         if p != Raum.shared.ich, !Raum.shared.partnerDa { return Zustand(haupt: .offline, abzeichen: zustand[p]?.abzeichen ?? []) }
         return zustand[p] ?? Zustand(haupt: .ruhig)
     }

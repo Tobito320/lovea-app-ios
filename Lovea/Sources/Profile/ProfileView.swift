@@ -108,7 +108,6 @@ private struct ProfilInhalt: View {
                     if istEigenes {
                         eigeneChips
                         eigeneAktionen
-                        SchlafSchalter()
                         ProfilPunkteKarte(person: person)
                         abschnitt("Spiele-Bilanz") { spieleAbschnittInhalt }
                     } else {

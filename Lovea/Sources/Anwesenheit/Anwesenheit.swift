@@ -130,21 +130,6 @@ final class Anwesenheit {
         }
     }
 
-    /// Profil-Schalter "Wach" überstimmt den Schlafen-Fokus bis zum nächsten 7 Uhr (Berlin),
-    /// "Schläft" hebt das wieder auf.
-    private var wachBis: Date?
-
-    func wach(_ wach: Bool) {
-        let jetzt = Date()
-        if wach, var sieben = Calendar.berlin.date(bySettingHour: 7, minute: 0, second: 0, of: jetzt) {
-            if sieben <= jetzt { sieben = Calendar.berlin.date(byAdding: .day, value: 1, to: sieben) ?? sieben }
-            wachBis = sieben
-        } else {
-            wachBis = nil
-        }
-        aktualisieren()
-    }
-
     private func fokusAktualisieren() {
         guard fokusAutorisiert else { fokus = nil; return }
         let isFocused = INFocusStatusCenter.default.focusStatus.isFocused ?? false
@@ -203,7 +188,7 @@ final class Anwesenheit {
             // ponytail: own connectivity is irrelevant here — `Raum.fluechtig` drops `fl` silently
             // while offline, so this only ever reaches the partner while we ARE online.
             online: true,
-            fokus: fokus == "schlafen" && (wachBis ?? .distantPast) > Date() ? nil : fokus,
+            fokus: fokus,
             morgenGeoeffnet: morgenGeoeffnet,
             stimmung: stimmung?.stimmung,
             brauche: stimmung?.brauche,

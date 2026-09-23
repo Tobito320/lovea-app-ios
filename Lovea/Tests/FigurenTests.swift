@@ -22,6 +22,20 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .herz)
     }
 
+    func testSchlafenNurZuHauseUndInRuhe() {
+        var e = FigurEingabe(person: .ahmed, jetzt: berlin(10, 3, 23))
+        e.fokus = "schlafen"
+        e.ort = .zuhause
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .schlaeft)
+        e.bewegung = .laeuft
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .zuhause)
+        e.bewegung = nil
+        e.ort = .gym
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .gym)
+        e.ort = nil
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .nichtStoeren)
+    }
+
     func testTipptSchlaegtGym() {
         var e = FigurEingabe(person: .annika, jetzt: berlin(10, 3, 14))
         e.app = .tippt
