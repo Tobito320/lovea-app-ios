@@ -26,7 +26,7 @@ final class OrteModell {
 
     private let besuche = BesucheSpeicher()
     private var monitor: CLMonitor?
-    private var monitorGestartet = false
+    private var monitorTask: Task<CLMonitor, Never>?
     private var verworfeneVorschlaege: Set<String>
 
     private init() {
@@ -141,15 +141,18 @@ final class OrteModell {
 
     // ponytail: unsure of the exact `CLMonitor` call shapes below on iOS 26 (no local compiler) -
     // see block-8-report.md for what to double-check before merging.
+    // Ein gemerkter Task statt `if let monitor` + `await CLMonitor(...)`: zwei Aufrufe über den
+    // `await` hinweg legten sonst zwei CLMonitor mit demselben Namen an, iOS beendet dann die App.
     private func monitorSicherstellen() async -> CLMonitor {
-        if let monitor { return monitor }
-        let neu = await CLMonitor("lovea.orte")
-        monitor = neu
-        if !monitorGestartet {
-            monitorGestartet = true
+        if let monitorTask { return await monitorTask.value }
+        let task = Task { @MainActor in
+            let neu = await CLMonitor("lovea.orte")
+            self.monitor = neu
             Task { @MainActor in await self.beobachteEreignisse(neu) }
+            return neu
         }
-        return neu
+        monitorTask = task
+        return await task.value
     }
 
     private func monitorAktualisieren() async {
