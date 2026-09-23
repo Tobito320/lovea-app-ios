@@ -14,6 +14,32 @@ enum PunkteLogik {
 
     struct SpielSieg: Sendable { var von: Person; var datum: String }
 
+    /// One `spiel.ergebnis` op: a game's running tally after `gespielt` rounds.
+    struct SpielStand: Sendable { var spiel: String; var gespielt: Int; var ahmed: Int; var annika: Int; var datum: String; var seq: Int?; var opId: String }
+
+    /// Minor 4: who won each round, from ALL tallies sorted by `gespielt` (not arrival order), so both
+    /// phones agree even when a later round arrives first. Both phones may report the same round —
+    /// the lowest `seq` (then op id) counts, its day is the win's day.
+    static func spieleSiege(_ staende: [SpielStand]) -> [SpielSieg] {
+        var siege: [SpielSieg] = []
+        for liste in Dictionary(grouping: staende, by: \.spiel).values {
+            var proRunde: [Int: SpielStand] = [:]
+            for stand in liste {
+                if let bisher = proRunde[stand.gespielt], (bisher.seq ?? .max, bisher.opId) <= (stand.seq ?? .max, stand.opId) { continue }
+                proRunde[stand.gespielt] = stand
+            }
+            var vorher = (ahmed: 0, annika: 0)
+            for stand in proRunde.values.sorted(by: { $0.gespielt < $1.gespielt }) {
+                let deltaAhmed = stand.ahmed - vorher.ahmed
+                let deltaAnnika = stand.annika - vorher.annika
+                vorher = (stand.ahmed, stand.annika)
+                guard deltaAhmed != deltaAnnika else { continue } // unentschieden: kein Sieg
+                siege.append(SpielSieg(von: deltaAhmed > deltaAnnika ? .ahmed : .annika, datum: stand.datum))
+            }
+        }
+        return siege
+    }
+
     /// One day's own components (everything except the weekly Gym bonus, which needs the whole week).
     static func tagesPunkte(schritte: Int?, zielSchritte: Int, gymAbgehakt: Bool, wasser: Int, zielWasser: Int, chatStreakTag: Bool, spieleGewonnen: Int) -> Int {
         var summe = 0

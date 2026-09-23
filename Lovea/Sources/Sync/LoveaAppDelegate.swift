@@ -12,6 +12,12 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         let kategorien = Set(namen.map { UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [], options: []) })
         UNUserNotificationCenter.current().setNotificationCategories(kategorien)
         application.registerForRemoteNotifications()
+        // I-7: HealthKit observers + background delivery must exist on EVERY launch, including a
+        // background relaunch that never connects a scene. Keychain item is AfterFirstUnlock, so it
+        // is readable in a locked background launch too.
+        if let person = Schluesselbund.shared.get().flatMap(Person.init(rawValue:)) {
+            AppStart.falten(person)
+        }
         return true
     }
 

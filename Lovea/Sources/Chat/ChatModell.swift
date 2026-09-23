@@ -333,6 +333,13 @@ final class ChatModell {
         entwurfSendenJetzt(EntwurfEintrag())
     }
 
+    /// The composer just restored `entwurf` (Minor 1): that is now the baseline, so flushing it
+    /// unchanged later sends nothing — even if the fold moved on meanwhile (another own device sent
+    /// and cleared it), which would otherwise resurrect the old draft there.
+    func entwurfWiederhergestellt(_ entwurf: EntwurfEintrag) {
+        letzterGesendeterEntwurf = entwurf
+    }
+
     /// Seeds `letzterGesendeterEntwurf` from whatever this person's own fold already holds (a
     /// restored draft, or one sent earlier this launch) — otherwise the very first flush after a
     /// plain restore-with-no-edit would resend the identical draft as a redundant op.

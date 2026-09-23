@@ -31,28 +31,46 @@ struct LoveaApp: App {
 
     private func starten(_ person: Person?) {
         Raum.shared.ich = person
-        guard person != nil else { return }
+        guard let person else { return }
         // Bundle JSON (questions, date ideas) is read on first access; do that off the main thread.
         Task.detached(priority: .utility) { _ = FrageDesTages.vorrat; _ = WirModell.ideenVorrat }
-        // Register every fold before the log replays.
-        _ = FigurenModell.shared; _ = ChatModell.shared; _ = ChatEinstellungen.shared; _ = OrteModell.shared
-        _ = KalenderModell.shared; _ = WirModell.shared; _ = SpieleModell.shared; _ = EinstellungenModell.shared
-        _ = TeilenModell.shared; _ = LiveZeichnung.shared; _ = UmzugImport.shared; _ = HealthModell.shared
-        _ = PunkteModell.shared; _ = UmzugAufraeumen.shared; _ = WetterModell.shared
+        AppStart.falten(person)
         Raum.shared.start()
         Standort.shared.start()
-        // Kein Prompt hier (nur `sicherstellen()` vom Health-Tab darf fragen) — startet HealthKit-
-        // Observer/Background-Delivery erneut, falls die Berechtigung früher schon erteilt wurde.
-        // NACH `Raum.shared.start()`, damit dessen Replay-Kette schon existiert (siehe HealthModell).
-        HealthModell.shared.beobachtenStartenFallsErlaubt()
-        // Z-28.2/Z-28.3: Widget-Stand-Schreiber starten, wartende Gym-Ops aus den Widgets abholen.
-        WidgetStandSchreiber.shared.start()
+        // Z-28.2/Z-28.3: wartende Gym-Ops aus den Widgets abholen.
         WidgetPendingOpsMerge.abholen()
     }
 
     private func phaseGewechselt(_ phase: ScenePhase) {
         Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
         if phase == .active { WidgetPendingOpsMerge.abholen() }
+    }
+}
+
+/// Final-Review I-7: everything a launch needs WITHOUT a scene — runs from
+/// `LoveaAppDelegate.didFinishLaunching` (a HealthKit background relaunch may never connect a
+/// scene, and Apple wants the observer queries set up there) and again from the scene's `starten`.
+/// Deliberately no `Raum.shared.start()`: in a background launch no scenePhase change would ever
+/// close that socket; the HealthKit handler's `nachholenBisFertig` connects and disconnects itself.
+@MainActor
+enum AppStart {
+    private static var gefaltetFuer: Person?
+
+    static func falten(_ person: Person) {
+        Raum.shared.ich = person
+        guard gefaltetFuer != person else { return } // twice would double WidgetStandSchreiber's observation chain
+        gefaltetFuer = person
+        // Register every fold before the log replays.
+        _ = FigurenModell.shared; _ = ChatModell.shared; _ = ChatEinstellungen.shared; _ = OrteModell.shared
+        _ = KalenderModell.shared; _ = WirModell.shared; _ = SpieleModell.shared; _ = EinstellungenModell.shared
+        _ = TeilenModell.shared; _ = LiveZeichnung.shared; _ = UmzugImport.shared; _ = HealthModell.shared
+        _ = PunkteModell.shared; _ = UmzugAufraeumen.shared; _ = WetterModell.shared
+        // Kein Prompt hier (nur `sicherstellen()` vom Health-Tab darf fragen) — startet HealthKit-
+        // Observer/Background-Delivery erneut, falls die Berechtigung früher schon erteilt wurde.
+        // Die Replay-Kette existiert schon (Registrierung oben); `Raum.shared.leer()` im Handler wartet darauf.
+        HealthModell.shared.beobachtenStartenFallsErlaubt()
+        // Z-28.2: Widget-Stand-Schreiber, damit auch ein Hintergrund-Start das Widget aktualisiert.
+        WidgetStandSchreiber.shared.start()
     }
 }
 

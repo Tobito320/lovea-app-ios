@@ -116,20 +116,28 @@ test("challengeEndspurtWocheZeit: Sommer-Sonntag ist noch Sommerzeit", () => {
   assert.equal(new Date(challengeEndspurtWocheZeit("2026-09-21")).toISOString(), "2026-09-27T16:00:00.000Z");
 });
 
-test("challengeEndeWocheZeit: Montag danach, 09:00 Berlin", () => {
-  assert.equal(new Date(challengeEndeWocheZeit("2026-10-19")).toISOString(), "2026-10-26T08:00:00.000Z");
+// Final-Review I-3: früher lieferte der Montag 19.10. selbst schon den 26.10. -- genau der Fehler,
+// durch den "Ende" beim Wecken am Montag nie fällig war. Jetzt: Montag an oder nach heute.
+test("challengeEndeWocheZeit: Montag an oder nach heute, 09:00 Berlin", () => {
+  assert.equal(new Date(challengeEndeWocheZeit("2026-10-20")).toISOString(), "2026-10-26T08:00:00.000Z"); // Di -> Mo danach (CET)
+  assert.equal(new Date(challengeEndeWocheZeit("2026-10-25")).toISOString(), "2026-10-26T08:00:00.000Z"); // So -> Mo danach
+  assert.equal(new Date(challengeEndeWocheZeit("2026-10-26")).toISOString(), "2026-10-26T08:00:00.000Z"); // Mo -> derselbe Mo
+  assert.equal(new Date(challengeEndeWocheZeit("2026-09-28")).toISOString(), "2026-09-28T07:00:00.000Z"); // Mo, noch CEST
 });
 
 test("challengeEndspurtMonatZeit: 31.10. 18 Uhr ist schon Winterzeit", () => {
   assert.equal(new Date(challengeEndspurtMonatZeit("2026-10-05")).toISOString(), "2026-10-31T17:00:00.000Z");
 });
 
-test("challengeEndeMonatZeit: 1. November, 09:00 Berlin", () => {
+test("challengeEndeMonatZeit: der 1. an oder nach heute, 09:00 Berlin", () => {
   assert.equal(new Date(challengeEndeMonatZeit("2026-10-05")).toISOString(), "2026-11-01T08:00:00.000Z");
+  assert.equal(new Date(challengeEndeMonatZeit("2026-11-01")).toISOString(), "2026-11-01T08:00:00.000Z");
+  assert.equal(new Date(challengeEndeMonatZeit("2026-10-01")).toISOString(), "2026-10-01T07:00:00.000Z");
+  assert.equal(new Date(challengeEndeMonatZeit("2026-12-15")).toISOString(), "2027-01-01T08:00:00.000Z");
 });
 
 test("naechsterAlarm: Challenge-Kandidaten laufen immer mit, auch ohne Op-Kontext", () => {
-  const montagFrueh = Date.parse("2026-09-21T08:00:00.000Z");
+  const montagFrueh = Date.parse("2026-09-21T06:00:00.000Z"); // Mo 08:00 Berlin, vor dem 09-Uhr-"Ende" (I-3)
   const { faellig, naechste } = naechsterAlarm({ erinnerungenHeute: {} }, montagFrueh);
   assert.ok(!faellig.some((f) => f.art.startsWith("challenge")), "so früh in der Woche ist noch nichts fällig");
   assert.ok(naechste !== null);
@@ -140,4 +148,38 @@ test("naechsterAlarm: eine schon erledigte Challenge-Periode wird nicht nochmal 
   const kontext = { erinnerungenHeute: {}, challengeErledigt: { endspurtWoche: true } };
   const { faellig } = naechsterAlarm(kontext, sonntagAbend);
   assert.ok(!faellig.some((f) => f.art === "challengeEndspurtWoche"));
+});
+
+// Final-Review I-3: die "Ende"-Mitteilungen müssen beim Wecken wirklich fällig sein -- gegen den echten
+// naechsterAlarm geprüft, nicht nur die Zeitfunktion (daran ist der alte Test vorbeigegangen).
+function faelligeArten(jetztIso, challengeErledigt = {}) {
+  return naechsterAlarm({ erinnerungenHeute: {}, challengeErledigt }, Date.parse(jetztIso)).faellig.map((f) => f.art);
+}
+
+test("naechsterAlarm: challengeEndeWoche ist Montag 09:05 fällig (Sommerzeit)", () => {
+  assert.ok(faelligeArten("2026-09-28T07:05:00.000Z").includes("challengeEndeWoche")); // Mo 28.09. 09:05 CEST
+});
+
+test("naechsterAlarm: challengeEndeWoche ist Montag 09:05 fällig, Woche mit Zeitumstellung", () => {
+  assert.ok(faelligeArten("2026-10-26T08:05:00.000Z").includes("challengeEndeWoche")); // Mo 26.10. 09:05 CET
+  assert.ok(faelligeArten("2026-10-26T22:59:00.000Z").includes("challengeEndeWoche"), "auch spät am Montag noch fällig");
+});
+
+test("naechsterAlarm: challengeEndeMonat ist am 1. um 09:05 fällig, vor und nach der Zeitumstellung", () => {
+  assert.ok(faelligeArten("2026-10-01T07:05:00.000Z").includes("challengeEndeMonat")); // 01.10. 09:05 CEST
+  assert.ok(faelligeArten("2026-11-01T08:05:00.000Z").includes("challengeEndeMonat")); // 01.11. 09:05 CET
+});
+
+test("naechsterAlarm: nach dem Feuern (erledigt) ist Ende erst nächsten Montag wieder dran", () => {
+  const jetzt = Date.parse("2026-10-26T08:05:00.000Z");
+  const arten = faelligeArten("2026-10-26T08:05:00.000Z", { endeWoche: true });
+  assert.ok(!arten.includes("challengeEndeWoche"));
+  const { naechste } = naechsterAlarm({ erinnerungenHeute: { frage: true }, challengeErledigt: { endeWoche: true } }, jetzt);
+  assert.ok(naechste > jetzt);
+});
+
+test("naechsterAlarm: mitten in Woche und Monat ist nichts 'vorbei' (kein falscher Push beim Erststart)", () => {
+  const arten = faelligeArten("2026-09-30T10:00:00.000Z"); // Mi 30.09. 12:00, nichts erledigt
+  assert.ok(!arten.includes("challengeEndeWoche"));
+  assert.ok(!arten.includes("challengeEndeMonat"));
 });

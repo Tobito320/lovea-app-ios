@@ -21,6 +21,39 @@ final class HealthLogikTests: XCTestCase {
         XCTAssertEqual(HealthLogik.zielAmTag("2026-09-22", aenderungen, standard: 10_000), 10_000)
     }
 
+    // MARK: - Final-Review I-2: bestätigtes Echo eigener Ops
+
+    func testEchoEigenerOpBekommtSeqUndWidgetAbhakenGewinnt() {
+        var gym: [Person: [String: TagesEintrag<Int>]] = [:]
+        let tag = "2026-09-23"
+        // Morgens in der App abgehakt: erst optimistisch (seq nil), dann das bestätigte Echo.
+        HealthFaltung.aufnehmen(&gym, TagesEintrag(seq: nil, von: .ahmed, datum: tag, gesendetAm: tag, wert: 1, id: "app"))
+        HealthFaltung.aufnehmen(&gym, TagesEintrag(seq: 500, von: .ahmed, datum: tag, gesendetAm: tag, wert: 1, id: "app"))
+        XCTAssertEqual(gym[.ahmed]?[tag]?.seq, 500, "das Echo ersetzt die optimistische Kopie")
+        // Abends übers Widget wieder weg (POST /ops, seq 900) — muss auf diesem Gerät ankommen.
+        HealthFaltung.aufnehmen(&gym, TagesEintrag(seq: 900, von: .ahmed, datum: tag, gesendetAm: tag, wert: 0, id: "widget"))
+        XCTAssertEqual(gym[.ahmed]?[tag]?.wert, 0)
+        // Der Widget-Merge reiht dieselbe Op später nochmal ein (seq nil): die bekannte seq bleibt.
+        HealthFaltung.aufnehmen(&gym, TagesEintrag(seq: nil, von: .ahmed, datum: tag, gesendetAm: tag, wert: 0, id: "widget"))
+        XCTAssertEqual(gym[.ahmed]?[tag]?.seq, 900)
+        // Ein älteres, spät angekommenes Op verliert weiter.
+        HealthFaltung.aufnehmen(&gym, TagesEintrag(seq: 400, von: .ahmed, datum: tag, gesendetAm: tag, wert: 1, id: "alt"))
+        XCTAssertEqual(gym[.ahmed]?[tag]?.wert, 0)
+    }
+
+    func testZweiteZielAenderungAmSelbenTagGilt() {
+        var ziele: [ZielAenderung] = []
+        let tag = "2026-09-23"
+        HealthLogik.zielAufnehmen(&ziele, ZielAenderung(seq: nil, datum: tag, wert: 12_000, id: "a"))
+        HealthLogik.zielAufnehmen(&ziele, ZielAenderung(seq: nil, datum: tag, wert: 15_000, id: "b"))
+        XCTAssertEqual(HealthLogik.zielAmTag(tag, ziele, standard: 10_000), 15_000, "beide unbestätigt: die spätere gilt")
+        HealthLogik.zielAufnehmen(&ziele, ZielAenderung(seq: 10, datum: tag, wert: 12_000, id: "a"))
+        XCTAssertEqual(HealthLogik.zielAmTag(tag, ziele, standard: 10_000), 15_000)
+        HealthLogik.zielAufnehmen(&ziele, ZielAenderung(seq: 11, datum: tag, wert: 15_000, id: "b"))
+        XCTAssertEqual(ziele.count, 2, "Echos ersetzen, statt anzuhängen")
+        XCTAssertEqual(HealthLogik.zielAmTag(tag, ziele, standard: 10_000), 15_000, "wie auf dem Partnergerät")
+    }
+
     // MARK: - Stufen (Spec 3.2)
 
     func testGymStufeWochenzielGeschafft() {
@@ -125,6 +158,32 @@ final class HealthLogikTests: XCTestCase {
         let ergebnis = HealthLogik.schlafZusammenfassen([intervall])
         XCTAssertEqual(ergebnis?.minuten, 8 * 60 + 30, "eine Stunde mehr als die 7:30 Wanduhr-Differenz, wegen der Zeitumstellung")
         XCTAssertEqual(Datum.text(ergebnis!.bis), "2026-10-25")
+    }
+
+    // MARK: - Final-Review I-4: eine Nacht pro Aufwach-Tag
+
+    private func intervall(_ tagVon: Int, _ stundeVon: Int, _ tagBis: Int, _ stundeBis: Int) -> HealthLogik.SchlafIntervall {
+        HealthLogik.SchlafIntervall(
+            von: Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: tagVon, hour: stundeVon))!,
+            bis: Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: tagBis, hour: stundeBis))!
+        )
+    }
+
+    func testSchlafNachtZaehltDieVornachtNichtMit() {
+        // So 23–Mo 07 und Mo 23–Di 07, beide im großzügigen HealthKit-Fenster für Dienstag.
+        let intervalle = [intervall(20, 23, 21, 7), intervall(21, 23, 22, 7)]
+        let dienstag = HealthLogik.schlafNacht(intervalle, tag: "2026-09-22")
+        XCTAssertEqual(dienstag?.minuten, 8 * 60, "nur die eine Nacht, nicht 16 h")
+        XCTAssertEqual(dienstag?.von, intervall(21, 23, 22, 7).von)
+        XCTAssertEqual(HealthLogik.schlafNacht(intervalle, tag: "2026-09-21")?.von, intervall(20, 23, 21, 7).von, "die Vornacht gehört zum Montag")
+    }
+
+    func testSchlafNachtIgnoriertMittagsschlafUndHaeltKurzesAufwachen() {
+        let nacht = [intervall(21, 23, 22, 3), intervall(22, 4, 22, 7)] // eine Stunde wach um 3
+        let nickerchen = intervall(22, 14, 22, 15)
+        let ergebnis = HealthLogik.schlafNacht(nacht + [nickerchen], tag: "2026-09-22")
+        XCTAssertEqual(ergebnis?.minuten, 7 * 60, "Wachphase nicht gezählt, Nickerchen nicht dazu")
+        XCTAssertEqual(ergebnis?.bis, intervall(22, 4, 22, 7).bis, "Aufwachen bleibt 07:00, nicht 15:00")
     }
 
     // MARK: - Senden nur bei Änderung

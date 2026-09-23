@@ -114,7 +114,9 @@ struct KapselBriefBlatt: View {
     private var kannSenden: Bool {
         let textVorhanden = !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         switch art {
-        case .kapsel: return textVorhanden || hochgeladenesFoto != nil
+        // Minor 11: nicht senden, solange das gewählte Foto noch lädt/hochlädt (oder das Hochladen
+        // scheiterte) — sonst ginge die Kapsel still ohne Foto raus. "Foto entfernen" gibt Senden frei.
+        case .kapsel: return (textVorhanden || hochgeladenesFoto != nil) && !fotoLaedt && (fotoVorschau == nil || hochgeladenesFoto != nil)
         case .brief: return textVorhanden && !titel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         }
     }

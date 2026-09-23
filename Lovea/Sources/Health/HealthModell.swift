@@ -8,8 +8,8 @@ import UIKit
 /// Was `Schritte/SchritteModell` — moved and extended into Health per the Zielplan. Authorization is
 /// requested only once ever, from `sicherstellen()` (called by the Health tab's `onAppear`); the
 /// HealthKit observers themselves are (re)started on every launch via `beobachtenStartenFallsErlaubt()`
-/// (from `LoveaApp.starten`, AFTER `Raum.shared.start()`) without prompting — required so background
-/// delivery keeps working across relaunches, including ones iOS triggers in the background.
+/// (from `AppStart.falten`, already in `didFinishLaunching` — I-7) without prompting — required so
+/// background delivery keeps working across relaunches, including ones iOS triggers in the background.
 @MainActor
 @Observable
 final class HealthModell {
@@ -73,8 +73,11 @@ final class HealthModell {
     }
 
     /// "Letzter gewinnt" (schnittstellen.md), keine Personen-Historie wie bei den anderen Zielen.
+    /// Gleichstand (zwei unbestätigte) → die später angekommene (I-2).
     var zielGemeinsamWoche: Int {
-        zielGemeinsamWocheAenderungen.max { ($0.seq ?? .max) < ($1.seq ?? .max) }?.wert ?? 140_000
+        zielGemeinsamWocheAenderungen.enumerated()
+            .max { ($0.element.seq ?? .max, $0.offset) < ($1.element.seq ?? .max, $1.offset) }?
+            .element.wert ?? 140_000
     }
 
     // MARK: - Schreiben
@@ -94,14 +97,16 @@ final class HealthModell {
 
     // MARK: - Ops falten
 
+    // I-2: no one-shot `angewendeteOps` guard for schritte/habit/ziel — the confirmed echo of an own
+    // op must reach the fold to replace its `seq == nil` copy (both folds are idempotent by op id).
     private func schritteOpAnwenden(_ op: Op) {
-        guard angewendeteOps.insert(op.id).inserted, let d = op.daten(SchritteD.self) else { return }
-        HealthFaltung.aufnehmen(&schritte, TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: Datum.text(op.zeit), wert: d.anzahl))
+        guard let d = op.daten(SchritteD.self) else { return }
+        HealthFaltung.aufnehmen(&schritte, TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: Datum.text(op.zeit), wert: d.anzahl, id: op.id))
     }
 
     private func habitOpAnwenden(_ op: Op) {
-        guard angewendeteOps.insert(op.id).inserted, let d = op.daten(HabitD.self) else { return }
-        let eintrag = TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: Datum.text(op.zeit), wert: d.wert)
+        guard let d = op.daten(HabitD.self) else { return }
+        let eintrag = TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: Datum.text(op.zeit), wert: d.wert, id: op.id)
         if d.art == "gym" { HealthFaltung.aufnehmen(&gym, eintrag) }
         else if d.art == "wasser" { HealthFaltung.aufnehmen(&wasser, eintrag) }
     }
@@ -113,14 +118,14 @@ final class HealthModell {
     }
 
     private func zielOpAnwenden(_ op: Op) {
-        guard angewendeteOps.insert(op.id).inserted, let d = op.daten(EinstellungD.self) else { return }
+        guard let d = op.daten(EinstellungD.self) else { return }
         guard case .number(let zahl) = d.wert else { return }
-        let aenderung = ZielAenderung(seq: op.seq, datum: Datum.text(op.zeit), wert: Int(zahl))
+        let aenderung = ZielAenderung(seq: op.seq, datum: Datum.text(op.zeit), wert: Int(zahl), id: op.id)
         switch d.schluessel {
-        case "ziel.schritte": zielSchritteAenderungen[op.von, default: []].append(aenderung)
-        case "ziel.gym": zielGymAenderungen[op.von, default: []].append(aenderung)
-        case "ziel.wasser": zielWasserAenderungen[op.von, default: []].append(aenderung)
-        case "ziel.gemeinsamWoche": zielGemeinsamWocheAenderungen.append(aenderung)
+        case "ziel.schritte": HealthLogik.zielAufnehmen(&zielSchritteAenderungen[op.von, default: []], aenderung)
+        case "ziel.gym": HealthLogik.zielAufnehmen(&zielGymAenderungen[op.von, default: []], aenderung)
+        case "ziel.wasser": HealthLogik.zielAufnehmen(&zielWasserAenderungen[op.von, default: []], aenderung)
+        case "ziel.gemeinsamWoche": HealthLogik.zielAufnehmen(&zielGemeinsamWocheAenderungen, aenderung)
         default: break
         }
     }
@@ -234,9 +239,9 @@ final class HealthModell {
         }
     }
 
-    /// Nacht wird dem Aufwach-Tag zugeordnet (Spec 3.1) — Fenster reicht daher vom Vorabend bis
-    /// zum Ende von `tag`, alle Asleep-Intervalle darin werden zusammengefasst (`HealthLogik`) und
-    /// nur behalten, wenn das Ende wirklich auf `tag` fällt.
+    /// Nacht wird dem Aufwach-Tag zugeordnet (Spec 3.1). Das Fenster (30 h vor `tag` bis Ende `tag`)
+    /// ist absichtlich großzügig; welche Intervalle wirklich die Nacht von `tag` sind, entscheidet
+    /// `HealthLogik.schlafNacht` (I-4: die Vornacht endet am Vortag und fällt dort raus).
     private func schlafAn(_ tag: String) async -> (minuten: Int, von: Date, bis: Date)? {
         let tagStart = Calendar.berlin.startOfDay(for: Datum.datum(tag))
         guard let fensterStart = Calendar.berlin.date(byAdding: .hour, value: -30, to: tagStart),
@@ -252,8 +257,7 @@ final class HealthModell {
         let intervalle = samples
             .filter { Self.asleepWerte.contains($0.value) }
             .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
-        guard let zusammengefasst = HealthLogik.schlafZusammenfassen(intervalle), Datum.text(zusammengefasst.bis) == tag else { return nil }
-        return zusammengefasst
+        return HealthLogik.schlafNacht(intervalle, tag: tag)
     }
 
     /// UNSICHER (Bericht): `HKCategoryValueSleepAnalysis.allAsleepValues` (iOS 16+) deckt vermutlich

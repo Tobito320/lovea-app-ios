@@ -68,6 +68,11 @@ struct ChatEingabeleiste: View {
     /// Z-26.2: guards against the two restore call sites (appear, and the `nachgeholt` poll) both
     /// firing close together and double-appending a text-less draft's images.
     @State private var wirdWiederhergestellt = false
+    /// Final-Review I-6: restored draft photo/voice ids not downloaded yet (or whose download failed).
+    /// They stay part of every `entwurf.setzen` until loaded — only a send (or recording a new voice
+    /// note) drops them, never an early flush.
+    @State private var ausstehendeMedien: [String] = []
+    @State private var ausstehendeSprache: String?
     @Environment(\.scenePhase) private var scenePhase
 
     private static let hoehe: CGFloat = 36
@@ -234,7 +239,7 @@ struct ChatEingabeleiste: View {
             }
             SprachAufnahmeButton(
                 ich: ich, antwortAuf: antwortAuf?.id, onGesendet: { self.antwortAuf = nil }, vorschau: $sprachEntwurf,
-                onEntwurfAendern: { beruehrt = true; entwurfAktualisieren() }, onBelegt: { sprachBelegt = $0 }
+                onEntwurfAendern: { beruehrt = true; ausstehendeSprache = nil; entwurfAktualisieren() }, onBelegt: { sprachBelegt = $0 }
             )
             .foregroundStyle(.secondary)
             .padding(.trailing, sprachBelegt ? 4 : 0)
@@ -306,6 +311,8 @@ struct ChatEingabeleiste: View {
 
         eingabeAttr = NSAttributedString()
         anhaenge = []
+        ausstehendeMedien = []
+        ausstehendeSprache = nil
         antwortAuf = nil
         mehrzeilig = false
         beruehrt = false
@@ -348,18 +355,18 @@ struct ChatEingabeleiste: View {
     // MARK: - Draft (Z-26.2)
 
     private func entwurfAktualisieren() {
-        // Glyphs can't survive as plain String — stripped here too, same as at send.
-        // ponytail: a Genmoji/sticker mid-draft is lost across relaunch, the text around it isn't.
-        let text = GenmojiExtraktion.textOhneGlyphen(eingabeAttr)
-        let medien = anhaenge.compactMap { $0.hochgeladen?.medienId }
-        ChatModell.shared.entwurfGeaendert(text: text, medien: medien, sprache: sprachEntwurf?.medienId)
+        ChatModell.shared.entwurfGeaendert(text: entwurfText, medien: entwurfMedien, sprache: entwurfSprache)
     }
 
     private func entwurfFlush() {
-        let text = GenmojiExtraktion.textOhneGlyphen(eingabeAttr)
-        let medien = anhaenge.compactMap { $0.hochgeladen?.medienId }
-        ChatModell.shared.entwurfFlush(text: text, medien: medien, sprache: sprachEntwurf?.medienId)
+        ChatModell.shared.entwurfFlush(text: entwurfText, medien: entwurfMedien, sprache: entwurfSprache)
     }
+
+    // Glyphs can't survive as plain String — stripped here too, same as at send.
+    // ponytail: a Genmoji/sticker mid-draft is lost across relaunch, the text around it isn't.
+    private var entwurfText: String { GenmojiExtraktion.textOhneGlyphen(eingabeAttr) }
+    private var entwurfMedien: [String] { anhaenge.compactMap { $0.hochgeladen?.medienId } + ausstehendeMedien }
+    private var entwurfSprache: String? { sprachEntwurf?.medienId ?? ausstehendeSprache }
 
     /// Restores into an otherwise-empty, untouched composer only (never overwrites what's already
     /// being typed this session) — safe to call repeatedly, on appear and again once the log has
@@ -368,22 +375,41 @@ struct ChatEingabeleiste: View {
     /// caught up), and a text-less draft's `anhaenge.isEmpty` guard wouldn't yet see the first
     /// call's still-running restore — `wirdWiederhergestellt` closes that gap synchronously.
     private func entwurfWiederherstellen() {
-        guard !beruehrt, !wirdWiederhergestellt, eingabeAttr.length == 0, anhaenge.isEmpty, sprachEntwurf == nil else { return }
-        let entwurf = ChatModell.shared.entwurf(fuer: ich)
-        guard !entwurf.leer else { return }
-        if !entwurf.text.isEmpty {
-            eingabeAttr = NSAttributedString(string: entwurf.text, attributes: [.font: UIFont.preferredFont(forTextStyle: .body)])
+        guard !wirdWiederhergestellt else { return }
+        if !beruehrt, eingabeAttr.length == 0, anhaenge.isEmpty, sprachEntwurf == nil, ausstehendeMedien.isEmpty, ausstehendeSprache == nil {
+            let entwurf = ChatModell.shared.entwurf(fuer: ich)
+            guard !entwurf.leer else { return }
+            // Minor 1: what the composer now shows IS the server's draft — a later flush of it
+            // unchanged must not resend it (e.g. after a second device already sent and cleared it).
+            ChatModell.shared.entwurfWiederhergestellt(entwurf)
+            if !entwurf.text.isEmpty {
+                eingabeAttr = NSAttributedString(string: entwurf.text, attributes: [.font: UIFont.preferredFont(forTextStyle: .body)])
+            }
+            ausstehendeMedien = entwurf.medien
+            ausstehendeSprache = entwurf.sprache
         }
-        guard !entwurf.medien.isEmpty || entwurf.sprache != nil else { return }
+        ausstehendeLaden()
+    }
+
+    /// I-6: downloads the still-pending restored ids; also the retry for ones that failed earlier
+    /// (this runs again on appear and once caught up). Typing meanwhile doesn't stop it — the photos
+    /// are part of the draft being continued. A send in between clears the pending ids, so nothing
+    /// comes back after it.
+    private func ausstehendeLaden() {
+        guard !ausstehendeMedien.isEmpty || ausstehendeSprache != nil else { return }
         wirdWiederhergestellt = true
+        let medien = ausstehendeMedien
+        let sprache = ausstehendeSprache
         Task {
             defer { wirdWiederhergestellt = false }
-            for medienId in entwurf.medien {
-                guard !beruehrt, let anhang = await entwurfBildLaden(medienId) else { continue }
+            for medienId in medien {
+                guard let anhang = await entwurfBildLaden(medienId), let index = ausstehendeMedien.firstIndex(of: medienId) else { continue }
+                ausstehendeMedien.remove(at: index)
                 anhaenge.append(anhang)
             }
-            if let sprache = entwurf.sprache, !beruehrt {
-                sprachEntwurf = await entwurfSpracheLaden(sprache)
+            if let sprache, let geladen = await entwurfSpracheLaden(sprache), ausstehendeSprache == sprache {
+                ausstehendeSprache = nil
+                if sprachEntwurf == nil { sprachEntwurf = geladen }
             }
         }
     }

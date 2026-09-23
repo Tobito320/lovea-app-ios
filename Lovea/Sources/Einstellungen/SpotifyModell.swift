@@ -123,14 +123,24 @@ final class SpotifyAuth: NSObject, ASWebAuthenticationPresentationContextProvidi
     // an (unavailable here, this isn't async) await.
     private func starteSession(_ authURL: URL) async -> URL? {
         await withCheckedContinuation { fortsetzen in
+            // `aktiveSession != nil` = "noch nicht fortgesetzt": whichever side (completion or a failed
+            // `start()`) gets there first resumes, the other one does nothing — never twice.
             let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "lovea") { [weak self] url, _ in
-                MainActor.assumeIsolated { self?.aktiveSession = nil }
-                fortsetzen.resume(returning: url)
+                let offen = MainActor.assumeIsolated { () -> Bool in
+                    defer { self?.aktiveSession = nil }
+                    return self?.aktiveSession != nil
+                }
+                if offen { fortsetzen.resume(returning: url) }
             }
             session.presentationContextProvider = self
             session.prefersEphemeralWebBrowserSession = true
             aktiveSession = session
-            session.start()
+            // Minor 8: `start()` returning false never calls the completion — without this the
+            // "Spotify verbinden" button stayed disabled until relaunch.
+            if !session.start(), aktiveSession != nil {
+                aktiveSession = nil
+                fortsetzen.resume(returning: nil)
+            }
         }
     }
 
@@ -173,18 +183,34 @@ struct SpotifyHoertGeradeChip: View {
                 guard let urlText = song.url, let url = URL(string: urlText) else { return }
                 UIApplication.shared.open(url)
             } label: {
-                HStack(spacing: 4) {
-                    Image(systemName: "music.note")
-                    Text(titel).lineLimit(1)
-                }
-                .font(.caption2.weight(.semibold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .glassEffect(.regular, in: .capsule)
+                inhalt(song, titel: titel)
+                    .font(.caption2.weight(.semibold))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .glassEffect(.regular, in: .capsule)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Hört gerade: \(titel)\(song.kuenstler.map { ", \($0)" } ?? "")")
             .accessibilityHint("Öffnet Spotify")
+        }
+    }
+
+    /// Minor 9 (Spec 9: "Titel, Künstler, Cover"): the server already sends all three.
+    private func inhalt(_ song: SpotifyModell.Song, titel: String) -> some View {
+        let kuenstler = song.kuenstler.flatMap { $0.isEmpty ? nil : $0 }
+        return HStack(spacing: 4) {
+            if let cover = song.cover.flatMap(URL.init(string:)) {
+                AsyncImage(url: cover) { bild in
+                    bild.resizable().scaledToFill()
+                } placeholder: {
+                    Image(systemName: "music.note")
+                }
+                .frame(width: 16, height: 16)
+                .clipShape(RoundedRectangle(cornerRadius: 3))
+            } else {
+                Image(systemName: "music.note")
+            }
+            Text(kuenstler.map { "\(titel) · \($0)" } ?? titel).lineLimit(1)
         }
     }
 }

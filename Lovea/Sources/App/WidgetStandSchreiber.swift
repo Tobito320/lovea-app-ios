@@ -192,7 +192,8 @@ final class WidgetStandSchreiber {
     /// erst beim nächsten beobachteten Zustandswechsel auf (Grenze, siehe Bericht).
     private func letztesFotoDesPartners(_ partner: Person) -> URL? {
         for nachricht in ChatModell.shared.nachrichten.reversed() {
-            guard nachricht.von == partner, nachricht.snap == nil else { continue }
+            // Minor 5: nie ein gelöschtes Foto oder eine noch verschlossene Zeitkapsel ins Widget.
+            guard nachricht.von == partner, nachricht.snap == nil, !nachricht.geloescht, !ChatModell.verschlossen(nachricht) else { continue }
             guard let medium = nachricht.medien.first(where: { $0.typ == "foto" }) else { continue }
             if let lokal = Medien.lokal(medium.id) { return lokal }
         }

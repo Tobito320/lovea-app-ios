@@ -13,6 +13,9 @@ enum WidgetPendingOpsMerge {
                 guard let op = Self.op(aus: pending) else { continue }
                 Raum.shared.einreihen(op)
             }
+            // Minor 7: erst löschen, wenn die Ops wirklich in der Warteschlange auf der Platte liegen
+            // (`einreihen` schreibt über die Arbeitskette) — ein Kill dazwischen verlöre sonst den Tipp.
+            await Raum.shared.leer()
             for datei in dateien { try? FileManager.default.removeItem(at: datei) }
         }
     }

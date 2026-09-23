@@ -143,4 +143,18 @@ final class PunkteLogikTests: XCTestCase {
         )
         XCTAssertEqual(stand[.annika], 10)
     }
+
+    /// Minor 4: Runde 2 kommt vor Runde 1 an, und beide Handys melden Runde 1 — trotzdem genau
+    /// ein Sieg pro Runde, egal in welcher Reihenfolge.
+    func testSpieleSiegeUnabhaengigVonAnkunftsreihenfolge() {
+        let r1 = PunkteLogik.SpielStand(spiel: "s", gespielt: 1, ahmed: 1, annika: 0, datum: "2026-09-22", seq: 10, opId: "a")
+        let r1Doppelt = PunkteLogik.SpielStand(spiel: "s", gespielt: 1, ahmed: 1, annika: 0, datum: "2026-09-22", seq: 11, opId: "b")
+        let r2 = PunkteLogik.SpielStand(spiel: "s", gespielt: 2, ahmed: 1, annika: 1, datum: "2026-09-23", seq: 12, opId: "c")
+        for reihenfolge in [[r1, r1Doppelt, r2], [r2, r1Doppelt, r1]] {
+            let siege = PunkteLogik.spieleSiege(reihenfolge)
+            XCTAssertEqual(siege.count, 2)
+            XCTAssertEqual(siege.filter { $0.von == .ahmed }.map(\.datum), ["2026-09-22"])
+            XCTAssertEqual(siege.filter { $0.von == .annika }.map(\.datum), ["2026-09-23"])
+        }
+    }
 }

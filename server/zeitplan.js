@@ -126,9 +126,13 @@ export function challengeEndspurtWocheZeit(heuteStr) {
   return berlinInstant(y, mo, d, 18, 0, 0);
 }
 
+// Final-Review I-3: "Ende" feuert am Montag der NEUEN Woche -- also am Montag an oder nach `heute`
+// (Montag selbst -> heute 09:00, Di..So -> nächster Montag). Vorher lieferte ein Montag schon den
+// Montag danach, beim Wecken am Montag 09:00 war der Kandidat also nie fällig. Ein Erststart mitten
+// in der Woche plant den nächsten Montag statt sofort eine falsche "vorbei"-Mitteilung zu senden.
 export function challengeEndeWocheZeit(heuteStr) {
-  const naechsterMontag = alsDatumStr(tagVerschieben(montagDerWoche(heuteStr), 7));
-  const [y, mo, d] = naechsterMontag.split("-").map(Number);
+  const montag = montagDerWoche(alsDatumStr(tagVerschieben(heuteStr, 6)));
+  const [y, mo, d] = montag.split("-").map(Number);
   return berlinInstant(y, mo, d, 9, 0, 0);
 }
 
@@ -137,8 +141,10 @@ export function challengeEndspurtMonatZeit(heuteStr) {
   return berlinInstant(y, mo, letzterTagImMonat(y, mo), 18, 0, 0);
 }
 
+// I-3, wie oben: der 1. an oder nach `heute` (am 1. selbst -> heute 09:00).
 export function challengeEndeMonatZeit(heuteStr) {
-  const [y, mo] = heuteStr.split("-").map(Number);
+  const [y, mo, d] = heuteStr.split("-").map(Number);
+  if (d === 1) return berlinInstant(y, mo, 1, 9, 0, 0);
   const naechster = mo === 12 ? { y: y + 1, mo: 1 } : { y, mo: mo + 1 };
   return berlinInstant(naechster.y, naechster.mo, 1, 9, 0, 0);
 }

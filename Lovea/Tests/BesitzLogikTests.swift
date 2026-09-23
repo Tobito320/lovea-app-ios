@@ -55,6 +55,50 @@ final class BesitzLogikTests: XCTestCase {
         XCTAssertFalse(ergebnis.abgelehnt.contains("a"))
     }
 
+    // MARK: - Final-Review I-1: Urteil hängt nur an Daten bis zum eigenen seq
+
+    private func kauf(_ seq: Int, _ id: String, _ artikel: String, verdient: Int) -> BesitzLogik.Kauf {
+        BesitzLogik.Kauf(seq: seq, id: id, von: .annika, artikel: artikel, fuer: .annika, verdient: verdient)
+    }
+
+    func testAbgelehnterKaufBleibtAbgelehntWennSpaeterMehrPunkteKommen() {
+        // Zwei Geräte, je 4000 verdient, zwei Taschen gleichzeitig: 101 wird abgelehnt.
+        let kaeufe = [kauf(100, "a", "gucci-tasche", verdient: 4000), kauf(101, "b", "gucci-tasche", verdient: 4000)]
+        XCTAssertEqual(BesitzLogik.auswerten(kaeufe, verdient: [.annika: 4000], preis: preis).abgelehnt, ["b"])
+        // Eine Woche später hat sie 5000 mehr verdient — "b" darf NICHT nachträglich durchgehen.
+        let spaeter = BesitzLogik.auswerten(kaeufe, verdient: [.annika: 9000], preis: preis)
+        XCTAssertEqual(spaeter.abgelehnt, ["b"])
+        XCTAssertEqual(spaeter.ausgegeben[.annika], 4000)
+    }
+
+    func testAngenommenerKaufUeberlebtSpaeterWenigerPunkte() {
+        // Gym abgehakt (+40), mit genau dem Stand gekauft, dann Gym wieder weg: verdient fällt unter den Preis.
+        let kaeufe = [kauf(100, "a", "gucci-tasche", verdient: 4000)]
+        let ergebnis = BesitzLogik.auswerten(kaeufe, verdient: [.annika: 3960], preis: preis)
+        XCTAssertTrue(ergebnis.besitzt("gucci-tasche", .annika), "Gekauftes gehört einem für immer (Spec 4.3)")
+        XCTAssertTrue(ergebnis.abgelehnt.isEmpty)
+    }
+
+    func testSpaetererKaufFlackertNichtMitDemLebenszeitStand() {
+        // Review-Szenario: 100 (4000) ok, 101 (4000) abgelehnt, 150 (Socken, verdient 4150) ok —
+        // bei jedem späteren Lebenszeit-Stand dasselbe Ergebnis.
+        let kaeufe = [kauf(100, "a", "gucci-tasche", verdient: 4000), kauf(101, "b", "gucci-tasche", verdient: 4000), kauf(150, "c", "socken", verdient: 4150)]
+        for lebenszeit in [4150, 8000, 8150, 12_000] {
+            let ergebnis = BesitzLogik.auswerten(kaeufe, verdient: [.annika: lebenszeit], preis: preis)
+            XCTAssertEqual(ergebnis.abgelehnt, ["b"], "bei \(lebenszeit)")
+            XCTAssertTrue(ergebnis.besitzt("socken", .annika), "bei \(lebenszeit)")
+        }
+    }
+
+    // MARK: - Final-Review I-5: exklusives Teil für "Gemeinsam Monat"
+
+    func testExklusivesTeilProErreichtemMonat() {
+        let exklusiv = ["uhr.rolex-submariner", "tier.vogel-blau"]
+        XCTAssertEqual(BesitzLogik.exklusivFrei(erreichteMonate: 0, exklusiv: exklusiv), [])
+        XCTAssertEqual(BesitzLogik.exklusivFrei(erreichteMonate: 1, exklusiv: exklusiv), ["uhr.rolex-submariner"])
+        XCTAssertEqual(BesitzLogik.exklusivFrei(erreichteMonate: 5, exklusiv: exklusiv), Set(exklusiv))
+    }
+
     func testUnbestaetigteOpsWerdenNachDenBestaetigtenVerarbeitet() {
         let unbestaetigt = BesitzLogik.Kauf(seq: nil, id: "b", von: .ahmed, artikel: "gucci-tasche", fuer: .ahmed)
         let bestaetigt = BesitzLogik.Kauf(seq: 1, id: "a", von: .ahmed, artikel: "gucci-tasche", fuer: .ahmed)

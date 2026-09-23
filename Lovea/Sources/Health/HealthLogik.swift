@@ -19,13 +19,29 @@ struct TagesEintrag<Wert: Sendable>: Sendable {
     /// Gym-backfill rule (Spec 4.1). Irrelevant for steps/water, always set for uniformity.
     var gesendetAm: String
     var wert: Wert
+    /// The originating `Op.id` (I-2). Last with a unique default so plain test entries never look
+    /// like "the same op".
+    var id: String = UUID().uuidString
 }
 
 enum HealthFaltung {
     /// Folds one entry into a per-person-per-day map, keeping the higher-`seq` entry on a clash.
+    /// Final-Review I-2: the confirmed echo of an own op (same `id`) replaces its optimistic copy, so
+    /// it takes part with its real `seq` from then on — otherwise it stays `nil` (= newest) forever
+    /// and a later widget/second-device op could never beat it. A redelivery without `seq` (the widget
+    /// merge re-queues an op the log may already have confirmed) keeps the known `seq`.
+    // ponytail: only the winner per day is kept — a confirmed op from elsewhere that lost to a still-
+    // unconfirmed own op is gone if that own op later confirms BELOW it (needs a live broadcast to beat
+    // a catch-up page); the next launch's seq-ordered replay heals it. Keep all ops per day if it bites.
     static func aufnehmen<Wert: Sendable>(_ bisher: inout [Person: [String: TagesEintrag<Wert>]], _ neu: TagesEintrag<Wert>) {
-        let alt = bisher[neu.von]?[neu.datum]
-        guard alt == nil || (neu.seq ?? .max) >= (alt!.seq ?? .max) else { return }
+        var neu = neu
+        if let alt = bisher[neu.von]?[neu.datum] {
+            if alt.id == neu.id {
+                neu.seq = neu.seq ?? alt.seq
+            } else if (neu.seq ?? .max) < (alt.seq ?? .max) {
+                return
+            }
+        }
         bisher[neu.von, default: [:]][neu.datum] = neu
     }
 
@@ -47,18 +63,28 @@ struct ZielAenderung: Sendable {
     var seq: Int?
     var datum: String
     var wert: Int
+    /// The originating `Op.id` (I-2), unique default for the same reason as `TagesEintrag.id`.
+    var id: String = UUID().uuidString
 }
 
 enum HealthLogik {
     // MARK: - Ziel-Historie
 
+    /// Final-Review I-2: the confirmed echo of an own change replaces its optimistic copy in place
+    /// (so it gets its real `seq`) instead of being appended or dropped.
+    static func zielAufnehmen(_ liste: inout [ZielAenderung], _ neu: ZielAenderung) {
+        guard let i = liste.firstIndex(where: { $0.id == neu.id }) else { liste.append(neu); return }
+        liste[i].seq = neu.seq ?? liste[i].seq
+    }
+
     /// The goal value in effect on `tag`: the latest change (by day, then `seq`) at or before it,
-    /// else `standard`.
+    /// else `standard`. Ties (two still-unconfirmed changes) go to the later-arrived one — `max(by:)`
+    /// alone keeps the FIRST of equal elements.
     static func zielAmTag(_ tag: String, _ aenderungen: [ZielAenderung], standard: Int) -> Int {
-        aenderungen
-            .filter { $0.datum <= tag }
-            .max { ($0.datum, $0.seq ?? .max) < ($1.datum, $1.seq ?? .max) }?
-            .wert ?? standard
+        aenderungen.enumerated()
+            .filter { $0.element.datum <= tag }
+            .max { ($0.element.datum, $0.element.seq ?? .max, $0.offset) < ($1.element.datum, $1.element.seq ?? .max, $1.offset) }?
+            .element.wert ?? standard
     }
 
     // MARK: - Stufen (Z-20.3, Spec 3.2) — 0...3 für Gym und Wasser
@@ -145,6 +171,27 @@ enum HealthLogik {
         }
         let minuten = zusammengefuehrt.reduce(0) { $0 + Int($1.bis.timeIntervalSince($1.von) / 60) }
         return (minuten, zusammengefuehrt[0].von, zusammengefuehrt[zusammengefuehrt.count - 1].bis)
+    }
+
+    /// Final-Review I-4: the ONE night that belongs to wake day `tag` (Spec 3.1). Intervals with gaps
+    /// up to 3 h (waking up at night) form a block; of the blocks that END on `tag`, the longest one
+    /// is the night. So the night before (ends the day before) is never added in, and an afternoon
+    /// nap on `tag` neither adds minutes nor moves the wake-up time.
+    static func schlafNacht(_ intervalle: [SchlafIntervall], tag: String) -> (minuten: Int, von: Date, bis: Date)? {
+        var bloecke: [[SchlafIntervall]] = []
+        var blockEnde = Date.distantPast
+        for intervall in intervalle.sorted(by: { $0.von < $1.von }) {
+            if bloecke.isEmpty || intervall.von.timeIntervalSince(blockEnde) > 3 * 3600 {
+                bloecke.append([intervall])
+            } else {
+                bloecke[bloecke.count - 1].append(intervall)
+            }
+            blockEnde = max(blockEnde, intervall.bis)
+        }
+        return bloecke
+            .compactMap { schlafZusammenfassen($0) }
+            .filter { Datum.text($0.bis) == tag }
+            .max { $0.minuten < $1.minuten }
     }
 
     // MARK: - Senden nur bei Änderung (Z-20.1)

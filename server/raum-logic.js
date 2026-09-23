@@ -53,6 +53,12 @@ export function initSchema(sql) {
   // Jede Kontext-Berechnung für den Zeitplan fragt mehrfach "alle Ops einer
   // Art" ab (Last: Spec 13) -- ohne Index wäre das ein Full-Table-Scan pro Op.
   sql.exec(`CREATE INDEX IF NOT EXISTS ops_art_von_zeit ON ops (art, von, zeit)`);
+  // Final-Review I-8: noch nicht geöffnete Zeitkapseln (Nachrichten-id -> oeffnetAm), gepflegt beim
+  // Einfügen (opEinfuegenMitStatus) statt pro Op den ganzen Chat zu lesen.
+  sql.exec(`CREATE TABLE IF NOT EXISTS kapseln_offen (
+    id TEXT PRIMARY KEY,
+    oeffnetAm TEXT NOT NULL
+  )`);
 }
 
 // --- Merker (Server-interner Zustand, kein Op) ------------------------------
@@ -100,6 +106,10 @@ export function verbindungIstLebendig(letzterKontaktMs, jetztMs) {
   return letzterKontaktMs === null || letzterKontaktMs === undefined || jetztMs - letzterKontaktMs < PING_TIMEOUT_MS;
 }
 
+// Minor 2 (Spec 7/12: `entwurf.setzen` "nur für den Absender"): geht nie an den Partner, weder live
+// noch beim Nachholen -- auch getippter und wieder gelöschter Text landet so nicht auf seinem Gerät.
+export const NUR_FUER_ABSENDER = "entwurf.setzen";
+
 // Speichert eine Op. Doppelte id -> vorhandene seq zurück (INSERT OR IGNORE).
 export function opEinfuegen(sql, op) {
   sql.exec(
@@ -121,6 +131,11 @@ export function opEinfuegenMitStatus(sql, op) {
   if (vorher.length) return { seq: vorher[0].seq, neu: false };
   const seq = opEinfuegen(sql, op);
   if (op.art === "zeichnung.stand") standMedienAufraeumen(sql, op.d, seq);
+  const kapselAm = op.d?.kapsel?.oeffnetAm;
+  if (op.art === "nachricht.neu" && typeof op.d?.id === "string" && typeof kapselAm === "string") {
+    sql.exec(`INSERT OR IGNORE INTO kapseln_offen (id, oeffnetAm) VALUES (?, ?)`, op.d.id, kapselAm);
+  }
+  if (op.art === "nachricht.geloescht" && typeof op.d?.id === "string") kapselEntfernen(sql, op.d.id);
   return { seq, neu: true };
 }
 
@@ -132,10 +147,22 @@ function zeileZuOp(row) {
 // `maxBytes` groß, aber immer mindestens eine Op, damit der Cursor weiterkommt.
 // ponytail: `d.length` zählt UTF-16-Zeichen, nicht Bytes (Umlaute/Emoji bis 3x);
 // bei 512 KB gegen die 32-MiB-Grenze des Clients egal.
-export function opsSeit(sql, seit, limit = SEITE, maxBytes = SEITE_BYTES) {
+// `fuer` (Person, optional): Ops, die nur für ihren Absender sind (NUR_FUER_ABSENDER), bekommt nur
+// der Absender selbst -- im SQL gefiltert, damit eine Seite nie nur aus Übersprungenem besteht.
+export function opsSeit(sql, seit, limit = SEITE, maxBytes = SEITE_BYTES, fuer = null) {
   const ops = [];
   let bytes = 0;
-  for (const row of sql.exec(`SELECT seq, id, art, von, zeit, d FROM ops WHERE seq > ? ORDER BY seq ASC LIMIT ?`, seit, limit + 1)) {
+  const zeilen = sql.exec(
+    `SELECT seq, id, art, von, zeit, d FROM ops
+     WHERE seq > ? AND (? IS NULL OR NOT (art = ? AND von != ?))
+     ORDER BY seq ASC LIMIT ?`,
+    seit,
+    fuer,
+    NUR_FUER_ABSENDER,
+    fuer,
+    limit + 1
+  );
+  for (const row of zeilen) {
     const groesse = row.d.length + 200; // + Kopf (seq, id, art, von, zeit)
     if (ops.length === limit || (ops.length > 0 && bytes + groesse > maxBytes)) return { ops, mehr: true };
     ops.push(zeileZuOp(row));
@@ -493,19 +520,36 @@ export function offeneSpielEinladungen(sql) {
   return [...byId.values()].filter((x) => !erledigt.has(x.id));
 }
 
-// Noch nicht geöffnete Zeitkapseln: `art = 'nachricht.neu'` mit `d.kapsel.oeffnetAm` gesetzt.
-// json_extract statt "alle nachricht.neu laden und in JS filtern" (M-6/Last, Spec 13) -- #alarmAktualisieren
-// läuft nach JEDER Op, ein Full-Scan über den ganzen Chat wäre hier zu teuer.
+// Noch nicht geöffnete Zeitkapseln (`nachricht.neu` mit `d.kapsel.oeffnetAm`), aus `kapseln_offen`.
+// Final-Review I-8: #alarmAktualisieren läuft nach JEDER Op -- vorher las das jedes Mal alle
+// nachricht.neu-Zeilen (Rows-read-Limit im Free-Plan). Jetzt nur die paar offenen Kapseln.
 // `id` ist die Nachrichten-id aus `d.id` (schnittstellen.md), NICHT die Op-id (Zeile `ops.id`) --
 // dieselbe id, gegen die auch `nachricht.bearbeitet`/`nachricht.geloescht`/... referenzieren.
 export function offeneKapseln(sql) {
+  kapselIndexEinmalFuellen(sql);
   return sql
-    .exec(
-      `SELECT json_extract(d, '$.id') AS id, json_extract(d, '$.kapsel.oeffnetAm') AS oeffnetAm
-       FROM ops WHERE art = 'nachricht.neu' AND json_extract(d, '$.kapsel.oeffnetAm') IS NOT NULL`
-    )
+    .exec(`SELECT id, oeffnetAm FROM kapseln_offen`)
     .toArray()
     .map((row) => ({ id: row.id, oeffnetAm: row.oeffnetAm }));
+}
+
+// Geöffnet (Push raus) oder Nachricht gelöscht: Kapsel ist nicht mehr offen.
+export function kapselEntfernen(sql, id) {
+  sql.exec(`DELETE FROM kapseln_offen WHERE id = ?`, id);
+}
+
+// Einmalig (Merker-Flag) die Kapseln übernehmen, die schon vor der Tabelle in `ops` lagen -- ohne
+// schon geöffnete (alarm.kapselOeffnet.<id>) und ohne gelöschte Nachrichten.
+function kapselIndexEinmalFuellen(sql) {
+  if (merkerLesen(sql, "kapseln.index") !== null) return;
+  sql.exec(
+    `INSERT OR IGNORE INTO kapseln_offen (id, oeffnetAm)
+     SELECT json_extract(d, '$.id'), json_extract(d, '$.kapsel.oeffnetAm') FROM ops
+     WHERE art = 'nachricht.neu' AND json_extract(d, '$.id') IS NOT NULL AND json_extract(d, '$.kapsel.oeffnetAm') IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM merker WHERE schluessel = 'alarm.kapselOeffnet.' || json_extract(ops.d, '$.id'))`
+  );
+  sql.exec(`DELETE FROM kapseln_offen WHERE id IN (SELECT json_extract(d, '$.id') FROM ops WHERE art = 'nachricht.geloescht')`);
+  merkerSchreiben(sql, "kapseln.index", "1");
 }
 
 // Neueste Fassung eines Orts (für Namen/`melden` bei ort.ereignis-Push).

@@ -9,6 +9,9 @@ import {
   opGueltig,
   verbindungIstLebendig,
   opsSeit,
+  SEITE,
+  SEITE_BYTES,
+  NUR_FUER_ABSENDER,
   medienTeilSpeichern,
   medienFertig,
   medienFehlend,
@@ -31,6 +34,7 @@ import {
   zufaelligNahAlsGemeldetMarkieren,
   ortInfo,
   offeneKapseln,
+  kapselEntfernen,
   gemeinsamPruefen,
   gemeinsamSeitMs,
   gemeinsamSeitSetzen,
@@ -127,7 +131,7 @@ export class Raum {
     // der Client kann so eine sicheren Nachhol-Cursor führen, der nicht durch
     // dazwischenkommende Echos verfälscht wird. Zusatzfeld, kein Bruch: alte
     // Clients ignorieren es.
-    const seitenDaten = opsSeit(this.sql, seit);
+    const seitenDaten = opsSeit(this.sql, seit, SEITE, SEITE_BYTES, person);
     server.send(JSON.stringify({ t: "ops", ...seitenDaten, seite: true }));
 
     const letzter = letzterStandort(this.sql, partnerVon(person));
@@ -164,12 +168,12 @@ export class Raum {
       // Wiederholung nach Funkloch, damit die Op die Warteschlange verlässt.
       ws.send(JSON.stringify({ t: "ops", ops: [bestaetigt], mehr: false }));
       if (neu) {
-        this.#sendeAnPartner(person, { t: "ops", ops: [bestaetigt], mehr: false });
+        if (bestaetigt.art !== NUR_FUER_ABSENDER) this.#sendeAnPartner(person, { t: "ops", ops: [bestaetigt], mehr: false });
         await this.#pushFuerOp(bestaetigt).catch((err) => this.#log("push für Op fehlgeschlagen", bestaetigt.art, err));
         await this.#alarmAktualisieren();
       }
     } else if (msg.t === "nachholen") {
-      ws.send(JSON.stringify({ t: "ops", ...opsSeit(this.sql, msg.seit ?? 0), seite: true }));
+      ws.send(JSON.stringify({ t: "ops", ...opsSeit(this.sql, msg.seit ?? 0, SEITE, SEITE_BYTES, person), seite: true }));
     } else if (msg.t === "ping") {
       // Fallback für den Fall, dass ein Client kein rohes "ping" (natives
       // Hibernation-Auto-Response, siehe Konstruktor) senden kann.
@@ -361,7 +365,7 @@ export class Raum {
       }
       const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
       letzteSeq = seq;
-      if (neu) this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
+      if (neu && op.art !== NUR_FUER_ABSENDER) this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
     }
     await this.#alarmAktualisieren();
     return Response.json({ seq: letzteSeq, uebersprungen });
@@ -564,6 +568,7 @@ export class Raum {
       }
       case "kapselOeffnet": {
         // Schlüssel = Nachrichten-id (offeneKapseln): jede Zeitkapsel öffnet einmal.
+        kapselEntfernen(this.sql, ereignis.id); // I-8: vor dem erledigt-Check, sonst bliebe sie ewig "offen"
         if (alarmErledigt(this.sql, ereignis.art, ereignis.id)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, ereignis.id, jetztIso);
         await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
