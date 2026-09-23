@@ -239,7 +239,8 @@ struct StickerKachel: View {
             }
         }
         .task(id: medienId) {
-            let url = ChatMedien.eigeneQuellen[medienId] ?? Medien.lokal(medienId) ?? (try? await Medien.holen(medienId))
+            var url = ChatMedien.eigeneQuellen[medienId] ?? Medien.lokal(medienId)
+            if url == nil { url = try? await Medien.holen(medienId) }
             bild = url.flatMap { UIImage(contentsOfFile: $0.path) }
         }
     }

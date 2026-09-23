@@ -98,7 +98,8 @@ private struct UebersichtKachel: View {
     }
 
     private func laden(_ medium: ChatModell.MedienEintrag) async {
-        let url = ChatMedien.eigeneQuellen[medium.id] ?? Medien.lokal(medium.id) ?? (try? await Medien.holen(medium.id))
+        var url = ChatMedien.eigeneQuellen[medium.id] ?? Medien.lokal(medium.id)
+        if url == nil { url = try? await Medien.holen(medium.id) }
         guard let url else { return }
         if medium.typ == "video" {
             bild = await Videobild.erstesBild(url)
