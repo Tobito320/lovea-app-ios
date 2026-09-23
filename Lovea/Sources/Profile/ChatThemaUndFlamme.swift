@@ -39,6 +39,13 @@ struct ChatThemaAuswahl: View {
                             }
                         }
                         .padding(16)
+                        if !aktuell.isEmpty {
+                            Button("Kein Thema", role: .destructive) {
+                                EinstellungenModell.shared.setzen("chat.theme", .string(""))
+                                gewaehlt += 1
+                            }
+                            .padding(.bottom, 16)
+                        }
                     }
                 }
             }

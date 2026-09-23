@@ -5,6 +5,7 @@ import UIKit
 /// Z-25.2: `profil.hintergrund` per person — `{art:"foto"|"backdrop", medienId?|id?}` (Zielplan
 /// Schnittstellen). Each person sets only their own; unlike the old `profilWallpaper` (shared,
 /// `ProfilBlaetter.swift`), which stays exactly as-is for the partner-profile header.
+@MainActor
 enum ProfilHintergrund {
     enum Wert: Equatable {
         case foto(medienId: String)

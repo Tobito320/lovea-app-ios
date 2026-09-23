@@ -243,7 +243,7 @@ private struct ArtikelDetail: View {
             Spacer(minLength: 0)
         }
         .padding(.top, 24)
-        .presentationDetents([.medium])
+        .presentationDetents([.medium, .large])
         .presentationDragIndicator(.visible)
         .sensoryFeedback(.impact(weight: .medium), trigger: getragen)
         .confirmationDialog("„\(artikel.name)“ für \(artikel.preis) Punkte kaufen?", isPresented: $bestaetigen, titleVisibility: .visible) {

@@ -59,7 +59,9 @@ private enum ProfilBlatt: String, Identifiable {
 private enum KussTon {
     private static var player: AVAudioPlayer?
     static func spielen() {
-        guard let url = Bundle.main.url(forResource: "kuss", withExtension: "wav") else { return }
+        guard let url = Bundle.main.url(forResource: "kuss", withExtension: "wav")
+            ?? Bundle.main.url(forResource: "kuss", withExtension: "wav", subdirectory: "Figuren")
+        else { return }
         player = try? AVAudioPlayer(contentsOf: url)
         player?.play()
     }
@@ -132,85 +134,29 @@ private struct ProfilInhalt: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: tipps)
         .sensoryFeedback(.warning, trigger: nummerFehlt)
         .sensoryFeedback(.impact(weight: .light), trigger: dehnung > 90) { _, neu in neu }
-        .sensoryFeedback(.impact(weight: .soft), trigger: kussHaptik)
-        .sensoryFeedback(.success, trigger: geschenkHaptik)
-        .sheet(item: $blatt) { b in
-            switch b {
-            case .wallpaper: WallpaperAuswahl(partner: gegenueber)
-            case .chatfarbe: ChatFarbeAuswahl(ich: ich)
-            case .medien: MedienUebersicht(ich: ich)
-            case .hintergrund: ChatHintergrundEinstellung(ich: ich)
-            case .orte: OrteListeView()
-            case .eigenerHintergrund: EigenerHintergrundAuswahl(person: person)
-            case .chatThema: ChatThemaAuswahl(ich: ich)
-            case .flamme: BesitzFlammenAuswahl(ich: ich)
-            }
-        }
+        .sheet(item: $blatt) { b in blattInhalt(b) }
         .fullScreenCover(isPresented: $karteOffen) { KarteTab(schliessen: { karteOffen = false }) }
         .sheet(isPresented: $figurBearbeitenOffen) { NavigationStack { FigurEditorSeite(person: person) } }
         .sheet(isPresented: $shopOffen) { ShopView() }
-        .overlay(alignment: .top) { geschenkBanner }
-        .onAppear {
-            missedKussPruefen()
-            geschenkPruefen()
-        }
-        .onChange(of: FigurenModell.shared.kussEreignis) { _, neu in
-            guard !istEigenes, neu > kussBasislinie else { return }
-            kussBasislinie = neu
-            KussTon.spielen()
-            kussHaptik += 1
-        }
+        .modifier(KussUndGeschenkReaktionen(
+            istEigenes: istEigenes, person: person, kussBasislinie: $kussBasislinie, kussHaptik: $kussHaptik,
+            geschenkArtikel: $geschenkArtikel, geschenkHaptik: $geschenkHaptik
+        ))
     }
 
-    /// Z-24.3: a kiss sent/received while this screen wasn't open — plays the live visual once,
-    /// the next time the partner profile is opened. `letzterKuss` tracks every delivery (not just
-    /// the 4s-fresh window `kussEreignis`/`geste` use), so a missed one is never silently lost.
-    /// Only bumps `kussReplay` here — the `onChange(of: kussEreignis)` below is the SINGLE place
-    /// that plays the sound/haptic, so a missed kiss and a live one never double-trigger it.
-    private func missedKussPruefen() {
-        guard !istEigenes, let zeit = FigurenModell.shared.letzterKuss[person] else { return }
-        let schluessel = "kussGesehen.\(person.rawValue)"
-        let gesehen = UserDefaults.standard.object(forKey: schluessel) as? Date
-        UserDefaults.standard.set(zeit, forKey: schluessel)
-        // Erster Check auf diesem Gerät: nur merken, nicht die ganze bisherige Historie feiern.
-        guard let gesehen, gesehen < zeit else { return }
-        FigurenModell.shared.kussReplay(person)
-    }
-
-    /// Z-23.2: a gift that arrived while nobody was looking — celebrated once, on the own profile.
-    private func geschenkPruefen() {
-        guard istEigenes else { return }
-        let erhalten = PunkteModell.shared.geschenkeErhalten(person, preis: { ShopKatalog.artikel($0)?.preis })
-        guard let neuestes = erhalten.first, let seq = neuestes.seq else { return }
-        let schluessel = "geschenkGesehen.\(person.rawValue)"
-        let gesehenVorher = UserDefaults.standard.object(forKey: schluessel) != nil
-        let gesehen = UserDefaults.standard.integer(forKey: schluessel)
-        UserDefaults.standard.set(seq, forKey: schluessel)
-        guard gesehenVorher, seq > gesehen else { return }
-        geschenkArtikel = ShopKatalog.artikel(neuestes.artikel)
-        geschenkHaptik += 1
-    }
-
+    /// common.md warns a long `body` modifier chain risks "unable to type-check in reasonable
+    /// time" (hit Runde 1) — the `blatt` switch is split out for the same reason.
     @ViewBuilder
-    private var geschenkBanner: some View {
-        if let geschenkArtikel {
-            HStack(spacing: 10) {
-                Text("🎁").font(.system(size: 26))
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Geschenk erhalten!").font(.subheadline.weight(.semibold))
-                    Text(geschenkArtikel.name).font(.caption).foregroundStyle(.secondary)
-                }
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .glassEffect(.regular.interactive(), in: .capsule)
-            .padding(.top, 8)
-            .onTapGesture { self.geschenkArtikel = nil }
-            .transition(.scale.combined(with: .opacity))
-            .task(id: geschenkArtikel.id) {
-                try? await Task.sleep(for: .seconds(3.5))
-                self.geschenkArtikel = nil
-            }
+    private func blattInhalt(_ b: ProfilBlatt) -> some View {
+        switch b {
+        case .wallpaper: WallpaperAuswahl(partner: gegenueber)
+        case .chatfarbe: ChatFarbeAuswahl(ich: ich)
+        case .medien: MedienUebersicht(ich: ich)
+        case .hintergrund: ChatHintergrundEinstellung(ich: ich)
+        case .orte: OrteListeView()
+        case .eigenerHintergrund: EigenerHintergrundAuswahl(person: person)
+        case .chatThema: ChatThemaAuswahl(ich: ich)
+        case .flamme: BesitzFlammenAuswahl(ich: ich)
         }
     }
 
@@ -241,7 +187,10 @@ private struct ProfilInhalt: View {
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
         .background(alignment: .bottom) {
-            ProfilWallpaper()
+            // Z-25.2 "jeder stellt nur seinen eigenen ein": the partner profile shows the
+            // partner's own background too, not the old shared one — `EigenerHintergrund`
+            // falls back to the shared `profilWallpaper` on its own if `person` hasn't set one.
+            EigenerHintergrund(person: person)
                 .frame(height: Self.kopfHoehe + dehnung)
                 .overlay { kopfSchatten }
         }
@@ -608,4 +557,103 @@ private struct ProfilInhalt: View {
     }
 
     private var tageZusammen: Int { Datum.tageZwischen("2026-08-26", Datum.text(Date())) }
+}
+
+/// Z-24.3/Z-23.2: the kiss-animation and gift-celebration side effects, pulled out of
+/// `ProfilInhalt.body` into their own `ViewModifier` — common.md warns long body modifier chains
+/// risk "unable to type-check in reasonable time" (hit Runde 1).
+private struct KussUndGeschenkReaktionen: ViewModifier {
+    let istEigenes: Bool
+    let person: Person
+    @Binding var kussBasislinie: Int
+    @Binding var kussHaptik: Int
+    @Binding var geschenkArtikel: ShopArtikel?
+    @Binding var geschenkHaptik: Int
+
+    func body(content: Content) -> some View {
+        content
+            .sensoryFeedback(.impact(flexibility: .soft), trigger: kussHaptik)
+            .sensoryFeedback(.success, trigger: geschenkHaptik)
+            .overlay(alignment: .top) { geschenkBanner }
+            .onAppear {
+                missedKussPruefen()
+                geschenkPruefen()
+            }
+            .onChange(of: FigurenModell.shared.kussEreignis) { _, neu in
+                guard !istEigenes, neu > kussBasislinie else { return }
+                kussBasislinie = neu
+                KussTon.spielen()
+                kussHaptik += 1
+                // Live gezeigt: Marke direkt mit aktualisieren, sonst spielt `missedKussPruefen`
+                // denselben Kuss beim nächsten Öffnen dieses Profils nochmal ab.
+                if let zeit = FigurenModell.shared.letzterKuss[person] {
+                    UserDefaults.standard.set(zeit, forKey: "kussGesehen.\(person.rawValue)")
+                }
+            }
+    }
+
+    /// Z-24.3: a kiss sent/received while this screen wasn't open — plays the live visual once,
+    /// the next time the partner profile is opened. `letzterKuss` tracks every delivery (not just
+    /// the 4s-fresh window `kussEreignis`/`geste` use), so a missed one is never silently lost.
+    /// Only bumps `kussReplay` here — `onChange` above is the SINGLE place that plays sound/haptic,
+    /// so a missed kiss and a live one never double-trigger it.
+    private func missedKussPruefen() {
+        guard !istEigenes else { return }
+        let schluessel = "kussGesehen.\(person.rawValue)"
+        guard UserDefaults.standard.object(forKey: schluessel) != nil else {
+            // Erster Check auf diesem Gerät: Basislinie setzen, auch ohne bisherigen Kuss — sonst
+            // bekommt die Marke NIE einen Wert und der allererste echte Kuss würde nie erkannt.
+            UserDefaults.standard.set(FigurenModell.shared.letzterKuss[person] ?? .distantPast, forKey: schluessel)
+            return
+        }
+        guard let zeit = FigurenModell.shared.letzterKuss[person] else { return }
+        let gesehen = UserDefaults.standard.object(forKey: schluessel) as? Date ?? .distantPast
+        guard gesehen < zeit else { return }
+        UserDefaults.standard.set(zeit, forKey: schluessel)
+        FigurenModell.shared.kussReplay(person)
+    }
+
+    /// Z-23.2: a gift that arrived while nobody was looking — celebrated once, on the own profile.
+    private func geschenkPruefen() {
+        guard istEigenes else { return }
+        let erhalten = PunkteModell.shared.geschenkeErhalten(person, preis: { ShopKatalog.artikel($0)?.preis })
+        let schluessel = "geschenkGesehen.\(person.rawValue)"
+        guard UserDefaults.standard.object(forKey: schluessel) != nil else {
+            // Gleicher Fix wie beim Kuss: Basislinie auch bei (noch) leerer Historie setzen, sonst
+            // gibt es beim allerersten echten Geschenk nie eine Marke zum Vergleichen dagegen.
+            UserDefaults.standard.set(erhalten.first?.seq ?? 0, forKey: schluessel)
+            return
+        }
+        guard let neuestes = erhalten.first, let seq = neuestes.seq else { return }
+        let gesehen = UserDefaults.standard.integer(forKey: schluessel)
+        guard seq > gesehen else { return }
+        UserDefaults.standard.set(seq, forKey: schluessel)
+        withAnimation(.spring(response: 0.45, dampingFraction: 0.6)) {
+            geschenkArtikel = ShopKatalog.artikel(neuestes.artikel)
+        }
+        geschenkHaptik += 1
+    }
+
+    @ViewBuilder
+    private var geschenkBanner: some View {
+        if let geschenkArtikel {
+            HStack(spacing: 10) {
+                Text("🎁").font(.system(size: 26))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Geschenk erhalten!").font(.subheadline.weight(.semibold))
+                    Text(geschenkArtikel.name).font(.caption).foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
+            .glassEffect(.regular.interactive(), in: .capsule)
+            .padding(.top, 8)
+            .onTapGesture { withAnimation { self.geschenkArtikel = nil } }
+            .transition(.scale.combined(with: .opacity))
+            .task(id: geschenkArtikel.id) {
+                try? await Task.sleep(for: .seconds(3.5))
+                withAnimation { self.geschenkArtikel = nil }
+            }
+        }
+    }
 }
