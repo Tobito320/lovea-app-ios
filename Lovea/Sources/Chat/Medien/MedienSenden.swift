@@ -151,6 +151,30 @@ enum ChatMedien {
         }
     }
 
+    // MARK: - Draft uploads (Z-26.2): upload right away, don't send a message — the caller keeps
+    // the returned id for `entwurf.setzen` and reuses it unchanged (via `ChatModell.medienSenden`)
+    // once the draft is actually sent, so the photo/voice note is never uploaded twice.
+
+    static func entwurfBildHochladen(_ daten: Data) async -> (medienId: String, breite: Double, hoehe: Double)? {
+        let id = UUID().uuidString
+        guard let ergebnis = await Task.detached(priority: .userInitiated) { MedienKodierung.foto(daten, id: id) }.value else { return nil }
+        eigeneQuellen[id] = ergebnis.original
+        merkeAusstehend(id: id, original: ergebnis.original, klein: ergebnis.klein)
+        await hochladen(id: id, ergebnis: ergebnis)
+        return (id, ergebnis.breite, ergebnis.hoehe)
+    }
+
+    static func entwurfSprachHochladen(_ m4a: URL) async -> String? {
+        let id = UUID().uuidString
+        guard let originalURL = await Task.detached(priority: .userInitiated, operation: {
+            MedienKodierung.schreibeStaging((try? Data(contentsOf: m4a)) ?? Data(), id: id, rolle: "original", ext: "m4a")
+        }).value else { return nil }
+        eigeneQuellen[id] = originalURL
+        merkeAusstehend(id: id, original: originalURL, klein: nil)
+        await hochladen(id: id, ergebnis: MedienKodierung.Ergebnis(original: originalURL, klein: nil, breite: 0, hoehe: 0, dauer: nil))
+        return id
+    }
+
     // MARK: - Upload + send
 
     private static func hochladenUndSenden(id: String, ergebnis: MedienKodierung.Ergebnis, typ: String, antwortAuf: String?) async {
