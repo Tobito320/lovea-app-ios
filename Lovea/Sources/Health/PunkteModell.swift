@@ -6,17 +6,28 @@ import Observation
 /// model layer (see the deviation note on `PunkteLogik`). Reuses `HealthModell`'s already-deduped
 /// steps/gym/water/goal state instead of re-observing `schritte.setzen`/`habit.setzen`/`einstellung.setzen`
 /// a second time.
+// ponytail: `stand`/`verlauf`/`wochen`/... recompute the full fold on the main thread on every
+// access (two people, at most a few thousand ops — measured as fine for Runde 1's equivalents).
+// Zielplan says "Faltungen im Hintergrund": move to a background actor/cache if a profiler ever
+// disagrees, e.g. once the Health tab polls these every frame during a scroll.
 @MainActor
 @Observable
 final class PunkteModell {
     static let shared = PunkteModell()
 
     private(set) var spieleSiege: [PunkteLogik.SpielSieg] = []
-    private(set) var kaeufe: [BesitzLogik.Kauf] = []
+    /// Keyed by the OUTER op id, not `d.id` — a purchase op is delivered twice (optimistic `seq ==
+    /// nil`, then confirmed): overwriting on every delivery (instead of a one-shot `angewendeteOps`
+    /// guard) is what lets `seq` actually update once confirmed. Without this, an own purchase would
+    /// keep `seq == nil` forever on THIS device, so on "two devices buy at once" (Review-Fokus 3)
+    /// each device would sort its OWN purchase last and the two devices could disagree on which one
+    /// wins — `BesitzLogik` already dedups by id, so re-storing the same id is always safe.
+    private var kaeufeNachId: [String: BesitzLogik.Kauf] = [:]
+    private var kaeufe: [BesitzLogik.Kauf] { Array(kaeufeNachId.values) }
 
-    private var angewendeteOps: Set<String> = []
-    /// Last seen cumulative `punkte` per game id, to turn `spiel.ergebnis`'s running tally into
-    /// "who won THIS round" (a positive delta on exactly one side).
+    private var angewendeteSpielOps: Set<String> = []
+    /// Last seen `spiel.ergebnis` per game id, to turn its running tally into "who won THIS round"
+    /// (a positive delta on exactly one side) and to reject a stale/out-of-order redelivery.
     private var letztesSpielErgebnis: [String: SpielErgebnisD] = [:]
 
     private init() {
@@ -65,7 +76,7 @@ final class PunkteModell {
     // MARK: - Challenges
 
     private var wochen: [ChallengeLogik.WochenErgebnis] {
-        ChallengeLogik.wochen(heute: heute, schritte: schritteEintraege, zielGemeinsamWoche: HealthModell.shared.zielGemeinsamWoche)
+        ChallengeLogik.wochen(heute: heute, schritte: schritteEintraege, zielGemeinsamWocheAenderungen: HealthModell.shared.zielGemeinsamWocheAenderungen)
     }
 
     private var monate: [ChallengeLogik.MonatsErgebnis] {
@@ -76,9 +87,12 @@ final class PunkteModell {
         ChallengeLogik.serienBoni(heute: heute, schritte: schritteEintraege, zielSchritte: HealthModell.shared.zielSchritteAenderungen)
     }
 
-    /// Für die Health-Tab-Anzeige (Block 21/Z-22.2): laufende Woche/Monat mit Fortschritt.
+    /// Für die Health-Tab-Anzeige (Block 21/Z-22.2): laufende Woche/Monat/Serie mit Fortschritt.
     var aktuelleWoche: ChallengeLogik.WochenErgebnis? { wochen.first { $0.montag == Datum.montagDerWoche(heute) } }
     var aktuellerMonat: ChallengeLogik.MonatsErgebnis? { monate.first { $0.monat == String(heute.prefix(7)) } }
+    var laufendeSerien: [Person: Int] {
+        ChallengeLogik.laufendeSerie(heute: heute, schritte: schritteEintraege, zielSchritte: HealthModell.shared.zielSchritteAenderungen)
+    }
 
     // MARK: - Shop / Besitz (BesitzLogik aus Z-23.1)
 
@@ -93,8 +107,9 @@ final class PunkteModell {
     @discardableResult
     func kaufen(artikel: String, fuer: Person, preis: (String) -> Int?) -> Bool {
         guard let ich = Raum.shared.ich, let preisWert = preis(artikel) else { return false }
-        let ergebnis = BesitzLogik.auswerten(kaeufe, verdient: stand, preis: preis)
-        let verfuegbar = (stand[ich] ?? 0) - (ergebnis.ausgegeben[ich] ?? 0)
+        let aktuellerStand = stand
+        let ergebnis = BesitzLogik.auswerten(kaeufe, verdient: aktuellerStand, preis: preis)
+        let verfuegbar = (aktuellerStand[ich] ?? 0) - (ergebnis.ausgegeben[ich] ?? 0)
         guard verfuegbar >= preisWert else { return false }
         Raum.shared.senden("shop.kauf", ShopKaufD(id: UUID().uuidString, artikel: artikel, fuer: fuer))
         return true
@@ -103,19 +118,23 @@ final class PunkteModell {
     // MARK: - Ops falten
 
     private func spielErgebnisAnwenden(_ op: Op) {
-        guard angewendeteOps.insert(op.id).inserted, let d = op.daten(SpielErgebnisD.self) else { return }
-        let vorher = letztesSpielErgebnis[d.id]?.punkte ?? SpielPunkte()
+        guard angewendeteSpielOps.insert(op.id).inserted, let d = op.daten(SpielErgebnisD.self) else { return }
+        let vorher = letztesSpielErgebnis[d.id] ?? SpielErgebnisD(id: d.id, gespielt: 0, punkte: SpielPunkte())
+        // Ops kommen nicht zwingend in `gespielt`-Reihenfolge an (Review-Fokus 2-artig): eine
+        // ältere Op NACH einer neueren würde sonst eine negative Differenz liefern und der Person
+        // mit weniger Punkten fälschlich einen Sieg gutschreiben.
+        guard d.gespielt > vorher.gespielt else { return }
         letztesSpielErgebnis[d.id] = d
-        let deltaAhmed = d.punkte.ahmed - vorher.ahmed
-        let deltaAnnika = d.punkte.annika - vorher.annika
+        let deltaAhmed = d.punkte.ahmed - vorher.punkte.ahmed
+        let deltaAnnika = d.punkte.annika - vorher.punkte.annika
         guard deltaAhmed != deltaAnnika else { return } // unentschieden/keine Änderung: kein Sieg
         let sieger: Person = deltaAhmed > deltaAnnika ? .ahmed : .annika
         spieleSiege.append(PunkteLogik.SpielSieg(von: sieger, datum: Datum.text(op.zeit)))
     }
 
     private func kaufAnwenden(_ op: Op) {
-        guard angewendeteOps.insert(op.id).inserted, let d = op.daten(ShopKaufD.self) else { return }
-        kaeufe.append(BesitzLogik.Kauf(seq: op.seq, id: op.id, von: op.von, artikel: d.artikel, fuer: d.fuer))
+        guard let d = op.daten(ShopKaufD.self) else { return }
+        kaeufeNachId[op.id] = BesitzLogik.Kauf(seq: op.seq, id: op.id, von: op.von, artikel: d.artikel, fuer: d.fuer)
     }
 }
 

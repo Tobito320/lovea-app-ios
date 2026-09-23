@@ -44,11 +44,17 @@ enum PunkteLogik {
         spieleSiege: [SpielSieg]
     ) -> [Eintrag] {
         let schritteProTag = HealthFaltung.gefaltet(schritte)
-        let gymEintraege = gym.filter { Datum.tageZwischen($0.datum, $0.gesendetAm) <= 7 }
-        let gymProTag = HealthFaltung.gefaltet(gymEintraege)
+        // Erst falten (höchster seq gewinnt, z. B. ein später gesendetes Abhaken hebt ein früheres
+        // wieder auf), DANACH die 7-Tage-Regel nur auf den GEWINNER anwenden — nicht umgekehrt: vor
+        // dem Falten filtern würde ein spätes Zurücknehmen (Op selbst >7 Tage nach `datum` gesendet)
+        // verwerfen und das frühere, noch positive Abhaken fälschlich gewinnen lassen.
+        let gymProTag = HealthFaltung.gefaltet(gym).mapValues { tageProPerson in
+            tageProPerson.filter { _, eintrag in Datum.tageZwischen(eintrag.datum, eintrag.gesendetAm) <= 7 }
+        }
         let wasserProTag = HealthFaltung.gefaltet(wasser)
 
         var tage = Set(chatStreakTage)
+        tage.formUnion(spieleSiege.map(\.datum))
         for proTag in [schritteProTag, wasserProTag] { for tageProPerson in proTag.values { tage.formUnion(tageProPerson.keys) } }
         for tageProPerson in gymProTag.values { tage.formUnion(tageProPerson.keys) }
         tage = Set(tage.filter { $0 <= heute })

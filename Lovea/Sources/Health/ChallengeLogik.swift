@@ -20,11 +20,17 @@ enum ChallengeLogik {
         var gemeinsamErreichtAm: String?
     }
 
-    static func wochen(heute: String, schritte: [TagesEintrag<Int>], zielGemeinsamWoche: Int) -> [WochenErgebnis] {
+    /// `zielGemeinsamWocheAenderungen`: die volle Historie (nicht der aktuelle Wert) — "letzter
+    /// gewinnt" heißt nur "ein Wert für alle" (kein Wert pro Person wie bei den anderen Zielen),
+    /// NICHT "keine Zeit-Historie". Ohne die Historie würde ein heute geändertes Ziel rückwirkend
+    /// vergangene Wochen neu bewerten: `stand` würde fallen und bereits akzeptierte `BesitzLogik`-
+    /// Käufe könnten rückwirkend ungültig werden.
+    static func wochen(heute: String, schritte: [TagesEintrag<Int>], zielGemeinsamWocheAenderungen: [ZielAenderung]) -> [WochenErgebnis] {
         let proTag = HealthFaltung.gefaltet(schritte)
         var montage = Set(proTag.values.flatMap { $0.keys.map(Datum.montagDerWoche) })
         montage.insert(Datum.montagDerWoche(heute))
         return montage.sorted().map { montag in
+            let zielGemeinsamWoche = HealthLogik.zielAmTag(montag, zielGemeinsamWocheAenderungen, standard: 140_000)
             let sonntag = Datum.addTage(montag, 6)
             let abgeschlossen = heute > sonntag
             let letzterSichtbarerTag = min(sonntag, heute)
@@ -86,6 +92,26 @@ enum ChallengeLogik {
     struct SerienBonus: Sendable, Equatable { var von: Person; var datum: String; var laenge: Int; var punkte: Int }
 
     private static let meilensteine: [(laenge: Int, punkte: Int)] = [(3, 30), (7, 100), (14, 250), (30, 600)]
+
+    /// Current run length ending at `heute` (0 if today doesn't qualify) — for progress display
+    /// ("laufende Challenges ... mit Fortschritt"), separate from `serienBoni` which only reports
+    /// the point-earning milestone crossings.
+    static func laufendeSerie(heute: String, schritte: [TagesEintrag<Int>], zielSchritte: [Person: [ZielAenderung]]) -> [Person: Int] {
+        let proTag = HealthFaltung.gefaltet(schritte)
+        var ergebnis: [Person: Int] = [:]
+        for person in Person.allCases {
+            var lauf = 0
+            var tag = heute
+            while true {
+                let ziel = HealthLogik.zielAmTag(tag, zielSchritte[person] ?? [], standard: 10_000)
+                guard let wert = proTag[person]?[tag]?.wert, wert >= ziel else { break }
+                lauf += 1
+                tag = Datum.addTage(tag, -1)
+            }
+            ergebnis[person] = lauf
+        }
+        return ergebnis
+    }
 
     /// Every milestone a consecutive-days run crosses, once per run — a run that breaks and starts
     /// over can earn the same milestone again (e.g. two separate 3-day runs both give +30).

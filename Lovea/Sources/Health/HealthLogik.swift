@@ -63,16 +63,18 @@ enum HealthLogik {
 
     // MARK: - Stufen (Z-20.3, Spec 3.2) — 0...3 für Gym und Wasser
 
-    /// 0 nichts, 1 (leicht) heute abgehakt, 2 (mittel) Wochenziel diese Woche auf Kurs, 3 (stark)
-    /// Wochenziel schon geschafft. "Auf Kurs" ist eine einfache Pace-Heuristik: mindestens so viele
-    /// Tage geschafft, wie bei gleichmäßigem Tempo bis zum heutigen Wochentag fällig wären.
+    /// 0 nichts (auch wenn das Wochenziel über ANDERE Tage schon erreicht ist — jede Zelle im
+    /// Jahres-Raster ist EIN Tag, ein nicht abgehakter Tag bleibt leer), 1 (leicht) heute abgehakt,
+    /// 2 (mittel) Wochenziel diese Woche auf Kurs, 3 (stark) Wochenziel schon geschafft. "Auf Kurs"
+    /// ist eine einfache Pace-Heuristik: mindestens so viele Tage geschafft, wie bei gleichmäßigem
+    /// Tempo bis zum heutigen Wochentag fällig wären.
     /// // ponytail: lineares Pacing, kein Blick auf die Restwoche. Upgrade, falls das zu streng wirkt.
     static func gymStufe(heuteAbgehakt: Bool, erledigtInWoche: Int, ziel: Int, wochentag: Int) -> Int {
+        guard heuteAbgehakt else { return 0 }
         let ziel = max(ziel, 1)
         if erledigtInWoche >= ziel { return 3 }
         let faelligPace = Int((Double(ziel) * Double(wochentag) / 7).rounded(.up))
-        if erledigtInWoche >= faelligPace { return 2 }
-        return heuteAbgehakt ? 1 : 0
+        return erledigtInWoche >= faelligPace ? 2 : 1
     }
 
     /// 0 nichts getrunken, 1 unter 50 %, 2 ab 50 %, 3 Tagesziel erreicht.

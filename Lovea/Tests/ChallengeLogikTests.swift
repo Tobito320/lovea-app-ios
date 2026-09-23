@@ -3,6 +3,8 @@ import XCTest
 
 final class ChallengeLogikTests: XCTestCase {
 
+    private static let ziel140k = [ZielAenderung(seq: 1, datum: "2000-01-01", wert: 140_000)]
+
     // MARK: - Duell der Woche
 
     /// Review-Fokus 4: ein Tag, an dem nur eine Person Daten hat, darf im Duell nicht als 0 gegen
@@ -15,7 +17,7 @@ final class ChallengeLogikTests: XCTestCase {
         var schritte = tage.map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: $0, wert: 8000) }
         schritte += tage.dropLast().map { TagesEintrag(seq: 1, von: Person.annika, datum: $0, gesendetAm: $0, wert: 9000) } // letzter Tag fehlt
 
-        let wochen = ChallengeLogik.wochen(heute: "2026-09-28", schritte: schritte, zielGemeinsamWoche: 140_000)
+        let wochen = ChallengeLogik.wochen(heute: "2026-09-28", schritte: schritte, zielGemeinsamWocheAenderungen: Self.ziel140k)
         let woche = wochen.first { $0.montag == montag }!
 
         XCTAssertTrue(woche.abgeschlossen)
@@ -27,7 +29,7 @@ final class ChallengeLogikTests: XCTestCase {
     func testDuellOhneGemeinsameTageHatKeinenSieger() {
         let montag = "2026-09-21"
         let schritte = [TagesEintrag(seq: 1, von: Person.ahmed, datum: montag, gesendetAm: montag, wert: 20_000)]
-        let woche = ChallengeLogik.wochen(heute: "2026-09-28", schritte: schritte, zielGemeinsamWoche: 140_000).first { $0.montag == montag }!
+        let woche = ChallengeLogik.wochen(heute: "2026-09-28", schritte: schritte, zielGemeinsamWocheAenderungen: Self.ziel140k).first { $0.montag == montag }!
         XCTAssertNil(woche.duellSieger)
     }
 
@@ -39,7 +41,7 @@ final class ChallengeLogikTests: XCTestCase {
              TagesEintrag(seq: 1, von: Person.annika, datum: tag, gesendetAm: tag, wert: 1000)]
         }
         // Mittwoch derselben Woche: die Woche läuft noch.
-        let woche = ChallengeLogik.wochen(heute: "2026-09-23", schritte: schritte, zielGemeinsamWoche: 140_000).first { $0.montag == montag }!
+        let woche = ChallengeLogik.wochen(heute: "2026-09-23", schritte: schritte, zielGemeinsamWocheAenderungen: Self.ziel140k).first { $0.montag == montag }!
         XCTAssertFalse(woche.abgeschlossen)
         XCTAssertNil(woche.duellSieger, "kein Ergebnis, solange die Woche noch läuft")
     }
@@ -54,15 +56,36 @@ final class ChallengeLogikTests: XCTestCase {
             [TagesEintrag(seq: 1, von: Person.ahmed, datum: tag, gesendetAm: tag, wert: 20_000),
              TagesEintrag(seq: 1, von: Person.annika, datum: tag, gesendetAm: tag, wert: 20_000)]
         }
-        let woche = ChallengeLogik.wochen(heute: "2026-09-27", schritte: schritte, zielGemeinsamWoche: 140_000).first { $0.montag == montag }!
+        let woche = ChallengeLogik.wochen(heute: "2026-09-27", schritte: schritte, zielGemeinsamWocheAenderungen: Self.ziel140k).first { $0.montag == montag }!
         XCTAssertEqual(woche.gemeinsamErreichtAm, "2026-09-24", "am 4. Tag (24.) wird die 140.000 zuerst überschritten")
     }
 
     func testGemeinsamWocheNichtErreicht() {
         let montag = "2026-09-21"
         let schritte = [TagesEintrag(seq: 1, von: Person.ahmed, datum: montag, gesendetAm: montag, wert: 5000)]
-        let woche = ChallengeLogik.wochen(heute: "2026-09-28", schritte: schritte, zielGemeinsamWoche: 140_000).first { $0.montag == montag }!
+        let woche = ChallengeLogik.wochen(heute: "2026-09-28", schritte: schritte, zielGemeinsamWocheAenderungen: Self.ziel140k).first { $0.montag == montag }!
         XCTAssertNil(woche.gemeinsamErreichtAm)
+    }
+
+    /// Eine heute gesendete Zieländerung darf eine VERGANGENE, schon abgeschlossene Woche nicht neu
+    /// bewerten (sonst würde `stand` rückwirkend fallen und ein akzeptierter `BesitzLogik`-Kauf
+    /// könnte rückwirkend ungültig werden).
+    func testZielGemeinsamWocheAenderungWirktNichtRueckwirkend() {
+        let vergangeneWoche = "2026-09-14" // Montag
+        let tage = (0..<7).map { Datum.addTage(vergangeneWoche, $0) }
+        // 21.000/Tag gemeinsam -> 147.000 in der Woche: über dem ALTEN Ziel 140.000, unter einem
+        // später (heute) gesetzten höheren Ziel 200.000.
+        let schritte = tage.flatMap { tag in
+            [TagesEintrag(seq: 1, von: Person.ahmed, datum: tag, gesendetAm: tag, wert: 10_500),
+             TagesEintrag(seq: 1, von: Person.annika, datum: tag, gesendetAm: tag, wert: 10_500)]
+        }
+        let aenderungen = [
+            ZielAenderung(seq: 1, datum: "2000-01-01", wert: 140_000),
+            ZielAenderung(seq: 2, datum: "2026-09-23", wert: 200_000), // erst danach geändert
+        ]
+        let woche = ChallengeLogik.wochen(heute: "2026-09-25", schritte: schritte, zielGemeinsamWocheAenderungen: aenderungen).first { $0.montag == vergangeneWoche }!
+        XCTAssertEqual(woche.gemeinsamZiel, 140_000, "für die vergangene Woche galt noch das alte Ziel")
+        XCTAssertNotNil(woche.gemeinsamErreichtAm)
     }
 
     // MARK: - Gemeinsam Monat
@@ -106,6 +129,20 @@ final class ChallengeLogikTests: XCTestCase {
         ]
         let boni = ChallengeLogik.serienBoni(heute: "2026-08-08", schritte: boniQuelle, zielSchritte: [:])
         XCTAssertEqual(boni.map(\.laenge), [3, 3], "zwei getrennte 3er-Läufe geben beide +30")
+    }
+
+    func testLaufendeSerieZaehltRueckwaertsAbHeute() {
+        let tage = ["2026-08-06", "2026-08-07", "2026-08-08"]
+        let schritte = tage.map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: $0, wert: 10_000) }
+        let laufend = ChallengeLogik.laufendeSerie(heute: "2026-08-08", schritte: schritte, zielSchritte: [:])
+        XCTAssertEqual(laufend[.ahmed], 3)
+        XCTAssertEqual(laufend[.annika], 0)
+    }
+
+    func testLaufendeSerieIstNullWennHeuteNichtsZaehlt() {
+        let schritte = [TagesEintrag(seq: 1, von: Person.ahmed, datum: "2026-08-07", gesendetAm: "2026-08-07", wert: 10_000)]
+        let laufend = ChallengeLogik.laufendeSerie(heute: "2026-08-08", schritte: schritte, zielSchritte: [:])
+        XCTAssertEqual(laufend[.ahmed], 0, "gestern zählt nicht mehr, wenn heute noch nichts vorliegt")
     }
 
     // MARK: - Gesamt-Bonus

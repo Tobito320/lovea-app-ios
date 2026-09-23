@@ -78,6 +78,22 @@ final class PunkteLogikTests: XCTestCase {
         XCTAssertEqual(stand[.ahmed], 40)
     }
 
+    /// Die 7-Tage-Regel gilt für den GEWINNER der Faltung (höchster seq), nicht für jede Roh-Op für
+    /// sich: ein spätes Zurücknehmen (Op selbst >7 Tage nach `datum` gesendet) muss trotzdem
+    /// gewinnen und darf nicht dazu führen, dass das frühere Abhaken fälschlich stehen bleibt.
+    func testSpaetesZuruecknehmenGewinntAuchWennEsSelbstIneligibelIst() {
+        let stand = PunkteLogik.stand(
+            heute: "2026-09-23",
+            schritte: [],
+            gym: [
+                TagesEintrag(seq: 1, von: .ahmed, datum: "2026-09-10", gesendetAm: "2026-09-10", wert: 1),
+                TagesEintrag(seq: 2, von: .ahmed, datum: "2026-09-10", gesendetAm: "2026-09-20", wert: 0),
+            ],
+            wasser: [], zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: [], spieleSiege: []
+        )
+        XCTAssertNil(stand[.ahmed], "zurückgenommen, keine Punkte")
+    }
+
     func testGymNachtraeglichNachSiebenTagenZaehltNicht() {
         let stand = PunkteLogik.stand(
             heute: "2026-09-23",
@@ -114,5 +130,17 @@ final class PunkteLogikTests: XCTestCase {
     func testGewonneneSpieleZaehlenZehnPunkteJeSieg() {
         let punkte = PunkteLogik.tagesPunkte(schritte: nil, zielSchritte: 10_000, gymAbgehakt: false, wasser: 0, zielWasser: 8, chatStreakTag: false, spieleGewonnen: 2)
         XCTAssertEqual(punkte, 20)
+    }
+
+    /// Ein Sieg an einem Tag OHNE jede andere Aktivität (keine Schritte-Daten, kein Streak, kein
+    /// Gym/Wasser) darf nicht verloren gehen, nur weil kein anderer Datenpunkt diesen Tag in die
+    /// Verlaufs-Menge einbringt.
+    func testGewonnenesSpielAnEinemSonstLeerenTagZaehltImStand() {
+        let stand = PunkteLogik.stand(
+            heute: "2026-09-23", schritte: [], gym: [], wasser: [],
+            zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: [],
+            spieleSiege: [PunkteLogik.SpielSieg(von: .annika, datum: "2026-09-23")]
+        )
+        XCTAssertEqual(stand[.annika], 10)
     }
 }
