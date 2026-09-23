@@ -12,13 +12,18 @@ struct KussSzene: View {
         let kuesst = modell.anzeige(person).haupt == .kuss || modell.anzeige(person.partner).haupt == .kuss
         ZStack {
             if kuesst {
-                if let bild = UIImage(named: "kuss-szene") {
-                    Image(uiImage: bild)
-                        .resizable()
-                        .scaledToFit()
-                        .frame(maxWidth: 260)
-                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                // Gezeichneter Kuss in Seitenansicht (Lippen aufeinander), als GIF im Bundle; sonst Standbild.
+                Group {
+                    if let gif = Bundle.main.url(forResource: "kuss-szene", withExtension: "gif") {
+                        AnimiertesGif(url: gif).aspectRatio(6.0 / 5.0, contentMode: .fit)
+                    } else if let bild = UIImage(named: "kuss-szene") {
+                        Image(uiImage: bild).resizable().scaledToFit()
+                    }
                 }
+                .frame(maxWidth: 270)
+                .clipShape(.rect(cornerRadius: 28))
+                .shadow(color: .pink.opacity(0.35), radius: 18)
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
                 if !reduceMotion { SteigendeHerzen().transition(.opacity) }
             }
         }
