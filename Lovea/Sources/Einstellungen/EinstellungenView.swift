@@ -25,6 +25,7 @@ struct EinstellungenView: View {
                             .foregroundStyle(.secondary)
                     }
                 }
+                FaceTimeKontaktZeile()
             }
             Section("Figur") {
                 NavigationLink("Figuren-Editor") { FigurEditorSeite(person: person) }
