@@ -3,7 +3,7 @@ import Observation
 import UIKit
 
 // Usage: set `Raum.shared.ich = person` once at app start, call `Raum.shared.start()` and
-// `Raum.shared.aktiv(_:)` from `scenePhase`. Faltungen register with `beobachten`/`beobachtenStapel`;
+// `Raum.shared.aktiv(_:hintergrund:)` from `scenePhase`. Faltungen register with `beobachten`/`beobachtenStapel`;
 // UI reads `verbunden`/`wartet`/`eingerichtet` for `SyncStatusZeile`.
 @MainActor
 @Observable
@@ -50,6 +50,10 @@ final class Raum {
     /// i.e. we just caught up. `nachholenBisFertig` polls this instead of using a continuation,
     /// to sidestep continuation/cancellation bookkeeping for what's a coarse, low-frequency wait.
     private var catchUpZaehler = 0
+
+    /// I-2: true once the first full catch-up since launch finished (a page with `mehr == false`), so
+    /// the log holds everything the server had. Its ops were already handed to the folds by then.
+    var nachgeholt: Bool { catchUpZaehler > 0 }
 
     /// Serializes disk writes and sends so they happen in call order (a fast echo must never
     /// run before the `senden` that caused it finishes queuing). Tests await `leer()`.
@@ -110,19 +114,21 @@ final class Raum {
         }
     }
 
-    /// Call from `scenePhase`: connect when active, disconnect 30 s after going to background.
-    func aktiv(_ ist: Bool) {
+    /// Call from `scenePhase`: connect when active. `.inactive` (app switcher, Control Center)
+    /// disconnects after 30 s. `.background` (`hintergrund`) disconnects right after a short flush
+    /// (I-4): while the socket is open the server counts the person as there and sends no push.
+    func aktiv(_ ist: Bool, hintergrund: Bool = false) {
         if ist {
             beendeHintergrundAufgabe()
             start()
-        } else {
-            guard aktivZustand else { return }
+            return
+        }
+        if aktivZustand {
             aktivZustand = false
-            hintergrundTask?.cancel()
             beendeHintergrundAufgabe() // defensive: never overwrite a still-valid identifier
-            // iOS can suspend the app within seconds of backgrounding, well before the 30 s timer
-            // below fires — without real background time, `trennen()` (and its close frame) would
-            // just never run, leaving a socket the server only notices via its own ping timeout.
+            // iOS can suspend the app within seconds of backgrounding — without real background
+            // time, `trennen()` (and its close frame) would just never run, leaving a socket the
+            // server only notices via its own ping timeout.
             hintergrundAufgabe = UIApplication.shared.beginBackgroundTask(withName: "Lovea-Sync-Trennen") { [weak self] in
                 // Apple's overlay doesn't document this handler's closure as @MainActor, but it is
                 // documented to run on the main thread — assumeIsolated is the correct, safe way
@@ -133,12 +139,33 @@ final class Raum {
                     self.beendeHintergrundAufgabe()
                 }
             }
-            hintergrundTask = Task { @MainActor [weak self] in
+        } else if !hintergrund || hintergrundTask == nil {
+            // A repeated `.inactive`, or no foreground session to end (e.g. a silent-push catch-up
+            // from `nachholenBisFertig`, which disconnects on its own).
+            return
+        }
+        // `.inactive` then `.background`: keeps the background task begun above, only the timer changes.
+        hintergrundTask?.cancel()
+        hintergrundTask = Task { @MainActor [weak self] in
+            if hintergrund {
+                await self?.warteschlangeKurzLeeren()
+            } else {
                 try? await Task.sleep(for: .seconds(30))
-                guard let self, !Task.isCancelled else { return }
-                self.trennen()
-                self.beendeHintergrundAufgabe()
             }
+            guard let self, !Task.isCancelled else { return }
+            self.hintergrundTask = nil
+            self.trennen()
+            self.beendeHintergrundAufgabe()
+        }
+    }
+
+    /// I-4: gives just-queued ops up to 3 s to go out and come back confirmed before the socket
+    /// closes. Whatever is still open stays in the queue and goes out on the next connect.
+    private func warteschlangeKurzLeeren() async {
+        await leer()
+        let ende = ContinuousClock.now + .seconds(3)
+        while wartet > 0, verbunden, ContinuousClock.now < ende, !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(200))
         }
     }
 

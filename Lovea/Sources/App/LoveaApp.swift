@@ -33,7 +33,7 @@ struct LoveaApp: App {
                 }
             }
             .onChange(of: scenePhase) { _, phase in
-                Raum.shared.aktiv(phase == .active)
+                Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
             }
         }
     }

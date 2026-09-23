@@ -10,9 +10,10 @@ final class KalenderModell {
     static let shared = KalenderModell()
 
     private(set) var zustand = Zustand()
-    /// Rohe Ops, nur für reine Funktionen, die ihre eigene Faltung mitbringen (`Puenktlich.monatsKrone`).
-    private(set) var alleOps: [Op] = []
-    private var angewendet: Set<String> = []
+    private var faltung = SeqFaltung()
+    /// Rohe Ops (Ankunftsreihenfolge), nur für reine Funktionen, die ihre eigene, reihenfolgefreie
+    /// Faltung mitbringen (`Puenktlich.monatsKrone`).
+    var alleOps: [Op] { faltung.ops }
 
     struct Zustand: Sendable {
         var daten = KalenderDaten()
@@ -56,13 +57,9 @@ final class KalenderModell {
     private init() {
         Raum.shared.beobachtenStapel(Self.arten) { [weak self] ops in
             guard let self else { return }
-            // `angewendet` markiert schon verarbeitete IDs (Faltung ist idempotent) — hier auch
-            // genutzt, damit `alleOps` (für `Puenktlich.monatsKrone`) keine Op doppelt zählt.
-            for op in ops {
-                guard !self.angewendet.contains(op.id) else { continue }
-                self.alleOps.append(op)
-                self.zustand = Self.op(op, in: self.zustand, angewendet: &self.angewendet)
-            }
+            var faltung = self.faltung
+            self.zustand = Self.einarbeiten(ops, faltung: &faltung, zustand: self.zustand)
+            self.faltung = faltung
         }
         ersterStartMusterFallsNoetig()
     }
@@ -75,13 +72,23 @@ final class KalenderModell {
     nonisolated static func anwenden(_ ops: [Op]) -> Zustand {
         var z = Zustand()
         var gesehen: Set<String> = []
-        for op in ops { z = Self.op(op, in: z, angewendet: &gesehen) }
+        for op in ops { Self.op(op, in: &z, angewendet: &gesehen) }
         return z
     }
 
-    private nonisolated static func op(_ op: Op, in zustand: Zustand, angewendet: inout Set<String>) -> Zustand {
-        guard angewendet.insert(op.id).inserted else { return zustand } // idempotent bei doppelter Zustellung
+    /// I-1: Live-Weg des Modells. Neue Ops kommen oben drauf, außer die Reihenfolge nach `seq` hat
+    /// sich verschoben (Echo einer eigenen Op, ältere Op nach neuerer). Dann wird neu gefaltet, so
+    /// gewinnt auf beiden Handys die höhere `seq`.
+    nonisolated static func einarbeiten(_ batch: [Op], faltung: inout SeqFaltung, zustand: Zustand) -> Zustand {
+        guard let neu = faltung.aufnehmen(batch) else { return anwenden(faltung.sortiert) }
         var z = zustand
+        var gesehen: Set<String> = []
+        for op in neu { Self.op(op, in: &z, angewendet: &gesehen) }
+        return z
+    }
+
+    private nonisolated static func op(_ op: Op, in z: inout Zustand, angewendet: inout Set<String>) {
+        guard angewendet.insert(op.id).inserted else { return } // idempotent bei doppelter Zustellung
         switch op.art {
         case "muster.setzen":
             if let m = op.daten(Muster.self) {
@@ -103,7 +110,7 @@ final class KalenderModell {
         case "termin.loeschen":
             if let d = op.daten(MitId.self) { z.daten.termine.removeAll { $0.id == d.id } }
         case "treffen.setzen":
-            if let d = op.daten(TreffenD.self) { z = treffenSetzen(op.von, op.zeit, d, in: z) }
+            if let d = op.daten(TreffenD.self) { treffenSetzen(op.von, op.zeit, d, in: &z) }
         case "treffen.loeschen":
             if let d = op.daten(MitDatum.self) {
                 z.daten.treffen.removeAll { $0.datum == d.datum }
@@ -131,14 +138,12 @@ final class KalenderModell {
         default:
             break
         }
-        return z
     }
 
     /// Review-Fokus 2: Bei unterschiedlichem `wasMachenWir` bleibt die vorige Fassung abrufbar.
-    /// Ops werden in Zustellreihenfolge angewendet (für bestätigte Ops = Reihenfolge nach `seq`),
-    /// die zuletzt angewendete gewinnt.
-    private nonisolated static func treffenSetzen(_ von: Person, _ zeit: Date, _ d: TreffenD, in zustand: Zustand) -> Zustand {
-        var z = zustand
+    /// Die zuletzt angewendete Op gewinnt; `einarbeiten` sorgt dafür, dass das die mit der höheren
+    /// `seq` ist (I-1).
+    private nonisolated static func treffenSetzen(_ von: Person, _ zeit: Date, _ d: TreffenD, in z: inout Zustand) {
         let vorher = z.treffenText[d.datum]
         var vorherige = vorher?.vorherige
         if let alt = vorher, alt.text != d.wasMachenWir {
@@ -148,15 +153,13 @@ final class KalenderModell {
         z.treffenText[d.datum] = neu
         z.daten.treffen.removeAll { $0.datum == d.datum }
         z.daten.treffen.append(Treffen(datum: d.datum, uhrzeit: neu.uhrzeit, wasMachenWir: neu.text))
-        return z
     }
 
     // MARK: - Z-9.4 Startmuster
 
     /// Ohne Uhrzeiten, „ab“ 2026-09-21 (Woche A). Annika: Schule Mo–Fr. Ahmed: vier Muster
     /// (Schule Di+Mi Woche A, Mi Woche B, Arbeit Mo/Do/Fr A, Mo/Di/Do/Fr B) — 1:1 wie die
-    /// bestehenden Wochenplan-Tests. Feste IDs machen ein doppeltes Anlegen ungefährlich (Fold
-    /// überschreibt dasselbe Muster einfach noch einmal mit denselben Werten).
+    /// bestehenden Wochenplan-Tests. Gesendet nur einmal pro Person, siehe `startmusterNoetig`.
     nonisolated static func standardMuster(fuer person: Person) -> [Muster] {
         let ab = "2026-09-21"
         switch person {
@@ -174,17 +177,32 @@ final class KalenderModell {
         }
     }
 
-    // ponytail: Raum meldet nirgends "Anfangsseite geladen" — `leer()` wartet nur auf bereits
-    // eingereihte Arbeit, nicht auf den Netzwerk-Umlauf selbst. Eine kurze Gnadenfrist deckt den
-    // normalen Fall ab; feste IDs oben machen ein zu frühes, doppeltes Senden harmlos. Aufwertung:
-    // Raum könnte ein explizites "erste Seite da"-Signal bekommen.
+    /// I-2: Startmuster gibt es nur einmal pro Person. Nicht, wenn sie schon einmal gesendet wurden
+    /// (Flag), nicht, wenn im Log irgendein eigenes `muster.setzen`/`muster.loeschen` steht (auch
+    /// "alle gelöscht" ist eine Entscheidung), und nicht, wenn schon Muster für mich da sind.
+    nonisolated static func startmusterNoetig(ich: Person, ops: [Op], muster: [Muster], schonGesendet: Bool) -> Bool {
+        guard !schonGesendet else { return false }
+        let eigeneMusterOp = ops.contains { ($0.art == "muster.setzen" || $0.art == "muster.loeschen") && $0.von == ich }
+        return !eigeneMusterOp && !muster.contains { $0.person == ich.rawValue }
+    }
+
+    /// Prüft erst nach dem ersten vollständigen Nachholen, sonst sieht ein neues Handy einen leeren Log.
     private func ersterStartMusterFallsNoetig() {
         Task { @MainActor [weak self] in
-            guard let self else { return }
+            guard Raum.shared.eingerichtet else { return }
+            while !Raum.shared.nachgeholt {
+                try? await Task.sleep(for: .seconds(1))
+            }
             await Raum.shared.leer()
-            try? await Task.sleep(for: .seconds(2))
-            guard let ich = Raum.shared.ich else { return }
-            guard !self.zustand.daten.muster.contains(where: { $0.person == ich.rawValue }) else { return }
+            guard let self, let ich = Raum.shared.ich else { return }
+            let schluessel = "lovea.startmusterGesendet.\(ich.rawValue)"
+            let noetig = Self.startmusterNoetig(
+                ich: ich, ops: self.faltung.ops, muster: self.zustand.daten.muster,
+                schonGesendet: UserDefaults.standard.bool(forKey: schluessel)
+            )
+            // Auch ohne Senden setzen: wer schon eigene Muster hat, bekommt nie wieder Startmuster.
+            UserDefaults.standard.set(true, forKey: schluessel)
+            guard noetig else { return }
             for muster in Self.standardMuster(fuer: ich) { Raum.shared.senden("muster.setzen", muster) }
         }
     }

@@ -13,7 +13,7 @@ final class WirModell {
     static let shared = WirModell()
 
     private(set) var zustand = Zustand()
-    private var angewendet: Set<String> = []
+    private var faltung = SeqFaltung()
 
     /// Bundle-Vorrat aus `Kalender/Inhalt/dates.json` (40 Ideen der Web-App).
     nonisolated static let ideenVorrat: [DateIdee] = {
@@ -42,22 +42,33 @@ final class WirModell {
     static let arten: Set<String> = ["frage.antwort", "frage.eigene", "thema.setzen", "liste.setzen", "liste.loeschen", "idee.neu", "wuerfel.gezogen"]
 
     private init() {
-        Raum.shared.beobachten(Self.arten) { [weak self] op in
+        Raum.shared.beobachtenStapel(Self.arten) { [weak self] ops in
             guard let self else { return }
-            self.zustand = Self.op(op, in: self.zustand, angewendet: &self.angewendet)
+            var faltung = self.faltung
+            self.zustand = Self.einarbeiten(ops, faltung: &faltung, zustand: self.zustand)
+            self.faltung = faltung
         }
     }
 
     nonisolated static func anwenden(_ ops: [Op]) -> Zustand {
         var z = Zustand()
         var gesehen: Set<String> = []
-        for op in ops { z = Self.op(op, in: z, angewendet: &gesehen) }
+        for op in ops { Self.op(op, in: &z, angewendet: &gesehen) }
         return z
     }
 
-    private nonisolated static func op(_ op: Op, in zustand: Zustand, angewendet: inout Set<String>) -> Zustand {
-        guard angewendet.insert(op.id).inserted else { return zustand }
+    /// I-1: wie `KalenderModell.einarbeiten` — neu falten, sobald sich die `seq`-Reihenfolge
+    /// verschiebt, damit auf beiden Handys die höhere `seq` gewinnt.
+    nonisolated static func einarbeiten(_ batch: [Op], faltung: inout SeqFaltung, zustand: Zustand) -> Zustand {
+        guard let neu = faltung.aufnehmen(batch) else { return anwenden(faltung.sortiert) }
         var z = zustand
+        var gesehen: Set<String> = []
+        for op in neu { Self.op(op, in: &z, angewendet: &gesehen) }
+        return z
+    }
+
+    private nonisolated static func op(_ op: Op, in z: inout Zustand, angewendet: inout Set<String>) {
+        guard angewendet.insert(op.id).inserted else { return }
         switch op.art {
         case "frage.antwort":
             if let d = op.daten(FrageAntwortD.self) { z.antworten[d.frageId, default: [:]][op.von] = FrageAntwort(text: d.text, zeit: op.zeit) }
@@ -87,7 +98,6 @@ final class WirModell {
         default:
             break
         }
-        return z
     }
 
     // MARK: - Frage des Tages

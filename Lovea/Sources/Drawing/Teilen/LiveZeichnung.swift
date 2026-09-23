@@ -41,7 +41,13 @@ struct LiveStrich: Codable, Equatable, Sendable {
         werkzeug = settings.preset.rawValue
         farbe = settings.color.hex8
         groesse = settings.size
-        self.punkte = punkte.map { [Double($0.location.x), Double($0.location.y), $0.pressure, $0.altitude] }
+        // C-1: a tenth of a pixel and a thousandth of pressure make a stroke op about three times smaller.
+        // ponytail: the replay can differ from the local stroke by up to 0.05 px; send the exact doubles
+        // again if bit-exact convergence between the phones ever matters.
+        self.punkte = punkte.map {
+            [Self.runden(Double($0.location.x), 10), Self.runden(Double($0.location.y), 10),
+             Self.runden($0.pressure, 1000), Self.runden($0.altitude, 100)]
+        }
         deckkraft = settings.opacity
         druckGroesse = settings.pressureSize
         druckDeckkraft = settings.pressureOpacity
@@ -52,6 +58,10 @@ struct LiveStrich: Codable, Equatable, Sendable {
         self.auswahl = auswahl ? true : nil
         self.ende = ende ? true : nil
         self.abbruch = abbruch ? true : nil
+    }
+
+    private static func runden(_ wert: Double, _ faktor: Double) -> Double {
+        (wert * faktor).rounded() / faktor
     }
 
     var pinsel: BrushSettings? {

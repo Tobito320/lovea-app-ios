@@ -56,6 +56,31 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(latestSeq, 3)
     }
 
+    /// I-6: strokes a newer stand contains leave memory (and are skipped on reload); a late echo is
+    /// inserted in order instead of re-sorting everything.
+    func testOpLogDropsDrawingOpsANewerStandContains() async {
+        let dir = makeTempDirectory()
+        let log = OpLog(rootURL: dir)
+        func op(_ art: String, _ seq: Int, zeichnung: String, basis: Int = 0) -> Op {
+            let d = "{\"zeichnungId\":\"\(zeichnung)\",\"basis\":\(basis)}"
+            return Op(id: "op-\(seq)", seq: seq, art: art, von: .annika, zeit: Date(), d: Data(d.utf8))
+        }
+
+        await log.anhaengen([op("zeichnung.op", 1, zeichnung: "z"), op("zeichnung.op", 3, zeichnung: "z")])
+        await log.anhaengen([op("zeichnung.op", 2, zeichnung: "andere")])
+        let vorher = await log.alle()
+        XCTAssertEqual(vorher.map(\.seq), [1, 2, 3])
+
+        await log.anhaengen([op("zeichnung.stand", 5, zeichnung: "z", basis: 3), op("zeichnung.rueckgaengig", 4, zeichnung: "z")])
+        let nachStand = await log.alle()
+        XCTAssertEqual(nachStand.map(\.seq), [2, 4, 5])
+
+        let neuGeladen = OpLog(rootURL: dir)
+        await neuGeladen.anhaengen([op("zeichnung.op", 1, zeichnung: "z")]) // repeated echo of a pruned op
+        let nachNeustart = await neuGeladen.alle()
+        XCTAssertEqual(nachNeustart.map(\.seq), [2, 4, 5])
+    }
+
     // MARK: - Warteschlange + Raum: offline, restart, echo (Z-2.3, Review-Fokus 1)
 
     func testOfflineQueueSurvivesRestartAndDuplicateEchoIsIdempotent() async {

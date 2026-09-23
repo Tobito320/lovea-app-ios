@@ -4,6 +4,7 @@ import { fakeSql } from "./fake-sql.js";
 import {
   initSchema,
   opEinfuegen,
+  opEinfuegenMitStatus,
   opsSeit,
   medienTeilSpeichern,
   medienFertig,
@@ -63,6 +64,76 @@ test("1200 Ops werden in drei Seiten zu 500 nachgeliefert", () => {
   const seite3 = opsSeit(sql, seite2.ops.at(-1).seq);
   assert.equal(seite3.ops.length, 200);
   assert.equal(seite3.mehr, false);
+});
+
+// C-1: 600 Ops zu je 5 KB passen nicht in einen Frame. Die Seite bleibt unter
+// 512 KB, und alle Seiten zusammen liefern jede Op genau einmal.
+test("Seiten sind nach Größe begrenzt, Nachholen liefert jede Op genau einmal", () => {
+  const sql = raum();
+  const punkte = "x".repeat(5 * 1024);
+  for (let i = 0; i < 600; i++) opEinfuegen(sql, op(`s-${i}`, "zeichnung.op", "annika", { punkte }));
+
+  const erste = opsSeit(sql, 0);
+  assert.equal(erste.mehr, true);
+  assert.ok(erste.ops.length > 0 && erste.ops.length < 500);
+  assert.ok(JSON.stringify({ t: "ops", ...erste, seite: true }).length < 512 * 1024);
+
+  const gesehen = [];
+  let seit = 0;
+  for (;;) {
+    const seite = opsSeit(sql, seit);
+    gesehen.push(...seite.ops.map((o) => o.id));
+    seit = seite.ops.at(-1).seq;
+    if (!seite.mehr) break;
+  }
+  assert.equal(gesehen.length, 600);
+  assert.equal(new Set(gesehen).size, 600);
+});
+
+test("Eine Op über 512 KB kommt allein, und das Nachholen geht weiter", () => {
+  const sql = raum();
+  opEinfuegen(sql, op("gross", "zeichnung.op", "annika", { punkte: "x".repeat(600 * 1024) }));
+  opEinfuegen(sql, op("klein", "nachricht.neu", "annika", { text: "hi" }));
+
+  const erste = opsSeit(sql, 0);
+  assert.deepEqual(erste.ops.map((o) => o.id), ["gross"]);
+  assert.equal(erste.mehr, true);
+  const zweite = opsSeit(sql, erste.ops[0].seq);
+  assert.deepEqual(zweite.ops.map((o) => o.id), ["klein"]);
+  assert.equal(zweite.mehr, false);
+});
+
+// I-5: Stand-Medien werden aufgeräumt, aber nur, was niemand mehr braucht.
+test("Neuer Stand löscht nur die verwaisten Medien des vorigen Stands", () => {
+  const sql = raum();
+  const medium = (id) => {
+    medienTeilSpeichern(sql, id, "original", 0, new Uint8Array([1]));
+    medienFertig(sql, id, "original", { teile: 1, typ: "image/png", bytes: 1, von: "ahmed" });
+  };
+  for (const id of ["doc1", "vor1", "ebeneA1", "ebeneB", "doc2", "vor2", "ebeneA2", "fremdDoc", "opMedium", "doc3", "vor3", "ebeneA3"]) medium(id);
+
+  const stand = (id, zeichnungId, basis, medienId, vorschau, ebenen) =>
+    op(id, "zeichnung.stand", "ahmed", { zeichnungId, medienId, basis, vorschau, ebenen: ebenen.map((m, i) => ({ ebene: `e${i}`, medienId: m })) });
+
+  opEinfuegenMitStatus(sql, stand("st1", "z1", 0, "doc1", "vor1", ["ebeneA1", "ebeneB"]));
+  // Eine andere Zeichnung nutzt denselben Inhalt wie Ebene A von z1 (Hash-Cache des Handys).
+  opEinfuegenMitStatus(sql, stand("fr1", "z2", 0, "fremdDoc", undefined, ["ebeneA1"]));
+  const st2 = opEinfuegenMitStatus(sql, stand("st2", "z1", 2, "doc2", "vor2", ["ebeneA2", "ebeneB"]));
+  // doc1 und vor1 sind verwaist, ebeneB nutzt der neue Stand, ebeneA1 die andere Zeichnung.
+  assert.equal(medienLesen(sql, "doc1"), null);
+  assert.equal(medienLesen(sql, "vor1"), null);
+  assert.notEqual(medienLesen(sql, "ebeneB"), null);
+  assert.notEqual(medienLesen(sql, "ebeneA1"), null);
+
+  // Eine zeichnung.op nach der basis des neuen Stands nennt ein altes Medium: bleibt.
+  opEinfuegen(sql, op("zo", "zeichnung.op", "ahmed", { id: "x", zeichnungId: "z1", basis: st2.seq, aktion: { ebenen: { neu: [{ medienId: "ebeneA2" }] } } }));
+  opEinfuegenMitStatus(sql, stand("st3", "z1", st2.seq, "doc3", "vor3", ["ebeneA3", "ebeneB"]));
+  assert.notEqual(medienLesen(sql, "ebeneA2"), null);
+  assert.equal(medienLesen(sql, "doc2"), null);
+  assert.notEqual(medienLesen(sql, "fremdDoc"), null);
+  // Doppelte Zustellung desselben Stands räumt nichts weiter weg.
+  opEinfuegenMitStatus(sql, stand("st3", "z1", st2.seq, "doc3", "vor3", ["ebeneA3", "ebeneB"]));
+  assert.notEqual(medienLesen(sql, "doc3"), null);
 });
 
 test("Einstellung: neuester Wert gewinnt", () => {
@@ -236,14 +307,32 @@ test("offeneSpielEinladungen: angenommene und verfallene fallen raus", () => {
 
 test("streakLaeuftHeuteAb: gestern beide aktiv, heute noch keiner -> true", () => {
   const sql = raum();
-  opEinfuegen(sql, op("n1", "nachricht.neu", "ahmed", {}, "2026-10-24T10:00:00.000Z"));
-  opEinfuegen(sql, op("n2", "nachricht.neu", "annika", {}, "2026-10-24T11:00:00.000Z"));
+  const snap = { snap: { bleibt: false } };
+  opEinfuegen(sql, op("n1", "nachricht.neu", "ahmed", snap, "2026-10-24T10:00:00.000Z"));
+  opEinfuegen(sql, op("n2", "nachricht.neu", "annika", snap, "2026-10-24T11:00:00.000Z"));
   const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
   assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
 
-  opEinfuegen(sql, op("n3", "nachricht.neu", "ahmed", {}, "2026-10-25T09:00:00.000Z"));
-  opEinfuegen(sql, op("n4", "nachricht.neu", "annika", {}, "2026-10-25T09:30:00.000Z"));
+  opEinfuegen(sql, op("n3", "nachricht.neu", "ahmed", snap, "2026-10-25T09:00:00.000Z"));
+  opEinfuegen(sql, op("n4", "nachricht.neu", "annika", snap, "2026-10-25T09:30:00.000Z"));
   assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
+});
+
+// I-3: Die App zählt nur Snaps (Streak.swift), die Push-Warnung also auch.
+test("streakLaeuftHeuteAb: normale Chat-Nachrichten zählen nicht, nur Snaps", () => {
+  const sql = raum();
+  opEinfuegen(sql, op("t1", "nachricht.neu", "ahmed", { text: "hi" }, "2026-10-24T10:00:00.000Z"));
+  opEinfuegen(sql, op("t2", "nachricht.neu", "annika", { text: "hey" }, "2026-10-24T11:00:00.000Z"));
+  const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
+  assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
+
+  opEinfuegen(sql, op("s1", "nachricht.neu", "ahmed", { snap: { bleibt: false } }, "2026-10-24T12:00:00.000Z"));
+  opEinfuegen(sql, op("s2", "nachricht.neu", "annika", { snap: { bleibt: true } }, "2026-10-24T13:00:00.000Z"));
+  assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
+  // Heute nur Text: der Snap-Streak läuft weiter ab.
+  opEinfuegen(sql, op("t3", "nachricht.neu", "ahmed", { text: "morgen" }, "2026-10-25T08:00:00.000Z"));
+  opEinfuegen(sql, op("t4", "nachricht.neu", "annika", { text: "morgen" }, "2026-10-25T08:30:00.000Z"));
+  assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
 });
 
 test("streakLaeuftHeuteAb: Systemnachrichten (z. B. Zufällig nah) zählen nicht als Aktivität", () => {

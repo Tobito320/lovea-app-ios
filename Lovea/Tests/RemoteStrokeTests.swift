@@ -11,10 +11,17 @@ final class RemoteStrokeTests: XCTestCase {
         settings.pressureSize = true
         settings.pressureOpacity = true
         settings.stabilizer = 4
-        let inputs = TestGPU.line(from: CGPoint(x: 6, y: 10), to: CGPoint(x: 58, y: 50), steps: 30).enumerated().map { index, point in
+        let exakt = TestGPU.line(from: CGPoint(x: 6, y: 10), to: CGPoint(x: 58, y: 50), steps: 30).enumerated().map { index, point in
             StrokeInput(location: point, pressure: 0.3 + Double(index % 7) / 10, altitude: 0.6 + Double(index % 5) / 10)
         }
         let document = TestGPU.document()
+        // The wire rounds points to 0.1 px (C-1), so the local reference draws the rounded stroke.
+        let inputs = LiveStrich(
+            zeichnungId: document.id.uuidString, strichId: "s0", ebene: document.layers[0].id, settings: settings, punkte: exakt,
+            spiegel: nil, auswahl: false, anfang: true
+        ).eingaben
+        XCTAssertEqual(inputs.count, exakt.count)
+        XCTAssertEqual(Double(inputs[1].location.x), 7.7, accuracy: 1e-9) // 6 + 52/30 = 7.733…
         let local = try await TestGPU.engine(document)
         let remote = try await TestGPU.engine(document)
         let layerID = local.activeLayerID

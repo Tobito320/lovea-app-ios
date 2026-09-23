@@ -36,6 +36,87 @@ final class KalenderModellTests: XCTestCase {
         XCTAssertEqual(zustand.treffenText["2026-10-03"]?.text, "Spazieren")
     }
 
+    // MARK: - I-1 Live-Reihenfolge: die höhere `seq` gewinnt auf beiden Handys
+
+    private func treffen(_ id: String, _ text: String, von: Person, seq: Int?) -> Op {
+        let neu = Op.neu("treffen.setzen", TreffenSendeD(datum: "2026-10-10", uhrzeit: nil, wasMachenWir: text), von: von)
+        return Op(id: id, seq: seq, art: neu.art, von: von, zeit: neu.zeit, d: neu.d)
+    }
+
+    /// Genau der Weg des Modells: jede Lieferung von `Raum` geht durch `einarbeiten`.
+    private func live(_ lieferungen: [[Op]]) -> KalenderModell.Zustand {
+        var faltung = SeqFaltung()
+        var zustand = KalenderModell.Zustand()
+        for batch in lieferungen { zustand = KalenderModell.einarbeiten(batch, faltung: &faltung, zustand: zustand) }
+        return zustand
+    }
+
+    func testGleichzeitigeTreffenAenderungKonvergiertZurHoeherenSeq() {
+        // Ahmed offline: A lokal (ohne seq), dann B von Annika (seq 10), dann das Echo von A (seq 11).
+        let ahmed = live([
+            [treffen("a", "Kino", von: .ahmed, seq: nil)],
+            [treffen("b", "Essen", von: .annika, seq: 10)],
+            [treffen("a", "Kino", von: .ahmed, seq: 11)],
+        ])
+        // Annika: B lokal, dann ihr Echo, dann A.
+        let annika = live([
+            [treffen("b", "Essen", von: .annika, seq: nil)],
+            [treffen("b", "Essen", von: .annika, seq: 10)],
+            [treffen("a", "Kino", von: .ahmed, seq: 11)],
+        ])
+        for zustand in [ahmed, annika] {
+            XCTAssertEqual(zustand.treffenText["2026-10-10"]?.text, "Kino")
+            XCTAssertEqual(zustand.treffenText["2026-10-10"]?.vorherige?.text, "Essen")
+        }
+    }
+
+    func testAeltereSeqNachNeuererAendertNichts() {
+        let zustand = live([
+            [treffen("a", "Kino", von: .ahmed, seq: 11)],
+            [treffen("b", "Essen", von: .annika, seq: 10)],
+        ])
+        XCTAssertEqual(zustand.treffenText["2026-10-10"]?.text, "Kino")
+        XCTAssertEqual(zustand.treffenText["2026-10-10"]?.vorherige?.text, "Essen")
+    }
+
+    func testWirListeKonvergiertInBeidenReihenfolgen() {
+        func liste(_ id: String, _ text: String, von: Person, seq: Int?) -> Op {
+            let neu = Op.neu("liste.setzen", ListeSendeD(id: "eintrag", text: text, geschafft: false), von: von)
+            return Op(id: id, seq: seq, art: neu.art, von: von, zeit: neu.zeit, d: neu.d)
+        }
+        func wir(_ lieferungen: [[Op]]) -> WirModell.Zustand {
+            var faltung = SeqFaltung()
+            var zustand = WirModell.Zustand()
+            for batch in lieferungen { zustand = WirModell.einarbeiten(batch, faltung: &faltung, zustand: zustand) }
+            return zustand
+        }
+        let erst10 = wir([[liste("b", "Picknick", von: .annika, seq: 10)], [liste("a", "Zoo", von: .ahmed, seq: 11)]])
+        let erst11 = wir([[liste("a", "Zoo", von: .ahmed, seq: 11)], [liste("b", "Picknick", von: .annika, seq: 10)]])
+        let offline = wir([
+            [liste("a", "Zoo", von: .ahmed, seq: nil)],
+            [liste("b", "Picknick", von: .annika, seq: 10)],
+            [liste("a", "Zoo", von: .ahmed, seq: 11)],
+        ])
+        for zustand in [erst10, erst11, offline] {
+            XCTAssertEqual(zustand.liste.map(\.text), ["Zoo"])
+        }
+    }
+
+    // MARK: - I-2 Startmuster nur einmal
+
+    func testStartmusterNurEinmalUndNieUeberEigeneMuster() {
+        let geloescht = Op.neu("muster.loeschen", MitIdD(id: "start-ahmed-schule-a"), von: .ahmed)
+        let partnerMuster = Op.neu("muster.setzen", KalenderModell.standardMuster(fuer: .annika)[0], von: .annika)
+
+        XCTAssertTrue(KalenderModell.startmusterNoetig(ich: .ahmed, ops: [], muster: [], schonGesendet: false))
+        XCTAssertFalse(KalenderModell.startmusterNoetig(ich: .ahmed, ops: [], muster: [], schonGesendet: true))
+        // Alle eigenen Muster gelöscht: das ist eine Entscheidung, kein leerer Kalender.
+        XCTAssertFalse(KalenderModell.startmusterNoetig(ich: .ahmed, ops: [geloescht], muster: [], schonGesendet: false))
+        XCTAssertTrue(KalenderModell.startmusterNoetig(
+            ich: .ahmed, ops: [partnerMuster], muster: KalenderModell.standardMuster(fuer: .annika), schonGesendet: false
+        ))
+    }
+
     // MARK: - Z-9.4 Startmuster passen zu den bestehenden Wochenplan-Tests
 
     func testStandardMusterVerhaeltSichWieBestehendeWochenplanTests() {
@@ -92,3 +173,5 @@ final class KalenderModellTests: XCTestCase {
 }
 
 private struct TreffenSendeD: Encodable { var datum: String; var uhrzeit: String?; var wasMachenWir: String? }
+private struct ListeSendeD: Encodable { var id: String; var text: String; var geschafft: Bool }
+private struct MitIdD: Encodable { var id: String }

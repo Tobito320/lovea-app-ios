@@ -57,8 +57,9 @@ struct ZeichnungStand: Codable, Equatable, Sendable {
 /// One finished action. Strokes and fills are replayed from their data, so the partner's work
 /// underneath stays; everything else (transform, adjust, clear, text …) travels as the resulting pixels.
 enum ZeichnungAktion: Codable, Equatable, Sendable {
-    /// The whole stroke. ponytail: exact points, so the replay matches the local pixels; a long
-    /// stroke is some 10–30 KB of JSON. Delta-encode the points if the op log gets heavy.
+    /// The whole stroke, points rounded to 0.1 px (`LiveStrich.init`), so the replay matches the
+    /// local pixels up to that. ponytail: a long stroke is still a few KB of JSON; delta-encode the
+    /// points if the op log gets heavy.
     case strich(LiveStrich)
     case fuellen(x: Double, y: Double, farbe: String, toleranz: Double, alleEbenen: Bool, ebene: String)
     /// Region of a layer replaced by an uploaded PNG.

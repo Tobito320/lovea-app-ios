@@ -59,12 +59,22 @@ enum StandPaket {
                 vorschau: vorschau, offen: document.offen, gespeichert: document.updatedAt.timeIntervalSince1970
             )
             guard stand != letzterStand[id] else { return }
+            // I-5: the server deletes the previous stand's media the new one doesn't use. Forget them
+            // here too, or an undo back to old content would reuse a deleted medium id.
+            if let alt = letzterStand[id] {
+                let weg = medienIds(alt).subtracting(medienIds(stand))
+                hochgeladen = hochgeladen.filter { !weg.contains($0.value) }
+            }
             letzterStand[id] = stand
             Raum.shared.senden("zeichnung.stand", stand)
         } catch {
             // ponytail: no retry loop; the next autosave or opening publishes again.
             return
         }
+    }
+
+    private static func medienIds(_ stand: ZeichnungStand) -> Set<String> {
+        Set(stand.ebenen.map(\.medienId) + [stand.medienId] + (stand.vorschau.map { [$0] } ?? []))
     }
 
     /// Uploads a file once per content. Nil when the file doesn't exist (empty, never saved layer).
