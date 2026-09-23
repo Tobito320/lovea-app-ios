@@ -40,8 +40,10 @@ struct WidgetStand: Codable, Sendable, Equatable {
     /// reicht, diese Flags sparen der Timeline nur den überflüssigen Disk-Zugriff für "gibt es nicht".
     var partnerFigurVorhanden = false
     var partnerFotoVorhanden = false
-    /// `nil`, solange kein `WetterModell` existiert (Runde-2-Parallelblock G, siehe Bericht).
+    /// Temperatur als kurzer Text ("17°"), `nil` ohne bekannten Standort des Partners.
     var partnerWetter: String?
+    /// SF-Symbol-Name (`WetterSymbol.sfSymbol`) zu `partnerWetter` — Spec 9 "kleines Wetter-Symbol".
+    var partnerWetterSymbol: String?
 
     var frageDesTages: String?
 }

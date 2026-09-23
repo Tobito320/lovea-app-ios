@@ -11,12 +11,18 @@ struct FigurView: View {
     private let animiert: Bool
     private let bildrate: Double
     private let ganzkoerper: Bool
+    private let poseImmer: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
 
     /// `bildrate`: frames per second of the loop; lower it where many figures or a map redraw.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false) {
+    /// `poseImmer` (Brief I.5): a bought pose/dance normally only shows while `zustand` is otherwise
+    /// idle — set `true` on a still snapshot (profile header, map pin) so it shows regardless of
+    /// state except sleeping/offline/low-battery/bad-mood/a live Geste, which always win. Substitutes
+    /// `.ruhig` for `zustand` in `leinwand` rather than only swapping the arms, so props/scenery/
+    /// pajamas tied to the real `zustand` (barbell, sofa, phone, …) don't linger under the pose.
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false) {
         self.aussehen = aussehen
         self.zustand = zustand
         self.abzeichen = abzeichen
@@ -24,6 +30,7 @@ struct FigurView: View {
         self.animiert = animiert
         self.bildrate = bildrate
         self.ganzkoerper = ganzkoerper
+        self.poseImmer = poseImmer
     }
 
     var body: some View {
@@ -49,7 +56,11 @@ struct FigurView: View {
     }
 
     private func leinwand(_ t: Double, statisch: Bool) -> some View {
-        let zeichner = Zeichner(aussehen, zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper)
+        // `.ruhig` already falls to the `default:` branch in both `pose()` and `poseGanz()`, so
+        // this reuses that existing "idle" path — with none of `zustand`'s props/scene/pajamas —
+        // instead of teaching `Zeichner` a second pose-priority system.
+        let posiert = poseImmer && aussehen.pose != nil && !Zeichner.keinePoseUeberschreibung.contains(zustand)
+        let zeichner = Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper)
         return Canvas { g, size in zeichner.zeichne(g, size) }
     }
 }
@@ -1743,10 +1754,16 @@ private struct Zeichner {
 
     // MARK: Poses
 
+    /// Every `z` with its own scripted arm animation that a static bought pose must never cut off —
+    /// device/mood states, plus live Gesten (kiss lean in `ProfileView`, high-five/laugh/toast/
+    /// trophy), which are meaningful and brief, unlike the all-day Ort/Tageszeit states `FigurView`'s
+    /// `poseImmer` (Brief I.5) substitutes `.ruhig` for.
+    static let keinePoseUeberschreibung: Set<FigurZustand> = [.schlaeft, .offline, .akkuLeer, .schlecht, .kuss, .herz, .lacht, .anstossen, .pokal]
+
     /// Z-23.3/Z-24.2: a bought pose/dance shows while the figure is just idling (Profil, Karte) —
     /// it never fights a meaningful activity pose (typing, sleeping, …).
     func poseUeberschreibung() -> (l: Arm?, r: Arm?)? {
-        guard let id = poseId, ![.schlaeft, .offline, .akkuLeer, .schlecht].contains(z) else { return nil }
+        guard let id = poseId, !Self.keinePoseUeberschreibung.contains(z) else { return nil }
         switch id {
         case "pose.tanz1":
             let s = w(6)
@@ -2756,7 +2773,7 @@ extension Zeichner {
 
     /// Full-body counterpart to `poseUeberschreibung()` — same pose ids, coordinates in body space.
     func poseGanzUeberschreibung(_ m: Masse) -> (l: Arm, r: Arm)? {
-        guard let id = poseId, ![.schlaeft, .offline, .akkuLeer, .schlecht].contains(z) else { return nil }
+        guard let id = poseId, !Self.keinePoseUeberschreibung.contains(z) else { return nil }
         let lx: CGFloat = 100 - m.s + 6, rx: CGFloat = 100 + m.s - 6, y = m.schulterY
         switch id {
         case "pose.tanz1":

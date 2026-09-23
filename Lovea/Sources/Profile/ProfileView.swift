@@ -246,7 +246,7 @@ private struct ProfilInhalt: View {
         let zustand = FigurenModell.shared.anzeige(p).haupt
         let kuesst = zustand == .kuss
         let richtung: CGFloat = p == person ? 1 : -1
-        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true)
+        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: true)
             .offset(x: kuesst ? richtung * 14 : 0)
             .scaleEffect(kuesst ? 1.04 : 1, anchor: .bottom)
             .animation(.spring(response: 0.35, dampingFraction: 0.6), value: kuesst)
@@ -451,7 +451,8 @@ private struct ProfilInhalt: View {
     }
 
     private var chatThemaUntertitel: String? {
-        EinstellungenModell.shared.string("chat.theme", default: "", von: ich).isEmpty ? "Keins gewählt" : ChatThemes.von(EinstellungenModell.shared.string("chat.theme", default: "", von: ich))?.name
+        guard case .string(let id)? = EinstellungenModell.shared.geteilt("chat.theme"), !id.isEmpty else { return "Keins gewählt" }
+        return ChatThemes.von(id)?.name
     }
 
     private var flammeUntertitel: String { EinstellungenModell.shared.string("flamme", default: "🔥", von: ich) }

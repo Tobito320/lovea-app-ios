@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Z-23.3: the "chatTheme" shop category (≥6) — a gradient pair per theme plus a small preview.
-/// Ids match `ShopKatalog` `chatTheme.*` entries. ponytail: data + preview only; picking one under
-/// "Unser Chat" and applying it to the chat background is Block 23.2.
+/// Ids match `ShopKatalog` `chatTheme.*` entries. Picked under "Unser Chat", rendered as the chat
+/// background in `ChatHintergrundAnsicht` (Brief I.1).
 struct ChatTheme: Identifiable, Sendable {
     let id: String
     let name: String

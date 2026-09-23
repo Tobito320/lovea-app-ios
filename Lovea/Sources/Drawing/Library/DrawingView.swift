@@ -134,6 +134,10 @@ struct DrawingView: View {
                 _ = TeilenModell.shared
                 _ = LiveZeichnung.shared
             }
+            // Brief I.4: pick up drawings a DIFFERENT `ArtworkLibrary()` instance wrote to disk
+            // (Umzug-Aufräumen's migration, "In Galerie speichern" from Chat) — event-driven, not a
+            // synchronous `load()` on every tab switch (Z-29.2, Main Thread frei).
+            .onReceive(NotificationCenter.default.publisher(for: .artworkLibraryGeaendert)) { _ in library.load() }
             // Banner deep link (AppNavigation): open the partner's drawing on top of whatever is open.
             .onChange(of: AppNavigation.shared.geteilteZeichnung, initial: true) { _, id in
                 guard let id else { return }

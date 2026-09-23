@@ -130,8 +130,12 @@ final class WidgetStandSchreiber {
         }
         stand.partnerFigurVorhanden = (WidgetGruppe.partnerFigurURL()).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
         stand.partnerFotoVorhanden = (WidgetGruppe.partnerFotoURL()).map { FileManager.default.fileExists(atPath: $0.path) } ?? false
-        // ponytail: kein `WetterModell` in diesem Zweig (Parallelblock G) — `partnerWetter` bleibt
-        // `nil`, bis es existiert. Aufwertung: hier eintragen, sobald der Typ da ist.
+        // Brief I.3: `WetterModell` existiert jetzt (Block 27) — Temperaturtext plus SF-Symbol-Name
+        // fürs Widget-Icon (Spec 9 "kleines Wetter-Symbol").
+        if let wetter = WetterModell.shared.partner {
+            stand.partnerWetter = "\(Int(wetter.temperatur.rounded()))°"
+            stand.partnerWetterSymbol = wetter.symbol
+        }
     }
 
     // MARK: - Partner-Figur und -Foto

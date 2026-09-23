@@ -69,8 +69,8 @@ final class PunkteModell {
     /// `stand`-Summe — die Challenge-Boni aus `ChallengeLogik.punkteBonus` fehlen dort, weil die reine
     /// Logik keine Vorstellung von "Woche"/"Monat" als Anzeige-Einheit hat. Hier zusammengeführt, damit
     /// die Historie und der Punktestand-Chip (Z-22.2) auf dieselbe Summe kommen.
-    /// // ponytail: Käufe fehlen noch als negative Einträge (kein `datum` in `BesitzLogik.Kauf`, Shop
-    /// ist Block 23 — nachrüsten, sobald Käufe eine Op-Zeit mitführen).
+    /// Brief I.2: angenommene Käufe (Shop-Kauf und Geschenk) als negative Zeilen, Datum aus `Kauf.zeit`
+    /// (`Op.zeit`) — abgelehnte Käufe (Review-Fokus 3) tauchen bewusst nicht auf, sie kosten nichts.
     var verlauf: [PunkteLogik.Eintrag] {
         var eintraege = PunkteLogik.verlauf(
             heute: heute, schritte: schritteEintraege, gym: gymEintraege, wasser: wasserEintraege,
@@ -91,6 +91,14 @@ final class PunkteModell {
         }
         for bonus in serien {
             eintraege.append(PunkteLogik.Eintrag(datum: bonus.datum, von: bonus.von, grund: "Serie \(bonus.laenge) Tage", punkte: bonus.punkte))
+        }
+        let preis: (String) -> Int? = { ShopKatalog.artikel($0)?.preis }
+        let besitzErgebnis = BesitzLogik.auswerten(kaeufe, verdient: stand, preis: preis)
+        for kauf in kaeufe where !besitzErgebnis.abgelehnt.contains(kauf.id) {
+            guard let preisWert = preis(kauf.artikel) else { continue }
+            let name = ShopKatalog.artikel(kauf.artikel)?.name ?? kauf.artikel
+            let grund = kauf.fuer == kauf.von ? "Kauf: \(name)" : "Geschenk: \(name)"
+            eintraege.append(PunkteLogik.Eintrag(datum: Datum.text(kauf.zeit), von: kauf.von, grund: grund, punkte: -preisWert))
         }
         return eintraege.sorted { ($0.datum, $0.von.rawValue) < ($1.datum, $1.von.rawValue) }
     }
@@ -189,7 +197,7 @@ final class PunkteModell {
 
     private func kaufAnwenden(_ op: Op) {
         guard let d = op.daten(ShopKaufD.self) else { return }
-        kaeufeNachId[op.id] = BesitzLogik.Kauf(seq: op.seq, id: op.id, von: op.von, artikel: d.artikel, fuer: d.fuer)
+        kaeufeNachId[op.id] = BesitzLogik.Kauf(seq: op.seq, id: op.id, von: op.von, artikel: d.artikel, fuer: d.fuer, zeit: op.zeit)
     }
 }
 

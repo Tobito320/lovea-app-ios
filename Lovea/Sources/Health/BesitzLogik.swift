@@ -12,6 +12,9 @@ enum BesitzLogik {
         var artikel: String
         /// Who ends up owning it — the partner on a gift, else equal to `von`.
         var fuer: Person
+        /// `Op.zeit` (Brief I.2) — the negative "Wofür?" row uses this as its date. Defaulted so
+        /// existing call sites/tests that don't care about the date keep compiling.
+        var zeit: Date = .distantPast
     }
 
     struct Ergebnis: Sendable, Equatable {

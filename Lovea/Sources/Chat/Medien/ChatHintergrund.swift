@@ -20,6 +20,13 @@ struct ChatHintergrundAnsicht: View {
     @State private var bild: UIImage?
 
     private var einstellung: ChatEinstellungen.Hintergrund { ChatEinstellungen.shared.hintergrund(ich) }
+    /// Brief I.1: shared last-wins (wie `profilWallpaper`) — wer in "Unser Chat" ein Thema wählt,
+    /// setzt es für beide, auch wenn der jeweils andere selbst einen Foto-/Zeichnung-Hintergrund
+    /// gewählt hatte. Bis "Kein Thema" es wieder leert.
+    private var thema: ChatTheme? {
+        guard case .string(let id)? = EinstellungenModell.shared.geteilt("chat.theme"), !id.isEmpty else { return nil }
+        return ChatThemes.von(id)
+    }
 
     var body: some View {
         ZStack {
@@ -33,6 +40,10 @@ struct ChatHintergrundAnsicht: View {
                     Color(uiColor: .systemBackground)
                 }
             }
+            // Getönt statt ersetzt (Brief I.1): volle Themenfarbe hätte in mind. drei Farb/Modus-
+            // Kombinationen zu wenig Kontrast zu den Personenfarben-Blasen (z. B. Annikas Rot auf
+            // Sonnenuntergang-Orange, Ahmeds helles Dunkelmodus-Grau auf Rosé Gold/Pastell).
+            if let thema { thema.verlauf.opacity(0.4) }
             if einstellung.abgedunkelt { Color.black.opacity(0.35) }
         }
         .ignoresSafeArea()

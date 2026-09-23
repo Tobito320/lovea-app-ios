@@ -108,8 +108,11 @@ struct LaufendeChallengesCard: View {
 
 struct PunkteVerlaufView: View {
     var body: some View {
+        // Einmal gelesen (Z-29.2): `verlauf` faltet Punkte/Challenges/Käufe komplett neu, zweimal
+        // pro Render (ForEach + leer-Check) wäre die doppelte Arbeit für dieselbe Liste.
+        let verlauf = PunkteModell.shared.verlauf
         List {
-            ForEach(Array(PunkteModell.shared.verlauf.reversed().enumerated()), id: \.offset) { _, eintrag in
+            ForEach(Array(verlauf.reversed().enumerated()), id: \.offset) { _, eintrag in
                 HStack {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(grundText(eintrag)).font(.subheadline.weight(.medium))
@@ -124,7 +127,7 @@ struct PunkteVerlaufView: View {
             }
         }
         .overlay {
-            if PunkteModell.shared.verlauf.isEmpty {
+            if verlauf.isEmpty {
                 ContentUnavailableView("Noch keine Punkte", systemImage: "star")
             }
         }

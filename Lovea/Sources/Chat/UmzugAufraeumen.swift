@@ -45,6 +45,7 @@ final class UmzugAufraeumen {
             // per message.
             let library = ArtworkLibrary()
             var allesOk = true
+            var geretteteZeichnung = false
             for nachricht in ziel {
                 // `Medien.holen` (not `MedienDatei.url`, which retries forever on a Task that's
                 // never cancelled) — one attempt; a miss just leaves this message for the next
@@ -57,8 +58,12 @@ final class UmzugAufraeumen {
                     allesOk = false
                     continue
                 }
+                geretteteZeichnung = true
                 ChatModell.shared.loeschen(nachricht.id)
             }
+            // Brief I.4: once for the whole batch, not once per message — an already-open Zeichnen
+            // gallery (a DIFFERENT `ArtworkLibrary()` instance) reloads on this.
+            if geretteteZeichnung { NotificationCenter.default.post(name: .artworkLibraryGeaendert, object: nil) }
             // A partial failure just leaves those messages for the next successful catch-up to
             // retry — `umzug.aufraeumen` only goes out once every one of them is done.
             guard allesOk else { return }

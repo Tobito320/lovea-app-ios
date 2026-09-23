@@ -3,8 +3,8 @@ import SwiftUI
 import UIKit
 import WidgetKit
 
-/// Spec 10 "Partner-Figur" (klein, mittel) + Sperrbildschirm-Zeile/-Rechteck (Ort, Akku) in einem
-/// Widget. Wetter bleibt leer, solange kein `WetterModell` existiert (siehe Bericht).
+/// Spec 10 "Partner-Figur" (klein, mittel, Wetter) + Sperrbildschirm-Zeile/-Rechteck (Ort, Akku)
+/// in einem Widget.
 struct PartnerWidget: Widget {
     var body: some WidgetConfiguration {
         StaticConfiguration(kind: "Partner", provider: WidgetStandProvider()) { entry in
@@ -61,14 +61,27 @@ private struct PartnerBild: View {
     }
 }
 
+/// Spec 9 "kleines Wetter-Symbol an der Partner-Figur … und im Widget" (Brief I.3).
+private struct PartnerWetterLabel: View {
+    let stand: WidgetStand
+    var body: some View {
+        if let wetter = stand.partnerWetter {
+            Label(wetter, systemImage: stand.partnerWetterSymbol ?? "cloud.fill")
+        }
+    }
+}
+
 private struct PartnerSchmal: View {
     let entry: WidgetStandEntry
     var body: some View {
         VStack(spacing: 4) {
             PartnerBild(bild: entry.partnerFigur).frame(height: 64)
             Text(entry.stand.partnerOrtName ?? "Kein Ort bekannt").font(.caption2).lineLimit(1)
-            if let akku = entry.stand.partnerAkku {
-                Label("\(Int(akku * 100)) %", systemImage: "battery.50").font(.caption2).foregroundStyle(.secondary)
+            HStack(spacing: 6) {
+                if let akku = entry.stand.partnerAkku {
+                    Label("\(Int(akku * 100)) %", systemImage: "battery.50").font(.caption2).foregroundStyle(.secondary)
+                }
+                PartnerWetterLabel(stand: entry.stand).font(.caption2).foregroundStyle(.secondary)
             }
         }
         .padding(4)
@@ -85,9 +98,7 @@ private struct PartnerBreit: View {
                 if let akku = entry.stand.partnerAkku {
                     Label("\(Int(akku * 100)) %", systemImage: "battery.50").font(.caption)
                 }
-                if let wetter = entry.stand.partnerWetter {
-                    Text(wetter).font(.caption).foregroundStyle(.secondary)
-                }
+                PartnerWetterLabel(stand: entry.stand).font(.caption).foregroundStyle(.secondary)
             }
             Spacer(minLength: 0)
         }

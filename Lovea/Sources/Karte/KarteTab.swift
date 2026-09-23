@@ -303,7 +303,7 @@ private struct FigurPin: View {
                     .glassEffect(.regular, in: .capsule)
             }
 
-            FigurView(aussehen, zustand: zustand, groesse: 120, bildrate: 15, ganzkoerper: true)
+            FigurView(aussehen, zustand: zustand, groesse: 120, bildrate: 15, ganzkoerper: true, poseImmer: true)
             namensSchild
             if !istIch { SpotifyHoertGeradeChip() }
         }

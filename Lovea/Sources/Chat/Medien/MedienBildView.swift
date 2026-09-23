@@ -233,10 +233,13 @@ enum Bilddatei {
 enum ChatGalerie {
     // ponytail: a fresh `ArtworkLibrary()` pointed at its default Application Support folder — the
     // same file on disk Drawing's own `@StateObject ArtworkLibrary` uses, so this survives and shows
-    // up there. That tab's already-open instance won't refresh until it re-`load()`s though — Chat
-    // doesn't own Drawing/**, so this is reported instead of fixed here.
+    // up there. `DrawingView` reloads that instance on `.artworkLibraryGeaendert` (Brief I.4), so an
+    // already-open Zeichnen tab picks this up without a restart.
     static func inGaleriesSpeichern(bildURL: URL) {
-        Task { _ = await speichernUndWarten(bildURL: bildURL, name: "Aus dem Chat") }
+        Task {
+            guard await speichernUndWarten(bildURL: bildURL, name: "Aus dem Chat") else { return }
+            NotificationCenter.default.post(name: .artworkLibraryGeaendert, object: nil)
+        }
     }
 
     /// Awaitable variant (Z-26.4's umzug cleanup needs to know the write finished before deleting

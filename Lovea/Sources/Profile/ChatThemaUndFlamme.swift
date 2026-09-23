@@ -1,14 +1,18 @@
 import SwiftUI
 
-/// Z-23.2: pick from OWNED chat themes (bought in the Shop) — introduces `chat.theme`
-/// (Zielplan Schnittstellen), applied nowhere else yet (out of this brief's file scope: Shop/,
-/// Profile/, Einstellungen/ chat-theme/flame picker only).
+/// Z-23.2: pick from OWNED chat themes (bought in the Shop) — introduces `chat.theme`, rendered as
+/// the chat background in `ChatHintergrundAnsicht` (Brief I.1).
 struct ChatThemaAuswahl: View {
     let ich: Person
     @Environment(\.dismiss) private var dismiss
     @State private var gewaehlt = 0
 
-    private var aktuell: String { EinstellungenModell.shared.string("chat.theme", default: "", von: ich) }
+    /// Shared last-wins, same as the actual rendering — highlights whichever theme is really
+    /// showing right now, not just what THIS person last picked.
+    private var aktuell: String {
+        guard case .string(let id)? = EinstellungenModell.shared.geteilt("chat.theme") else { return "" }
+        return id
+    }
     private var besitzt: [ChatTheme] {
         let ergebnis = PunkteModell.shared.einkaufsStand(preis: { ShopKatalog.artikel($0)?.preis }).besitz
         return ChatThemes.alle.filter { ergebnis.besitzt($0.id, ich) }
