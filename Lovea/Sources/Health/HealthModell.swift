@@ -254,7 +254,10 @@ final class HealthModell {
             }
             Raum.shared.senden("schritte.setzen", SchritteD(datum: tag, anzahl: neu.anzahl, km: neu.km, etagen: neu.etagen))
         }
-        await nachtragenFallsNoetig()
+        // Not awaited: the observer's completion handler must not wait for 82 days of queries
+        // (HealthKit throttles late background deliveries). A suspended run retries, the flag comes last.
+        guard UIApplication.shared.applicationState == .active else { return }
+        Task { await nachtragenFallsNoetig() }
     }
 
     /// Z-36.1, Review-Fokus 2: once, the last 90 days of steps as `nachgetragen: true` (display only,
