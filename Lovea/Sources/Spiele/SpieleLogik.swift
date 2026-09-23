@@ -251,7 +251,7 @@ enum Wortliste {
 
 // MARK: - Reaktions-Duell
 
-enum Reaktion {
+enum ReaktionsDuell {
     static let ziel = 3
     static let zuFrueh = -1
 
