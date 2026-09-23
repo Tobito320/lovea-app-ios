@@ -261,12 +261,14 @@ private struct ProfilInhalt: View {
     @ViewBuilder
     private func figur(_ p: Person) -> some View {
         let zustand = FigurenModell.shared.anzeige(p).haupt
-        let kuesst = zustand == .kuss
+        // Ein Kuss gehört beiden: küsst einer, gleiten beide zueinander, neigen sich und spitzen die Lippen.
+        let kuesst = zustand == .kuss || FigurenModell.shared.anzeige(p.partner).haupt == .kuss
         let richtung: CGFloat = p == person ? 1 : -1
-        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: true)
-            .offset(x: kuesst ? richtung * 14 : 0)
-            .scaleEffect(kuesst ? 1.04 : 1, anchor: .bottom)
-            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: kuesst)
+        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: true)
+            .rotationEffect(.degrees(kuesst ? Double(richtung) * 7 : 0), anchor: .bottom)
+            .offset(x: kuesst ? richtung * 38 : 0)
+            .scaleEffect(kuesst ? 1.05 : 1, anchor: .bottom)
+            .animation(.spring(response: 0.45, dampingFraction: 0.62), value: kuesst)
         if p == ich {
             v.accessibilityLabel("Deine Figur")
         } else {

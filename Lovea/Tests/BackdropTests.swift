@@ -63,10 +63,9 @@ final class BackdropTests: XCTestCase {
     // MARK: - Catalog
 
     @MainActor
-    func testSechzehnBackdropsInDerReihenfolgeDerSpec() {
+    func testNeunBackdropsMitBild() {
         XCTAssertEqual(Backdrops.alle.map(\.id), [
-            "romantic", "flirty", "monochrome", "coquette", "dark-academia", "y2k", "soft-pastel", "old-money",
-            "night-sky", "kirschbluete", "sunset", "ocean", "film-grain", "paris", "herbst", "schnee",
+            "romantic", "flirty", "monochrome", "coquette", "dark-academia", "y2k", "soft-pastel", "old-money", "night-sky",
         ])
         let animationen: [String: BackdropAnimation] = [
             "romantic": .herzen, "flirty": .herzen, "night-sky": .funkeln, "kirschbluete": .blueten,
@@ -78,7 +77,7 @@ final class BackdropTests: XCTestCase {
             XCTAssertEqual(backdrop.animation, animationen[backdrop.id] ?? .keine, backdrop.id)
             XCTAssertEqual(backdrop.bildName, "backdrop-\(backdrop.id)")
         }
-        XCTAssertEqual(Set(Backdrops.alle.map(\.name)).count, 16)
+        XCTAssertEqual(Set(Backdrops.alle.map(\.name)).count, 9)
     }
 
     // MARK: - chat.backdrop
@@ -108,7 +107,8 @@ final class BackdropTests: XCTestCase {
         XCTAssertEqual(Backdrops.backdrop(fuer: nil).id, "neutral")
         XCTAssertEqual(Backdrops.backdrop(fuer: .foto("m-1")).id, "neutral")
         XCTAssertEqual(Backdrops.backdrop(fuer: .zeichnung("z-1")).id, "neutral")
-        XCTAssertEqual(Backdrops.backdrop(fuer: .vorlage("ocean")).id, "ocean")
+        XCTAssertEqual(Backdrops.backdrop(fuer: .vorlage("romantic")).id, "romantic")
+        XCTAssertEqual(Backdrops.backdrop(fuer: .vorlage("ocean")).id, "neutral") // entfernter Backdrop
     }
 
     /// What `waehlen` sends is exactly the Zielplan wire shape and reads back as the same choice.
