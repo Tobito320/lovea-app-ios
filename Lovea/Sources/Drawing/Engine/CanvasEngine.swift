@@ -146,6 +146,12 @@ final class CanvasEngine {
         onChange?()
     }
 
+    /// Shared drawing: which ops the next save contains. No undo step, no `onChange`.
+    func setzeBasis(_ basis: Int, offen: [String]) {
+        document.basis = basis
+        document.offen = offen.isEmpty ? nil : offen
+    }
+
     /// Writes changed layers as PNG, then `document.json`. Runs in the background.
     func saveDirtyLayers() async {
         let ids = dirtyLayers
@@ -376,7 +382,8 @@ final class CanvasEngine {
         apply(entry, forward: true)
     }
 
-    private func apply(_ entry: UndoEntry, forward: Bool) {
+    /// Also used by `GemeinsamVerlauf` to roll back one step.
+    func apply(_ entry: UndoEntry, forward: Bool) {
         switch entry {
         case let .pixels(layerID, region, before, after):
             guard let target = store.texture(for: layerID), let command = queue.makeCommandBuffer() else { return }
@@ -481,6 +488,21 @@ final class CanvasEngine {
         dirtyLayers.insert(layerID)
         if layerID != activeLayerID { compositor.invalidateCaches() }
         onChange?()
+    }
+
+    /// A private copy of a layer as it is now (queued after every earlier GPU work).
+    func kopie(of layerID: UUID) -> MTLTexture? {
+        guard let texture = store.texture(for: layerID), let command = queue.makeCommandBuffer() else { return nil }
+        let copy = snapshot(texture, region: MTLRegionMake2D(0, 0, texture.width, texture.height), command: command)
+        command.commit()
+        return copy
+    }
+
+    func kopie(_ texture: MTLTexture) -> MTLTexture? {
+        guard let command = queue.makeCommandBuffer() else { return nil }
+        let copy = snapshot(texture, region: MTLRegionMake2D(0, 0, texture.width, texture.height), command: command)
+        command.commit()
+        return copy
     }
 
     private func snapshot(_ texture: MTLTexture, region: MTLRegion, command: MTLCommandBuffer) -> MTLTexture? {
@@ -636,12 +658,39 @@ final class CanvasEngine {
     }
 
     /// Paints `color` through an R8 mask into a layer, respecting selection and alpha lock.
-    func paintMask(_ mask: MTLTexture, color: RGBAColor, layerID: UUID) {
+    func paintMask(_ mask: MTLTexture, color: RGBAColor, layerID: UUID, ignoreSelection: Bool = false) {
         guard let layer = layer(layerID) else { return }
         editPixels(of: layerID) { command, target in
-            ops.paintMask(mask, selection: selection ?? stamper.whiteMask, color: color,
+            ops.paintMask(mask, selection: ignoreSelection ? stamper.whiteMask : selection ?? stamper.whiteMask, color: color,
                           blend: layer.alphaLock ? .atop : .over, into: target, command: command)
         }
+    }
+
+    /// The same fill, finished before it returns and without the local selection, so a shared drawing
+    /// can replay it in op order without another step slipping in between.
+    /// ponytail: blocks the main thread for the readback and flood fill (tens of ms at 2048²);
+    /// a background fill needs the shared history to queue own input meanwhile.
+    func fillNow(at point: CGPoint, color: RGBAColor, tolerance: Double, allVisible: Bool, layerID: UUID) {
+        guard let layer = layer(layerID), layer.kind == .paint, let target = store.texture(for: layerID),
+              let command = queue.makeCommandBuffer() else { return }
+        let source = allVisible ? compositor.flatten(document: document, store: store, command: command) : target
+        guard let buffer = device.makeBuffer(length: source.width * source.height * 4, options: .storageModeShared),
+              let blit = command.makeBlitCommandEncoder() else { return }
+        blit.copy(
+            from: source, sourceSlice: 0, sourceLevel: 0, sourceOrigin: MTLOrigin(x: 0, y: 0, z: 0),
+            sourceSize: MTLSize(width: source.width, height: source.height, depth: 1),
+            to: buffer, destinationOffset: 0, destinationBytesPerRow: source.width * 4,
+            destinationBytesPerImage: source.width * source.height * 4
+        )
+        blit.endEncoding()
+        command.commit()
+        command.waitUntilCompleted()
+        let count = source.width * source.height * 4
+        let bytes = Array(UnsafeBufferPointer(start: buffer.contents().bindMemory(to: UInt8.self, capacity: count), count: count))
+        let pixels = RasterOps.Pixels(bytes: bytes, width: source.width, height: source.height)
+        let mask = RasterOps.floodFillMask(pixels, x: Int(point.x), y: Int(point.y), tolerance: tolerance)
+        guard !mask.isEmpty, let maskTexture = GPU.upload(mask, width: pixels.width, height: pixels.height, format: .r8Unorm) else { return }
+        paintMask(maskTexture, color: color, layerID: layerID, ignoreSelection: true)
     }
 
 

@@ -1,12 +1,14 @@
 import CoreGraphics
 import Foundation
+@preconcurrency import Metal
 import Observation
+import UIKit
 
 // MARK: Live messages (`fl`, never stored)
 
 /// `strich.live`: points of one stroke, sent about every 33 ms. Every packet carries the full brush,
 /// so a viewer who joins mid-stroke can still draw the rest.
-struct LiveStrich: Codable, Sendable {
+struct LiveStrich: Codable, Equatable, Sendable {
     var zeichnungId: String
     var strichId: String
     var ebene: String
@@ -26,7 +28,7 @@ struct LiveStrich: Codable, Sendable {
     var spiegel: Double?
     /// First packet of the stroke.
     var anfang: Bool?
-    /// The sender had a selection, so this stroke is clipped there and the viewer needs the next stand.
+    /// The sender had a selection, so this stroke is clipped there; it lands as a `.pixel` op instead.
     var auswahl: Bool?
     var ende: Bool?
     var abbruch: Bool?
@@ -122,6 +124,19 @@ struct DrinNachricht: Codable, Sendable {
     var antwort: Bool?
 }
 
+/// `emoji`: floats up where it was put for 2 s, never part of the drawing.
+struct EmojiNachricht: Codable, Sendable {
+    var zeichnungId: String
+    var x: Double
+    var y: Double
+    var e: String
+}
+
+/// `fertig` and `stupser`.
+struct ZeichnungNachricht: Codable, Sendable {
+    var zeichnungId: String
+}
+
 /// `ansicht` (new fl kind, Level 2): the drawer's view, for "Folgen".
 /// `x`/`y` is the document point in the screen center, `spanne` the document pixels across the short screen side.
 struct AnsichtNachricht: Codable, Sendable {
@@ -152,15 +167,44 @@ extension RGBAColor {
 // MARK: Hub
 
 /// Receives the live messages once for the whole app and hands them to the open drawing.
+/// Also holds the extras of Spec 10.3 for the overlays.
 @MainActor @Observable
 final class LiveZeichnung {
     static let shared = LiveZeichnung()
+
+    struct SchwebendesEmoji: Identifiable {
+        let id = UUID()
+        let x: Double
+        let y: Double
+        let e: String
+    }
 
     /// Drawing the partner has open, from `zeichnung.drin`.
     private(set) var partnerDrin: String?
     /// Partner pen to show, nil = hidden. Never the own pen: `fl` only goes to the partner.
     private(set) var partnerStift: StiftNachricht?
-    @ObservationIgnored weak var offen: ZeichnungLive?
+    private(set) var emojis: [SchwebendesEmoji] = []
+    /// Heart spark where the pens met, document pixels.
+    private(set) var kuss: CGPoint?
+    private(set) var ichFertig = false
+    private(set) var partnerFertig = false
+    private(set) var konfetti = false
+    /// Counts the partner's pokes; the overlay wiggles the own pen on every change.
+    private(set) var stupser = 0
+    /// The partner's eraser is on one of my strokes.
+    private(set) var radierAlarm = false
+    /// Own pen tip in document pixels, the last one also after lifting (where the poke wiggles).
+    @ObservationIgnored private(set) var letzterEigenerStift: CGPoint?
+    @ObservationIgnored private var eigenerStift: CGPoint?
+    @ObservationIgnored private var letzterKuss: TimeInterval = -10
+    @ObservationIgnored private var alarmAus: Task<Void, Never>?
+    @ObservationIgnored weak var offen: ZeichnungLive? {
+        didSet {
+            guard offen !== oldValue else { return }
+            ichFertig = false
+            partnerFertig = false
+        }
+    }
     @ObservationIgnored private var stiftAus: Task<Void, Never>?
 
     private init() {
@@ -180,6 +224,22 @@ final class LiveZeichnung {
             guard let ansicht = try? JSONDecoder().decode(AnsichtNachricht.self, from: data) else { return }
             self?.offen?.ansichtEmpfangen(ansicht)
         }
+        raum.fluechtigBeobachten("emoji") { [weak self] _, data in
+            guard let emoji = try? JSONDecoder().decode(EmojiNachricht.self, from: data) else { return }
+            self?.emojiZeigen(emoji)
+        }
+        raum.fluechtigBeobachten("fertig") { [weak self] _, data in
+            guard let self, let nachricht = try? JSONDecoder().decode(ZeichnungNachricht.self, from: data),
+                  nachricht.zeichnungId == self.offen?.zeichnungId else { return }
+            self.partnerFertig = true
+            self.fertigPruefen()
+        }
+        raum.fluechtigBeobachten("stupser") { [weak self] _, data in
+            guard let self, let nachricht = try? JSONDecoder().decode(ZeichnungNachricht.self, from: data),
+                  nachricht.zeichnungId == self.offen?.zeichnungId else { return }
+            self.stupser += 1
+            UIImpactFeedbackGenerator(style: .rigid).impactOccurred()
+        }
     }
 
     /// The partner is online and has this drawing open. Gates all outgoing live traffic.
@@ -188,7 +248,10 @@ final class LiveZeichnung {
     }
 
     private func drinEmpfangen(_ nachricht: DrinNachricht) {
-        if nachricht.zeichnungId != partnerDrin { partnerStift = nil }
+        if nachricht.zeichnungId != partnerDrin {
+            partnerStift = nil
+            partnerFertig = false
+        }
         partnerDrin = nachricht.zeichnungId
         // Answer every announce for the drawing open here, also a repeated one (the partner's app may
         // have restarted and forgotten us), so whoever came second knows the other one is there.
@@ -202,7 +265,10 @@ final class LiveZeichnung {
     func stiftZeigen(_ stift: StiftNachricht) {
         guard stift.zeichnungId == offen?.zeichnungId else { return }
         let an = stift.aktiv || stift.schwebt
-        if an { partnerStift = stift }
+        if an {
+            partnerStift = stift
+            kussPruefen()
+        }
         stiftAus?.cancel()
         stiftAus = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(an ? 1500 : 300))
@@ -210,52 +276,150 @@ final class LiveZeichnung {
             self?.partnerStift = nil
         }
     }
+
+    // MARK: Extras (Spec 10.3)
+
+    func emojiZeigen(_ nachricht: EmojiNachricht) {
+        guard nachricht.zeichnungId == offen?.zeichnungId else { return }
+        let emoji = SchwebendesEmoji(x: nachricht.x, y: nachricht.y, e: String(nachricht.e.prefix(4)))
+        let id = emoji.id
+        emojis.append(emoji)
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            self?.emojis.removeAll { $0.id == id }
+        }
+    }
+
+    /// Own pen while it draws or hovers, nil when lifted.
+    func eigenerStiftSetzen(_ punkt: CGPoint?) {
+        eigenerStift = punkt
+        if let punkt {
+            letzterEigenerStift = punkt
+            kussPruefen()
+        }
+    }
+
+    /// Stifte küssen: both pens closer than 12 pt on this screen. Both phones check on their own,
+    /// since both know both pens. At most every 5 s.
+    private func kussPruefen() {
+        guard let eigen = eigenerStift, let partner = partnerStift,
+              let scale = offen?.session?.canvasState.viewport.scale else { return }
+        let andere = CGPoint(x: partner.x, y: partner.y)
+        let jetzt = ProcessInfo.processInfo.systemUptime
+        guard hypot(eigen.x - andere.x, eigen.y - andere.y) * scale < 12, jetzt - letzterKuss >= 5 else { return }
+        letzterKuss = jetzt
+        kuss = CGPoint(x: (eigen.x + andere.x) / 2, y: (eigen.y + andere.y) / 2)
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.2))
+            self?.kuss = nil
+        }
+    }
+
+    func fertigDruecken() {
+        guard let offen else { return }
+        ichFertig = true
+        Raum.shared.fluechtig("fertig", ZeichnungNachricht(zeichnungId: offen.zeichnungId))
+        fertigPruefen()
+    }
+
+    /// Both pressed "Fertig": confetti on both phones, the owner sends the picture to the chat.
+    private func fertigPruefen() {
+        guard ichFertig, partnerFertig, let offen else { return }
+        ichFertig = false
+        partnerFertig = false
+        konfetti = true
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+        offen.gemeinsamFertig()
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(4.5))
+            self?.konfetti = false
+        }
+    }
+
+    /// Radier-Alarm: shows the guilty eraser for a moment.
+    func radiert() {
+        radierAlarm = true
+        alarmAus?.cancel()
+        alarmAus = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            self?.radierAlarm = false
+        }
+    }
 }
 
 // MARK: One open drawing
 
-/// Live side of one open drawing, both directions. The owner sends strokes, pen, view and actions;
-/// a viewer receives them on top of the last stand. Block 13 lets both sides do both.
+/// Live side of one open drawing, both directions: strokes, pen and view go out as `fl`, every
+/// finished action as `zeichnung.op`; incoming ops go through the shared history in `seq` order.
 @MainActor
 final class ZeichnungLive {
     let zeichnungId: String
-    let nurAnsehen: Bool
+    /// The partner's drawing (shared library): never saved or published from here.
+    let fremd: Bool
     weak var session: DrawingSession?
+    /// Shared history, from the moment the drawing is shared or a partner drawing opens.
+    private(set) var verlauf: GemeinsamVerlauf?
 
     // Outgoing
     private var strich: (id: String, ebene: UUID, settings: BrushSettings, spiegel: Float?, auswahl: Bool)?
+    /// The whole current stroke, for its op.
+    private var alle: [StrokeInput] = []
+    /// Points not yet sent live.
     private var punkte: [StrokeInput] = []
     private var istAnfang = false
     private var strichTask: Task<Void, Never>?
     private var letzterStift: TimeInterval = 0
     private var ansicht: AnsichtNachricht.Transform?
     private var ansichtTask: Task<Void, Never>?
-    /// Last own stroke sent live. Goes into the next stand as `strich`.
-    private(set) var letzterStrich: String?
-    /// Set by the session right before `engine.fill`, so its `onAction` becomes `.fuellen`.
-    var fuellung: ZeichnungAktion?
+    /// Own ops leave strictly in canvas order; a pixel op waits for its upload.
+    private var sendeKette: Task<Void, Never>?
 
-    // Incoming (viewer)
-    /// Stand currently shown. Set by `GeteiltStudioView` before the studio opens.
+    // Incoming
+    /// Stand currently shown (partner drawing). Set by `GeteiltStudioView` before the studio opens.
     var geladen: ZeichnungStand?
-    private var laufend: [String: [LiveStrich]] = [:]
-    /// Finished partner strokes, oldest first, not yet known to be in `geladen`.
-    private var fertig: [[LiveStrich]] = []
-    private var angewendet: Set<String> = []
-    /// Something happened that live data can't show (other action, selection-clipped or partial stroke).
-    private var veraltet = true
+    private var eingangKette: Task<Void, Never>?
+    /// Own ops the loaded document contains although they were unconfirmed at saving.
+    private var ausgelassen: Set<String> = []
+    /// Live strokes already landed by their op; late packets are dropped.
+    private var gelandet: Set<String> = []
+    /// The canvas may miss something (view-only share, unknown undo, failed download): take the next stand.
+    private var veraltet = false
     private var laedt = false
     private var wartenderStand: ZeichnungStand?
+    private var aktiviert = false
     /// Set once the studio appeared. Keeps a bare session (tests, previews) away from the network.
     private var geoeffnet = false
 
-    init(zeichnungId: String, nurAnsehen: Bool) {
+    init(zeichnungId: String, fremd: Bool) {
         self.zeichnungId = zeichnungId
-        self.nurAnsehen = nurAnsehen
+        self.fremd = fremd
+    }
+
+    private var darf: Bool {
+        guard let session else { return false }
+        return TeilenModell.shared.stand.darfBearbeiten(zeichnungId: zeichnungId, projektId: session.document.projectID?.uuidString)
+    }
+
+    /// Partner drawing without the right to edit: tools locked.
+    var nurAnsehen: Bool { fremd && !darf }
+
+    private var geteilt: Bool {
+        guard let session else { return false }
+        return fremd || TeilenModell.shared.stand.istGeteilt(session.document)
     }
 
     private var partnerSchaut: Bool {
         geoeffnet && !nurAnsehen && LiveZeichnung.shared.partnerIstDrin(zeichnungId)
+    }
+
+    /// Own actions become ops: always when the partner may edit (the op log is the truth then),
+    /// otherwise only while the partner watches; the next stand carries the rest.
+    private var sendetOps: Bool {
+        guard geoeffnet else { return false }
+        if fremd { return darf }
+        return geteilt && (darf || LiveZeichnung.shared.partnerIstDrin(zeichnungId))
     }
 
     private var autor: String? { Raum.shared.ich?.partner.rawValue }
@@ -268,19 +432,15 @@ final class ZeichnungLive {
         FigurenModell.shared.zustandSenden(.init(haupt: .zeichnet))
         ankuendigen()
         guard let session else { return }
-        if nurAnsehen {
-            Task { [weak self] in
-                await self?.session?.engine?.loading?.value
-                self?.opsNachholen()
-            }
-        } else if TeilenModell.shared.stand.istGeteilt(session.document) {
-            StandPaket.planen(session.document.id, library: session.library, strich: letzterStrich)
-        }
+        // View-only: the owner sends no ops while nobody watches, so the stand may be behind.
+        veraltet = nurAnsehen
+        if geteilt { aktivieren() }
+        if !fremd, geteilt { StandPaket.planen(session.document.id, library: session.library) }
     }
 
     /// Tells the partner this drawing is open. Again after a reconnect: `fl` without a socket is dropped.
     func ankuendigen() {
-        guard geoeffnet, let session, nurAnsehen || TeilenModell.shared.stand.istGeteilt(session.document) else { return }
+        guard geoeffnet, geteilt else { return }
         Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: zeichnungId))
     }
 
@@ -292,42 +452,84 @@ final class ZeichnungLive {
         FigurenModell.shared.zustandSenden(.init(haupt: .ruhig))
     }
 
-    /// "Zum Mitzeichnen einladen": push and chat hint for the partner (server side), shares this drawing.
+    /// "Zum Mitzeichnen einladen": push for the partner (server side), shares this drawing to edit.
+    /// ponytail: the chat hint needs `ChatModell` to fold `zeichnung.einladung` (Chat folder, see report).
     func einladen() {
-        guard !nurAnsehen, let session else { return }
+        guard !fremd, let session else { return }
         Raum.shared.senden("zeichnung.einladung", ZeichnungEinladung(zeichnungId: zeichnungId, name: session.document.name))
+        TeilenModell.shared.bearbeitenErlauben(session.document.id, true)
         Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: zeichnungId))
-        StandPaket.planen(session.document.id, library: session.library, strich: letzterStrich)
+        aktivieren()
+        StandPaket.planen(session.document.id, library: session.library)
     }
 
-    // MARK: Outgoing (owner)
+    /// Starts the shared history once the canvas is loaded.
+    /// ponytail: Level 1 undo steps from before sharing are dropped.
+    private func aktivieren() {
+        guard !aktiviert else { return }
+        aktiviert = true
+        Task { [weak self] in
+            await self?.session?.engine?.loading?.value
+            self?.verlaufStarten()
+        }
+    }
+
+    /// New history on the document as loaded, then the ops after its basis (without the owner's
+    /// ops it already contained unconfirmed).
+    private func verlaufStarten() {
+        guard let engine = session?.engine, let ich = Raum.shared.ich else { return }
+        let basis = engine.document.basis ?? 0
+        verlauf = GemeinsamVerlauf(engine: engine, ich: ich.rawValue, basis: basis)
+        ausgelassen = Set(engine.document.offen ?? [])
+        for op in TeilenModell.shared.stand.ops(nach: basis, zeichnungId: zeichnungId) { opEmpfangen(op) }
+        session?.requestRedraw()
+    }
+
+    // MARK: Outgoing strokes
 
     func strichBeginnen(_ input: StrokeInput, settings: BrushSettings, ebene: UUID, spiegel: Float?, auswahl: Bool) {
+        LiveZeichnung.shared.eigenerStiftSetzen(input.location)
         strichTask?.cancel()
         strichTask = nil
-        guard partnerSchaut else {
+        guard verlauf != nil || partnerSchaut else {
             strich = nil
             return
         }
         strich = (UUID().uuidString, ebene, settings, spiegel, auswahl)
+        alle = [input]
         punkte = [input]
         istAnfang = true
-        strichPlanen()
+        if partnerSchaut { strichPlanen() }
     }
 
     func strichWeiter(_ inputs: [StrokeInput]) {
+        if let punkt = inputs.last?.location { LiveZeichnung.shared.eigenerStiftSetzen(punkt) }
         guard strich != nil else { return }
+        alle += inputs
         punkte += inputs
-        strichPlanen()
+        if partnerSchaut { strichPlanen() }
     }
 
     func strichEnde(abbruch: Bool = false) {
+        LiveZeichnung.shared.eigenerStiftSetzen(nil)
         guard let aktuell = strich else { return }
         strichTask?.cancel()
         strichTask = nil
-        strichSenden(ende: !abbruch, abbruch: abbruch)
-        if !abbruch { letzterStrich = aktuell.id }
+        if partnerSchaut { strichSenden(ende: !abbruch, abbruch: abbruch) }
         strich = nil
+        guard !abbruch, let verlauf else { return }
+        // Clipped by the own selection: the replay can't know it, so the pixels travel instead.
+        guard !aktuell.auswahl else {
+            aktionGeschehen()
+            return
+        }
+        let ganz = LiveStrich(
+            zeichnungId: zeichnungId, strichId: aktuell.id, ebene: aktuell.ebene, settings: aktuell.settings,
+            punkte: alle, spiegel: aktuell.spiegel, auswahl: false, anfang: true, ende: true
+        )
+        alle = []
+        let mitSenden = sendetOps
+        if let eintrag = verlauf.eigene(.strich(ganz), offen: mitSenden), mitSenden { senden(eintrag.id) }
     }
 
     private func strichPlanen() {
@@ -354,6 +556,7 @@ final class ZeichnungLive {
     /// Pen position for tools without a live stroke, and Pencil hover. At most 30 per second,
     /// "off" always goes out. During a stroke the viewer takes the pen from `strich.live`.
     func stift(_ punkt: CGPoint, werkzeug: String, farbe: RGBAColor, groesse: Double, schwebt: Bool, aktiv: Bool) {
+        LiveZeichnung.shared.eigenerStiftSetzen(schwebt || aktiv ? punkt : nil)
         guard partnerSchaut, strich == nil else { return }
         let jetzt = ProcessInfo.processInfo.systemUptime
         if schwebt || aktiv {
@@ -385,40 +588,97 @@ final class ZeichnungLive {
         }
     }
 
-    /// Engine `onAction`: one finished own non-stroke action.
+    // MARK: Outgoing actions
+
+    /// Engine `onAction` and shape outlines: the own non-stroke steps since the last call.
     func aktionGeschehen() {
-        let aktion = fuellung ?? .anderes
-        fuellung = nil
-        guard partnerSchaut else { return }
-        // ponytail: only while the partner watches. Otherwise the next stand (≤ 30 s) carries the change.
-        let basis = TeilenModell.shared.stand.letzteOpSeq[zeichnungId] ?? 0
-        Raum.shared.senden("zeichnung.op", ZeichnungOp(zeichnungId: zeichnungId, basis: basis, aktion: aktion))
+        guard let verlauf, !verlauf.wendetAn else { return }
+        let mitSenden = sendetOps
+        for eintrag in verlauf.eigeneSchritte(offen: mitSenden) where mitSenden { senden(eintrag.id) }
     }
 
-    /// After every own autosave. `strich` is `letzterStrich` from before the save started.
-    func gespeichert(strich: String?) {
-        guard geoeffnet, !nurAnsehen, let session, TeilenModell.shared.stand.istGeteilt(session.document) else { return }
-        StandPaket.planen(session.document.id, library: session.library, strich: strich)
+    /// Own fill in a shared drawing: runs through the history, so it is computed like the replays.
+    func fuellen(_ aktion: ZeichnungAktion) {
+        guard let verlauf else { return }
+        let mitSenden = sendetOps
+        if let eintrag = verlauf.ausfuehrenEigene(aktion, offen: mitSenden), mitSenden { senden(eintrag.id) }
     }
 
-    // MARK: Incoming (viewer)
+    /// Undo or redo of the newest own step, for everyone (Z-13.2).
+    func rueckgaengig(wieder: Bool) {
+        guard let verlauf, let id = wieder ? verlauf.wiederholen() : verlauf.rueckgaengig(), sendetOps else { return }
+        let vorher = sendeKette
+        sendeKette = Task { [zeichnungId] in
+            await vorher?.value
+            Raum.shared.senden("zeichnung.rueckgaengig", ZeichnungRueckgaengig(zeichnungId: zeichnungId, opId: id, wieder: wieder ? true : nil))
+        }
+    }
+
+    private func senden(_ id: String) {
+        let basis = verlauf?.basis ?? 0
+        let vorher = sendeKette
+        sendeKette = Task { [weak self, zeichnungId] in
+            await vorher?.value
+            guard let eintrag = self?.verlauf?.eintrag(id) else { return }
+            do {
+                let aktion = try await StandPaket.medienHochladen(eintrag.aktion, texturen: eintrag.texturen)
+                Raum.shared.senden("zeichnung.op", ZeichnungOp(id: id, zeichnungId: zeichnungId, basis: basis, aktion: aktion))
+            } catch {
+                // ponytail: no retry; the partner misses this step until the next stand.
+                self?.verlauf?.nichtGesendet(id)
+            }
+        }
+    }
+
+    /// After every own autosave.
+    func gespeichert() {
+        guard geoeffnet, !fremd, let session, geteilt else { return }
+        StandPaket.planen(session.document.id, library: session.library)
+    }
+
+    // MARK: Extras
+
+    func emojiSenden(_ punkt: CGPoint, _ e: String) {
+        let nachricht = EmojiNachricht(zeichnungId: zeichnungId, x: Double(punkt.x), y: Double(punkt.y), e: e)
+        LiveZeichnung.shared.emojiZeigen(nachricht)
+        Raum.shared.fluechtig("emoji", nachricht)
+    }
+
+    func anstupsen() {
+        Raum.shared.fluechtig("stupser", ZeichnungNachricht(zeichnungId: zeichnungId))
+    }
+
+    /// Both pressed "Fertig": the owner sends the picture to the chat, so it arrives once.
+    func gemeinsamFertig() {
+        guard !fremd, let engine = session?.engine else { return }
+        Task {
+            try? await StandPaket.alsBildSenden(engine, text: "Gemeinsam gemalt von Ahmed & Annika")
+        }
+    }
+
+    // MARK: Incoming
 
     func strichEmpfangen(_ strich: LiveStrich) {
-        guard strich.zeichnungId == zeichnungId, let session, let engine = session.engine else { return }
+        guard strich.zeichnungId == zeichnungId, !gelandet.contains(strich.strichId),
+              let session, let engine = session.engine else { return }
         // The viewer's active layer follows the partner: keeps the compositor caches valid and shows the layer.
         if nurAnsehen, let layerID = UUID(uuidString: strich.ebene), session.activeLayerID != layerID,
            session.document.layers.contains(where: { $0.id == layerID }) {
             session.activeLayerID = layerID
         }
-        if laufend[strich.strichId] == nil, strich.anfang != true { veraltet = true }
-        if strich.auswahl == true { veraltet = true }
-        laufend[strich.strichId, default: []].append(strich)
-        strich.anwenden(auf: engine, autor: autor)
-        if strich.istZuEnde {
-            let pakete = laufend.removeValue(forKey: strich.strichId) ?? []
-            if strich.abbruch != true { fertig.append(pakete) }
+        if strich.abbruch == true {
+            engine.remoteCancel(id: strich.strichId)
+        } else {
+            // Shown on its own scratch; it lands with its op, in seq order.
+            var paket = strich
+            paket.ende = nil
+            paket.anwenden(auf: engine, autor: autor)
         }
         if let punkt = strich.punkte.last, punkt.count >= 2 {
+            if strich.radierer, !strich.istZuEnde,
+               verlauf?.trifftEigenenStrich(x: punkt[0], y: punkt[1], radius: strich.groesse / 2, ebene: strich.ebene) == true {
+                LiveZeichnung.shared.radiert()
+            }
             LiveZeichnung.shared.stiftZeigen(StiftNachricht(
                 zeichnungId: zeichnungId, x: punkt[0], y: punkt[1],
                 werkzeug: strich.radierer ? StudioTool.eraser.rawValue : strich.werkzeug,
@@ -428,19 +688,46 @@ final class ZeichnungLive {
         session.requestRedraw()
     }
 
+    /// `zeichnung.op` and `zeichnung.rueckgaengig` of this drawing, own echoes included, one after the other.
     func opEmpfangen(_ op: Op) {
-        guard nurAnsehen, let seq = op.seq, seq > geladen?.basis ?? 0, let d = op.daten(ZeichnungOp.self),
-              d.zeichnungId == zeichnungId, angewendet.insert(op.id).inserted else { return }
-        switch d.aktion {
-        case let .fuellen(x, y, farbe, toleranz, alleEbenen, ebene):
-            guard let engine = session?.engine, let color = RGBAColor(hex8: farbe), let layerID = UUID(uuidString: ebene) else { return }
-            Task {
-                await engine.fill(at: CGPoint(x: x, y: y), color: color, tolerance: toleranz,
-                                  reference: alleEbenen ? .allVisible : .activeLayer, layerID: layerID)
-            }
-        case .anderes:
-            veraltet = true
+        // Before the history starts, its catch-up picks everything up from the fold.
+        guard let seq = op.seq, verlauf != nil else { return }
+        let vorher = eingangKette
+        eingangKette = Task { [weak self] in
+            await vorher?.value
+            await self?.verarbeiten(op, seq: seq)
         }
+    }
+
+    private func verarbeiten(_ op: Op, seq: Int) async {
+        guard let verlauf else { return }
+        let von = op.von.rawValue
+        if op.art == "zeichnung.rueckgaengig" {
+            guard let d = op.daten(ZeichnungRueckgaengig.self), d.zeichnungId == zeichnungId else { return }
+            if !verlauf.umschalten(d.opId, aus: d.wieder != true, von: von) { veraltet = true }
+            verlauf.basisErhoehen(seq)
+        } else {
+            guard let d = op.daten(ZeichnungOp.self), d.zeichnungId == zeichnungId else { return }
+            let bekannt = verlauf.kennt(d.id)
+            if ausgelassen.contains(d.id) || (!bekannt && seq <= verlauf.basis) {
+                verlauf.basisErhoehen(seq)
+                return
+            }
+            var texturen: [String: MTLTexture] = [:]
+            if !bekannt {
+                do {
+                    texturen = try await StandPaket.medienLaden(d.aktion)
+                } catch {
+                    // ponytail: the owner has no stand to fall back on; the step stays missing there.
+                    veraltet = true
+                    return
+                }
+            }
+            // A stand reload may have replaced the history meanwhile.
+            self.verlauf?.empfangen(id: d.id, seq: seq, von: von, aktion: d.aktion, texturen: texturen)
+            if case let .strich(strich) = d.aktion { gelandet.insert(strich.strichId) }
+        }
+        session?.requestRedraw()
     }
 
     func ansichtEmpfangen(_ ansicht: AnsichtNachricht) {
@@ -448,14 +735,10 @@ final class ZeichnungLive {
         state.canvas?.folgen(ansicht.transform)
     }
 
-    /// A newer stand of this drawing. Reloads only when live data can't be trusted; live strokes
-    /// keep the canvas current otherwise, and every reload downloads the changed layers again.
+    /// A newer stand of the partner's drawing. Reloads only when the canvas may miss something and
+    /// no own step is still on its way; otherwise the ops keep it current.
     func standEmpfangen(_ stand: ZeichnungStand) {
-        guard nurAnsehen, stand.zeichnungId == zeichnungId, stand.medienId != geladen?.medienId else { return }
-        if let id = stand.strich, let index = fertig.firstIndex(where: { $0.first?.strichId == id }) {
-            fertig.removeFirst(index + 1)
-        }
-        guard veraltet else { return }
+        guard fremd, stand.zeichnungId == zeichnungId, stand.medienId != geladen?.medienId, veraltet else { return }
         guard !laedt else {
             wartenderStand = stand
             return
@@ -466,16 +749,13 @@ final class ZeichnungLive {
     private func laden(_ stand: ZeichnungStand) async {
         guard let session, let engine = session.engine else { return }
         laedt = true
-        if let document = try? await StandPaket.laden(stand, into: session.library) {
+        if let document = try? await StandPaket.laden(stand, into: session.library),
+           !(verlauf?.hatOffene ?? false), !engine.isStroking {
             await engine.reload(document)
             geladen = stand
             veraltet = false
-            angewendet = []
-            // Strokes that finished after the stand was saved, then the actions after its basis.
-            for pakete in fertig {
-                for paket in pakete { paket.anwenden(auf: engine, autor: autor) }
-            }
-            opsNachholen()
+            gelandet = []
+            verlaufStarten()
             session.requestRedraw()
         }
         laedt = false
@@ -483,10 +763,5 @@ final class ZeichnungLive {
             wartenderStand = nil
             standEmpfangen(naechster)
         }
-    }
-
-    private func opsNachholen() {
-        guard nurAnsehen else { return }
-        for op in TeilenModell.shared.stand.ops(nach: geladen?.basis ?? 0, zeichnungId: zeichnungId) { opEmpfangen(op) }
     }
 }

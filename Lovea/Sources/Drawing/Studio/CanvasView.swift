@@ -111,6 +111,8 @@ final class CanvasViewState: ObservableObject {
     @Published var quickMenu: CGPoint?
     /// Viewer: move the own view along with the drawer's.
     @Published var folgen = false
+    /// Screen point of the emoji picker (two fingers long, partner in the drawing).
+    @Published var emojiAuswahl: CGPoint?
     weak var canvas: CanvasView?
 
     func resetView() { canvas?.resetView() }
@@ -464,9 +466,14 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     @objc private func didPickLayer(_ gesture: UILongPressGestureRecognizer) {
-        guard gesture.state == .began else { return }
+        guard gesture.state == .began, let session else { return }
         cancelActive()
-        session?.selectTopLayer(at: viewport.documentPoint(gesture.location(in: self)))
+        // Partner in the drawing: two fingers long put an emoji on the canvas (Spec 10.3) instead.
+        if LiveZeichnung.shared.partnerIstDrin(session.live.zeichnungId) {
+            state.emojiAuswahl = gesture.location(in: self)
+            return
+        }
+        session.selectTopLayer(at: viewport.documentPoint(gesture.location(in: self)))
     }
 
     @objc private func didHover(_ gesture: UIHoverGestureRecognizer) {

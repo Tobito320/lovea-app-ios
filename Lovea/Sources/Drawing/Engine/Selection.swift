@@ -318,14 +318,17 @@ extension CanvasEngine {
             recordDocumentStep(from: before)
         } else if let result = state.result {
             if let name = state.newLayerName {
+                // Pixels first, then the layer step, so the step (and a shared drawing's op) already has the text.
                 let layer = ArtworkLayer.paint(name: name)
-                if addLayer(layer, at: (document.layers.firstIndex(where: { $0.id == activeLayerID }) ?? document.layers.count - 1) + 1),
-                   let target = store.texture(for: layer.id), let lifted = state.lifted, let command = makeCommand() {
+                if prepareTexture(for: layer), let target = store.texture(for: layer.id), let lifted = state.lifted,
+                   let command = makeCommand() {
                     let corners = Selection.transformedCorners(size: canvasSize, pivot: state.pivot, transform: state.transform)
                         .map { GPU.ndc($0, size: canvasSize) }
                     compositor.draw(lifted, into: target, blend: .over, corners: corners, clearFirst: true, command: command)
                     command.commit()
-                    markDirty(layer.id)
+                    let index = (document.layers.firstIndex(where: { $0.id == activeLayerID }) ?? document.layers.count - 1) + 1
+                    updateDocument { $0.layers.insert(layer, at: min(index, $0.layers.count)) }
+                    activeLayerID = layer.id
                 }
             } else {
                 editPixels(of: state.layerID) { command, target in
