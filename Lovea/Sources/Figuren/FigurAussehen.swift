@@ -200,13 +200,14 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     }
 
     static let koerper: [Koerper] = [
-        Koerper(name: "Schlank", geschlecht: .n, breite: 0.93, armHalb: 1, s: 37, t: 26, h: 29, arm: 0.6, bein: 15, muskel: 0, kurve: 0),
+        // Fix round 1: the types differ clearly at a glance (render board `figuren-koerper`); Normal is unchanged.
+        Koerper(name: "Schlank", geschlecht: .n, breite: 0.86, armHalb: 0.86, s: 33, t: 24, h: 27, arm: 0.54, bein: 13, muskel: 0, kurve: 0),
         Koerper(name: "Normal", geschlecht: .n, breite: 1, armHalb: 1, s: 41, t: 30, h: 32, arm: 0.66, bein: 17, muskel: 0, kurve: 0),
-        Koerper(name: "Kräftig", geschlecht: .m, breite: 1.07, armHalb: 1, s: 46, t: 37, h: 38, arm: 0.74, bein: 20, muskel: 0, kurve: 0),
-        Koerper(name: "Athletisch", geschlecht: .m, breite: 1.1, armHalb: 1.1, s: 47, t: 29, h: 31, arm: 0.72, bein: 18, muskel: 0.6, kurve: 0),
-        Koerper(name: "Muskulös", geschlecht: .n, breite: 1.17, armHalb: 1.24, s: 51, t: 32, h: 34, arm: 0.84, bein: 20, muskel: 1, kurve: 0),
-        Koerper(name: "Sportlich", geschlecht: .w, breite: 0.97, armHalb: 1, s: 39, t: 25, h: 30, arm: 0.63, bein: 16, muskel: 0.3, kurve: 0.35),
-        Koerper(name: "Kurvig", geschlecht: .w, breite: 1.01, armHalb: 1.02, s: 40, t: 25, h: 39, arm: 0.66, bein: 18.5, muskel: 0, kurve: 1),
+        Koerper(name: "Kräftig", geschlecht: .m, breite: 1.16, armHalb: 1.14, s: 52, t: 50, h: 46, arm: 0.86, bein: 24, muskel: 0, kurve: 0),
+        Koerper(name: "Athletisch", geschlecht: .m, breite: 1.2, armHalb: 1.16, s: 56, t: 29, h: 32, arm: 0.8, bein: 19, muskel: 0.7, kurve: 0),
+        Koerper(name: "Muskulös", geschlecht: .n, breite: 1.32, armHalb: 1.4, s: 64, t: 36, h: 37, arm: 1, bein: 23, muskel: 1, kurve: 0),
+        Koerper(name: "Sportlich", geschlecht: .w, breite: 0.95, armHalb: 0.96, s: 38, t: 23, h: 30, arm: 0.6, bein: 16, muskel: 0.35, kurve: 0.35),
+        Koerper(name: "Kurvig", geschlecht: .w, breite: 1, armHalb: 1, s: 39, t: 25, h: 50, arm: 0.66, bein: 22, muskel: 0, kurve: 1),
     ]
     static let koerperformen = koerper.map(\.name)
     static let koerperformenGeschlecht = koerper.map(\.geschlecht)
