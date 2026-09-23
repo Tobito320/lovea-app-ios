@@ -23,6 +23,9 @@ struct LoveaApp: App {
             }
             .onChange(of: session.person, initial: true) { _, person in starten(person) }
             .onChange(of: scenePhase) { _, phase in phaseGewechselt(phase) }
+            // Z-28.3: `widgetURL` der Widgets, z. B. `lovea://health`. `AppNavigation.tabWunsch`
+            // ignoriert selbst jeden unbekannten Host (siehe `AppRootView`s `onChange`).
+            .onOpenURL { url in AppNavigation.shared.tabWunsch = url.host }
         }
     }
 
@@ -42,10 +45,14 @@ struct LoveaApp: App {
         // Observer/Background-Delivery erneut, falls die Berechtigung früher schon erteilt wurde.
         // NACH `Raum.shared.start()`, damit dessen Replay-Kette schon existiert (siehe HealthModell).
         HealthModell.shared.beobachtenStartenFallsErlaubt()
+        // Z-28.2/Z-28.3: Widget-Stand-Schreiber starten, wartende Gym-Ops aus den Widgets abholen.
+        WidgetStandSchreiber.shared.start()
+        WidgetPendingOpsMerge.abholen()
     }
 
     private func phaseGewechselt(_ phase: ScenePhase) {
         Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
+        if phase == .active { WidgetPendingOpsMerge.abholen() }
     }
 }
 

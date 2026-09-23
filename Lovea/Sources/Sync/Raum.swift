@@ -255,7 +255,14 @@ final class Raum {
     /// a sent op is delivered once optimistically (seq nil) and again once confirmed (seq set).
     func senden<T: Encodable>(_ art: String, _ d: T) {
         guard let ich else { return }
-        let op = Op.neu(art, d, von: ich)
+        einreihen(Op.neu(art, d, von: ich))
+    }
+
+    /// Same as `senden`, but for a caller that already built the `Op` itself — e.g. the widgets'
+    /// pending-op merge (`WidgetPendingOpsMerge`), which reuses the exact `id` an App Intent wrote
+    /// into the App Group so a redelivery (POST from the extension AND this replay both landing)
+    /// dedups server-side (`INSERT OR IGNORE`) instead of creating two ops for one tap.
+    func einreihen(_ op: Op) {
         liefereBatch([op])
         wartet += 1
         reiheOhneWarten { [weak self] in
