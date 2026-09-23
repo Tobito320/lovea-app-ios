@@ -94,6 +94,7 @@ struct FrageDesTagesView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Eigene Fragen")
                 .font(.headline)
+                .accessibilityAddTraits(.isHeader)
             ForEach(wir.zustand.eigeneFragen) { frage in
                 VStack(alignment: .leading, spacing: 2) {
                     Text(frage.text).font(.subheadline)
@@ -122,14 +123,17 @@ struct FrageDesTagesView: View {
                 } label: {
                     HStack {
                         Image(systemName: thema.besprochen == nil ? "circle" : "checkmark.circle.fill")
+                            .accessibilityHidden(true)
                         Text(thema.text)
                             .strikethrough(thema.besprochen != nil)
                         Spacer()
                     }
                     .foregroundStyle(thema.besprochen == nil ? .primary : .secondary)
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .frame(minHeight: 32)
+                .accessibilityValue(thema.besprochen == nil ? "offen" : "besprochen")
             }
             HStack {
                 TextField("Neues Thema", text: $neuesThema)

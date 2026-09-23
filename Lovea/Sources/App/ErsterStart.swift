@@ -59,6 +59,7 @@ struct ErsterStart: View {
                             Spacer()
                             Image(systemName: "arrow.right")
                                 .foregroundStyle(.secondary)
+                                .accessibilityHidden(true)
                         }
                         .frame(minHeight: 64)
                         .contentShape(Rectangle())

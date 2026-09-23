@@ -23,6 +23,13 @@ enum Datum {
         return String(format: "%04d-%02d-%02d", teile.year!, teile.month!, teile.day!)
     }
 
+    /// „Mittwoch, 23. September" für Oberfläche und VoiceOver. FormatStyle ist ein Sendable-Wert,
+    /// anders als DateFormatter, und wird vom System gecacht.
+    static func anzeige(_ tag: String) -> String {
+        let stil = Date.FormatStyle(locale: Locale(identifier: "de_DE"), calendar: kalender, timeZone: kalender.timeZone)
+        return datum(tag).formatted(stil.weekday(.wide).day().month(.wide))
+    }
+
     static func addTage(_ tag: String, _ anzahl: Int) -> String {
         text(kalender.date(byAdding: .day, value: anzahl, to: datum(tag))!)
     }

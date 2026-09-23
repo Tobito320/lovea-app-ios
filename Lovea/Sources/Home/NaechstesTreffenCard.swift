@@ -10,6 +10,7 @@ struct NaechstesTreffenCard: View {
             Image(systemName: kalender.naechstesTreffen == nil ? "heart" : "heart.fill")
                 .font(.title2)
                 .foregroundStyle(Color.loveaRose)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 if let treffen = kalender.naechstesTreffen {
                     Text(countdownText(treffen.datum))
@@ -29,6 +30,7 @@ struct NaechstesTreffenCard: View {
         }
         .padding(16)
         .background(Color.loveaRose.opacity(0.1), in: RoundedRectangle(cornerRadius: 16))
+        .accessibilityElement(children: .combine)
     }
 
     private func countdownText(_ datum: String) -> String {

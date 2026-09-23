@@ -23,13 +23,14 @@ struct MonatsAnsicht: View {
     var body: some View {
         VStack(spacing: 10) {
             HStack {
-                Button { wechsleMonat(-1) } label: { Image(systemName: "chevron.left") }
+                Button { wechsleMonat(-1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
                     .accessibilityLabel("Vorheriger Monat")
                 Spacer()
                 Text(Self.monatsTitel(monat))
                     .font(.headline)
+                    .accessibilityAddTraits(.isHeader)
                 Spacer()
-                Button { wechsleMonat(1) } label: { Image(systemName: "chevron.right") }
+                Button { wechsleMonat(1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
                     .accessibilityLabel("Nächster Monat")
             }
             .buttonStyle(.plain)
@@ -43,6 +44,8 @@ struct MonatsAnsicht: View {
                         .frame(maxWidth: .infinity)
                 }
             }
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+            .accessibilityHidden(true)
 
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 2), count: 7), spacing: 4) {
                 ForEach(Array(tage.enumerated()), id: \.offset) { _, tag in
@@ -53,6 +56,9 @@ struct MonatsAnsicht: View {
                     }
                 }
             }
+            // Sieben Spalten passen ab AX-Größen nicht mehr; wie der System-Kalender deckeln statt
+            // abschneiden. VoiceOver liest jeden Tag ohnehin voll vor.
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         }
         .contentShape(Rectangle())
         .gesture(
@@ -85,6 +91,11 @@ struct MonatsAnsicht: View {
     private func tagZelle(_ tag: String) -> some View {
         let heute = tag == Datum.text(Date())
         let hatTreffen = kalender.zustand.daten.treffen.contains { $0.datum == tag }
+        let belegt = Person.allCases.filter { !Wochenplan.tag(tag, person: $0.rawValue, daten: kalender.zustand.daten).isEmpty }
+        var vorlesen = [Datum.anzeige(tag)]
+        if heute { vorlesen.insert("Heute", at: 0) }
+        if !belegt.isEmpty { vorlesen.append("Termine: " + belegt.map(\.name).joined(separator: " und ")) }
+        if hatTreffen { vorlesen.append("Treffen") }
         return Button {
             onTagWaehlen(tag)
         } label: {
@@ -93,10 +104,8 @@ struct MonatsAnsicht: View {
                     .font(.subheadline.weight(heute ? .bold : .regular))
                     .foregroundStyle(heute ? Color.loveaRose : .primary)
                 HStack(spacing: 3) {
-                    ForEach(Person.allCases, id: \.self) { person in
-                        if !Wochenplan.tag(tag, person: person.rawValue, daten: kalender.zustand.daten).isEmpty {
-                            Circle().fill(Color.person(person)).frame(width: 5, height: 5)
-                        }
+                    ForEach(belegt, id: \.self) { person in
+                        Circle().fill(Color.person(person)).frame(width: 5, height: 5)
                     }
                     if hatTreffen {
                         Image(systemName: "heart.fill")
@@ -110,7 +119,7 @@ struct MonatsAnsicht: View {
             .background(heute ? Color.loveaRose.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
-        .accessibilityLabel(tag)
+        .accessibilityLabel(vorlesen.joined(separator: ", "))
     }
 
     private func tagesnummer(_ tag: String) -> String {

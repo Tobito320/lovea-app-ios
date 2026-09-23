@@ -8,15 +8,18 @@ struct UnsereListeCard: View {
     @State private var wuerfelDreht = false
     @State private var zeigtMachenWir = false
     @State private var zeigtListe = false
+    @Environment(\.dynamicTypeSize) private var schrift
 
     var body: some View {
+        let reihe = schrift.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10)) : AnyLayout(HStackLayout(spacing: 10))
         VStack(alignment: .leading, spacing: 12) {
             HStack {
                 Text("Unsere Liste")
                     .font(.headline)
                 Spacer()
                 Button("Alle ansehen") { zeigtListe = true }
-                    .font(.caption)
+                    .font(.subheadline)
+                    .frame(minHeight: 44)
             }
 
             if let gewuerfelt {
@@ -27,7 +30,7 @@ struct UnsereListeCard: View {
                     .background(Color.loveaRose.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
             }
 
-            HStack(spacing: 10) {
+            reihe {
                 Button {
                     wuerfeln()
                 } label: {
@@ -72,6 +75,7 @@ private struct ListenBlatt: View {
                     } label: {
                         HStack {
                             Image(systemName: eintrag.geschafft ? "checkmark.circle.fill" : "circle")
+                                .accessibilityHidden(true)
                             Text(eintrag.text)
                                 .strikethrough(eintrag.geschafft)
                             Spacer()
@@ -79,6 +83,7 @@ private struct ListenBlatt: View {
                         .foregroundStyle(eintrag.geschafft ? .secondary : .primary)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityValue(eintrag.geschafft ? "geschafft" : "offen")
                 }
                 Section {
                     HStack {
@@ -117,7 +122,7 @@ private struct MachenWirBlatt: View {
                             .foregroundStyle(.secondary)
                     }
                     ForEach(vorschlaege, id: \.self) { tag in
-                        Button(tag) {
+                        Button(Datum.anzeige(tag)) {
                             wir.machenWir(text: text, datum: tag, uhrzeit: nil)
                             dismiss()
                         }

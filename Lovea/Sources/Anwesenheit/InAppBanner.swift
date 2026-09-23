@@ -1,5 +1,6 @@
 import Observation
 import SwiftUI
+import UIKit
 
 /// Z-7.3 ("Nur in der App", Spec 12): partner online (höchstens einmal pro 15 min), „zeichnet
 /// gerade an …“, Anstupsen/Kuss. `AppRootView` overlays `InAppBannerView` on the tab bar.
@@ -63,9 +64,12 @@ final class BannerZentrale {
     private func zeigenFallsErlaubt(_ banner: Banner, kategorie: String?) {
         if let kategorie, !EinstellungenModell.shared.bool("mitteilungen.\(kategorie)", default: true) { return }
         aktuell = banner
+        // VoiceOver: read it out and keep it long enough to reach and double-tap.
+        let voiceOver = UIAccessibility.isVoiceOverRunning
+        if voiceOver { UIAccessibility.post(notification: .announcement, argument: banner.text) }
         ausblendenTask?.cancel()
         ausblendenTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(3))
+            try? await Task.sleep(for: .seconds(voiceOver ? 10 : 3))
             guard !Task.isCancelled, let self, self.aktuell?.id == banner.id else { return }
             self.aktuell = nil
         }
@@ -84,22 +88,29 @@ struct InAppBannerView: View {
     var aufZeichnungGetippt: (String) -> Void = { _ in }
 
     private let zentrale = BannerZentrale.shared
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         if let banner = zentrale.aktuell {
             HStack(spacing: 8) {
                 Image(systemName: "sparkles")
+                    .accessibilityHidden(true)
                 Text(banner.text)
                     .font(.subheadline.weight(.medium))
-                    .lineLimit(2)
+                    .lineLimit(3)
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
+            .frame(minHeight: 44)
             .glassEffect(.regular.interactive(), in: .capsule)
             .padding(.top, 8)
+            .padding(.horizontal, 16)
             .onTapGesture { zentrale.antippen(aufZeichnung: aufZeichnungGetippt) }
-            .transition(.move(edge: .top).combined(with: .opacity))
-            .animation(.spring(duration: 0.3), value: zentrale.aktuell?.id)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint(banner.aktion == .keine ? "Schließt den Hinweis" : "Öffnet die Zeichnung")
+            .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.move(edge: .top).combined(with: .opacity))
+            .animation(reduceMotion ? nil : .spring(duration: 0.3), value: zentrale.aktuell?.id)
             .id(banner.id)
         }
     }

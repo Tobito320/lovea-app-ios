@@ -29,6 +29,7 @@ struct HomeView: View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Kalender")
                 .font(.headline)
+                .accessibilityAddTraits(.isHeader)
             MonatsAnsicht { tag in
                 pfad.append(tag)
             }

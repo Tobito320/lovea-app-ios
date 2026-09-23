@@ -14,16 +14,6 @@ struct TreffenTagView: View {
     @State private var zeigtExport = false
     @State private var zeigtImport = false
 
-    // Fresh formatter per call: DateFormatter is a class and not Sendable, so a shared `static
-    // let` would trip Swift 6 strict concurrency (same reasoning as `Op.isoFormatierer`).
-    private static func titel(_ datum: Date) -> String {
-        let f = DateFormatter()
-        f.calendar = Datum.kalender
-        f.locale = Locale(identifier: "de_DE")
-        f.dateFormat = "EEEE, d. MMMM"
-        return f.string(from: datum)
-    }
-
     private var eintrag: KalenderModell.TreffenEintrag? { kalender.zustand.treffenText[datum] }
     private var checkliste: [KalenderModell.ChecklistEintrag] { kalender.zustand.checklisten[datum] ?? [] }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
@@ -31,9 +21,10 @@ struct TreffenTagView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Label(Self.titel(Datum.datum(datum)), systemImage: "heart.fill")
+                Label(Datum.anzeige(datum), systemImage: "heart.fill")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.loveaRose)
+                    .accessibilityAddTraits(.isHeader)
 
                 if let vorherige = eintrag?.vorherige {
                     VStack(alignment: .leading, spacing: 4) {
@@ -138,19 +129,27 @@ struct TreffenTagView: View {
             } label: {
                 Image(systemName: aufgabe.erledigt ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(aufgabe.erledigt ? Color.loveaRose : .secondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .accessibilityLabel(aufgabe.text)
+            .accessibilityValue(aufgabe.erledigt ? "erledigt" : "offen")
             Text(aufgabe.text)
                 .strikethrough(aufgabe.erledigt)
                 .foregroundStyle(aufgabe.erledigt ? .secondary : .primary)
+                .accessibilityHidden(true)
             Spacer()
             Button {
                 Raum.shared.senden("checkliste.loeschen", ["datum": datum, "id": aufgabe.id])
             } label: {
-                Image(systemName: "trash").foregroundStyle(.secondary)
+                Image(systemName: "trash")
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
             }
+            .accessibilityLabel("„\(aufgabe.text)“ löschen")
         }
         .buttonStyle(.plain)
-        .frame(minHeight: 32)
     }
 
     private func aufgabeHinzufuegen() {

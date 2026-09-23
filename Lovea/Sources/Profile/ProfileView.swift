@@ -100,7 +100,7 @@ private struct ProfilInhalt: View {
 
     private var andichGedacht: some View {
         HStack(spacing: 10) {
-            Image(systemName: "heart.fill").foregroundStyle(Color.loveaRose)
+            Image(systemName: "heart.fill").foregroundStyle(Color.loveaRose).accessibilityHidden(true)
             Text(andichGedachtText)
                 .font(.subheadline)
         }

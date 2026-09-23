@@ -8,22 +8,25 @@ struct FigurView: View {
     private let abzeichen: [String]
     private let groesse: CGFloat
     private let animiert: Bool
+    private let bildrate: Double
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
 
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true) {
+    /// `bildrate`: frames per second of the loop; lower it where many figures or a map redraw.
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30) {
         self.aussehen = aussehen
         self.zustand = zustand
         self.abzeichen = abzeichen
         self.groesse = groesse
         self.animiert = animiert
+        self.bildrate = bildrate
     }
 
     var body: some View {
         Group {
             if animiert && !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar || scenePhase != .active)) { kontext in
+                TimelineView(.animation(minimumInterval: 1.0 / bildrate, paused: !sichtbar || scenePhase != .active)) { kontext in
                     leinwand(kontext.date.timeIntervalSinceReferenceDate, statisch: false)
                 }
             } else {
@@ -35,6 +38,8 @@ struct FigurView: View {
         .opacity(zustand == .offline ? 0.7 : 1)
         .onAppear { sichtbar = true }
         .onDisappear { sichtbar = false }
+        // Non-lazy scroll views (Home, Profil) never call onDisappear while scrolling.
+        .onScrollVisibilityChange(threshold: 0.05) { sichtbar = $0 }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Figur")
         .accessibilityValue(zustand.titel)

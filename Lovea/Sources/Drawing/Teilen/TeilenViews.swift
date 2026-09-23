@@ -86,6 +86,7 @@ struct GemeinsamOverlay: View {
     @ObservedObject var state: CanvasViewState
     let live: ZeichnungLive
     @State private var wackeln = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let auswahl = ["❤️", "😍", "😂", "😮", "🥺", "🔥", "👏", "✨", "🌸", "😘", "🙈", "🎉"]
 
@@ -104,7 +105,8 @@ struct GemeinsamOverlay: View {
                     .position(state.viewport.screenPoint(kuss))
                     .transition(.scale.combined(with: .opacity))
             }
-            if wackeln, let punkt = hub.letzterEigenerStift, let ich = Raum.shared.ich {
+            // The wiggle is a looping phase animation; with Reduce Motion the poke is haptic only.
+            if wackeln, !reduceMotion, let punkt = hub.letzterEigenerStift, let ich = Raum.shared.ich {
                 Image(systemName: "pencil.tip")
                     .font(.title)
                     .foregroundStyle(Color.person(ich))
