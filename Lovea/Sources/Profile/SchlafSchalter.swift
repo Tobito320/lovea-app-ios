@@ -4,10 +4,16 @@ import SwiftUI
 /// (`GrussKnopfCard`): "nacht" lässt die eigene Figur 12 h schlafen (bis "morgen"), der Partner
 /// bekommt "sagt Gute Nacht". Automatisch schläft die Figur außerdem bei Schlafen-Fokus 22–7 Uhr.
 struct SchlafSchalter: View {
-    // Nur der manuelle Override, nicht `anzeige(ich)` — siehe `GrussKnopfCard.schlaeft`.
-    private var schlaeft: Bool {
+    // Manueller Override ODER Schlafen-Fokus (eigener `zustand`), nicht `anzeige(ich)`: das wäre
+    // auch bei einer frischen Geste kurz etwas anderes.
+    private var manuell: Bool {
         guard let ich = Raum.shared.ich, let bis = FigurenModell.shared.grussSchlaeft[ich] else { return false }
         return bis > Date()
+    }
+
+    private var schlaeft: Bool {
+        guard let ich = Raum.shared.ich else { return false }
+        return manuell || FigurenModell.shared.zustand[ich]?.haupt == .schlaeft
     }
 
     var body: some View {
@@ -20,8 +26,9 @@ struct SchlafSchalter: View {
             .glassEffect(.regular, in: .capsule)
             .sensoryFeedback(.selection, trigger: schlaeft)
 
-            Text(schlaeft ? "Deine Figur schläft bis du „Wach“ tippst, höchstens 12 Stunden."
-                          : "Mit Schlafen-Fokus schläft deine Figur zwischen 22 und 7 Uhr automatisch.")
+            Text(manuell ? "Deine Figur schläft, bis du „Wach“ tippst, höchstens 12 Stunden."
+                 : schlaeft ? "Schlafen-Fokus ist an. „Wach“ weckt deine Figur bis 7 Uhr."
+                 : "Mit Schlafen-Fokus schläft deine Figur zwischen 22 und 7 Uhr automatisch.")
                 .font(.footnote)
                 .foregroundStyle(.secondary)
         }
@@ -44,6 +51,7 @@ struct SchlafSchalter: View {
 
     private func setzen(schlafen: Bool) {
         guard schlafen != schlaeft else { return }
-        FigurenModell.shared.grussSenden(schlafen ? "nacht" : "morgen")
+        Anwesenheit.shared.wach(!schlafen) // Fokus-Schlaf bis 7 Uhr überstimmen bzw. freigeben
+        if schlafen { FigurenModell.shared.grussSenden("nacht") } else if manuell { FigurenModell.shared.grussSenden("morgen") }
     }
 }

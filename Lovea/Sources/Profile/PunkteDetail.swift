@@ -243,7 +243,8 @@ struct PunkteDetailBlatt: View {
         return Section {
             VStack(spacing: 4) {
                 Text(verfuegbar.formatted(.number.locale(Locale(identifier: "de_DE"))))
-                    .font(.system(size: 52, weight: .bold, design: .rounded).monospacedDigit())
+                    .font(.largeTitle.weight(.bold).monospacedDigit())
+                    .fontDesign(.rounded)
                     .contentTransition(.numericText(value: Double(verfuegbar)))
                 Text("verfügbar").font(.subheadline).foregroundStyle(.secondary)
                 HStack(spacing: 16) {
