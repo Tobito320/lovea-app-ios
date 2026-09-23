@@ -33,7 +33,7 @@ final class SnapKameraSteuerung: NSObject {
     private var videoContinuation: CheckedContinuation<URL?, Never>?
     private var fortschrittTask: Task<Void, Never>?
     private var aufnahmeStart: Date?
-    private var audioEingerichtet = false
+    private var audioEingang: AVCaptureDeviceInput?
 
     /// Shared instance (Z-26.5): the conversation prewarms this ahead of time, `SnapKameraView`
     /// then reuses the already-running session instead of a fresh one, so the first real open has
@@ -79,6 +79,9 @@ final class SnapKameraSteuerung: NSObject {
         sessionSchlange.async { box.session.startRunning() }
     }
 
+    /// Full open (Z-6.1, possibly prompting): reuses an already-warm session as-is, then always
+    /// makes sure the mic input is present (added here, not just during recording — matches the
+    /// pre-Z-26.5 behavior of setting it up at camera-open time) before signaling `.kamera`.
     func start() async {
         if !laeuft {
             guard await berechtigung() else { return }
@@ -86,6 +89,11 @@ final class SnapKameraSteuerung: NSObject {
             laeuft = true
             let box = SessionBox(session: session)
             sessionSchlange.async { box.session.startRunning() }
+        }
+        if audioEingang == nil {
+            session.beginConfiguration()
+            einrichtenAudioEingang()
+            session.commitConfiguration()
         }
         FigurenModell.shared.zustandSenden(.init(haupt: .kamera))
     }
@@ -99,12 +107,33 @@ final class SnapKameraSteuerung: NSObject {
         session.commitConfiguration()
     }
 
+    /// The camera UI itself closing (Z-6.1/Z-26.5), as opposed to the session merely staying warm
+    /// in the background while the conversation still holds it: removes the mic right away (a warm
+    /// session sitting in chat must never keep recording audio) and signals `.imChat` immediately,
+    /// instead of waiting for `loslassen()`'s grace period to eventually `stop()` the session.
+    func kameraVerlassen() {
+        entferneAudioEingang()
+        FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
+        loslassen()
+    }
+
+    /// Only ever stops the session itself — no figure-state signal, so a warm session that outlives
+    /// the camera UI (still just sitting in an open chat) never tells the partner "im Chat" again on
+    /// a timer; `kameraVerlassen()` already sent that the moment the camera UI actually closed.
     func stop() {
         guard laeuft else { return }
         laeuft = false
-        FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
+        entferneAudioEingang() // belt-and-suspenders: a full stop must never leave a stale mic input
         let box = SessionBox(session: session)
         sessionSchlange.async { box.session.stopRunning() }
+    }
+
+    private func entferneAudioEingang() {
+        guard let audioEingang else { return }
+        session.beginConfiguration()
+        session.removeInput(audioEingang)
+        session.commitConfiguration()
+        self.audioEingang = nil
     }
 
     /// Camera access is required; microphone (Z-6.1 videos have sound) is requested too but a "no"
@@ -142,6 +171,7 @@ final class SnapKameraSteuerung: NSObject {
               session.canAddInput(eingang)
         else { return }
         session.addInput(eingang)
+        audioEingang = eingang
     }
 
     func kameraWechseln() {
@@ -190,15 +220,6 @@ final class SnapKameraSteuerung: NSObject {
     // MARK: - Video (Z-6.1: Halten, bis zu 30 s)
 
     func videoStarten() async -> URL? {
-        // Z-26.5: the mic input is added here, not at session start — a session running with an
-        // audio input the moment the chat is merely prewarmed would show the orange mic dot and
-        // reconfigure the shared audio session out from under `SprachSpieler`/`AufnahmeSteuerung`.
-        if !audioEingerichtet {
-            session.beginConfiguration()
-            einrichtenAudioEingang()
-            session.commitConfiguration()
-            audioEingerichtet = true
-        }
         aufAufrechtAusrichten(movieOutput.connection(with: .video))
         if blitzAn { taschenlampeSchalten(an: true) }
         movieOutput.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
@@ -306,7 +327,7 @@ struct SnapKameraView: View {
         .statusBarHidden()
         .onAppear { steuerung.halten() }
         .task { await steuerung.start() }
-        .onDisappear { steuerung.loslassen() }
+        .onDisappear { steuerung.kameraVerlassen() }
     }
 
     private var obereLeiste: some View {

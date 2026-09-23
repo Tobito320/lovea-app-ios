@@ -40,12 +40,20 @@ final class UmzugAufraeumen {
         laeuft = true
         Task {
             defer { laeuft = false }
+            // One shared library for the whole batch — `ArtworkLibrary.init` synchronously reads
+            // library.json plus every document.json (Main Thread frei), so one instance beats one
+            // per message.
+            let library = ArtworkLibrary()
             var allesOk = true
             for nachricht in ziel {
-                guard let medium = nachricht.medien.first,
-                      let url = await MedienDatei.url(medium, eigene: nachricht.von == ich)
-                else { allesOk = false; continue }
-                guard await ChatGalerie.speichernUndWarten(bildURL: url, name: "Aus dem Umzug") else {
+                // `Medien.holen` (not `MedienDatei.url`, which retries forever on a Task that's
+                // never cancelled) — one attempt; a miss just leaves this message for the next
+                // catch-up to retry, same as any other failure here.
+                guard let medium = nachricht.medien.first, let url = try? await Medien.holen(medium.id) else {
+                    allesOk = false
+                    continue
+                }
+                guard await ChatGalerie.speichernUndWarten(bildURL: url, name: "Aus dem Umzug", library: library) else {
                     allesOk = false
                     continue
                 }

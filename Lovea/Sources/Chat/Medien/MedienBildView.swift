@@ -240,15 +240,17 @@ enum ChatGalerie {
     }
 
     /// Awaitable variant (Z-26.4's umzug cleanup needs to know the write finished before deleting
-    /// the chat message it came from). `true` once the artwork is fully on disk.
-    static func speichernUndWarten(bildURL: URL, name: String) async -> Bool {
+    /// the chat message it came from). `true` once the artwork is fully on disk. `library` lets a
+    /// batch caller (Z-26.4) reuse one instance instead of paying `ArtworkLibrary.init`'s
+    /// synchronous library.json/document.json reads (Main Thread frei) once per message.
+    static func speichernUndWarten(bildURL: URL, name: String, library: ArtworkLibrary? = nil) async -> Bool {
         // Decode + PNG encode off the main actor (Z-16.2); only the library calls stay on it.
         let geladen = await Task.detached(priority: .userInitiated) { () -> (png: Data, breite: Double, hoehe: Double)? in
             guard let image = UIImage(contentsOfFile: bildURL.path), let png = image.pngData() else { return nil }
             return (png, Double(image.size.width * image.scale), Double(image.size.height * image.scale))
         }.value
         guard let geladen else { return false }
-        let library = ArtworkLibrary()
+        let library = library ?? ArtworkLibrary()
         let breite = ArtworkLibrary.clampDimension(geladen.breite)
         let hoehe = ArtworkLibrary.clampDimension(geladen.hoehe)
         var artwork = library.createArtwork(name: name, projectID: nil, format: .custom, customWidth: breite, customHeight: hoehe, background: .white)

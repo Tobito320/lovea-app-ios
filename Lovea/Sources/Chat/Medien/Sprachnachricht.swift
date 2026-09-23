@@ -219,14 +219,18 @@ private struct VorschauLeiste: View {
     let onSenden: () -> Void
     let onVerwerfen: () -> Void
 
-    private var spielt: Bool { SprachSpieler.shared.spielendeID == "vorschau" }
+    // Z-26.2: the file's own name, not a constant "vorschau" — a fixed id would make
+    // `SprachSpieler.shared` think a re-recorded (or sent/discarded and freshly recorded) preview
+    // is still the previous file and resume it instead of restarting.
+    private var vorschauID: String { aufnahme.url.lastPathComponent }
+    private var spielt: Bool { SprachSpieler.shared.spielendeID == vorschauID }
 
     var body: some View {
         HStack(spacing: 10) {
             Button(role: .destructive) { onVerwerfen() } label: { Image(systemName: "trash") }
                 .accessibilityLabel("Aufnahme verwerfen")
             Button {
-                if spielt { SprachSpieler.shared.pausieren() } else { SprachSpieler.shared.spielen(id: "vorschau", url: aufnahme.url) }
+                if spielt { SprachSpieler.shared.pausieren() } else { SprachSpieler.shared.spielen(id: vorschauID, url: aufnahme.url) }
             } label: { Image(systemName: spielt ? "pause.fill" : "play.fill") }
                 .accessibilityLabel(spielt ? "Anhören pausieren" : "Anhören")
             // Z-26.2: "vor dem Senden anhören mit 1×/1,5×/2×" — same cycling speed `SprachSpieler`

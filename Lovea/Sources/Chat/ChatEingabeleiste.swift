@@ -64,6 +64,9 @@ struct ChatEingabeleiste: View {
     /// (which can land late — after a reinstall, the catch-up finishes only once the log replays)
     /// must never clobber it.
     @State private var beruehrt = false
+    /// Z-26.2: guards against the two restore call sites (appear, and the `nachgeholt` poll) both
+    /// firing close together and double-appending a text-less draft's images.
+    @State private var wirdWiederhergestellt = false
     @Environment(\.scenePhase) private var scenePhase
 
     private static let hoehe: CGFloat = 36
@@ -136,29 +139,44 @@ struct ChatEingabeleiste: View {
         // Z-26.1: "Vollansicht" — same text, large editor, closes via the button or the sheet's own
         // swipe-down.
         .sheet(isPresented: $vollansichtOffen) { VollansichtEditor(text: $eingabeAttr) }
-        .task { await ChatMedien.ausstehendeAbarbeiten() }
-        // Z-26.5: prewarms the capture session as soon as the conversation (this bar is only ever
-        // shown inside it) is visible, so the very first camera open has nothing left to wait for.
-        .onAppear {
-            SnapKameraSteuerung.geteilt.halten()
-            Task { await SnapKameraSteuerung.geteilt.vorwaermen() }
-            entwurfWiederherstellen()
-        }
-        .onDisappear {
-            SnapKameraSteuerung.geteilt.loslassen()
-            entwurfFlush()
-        }
-        // Z-26.2: the app being killed while backgrounded must not lose the last second of typing.
-        .onChange(of: scenePhase) { _, neu in if neu != .active { entwurfFlush() } }
-        // Z-26.4/Z-26.2: same poll-for-`nachgeholt` idiom as `KalenderModell` — runs once the log
-        // has fully caught up, so `UmzugAufraeumen`'s `aufgeraeumt` fold and the draft fold have
-        // both already replayed (a reinstall's restore can otherwise land after this view appears).
-        .task {
-            while !Raum.shared.nachgeholt {
-                try? await Task.sleep(for: .seconds(1))
-            }
-            UmzugAufraeumen.shared.versuchen()
-            entwurfWiederherstellen()
+        .modifier(Lebenszyklus(scenePhase: scenePhase, onFlush: entwurfFlush, onWiederherstellen: entwurfWiederherstellen))
+    }
+
+    /// Split out of `body` (common.md: keep `body` expressions small, Runde-1 hit the compiler's
+    /// type-check timeout) — every appear/disappear/background/catch-up hook in one place.
+    private struct Lebenszyklus: ViewModifier {
+        let scenePhase: ScenePhase
+        let onFlush: () -> Void
+        let onWiederherstellen: () -> Void
+
+        func body(content: Content) -> some View {
+            content
+                .task { await ChatMedien.ausstehendeAbarbeiten() }
+                // Z-26.5: prewarms the capture session as soon as the conversation (this bar is
+                // only ever shown inside it) is visible, so the first camera open has nothing left
+                // to wait for.
+                .onAppear {
+                    SnapKameraSteuerung.geteilt.halten()
+                    Task { await SnapKameraSteuerung.geteilt.vorwaermen() }
+                    onWiederherstellen()
+                }
+                .onDisappear {
+                    SnapKameraSteuerung.geteilt.loslassen()
+                    onFlush()
+                }
+                // Z-26.2: the app being killed while backgrounded must not lose the last second of typing.
+                .onChange(of: scenePhase) { _, neu in if neu != .active { onFlush() } }
+                // Z-26.4/Z-26.2: same poll-for-`nachgeholt` idiom as `KalenderModell` — runs once
+                // the log has fully caught up, so `UmzugAufraeumen`'s `aufgeraeumt` fold and the
+                // draft fold have both already replayed (a reinstall's restore can otherwise land
+                // after this view appeared).
+                .task {
+                    while !Raum.shared.nachgeholt {
+                        try? await Task.sleep(for: .seconds(1))
+                    }
+                    UmzugAufraeumen.shared.versuchen()
+                    onWiederherstellen()
+                }
         }
     }
 
@@ -285,6 +303,10 @@ struct ChatEingabeleiste: View {
 
         guard !anhaengeZuSenden.isEmpty || !glyphDaten.isEmpty || !text.isEmpty else { return }
         ChatHaptik.leicht()
+        // Synchronous, not at the end of the Task below: a Genmoji/video send can await an upload
+        // for a while, and a draft typed into the now-empty composer during that window must not
+        // get wiped by a clear that was queued before any of that typing happened.
+        ChatModell.shared.entwurfLeeren()
 
         Task {
             var antwort = antwortID
@@ -310,7 +332,6 @@ struct ChatEingabeleiste: View {
             if !text.isEmpty {
                 ChatModell.shared.nachrichtSenden(text: text, antwortAuf: antwort)
             }
-            ChatModell.shared.entwurfLeeren()
         }
     }
 
@@ -332,15 +353,21 @@ struct ChatEingabeleiste: View {
 
     /// Restores into an otherwise-empty, untouched composer only (never overwrites what's already
     /// being typed this session) — safe to call repeatedly, on appear and again once the log has
-    /// caught up (a reinstall's own draft can arrive after this view already appeared).
+    /// caught up (a reinstall's own draft can arrive after this view already appeared). Both call
+    /// sites can fire close together (`onAppear` and the `nachgeholt` poll both land once already
+    /// caught up), and a text-less draft's `anhaenge.isEmpty` guard wouldn't yet see the first
+    /// call's still-running restore — `wirdWiederhergestellt` closes that gap synchronously.
     private func entwurfWiederherstellen() {
-        guard !beruehrt, eingabeAttr.length == 0, anhaenge.isEmpty, sprachEntwurf == nil else { return }
+        guard !beruehrt, !wirdWiederhergestellt, eingabeAttr.length == 0, anhaenge.isEmpty, sprachEntwurf == nil else { return }
         let entwurf = ChatModell.shared.entwurf(fuer: ich)
         guard !entwurf.leer else { return }
         if !entwurf.text.isEmpty {
             eingabeAttr = NSAttributedString(string: entwurf.text, attributes: [.font: UIFont.preferredFont(forTextStyle: .body)])
         }
+        guard !entwurf.medien.isEmpty || entwurf.sprache != nil else { return }
+        wirdWiederhergestellt = true
         Task {
+            defer { wirdWiederhergestellt = false }
             for medienId in entwurf.medien {
                 guard !beruehrt, let anhang = await entwurfBildLaden(medienId) else { continue }
                 anhaenge.append(anhang)
@@ -505,8 +532,10 @@ private struct GenmojiEingabefeld: UIViewRepresentable {
         // default font.
         uiView.typingAttributes = [.font: Self.schrift]
         // Deferred: mutating a binding synchronously inside `updateUIView` runs during SwiftUI's
-        // own update pass.
-        DispatchQueue.main.async { context.coordinator.zeilenAktualisieren(uiView) }
+        // own update pass. A `Task` (not `DispatchQueue.main.async`, whose closure is `@Sendable`
+        // and can't capture the non-Sendable `uiView`) hops to the next run loop turn instead.
+        let coordinator = context.coordinator
+        Task { @MainActor in coordinator.zeilenAktualisieren(uiView) }
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
