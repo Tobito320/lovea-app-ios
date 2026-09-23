@@ -199,11 +199,11 @@ private struct ProfilInhalt: View {
                     chip(EinstellungenModell.shared.string("flamme", default: "🔥"), "\(streak)", "Streak \(streak) Tage")
                 }
                 chip(zeichen.symbol, zeichen.name, "Sternzeichen \(zeichen.name)")
-                // SCHRITTE (Block 18, wartet auf Ahmeds HealthKit-OK): hier ein Chip „👟 8.412“ mit den
-                // heutigen Schritten von `person` — erst bauen, wenn Ahmed die Berechtigung freigibt.
+                SchritteChip(person: person)
             }
         }
         .scrollClipDisabled()
+        .task { SchritteModell.shared.sicherstellen() }
     }
 
     private func chip(_ emoji: String, _ text: String, _ vorlesen: String) -> some View {
