@@ -234,32 +234,41 @@ struct SnapEditor: View {
 
     private var obereLeiste: some View {
         HStack {
-            Button { onFertig() } label: { Image(systemName: "xmark") }
+            Button { onFertig() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
                 .accessibilityLabel("Abbrechen")
             Spacer()
-            Button { textBearbeitenOffen = true } label: { Image(systemName: "textformat") }
+            Button { textBearbeitenOffen = true } label: { Image(systemName: "textformat").frame(width: 44, height: 44) }
                 .accessibilityLabel("Text hinzufügen")
-            Button { zeichnenAktiv.toggle() } label: { Image(systemName: zeichnenAktiv ? "pencil.circle.fill" : "pencil.circle") }
+            Button { zeichnenAktiv.toggle() } label: { Image(systemName: zeichnenAktiv ? "pencil.circle.fill" : "pencil.circle").frame(width: 44, height: 44) }
                 .accessibilityLabel("Kritzeln")
                 .accessibilityValue(zeichnenAktiv ? "an" : "aus")
-            Button { stickerBlattOffen = true } label: { Image(systemName: "face.smiling") }
+            Button { stickerBlattOffen = true } label: { Image(systemName: "face.smiling").frame(width: 44, height: 44) }
                 .accessibilityLabel("Sticker hinzufügen")
         }
         .font(.title2)
         .foregroundStyle(.white)
+        .shadow(color: .black.opacity(0.5), radius: 3) // stays readable over a bright photo
         .padding()
     }
 
+    private static let doodleFarbNamen = ["Weiß", "Schwarz", "Rosé", "Gelb", "Grün", "Blau"] // same order as `doodleFarben`
+
     private var farbAuswahl: some View {
-        HStack(spacing: 10) {
-            ForEach(Self.doodleFarben, id: \.self) { farbe in
+        HStack(spacing: 4) {
+            ForEach(Self.doodleFarben.indices, id: \.self) { index in
+                let farbe = Self.doodleFarben[index]
                 Circle().fill(farbe)
                     .frame(width: 26, height: 26)
                     .overlay(Circle().strokeBorder(.white, lineWidth: doodleFarbe == farbe ? 2 : 0))
+                    .frame(width: 38, height: 44)
+                    .contentShape(Rectangle())
                     .onTapGesture { doodleFarbe = farbe }
+                    .accessibilityLabel(Self.doodleFarbNamen[index])
+                    .accessibilityAddTraits(.isButton)
+                    .accessibilityAddTraits(doodleFarbe == farbe ? .isSelected : [])
             }
         }
-        .padding(10)
+        .padding(.horizontal, 10)
         .background(.thinMaterial, in: Capsule())
     }
 
@@ -297,11 +306,11 @@ struct SnapEditor: View {
         sendetGerade = true
         switch inhalt {
         case .foto(let bild):
-            let flach = SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text)
-            if let jpeg = flach.jpegData(compressionQuality: 0.85) {
-                Task { await ChatMedien.snapFotoSenden(jpeg: jpeg, bleibt: bleibt, antwortAuf: antwortAuf) }
+            Task {
+                let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text)
+                onFertig()
+                if let jpeg { await ChatMedien.snapFotoSenden(jpeg: jpeg, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
-            onFertig()
         case .video(let url):
             Task {
                 defer { onFertig() }
@@ -319,7 +328,7 @@ struct SnapEditor: View {
 enum SnapBildQuelle {
     static func gif(_ urlString: String) async -> UIImage? {
         guard let url = URL(string: urlString), let (daten, _) = try? await URLSession.shared.data(from: url) else { return nil }
-        return UIImage(data: daten)
+        return await Task.detached(priority: .userInitiated) { UIImage(data: daten)?.preparingForDisplay() }.value
     }
 
     static func medium(_ id: String) async -> UIImage? {
@@ -329,6 +338,6 @@ enum SnapBildQuelle {
         var url = ChatMedien.eigeneQuellen[id] ?? Medien.lokal(id)
         if url == nil { url = try? await Medien.holen(id) }
         guard let url else { return nil }
-        return UIImage(contentsOfFile: url.path)
+        return await Bilddatei.laden(url, maxPixel: 1024)
     }
 }

@@ -276,23 +276,29 @@ private struct DuellZeichnen: View {
         // Leaving the studio resets the figure (LiveZeichnung.verlassen); we are still playing.
         FigurenModell.shared.zustandSenden(FigurenModell.Zustand(haupt: .spielt))
 
-        var daten: Data?
-        var endung = "png"
-        if let dokument = library.document(artworkID), let bild = await CanvasEngine.renderImage(document: dokument, library: library) {
-            daten = ArtworkExport.encode(bild, format: .png)
+        var gerendert: UIImage?
+        if let dokument = library.document(artworkID) {
+            gerendert = await CanvasEngine.renderImage(document: dokument, library: library)
         }
-        if daten == nil {
-            daten = try? Data(contentsOf: vorschau)
-            endung = "jpg"
-        }
-        guard let daten else {
+        let bild = gerendert // a `let` for the detached closure below
+        let medienId = UUID().uuidString
+        // PNG encode, fallback read and write all off the main actor (Z-16.2).
+        let geschrieben = await Task.detached(priority: .userInitiated) { () -> URL? in
+            var daten = bild.flatMap { ArtworkExport.encode($0, format: .png) }
+            var endung = "png"
+            if daten == nil {
+                daten = try? Data(contentsOf: vorschau)
+                endung = "jpg"
+            }
+            guard let daten else { return nil }
+            let datei = FileManager.default.temporaryDirectory.appendingPathComponent("\(medienId).\(endung)")
+            return (try? daten.write(to: datei)) != nil ? datei : nil
+        }.value
+        guard let datei = geschrieben else {
             phase = .fehler
             return
         }
-        let medienId = UUID().uuidString
-        let datei = FileManager.default.temporaryDirectory.appendingPathComponent("\(medienId).\(endung)")
         do {
-            try daten.write(to: datei)
             try await Medien.hochladen(id: medienId, original: datei)
             SpieleModell.shared.bildSenden(spielId, runde: runde, medienId: medienId)
         } catch {

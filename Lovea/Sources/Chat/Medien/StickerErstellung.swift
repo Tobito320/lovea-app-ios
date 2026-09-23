@@ -50,18 +50,24 @@ enum EigeneSticker {
     private static let listURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Lovea/eigene-sticker.json")
 
+    /// Memory is the source of truth after the first read; the file only gets snapshots (Z-16.2).
+    private static var geladen: [String]?
+
     static func gespeicherte() -> [String] {
-        guard let data = try? Data(contentsOf: listURL) else { return [] }
-        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+        if let geladen { return geladen }
+        // ponytail: one tiny synchronous read on first use (a list of ids), then never again.
+        let liste = (try? Data(contentsOf: listURL)).flatMap { try? JSONDecoder().decode([String].self, from: $0) } ?? []
+        geladen = liste
+        return liste
     }
 
     static func hinzufuegen(medienId: String) {
         var liste = gespeicherte()
         guard !liste.contains(medienId) else { return }
         liste.append(medienId)
-        try? FileManager.default.createDirectory(at: listURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        geladen = liste
         guard let data = try? JSONEncoder().encode(liste) else { return }
-        try? data.write(to: listURL, options: .atomic)
+        KleineDatei.schreiben(data, nach: listURL)
     }
 
     /// Hook for the Drawing Studio's "Als Sticker speichern" (Z-5.3) — report: Level-2 calls this

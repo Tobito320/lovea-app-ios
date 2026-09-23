@@ -104,6 +104,8 @@ private struct NachrichtenListe: View {
     let onLoeschen: (String) -> Void
 
     var body: some View {
+        // Once per render, not one backwards scan per built row (Z-16.2, 10,000 messages).
+        let letzteEigeneID = modell.nachrichten.last(where: { $0.von == ich })?.id
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 2) {
@@ -117,7 +119,7 @@ private struct NachrichtenListe: View {
                             nachricht: eintrag.element, ich: ich,
                             zeigeDatumstrenner: zeigtDatumstrenner(eintrag.offset),
                             zeigeZeitstempel: zeigtZeitstempel(eintrag.offset),
-                            zustellStatus: zustellStatus(eintrag.element),
+                            zustellStatus: eintrag.element.id == letzteEigeneID ? zustellStatus(eintrag.element) : nil,
                             onAntworten: onAntworten, onBearbeiten: onBearbeiten, onLoeschen: onLoeschen,
                             onSpringeZu: { zielID = $0 }
                         )
@@ -146,9 +148,9 @@ private struct NachrichtenListe: View {
         return modell.nachrichten[index].zeit.timeIntervalSince(modell.nachrichten[index - 1].zeit) > 900
     }
 
-    /// "Zugestellt"/"Gelesen HH:mm" unter der letzten eigenen Nachricht (Spec 5.1).
-    private func zustellStatus(_ nachricht: ChatModell.Nachricht) -> String? {
-        guard nachricht.von == ich, modell.nachrichten.last(where: { $0.von == ich })?.id == nachricht.id else { return nil }
+    /// "Zugestellt"/"Gelesen HH:mm" unter der letzten eigenen Nachricht (Spec 5.1); the caller
+    /// only asks for that one message.
+    private func zustellStatus(_ nachricht: ChatModell.Nachricht) -> String {
         if let gelesen = modell.gelesenBis[ich.partner], gelesen >= nachricht.zeit {
             return "Gelesen " + gelesen.formatted(date: .omitted, time: .shortened)
         }

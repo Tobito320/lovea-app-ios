@@ -11,19 +11,24 @@ enum SnapExport {
     /// Capped to the same long edge Z-5.1's `klein` derives from — flattening a full-resolution
     /// (often 12+ MP) photo on the main thread would freeze the UI for real (global.md: "Main
     /// Thread frei"), and nothing about a Snap needs the camera's native resolution.
+    /// Only the SwiftUI overlay render (`ImageRenderer`, main-actor API) stays on the main actor;
+    /// compositing and the JPEG encode run detached (Z-16.2).
     @MainActor
-    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText) -> UIImage {
+    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText) async -> Data? {
         let groesse = MedienKodierung.skaliert(quelle.size, langeKante: 2048)
         let renderer = ImageRenderer(content: SnapUeberlagerung(linien: linien, sticker: sticker, text: text, groesse: groesse))
         renderer.scale = 1
         let overlayBild = renderer.uiImage
 
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        return UIGraphicsImageRenderer(size: groesse, format: format).image { _ in
-            quelle.draw(in: CGRect(origin: .zero, size: groesse))
-            overlayBild?.draw(in: CGRect(origin: .zero, size: groesse))
-        }
+        return await Task.detached(priority: .userInitiated) { () -> Data? in
+            let format = UIGraphicsImageRendererFormat()
+            format.scale = 1
+            let flach = UIGraphicsImageRenderer(size: groesse, format: format).image { _ in
+                quelle.draw(in: CGRect(origin: .zero, size: groesse))
+                overlayBild?.draw(in: CGRect(origin: .zero, size: groesse))
+            }
+            return flach.jpegData(compressionQuality: 0.85)
+        }.value
     }
 
     /// Burns one static overlay image onto every frame via `AVVideoCompositionCoreAnimationTool` —

@@ -58,7 +58,9 @@ struct ChatNachrichtRow: View {
                         Text(nachricht.reaktionen.values.joined())
                             .font(.caption)
                             .padding(4)
-                            .background(.thinMaterial, in: Capsule())
+                            // Solid, not material: no blur on content (Masterplan §10).
+                            .background(Color(uiColor: .secondarySystemBackground), in: Capsule())
+                            .accessibilityLabel("Reaktionen: " + nachricht.reaktionen.map { "\($0.value) von \($0.key == ich ? "dir" : $0.key.name)" }.joined(separator: ", "))
                     }
 
                     if let zustellStatus {
@@ -100,7 +102,7 @@ struct ChatNachrichtRow: View {
                 .italic()
                 .foregroundStyle(.secondary)
                 .padding(10)
-                .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
+                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
         } else {
             VStack(alignment: .leading, spacing: 6) {
                 // Z-5.1/Z-5.2/Z-5.3/Z-6.2–6.3: real media views. Spiel/System still fall through to
@@ -123,7 +125,8 @@ struct ChatNachrichtRow: View {
                     StickerKachel(medienId: sticker.medienId).frame(width: 140, height: 140)
                 }
                 if let text = nachricht.text, !text.isEmpty {
-                    Text(text)
+                    // Who wrote it is otherwise only color and side (Z-16.3).
+                    Text(text).accessibilityLabel("\(eigene ? "Du" : nachricht.von.name): \(text)")
                     if let url = ersterLink(in: text) {
                         LinkVorschau(url: url)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
@@ -137,7 +140,7 @@ struct ChatNachrichtRow: View {
                     .font(.subheadline)
                 }
                 if nachricht.bearbeitet {
-                    Text("bearbeitet").font(.caption2).opacity(0.7)
+                    Text("bearbeitet").font(.caption2)
                 }
             }
             .padding(10)
@@ -156,6 +159,16 @@ struct ChatNachrichtRow: View {
     @ViewBuilder private var kontextMenu: some View {
         if eigene, !nachricht.geloescht { Button("Bearbeiten", systemImage: "pencil") { onBearbeiten(nachricht) } }
         Button("Antworten", systemImage: "arrowshape.turn.up.left") { onAntworten(nachricht) }
+        // Long press offers reactions too (Spec 5.2); the double tap alone is out of reach for VoiceOver.
+        if !nachricht.geloescht {
+            Menu("Reagieren", systemImage: "face.smiling") {
+                ForEach(ReaktionsAuswahl.emojis, id: \.self) { emoji in
+                    Button(emoji) {
+                        ChatModell.shared.reagieren(nachricht.id, emoji: nachricht.reaktionen[ich] == emoji ? nil : emoji)
+                    }
+                }
+            }
+        }
         Menu("Anheften") {
             Button("Für immer") { ChatModell.shared.anheften(nachricht.id, bis: nil) }
             Button("Bis morgen") { ChatModell.shared.anheften(nachricht.id, bis: naechsteBerlinMitternacht()) }
@@ -239,11 +252,11 @@ private struct SnapZeile: View {
 private struct ReaktionsAuswahl: View {
     let aktuell: String?
     let onWahl: (String?) -> Void
-    private let emojis = ["❤️", "😂", "👍", "😮", "😢", "🙏"]
+    static let emojis = ["❤️", "😂", "👍", "😮", "😢", "🙏"]
 
     var body: some View {
         HStack(spacing: 14) {
-            ForEach(emojis, id: \.self) { emoji in
+            ForEach(Self.emojis, id: \.self) { emoji in
                 Button {
                     onWahl(aktuell == emoji ? nil : emoji)
                 } label: {

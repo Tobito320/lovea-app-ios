@@ -5,6 +5,7 @@ import SwiftUI
 /// expired unanswered renders nothing; skip the whole row with `SpieleModell.shared.sichtbar(id)`.
 struct SpielKarte: View {
     let nachricht: ChatModell.Nachricht
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private var modell: SpieleModell { .shared }
 
@@ -33,16 +34,21 @@ struct SpielKarte: View {
         let ich = Raum.shared.ich
         let eingeladen = spiel.von != ich
         let partner = ich?.partner.name ?? ""
+        // At accessibility text sizes the row stacks, so "Annehmen" can't squeeze the title to nothing (Z-16.3).
+        let zeile = dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 10))
+            : AnyLayout(HStackLayout(spacing: 12))
         return rahmen {
             VStack(alignment: .leading, spacing: 10) {
-                HStack(spacing: 12) {
+                zeile {
                     Image(systemName: spiel.art.symbol)
                         .font(.title3)
                         .foregroundStyle(.white)
                         .frame(width: 46, height: 46)
                         .background(RoundedRectangle(cornerRadius: 13).fill(Color.loveaRose.gradient))
+                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(titel(spiel)).font(.headline).lineLimit(2)
+                        Text(titel(spiel)).font(.headline)
                         Text(untertitel(spiel, eingeladen: eingeladen, partner: partner, jetzt: jetzt))
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
