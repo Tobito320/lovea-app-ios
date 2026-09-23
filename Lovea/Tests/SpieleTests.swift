@@ -253,6 +253,49 @@ final class SpieleModellTests: XCTestCase {
         XCTAssertEqual(m.alleEigenenWoerter, ["Pupsbär", "Keks", "Schnuffel"])
     }
 
+    func testNeueEinladungErsetztDieOffeneAlte() {
+        let m = SpieleModell(registrieren: false)
+        let bis = SpieleModell.datumString(Date().addingTimeInterval(120))
+        m.anwenden(op("spiel.einladung", ["id": "a", "art": "xo", "bis": bis], von: .ahmed))
+        m.anwenden(op("spiel.einladung", ["id": "c", "art": "ssp", "bis": bis], von: .annika))
+        m.anwenden(op("spiel.einladung", ["id": "b", "art": "memory", "bis": bis], von: .ahmed))
+        m.anwenden(op("spiel.angenommen", ["id": "b"], von: .annika))
+        XCTAssertEqual(m.offeneEinladungen(von: .ahmed), ["a"], "nur die wartende eigene, nicht die angenommene")
+        XCTAssertEqual(m.offeneEinladungen(von: .annika), ["c"])
+
+        // einladen() sends this for every id above before the new invitation.
+        m.anwenden(op("spiel.abgebrochen", ["id": "a"], von: .ahmed))
+        m.anwenden(op("spiel.einladung", ["id": "d", "art": "xo", "bis": bis], von: .ahmed))
+        XCTAssertFalse(m.sichtbar("a"))
+        XCTAssertEqual(m.offeneEinladungen(von: .ahmed), ["d"], "immer nur eine aktive Einladung")
+        XCTAssertTrue(m.sichtbar("b"))
+        XCTAssertTrue(m.sichtbar("c"), "die Einladung des Partners bleibt")
+    }
+
+    func testAbbrechenFaltetWieVerfallenNurVomEinladenden() {
+        let m = SpieleModell(registrieren: false)
+        let bis = SpieleModell.datumString(Date().addingTimeInterval(120))
+        m.anwenden(op("spiel.einladung", ["id": "s", "art": "reaktion", "bis": bis], von: .annika))
+        m.anwenden(op("spiel.abgebrochen", ["id": "s"], von: .ahmed))
+        XCTAssertTrue(m.sichtbar("s"), "der Eingeladene kann nicht abbrechen")
+
+        let abbruch = op("spiel.abgebrochen", ["id": "s"], von: .annika)
+        m.anwenden(abbruch)
+        m.anwenden(abbruch) // server echo
+        XCTAssertFalse(m.sichtbar("s"))
+        XCTAssertEqual(m.spiele["s"]?.verfallen, true)
+        XCTAssertEqual(m.offeneEinladungen(von: .annika), [])
+        m.anwenden(op("spiel.abgebrochen", ["id": "unbekannt"], von: .annika))
+        XCTAssertNil(m.spiele["unbekannt"])
+    }
+
+    func testDuellDreiRundenAutomatischLeichtMittelSchwer() {
+        let drei = SpieleModell.Einstellungen.duell(runden: 3, dauer: 300, vibe: "tiere")
+        XCTAssertEqual(drei, SpieleModell.Einstellungen(runden: 3, dauer: 300, vibes: ["leicht", "mittel", "schwer"]))
+        XCTAssertEqual(SpieleModell.Einstellungen.duell(), SpieleModell.Einstellungen(runden: 1, dauer: 60, vibes: [Wortliste.gemischt]), "Standard: 1 Runde, 60 s, zufällig")
+        XCTAssertEqual(SpieleModell.Einstellungen.duell(vibe: "suess").vibes, ["suess"])
+    }
+
     func testAeltererZugUeberschreibtNeuerePartieNicht() {
         let m = SpieleModell(registrieren: false)
         m.zugAnwenden(Zug(id: "g", partie: 2, zuege: [1]), von: .annika)
