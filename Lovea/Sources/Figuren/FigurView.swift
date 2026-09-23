@@ -213,8 +213,8 @@ fileprivate struct Bein {
     let f: CGPoint
 }
 
-fileprivate enum Mund { case laecheln, grinsen, offen(CGFloat), neutral, traurig, kuss }
-fileprivate enum Auge { case offen(gross: Bool), zu, froh, muede }
+fileprivate enum Mund { case laecheln, grinsen, offen(CGFloat), neutral, traurig, kuss, schmoll, wellig, heulen, zaehne, schief }
+fileprivate enum Auge { case offen(gross: Bool), zu, froh, muede, schock, boese }
 fileprivate enum Aermel { case lang, kurz, keine }
 fileprivate enum Haltung { case stehen, gehen, rennen, rad, fahren, sitzen }
 
@@ -457,6 +457,21 @@ private struct Zeichner {
         case .gut, .pokal: return (0, -abs(w(3.4)) * 3)
         case .supermarkt: return (0, -abs(w(4)) * 1.5)
         case .faehrt, .fahrschule: return (Double(w(1.8)) * 1.5, 0)
+        // Mimik (Runde 3)
+        case .zwinkert: return (4, 0)
+        case .verliebt: return (Double(w(1.6)) * 4, 0)
+        case .sauer: return (Double(w(18)) * 0.8, 0)
+        case .schmollt: return (-4, 0)
+        case .verlegen: return (Double(w(1.5)) * 3, 0)
+        case .muede: return (Double(w(0.8)) * 2, 0)
+        case .ueberrascht: return (0, -abs(w(3)) * 3)
+        case .lachtTraenen: return (Double(w(1.2)) * 4, w(20) * 1.5)
+        case .weint: return (0, w(14) * 0.8)
+        case .denkt: return (-4, 0)
+        case .feiert: return (0, -abs(w(6)) * 5)
+        case .schockiert: return (-2, 0)
+        case .daumen: return (0, -abs(w(2.5)) * 2)
+        case .tanzt: return (Double(w(5)) * 6, -abs(w(10)) * 3)
         default: return (0, 0)
         }
     }
@@ -1130,7 +1145,12 @@ private struct Zeichner {
         case .schlaeft, .morgen: .zu
         case .lacht, .kuss, .gut, .naehe: .froh
         case .akkuLeer, .abend, .ruhe: .muede
-        case .schautBild, .schautVideo, .anstupsen: .offen(gross: true)
+        case .schautBild, .schautVideo, .anstupsen, .ueberrascht: .offen(gross: true)
+        case .lachtTraenen, .feiert, .daumen, .tanzt: .froh
+        case .weint: .zu
+        case .muede: .muede
+        case .schockiert: .schock
+        case .sauer: .boese
         default: .offen(gross: false)
         }
     }
@@ -1145,6 +1165,14 @@ private struct Zeichner {
         case .mittel, .offline, .nichtStoeren: .neutral
         case .schlecht, .akkuLeer: .traurig
         case .kuss: .kuss
+        case .zwinkert, .lachtTraenen, .feiert, .daumen, .tanzt: .grinsen
+        case .sauer: .zaehne
+        case .schmollt: .schmoll
+        case .verlegen: .wellig
+        case .muede, .ueberrascht: .offen(7)
+        case .weint: .heulen
+        case .denkt: .schief
+        case .schockiert: .offen(13)
         default: .laecheln
         }
     }
@@ -1155,15 +1183,29 @@ private struct Zeichner {
         case .tippt, .arbeit, .schule, .zeichnet, .laedt: P(0, 0.7)
         case .kamera, .spielt: P(0.6, -0.7)
         case .anstupsen: P(0.8, 0)
+        case .schmollt: P(-0.9, 0.1)
+        case .verlegen: P(0.7, 0.8)
+        case .denkt: P(-0.6, -0.9)
         default: P(0, 0)
         }
     }
 
     func gesicht(_ g: GraphicsContext) {
-        let staerke = (z == .kuss || z == .herz || z == .naehe || rouge) ? 0.5 : 0.28
+        let staerke = [.verliebt, .verlegen, .schmollt].contains(z) ? 0.7 : ((z == .kuss || z == .herz || z == .naehe || rouge) ? 0.5 : 0.28)
         let wange = Pal.rose.farbe.opacity(staerke)
-        g.fill(oval(P(68, 120), 10, 6), with: .color(wange))
-        g.fill(oval(P(132, 120), 10, 6), with: .color(wange))
+        // Pouting puffs the cheeks.
+        let backe: CGFloat = z == .schmollt ? 1.5 : 1
+        g.fill(oval(P(68, 120), 10 * backe, 6 * backe), with: .color(wange))
+        g.fill(oval(P(132, 120), 10 * backe, 6 * backe), with: .color(wange))
+        if z == .verlegen {
+            for x in [CGFloat(62), 68, 74, 126, 132, 138] { linie(g, strich(P(x, 123), P(x + 3, 117)), Pal.rose.kontur.opacity(0.6), 1.4) }
+        }
+        if z == .sauer {
+            // Red forehead.
+            var h = g
+            h.clip(to: kopfPfad)
+            h.fill(box(30, 30, 140, 40), with: .color(Pal.rose.farbe.opacity(0.22)))
+        }
         if sommersprossen {
             let punkte: [CGPoint] = [P(62, 114), P(69, 110), P(74, 117), P(66, 121), P(92, 110), P(97, 106)]
             for c in punkte {
@@ -1182,12 +1224,16 @@ private struct Zeichner {
     func brauen(_ g: GraphicsContext) {
         let farbe = haar.mal(0.8)
         let hoch: CGFloat = (z == .schautBild || z == .schautVideo || z == .anstupsen) ? -5 : 0
-        let traurig: CGFloat = (z == .schlecht || z == .akkuLeer) ? -6 : 0
+        let traurig: CGFloat = [.schlecht, .akkuLeer, .weint, .verlegen].contains(z) ? -6 : 0
+        let staunen: CGFloat = [.ueberrascht, .schockiert].contains(z) ? -8 : 0
+        // Angry: inner ends down (V); pouting a little; thinking lifts one brow.
+        let boese: CGFloat = z == .sauer ? 8 : (z == .schmollt ? 4 : 0)
         let dicken: [CGFloat] = [4.5, 2.6, 7, 5, 4.5, 4.5, 4.5, 4]
         for seite in [CGFloat(-1), 1] {
-            var aussen = P(100 + seite * 30, 81 + hoch)
-            var innen = P(100 + seite * 10, 80 + hoch + traurig)
-            var ctrl = P(100 + seite * 20, 75 + hoch)
+            let heben: CGFloat = z == .denkt && seite > 0 ? -6 : staunen
+            var aussen = P(100 + seite * 30, 81 + hoch + heben - boese * 0.4)
+            var innen = P(100 + seite * 10, 80 + hoch + traurig + heben + boese)
+            var ctrl = P(100 + seite * 20, 75 + hoch + heben)
             switch brauenStil {
             case 3:
                 ctrl.y = 79 + hoch
@@ -1230,7 +1276,7 @@ private struct Zeichner {
         var offen = true
         if case .zu = form { offen = false }
         if case .froh = form { offen = false }
-        if offen && abz.contains("herzaugen") {
+        if (offen && abz.contains("herzaugen")) || z == .verliebt {
             let s: CGFloat = 10 + 1.5 * w(8)
             for x in [CGFloat(80), 120] { teil(g, herzPfad(P(x, 98), s), Pal.rose, 2.5) }
             return
@@ -1239,6 +1285,10 @@ private struct Zeichner {
         let seiten: [(x: CGFloat, aussen: CGFloat)] = [(80, -1), (120, 1)]
         for s in seiten {
             let c = P(s.x, 98)
+            if z == .zwinkert && s.aussen > 0 {
+                geschlossen(g, c, s.aussen, froh: true)
+                continue
+            }
             if blinzelt && offen {
                 geschlossen(g, c, s.aussen, froh: false)
                 continue
@@ -1248,8 +1298,29 @@ private struct Zeichner {
             case .froh: geschlossen(g, c, s.aussen, froh: true)
             case .offen(let gross): offenesAuge(g, c, s.aussen, gross: gross, lid: false)
             case .muede: offenesAuge(g, c, s.aussen, gross: false, lid: true)
+            case .schock: schockAuge(g, c)
+            case .boese:
+                offenesAuge(g, c, s.aussen, gross: false, lid: false)
+                // Slanted lid: the inner corner closes a little.
+                let lid = Path { p in
+                    p.move(to: P(c.x - s.aussen * 12, c.y - 14))
+                    p.addLine(to: P(c.x + s.aussen * 12, c.y - 14))
+                    p.addLine(to: P(c.x + s.aussen * 12, c.y - 10))
+                    p.addLine(to: P(c.x - s.aussen * 12, c.y - 1))
+                    p.closeSubpath()
+                }
+                g.fill(lid, with: .color(haut.farbe))
+                linie(g, strich(P(c.x - s.aussen * 11, c.y - 1.5), P(c.x + s.aussen * 11, c.y - 10)), Pal.tinte.farbe, 3)
             }
         }
+    }
+
+    /// Shocked: big white eye, tiny pupil.
+    func schockAuge(_ g: GraphicsContext, _ c: CGPoint) {
+        let weiss = oval(c, 12, 15)
+        g.fill(weiss, with: .color(.white))
+        linie(g, weiss, Pal.tinte.farbe, 2.6)
+        g.fill(kreis(P(c.x, c.y + 1), 2.6), with: .color(Pal.tinte.farbe))
     }
 
     func geschlossen(_ g: GraphicsContext, _ c: CGPoint, _ aussen: CGFloat, froh: Bool) {
@@ -1428,6 +1499,39 @@ private struct Zeichner {
             let f = lippe ?? Pal.rose
             teil(g, oval(P(101, 131), 6, 5), f, 2.5)
             linie(g, strich(P(96, 131), P(106, 131)), f.kontur, 1.5)
+        case .schmoll:
+            let f = lippe ?? haut.mix(Pal.rose, 0.45)
+            teil(g, oval(P(100, 133), 7, 4.5), f, 2.2)
+            linie(g, bogen(P(94, 133), P(106, 133), P(100, 130)), rand, 1.6)
+        case .wellig:
+            let welle = Path { p in
+                p.move(to: P(90, 130))
+                p.addQuadCurve(to: P(96, 130), control: P(93, 127))
+                p.addQuadCurve(to: P(102, 130), control: P(99, 133))
+                p.addQuadCurve(to: P(108, 130), control: P(105, 127))
+                p.addQuadCurve(to: P(112, 129), control: P(110, 132))
+            }
+            linie(g, welle, rand, 2.6)
+        case .heulen:
+            let m = Path { p in
+                p.move(to: P(86, 140))
+                p.addQuadCurve(to: P(114, 140), control: P(100, 118))
+                p.addQuadCurve(to: P(86, 140), control: P(100, 148))
+                p.closeSubpath()
+            }
+            g.fill(m, with: .color(Pal.mundInnen.farbe))
+            var h = g
+            h.clip(to: m)
+            h.fill(oval(P(100, 145), 8, 5), with: .color(Pal.zunge.farbe))
+            linie(g, m, rand, lippe == nil ? 2.5 : 3.5)
+        case .zaehne:
+            let m = box(87, 125, 26, 12, 5)
+            g.fill(m, with: .color(.white))
+            for x in [CGFloat(93.5), 100, 106.5] { linie(g, strich(P(x, 125), P(x, 137)), Pal.tinte.farbe.opacity(0.5), 1.2) }
+            linie(g, strich(P(87, 131), P(113, 131)), Pal.tinte.farbe.opacity(0.5), 1.2)
+            linie(g, m, rand, 2.5)
+        case .schief:
+            linie(g, bogen(P(93, 132), P(108, 128), P(101, 133)), rand, 2.8)
         }
     }
 
@@ -2181,7 +2285,7 @@ private struct Zeichner {
     /// device/mood states, plus live Gesten (kiss lean in `ProfileView`, high-five/laugh/toast/
     /// trophy), which are meaningful and brief, unlike the all-day Ort/Tageszeit states `FigurView`'s
     /// `poseImmer` (Brief I.5) substitutes `.ruhig` for.
-    static let keinePoseUeberschreibung: Set<FigurZustand> = [.schlaeft, .offline, .akkuLeer, .schlecht, .kuss, .herz, .lacht, .anstossen, .pokal]
+    static let keinePoseUeberschreibung: Set<FigurZustand> = Set([.schlaeft, .offline, .akkuLeer, .schlecht, .kuss, .herz, .lacht, .anstossen, .pokal] + FigurZustand.mimik)
 
     /// Z-23.3/Z-24.2: a bought pose/dance shows while the figure is just idling (Profil, Karte) —
     /// it never fights a meaningful activity pose (typing, sleeping, …).
@@ -2278,6 +2382,39 @@ private struct Zeichner {
             return (restL, Arm(P(172, 176), P(170, 136)))
         case .pokal:
             return (Arm(P(50, 224), P(80, 206)), Arm(P(172, 160), P(168, 100)))
+        // Mimik (Runde 3)
+        case .zwinkert:
+            return (Arm(P(28, 222), P(50, 250)), Arm(P(166, 208), P(150, 172)))
+        case .verliebt:
+            return (Arm(P(56, 214), P(92, 160)), Arm(P(144, 214), P(108, 160)))
+        case .sauer:
+            return (Arm(P(40, 222), P(122, 214)), Arm(P(160, 222), P(78, 214)))
+        case .schmollt:
+            return (Arm(P(28, 220), P(48, 248)), Arm(P(172, 220), P(152, 248)))
+        case .verlegen:
+            return (restL, Arm(P(174, 168), P(158, 86)))
+        case .muede:
+            return (Arm(P(52, 190), P(76, 106)), Arm(P(152, 222), P(128, 196)))
+        case .ueberrascht:
+            let s = w(3) * 3
+            return (Arm(P(34, 196), P(40, 148 + s)), Arm(P(166, 196), P(160, 148 + s)))
+        case .lachtTraenen:
+            return (Arm(P(40, 214), P(80, 232)), Arm(P(162, 196), P(132, 110)))
+        case .weint:
+            let s = w(10) * 2
+            return (Arm(P(46, 196), P(76, 108 + s)), Arm(P(154, 196), P(124, 108 - s)))
+        case .denkt:
+            return (Arm(P(46, 224), P(140, 220)), Arm(P(156, 214), P(114, 150)))
+        case .feiert:
+            let s = w(6) * 6
+            return (Arm(P(30, 160), P(38, 104 + s)), Arm(P(170, 160), P(162, 104 - s)))
+        case .schockiert:
+            return (Arm(P(34, 196), P(62, 124)), Arm(P(166, 196), P(138, 124)))
+        case .daumen:
+            return (restL, Arm(P(166, 212), P(146, 174)))
+        case .tanzt:
+            let s = w(5)
+            return (Arm(P(36, 190 - s * 10), P(28 + s * 6, 140 - s * 16)), Arm(P(164, 190 + s * 10), P(172 - s * 6, 140 + s * 16)))
         default:
             // Z-23.3/Z-24.2: a bought pose/dance shows whenever nothing more specific is going on
             // (Profil, Karte, "zuhause", …) — it never overrides a real activity pose above.
@@ -2577,8 +2714,52 @@ private struct Zeichner {
             teil(g, box(76, 186, 8, 10, 2), Pal.gold, 2.5)
             teil(g, box(66, 194, 28, 9, 3), Pal.gold.mal(0.85), 2.5)
             g.fill(funkel(P(72, 166), 5), with: .color(.white.opacity(0.9)))
+        case .zwinkert:
+            fingerZeigt(g, hand, richtung: P(-14, -6), s: 1)
+        case .daumen:
+            daumenHoch(g, hand, s: 1)
+        case .muede:
+            kaffee(g, P(hand.x, hand.y - 14), s: 1)
         default:
             break
+        }
+    }
+
+    /// Index finger pointing out of the hand; drawn before the hand circle so the hand covers its base.
+    func fingerZeigt(_ g: GraphicsContext, _ hand: CGPoint, richtung d: CGPoint, s: CGFloat) {
+        let finger = strich(hand, P(hand.x + d.x * s, hand.y + d.y * s))
+        linie(g, finger, haut.kontur, 9 * s)
+        linie(g, finger, haut.farbe, 6 * s)
+    }
+
+    /// Thumb sticking up out of the fist.
+    func daumenHoch(_ g: GraphicsContext, _ hand: CGPoint, s: CGFloat) {
+        let daumen = strich(hand, P(hand.x - s, hand.y - 16 * s))
+        linie(g, daumen, haut.kontur, 10 * s)
+        linie(g, daumen, haut.farbe, 7 * s)
+    }
+
+    /// Coffee to go with a little steam.
+    func kaffee(_ g: GraphicsContext, _ c: CGPoint, s: CGFloat) {
+        var h = g
+        h.translateBy(x: c.x, y: c.y)
+        h.scaleBy(x: s, y: s)
+        let becher = Path { p in
+            p.move(to: P(-8, -10))
+            p.addLine(to: P(8, -10))
+            p.addLine(to: P(6, 10))
+            p.addLine(to: P(-6, 10))
+            p.closeSubpath()
+        }
+        teil(h, becher, Pal.weiss, 2)
+        h.fill(box(-7, -3, 14, 6), with: .color(Pal.holz.farbe))
+        teil(h, box(-9.5, -14, 19, 5, 2), Pal.holz.mal(0.75), 1.5)
+        for i in 0..<2 {
+            let p = zyklus(1.6, Double(i) * 0.8)
+            var d = h
+            d.opacity = Double(1 - p)
+            let x: CGFloat = CGFloat(i) * 6 - 3
+            linie(d, bogen(P(x, -18 - p * 12), P(x + 2, -30 - p * 12), P(x + 5, -24 - p * 12)), Pal.silber.kontur, 1.6)
         }
     }
 
@@ -2765,12 +2946,105 @@ private struct Zeichner {
             for (i, c) in [P(52, 146), P(108, 144), P(184, 84)].enumerated() {
                 g.fill(funkel(c, 5 + 3 * abs(w(4, Double(i)))), with: .color(Pal.gelb.farbe))
             }
+        case .zwinkert, .verliebt, .sauer, .schmollt, .verlegen, .muede, .ueberrascht, .lachtTraenen, .weint, .denkt, .feiert, .schockiert, .daumen, .tanzt:
+            mimikEffekte(g)
         case .ruhig:
             let p = zyklus(5)
             if p < 0.5 && !statisch {
                 var h = g
                 h.opacity = Double(1 - p * 2)
                 h.fill(herzPfad(P(152, 70 - p * 60), 6), with: .color(Pal.rose.farbe))
+            }
+        default:
+            break
+        }
+    }
+
+    /// Effects of the Runde-3 expressions, in the half-figure (head) space.
+    func mimikEffekte(_ g: GraphicsContext) {
+        let tinte = Pal.tinte.farbe
+        switch z {
+        case .zwinkert:
+            g.fill(funkel(P(146, 84), 5 + 2 * abs(w(4))), with: .color(Pal.gelb.farbe))
+        case .verliebt:
+            herzen(g, CGRect(x: 24, y: 16, width: 152, height: 100), 5)
+        case .sauer:
+            // Anger mark and steam.
+            var h = g
+            h.translateBy(x: 152, y: 50)
+            h.scaleBy(x: 1 + 0.08 * abs(w(8)), y: 1 + 0.08 * abs(w(8)))
+            for k in 0..<4 {
+                var r = h
+                r.rotate(by: .degrees(Double(k) * 90))
+                linie(r, bogen(P(3, -9), P(9, -3), P(4, -4)), Pal.rose.farbe, 3)
+            }
+            for (i, x) in [CGFloat(54), 146].enumerated() {
+                let p = zyklus(1.4, Double(i) * 0.7)
+                var d = g
+                d.opacity = Double(1 - p)
+                teil(d, kreis(P(x, 40 - p * 22), 6 + p * 5), Pal.weiss, 2)
+            }
+        case .schmollt:
+            let wolke = [kreis(P(150, 132), 6), kreis(P(160, 128), 8), kreis(P(170, 133), 6)]
+            for p in wolke { linie(g, p, Pal.wolke.kontur, 4) }
+            for p in wolke { g.fill(p, with: .color(.white)) }
+        case .verlegen:
+            teil(g, tropfenPfad(P(150, 68 + zyklus(2.2) * 8)), Pal.himmel, 2)
+        case .muede:
+            teil(g, tropfenPfad(P(66, 110)), Pal.himmel, 1.5)
+        case .ueberrascht:
+            let s: CGFloat = 1 + 0.15 * abs(w(6))
+            g.fill(box(160, 22, 7 * s, 22 * s, 3.5), with: .color(Pal.rose.farbe))
+            g.fill(kreis(P(163.5, 50 * s), 4), with: .color(Pal.rose.farbe))
+        case .lachtTraenen:
+            for seite in [CGFloat(-1), 1] {
+                linie(g, strich(P(100 + seite * 64, 78), P(100 + seite * 76, 70)), tinte, 3)
+                for i in 0..<2 {
+                    let p = zyklus(0.8, Double(i) * 0.4)
+                    let tropfen = P(100 + seite * (34 + p * 30), 104 - p * 8 + p * p * 30)
+                    teil(g, tropfenPfad(tropfen), Pal.himmel, 1.5)
+                }
+            }
+        case .weint:
+            for seite in [CGFloat(-1), 1] {
+                let strom = bogen(P(100 + seite * 30, 104), P(100 + seite * 34, 156), P(100 + seite * 38, 128))
+                linie(g, strom, Pal.himmel.kontur.opacity(0.6), 7)
+                linie(g, strom, Pal.himmel.farbe, 4.5)
+                let p = zyklus(0.9, seite > 0 ? 0.45 : 0)
+                var d = g
+                d.opacity = Double(1 - p)
+                teil(d, tropfenPfad(P(100 + seite * 34, 160 + p * 40)), Pal.himmel, 1.5)
+            }
+        case .denkt:
+            teil(g, kreis(P(142, 70), 3), Pal.weiss, 2)
+            teil(g, kreis(P(152, 60), 5), Pal.weiss, 2)
+            teil(g, box(146, 20, 44, 30, 15), Pal.weiss, 2.5)
+            text(g, "?", P(168, 35), 17, Pal.nacht.farbe)
+        case .feiert:
+            let farben = [Pal.rose, Pal.gelb, Pal.blau, Pal.mint]
+            for i in 0..<12 {
+                let p = zyklus(2.4, Double(i) * 0.2)
+                let x: CGFloat = 14 + CGFloat(i) * 15 + w(3, Double(i)) * 6
+                var h = g
+                h.translateBy(x: x, y: 10 + p * 200)
+                h.rotate(by: .degrees(Double(i) * 37 + t * 120))
+                h.fill(box(-3, -1.5, 6, 3, 1), with: .color(farben[i % farben.count].farbe))
+            }
+        case .schockiert:
+            for x in [CGFloat(78), 90, 102, 114, 126] {
+                linie(g, strich(P(x, 40), P(x, 58)), Pal.nacht.farbe.opacity(0.35), 2.5)
+            }
+            teil(g, tropfenPfad(P(154, 72)), Pal.himmel, 1.5)
+            teil(g, tropfenPfad(P(46, 76)), Pal.himmel, 1.5)
+        case .daumen:
+            g.fill(funkel(P(164, 150), 6 + 2 * abs(w(4))), with: .color(Pal.gelb.farbe))
+        case .tanzt:
+            for i in 0..<2 {
+                let p = zyklus(1.8, Double(i) * 0.9)
+                var d = g
+                d.opacity = Double(1 - p)
+                let x: CGFloat = i == 0 ? 30 : 166
+                text(d, i == 0 ? "♪" : "♫", P(x + w(3, Double(i)) * 6, 90 - p * 60), 20, Pal.nacht.farbe)
             }
         default:
             break
@@ -2888,7 +3162,7 @@ extension Zeichner {
 
     var haltung: Haltung {
         switch z {
-        case .laeuft: .gehen
+        case .laeuft, .tanzt: .gehen
         case .rennt: .rennen
         case .rad: .rad
         case .faehrt, .fahrschule: .fahren
@@ -3359,6 +3633,39 @@ extension Zeichner {
             return (Arm(P(lx - 6, y + 48), P(90, y + 78 + tipp)), Arm(P(rx + 6, y + 48), P(110, y + 78 - tipp)))
         case .zuhause, .schule, .schautVideo, .ruhe:
             return (Arm(P(lx - 6, y + 48), P(86, y + 84)), Arm(P(rx + 6, y + 48), P(114, y + 84)))
+        // Mimik (Runde 3); the head space maps to y + (hy - 133.6) * 0.8 here.
+        case .zwinkert:
+            return (Arm(P(lx - 16, y + 50), P(lx + 4, y + 88)), Arm(P(rx + 14, y + 40), P(rx - 2, y + 14)))
+        case .verliebt:
+            return (Arm(P(lx - 2, y + 44), P(94, y - 6)), Arm(P(rx + 2, y + 44), P(106, y - 6)))
+        case .sauer:
+            return (Arm(P(lx - 6, y + 46), P(rx - 6, y + 40)), Arm(P(rx + 6, y + 46), P(lx + 6, y + 40)))
+        case .schmollt:
+            return (Arm(P(lx - 20, y + 46), P(lx + 2, y + 88)), Arm(P(rx + 20, y + 46), P(rx - 2, y + 88)))
+        case .verlegen:
+            return (restL, Arm(P(rx + 22, y - 8), P(rx + 6, y - 62)))
+        case .muede:
+            return (Arm(P(lx - 8, y + 20), P(86, y - 52)), Arm(P(rx + 8, y + 50), P(rx - 10, y + 30)))
+        case .ueberrascht:
+            let s: CGFloat = w(3) * 2
+            return (Arm(P(lx - 14, y + 20), P(lx - 8, y - 30 + s)), Arm(P(rx + 14, y + 20), P(rx + 8, y - 30 + s)))
+        case .lachtTraenen:
+            return (Arm(P(lx - 6, y + 48), P(92, y + 70)), Arm(P(rx + 10, y + 10), P(120, y - 50)))
+        case .weint:
+            let s: CGFloat = w(10) * 1.5
+            return (Arm(P(lx - 6, y + 20), P(88, y - 50 + s)), Arm(P(rx + 6, y + 20), P(112, y - 50 - s)))
+        case .denkt:
+            return (Arm(P(lx - 4, y + 48), P(rx - 2, y + 44)), Arm(P(rx + 8, y + 36), P(110, y - 8)))
+        case .feiert:
+            let s: CGFloat = w(6) * 5
+            return (Arm(P(lx - 18, y - 2), P(lx - 26, y - 44 + s)), Arm(P(rx + 18, y - 2), P(rx + 26, y - 44 - s)))
+        case .schockiert:
+            return (Arm(P(lx - 12, y + 24), P(78, y - 36)), Arm(P(rx + 12, y + 24), P(122, y - 36)))
+        case .daumen:
+            return (restL, Arm(P(rx + 12, y + 40), P(rx + 4, y + 8)))
+        case .tanzt:
+            let s = w(5)
+            return (Arm(P(lx - 16, y + 10 - s * 8), P(lx - 30, y - 24 + s * 14)), Arm(P(rx + 16, y + 10 + s * 8), P(rx + 30, y - 24 - s * 14)))
         default:
             // Z-23.3/Z-24.2: a bought pose/dance shows whenever nothing more specific is going on
             // (Profil, Karte, "ruhig", …) — it never overrides a real activity pose above.
@@ -3400,6 +3707,12 @@ extension Zeichner {
             let a2 = exp(-pow((p - 0.3) / 0.06, 2))
             let schlag = CGFloat(1 + 0.14 * a1 + 0.09 * a2)
             teil(g, herzPfad(P(100, y + 24), 14 * schlag), Pal.rose, 2.5)
+        case .zwinkert:
+            fingerZeigt(g, arme.r.hand, richtung: P(-14, -6), s: 0.66)
+        case .daumen:
+            daumenHoch(g, arme.r.hand, s: 0.66)
+        case .muede:
+            kaffee(g, P(arme.r.hand.x, arme.r.hand.y - 9), s: 0.66)
         default:
             break
         }

@@ -77,12 +77,16 @@ final class FigurenModell {
     /// Z-7.2: "zuletzt online vor …" for the offline figure, `nil` before the partner was ever seen.
     func zuletztOnlineText(_ p: Person) -> String? {
         guard let zeit = partnerZuletztGesehen[p] else { return nil }
-        let formatter = RelativeDateTimeFormatter()
-        formatter.locale = Locale(identifier: "de_DE")
-        return "zuletzt online \(formatter.localizedString(for: zeit, relativeTo: Date()))"
+        return "zuletzt online \(ZeitText.relativ(zeit))"
     }
 
-    func aussehen(_ p: Person) -> FigurAussehen { aussehen[p] ?? .standard(for: p) }
+    /// Falls back to the Bitmoji look (Z-38.4) for whoever never sent an own `figur.aussehen`.
+    /// Stamps `person` so the drawing knows whose figure it is (gym look).
+    func aussehen(_ p: Person) -> FigurAussehen {
+        var a = aussehen[p] ?? .standard(for: p)
+        a.person = p
+        return a
+    }
 
     /// What to draw for a person right now: fresh gesture > "Gute Nacht" override > live state > offline.
     func anzeige(_ p: Person) -> Zustand {
@@ -107,7 +111,13 @@ final class FigurenModell {
     /// without this the sender would never see/hear their own profile kiss animation.
     func gesteSenden(_ art: String) {
         Raum.shared.senden("geste", ["art": art])
-        guard art == "kuss", let ich = Raum.shared.ich else { return }
+        guard let ich = Raum.shared.ich else { return }
+        // Runde-3 expressions: the own figure makes the face too, for the same 4 s.
+        if let z = FigurZustand(rawValue: art), FigurZustand.mimik.contains(z) {
+            geste[ich] = (z, Date().addingTimeInterval(4))
+            return
+        }
+        guard art == "kuss" else { return }
         geste[ich] = (.kuss, Date().addingTimeInterval(4))
         letzterKuss[ich] = Date()
         kussEreignis += 1
