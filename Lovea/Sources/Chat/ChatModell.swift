@@ -273,6 +273,11 @@ final class ChatModell {
         Raum.shared.senden("nachricht.reaktion", ReaktionPayload(id: id, emoji: emoji))
     }
 
+    /// Z-33.1: choosing the reaction you already set removes it (iMessage).
+    func reagierenUmschalten(_ nachricht: Nachricht, _ reaktion: Reaktion, ich: Person) {
+        reagieren(nachricht.id, emoji: nachricht.reaktionen[ich] == reaktion.wert ? nil : reaktion.wert)
+    }
+
     /// Called when the chat is visible and there are unread partner messages (Z-4.6).
     func gelesenSenden(bis: Date = Date()) {
         Raum.shared.senden("nachricht.gelesen", GelesenPayload(bis: Self.datumString(bis)))

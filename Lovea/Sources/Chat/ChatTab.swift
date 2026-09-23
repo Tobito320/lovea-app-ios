@@ -1,309 +1,167 @@
 import Observation
 import SwiftUI
 
-/// Chat tab (Block 18): Snapchat-style "Chats" screen with the one conversation. Tapping the row
-/// pushes it, so the back button and the edge swipe from the left lead out again. Search is a mode
-/// of the conversation, opened from the partner profile through `AppNavigation.shared.chatSuche`.
+/// Chat tab (Z-32.1): the tab IS the conversation, no start screen, no list. Jumps arrive through
+/// `AppNavigation`: `chatZiel` scrolls to a message, `chatSuche` opens search, `kameraOeffnen`
+/// opens the snap camera.
 struct ChatTab: View {
-    @State private var offen = false
-    @State private var sucheAktiv = false
-    @State private var profilOffen = false
-    @State private var kameraOffen = false
-    /// Z-29.1: Partner-Karte → Unterhaltung als Zoom statt hartem Push (apple-design "spatial
-    /// consistency" — Ursprung und Ziel bleiben sichtbar verbunden).
-    @Namespace private var kartenNamespace
-
     var body: some View {
         NavigationStack {
-            Group {
-                if let ich = Raum.shared.ich {
-                    ChatsListe(ich: ich, offen: $offen, profilOffen: $profilOffen, kameraOffen: $kameraOffen, kartenNamespace: kartenNamespace)
-                        .navigationDestination(isPresented: $offen) {
-                            Unterhaltung(ich: ich, partner: ich.partner, sucheAktiv: $sucheAktiv, profilOffen: $profilOffen)
-                                .navigationTransition(.zoom(sourceID: "chatPartnerKarte", in: kartenNamespace))
-                        }
-                } else {
-                    ContentUnavailableView("Chat", systemImage: "bubble.left.and.bubble.right")
-                }
-            }
-            .navigationTitle("Chats")
-        }
-        // Search mode ends with the conversation; not in its onDisappear, which also fires for covers.
-        .onChange(of: offen) { _, auf in if !auf { sucheAktiv = false } }
-        .sheet(isPresented: $profilOffen) {
-            if let ich = Raum.shared.ich { PartnerProfilView(person: ich.partner) }
-        }
-        .fullScreenCover(isPresented: $kameraOffen) {
             if let ich = Raum.shared.ich {
-                SnapKameraFluss(ich: ich, antwortAuf: nil) { kameraOffen = false }
-            }
-        }
-        // Profile → "Kamera": close the profile first; a cover can't present while a sheet is closing.
-        .onChange(of: AppNavigation.shared.kameraOeffnen, initial: true) { _, an in
-            guard an else { return }
-            AppNavigation.shared.kameraOeffnen = false
-            let warten = profilOffen
-            profilOffen = false
-            Task {
-                if warten { try? await Task.sleep(for: .milliseconds(500)) }
-                kameraOffen = true
-            }
-        }
-        // Profile → "Im Chat suchen": close the profile, open the conversation in search mode.
-        .onChange(of: AppNavigation.shared.chatSuche, initial: true) { _, an in
-            guard an else { return }
-            AppNavigation.shared.chatSuche = false
-            profilOffen = false
-            sucheAktiv = true
-            offen = true
-        }
-    }
-}
-
-// MARK: - Chats screen
-
-private struct ChatsListe: View {
-    let ich: Person
-    @Binding var offen: Bool
-    @Binding var profilOffen: Bool
-    @Binding var kameraOffen: Bool
-    let kartenNamespace: Namespace.ID
-
-    var body: some View {
-        List {
-            ChatPartnerKarte(ich: ich, partner: ich.partner, modell: ChatModell.shared) {
-                ChatHaptik.leicht()
-                offen = true
-            }
-            .matchedTransitionSource(id: "chatPartnerKarte", in: kartenNamespace)
-            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
-            .listRowSeparator(.hidden)
-            .listRowBackground(Color.clear)
-            .swipeActions(edge: .leading, allowsFullSwipe: true) {
-                Button { kameraOffen = true } label: { Label("Snap", systemImage: "camera.fill") }
-                    .tint(Color.loveaRose)
-            }
-            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                Button { profilOffen = true } label: { Label("Profil", systemImage: "person.crop.circle") }
-                    .tint(.gray)
-            }
-            .contextMenu {
-                Button("Chat öffnen", systemImage: "bubble.left.and.bubble.right") { offen = true }
-                Button("Snap senden", systemImage: "camera") { kameraOffen = true }
-                Button("Profil ansehen", systemImage: "person.crop.circle") { profilOffen = true }
-                Button("Im Chat suchen", systemImage: "magnifyingglass") { AppNavigation.shared.chatSuche = true }
-            }
-            // Block 27: "Heute vor …", Zeitkapseln, Briefbox – nur wenn vorhanden (Spec 2), sonst nichts.
-            HeuteVorCard(onOeffnen: { offen = true })
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-            KapselnUndBriefeSektion(modell: ChatModell.shared, ich: ich, offen: $offen)
-                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                .listRowSeparator(.hidden)
-                .listRowBackground(Color.clear)
-        }
-        .listStyle(.plain)
-        .safeAreaInset(edge: .top, spacing: 0) { SyncStatusZeile() }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button { kameraOffen = true } label: { Image(systemName: "camera") }
-                    .accessibilityLabel("Snap aufnehmen")
+                Unterhaltung(ich: ich)
+            } else {
+                ContentUnavailableView("Chat", systemImage: "bubble.left.and.bubble.right")
             }
         }
     }
 }
 
-/// Chat-Tab-Startbildschirm (Z-19.2, Spec 2): große Partner-Karte statt leerer Liste, Antippen
-/// öffnet die Unterhaltung. Der Spiele-Knopf ist ein eigener Button, nicht in `oeffnen` verschachtelt.
-private struct ChatPartnerKarte: View {
-    let ich: Person
-    let partner: Person
-    let modell: ChatModell
-    let oeffnen: () -> Void
-    @State private var spieleOffen = false
-
-    var body: some View {
-        VStack(spacing: 12) {
-            Button(action: oeffnen) {
-                TimelineView(.everyMinute) { _ in kopfUndVorschau }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityElement(children: .combine)
-            .accessibilityHint("Chat öffnen")
-
-            // Z-27.6: eigene Zeile, nicht in den Karten-`Button` verschachtelt (kein Button im Button).
-            if SpotifyModell.shared.partner != nil {
-                HStack { Spacer(); SpotifyHoertGeradeChip() }
-            }
-            spieleKnopf
-        }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
-        .sheet(isPresented: $spieleOffen) { SpieleStarter() }
-        // Spec 9 "nur wenn der Partner hinschaut": die Chat-Tab-Startkarte zeigt den Partner
-        // prominent, zählt also als "hinschauen", ref-gezählt zusammen mit der Konversation/Karte.
-        .task { SpotifyModell.shared.schauen() }
-        .onDisappear { SpotifyModell.shared.wegschauen() }
-    }
-
-    /// Figur, Name, Streak, Status und die letzte-Nachricht-Vorschau – getrennt vom `Button` und
-    /// vom `spieleKnopf`, damit der Compiler nicht einen einzigen, tief verschachtelten Ausdruck
-    /// mit mehreren Ternaries auf einmal prüfen muss (Regel aus common.md, Runde-1-CI-Fehler).
-    private var kopfUndVorschau: some View {
-        let anzeige = FigurenModell.shared.anzeige(partner)
-        let vorschau = vorschauZeile(anzeige.haupt)
-        return VStack(alignment: .leading, spacing: 14) {
-            figurUndName(anzeige.haupt)
-            HStack(spacing: 5) {
-                Image(systemName: vorschau.symbol)
-                    .foregroundStyle(vorschau.neu ? Color.person(partner) : Color.secondary)
-                Text(vorschau.text).lineLimit(1)
-            }
-            .font(.subheadline.weight(vorschau.neu ? .semibold : .regular))
-            .foregroundStyle(vorschau.neu ? HierarchicalShapeStyle.primary : HierarchicalShapeStyle.secondary)
-        }
-    }
-
-    private func figurUndName(_ zustand: FigurZustand) -> some View {
-        HStack(spacing: 14) {
-            FigurView(FigurenModell.shared.aussehen(partner), zustand: zustand, groesse: 76)
-            VStack(alignment: .leading, spacing: 3) {
-                HStack(spacing: 6) {
-                    Text(partner.name).font(.title3.bold()).foregroundStyle(ChatFarbe.farbe(partner))
-                    ChatStreakAnzeige(modell: modell)
-                }
-                Text(statusText(zustand))
-                    .font(.subheadline)
-                    .foregroundStyle(zustand == .tippt ? Color.person(partner) : Color.secondary)
-            }
-            Spacer(minLength: 0)
-            // Z-27.5: Wetter an der Partner-Figur.
-            if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
-        }
-    }
-
-    private var spieleKnopf: some View {
-        Button { spieleOffen = true } label: {
-            Label("Spiele", systemImage: "gamecontroller.fill")
-                .frame(maxWidth: .infinity, minHeight: 36)
-        }
-        .buttonStyle(.bordered)
-        .tint(Color.loveaRose)
-    }
-
-    private func vorschauZeile(_ zustand: FigurZustand) -> ChatVorschau.Zeile {
-        let nachrichten = modell.nachrichten.filter { ChatModell.sichtbar($0) }
-        return ChatVorschau.zeile(
-            nachrichten: nachrichten, ich: ich,
-            gelesenVonPartner: modell.gelesenBis[partner], gelesenVonMir: modell.gelesenBis[ich],
-            partnerTippt: zustand == .tippt
-        )
-    }
-
-    /// Wie `ChatPartnerKopf.statusText` (Konversations-Header), hier dupliziert – ein eigenes,
-    /// kleines Property statt der geteilten Header-Datei, die Block 26 parallel anfasst.
-    private func statusText(_ zustand: FigurZustand) -> String {
-        if zustand == .tippt { return "tippt …" }
-        if Raum.shared.partnerDa { return "online" }
-        guard let zuletzt = modell.letzteAktivitaet[partner] else { return "offline" }
-        return "zuletzt \(zuletzt.formatted(.relative(presentation: .named)))"
-    }
+/// Every sheet and cover of the conversation in one place.
+struct ChatBlaetter {
+    var profil = false
+    var kamera = false
+    var bearbeiten: ChatModell.Nachricht?
+    var reaktionen: ChatModell.Nachricht?
+    var snap: ChatModell.Nachricht?
 }
 
 // MARK: - Conversation
 
 private struct Unterhaltung: View {
     let ich: Person
-    let partner: Person
-    @Binding var sucheAktiv: Bool
-    @Binding var profilOffen: Bool
-
     private let modell = ChatModell.shared
+
     @State private var zielID: String?
     @State private var antwortAuf: ChatModell.Nachricht?
-    @State private var bearbeitenNachricht: ChatModell.Nachricht?
-    @State private var bearbeitenText = ""
-    @State private var loeschenIDs: [String] = []
+    @State private var fokus: ChatFokus?
+    @State private var blatt = ChatBlaetter()
+    @State private var sucheAktiv = false
+    @State private var flaeche = CGSize(width: 390, height: 900)
+
+    var body: some View {
+        NachrichtenListe(modell: modell, ich: ich, zielID: $zielID, aktionen: aktionen)
+            .safeAreaInset(edge: .top, spacing: 0) { oben }
+            .safeAreaInset(edge: .bottom, spacing: 0) { unten }
+            .background { ChatHintergrundAnsicht(ich: ich) }
+            .overlay { ChatEffektEbene() }
+            .overlay { fokusEbene }
+            .environment(\.chatVerlaufHoehe, flaeche.height)
+            .environment(\.chatBreite, flaeche.width)
+            .onGeometryChange(for: CGSize.self) { geo in
+                CGSize(width: geo.size.width, height: geo.frame(in: .global).maxY)
+            } action: { flaeche = $0 }
+            .toolbar(.hidden, for: .navigationBar)
+            .modifier(UnterhaltungBlaetter(ich: ich, blatt: $blatt))
+            .modifier(Lesebestaetigung(ich: ich, modell: modell))
+            .modifier(Spruenge(modell: modell, zielID: $zielID, sucheAktiv: $sucheAktiv, blatt: $blatt))
+            .task { ReaktionsBilder.shared.vorwaermen(ich) }
+    }
+
+    private var aktionen: ChatZeilenAktionen {
+        ChatZeilenAktionen(
+            antworten: { nachricht in
+                Haptik.leicht()
+                antwortAuf = nachricht
+            },
+            springen: { zielID = $0 },
+            fokussieren: { ziel in
+                withAnimation(Feder.schnell) { fokus = ziel }
+            }
+        )
+    }
+
+    private var oben: some View {
+        VStack(spacing: 6) {
+            ChatKopf(partner: ich.partner, modell: modell) { blatt.profil = true }
+            if sucheAktiv {
+                ChatSuchleiste(modell: modell, onSpringeZu: { zielID = $0 }) {
+                    withAnimation(Feder.schnell) { sucheAktiv = false }
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+            ChatAngeheftetLeiste(modell: modell) { zielID = $0 }
+            SyncStatusZeile()
+        }
+        .padding(.bottom, 4)
+        .tastaturWischen()
+    }
+
+    private var unten: some View {
+        VStack(spacing: 0) {
+            PartnerFigurLeiste(partner: ich.partner)
+            ChatEingabeleiste(ich: ich, antwortAuf: $antwortAuf)
+        }
+        .tastaturWischen()
+    }
+
+    @ViewBuilder private var fokusEbene: some View {
+        if let fokus, let nachricht = modell.nachricht(fokus.id) {
+            NachrichtFokusEbene(fokus: fokus, nachricht: nachricht, ich: ich) { wunsch in
+                erfuellen(wunsch, nachricht)
+            } onSchliessen: {
+                self.fokus = nil
+            }
+        }
+    }
+
+    private func erfuellen(_ wunsch: FokusWunsch, _ nachricht: ChatModell.Nachricht) {
+        switch wunsch {
+        case .antworten:
+            Haptik.leicht()
+            antwortAuf = nachricht
+        case .bearbeiten: blatt.bearbeiten = nachricht
+        case .reaktionen: blatt.reaktionen = nachricht
+        case .snapAnsehen: blatt.snap = nachricht
+        }
+    }
+}
+
+private struct UnterhaltungBlaetter: ViewModifier {
+    let ich: Person
+    @Binding var blatt: ChatBlaetter
+
+    func body(content: Content) -> some View {
+        content
+            .sheet(isPresented: $blatt.profil) { PartnerProfilView(person: ich.partner) }
+            .fullScreenCover(isPresented: $blatt.kamera) {
+                SnapKameraFluss(ich: ich, antwortAuf: nil) { blatt.kamera = false }
+            }
+            .fullScreenCover(item: $blatt.snap) { SnapViewer(nachricht: $0, ich: ich) }
+            .sheet(item: $blatt.bearbeiten) { BearbeitenBlatt(nachricht: $0) }
+            .sheet(item: $blatt.reaktionen) { ReaktionenBlatt(nachricht: $0, ich: ich) }
+    }
+}
+
+/// Read receipts, the "im Chat" figure state and the arrival haptic belong to the open conversation.
+private struct Lesebestaetigung: ViewModifier {
+    let ich: Person
+    let modell: ChatModell
     @State private var sichtbar = false
     @Environment(\.scenePhase) private var scenePhase
 
-    var body: some View {
-        VStack(spacing: 0) {
-            NachrichtenListe(
-                modell: modell, ich: ich, zielID: $zielID,
-                onAntworten: { ChatHaptik.leicht(); antwortAuf = $0 },
-                onBearbeiten: { bearbeitenNachricht = $0; bearbeitenText = $0.text ?? "" },
-                onLoeschen: { loeschenIDs = $0 }
-            )
-            VStack(spacing: 0) {
-                PartnerFigurLeiste(partner: partner)
-                ChatEingabeleiste(ich: ich, antwortAuf: $antwortAuf)
+    func body(content: Content) -> some View {
+        content
+            .onAppear {
+                sichtbar = true
+                leseBestaetigen()
+                FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
             }
-            .tastaturWischen()
-        }
-        .background { ChatHintergrundAnsicht(ich: ich) }
-        .safeAreaInset(edge: .top, spacing: 0) {
-            VStack(spacing: 0) {
-                if sucheAktiv {
-                    ChatSuchleiste(modell: modell, onSpringeZu: { zielID = $0 }) {
-                        withAnimation { sucheAktiv = false }
-                    }
-                    .transition(.move(edge: .top).combined(with: .opacity))
+            .onDisappear { sichtbar = false }
+            .onChange(of: scenePhase) { _, _ in leseBestaetigen() }
+            .onChange(of: modell.nachrichten.count) { _, _ in
+                leseBestaetigen()
+                // Only a fresh partner message while looking at it, not a reconnect backlog or own send.
+                if sichtbar, scenePhase == .active, let letzte = modell.nachrichten.last, letzte.von != ich,
+                   Date().timeIntervalSince(letzte.zeit) < 10 {
+                    ChatHaptik.weich()
                 }
-                ChatAngeheftetLeiste(modell: modell) { zielID = $0 }
-                SyncStatusZeile()
             }
-            .tastaturWischen()
-        }
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar(.hidden, for: .tabBar)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                ChatPartnerKopf(partner: partner, modell: modell) { profilOffen = true }
-                    .tastaturWischen()
+            // Z-33.5: an upload that failed offline is retried as soon as the socket is back, not
+            // only on the next chat appear.
+            .onChange(of: Raum.shared.verbunden) { _, verbunden in
+                guard verbunden else { return }
+                Task { await ChatMedien.ausstehendeAbarbeiten() }
             }
-            if modell.streak.tage > 0 {
-                ToolbarItem(placement: .topBarTrailing) { ChatStreakAnzeige(modell: modell) }
-            }
-        }
-        .alert("Nachricht bearbeiten", isPresented: Binding(get: { bearbeitenNachricht != nil }, set: { if !$0 { bearbeitenNachricht = nil } })) {
-            TextField("Text", text: $bearbeitenText)
-            Button("Speichern") {
-                if let id = bearbeitenNachricht?.id { modell.bearbeiten(id, text: bearbeitenText) }
-                bearbeitenNachricht = nil
-            }
-            Button("Abbrechen", role: .cancel) { bearbeitenNachricht = nil }
-        }
-        .confirmationDialog(
-            loeschenIDs.count > 1 ? "\(loeschenIDs.count) Nachrichten für beide löschen?" : "Nachricht für beide löschen?",
-            isPresented: Binding(get: { !loeschenIDs.isEmpty }, set: { if !$0 { loeschenIDs = [] } }),
-            titleVisibility: .visible
-        ) {
-            Button("Löschen", role: .destructive) {
-                for id in loeschenIDs { modell.loeschen(id) }
-                loeschenIDs = []
-            }
-            Button("Abbrechen", role: .cancel) { loeschenIDs = [] }
-        }
-        // Read receipts and the "im Chat" figure belong to the open conversation, not to the list.
-        .onAppear {
-            sichtbar = true
-            leseBestaetigen()
-            FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
-        }
-        .onDisappear { sichtbar = false }
-        .onChange(of: scenePhase) { _, _ in leseBestaetigen() }
-        .onChange(of: modell.nachrichten.count) { _, _ in
-            leseBestaetigen()
-            // Only a fresh partner message while looking at it, not a reconnect backlog or own send.
-            if sichtbar, scenePhase == .active, let letzte = modell.nachrichten.last, letzte.von == partner,
-               Date().timeIntervalSince(letzte.zeit) < 10 {
-                ChatHaptik.weich()
-            }
-        }
     }
 
     /// Sends `nachricht.gelesen` only while the conversation is on screen and the app is active,
@@ -316,8 +174,49 @@ private struct Unterhaltung: View {
     }
 }
 
-/// Search mode (Block 18): replaces the old always-visible search field. Newest hit first, arrows
-/// step through older/newer hits, the list scrolls there and highlights the bubble.
+/// `AppNavigation` jumps into the conversation (Z-32.1).
+private struct Spruenge: ViewModifier {
+    let modell: ChatModell
+    @Binding var zielID: String?
+    @Binding var sucheAktiv: Bool
+    @Binding var blatt: ChatBlaetter
+
+    func body(content: Content) -> some View {
+        content
+            // Profile → "Kamera": close the profile first; a cover can't present while a sheet is closing.
+            .onChange(of: AppNavigation.shared.kameraOeffnen, initial: true) { _, an in
+                guard an else { return }
+                AppNavigation.shared.kameraOeffnen = false
+                let warten = blatt.profil
+                blatt.profil = false
+                Task {
+                    if warten { try? await Task.sleep(for: .milliseconds(500)) }
+                    blatt.kamera = true
+                }
+            }
+            // Profile → "Im Chat suchen".
+            .onChange(of: AppNavigation.shared.chatSuche, initial: true) { _, an in
+                guard an else { return }
+                AppNavigation.shared.chatSuche = false
+                blatt.profil = false
+                withAnimation(Feder.schnell) { sucheAktiv = true }
+            }
+            // Notification tap, "Heute vor …": waits until the message has arrived (a cold start
+            // replays the log, the catch-up follows).
+            .onChange(of: AppNavigation.shared.chatZiel, initial: true) { _, _ in zielPruefen() }
+            .onChange(of: modell.nachrichten.count) { _, _ in zielPruefen() }
+    }
+
+    private func zielPruefen() {
+        guard let ziel = AppNavigation.shared.chatZiel, modell.nachricht(ziel) != nil else { return }
+        AppNavigation.shared.chatZiel = nil
+        blatt.profil = false
+        zielID = ziel
+    }
+}
+
+/// Search mode (Block 18): newest hit first, arrows step through older/newer hits, the list
+/// scrolls there and highlights the bubble.
 private struct ChatSuchleiste: View {
     let modell: ChatModell
     let onSpringeZu: (String) -> Void
@@ -342,24 +241,23 @@ private struct ChatSuchleiste: View {
                         .font(.caption).monospacedDigit().foregroundStyle(.secondary)
                 }
             }
-            .padding(.horizontal, 10)
-            .frame(minHeight: 36)
-            .background(Color(uiColor: .secondarySystemBackground), in: Capsule())
+            .padding(.horizontal, 12)
+            .frame(minHeight: 44)
+            .glassEffect(.regular, in: .capsule)
 
-            Button { springe(-1) } label: { Image(systemName: "chevron.up").frame(width: 36, height: 44) }
+            Button { springe(-1) } label: { Image(systemName: "chevron.up").frame(width: 44, height: 44) }
                 .disabled(treffer.count < 2)
                 .accessibilityLabel("Älterer Treffer")
-            Button { springe(1) } label: { Image(systemName: "chevron.down").frame(width: 36, height: 44) }
+            Button { springe(1) } label: { Image(systemName: "chevron.down").frame(width: 44, height: 44) }
                 .disabled(treffer.count < 2)
                 .accessibilityLabel("Neuerer Treffer")
             Button("Fertig") { onFertig() }
                 .fontWeight(.semibold)
+                .frame(minHeight: 44)
         }
         .padding(.horizontal, 12)
-        .padding(.vertical, 4)
-        .background(.bar)
         .onChange(of: text) { _, _ in suchen() }
-        // Focus set right away is dropped while the profile sheet is still closing or the push runs.
+        // Focus set right away is dropped while the profile sheet is still closing.
         .task {
             try? await Task.sleep(for: .milliseconds(450))
             fokus = true
@@ -367,11 +265,7 @@ private struct ChatSuchleiste: View {
     }
 
     private func suchen() {
-        let begriff = text.trimmingCharacters(in: .whitespaces)
-        treffer = begriff.isEmpty ? [] : modell.nachrichten
-            // Z-27.2: eine verschlossene Zeitkapsel darf nicht über die Suche verraten werden.
-            .filter { !$0.geloescht && !ChatModell.verschlossen($0) && ($0.text ?? "").localizedCaseInsensitiveContains(begriff) }
-            .map(\.id)
+        treffer = modell.suchen(text)
         index = max(treffer.count - 1, 0)
         if let id = treffer.last { onSpringeZu(id) }
     }
@@ -379,7 +273,7 @@ private struct ChatSuchleiste: View {
     private func springe(_ richtung: Int) {
         guard !treffer.isEmpty else { return }
         index = (index + richtung + treffer.count) % treffer.count
-        ChatHaptik.auswahl()
+        Haptik.auswahl()
         onSpringeZu(treffer[index])
     }
 }
@@ -390,52 +284,24 @@ private struct NachrichtenListe: View {
     let modell: ChatModell
     let ich: Person
     @Binding var zielID: String?
-    let onAntworten: (ChatModell.Nachricht) -> Void
-    let onBearbeiten: (ChatModell.Nachricht) -> Void
-    let onLoeschen: ([String]) -> Void
+    let aktionen: ChatZeilenAktionen
 
     @State private var fenster = ChatListenFenster()
     @State private var hervorID: String?
-    private var anzahl: Int { fenster.anzahl }
 
     var body: some View {
         let alle = modell.nachrichten
-        let sichtbar = Array(alle.suffix(anzahl))
+        let sichtbar = Array(alle.suffix(fenster.anzahl))
         let vorFenster = alle.count > sichtbar.count ? alle[alle.count - sichtbar.count - 1] : nil
         let gruppen = ChatStapel.gruppieren(sichtbar)
         // Once per render, not one backwards scan per built row (Z-16.2, 10,000 messages).
-        let letzteEigeneID = alle.last(where: { $0.von == ich })?.id
+        let status = LeseStatus(nachrichten: alle, ich: ich, gelesenBisPartner: modell.gelesenBis[ich.partner])
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 2) {
-                    if alle.count > sichtbar.count {
-                        Button { fenster.mehr(modell) } label: {
-                            Label("Ältere Nachrichten", systemImage: "arrow.down")
-                                .font(.caption).foregroundStyle(.secondary)
-                                .frame(minHeight: 44)
-                        }
-                        .buttonStyle(.plain)
-                    }
+                LazyVStack(spacing: 0) {
+                    if alle.count > sichtbar.count { aeltereKnopf }
                     ForEach(Array(gruppen.enumerated()), id: \.element.id) { eintrag in
-                        let gruppe = eintrag.element
-                        let erste = gruppe.nachrichten[0]
-                        let vorher = eintrag.offset > 0 ? gruppen[eintrag.offset - 1].letzte : vorFenster
-                        if let spiel = erste.spiel {
-                            if SpieleModell.shared.sichtbar(spiel.id) {
-                                SpielKarte(nachricht: erste).id(gruppe.id)
-                            }
-                        } else {
-                            ChatNachrichtRow(
-                                nachricht: erste, ich: ich, stapel: gruppe.nachrichten,
-                                zeigeDatumstrenner: vorher.map { !Calendar.berlin.isDate(erste.zeit, inSameDayAs: $0.zeit) } ?? true,
-                                zeigeZeitstempel: vorher.map { erste.zeit.timeIntervalSince($0.zeit) > 900 } ?? true,
-                                zustellStatus: gruppe.nachrichten.contains { $0.id == letzteEigeneID } ? zustellStatus(gruppe.letzte) : nil,
-                                onAntworten: onAntworten, onBearbeiten: onBearbeiten, onLoeschen: onLoeschen,
-                                onSpringeZu: { zielID = $0 }
-                            )
-                            .background(hervorID == gruppe.id ? Color.loveaRose.opacity(0.18) : Color.clear)
-                            .id(gruppe.id)
-                        }
+                        zeile(eintrag.offset, gruppen: gruppen, vorFenster: vorFenster, status: status)
                     }
                 }
                 .padding(.vertical, 8)
@@ -455,36 +321,68 @@ private struct NachrichtenListe: View {
             .onChange(of: modell.nachrichten.last?.id) { _, id in
                 guard let id, modell.nachrichten.last?.von == ich else { return }
                 let ziel = gruppeID(fuer: id)
-                withAnimation(.snappy) { proxy.scrollTo(ziel, anchor: .bottom) }
+                withAnimation(Feder.schnell) { proxy.scrollTo(ziel, anchor: .bottom) }
             }
         }
+    }
+
+    private var aeltereKnopf: some View {
+        Button { fenster.mehr(modell) } label: {
+            Label("Ältere Nachrichten", systemImage: "arrow.down")
+                .font(.caption).foregroundStyle(.secondary)
+                .frame(minHeight: 44)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private func zeile(_ index: Int, gruppen: [ChatStapel.Gruppe], vorFenster: ChatModell.Nachricht?, status: LeseStatus) -> some View {
+        let gruppe = gruppen[index]
+        let erste = gruppe.nachrichten[0]
+        if let spiel = erste.spiel {
+            if SpieleModell.shared.sichtbar(spiel.id) {
+                SpielKarte(nachricht: erste).padding(.top, 8).id(gruppe.id)
+            }
+        } else {
+            let vorher = index > 0 ? gruppen[index - 1].letzte : vorFenster
+            let nachher = index + 1 < gruppen.count ? gruppen[index + 1].nachrichten[0] : nil
+            let ids = gruppe.nachrichten.map(\.id)
+            ChatNachrichtRow(
+                nachricht: erste, ich: ich, stapel: gruppe.nachrichten,
+                layout: ZeilenLayout(vorher: vorher, erste: erste, letzte: gruppe.letzte, nachher: nachher),
+                gelesenAm: status.gelesenID.map { ids.contains($0) } == true ? modell.gelesenBis[ich.partner] : nil,
+                zustellText: status.offen.map { ids.contains($0.id) } == true ? zustellText(status.offen) : nil,
+                aktionen: aktionen
+            )
+            .background(hervorID == gruppe.id ? Color.loveaRose.opacity(0.18) : Color.clear)
+            .id(gruppe.id)
+        }
+    }
+
+    /// "Zugestellt" once the server has it; while offline "Wartet auf Netz" (Z-33.5).
+    private func zustellText(_ nachricht: ChatModell.Nachricht?) -> String? {
+        guard let nachricht else { return nil }
+        if nachricht.seq != nil { return "Zugestellt" }
+        return Raum.shared.verbunden ? nil : "Wartet auf Netz"
     }
 
     /// Target may sit inside a stack (keyed by its first message) or above the loaded window.
     private func springen(zu id: String, proxy: ScrollViewProxy) {
         let alle = modell.nachrichten
         guard let index = alle.firstIndex(where: { $0.id == id }) else { return }
-        if index < alle.count - anzahl { fenster.anzahl = alle.count - index + 30 }
+        if index < alle.count - fenster.anzahl { fenster.anzahl = alle.count - index + 30 }
         Task {
             try? await Task.sleep(for: .milliseconds(60)) // let the widened window lay out first
             let ziel = gruppeID(fuer: id)
-            withAnimation { proxy.scrollTo(ziel, anchor: .center) }
+            withAnimation(Feder.weich) { proxy.scrollTo(ziel, anchor: .center) }
             hervorID = ziel
             try? await Task.sleep(for: .seconds(1.4))
-            if hervorID == ziel { withAnimation { hervorID = nil } }
+            if hervorID == ziel { withAnimation(Feder.weich) { hervorID = nil } }
         }
     }
 
     private func gruppeID(fuer id: String) -> String {
-        ChatStapel.gruppieren(Array(modell.nachrichten.suffix(anzahl))).first { gruppe in gruppe.nachrichten.contains { $0.id == id } }?.id ?? id
-    }
-
-    /// "Zugestellt"/"Gelesen HH:mm" unter der letzten eigenen Nachricht (Spec 5.1).
-    private func zustellStatus(_ nachricht: ChatModell.Nachricht) -> String {
-        if let gelesen = modell.gelesenBis[ich.partner], gelesen >= nachricht.zeit {
-            return "Gelesen " + gelesen.formatted(date: .omitted, time: .shortened)
-        }
-        return "Zugestellt"
+        ChatStapel.gruppieren(Array(modell.nachrichten.suffix(fenster.anzahl))).first { gruppe in gruppe.nachrichten.contains { $0.id == id } }?.id ?? id
     }
 }
 
@@ -498,6 +396,6 @@ final class ChatListenFenster {
     func mehr(_ modell: ChatModell) {
         guard modell.nachrichten.count > anzahl else { return }
         anzahl += Self.seite
-        ChatHaptik.leicht()
+        Haptik.leicht()
     }
 }

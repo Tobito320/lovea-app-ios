@@ -8,6 +8,7 @@ struct FotoStapel: View {
     let medien: [ChatModell.MedienEintrag]
     let eigene: Bool
     @State private var galerieOffen = false
+    @Namespace private var zoomRaum
 
     var body: some View {
         ZStack {
@@ -33,8 +34,16 @@ struct FotoStapel: View {
                 .padding(6)
         }
         .contentShape(Rectangle())
-        .onTapGesture { ChatHaptik.leicht(); galerieOffen = true }
-        .fullScreenCover(isPresented: $galerieOffen) { MedienGalerie(medien: medien, eigene: eigene) }
+        .onTapGesture {
+            Haptik.leicht()
+            galerieOffen = true
+        }
+        // Z-33.4: the gallery zooms out of the stack and back into it.
+        .matchedTransitionSource(id: "stapel", in: zoomRaum)
+        .fullScreenCover(isPresented: $galerieOffen) {
+            MedienGalerie(medien: medien, eigene: eigene)
+                .navigationTransition(.zoom(sourceID: "stapel", in: zoomRaum))
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(medien.count) Fotos")
         .accessibilityHint("Galerie öffnen")
