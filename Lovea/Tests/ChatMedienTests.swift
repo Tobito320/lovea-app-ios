@@ -135,7 +135,7 @@ final class ChatMedienTests: XCTestCase {
         XCTAssertEqual(modell.abschriften["med1"], "zweite")
     }
 
-    // MARK: - ChatEinstellungen: favoriten/hintergrund fold (Z-5.3/Z-5.4)
+    // MARK: - ChatEinstellungen: favoriten fold (Z-5.3)
 
     @MainActor
     func testFavoritenWerdenProPersonGefaltet() {
@@ -148,23 +148,13 @@ final class ChatMedienTests: XCTestCase {
     }
 
     @MainActor
-    func testHintergrundLetzterOpGewinnt() {
-        let modell = ChatEinstellungen(registrieren: false)
-        let erste = ChatEinstellungen.Hintergrund(art: .farbe, farbe: RGBAColor(red: 1, green: 0, blue: 0, alpha: 1), medienId: nil, abgedunkelt: false)
-        let zweite = ChatEinstellungen.Hintergrund(art: .foto, farbe: nil, medienId: "med9", abgedunkelt: true)
-        modell.anwenden([
-            Op.neu("einstellung.setzen", EinstellungPayload(schluessel: "hintergrund", wert: erste), von: .ahmed),
-            Op.neu("einstellung.setzen", EinstellungPayload(schluessel: "hintergrund", wert: zweite), von: .ahmed),
-        ])
-        XCTAssertEqual(modell.hintergrund(.ahmed), zweite)
-    }
-
-    @MainActor
     func testUnbekannterSchluesselWirdIgnoriert() {
         let modell = ChatEinstellungen(registrieren: false)
-        let op = Op.neu("einstellung.setzen", EinstellungPayload(schluessel: "flamme", wert: "🔥"), von: .ahmed)
-        modell.anwenden([op]) // must not crash decoding "flamme"'s String wert as favoriten/hintergrund
+        // Z-34.1: the old per-person `hintergrund` is just another unknown key now.
+        modell.anwenden([
+            Op.neu("einstellung.setzen", EinstellungPayload(schluessel: "flamme", wert: "🔥"), von: .ahmed),
+            Op.neu("einstellung.setzen", EinstellungPayload(schluessel: "hintergrund", wert: ["art": "foto", "medienId": "med9"]), von: .ahmed),
+        ])
         XCTAssertEqual(modell.favoriten(.ahmed), [])
-        XCTAssertEqual(modell.hintergrund(.ahmed), .standard)
     }
 }

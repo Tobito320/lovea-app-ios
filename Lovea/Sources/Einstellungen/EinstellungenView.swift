@@ -7,7 +7,6 @@ struct EinstellungenView: View {
     @AppStorage("profile.performanceHUD") private var showsHUD = false
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
     @State private var zeigtOrte = false
-    @State private var zeigtHintergrund = false
     @State private var zeigtEntwickler = false
 
     private var eigeneNummer: String { EinstellungenModell.shared.string("telefon", default: "") }
@@ -29,11 +28,8 @@ struct EinstellungenView: View {
             }
             Section("Figur") {
                 NavigationLink("Figuren-Editor") { FigurEditorSeite(person: person) }
-                NavigationLink("Flammen-Emoji") { FlammeEditor() }
             }
             Section("Chat") {
-                Button("Chat-Hintergrund") { zeigtHintergrund = true }
-                    .foregroundStyle(.primary)
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
             }
             Section("Wir") {
@@ -69,7 +65,6 @@ struct EinstellungenView: View {
         .navigationTitle("Einstellungen")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $zeigtOrte) { OrteListeView() }
-        .sheet(isPresented: $zeigtHintergrund) { ChatHintergrundEinstellung(ich: person) }
     }
 }
 
@@ -130,38 +125,6 @@ struct FigurEditorSeite: View {
             ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
         }
         .sheet(isPresented: $shopOffen) { ShopView() }
-    }
-}
-
-// MARK: - Flammen-Emoji
-
-private struct FlammeEditor: View {
-    let modell = EinstellungenModell.shared
-    @State private var text = ""
-
-    var body: some View {
-        Form {
-            Section {
-                TextField("Emoji", text: $text)
-                    .font(.system(size: 40))
-                    .multilineTextAlignment(.center)
-                    .onSubmit(sichern)
-            } footer: {
-                Text("Erscheint als Flamme im Chat-Kopf, z. B. bei einer Streak.")
-            }
-        }
-        .navigationTitle("Flammen-Emoji")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) { Button("Sichern", action: sichern) }
-        }
-        .onAppear { text = modell.string("flamme", default: "🔥") }
-    }
-
-    private func sichern() {
-        // ponytail: erstes Grapheme-Cluster statt Emoji-Validierung — reicht für "ein Emoji tippen".
-        guard let erstes = text.first else { return }
-        modell.setzen("flamme", .string(String(erstes)))
     }
 }
 

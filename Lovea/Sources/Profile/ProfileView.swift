@@ -49,7 +49,7 @@ struct PartnerProfilView: View {
 }
 
 private enum ProfilBlatt: String, Identifiable {
-    case wallpaper, chatfarbe, medien, hintergrund, orte, eigenerHintergrund, chatThema, flamme
+    case wallpaper, medien, orte, eigenerHintergrund, briefe, sterne
     var id: String { rawValue }
 }
 
@@ -78,6 +78,7 @@ private struct ProfilInhalt: View {
     @State private var tipps = 0
     @State private var nummerFehlt = 0
     @State private var blatt: ProfilBlatt?
+    @State private var backdropOffen = false
     /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
     @State private var karteOffen = false
     // Z-25.1: eigenes Profil (Figur bearbeiten, Shop).
@@ -150,13 +151,11 @@ private struct ProfilInhalt: View {
     private func blattInhalt(_ b: ProfilBlatt) -> some View {
         switch b {
         case .wallpaper: WallpaperAuswahl(partner: gegenueber)
-        case .chatfarbe: ChatFarbeAuswahl(ich: ich)
         case .medien: MedienUebersicht(ich: ich)
-        case .hintergrund: ChatHintergrundEinstellung(ich: ich)
         case .orte: OrteListeView()
         case .eigenerHintergrund: EigenerHintergrundAuswahl(person: person)
-        case .chatThema: ChatThemaAuswahl(ich: ich)
-        case .flamme: BesitzFlammenAuswahl(ich: ich)
+        case .briefe: BriefeBlatt(ich: ich)
+        case .sterne: SterneBlatt(ich: ich) { zurNachricht($0) }
         }
     }
 
@@ -175,12 +174,15 @@ private struct ProfilInhalt: View {
 
             HStack(spacing: 12) {
                 avatar
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(person.name).font(.title.bold())
-                    Text("zusammen seit 26.08.2026").font(.subheadline.weight(.medium)).opacity(0.9)
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(person.name).font(.title.bold())
+                        Text("zusammen seit 26.08.2026").font(.subheadline.weight(.medium)).opacity(0.9)
+                    }
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
+                    partnerJetzt
                 }
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
             }
             .padding(16)
         }
@@ -237,6 +239,19 @@ private struct ProfilInhalt: View {
         }
     }
 
+    /// Z-34.2: weather and "hört gerade" moved here from the chat header. Glass fits: they float
+    /// over the header picture (dark scheme, it sits on the dark bottom shade). Spotify is polled
+    /// only while this is on screen (Spec 9).
+    private var partnerJetzt: some View {
+        HStack(spacing: 6) {
+            if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
+            SpotifyHoertGeradeChip()
+        }
+        .environment(\.colorScheme, .dark)
+        .task { SpotifyModell.shared.schauen() }
+        .onDisappear { SpotifyModell.shared.wegschauen() }
+    }
+
     /// Z-24.3: while a `kuss` is live (fresh receive, own optimistic send, or a missed-kiss replay
     /// — all three go through `FigurenModell.anzeige`/`geste`), the figure leans toward the other
     /// one. `person` sits left/front of the pair (see `kopf`'s HStack order), `person.partner`
@@ -285,14 +300,10 @@ private struct ProfilInhalt: View {
     private var chips: some View {
         let g = BesondereTage.geburtstag(person)
         let zeichen = Sternzeichen.fuer(monat: g.monat, tag: g.tag)
-        let streak = ChatModell.shared.streak.tage
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 chip("🎈", "\(g.tag). \(Self.monate[g.monat - 1])", "Geburtstag \(g.tag). \(Self.monate[g.monat - 1])")
                 chip("💞", "\(tageZusammen) Tage", "\(tageZusammen) Tage zusammen")
-                if streak > 0 {
-                    chip(EinstellungenModell.shared.string("flamme", default: "🔥"), "\(streak)", "Streak \(streak) Tage")
-                }
                 chip(zeichen.symbol, zeichen.name, "Sternzeichen \(zeichen.name)")
                 if istEigenes {
                     PunkteChip(person: person)
@@ -340,7 +351,14 @@ private struct ProfilInhalt: View {
 
     // MARK: - Actions (Kamera · Chat · FaceTime Audio · FaceTime Video)
 
-    private var partnerNummer: String { EinstellungenModell.shared.string("telefon", default: "", von: gegenueber) }
+    /// Z-32.2: the partner's `kontakt.facetime` (number or Apple ID); empty → the older `telefon`
+    /// entry, so numbers typed in before Runde 3 keep working. Same rule as the chat header.
+    private var partnerKontakt: String {
+        let kontakt = EinstellungenModell.shared.string("kontakt.facetime", default: "", von: gegenueber)
+        return kontakt.trimmingCharacters(in: .whitespaces).isEmpty
+            ? EinstellungenModell.shared.string("telefon", default: "", von: gegenueber)
+            : kontakt
+    }
 
     private var aktionen: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -354,8 +372,8 @@ private struct ProfilInhalt: View {
                 aktion("phone.fill", "FaceTime Audio") { anrufen(audio: true) }
                 aktion("video.fill", "FaceTime Video") { anrufen(audio: false) }
             }
-            if FaceTimeLink.url(partnerNummer, audio: false) == nil {
-                Text("\(gegenueber.name) hat noch keine Nummer eingetragen")
+            if FaceTime.url(audio: false, kontakt: partnerKontakt) == nil {
+                Text("\(gegenueber.name) hat noch keine FaceTime-Nummer eingetragen")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
@@ -384,7 +402,7 @@ private struct ProfilInhalt: View {
     }
 
     private func anrufen(audio: Bool) {
-        guard let url = FaceTimeLink.url(partnerNummer, audio: audio) else {
+        guard let url = FaceTime.url(audio: audio, kontakt: partnerKontakt) else {
             nummerFehlt += 1
             return
         }
@@ -432,30 +450,38 @@ private struct ProfilInhalt: View {
 
     private var trenner: some View { Divider().padding(.leading, 58) }
 
+    /// Z-34.2: Backdrop (full-screen picker, for both), then Medien, Briefe and Sterne.
     @ViewBuilder
     private var unserChat: some View {
-        zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { blatt = .wallpaper }
+        zeile("photo.artframe", "Backdrop", backdropUntertitel) { backdropOffen = true }
+            .fullScreenCover(isPresented: $backdropOffen) { BackdropAuswahl() }
         trenner
-        zeile("circle.fill", "Chatfarbe", "Ändere die Farbe deines Namens.", farbe: ChatFarbe.farbe(ich)) { blatt = .chatfarbe }
+        zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { blatt = .wallpaper }
         trenner
         zeile("photo.stack", "Medien") { blatt = .medien }
         trenner
-        zeile("photo.artframe", "Chat-Hintergrund") { blatt = .hintergrund }
+        zeile("envelope", "Briefe") { blatt = .briefe }
         trenner
-        // Z-23.2: gekaufte Chat-Themes/Flammen werden hier gewählt — der Kauf selbst passiert im Shop.
-        zeile("paintpalette", "Chat-Thema", chatThemaUntertitel) { blatt = .chatThema }
-        trenner
-        zeile("flame", "Deine Flamme", flammeUntertitel) { blatt = .flamme }
+        zeile("star", "Sterne") { blatt = .sterne }
         trenner
         zeile("magnifyingglass", "Im Chat suchen") { navigieren("chat", suche: true) }
     }
 
-    private var chatThemaUntertitel: String? {
-        guard case .string(let id)? = EinstellungenModell.shared.geteilt("chat.theme"), !id.isEmpty else { return "Keins gewählt" }
-        return ChatThemes.von(id)?.name
+    private var backdropUntertitel: String {
+        switch Backdrops.wahl {
+        case .vorlage(let id)?: Backdrops.von(id)?.name ?? Backdrops.neutral.name
+        case .foto?: "Eigenes Foto"
+        case .zeichnung?: "Eigene Zeichnung"
+        case nil: "Für euch beide"
+        }
     }
 
-    private var flammeUntertitel: String { EinstellungenModell.shared.string("flamme", default: "🔥", von: ich) }
+    /// Sterne: close the sheets, switch to the chat and jump to the message (B1's `chatZiel`).
+    private func zurNachricht(_ id: String) {
+        blatt = nil
+        AppNavigation.shared.chatZiel = id
+        navigieren("chat")
+    }
 
     @ViewBuilder
     private var dieKarte: some View {

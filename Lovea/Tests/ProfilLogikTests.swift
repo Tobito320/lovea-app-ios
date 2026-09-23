@@ -18,17 +18,4 @@ final class ProfilLogikTests: XCTestCase {
         XCTAssertNil(FaceTimeLink.url("", audio: false))
         XCTAssertNil(FaceTimeLink.url("12", audio: false))
     }
-
-    func testChatFarbeHex() {
-        let rot = ChatFarbe.rgb("#FF0080")
-        XCTAssertEqual(rot?.r, 1)
-        XCTAssertEqual(rot?.g, 0)
-        XCTAssertEqual(rot?.b ?? 0, 128.0 / 255, accuracy: 0.0001)
-        XCTAssertNotNil(ChatFarbe.rgb("2F6BFF"))
-        XCTAssertNil(ChatFarbe.rgb(""))
-        XCTAssertNil(ChatFarbe.rgb("#12345"))
-        XCTAssertNil(ChatFarbe.rgb("#+1234F"))
-        XCTAssertNil(ChatFarbe.rgb("#GGGGGG"))
-        for option in ChatFarbe.auswahl { XCTAssertNotNil(ChatFarbe.rgb(option.hex), option.name) }
-    }
 }
