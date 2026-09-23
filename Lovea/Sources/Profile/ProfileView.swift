@@ -154,7 +154,7 @@ private struct ProfilInhalt: View {
     // FigurView gets its `ganzkoerper:` parameter (Figuren agent, Block 18).
     @ViewBuilder
     private func figur(_ p: Person) -> some View {
-        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: FigurenModell.shared.anzeige(p).haupt, abzeichen: abzeichen(p), groesse: 250)
+        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: FigurenModell.shared.anzeige(p).haupt, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true)
         if p == ich {
             v.accessibilityLabel("Deine Figur")
         } else {

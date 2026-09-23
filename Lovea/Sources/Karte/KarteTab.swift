@@ -266,8 +266,8 @@ private struct FigurPin: View {
                     .padding(.vertical, 3)
                     .glassEffect(.regular, in: .capsule)
             }
-            // ganzkoerper: controller switches once Figuren v2 lands
-            FigurView(aussehen, zustand: zustand, groesse: 64, bildrate: 15)
+
+            FigurView(aussehen, zustand: zustand, groesse: 120, bildrate: 15, ganzkoerper: true)
             namensSchild
         }
         .onTapGesture(perform: tippen)
