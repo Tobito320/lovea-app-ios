@@ -1,0 +1,50 @@
+{
+  "leicht": [
+    "Haus", "Baum", "Sonne", "Mond", "Stern", "Blume", "Auto", "Ball", "Wolke", "Regenbogen",
+    "Brille", "Schuh", "Hut", "Schlüssel", "Kerze", "Tasse", "Buch", "Uhr", "Brief", "Luftballon",
+    "Schneemann", "Fahrrad", "Boot", "Pilz", "Geschenk", "Regenschirm", "Lampe", "Stuhl", "Krone", "Tür",
+    "Kaktus", "Blitz", "Drachen", "Zelt", "Leiter", "Gitarre", "Rakete", "Anker"
+  ],
+  "mittel": [
+    "Leuchtturm", "Staubsauger", "Achterbahn", "Zahnbürste", "Wecker", "Kamera", "Kopfhörer", "Rucksack", "Schaukel", "Sandburg",
+    "Vulkan", "Roboter", "Zauberer", "Pirat", "Feuerwerk", "Hängematte", "Skateboard", "Iglu", "Windmühle", "Taucher",
+    "Astronaut", "Ritter", "Burg", "Wasserfall", "Seifenblase", "Lagerfeuer", "Briefträger", "Schatzkiste", "Zirkuszelt", "Heißluftballon",
+    "Mikrofon", "Trampolin", "Kompass", "Fallschirm", "Fernrohr", "Karussell", "Sanduhr", "Gießkanne"
+  ],
+  "schwer": [
+    "Zeitreise", "Heimweh", "Gerechtigkeit", "Muskelkater", "Lampenfieber", "Ohrwurm", "Déjà-vu", "Schwerkraft", "Echo", "Freiheit",
+    "Geduld", "Stromausfall", "Montagmorgen", "Gänsehaut", "Schluckauf", "Sonnenfinsternis", "Winterschlaf", "Jetlag", "Funkloch", "Fernweh",
+    "Eifersucht", "Neugier", "Langeweile", "Kopfkino", "Gedächtnis", "Traum", "Schatten", "Spiegelbild", "Erinnerung", "Glück",
+    "Stille", "Chaos", "Zufall", "Mut", "Sehnsucht", "Wettervorhersage", "Leerer Handyakku", "Aufschieberitis"
+  ],
+  "suess": [
+    "Kuss", "Umarmung", "Liebesbrief", "Händchenhalten", "Kuscheldecke", "Teddybär", "Rosenstrauß", "Schmetterlinge im Bauch", "Candlelight-Dinner", "Picknick",
+    "Sternschnuppe", "Verliebte Katzen", "Lieblingspulli", "Gute-Nacht-Kuss", "Liebesschloss", "Sonnenuntergang", "Kissenburg", "Pärchenfoto", "Herzluftballon", "Kuschelmonster",
+    "Zuckerwatte", "Liebeslied", "Kompliment", "Stirnkuss", "Pyjamaparty", "Frühstück im Bett", "Tanz im Regen", "Pusteblume", "Glückskeks", "Kuschelsocken",
+    "Honigmond", "Blumenkranz", "Herzkette", "Morgenkuscheln", "Wolke sieben", "Nasenstupser", "Liebeskummer-Eis", "Schlafmütze"
+  ],
+  "lustig": [
+    "Tanzende Banane", "Pinguin im Anzug", "Kuh auf Skiern", "Einhorn beim Friseur", "Oma auf dem Skateboard", "Hund mit Sonnenbrille", "Fliegendes Schwein", "Katze im Karton", "Furzkissen", "Clown",
+    "Gähnender Löwe", "Schnarchender Bär", "Dino im Tutu", "Gurke mit Hut", "Toaster mit Gefühlen", "Wackelpudding", "Kartoffel auf der Couch", "Hamster im Laufrad", "Ente mit Gummistiefeln", "Faultier im Stress",
+    "Monster unterm Bett", "Socke ohne Partner", "Selfie mit Möwe", "Frosch mit Krone", "Schildkröte mit Turbo", "Jonglierender Tintenfisch", "Schaf im Pyjama", "Nudel im Bart", "Zombie beim Yoga", "Alien im Supermarkt",
+    "Kuschelnder Kaktus", "Spaghetti-Monster", "Huhn auf dem Fahrrad", "Giraffe im Aufzug", "Hamsterbacken", "Katze auf der Tastatur", "Tanzender Brokkoli", "Nilpferd im Ballett"
+  ],
+  "tiere": [
+    "Katze", "Hund", "Elefant", "Giraffe", "Löwe", "Tiger", "Pinguin", "Delfin", "Hai", "Schildkröte",
+    "Eule", "Fuchs", "Igel", "Hase", "Eichhörnchen", "Frosch", "Schnecke", "Biene", "Marienkäfer", "Krokodil",
+    "Zebra", "Känguru", "Koala", "Panda", "Faultier", "Flamingo", "Papagei", "Qualle", "Oktopus", "Seepferdchen",
+    "Waschbär", "Lama", "Nilpferd", "Kamel", "Wal", "Maus", "Pferd", "Kuh"
+  ],
+  "essen": [
+    "Pizza", "Pommes", "Burger", "Döner", "Spaghetti", "Sushi", "Eis am Stiel", "Apfel", "Banane", "Erdbeere",
+    "Wassermelone", "Ananas", "Brezel", "Croissant", "Pfannkuchen", "Waffel", "Donut", "Muffin", "Torte", "Popcorn",
+    "Käse", "Spiegelei", "Karotte", "Brokkoli", "Avocado", "Taco", "Hotdog", "Suppe", "Lasagne", "Kekse",
+    "Schokolade", "Lolli", "Gummibärchen", "Toast", "Müsli", "Kirschen", "Zitrone", "Nudelsalat"
+  ],
+  "orte": [
+    "Strand", "Berge", "Wald", "Kino", "Zoo", "Freizeitpark", "Bahnhof", "Flughafen", "Schwimmbad", "Bibliothek",
+    "Eisdiele", "Bäckerei", "Supermarkt", "Spielplatz", "Bauernhof", "Hafen", "Insel", "Wüste", "Dschungel", "Eiffelturm",
+    "Schule", "Fahrschule", "Krankenhaus", "Museum", "Zirkus", "Campingplatz", "Weihnachtsmarkt", "Kirmes", "Café", "Restaurant",
+    "Park", "See", "Höhle", "Brücke", "Hochhaus", "Schloss", "Tankstelle", "Friseur"
+  ]
+}

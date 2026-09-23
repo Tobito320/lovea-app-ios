@@ -5,7 +5,6 @@ import UIKit
 struct DrawingStudioView: View {
     @StateObject private var session: DrawingSession
     @StateObject private var palette: ColorPaletteStore
-    @ObservedObject private var sharing: LoveaSharingService
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,14 +19,17 @@ struct DrawingStudioView: View {
     @State private var imageItem: PhotosPickerItem?
     @State private var templateItem: PhotosPickerItem?
     @State private var templateData: Data?
-    @State private var livePublishTask: Task<Void, Never>?
-    @State private var shareMessage: String?
 
-    init(artworkID: UUID, library: ArtworkLibrary, sharing: LoveaSharingService, templateData: Data? = nil) {
-        _session = StateObject(wrappedValue: DrawingSession(artworkID: artworkID, library: library))
-        _palette = StateObject(wrappedValue: ColorPaletteStore(person: sharing.person.apiID))
+    /// `fremd`: a partner drawing from the shared library, `stand` the stand it was loaded from.
+    init(artworkID: UUID, library: ArtworkLibrary, person: Person, templateData: Data? = nil,
+         fremd: Bool = false, stand: ZeichnungStand? = nil) {
+        _session = StateObject(wrappedValue: { () -> DrawingSession in
+            let session = DrawingSession(artworkID: artworkID, library: library, fremd: fremd)
+            session.live.geladen = stand
+            return session
+        }())
+        _palette = StateObject(wrappedValue: ColorPaletteStore(person: person.rawValue))
         _templateData = State(initialValue: templateData)
-        self.sharing = sharing
     }
 
     private var compact: Bool { sizeClass == .compact }
@@ -37,16 +39,22 @@ struct DrawingStudioView: View {
             Color(uiColor: .secondarySystemBackground).ignoresSafeArea()
             CanvasRepresentable(session: session).ignoresSafeArea()
             CanvasOverlay(state: session.canvasState, session: session).ignoresSafeArea()
+            PartnerStiftOverlay(state: session.canvasState, live: session.live).ignoresSafeArea()
+            GemeinsamOverlay(state: session.canvasState, live: session.live).ignoresSafeArea()
             if session.isTransforming {
                 TransformOverlay(state: session.canvasState, session: session).ignoresSafeArea(edges: .bottom)
             }
         }
         .overlay(alignment: .top) { topMessages }
+        .overlay {
+            PartnerFigurAmRand(zeichnungId: session.live.zeichnungId, state: session.canvasState)
+                .animation(reduceMotion ? nil : .snappy, value: LiveZeichnung.shared.partnerDrin)
+        }
         .overlay(alignment: .topTrailing) {
             if showsHUD { PerformanceHUD(session: session).padding(12) }
         }
         .overlay(alignment: .leading) {
-            if !compact, !session.isTransforming {
+            if !compact, !session.isTransforming, !session.nurAnsehen {
                 SizeOpacityRail(session: session, compact: false, glass: glass).padding(.leading, 12)
             }
         }
@@ -55,6 +63,7 @@ struct DrawingStudioView: View {
         .overlay(alignment: .trailing) {
             if !compact, showsLayers {
                 ArtworkLayersView(session: session)
+                    .disabled(session.nurAnsehen)
                     .frame(width: 320)
                     .background(.background)
                     .clipShape(RoundedRectangle(cornerRadius: 16))
@@ -63,11 +72,12 @@ struct DrawingStudioView: View {
                     .transition(.move(edge: .trailing))
             }
         }
+        .background(ZurueckWischenAus().frame(width: 0, height: 0))
         .navigationTitle(session.document.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
         .toolbar { studioToolbar }
-        .sheet(isPresented: $showsLayerSheet) { LayersSheet(session: session) }
+        .sheet(isPresented: $showsLayerSheet) { LayersSheet(session: session).disabled(session.nurAnsehen) }
         .sheet(isPresented: $showsText) { TextSheet(session: session) }
         .sheet(isPresented: $showsExport) {
             ArtworkExportSheet(artwork: session.document, library: session.library)
@@ -81,6 +91,8 @@ struct DrawingStudioView: View {
             Text("Speicher voll – Ebenen zusammenführen oder kleinere Leinwand wählen.")
         }
         .onAppear {
+            session.live.betreten()
+            if session.nurAnsehen { session.show("Nur ansehen – Werkzeuge sind gesperrt") }
             session.onColorUsed = { [weak palette] in palette?.use($0) }
             if let templateData {
                 self.templateData = nil
@@ -89,7 +101,6 @@ struct DrawingStudioView: View {
         }
         .onChange(of: imageItem) { _, item in load(item, asTemplate: false) }
         .onChange(of: templateItem) { _, item in load(item, asTemplate: true) }
-        .onChange(of: session.document.updatedAt) { _, _ in scheduleLivePublish() }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { session.saveNow() }
         }
@@ -97,9 +108,11 @@ struct DrawingStudioView: View {
             session.engine?.handleMemoryWarning()
         }
         .onDisappear {
-            livePublishTask?.cancel()
             session.saveNow()
+            session.live.verlassen()
         }
+        .onChange(of: Raum.shared.verbunden) { _, an in if an { session.live.ankuendigen() } }
+        .onChange(of: Raum.shared.partnerDa) { _, da in if da { session.live.ankuendigen() } }
     }
 
     // MARK: Top bar
@@ -107,12 +120,23 @@ struct DrawingStudioView: View {
     @ToolbarContentBuilder
     private var studioToolbar: some ToolbarContent {
         ToolbarItemGroup(placement: .topBarTrailing) {
-            Button { session.undo() } label: { Image(systemName: "arrow.uturn.backward") }
-                .accessibilityLabel("Rückgängig")
-                .disabled(!session.canUndo)
-            Button { session.redo() } label: { Image(systemName: "arrow.uturn.forward") }
-                .accessibilityLabel("Wiederholen")
-                .disabled(!session.canRedo)
+            if LiveZeichnung.shared.partnerIstDrin(session.live.zeichnungId) {
+                Button { LiveZeichnung.shared.fertigDruecken() } label: {
+                    Image(systemName: LiveZeichnung.shared.ichFertig ? "checkmark.circle.fill" : "checkmark.circle")
+                }
+                .accessibilityLabel("Gemeinsam fertig")
+                .accessibilityHint("Wenn ihr beide fertig drückt, landet das Bild im Chat")
+            }
+            if session.nurAnsehen {
+                FolgenKnopf(state: session.canvasState)
+            } else {
+                Button { session.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                    .accessibilityLabel("Rückgängig")
+                    .disabled(!session.canUndo)
+                Button { session.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                    .accessibilityLabel("Wiederholen")
+                    .disabled(!session.canRedo)
+            }
             Button {
                 if compact { showsLayerSheet = true } else { withAnimation(reduceMotion ? nil : .snappy) { showsLayers.toggle() } }
             } label: { Image(systemName: "square.3.layers.3d") }
@@ -123,38 +147,10 @@ struct DrawingStudioView: View {
 
     private var moreMenu: some View {
         Menu {
-            Menu {
-                ForEach(Adjustment.allCases) { item in
-                    Button(item.title) {
-                        adjustment = item
-                        session.previewAdjustment(item, amount: item.range.map { ($0.lowerBound + $0.upperBound) / 2 } ?? 0)
-                    }
-                }
-            } label: { Label("Anpassen", systemImage: "slider.horizontal.3") }
-            Menu {
-                ForEach(ShapeKind.allCases) { kind in
-                    Button {
-                        session.shapeKind = kind
-                        session.tool = .shape
-                    } label: { Label(kind.title, systemImage: kind.symbol) }
-                }
-                Toggle("Gefüllt", isOn: $session.shapeFilled)
-            } label: { Label("Formen", systemImage: "square.on.circle") }
-            Toggle(isOn: $session.lassoRectangle) { Label("Rechteck-Auswahl", systemImage: "rectangle.dashed") }
-            Toggle(isOn: $session.symmetry) { Label("Spiegelachse", systemImage: "square.split.2x1") }
-            Divider()
-            Toggle(isOn: $viewMirrored) { Label("Ansicht spiegeln", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right") }
-            Button { session.canvasState.resetView() } label: { Label("Ansicht zurücksetzen", systemImage: "arrow.up.left.and.down.right.magnifyingglass") }
-            Toggle(isOn: $session.drawsWithFinger) { Label("Mit Finger zeichnen", systemImage: "hand.draw") }
-            Divider()
-            Button { showsExport = true } label: { Label("Exportieren", systemImage: "square.and.arrow.up") }
-            if sharing.state == .connected {
-                Button("Als Bild an Partner senden") { sendSnapshot() }
-                if session.document.liveReadOnlyShare {
-                    Button("Live-Freigabe beenden", role: .destructive) { setLiveShare(false) }
-                } else {
-                    Button("Live ansehen lassen") { setLiveShare(true) }
-                }
+            if session.nurAnsehen {
+                viewMenu
+            } else {
+                editMenu
             }
         } label: {
             Image(systemName: "ellipsis.circle")
@@ -163,11 +159,51 @@ struct DrawingStudioView: View {
         .onChange(of: viewMirrored) { _, value in session.canvasState.setMirrored(value) }
     }
 
+    @ViewBuilder
+    private var viewMenu: some View {
+        Toggle(isOn: $viewMirrored) { Label("Ansicht spiegeln", systemImage: "arrow.left.and.right.righttriangle.left.righttriangle.right") }
+        Button { session.canvasState.resetView() } label: { Label("Ansicht zurücksetzen", systemImage: "arrow.up.left.and.down.right.magnifyingglass") }
+    }
+
+    @ViewBuilder
+    private var editMenu: some View {
+        Menu {
+            ForEach(Adjustment.allCases) { item in
+                Button(item.title) {
+                    adjustment = item
+                    session.previewAdjustment(item, amount: item.range.map { ($0.lowerBound + $0.upperBound) / 2 } ?? 0)
+                }
+            }
+        } label: { Label("Anpassen", systemImage: "slider.horizontal.3") }
+        Menu {
+            ForEach(ShapeKind.allCases) { kind in
+                Button {
+                    session.shapeKind = kind
+                    session.tool = .shape
+                } label: { Label(kind.title, systemImage: kind.symbol) }
+            }
+            Toggle("Gefüllt", isOn: $session.shapeFilled)
+        } label: { Label("Formen", systemImage: "square.on.circle") }
+        Toggle(isOn: $session.lassoRectangle) { Label("Rechteck-Auswahl", systemImage: "rectangle.dashed") }
+        Toggle(isOn: $session.symmetry) { Label("Spiegelachse", systemImage: "square.split.2x1") }
+        Divider()
+        viewMenu
+        Toggle(isOn: $session.drawsWithFinger) { Label("Mit Finger zeichnen", systemImage: "hand.draw") }
+        Divider()
+        Button { showsExport = true } label: { Label("Exportieren", systemImage: "square.and.arrow.up") }
+        Button { session.alsBildSenden() } label: { Label("Als Bild senden", systemImage: "paperplane") }
+        if !session.fremd {
+            Button { session.einladen() } label: { Label("Zum Mitzeichnen einladen", systemImage: "person.2") }
+        }
+    }
+
     // MARK: Floating controls
 
     @ViewBuilder
     private var bottomControls: some View {
-        if let adjustment {
+        if session.nurAnsehen {
+            EmptyView()
+        } else if let adjustment {
             AdjustPanel(session: session, adjustment: adjustment, glass: glass) { self.adjustment = nil }
                 .padding(.bottom, 12)
         } else if !session.isTransforming {
@@ -262,16 +298,24 @@ struct DrawingStudioView: View {
             if session.isBusy {
                 ProgressView().padding(10).background(.regularMaterial, in: Circle())
             }
-            if let shareMessage {
-                Text(shareMessage)
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
+            if let fertig = fertigHinweis {
+                Text(fertig)
+                    .font(.subheadline.weight(.medium))
+                    .padding(.horizontal, 16)
+                    .frame(minHeight: 44)
                     .background(.regularMaterial, in: Capsule())
             }
         }
         .padding(.top, 8)
         .animation(reduceMotion ? nil : .snappy, value: session.notice)
+    }
+
+    private var fertigHinweis: String? {
+        let hub = LiveZeichnung.shared
+        guard hub.partnerIstDrin(session.live.zeichnungId), let partner = Raum.shared.ich?.partner.name else { return nil }
+        if hub.ichFertig { return "Wartet auf \(partner) …" }
+        if hub.partnerFertig { return "\(partner) ist fertig – du auch?" }
+        return nil
     }
 
     // MARK: Photos
@@ -286,63 +330,37 @@ struct DrawingStudioView: View {
         }
     }
 
-    // MARK: Level 2 (eingefroren, nur an die neue Export-Schnittstelle angepasst)
+}
 
-    private var currentProject: ArtworkProject? {
-        session.document.projectID.flatMap { id in session.library.projects.first(where: { $0.id == id }) }
-    }
+/// Studio: no swipe back, a stroke from the left edge must never leave the drawing. Only the back button
+/// top left leaves. Switches the navigation controller's pop gestures off while the studio is on screen.
+private struct ZurueckWischenAus: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Steuerung { Steuerung() }
+    func updateUIViewController(_ controller: Steuerung, context: Context) {}
 
-    private var isLiveShared: Bool {
-        session.document.liveReadOnlyShare || currentProject?.sharedReadOnly == true
-    }
+    final class Steuerung: UIViewController {
+        private var aus: [(UIGestureRecognizer, Bool)] = []
 
-    private func sendSnapshot() {
-        Task {
-            guard let image = await session.flattenedImage() else { return }
-            do {
-                try await sharing.sendSnapshot(document: session.document, image: image)
-                showShareMessage("Bild gesendet")
-            } catch {
-                showShareMessage("Fehler beim Senden")
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            guard let navigation = navigationController, aus.isEmpty else { return }
+            var gesten = [navigation.interactivePopGestureRecognizer]
+            // ponytail: iOS 26 adds a swipe-back from anywhere in the content; read by name so the build
+            // does not depend on the SDK symbol. Drop the lookup once the property is used directly.
+            let inhalt = NSSelectorFromString("interactiveContentPopGestureRecognizer")
+            if navigation.responds(to: inhalt) {
+                gesten.append(navigation.value(forKey: "interactiveContentPopGestureRecognizer") as? UIGestureRecognizer)
+            }
+            for case let geste? in gesten {
+                aus.append((geste, geste.isEnabled))
+                geste.isEnabled = false
             }
         }
-    }
 
-    private func setLiveShare(_ enabled: Bool) {
-        Task {
-            do {
-                if enabled {
-                    guard let image = await session.flattenedImage() else { return }
-                    try await sharing.publishLive(document: session.document, project: currentProject, image: image)
-                } else {
-                    try await sharing.stopLive(artworkID: session.document.id)
-                }
-                var document = session.document
-                document.liveReadOnlyShare = enabled
-                session.library.saveDocument(document)
-                showShareMessage(enabled ? "Live-Ansehen aktiv" : "Live-Ansehen beendet")
-            } catch {
-                showShareMessage("Freigabe fehlgeschlagen")
-            }
-        }
-    }
-
-    /// Only runs when this drawing is actually shared.
-    private func scheduleLivePublish() {
-        guard isLiveShared, sharing.state == .connected else { return }
-        livePublishTask?.cancel()
-        livePublishTask = Task {
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled, let image = await session.flattenedImage() else { return }
-            try? await sharing.publishLive(document: session.document, project: currentProject, image: image)
-        }
-    }
-
-    private func showShareMessage(_ text: String) {
-        withAnimation { shareMessage = text }
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            withAnimation { shareMessage = nil }
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            for (geste, vorher) in aus { geste.isEnabled = vorher }
+            aus = []
         }
     }
 }
@@ -436,7 +454,7 @@ private struct TextSheet: View {
         DrawingStudioView(
             artworkID: UUID(),
             library: ArtworkLibrary(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview")),
-            sharing: LoveaSharingService(person: .annika)
+            person: .annika
         )
     }
     .environment(\.horizontalSizeClass, .regular)
@@ -447,7 +465,7 @@ private struct TextSheet: View {
         DrawingStudioView(
             artworkID: UUID(),
             library: ArtworkLibrary(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview")),
-            sharing: LoveaSharingService(person: .annika)
+            person: .annika
         )
     }
     .environment(\.horizontalSizeClass, .compact)

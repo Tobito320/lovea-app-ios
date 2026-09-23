@@ -14,39 +14,56 @@ enum UndoEntry {
     }
 }
 
+/// Undo steps with their author. `autor == nil` is an own action; foreign entries (partner strokes)
+/// are recorded but never undone locally.
 @MainActor
 final class UndoHistory {
+    private struct Item {
+        let entry: UndoEntry
+        let autor: String?
+    }
+
     let budgetBytes: Int
-    private var undoStack: [UndoEntry] = []
-    private var redoStack: [UndoEntry] = []
+    private var undoStack: [Item] = []
+    private var redoStack: [Item] = []
+
+    /// Shared drawing: every step goes to the shared history (`GemeinsamVerlauf`) instead of this stack.
+    var umleiten: ((UndoEntry) -> Void)?
 
     init(budgetBytes: Int = 256 << 20) {
         self.budgetBytes = budgetBytes
     }
 
-    var canUndo: Bool { !undoStack.isEmpty }
+    var canUndo: Bool { undoStack.contains { $0.autor == nil } }
     var canRedo: Bool { !redoStack.isEmpty }
     var count: Int { undoStack.count }
-    var bytesInUse: Int { (undoStack + redoStack).reduce(0) { $0 + $1.bytes } }
+    var bytesInUse: Int { (undoStack + redoStack).reduce(0) { $0 + $1.entry.bytes } }
 
-    func push(_ entry: UndoEntry) {
-        undoStack.append(entry)
-        redoStack.removeAll()
+    func push(_ entry: UndoEntry, autor: String? = nil) {
+        if let umleiten {
+            umleiten(entry)
+            return
+        }
+        undoStack.append(Item(entry: entry, autor: autor))
+        if autor == nil { redoStack.removeAll() }
         while undoStack.count > 1, bytesInUse > budgetBytes {
             undoStack.removeFirst()
         }
     }
 
+    /// Pops the newest own entry. Level 1 only: shared drawings undo through `GemeinsamVerlauf`,
+    /// which re-applies the partner's later steps.
     func popUndo() -> UndoEntry? {
-        guard let entry = undoStack.popLast() else { return nil }
-        redoStack.append(entry)
-        return entry
+        guard let index = undoStack.lastIndex(where: { $0.autor == nil }) else { return nil }
+        let item = undoStack.remove(at: index)
+        redoStack.append(item)
+        return item.entry
     }
 
     func popRedo() -> UndoEntry? {
-        guard let entry = redoStack.popLast() else { return nil }
-        undoStack.append(entry)
-        return entry
+        guard let item = redoStack.popLast() else { return nil }
+        undoStack.append(item)
+        return item.entry
     }
 
     func removeAll() {

@@ -53,6 +53,9 @@ final class DrawingSession: ObservableObject {
     let engine: CanvasEngine?
     let library: ArtworkLibrary
     let canvasState = CanvasViewState()
+    /// Partner drawing from the shared library: never saved here, the owner's stands are the truth.
+    let fremd: Bool
+    let live: ZeichnungLive
     /// Called with the color the person just used, so the palette can remember it.
     var onColorUsed: ((RGBAColor) -> Void)?
     private var previousTool: StudioTool = .brush
@@ -62,15 +65,19 @@ final class DrawingSession: ObservableObject {
     private var thumbnailTasks: [UUID: Task<Void, Never>] = [:]
     private var opacityGestureStart: ArtworkDocument?
 
-    init(artworkID: UUID, library: ArtworkLibrary) {
+    init(artworkID: UUID, library: ArtworkLibrary, fremd: Bool = false) {
         self.library = library
+        self.fremd = fremd
         let loaded = library.document(artworkID) ?? .new(
             name: "Neue Zeichnung", projectID: nil, format: .square, width: 2048, height: 2048, background: .white
         )
         document = loaded
+        live = ZeichnungLive(zeichnungId: loaded.id.uuidString, fremd: fremd)
         engine = try? CanvasEngine(document: loaded, library: library)
         activeLayerID = engine?.activeLayerID ?? loaded.layers.last?.id ?? UUID()
         engine?.onChange = { [weak self] in self?.engineChanged() }
+        engine?.onAction = { [weak self] in self?.live.aktionGeschehen() }
+        live.session = self
     }
 
     var activeLayer: ArtworkLayer? {
@@ -81,15 +88,19 @@ final class DrawingSession: ObservableObject {
         CGSize(width: document.canvasWidth, height: document.canvasHeight)
     }
 
-    var canUndo: Bool { engine?.undo.canUndo ?? false }
-    var canRedo: Bool { engine?.undo.canRedo ?? false }
+    /// Partner drawing without the right to edit (live, so revoking takes effect at once).
+    var nurAnsehen: Bool { live.nurAnsehen }
+
+    var canUndo: Bool { live.verlauf.map(\.kannRueckgaengig) ?? engine?.undo.canUndo ?? false }
+    var canRedo: Bool { live.verlauf.map(\.kannWiederholen) ?? engine?.undo.canRedo ?? false }
 
     var brushSettings: BrushSettings {
         BrushSettings(
             preset: brush,
             size: min(max(brushSize, 1), 300),
             opacity: min(max(brushOpacity, 0.01), 1),
-            color: color,
+            // Shared drawing: the color as the op carries it (8 bit), so replays match the own pixels exactly.
+            color: live.verlauf == nil ? color : RGBAColor(hex8: color.hex8) ?? color,
             pressureSize: pressureControlsSize,
             pressureOpacity: pressureControlsOpacity,
             stabilizer: Int(stabilizer.rounded()),
@@ -116,13 +127,22 @@ final class DrawingSession: ObservableObject {
     // MARK: Saving
 
     private func scheduleSave() {
+        guard !fremd else { return }
         saveTask?.cancel()
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1))
             guard !Task.isCancelled, let self else { return }
+            self.basisSetzen()
             await self.engine?.saveDirtyLayers()
+            self.live.gespeichert()
             self.schedulePreview()
         }
+    }
+
+    /// Shared drawing: the saved file says which ops it contains, so nothing is applied twice later.
+    private func basisSetzen() {
+        guard let verlauf = live.verlauf else { return }
+        engine?.setzeBasis(verlauf.basis, offen: verlauf.offeneIDs)
     }
 
     private func schedulePreview() {
@@ -141,11 +161,14 @@ final class DrawingSession: ObservableObject {
 
     /// Saves right away: leaving the studio or going to the background.
     func saveNow() {
+        guard !fremd else { return }
         saveTask?.cancel()
         previewTask?.cancel()
+        basisSetzen()
         Task {
             await engine?.saveDirtyLayers()
             await writePreview()
+            live.gespeichert()
         }
     }
 
@@ -174,7 +197,21 @@ final class DrawingSession: ObservableObject {
             show("Ebene gesperrt")
             return false
         }
+        return !fuerMichGesperrt(layer.id)
+    }
+
+    /// Z-13.3: the partner locked this layer for me. Shows a notice.
+    func fuerMichGesperrt(_ id: UUID) -> Bool {
+        guard let sperre = document.layers.first(where: { $0.id == id })?.gesperrtVon,
+              sperre != Raum.shared.ich?.rawValue else { return false }
+        show("\(Person(rawValue: sperre)?.name ?? "Dein Schatz") hat die Ebene gesperrt")
         return true
+    }
+
+    /// Z-13.3: lock or unlock a layer for the partner. Only the one who locked it can unlock it.
+    func sperreFuerPartner(_ id: UUID) {
+        guard let ich = Raum.shared.ich?.rawValue else { return }
+        updateLayer(id) { $0.gesperrtVon = $0.gesperrtVon == nil ? ich : nil }
     }
 
     func show(_ text: String, rasterize: Bool = false) {
@@ -218,6 +255,14 @@ final class DrawingSession: ObservableObject {
         case .fill:
             guard ensureDrawable() else { return }
             markColorUsed()
+            // Shared drawing without selection: the replayable fill (a selection-clipped one travels as pixels).
+            if live.verlauf != nil, !hasSelection {
+                live.fuellen(.fuellen(
+                    x: Double(point.x), y: Double(point.y), farbe: color.hex8, toleranz: fillTolerance,
+                    alleEbenen: fillReference == .allVisible, ebene: activeLayerID.uuidString
+                ))
+                return
+            }
             isBusy = true
             Task {
                 await engine.fill(at: point, color: color, tolerance: fillTolerance, reference: fillReference, layerID: activeLayerID)
@@ -237,7 +282,11 @@ final class DrawingSession: ObservableObject {
     func drawShape(_ points: [CGPoint]) {
         guard let engine, ensureDrawable() else { return }
         let filled = shapeFilled && shapeKind != .line
-        Task { await engine.drawShape(points, filled: filled, settings: brushSettings, layerID: activeLayerID) }
+        Task {
+            await engine.drawShape(points, filled: filled, settings: brushSettings, layerID: activeLayerID)
+            // An outline lands like a stroke, without `onAction`.
+            if !(filled && points.count >= 3) { live.aktionGeschehen() }
+        }
     }
 
     func selectTopLayer(at point: CGPoint) {
@@ -250,14 +299,24 @@ final class DrawingSession: ObservableObject {
     }
 
     func undo(fromGesture: Bool = false) {
-        guard canUndo else { return }
-        engine?.performUndo()
+        guard canUndo, !nurAnsehen else { return }
+        if live.verlauf != nil {
+            engine?.cancelStroke()
+            live.rueckgaengig(wieder: false)
+        } else {
+            engine?.performUndo()
+        }
         if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     }
 
     func redo(fromGesture: Bool = false) {
-        guard canRedo else { return }
-        engine?.performRedo()
+        guard canRedo, !nurAnsehen else { return }
+        if live.verlauf != nil {
+            engine?.cancelStroke()
+            live.rueckgaengig(wieder: true)
+        } else {
+            engine?.performRedo()
+        }
         if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
     }
 
@@ -279,7 +338,7 @@ final class DrawingSession: ObservableObject {
     }
 
     func copySelection(cut: Bool) {
-        guard activeLayer?.kind == .paint else { return }
+        guard activeLayer?.kind == .paint, !cut || !fuerMichGesperrt(activeLayerID) else { return }
         engine?.copySelectionToNewLayer(from: activeLayerID, cut: cut)
     }
 
@@ -291,6 +350,7 @@ final class DrawingSession: ObservableObject {
             show("Ebene gesperrt")
             return
         }
+        guard !fuerMichGesperrt(layer.id) else { return }
         engine?.beginTransform()
     }
 
@@ -406,6 +466,7 @@ final class DrawingSession: ObservableObject {
     }
 
     func deleteLayer(_ id: UUID) {
+        guard !fuerMichGesperrt(id) else { return }
         engine?.deleteLayer(id)
     }
 
@@ -443,6 +504,7 @@ final class DrawingSession: ObservableObject {
 
     /// Slider: live while dragging, one undo step per gesture.
     func setOpacityLive(_ value: Double, for id: UUID) {
+        guard !fuerMichGesperrt(id) else { return }
         if opacityGestureStart == nil { opacityGestureStart = document }
         engine?.updateDocument(undoable: false) { document in
             guard let index = document.layers.firstIndex(where: { $0.id == id }) else { return }
@@ -459,14 +521,31 @@ final class DrawingSession: ObservableObject {
         updateLayer(id) { $0.opacity = min(max(value, 0), 1) }
     }
 
-    func mergeDown(_ id: UUID) { engine?.mergeDown(id) }
-    func rasterize(_ id: UUID) { engine?.rasterize(id) }
-    func clearLayer(_ id: UUID) { engine?.clearLayer(id) }
-    func flipLayer(_ id: UUID, horizontal: Bool) { engine?.flipLayer(id, horizontal: horizontal) }
+    func mergeDown(_ id: UUID) {
+        guard !fuerMichGesperrt(id), let index = document.layers.firstIndex(where: { $0.id == id }), index > 0,
+              !fuerMichGesperrt(document.layers[index - 1].id) else { return }
+        engine?.mergeDown(id)
+    }
+
+    func rasterize(_ id: UUID) {
+        guard !fuerMichGesperrt(id) else { return }
+        engine?.rasterize(id)
+    }
+
+    func clearLayer(_ id: UUID) {
+        guard !fuerMichGesperrt(id) else { return }
+        engine?.clearLayer(id)
+    }
+
+    func flipLayer(_ id: UUID, horizontal: Bool) {
+        guard !fuerMichGesperrt(id) else { return }
+        engine?.flipLayer(id, horizontal: horizontal)
+    }
 
     func dismissMemoryNotice() { memoryFull = false }
 
     private func updateLayer(_ id: UUID, change: @escaping (inout ArtworkLayer) -> Void) {
+        guard !fuerMichGesperrt(id) else { return }
         engine?.updateDocument { document in
             guard let index = document.layers.firstIndex(where: { $0.id == id }) else { return }
             change(&document.layers[index])
@@ -483,9 +562,33 @@ final class DrawingSession: ObservableObject {
     func commitAdjustment() { engine?.commitAdjustment() }
     func cancelAdjustment() { engine?.cancelAdjustment() }
 
-    // MARK: Export
+    // MARK: Export and sharing
 
     func flattenedImage() async -> UIImage? {
         await engine?.flattenedImage()
+    }
+
+    /// Name for the partner's pen icon: the brush preset, else the tool.
+    var werkzeugName: String {
+        tool == .brush ? brush.rawValue : tool.rawValue
+    }
+
+    func alsBildSenden() {
+        guard let engine, !isBusy else { return }
+        isBusy = true
+        Task {
+            do {
+                try await StandPaket.alsBildSenden(engine)
+                show("Im Chat gesendet")
+            } catch {
+                show("Senden hat nicht geklappt")
+            }
+            isBusy = false
+        }
+    }
+
+    func einladen() {
+        live.einladen()
+        show("Eingeladen – \(Raum.shared.ich?.partner.name ?? "dein Schatz") kann jederzeit einsteigen")
     }
 }

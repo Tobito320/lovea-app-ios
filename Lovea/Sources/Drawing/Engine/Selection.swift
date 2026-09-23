@@ -318,14 +318,17 @@ extension CanvasEngine {
             recordDocumentStep(from: before)
         } else if let result = state.result {
             if let name = state.newLayerName {
+                // Pixels first, then the layer step, so the step (and a shared drawing's op) already has the text.
                 let layer = ArtworkLayer.paint(name: name)
-                if addLayer(layer, at: (document.layers.firstIndex(where: { $0.id == activeLayerID }) ?? document.layers.count - 1) + 1),
-                   let target = store.texture(for: layer.id), let lifted = state.lifted, let command = makeCommand() {
+                if prepareTexture(for: layer), let target = store.texture(for: layer.id), let lifted = state.lifted,
+                   let command = makeCommand() {
                     let corners = Selection.transformedCorners(size: canvasSize, pivot: state.pivot, transform: state.transform)
                         .map { GPU.ndc($0, size: canvasSize) }
                     compositor.draw(lifted, into: target, blend: .over, corners: corners, clearFirst: true, command: command)
                     command.commit()
-                    markDirty(layer.id)
+                    let index = (document.layers.firstIndex(where: { $0.id == activeLayerID }) ?? document.layers.count - 1) + 1
+                    updateDocument { $0.layers.insert(layer, at: min(index, $0.layers.count)) }
+                    activeLayerID = layer.id
                 }
             } else {
                 editPixels(of: state.layerID) { command, target in
@@ -380,7 +383,7 @@ extension CanvasEngine {
         guard let result = adjustmentResult else { return }
         let mask = selection ?? stamper.whiteMask
         if adjustment == .blur {
-            if adjustmentTemp == nil { adjustmentTemp = GPU.makeTexture(device, width: store.width, height: store.height) }
+            if adjustmentTemp == nil { adjustmentTemp = GPU.makeTexture(device, width: store.width, height: store.height, writable: true) }
             guard let blurred = adjustmentTemp else { return }
             if MPSSupportsMTLDevice(device), amount > 0.05 {
                 MPSImageGaussianBlur(device: device, sigma: Float(amount)).encode(

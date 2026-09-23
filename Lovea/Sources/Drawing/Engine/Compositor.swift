@@ -6,6 +6,10 @@ struct LiveStroke {
     var opacity: Float
     var isEraser: Bool
     var alphaLock: Bool
+    /// Own stroke: document rect that changed since the last frame (nil = everything).
+    var changed: MTLRegion? = nil
+    /// Own stroke: same value while the layer under it keeps its pixels. 0 = unknown.
+    var serial = 0
 }
 
 private struct BlendUniforms {
@@ -57,6 +61,10 @@ final class Compositor {
     private var below: MTLTexture?
     private var above: MTLTexture?
     private(set) var activeTemp: MTLTexture?
+    /// `activeTemp` holds this layer + the own stroke of this serial, so the next frame only redoes the changed rect.
+    private var activeTempState: (layerID: UUID, serial: Int)?
+    /// Layer + remote stroke for layers other than the active one.
+    private var strokeTemps: [UUID: MTLTexture] = [:]
     private var imageTemp: MTLTexture?
     private var maskTemp: MTLTexture?
     private var belowState: ([ArtworkLayer], CanvasBackground)?
@@ -90,6 +98,7 @@ final class Compositor {
     func invalidateCaches() {
         belowState = nil
         aboveState = nil
+        activeTempState = nil
     }
 
     /// Frees the caches. They are rebuilt on the next frame.
@@ -99,15 +108,18 @@ final class Compositor {
         below = nil
         above = nil
         activeTemp = nil
+        strokeTemps = [:]
         imageTemp = nil
         maskTemp = nil
     }
 
+    /// `remote`: strokes of other people in progress, per layer.
     func encodeFrame(
         document: ArtworkDocument,
         activeLayerID: UUID,
         store: LayerTextureStore,
         stroke: LiveStroke?,
+        remote: [UUID: [LiveStroke]] = [:],
         viewport: ArtworkCanvasViewport,
         into drawable: MTLTexture,
         command: MTLCommandBuffer
@@ -121,10 +133,44 @@ final class Compositor {
         let liveRange = active..<min(end + 1, layers.count)
         let aboveRange = min(end + 1, layers.count)..<layers.count
 
+        var overrides: [UUID: MTLTexture] = [:]
+        if let override { overrides[override.layerID] = override.texture }
+        var strokes = remote
+        if let stroke, active < layers.count { strokes[activeLayerID, default: []].append(stroke) }
+        strokeTemps = strokeTemps.filter { strokes[$0.key] != nil && $0.key != activeLayerID }
+        var strokeOutsideLive = false
+        for (id, list) in strokes {
+            guard let index = layers.firstIndex(where: { $0.id == id }),
+                  let layerTexture = overrides[id] ?? store.texture(for: id),
+                  let temp = id == activeLayerID ? Optional(activeTemp) : strokeTemp(for: id, store: store) else { continue }
+            // Only the own stroke on an unchanged layer: redo just the rect that changed since the last frame.
+            let own: LiveStroke? = id == activeLayerID && list.count == 1 && overrides[id] == nil && list[0].serial != 0 ? list[0] : nil
+            let kept = own != nil && activeTempState?.layerID == id && activeTempState?.serial == own?.serial
+            if kept, let own, let changed = own.changed {
+                if changed.size.width > 0, changed.size.height > 0 {
+                    GPU.copy(layerTexture, region: changed, to: temp, at: changed.origin, command: command)
+                    draw(own.scratch, into: temp, blend: blendKind(own), opacity: own.opacity, scissor: changed, command: command)
+                }
+            } else {
+                GPU.copy(layerTexture, to: temp, command: command)
+                for live in list {
+                    draw(live.scratch, into: temp, blend: blendKind(live), opacity: live.opacity, command: command)
+                }
+            }
+            if id == activeLayerID {
+                if let own { activeTempState = (layerID: id, serial: own.serial) } else { activeTempState = nil }
+            }
+            overrides[id] = temp
+            if !liveRange.contains(index) { strokeOutsideLive = true }
+        }
+        // ponytail: a remote stroke outside the active group rebuilds both caches every frame while it runs;
+        // per-layer caches if that ever shows up in the HUD.
+        if strokeOutsideLive { invalidateCaches() }
+
         let belowKey = (Array(layers[..<active]), document.background)
         if belowState == nil || belowState!.0 != belowKey.0 || belowState!.1 != belowKey.1 {
             clear(accum[0], color: document.background.clearColor, command: command)
-            let result = composite(0..<active, of: layers, onto: accum[0], store: store, overrides: [:], command: command)
+            let result = composite(0..<active, of: layers, onto: accum[0], store: store, overrides: overrides, command: command)
             GPU.copy(result, to: below, command: command)
             belowState = belowKey
             belowBuilds += 1
@@ -132,19 +178,10 @@ final class Compositor {
         let aboveCacheable = layers[aboveRange].allSatisfy { $0.blendMode == .normal }
         if aboveCacheable, aboveState != Array(layers[aboveRange]) {
             clear(accum[0], color: MTLClearColor(), command: command)
-            let result = composite(aboveRange, of: layers, onto: accum[0], store: store, overrides: [:], command: command)
+            let result = composite(aboveRange, of: layers, onto: accum[0], store: store, overrides: overrides, command: command)
             GPU.copy(result, to: above, command: command)
             aboveState = Array(layers[aboveRange])
             aboveBuilds += 1
-        }
-
-        var overrides: [UUID: MTLTexture] = [:]
-        if let override { overrides[override.layerID] = override.texture }
-        if let stroke, active < layers.count, let layerTexture = overrides[activeLayerID] ?? store.texture(for: activeLayerID) {
-            GPU.copy(layerTexture, to: activeTemp, command: command)
-            let kind: BlendKind = stroke.isEraser ? .erase : (stroke.alphaLock ? .atop : .over)
-            draw(stroke.scratch, into: activeTemp, blend: kind, opacity: stroke.opacity, command: command)
-            overrides[activeLayerID] = activeTemp
         }
 
         var current = composite(liveRange, of: layers, onto: below, store: store, overrides: overrides, command: command)
@@ -178,11 +215,17 @@ final class Compositor {
         opacity: Float = 1,
         corners: [SIMD2<Float>]? = nil,
         clearFirst: Bool = false,
+        scissor: MTLRegion? = nil,
         command: MTLCommandBuffer
     ) {
         guard let pipeline = copyPipelines[blend],
               let encoder = GPU.pass(command, target: target, clear: clearFirst ? MTLClearColor() : nil) else { return }
         var opacity = opacity
+        if let scissor {
+            encoder.setScissorRect(MTLScissorRect(
+                x: scissor.origin.x, y: scissor.origin.y, width: scissor.size.width, height: scissor.size.height
+            ))
+        }
         encoder.setRenderPipelineState(pipeline)
         encoder.setFragmentTexture(source, index: 0)
         encoder.setFragmentSamplerState(linear, index: 0)
@@ -234,6 +277,17 @@ final class Compositor {
         imageTemp = nil
         maskTemp = nil
         return true
+    }
+
+    private func blendKind(_ live: LiveStroke) -> BlendKind {
+        live.isEraser ? .erase : (live.alphaLock ? .atop : .over)
+    }
+
+    private func strokeTemp(for id: UUID, store: LayerTextureStore) -> MTLTexture? {
+        if let temp = strokeTemps[id] { return temp }
+        let temp = GPU.makeTexture(device, width: store.width, height: store.height)
+        strokeTemps[id] = temp
+        return temp
     }
 
     private func clear(_ texture: MTLTexture, color: MTLClearColor, command: MTLCommandBuffer) {

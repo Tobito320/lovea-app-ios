@@ -2,24 +2,45 @@ import SwiftUI
 
 @main
 struct LoveaApp: App {
-    @StateObject private var session = UserSelectionStore()
+    @UIApplicationDelegateAdaptor(LoveaAppDelegate.self) private var appDelegate
+    @StateObject private var session = PersonSession()
+    @AppStorage("lovea.ersterStartFertig") private var ersterStartFertig = false
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("-uiTestStudio") {
                     UITestStudio()
-                } else if let person = session.selectedPerson {
-                    AppRootView(person: person) {
-                        session.reset()
-                    }
+                } else if let person = session.person, ersterStartFertig {
+                    AppRootView(session: session, person: person)
                 } else {
-                    PersonSelectionView { person in
-                        session.select(person)
+                    ErsterStart(vorausgewaehltePerson: session.person) { person in
+                        session.waehlen(person)
+                        ersterStartFertig = true
                     }
                 }
             }
+            .onChange(of: session.person, initial: true) { _, person in starten(person) }
+            .onChange(of: scenePhase) { _, phase in phaseGewechselt(phase) }
         }
+    }
+
+    private func starten(_ person: Person?) {
+        Raum.shared.ich = person
+        guard person != nil else { return }
+        // Bundle JSON (questions, date ideas) is read on first access; do that off the main thread.
+        Task.detached(priority: .utility) { _ = FrageDesTages.vorrat; _ = WirModell.ideenVorrat }
+        // Register every fold before the log replays.
+        _ = FigurenModell.shared; _ = ChatModell.shared; _ = ChatEinstellungen.shared; _ = OrteModell.shared
+        _ = KalenderModell.shared; _ = WirModell.shared; _ = SpieleModell.shared; _ = EinstellungenModell.shared
+        _ = TeilenModell.shared; _ = LiveZeichnung.shared; _ = UmzugImport.shared; _ = SchritteModell.shared
+        Raum.shared.start()
+        Standort.shared.start()
+    }
+
+    private func phaseGewechselt(_ phase: ScenePhase) {
+        Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
     }
 }
 
@@ -39,7 +60,7 @@ private struct UITestStudio: View {
             DrawingStudioView(
                 artworkID: artworkID,
                 library: library,
-                sharing: LoveaSharingService(person: .annika)
+                person: .annika
             )
         }
     }

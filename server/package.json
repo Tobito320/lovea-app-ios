@@ -1,0 +1,13 @@
+{
+  "name": "lovea-server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test",
+    "deploy:test": "wrangler deploy --env test",
+    "deploy:live": "wrangler deploy --env live"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}
