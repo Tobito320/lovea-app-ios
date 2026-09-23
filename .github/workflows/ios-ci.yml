@@ -35,7 +35,7 @@ jobs:
           node-version: 22
       - name: Server-Tests
         run: |
-          if [ -d server ]; then node --test server/; fi
+          cd server && node --test
 
   build-and-test:
     runs-on: macos-26
