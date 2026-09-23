@@ -177,7 +177,13 @@ final class ChatModell {
 
     func ungelesen(fuer ich: Person) -> Int {
         let grenze = gelesenBis[ich] ?? .distantPast
-        return nachrichten.filter { $0.von != ich && !$0.geloescht && $0.zeit > grenze }.count
+        return nachrichten.filter { $0.von != ich && !$0.geloescht && $0.zeit > grenze && Self.sichtbar($0) }.count
+    }
+
+    /// Game rows whose card is hidden (expired/cancelled invite) count for nothing: no badge, no preview.
+    static func sichtbar(_ nachricht: Nachricht) -> Bool {
+        guard let spiel = nachricht.spiel else { return true }
+        return SpieleModell.shared.sichtbar(spiel.id)
     }
 
     private func badgeAktualisieren() {

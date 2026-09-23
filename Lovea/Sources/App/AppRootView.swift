@@ -16,6 +16,8 @@ final class AppNavigation {
     var chatSuche = false
     /// Switch tab from anywhere ("home", "chat", "drawing", "map", "profile"); AppRootView clears it.
     var tabWunsch: String?
+    /// Profile → "Kamera": ChatTab opens the snap camera and clears it.
+    var kameraOeffnen = false
     private init() {}
 }
 
@@ -32,6 +34,7 @@ struct AppRootView: View {
             Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: AppTab.chat) {
                 ChatTab()
             }
+            .badge(ChatModell.shared.ungelesen(fuer: person))
             Tab("Zeichnen", systemImage: "paintbrush.pointed", value: AppTab.drawing) {
                 DrawingView(person: person)
             }
