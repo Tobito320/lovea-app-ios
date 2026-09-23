@@ -155,7 +155,7 @@ final class OrteModell {
 
     private func beobachteEreignisse(_ monitor: CLMonitor) async {
         do {
-            for try await event in monitor.events {
+            for try await event in await monitor.events {
                 guard event.state == .satisfied || event.state == .unsatisfied else { continue }
                 guard let ort = orte.first(where: { $0.id == event.identifier }), let ich = Raum.shared.ich else { continue }
                 let angekommen = event.state == .satisfied
