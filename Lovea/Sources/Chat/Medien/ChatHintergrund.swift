@@ -43,7 +43,11 @@ struct ChatHintergrundAnsicht: View {
         guard let medienId = einstellung.medienId else { bild = nil; return }
         switch einstellung.art {
         case .foto:
-            let url = ChatMedien.eigeneQuellen[medienId] ?? Medien.lokal(medienId) ?? (try? await Medien.holen(medienId))
+            // Split from a `??`-chained `(try? await …)` on purpose: mixing `await` into a nil-
+            // coalescing chain like that reads fine but doesn't type-check ("'async' call in a
+            // function that does not support concurrency").
+            var url = ChatMedien.eigeneQuellen[medienId] ?? Medien.lokal(medienId)
+            if url == nil { url = try? await Medien.holen(medienId) }
             bild = url.flatMap { UIImage(contentsOfFile: $0.path) }
         case .zeichnung:
             guard let id = UUID(uuidString: medienId) else { return }

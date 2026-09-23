@@ -30,6 +30,10 @@ struct AppRootView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tint(Color.loveaRose)
         .spieleBuehne()
+        // Z-7.3: partner online / drawing invite / Anstupsen & Kuss, glass capsule on top.
+        .overlay(alignment: .top) {
+            InAppBannerView(aufZeichnungGetippt: { _ in selectedTab = .drawing })
+        }
     }
 }
 

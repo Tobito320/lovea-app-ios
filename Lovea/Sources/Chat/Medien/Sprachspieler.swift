@@ -1,4 +1,5 @@
 import AVFoundation
+import Foundation
 import Speech
 import SwiftUI
 
@@ -208,19 +209,35 @@ enum SprachAbschrift {
         request.shouldReportPartialResults = false
 
         // The result handler can fire more than once (partials, then the final result) — resuming a
-        // `CheckedContinuation` twice crashes, so only `isFinal` (or an error) ever resumes it.
+        // `CheckedContinuation` twice crashes, so only `isFinal` (or an error) ever resumes it. A
+        // plain captured `var` would be a strict-concurrency error if this handler is `@Sendable`
+        // (mutating a captured var from concurrently-executing code) — `EinmalGuard` locks instead.
+        let einmal = EinmalGuard()
         return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
-            var beendet = false
             recognizer.recognitionTask(with: request) { result, error in
-                guard !beendet else { return }
                 if let result, result.isFinal {
-                    beendet = true
-                    continuation.resume(returning: result.bestTranscription.formattedString)
+                    einmal.einmal { continuation.resume(returning: result.bestTranscription.formattedString) }
                 } else if error != nil {
-                    beendet = true
-                    continuation.resume(returning: nil)
+                    einmal.einmal { continuation.resume(returning: nil) }
                 }
             }
         }
+    }
+}
+
+/// Runs its closure at most once, safe to call from any thread/queue — a lock instead of a captured
+/// `var` so a `@Sendable` callback (e.g. `SFSpeechRecognitionTask`'s result handler, which can be
+/// invoked off the main thread) never triggers a "mutation of captured var" strict-concurrency error.
+private final class EinmalGuard: @unchecked Sendable {
+    private let lock = NSLock()
+    private var ausgefuehrt = false
+
+    func einmal(_ aktion: () -> Void) {
+        lock.lock()
+        let schonDran = ausgefuehrt
+        ausgefuehrt = true
+        lock.unlock()
+        guard !schonDran else { return }
+        aktion()
     }
 }

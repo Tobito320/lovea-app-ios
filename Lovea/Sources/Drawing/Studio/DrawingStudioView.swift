@@ -23,7 +23,7 @@ struct DrawingStudioView: View {
     /// `fremd`: a partner drawing from the shared library, `stand` the stand it was loaded from.
     init(artworkID: UUID, library: ArtworkLibrary, person: Person, templateData: Data? = nil,
          fremd: Bool = false, stand: ZeichnungStand? = nil) {
-        _session = StateObject(wrappedValue: {
+        _session = StateObject(wrappedValue: { () -> DrawingSession in
             let session = DrawingSession(artworkID: artworkID, library: library, fremd: fremd)
             session.live.geladen = stand
             return session

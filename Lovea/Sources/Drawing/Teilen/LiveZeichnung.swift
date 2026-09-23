@@ -198,7 +198,8 @@ final class LiveZeichnung {
     @ObservationIgnored private var eigenerStift: CGPoint?
     @ObservationIgnored private var letzterKuss: TimeInterval = -10
     @ObservationIgnored private var alarmAus: Task<Void, Never>?
-    @ObservationIgnored weak var offen: ZeichnungLive? {
+    /// Strong on purpose (no `weak` inside `@Observable`); `verlassen()` clears it. It holds the session only weakly.
+    @ObservationIgnored var offen: ZeichnungLive? {
         didSet {
             guard offen !== oldValue else { return }
             ichFertig = false

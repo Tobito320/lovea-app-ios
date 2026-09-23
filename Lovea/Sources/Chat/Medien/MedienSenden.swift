@@ -1,6 +1,7 @@
 import CoreTransferable
 import Foundation
 import PhotosUI
+import SwiftUI
 import UniformTypeIdentifiers
 
 /// `PhotosPickerItem.loadTransferable(type:)` needs a concrete `Transferable` to get a video as a
@@ -31,9 +32,10 @@ private struct AusstehendeUpload: Codable { let id: String; let original: URL; l
 enum ChatMedien {
     /// This device's own just-sent media, shown immediately instead of "wird geladen" while
     /// `Medien.hochladen` is still running — `Medien.lokal` only has a copy once it finishes.
+    /// Not `private(set)`: `ChatHintergrund.swift`'s own "Foto wählen" flow writes to this too.
     // ponytail: in-memory only, lost on relaunch; a relaunch mid-upload falls back to the
     // placeholder until `ausstehendeAbarbeiten()` finishes the retry. Acceptable for a two-person app.
-    private(set) static var eigeneQuellen: [String: URL] = [:]
+    static var eigeneQuellen: [String: URL] = [:]
 
     private static let warteschlangeURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Lovea/chat-hochladen.json")

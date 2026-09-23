@@ -42,6 +42,7 @@ struct KarteTab: View {
             Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: true))
         }
         .onDisappear {
+            Anwesenheit.shared.app(nil)
             Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false))
         }
         .onChange(of: scenePhase) { _, phase in
