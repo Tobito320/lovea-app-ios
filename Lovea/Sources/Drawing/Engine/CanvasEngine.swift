@@ -48,6 +48,13 @@ final class CanvasEngine {
     private var strokeLayerID: UUID?
     private var pending: [Stamp] = []
     private var predicted: [Stamp] = []
+    /// Live stroke frames only touch what changed: stamps flushed since the last frame plus the old
+    /// and new predicted stamps. The first frame of a stroke syncs `preview` with `scratch` in full.
+    private var liveSynced = false
+    private var liveChanged = CGRect.null
+    private var lastPredicted = CGRect.null
+    /// Bumped whenever layer pixels change outside the live stroke; the compositor then refreshes its copy in full.
+    private var liveSerial = 0
     private var detached: [UUID: MTLTexture] = [:]
     private var remoteStrokes: [String: RemoteStroke] = [:]
     private var spareScratches: [MTLTexture] = []
@@ -57,6 +64,8 @@ final class CanvasEngine {
     private(set) var lastGPUTime: Double = 0
     /// Start time and CPU encode time (ms) of the frames of the last 2 s, for the performance HUD.
     private(set) var frameLog: [(time: CFTimeInterval, milliseconds: Double)] = []
+    /// Start time and GPU time (ms) of the same frames, filled in when the GPU is done.
+    private(set) var gpuLog: [(time: CFTimeInterval, milliseconds: Double)] = []
     var transformState: TransformState?
     var selectionBounds: CGRect?
     var adjustmentResult: MTLTexture?
@@ -180,6 +189,10 @@ final class CanvasEngine {
         predicted = []
         self.sampler = sampler
         strokeLayerID = layerID
+        liveSynced = false
+        liveChanged = .null
+        lastPredicted = .null
+        liveSerial += 1
     }
 
     var isStroking: Bool { sampler != nil }
@@ -301,24 +314,45 @@ final class CanvasEngine {
 
     private func flushStamps(command: MTLCommandBuffer) {
         guard let sampler, !pending.isEmpty else { return }
+        liveChanged = liveChanged.union(stampBounds(pending))
         stamper.encode(pending, tip: sampler.tip, color: sampler.settings.color, into: scratch,
                        mask: selection, mirrorX: mirrorX, command: command)
         fixedStampsEncoded += pending.count
         pending = []
     }
 
+    /// Document rect that `stamps` can touch, mirror included. A stamp quad is `radius × radius·aspect`,
+    /// rotated, so √2 · the longer side covers it; 2 px for antialiasing.
+    private func stampBounds(_ stamps: [Stamp]) -> CGRect {
+        var rect = CGRect.null
+        for stamp in stamps {
+            let r = CGFloat(stamp.radius * max(1, stamp.aspect)) * 1.415 + 2
+            rect = rect.union(CGRect(x: CGFloat(stamp.center.x) - r, y: CGFloat(stamp.center.y) - r, width: 2 * r, height: 2 * r))
+        }
+        if let mirrorX, !rect.isNull {
+            rect = rect.union(CGRect(x: 2 * CGFloat(mirrorX) - rect.maxX, y: rect.minY, width: rect.width, height: rect.height))
+        }
+        return rect
+    }
+
     // MARK: Rendering
 
     func draw(in view: MTKView, viewport: ArtworkCanvasViewport) {
-        guard let drawable = view.currentDrawable, let command = queue.makeCommandBuffer() else { return }
+        // Started before `currentDrawable`: waiting for a drawable (render server busy, e.g. with glass) counts too.
         let start = CACurrentMediaTime()
+        guard let drawable = view.currentDrawable, let command = queue.makeCommandBuffer() else { return }
         compositor.contentScale = view.contentScaleFactor
         render(into: drawable.texture, viewport: viewport, command: command)
         frameLog.append((start, (CACurrentMediaTime() - start) * 1000))
         frameLog.removeAll { start - $0.time > 2 }
         command.addCompletedHandler { [weak self] buffer in
             let time = buffer.gpuEndTime - buffer.gpuStartTime
-            Task { @MainActor in self?.lastGPUTime = time }
+            Task { @MainActor in
+                guard let self else { return }
+                self.lastGPUTime = time
+                self.gpuLog.append((start, time * 1000))
+                self.gpuLog.removeAll { start - $0.time > 2 }
+            }
         }
         command.present(drawable)
         command.commit()
@@ -341,18 +375,32 @@ final class CanvasEngine {
         flushStamps(command: command)
         var live: LiveStroke?
         if let sampler, let layerID = strokeLayerID {
-            var shown = scratch
-            if !predicted.isEmpty {
-                GPU.copy(scratch, to: preview, command: command)
-                stamper.encode(predicted, tip: sampler.tip, color: sampler.settings.color, into: preview,
-                               mask: selection, mirrorX: mirrorX, command: command)
-                shown = preview
+            // `preview` = scratch + predicted stamps. Only the changed rect is refreshed; before this a
+            // stroke frame blitted the whole document twice (scratch → preview, layer → activeTemp).
+            let guess = stampBounds(predicted)
+            let region: MTLRegion?
+            if liveSynced {
+                region = pixelRegion(liveChanged.union(lastPredicted).union(guess)) ?? MTLRegionMake2D(0, 0, 0, 0)
+            } else {
+                region = nil
             }
+            if let region {
+                if region.size.width > 0 { GPU.copy(scratch, region: region, to: preview, at: region.origin, command: command) }
+            } else {
+                GPU.copy(scratch, to: preview, command: command)
+            }
+            stamper.encode(predicted, tip: sampler.tip, color: sampler.settings.color, into: preview,
+                           mask: selection, mirrorX: mirrorX, command: command)
+            liveSynced = true
+            liveChanged = .null
+            lastPredicted = guess
             live = LiveStroke(
-                scratch: shown,
+                scratch: preview,
                 opacity: sampler.settings.strokeOpacity,
                 isEraser: sampler.settings.isEraser,
-                alphaLock: layer(layerID)?.alphaLock ?? false
+                alphaLock: layer(layerID)?.alphaLock ?? false,
+                changed: region,
+                serial: liveSerial
             )
         }
         var remote: [UUID: [LiveStroke]] = [:]
@@ -393,6 +441,7 @@ final class CanvasEngine {
         case let .document(before, after, removed):
             setDocument(forward ? after : before, removed: removed)
         }
+        liveSerial += 1
         compositor.invalidateCaches()
         onChange?()
     }
@@ -485,6 +534,7 @@ final class CanvasEngine {
     }
 
     private func didEditPixels(of layerID: UUID) {
+        liveSerial += 1
         dirtyLayers.insert(layerID)
         if layerID != activeLayerID { compositor.invalidateCaches() }
         onChange?()
@@ -616,7 +666,7 @@ final class CanvasEngine {
         let factor = min(1, maxDimension / CGFloat(max(texture.width, texture.height)))
         let width = max(1, Int(CGFloat(texture.width) * factor))
         let height = max(1, Int(CGFloat(texture.height) * factor))
-        guard let small = GPU.makeTexture(device, width: width, height: height) else {
+        guard let small = GPU.makeTexture(device, width: width, height: height, writable: true) else {
             command.commit()
             return nil
         }

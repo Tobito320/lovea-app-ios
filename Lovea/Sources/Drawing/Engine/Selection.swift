@@ -383,7 +383,7 @@ extension CanvasEngine {
         guard let result = adjustmentResult else { return }
         let mask = selection ?? stamper.whiteMask
         if adjustment == .blur {
-            if adjustmentTemp == nil { adjustmentTemp = GPU.makeTexture(device, width: store.width, height: store.height) }
+            if adjustmentTemp == nil { adjustmentTemp = GPU.makeTexture(device, width: store.width, height: store.height, writable: true) }
             guard let blurred = adjustmentTemp else { return }
             if MPSSupportsMTLDevice(device), amount > 0.05 {
                 MPSImageGaussianBlur(device: device, sigma: Float(amount)).encode(

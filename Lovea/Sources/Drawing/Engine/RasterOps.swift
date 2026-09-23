@@ -12,6 +12,8 @@ enum BlendKind {
 enum EngineStats {
     /// Counts every texture and buffer the engine creates. Frames must not add to it.
     static var allocations = 0
+    /// Pixels moved by `GPU.copy`. A live stroke frame must only copy what changed.
+    static var copiedPixels = 0
 }
 
 /// Shared Metal plumbing: one device, one queue, so every command runs in order.
@@ -26,7 +28,8 @@ enum GPU {
         _ device: MTLDevice,
         width: Int,
         height: Int,
-        format: MTLPixelFormat = .rgba8Unorm
+        format: MTLPixelFormat = .rgba8Unorm,
+        writable: Bool = false
     ) -> MTLTexture? {
         let descriptor = MTLTextureDescriptor.texture2DDescriptor(
             pixelFormat: format,
@@ -35,7 +38,9 @@ enum GPU {
             mipmapped: false
         )
         descriptor.storageMode = .private
-        descriptor.usage = [.renderTarget, .shaderRead, .shaderWrite]
+        // `.shaderWrite` switches off Apple's lossless texture compression, which roughly halves the
+        // memory traffic of every full-document pass. Only MPS destinations (compute writes) need it.
+        descriptor.usage = writable ? [.renderTarget, .shaderRead, .shaderWrite] : [.renderTarget, .shaderRead]
         EngineStats.allocations += 1
         return device.makeTexture(descriptor: descriptor)
     }
@@ -135,6 +140,7 @@ enum GPU {
         command: MTLCommandBuffer
     ) {
         let region = region ?? MTLRegionMake2D(0, 0, source.width, source.height)
+        EngineStats.copiedPixels += region.size.width * region.size.height
         guard let blit = command.makeBlitCommandEncoder() else { return }
         blit.copy(
             from: source, sourceSlice: 0, sourceLevel: 0,
