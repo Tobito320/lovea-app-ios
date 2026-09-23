@@ -24,6 +24,12 @@ import {
   opGueltig,
   verbindungIstLebendig,
   PING_TIMEOUT_MS,
+  offeneKapseln,
+  gemeinsamPruefen,
+  spotifyTokenLesen,
+  spotifyTokenSchreiben,
+  spotifyCacheLesen,
+  spotifyCacheSchreiben,
 } from "./raum-logic.js";
 
 function raum() {
@@ -254,6 +260,66 @@ test("Zufällig nah: beide frisch, unter 100 m, kein Treffen", () => {
 
   const alt = { d: { lat: 51.0005, lon: 7.0 }, zeit: new Date(jetzt - 11 * 60_000).toISOString() };
   assert.equal(zufaelligNah({ a, b: alt, jetztMs: jetzt, heuteTreffen: false }), false);
+});
+
+// Z-27.4: "Unsere Orte" -- kein Melden vor 30 min, danach jeden weiteren Aufruf, bis sie sich
+// trennen oder ein Punkt zu alt wird.
+test("gemeinsamPruefen: meldet erst nach 30 Minuten am Stück, nicht sofort", () => {
+  const start = Date.parse("2026-09-23T10:00:00.000Z");
+  const a = { d: { lat: 51.0, lon: 7.0 }, zeit: new Date(start).toISOString() };
+  const b = { d: { lat: 51.0005, lon: 7.0 }, zeit: new Date(start).toISOString() }; // ~56 m
+  const erster = gemeinsamPruefen({ a, b, jetztMs: start, seitMs: null });
+  assert.equal(erster.nah, true);
+  assert.equal(erster.melden, false);
+  assert.equal(erster.seit, start);
+
+  const nach29Min = start + 29 * 60_000;
+  const noch = gemeinsamPruefen({
+    a: { ...a, zeit: new Date(nach29Min).toISOString() },
+    b: { ...b, zeit: new Date(nach29Min).toISOString() },
+    jetztMs: nach29Min,
+    seitMs: erster.seit,
+  });
+  assert.equal(noch.melden, false);
+
+  const nach31Min = start + 31 * 60_000;
+  const jetzt = gemeinsamPruefen({
+    a: { ...a, zeit: new Date(nach31Min).toISOString() },
+    b: { ...b, zeit: new Date(nach31Min).toISOString() },
+    jetztMs: nach31Min,
+    seitMs: erster.seit,
+  });
+  assert.equal(jetzt.melden, true);
+  assert.equal(jetzt.seit, start); // derselbe Beginn wie beim ersten Aufruf, nicht neu gestartet
+});
+
+test("gemeinsamPruefen: außerhalb 150 m oder mit einem zu alten Punkt setzt zurück", () => {
+  const jetzt = Date.parse("2026-09-23T10:00:00.000Z");
+  const a = { d: { lat: 51.0, lon: 7.0 }, zeit: new Date(jetzt).toISOString() };
+  const weitWeg = { d: { lat: 51.01, lon: 7.0 }, zeit: new Date(jetzt).toISOString() }; // >150 m
+  assert.deepEqual(gemeinsamPruefen({ a, b: weitWeg, jetztMs: jetzt, seitMs: jetzt - 40 * 60_000 }), { nah: false, seit: null, melden: false });
+
+  const alt = { d: { lat: 51.0005, lon: 7.0 }, zeit: new Date(jetzt - 46 * 60_000).toISOString() };
+  assert.deepEqual(gemeinsamPruefen({ a, b: alt, jetztMs: jetzt, seitMs: jetzt - 40 * 60_000 }), { nah: false, seit: null, melden: false });
+});
+
+test("offeneKapseln: nur nachricht.neu mit d.kapsel.oeffnetAm, Nachrichten-id nicht Op-id", () => {
+  const sql = raum();
+  opEinfuegen(sql, op("op-1", "nachricht.neu", "ahmed", { id: "msg-1", text: "hi" })); // keine Kapsel
+  opEinfuegen(sql, op("op-2", "nachricht.neu", "annika", { id: "msg-2", text: "geheim", kapsel: { oeffnetAm: "2026-12-24" } }));
+  const kapseln = offeneKapseln(sql);
+  assert.deepEqual(kapseln, [{ id: "msg-2", oeffnetAm: "2026-12-24" }]);
+});
+
+test("Spotify: Token und Cache im Merker, roundtrip", () => {
+  const sql = raum();
+  assert.equal(spotifyTokenLesen(sql, "ahmed"), null);
+  spotifyTokenSchreiben(sql, "ahmed", { accessToken: "a", refreshToken: "r", ablaeuftMs: 123 });
+  assert.deepEqual(spotifyTokenLesen(sql, "ahmed"), { accessToken: "a", refreshToken: "r", ablaeuftMs: 123 });
+
+  assert.equal(spotifyCacheLesen(sql, "ahmed"), null);
+  spotifyCacheSchreiben(sql, "ahmed", { geladenMs: 1, daten: { titel: "Song" } });
+  assert.deepEqual(spotifyCacheLesen(sql, "ahmed"), { geladenMs: 1, daten: { titel: "Song" } });
 });
 
 test("offeneTreffen: neueste Fassung gewinnt, gelöschte und vergangene fallen raus", () => {

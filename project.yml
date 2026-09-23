@@ -20,6 +20,10 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LoveaAppKey: $(LOVEA_APP_KEY)
         LoveaServer: $(LOVEA_SERVER)
+        LoveaSpotifyClientID: $(SPOTIFY_CLIENT_ID)
+        CFBundleURLTypes:
+          - CFBundleURLSchemes:
+              - lovea
         UIBackgroundModes:
           - location
           - remote-notification
@@ -55,6 +59,7 @@ targets:
         CURRENT_PROJECT_VERSION: 1
         LOVEA_APP_KEY: ""
         LOVEA_SERVER: "https://lovea-live.ahmedhdplay12345.workers.dev"
+        SPOTIFY_CLIENT_ID: ""
         CODE_SIGN_ENTITLEMENTS: Lovea/Lovea.entitlements
   LoveaTests:
     type: bundle.unit-test

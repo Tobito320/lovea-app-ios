@@ -23,6 +23,11 @@ final class FigurenModell {
     private(set) var partnerZuletztGesehen: [Person: Date] = [:]
     /// Set by `BannerZentrale` (Z-7.3): called for a fresh, live `anstupsen`/`kuss`/`herz` from the partner.
     var aufFrischeGeste: ((Person, FigurZustand) -> Void)?
+    /// Z-27.1: manual "Gute Nacht"/"Guten Morgen" override, per person -- the value is when it
+    /// expires (12h after "nacht", or immediately cleared by a later "morgen"). Read in `anzeige(_:)`
+    /// before the live `zustand`, so it wins on every screen (Home, Chat, Karte, Widget) without
+    /// each of them touching `Anwesenheit`'s own Focus-derived `fokus` at all.
+    private(set) var grussSchlaeft: [Person: Date] = [:]
 
     private init() {
         let raum = Raum.shared
@@ -40,6 +45,11 @@ final class FigurenModell {
             geste[op.von] = (z, Date().addingTimeInterval(4))
             Herzschlag.geste(art)
             aufFrischeGeste?(op.von, z)
+        }
+        raum.beobachten(["gruss"]) { [weak self] op in
+            guard let self, let art = op.daten(GrussPayload.self)?.art else { return }
+            if art == "nacht" { grussSchlaeft[op.von] = op.zeit.addingTimeInterval(12 * 3600) }
+            else { grussSchlaeft.removeValue(forKey: op.von) }
         }
         raum.fluechtigBeobachten("zustand") { [weak self] person, data in
             if let z = try? JSONDecoder().decode(Zustand.self, from: data) { self?.zustand[person] = z }
@@ -64,15 +74,20 @@ final class FigurenModell {
 
     func aussehen(_ p: Person) -> FigurAussehen { aussehen[p] ?? .standard(for: p) }
 
-    /// What to draw for a person right now: fresh gesture > live state > offline.
+    /// What to draw for a person right now: fresh gesture > "Gute Nacht" override > live state > offline.
     func anzeige(_ p: Person) -> Zustand {
         if let g = geste[p], g.bis > Date() { return Zustand(haupt: g.art) }
+        if let bis = grussSchlaeft[p], bis > Date() { return Zustand(haupt: .schlaeft, abzeichen: zustand[p]?.abzeichen ?? []) }
         if p != Raum.shared.ich, !Raum.shared.partnerDa { return Zustand(haupt: .offline, abzeichen: zustand[p]?.abzeichen ?? []) }
         return zustand[p] ?? Zustand(haupt: .ruhig)
     }
 
     func aussehenSichern(_ a: FigurAussehen) { Raum.shared.senden("figur.aussehen", a) }
     func gesteSenden(_ art: String) { Raum.shared.senden("geste", ["art": art]) }
+
+    /// Z-27.1: "Gute Nacht"/"Guten Morgen" (`gruss {art}`, schnittstellen.md) — own figure state,
+    /// sweet push for the partner (server: `regeln.js` `grussRegel`).
+    func grussSenden(_ art: String) { Raum.shared.senden("gruss", GrussPayload(art: art)) }
 
     /// Block 7 (Z-7.1) reinterpretation: screens still call this with their own activity as
     /// `haupt` (`.imChat`, `.tippt`, `.zeichnet`, … or `.ruhig`/`nil` when they leave) — it's now
@@ -103,3 +118,5 @@ extension Calendar {
 private struct V2Kennung: Decodable {
     let augenform: Int?
 }
+
+private struct GrussPayload: Codable { let art: String }

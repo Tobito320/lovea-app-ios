@@ -58,6 +58,7 @@ struct ChatEingabeleiste: View {
     @State private var gifBlattOffen = false
     @State private var kameraOffen = false
     @State private var spieleOffen = false
+    @State private var kapselBriefOffen = false
     @State private var sprachBelegt = false
     @State private var sprachEntwurf: SprachEntwurf?
     /// Z-26.2: once the user has typed/attached/recorded anything this session, a draft restore
@@ -106,6 +107,14 @@ struct ChatEingabeleiste: View {
                         .frame(width: Self.hoehe, height: Self.hoehe)
                 }
                 .accessibilityLabel("Spiel starten")
+
+                // Z-27.2: Zeitkapsel/Brief-Composer.
+                Button { ChatHaptik.leicht(); kapselBriefOffen = true } label: {
+                    Image(systemName: "envelope.fill")
+                        .font(.system(size: 19))
+                        .frame(width: Self.hoehe, height: Self.hoehe)
+                }
+                .accessibilityLabel("Zeitkapsel oder Brief")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.primary)
@@ -136,6 +145,7 @@ struct ChatEingabeleiste: View {
             }
         }
         .sheet(isPresented: $spieleOffen) { SpieleStarter() }
+        .sheet(isPresented: $kapselBriefOffen) { KapselBriefBlatt { kapselBriefOffen = false } }
         // Z-26.1: "Vollansicht" — same text, large editor, closes via the button or the sheet's own
         // swipe-down.
         .sheet(isPresented: $vollansichtOffen) { VollansichtEditor(text: $eingabeAttr) }

@@ -12,6 +12,7 @@ struct MedienUebersicht: View {
     private var eintraege: [ChatModell.Nachricht] {
         ChatModell.shared.nachrichten.filter { nachricht in
             guard !nachricht.geloescht else { return false }
+            guard !ChatModell.verschlossen(nachricht) else { return false } // Z-27.2: kein Vorab-Leck aus einer Zeitkapsel
             guard istRelevant(nachricht) else { return false }
             if nurSterne, !nachricht.gesternt.contains(ich) { return false }
             if nurGesichter {

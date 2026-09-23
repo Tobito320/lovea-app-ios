@@ -88,6 +88,14 @@ private struct ChatsListe: View {
                 Button("Im Chat suchen", systemImage: "magnifyingglass") { AppNavigation.shared.chatSuche = true }
             }
             // Block 27: "Heute vor …", Zeitkapseln, Briefbox – nur wenn vorhanden (Spec 2), sonst nichts.
+            HeuteVorCard(onOeffnen: { offen = true })
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            KapselnUndBriefeSektion(modell: ChatModell.shared, ich: ich, offen: $offen)
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .safeAreaInset(edge: .top, spacing: 0) { SyncStatusZeile() }
@@ -345,7 +353,8 @@ private struct ChatSuchleiste: View {
     private func suchen() {
         let begriff = text.trimmingCharacters(in: .whitespaces)
         treffer = begriff.isEmpty ? [] : modell.nachrichten
-            .filter { !$0.geloescht && ($0.text ?? "").localizedCaseInsensitiveContains(begriff) }
+            // Z-27.2: eine verschlossene Zeitkapsel darf nicht über die Suche verraten werden.
+            .filter { !$0.geloescht && !ChatModell.verschlossen($0) && ($0.text ?? "").localizedCaseInsensitiveContains(begriff) }
             .map(\.id)
         index = max(treffer.count - 1, 0)
         if let id = treffer.last { onSpringeZu(id) }

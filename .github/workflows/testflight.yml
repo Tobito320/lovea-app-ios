@@ -19,6 +19,7 @@ jobs:
       ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
       DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
       LOVEA_APP_KEY: ${{ secrets.LOVEA_APP_KEY }}
+      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
     steps:
       - name: Secrets prüfen
         run: |
@@ -87,7 +88,8 @@ jobs:
             PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             LOVEA_APP_KEY="${{ secrets.LOVEA_APP_KEY }}" \
-            LOVEA_SERVER="https://lovea-live.ahmedhdplay12345.workers.dev"
+            LOVEA_SERVER="https://lovea-live.ahmedhdplay12345.workers.dev" \
+            SPOTIFY_CLIENT_ID="${{ secrets.SPOTIFY_CLIENT_ID }}"
 
       - name: IPA exportieren
         run: |

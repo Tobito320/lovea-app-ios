@@ -9,24 +9,34 @@ struct ChatPartnerKopf: View {
 
     var body: some View {
         let zustand = FigurenModell.shared.anzeige(partner).haupt
-        Button { ChatHaptik.leicht(); onTippen() } label: {
-            HStack(spacing: 8) {
-                FigurView(FigurenModell.shared.aussehen(partner), zustand: zustand, groesse: 34)
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(partner.name).font(.headline).foregroundStyle(ChatFarbe.farbe(partner)).lineLimit(1)
-                    Text(statusText(zustand))
-                        .font(.caption)
-                        .foregroundStyle(zustand == .tippt ? Color.person(partner) : Color.secondary)
-                        .lineLimit(1)
+        HStack(spacing: 6) {
+            Button { ChatHaptik.leicht(); onTippen() } label: {
+                HStack(spacing: 8) {
+                    FigurView(FigurenModell.shared.aussehen(partner), zustand: zustand, groesse: 34)
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text(partner.name).font(.headline).foregroundStyle(ChatFarbe.farbe(partner)).lineLimit(1)
+                        Text(statusText(zustand))
+                            .font(.caption)
+                            .foregroundStyle(zustand == .tippt ? Color.person(partner) : Color.secondary)
+                            .lineLimit(1)
+                    }
+                    // Z-27.5: Wetter beim Partner, eigenes Gerät fragt Open-Meteo ab.
+                    if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
                 }
+                .contentShape(Rectangle())
             }
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(partner.name), \(statusText(zustand))")
+            .accessibilityHint("Profil öffnen")
+            .accessibilityAddTraits(.isButton)
+
+            // Z-27.6: "hört gerade" — eigener Button neben dem Profil-Button (kein Button im Button).
+            SpotifyHoertGeradeChip()
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(partner.name), \(statusText(zustand))")
-        .accessibilityHint("Profil öffnen")
-        .accessibilityAddTraits(.isButton)
+        // Poll nur, während diese Kopfzeile (Konversation) sichtbar ist (Spec 9 "nur wenn der Partner hinschaut").
+        .task { SpotifyModell.shared.schauen() }
+        .onDisappear { SpotifyModell.shared.wegschauen() }
     }
 
     private func statusText(_ zustand: FigurZustand) -> String {

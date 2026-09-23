@@ -20,6 +20,9 @@ struct KarteTab: View {
     @State private var ausgewaehlt: PersonAuswahl?
     @State private var orteListe = false
     @State private var gebietPartner: String?
+    // Z-27.4
+    @State private var unsereOrteAn = false
+    @State private var gemeinsamAusgewaehlt: GemeinsamerOrt?
     // Tracks the last programmatic camera target so the 3D/2D toggle can re-apply it with the new
     // pitch. ponytail: `MapCameraPosition` doesn't expose its current values for read-back, so a
     // manual pan/pinch between calls isn't reflected here - toggling 3D then snaps back to the
@@ -66,16 +69,21 @@ struct KarteTab: View {
             .sheet(isPresented: $orteListe) {
                 OrteListeView()
             }
+            .sheet(item: $gemeinsamAusgewaehlt) { ort in
+                GemeinsamerOrtDetail(ort: ort)
+            }
         }
         .task {
             Standort.shared.start()
             figuren.zustandSenden(.init(haupt: .karte))
             Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: true))
+            SpotifyModell.shared.schauen() // Z-27.6: Spec 9 "nur wenn der Partner hinschaut"
         }
         .task(id: partnerLat) { await gebietLaden() }
         .onDisappear {
             Anwesenheit.shared.app(nil)
             Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false))
+            SpotifyModell.shared.wegschauen()
         }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false)) }
@@ -103,12 +111,26 @@ struct KarteTab: View {
                     }
                 }
             }
+            gemeinsameOrtePins
         }
         .mapStyle(satellit ? .imagery(elevation: .realistic) : .standard(elevation: .realistic, pointsOfInterest: .including(Self.poiKategorien)))
         .mapControls { MapCompass() }
         .onAppear { kameraZentrieren() }
         .onChange(of: standort.positionen.count) { _, _ in kameraZentrieren() }
         .onTapGesture(count: 2) { doppeltGetippt() }
+    }
+
+    // Z-27.4: separate `MapContentBuilder`, so `karte`'s body stays small (common.md).
+    @MapContentBuilder
+    private var gemeinsameOrtePins: some MapContent {
+        if unsereOrteAn {
+            ForEach(orte.gemeinsameOrte) { ort in
+                Annotation("Zusammen unterwegs", coordinate: CLLocationCoordinate2D(latitude: ort.lat, longitude: ort.lon)) {
+                    GemeinsamerOrtPin().onTapGesture { gemeinsamAusgewaehlt = ort }
+                }
+                .annotationTitles(.hidden)
+            }
+        }
     }
 
     private func zustand(_ person: Person) -> FigurZustand {
@@ -213,6 +235,8 @@ struct KarteTab: View {
                 GlassEffectContainer(spacing: 10) {
                     VStack(spacing: 10) {
                         glasKnopf("scope", "Beide zeigen") { kameraZentrieren() }
+                        glasKnopf(unsereOrteAn ? "heart.fill" : "heart", "Unsere Orte") { unsereOrteAn.toggle() }
+                            .tint(unsereOrteAn ? Color.loveaRose : nil)
                         glasKnopf("list.bullet", "Orte verwalten") { orteListe = true }
                     }
                 }
@@ -281,6 +305,7 @@ private struct FigurPin: View {
 
             FigurView(aussehen, zustand: zustand, groesse: 120, bildrate: 15, ganzkoerper: true)
             namensSchild
+            if !istIch { SpotifyHoertGeradeChip() }
         }
         .onTapGesture(perform: tippen)
         .accessibilityElement(children: .combine)
@@ -300,6 +325,11 @@ private struct FigurPin: View {
             }
             if !istIch, let entfernung = entfernungZuMir {
                 Text(entfernung).font(.caption2).foregroundStyle(.secondary)
+            }
+            // Z-27.5: Wetter neben der Partner-Figur, nicht bei der eigenen.
+            if !istIch, let stand = WetterModell.shared.partner {
+                Image(systemName: stand.symbol)
+                Text("\(Int(stand.temperatur.rounded()))°").monospacedDigit()
             }
         }
         .padding(.horizontal, 10)
