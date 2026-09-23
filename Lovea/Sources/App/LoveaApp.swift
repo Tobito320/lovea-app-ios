@@ -2,20 +2,20 @@ import SwiftUI
 
 @main
 struct LoveaApp: App {
-    @StateObject private var session = UserSelectionStore()
+    @StateObject private var session = PersonSession()
+    @AppStorage("lovea.ersterStartFertig") private var ersterStartFertig = false
 
     var body: some Scene {
         WindowGroup {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("-uiTestStudio") {
                     UITestStudio()
-                } else if let person = session.selectedPerson {
-                    AppRootView(person: person) {
-                        session.reset()
-                    }
+                } else if let person = session.person, ersterStartFertig {
+                    AppRootView(session: session, person: person)
                 } else {
-                    PersonSelectionView { person in
-                        session.select(person)
+                    ErsterStart(vorausgewaehltePerson: session.person) { person in
+                        session.waehlen(person)
+                        ersterStartFertig = true
                     }
                 }
             }
@@ -39,7 +39,7 @@ private struct UITestStudio: View {
             DrawingStudioView(
                 artworkID: artworkID,
                 library: library,
-                sharing: LoveaSharingService(person: .annika)
+                person: .annika
             )
         }
     }

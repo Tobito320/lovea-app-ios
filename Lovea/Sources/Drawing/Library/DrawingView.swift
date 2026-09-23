@@ -8,22 +8,18 @@ private enum GalleryRoute: Hashable {
 }
 
 struct DrawingView: View {
-    let person: LoveaPerson
+    let person: Person
     @StateObject private var library: ArtworkLibrary
-    @StateObject private var sharing: LoveaSharingService
     @State private var path: [GalleryRoute] = []
     @State private var sort: ArtworkSort = .newest
     @State private var showsNewArtwork = false
     @State private var showsNewProject = false
-    @State private var showsSharingConnection = false
-    @State private var showsSharingManager = false
     @State private var newProjectName = ""
     @State private var templateItem: PhotosPickerItem?
 
-    init(person: LoveaPerson) {
+    init(person: Person) {
         self.person = person
         _library = StateObject(wrappedValue: ArtworkLibrary())
-        _sharing = StateObject(wrappedValue: LoveaSharingService(person: person))
     }
 
     var body: some View {
@@ -37,8 +33,6 @@ struct DrawingView: View {
                         }
                         .buttonStyle(.plain)
                     }
-
-                    SharingInboxSection(sharing: sharing, partner: person.partner)
 
                     HStack {
                         Button {
@@ -99,14 +93,11 @@ struct DrawingView: View {
                 }
                 .padding()
             }
-            .refreshable {
-                await sharing.refresh()
-            }
             .navigationTitle("Meine Galerie")
             .navigationDestination(for: GalleryRoute.self) { route in
                 switch route {
                 case .artwork(let id, let templateData):
-                    DrawingStudioView(artworkID: id, library: library, sharing: sharing, templateData: templateData)
+                    DrawingStudioView(artworkID: id, library: library, person: person, templateData: templateData)
                 case .project(let id):
                     ProjectGalleryView(projectID: id, library: library, sort: $sort) { artworkID in
                         path.append(.artwork(artworkID))
@@ -115,26 +106,13 @@ struct DrawingView: View {
             }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
-                    Button {
-                        openSharing()
-                    } label: {
-                        Image(systemName: sharingSymbol)
-                    }
-                    .accessibilityLabel("Mit \(person.partner.rawValue) teilen")
-
-                    Text(person.rawValue)
+                    Text(person.name)
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             }
             .sheet(isPresented: $showsNewArtwork) {
                 NewArtworkSheet(library: library, preselectedProjectID: nil)
-            }
-            .sheet(isPresented: $showsSharingConnection) {
-                SharingConnectionView(sharing: sharing)
-            }
-            .sheet(isPresented: $showsSharingManager) {
-                SharingManagerView(library: library, sharing: sharing, partner: person.partner)
             }
             .alert("Neues Projekt", isPresented: $showsNewProject) {
                 TextField("Name", text: $newProjectName)
@@ -144,7 +122,7 @@ struct DrawingView: View {
                     newProjectName = ""
                 }
             } message: {
-                Text("Ein Projekt sammelt mehrere Zeichnungen. Du kannst es später mit \(person.partner.rawValue) teilen.")
+                Text("Ein Projekt sammelt mehrere Zeichnungen.")
             }
             .onChange(of: templateItem) { _, item in
                 guard let item else { return }
@@ -154,20 +132,6 @@ struct DrawingView: View {
                     let artwork = library.createArtwork(name: "Schablone", projectID: nil, format: .square)
                     path.append(.artwork(artwork.id, templateData: data))
                 }
-            }
-            .task {
-                await sharing.checkSession()
-                if sharing.state == .connected {
-                    sharing.startAutoRefresh()
-                }
-            }
-            .onChange(of: sharing.state) { _, state in
-                if state == .connected {
-                    sharing.startAutoRefresh()
-                }
-            }
-            .onDisappear {
-                sharing.stopAutoRefresh()
             }
         }
     }
@@ -189,22 +153,6 @@ struct DrawingView: View {
 
     private var galleryColumns: [GridItem] {
         [GridItem(.adaptive(minimum: 150, maximum: 230), spacing: 14)]
-    }
-
-    private var sharingSymbol: String {
-        switch sharing.state {
-        case .connected: "person.2.fill"
-        case .checking: "arrow.triangle.2.circlepath"
-        case .disconnected, .failed: "person.2"
-        }
-    }
-
-    private func openSharing() {
-        if sharing.state == .connected {
-            showsSharingManager = true
-        } else {
-            showsSharingConnection = true
-        }
     }
 
     @ViewBuilder

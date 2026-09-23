@@ -2,10 +2,10 @@ import PhotosUI
 import SwiftUI
 
 extension View {
-    /// Floating control surface: Liquid Glass from iOS 26, regular material before.
+    /// Floating control surface: Liquid Glass on the control layer.
     @ViewBuilder
     func floatingBar(glass: Bool) -> some View {
-        if #available(iOS 26, *), glass {
+        if glass {
             glassEffect(.regular.interactive(), in: .capsule)
         } else {
             background(.regularMaterial, in: Capsule())
@@ -18,11 +18,7 @@ struct FloatingBarGroup<Content: View>: View {
     @ViewBuilder var content: Content
 
     var body: some View {
-        if #available(iOS 26, *) {
-            GlassEffectContainer(spacing: 12) { content }
-        } else {
-            content
-        }
+        GlassEffectContainer(spacing: 12) { content }
     }
 }
 

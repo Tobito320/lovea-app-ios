@@ -1,29 +1,41 @@
 import SwiftUI
 
 struct ProfileView: View {
-    let person: LoveaPerson
-    let onChangePerson: () -> Void
+    let person: Person
+    @ObservedObject var session: PersonSession
     @AppStorage("profile.performanceHUD") private var showsHUD = false
+    @State private var zeigtEntwickler = false
 
     var body: some View {
         NavigationStack {
             VStack(spacing: 24) {
                 Image(systemName: "person.crop.circle.fill")
                     .font(.system(size: 88))
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(Color.person(person))
 
-                Text(person.rawValue)
+                Text(person.name)
                     .font(.largeTitle.bold())
+                    .onTapGesture(count: 7) { zeigtEntwickler = true }
 
                 VStack(spacing: 0) {
-                    LabeledContent("Partner", value: person.partner.rawValue)
+                    LabeledContent("Partner", value: person.partner.name)
                         .frame(minHeight: 52)
                     Divider()
                     Toggle("Leistungsanzeige", isOn: $showsHUD)
                         .frame(minHeight: 52)
-                    Divider()
-                    Button("Person wechseln", action: onChangePerson)
-                        .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+
+                    if zeigtEntwickler {
+                        Divider()
+                        Menu {
+                            ForEach(Person.allCases, id: \.self) { kandidat in
+                                Button(kandidat.name) { session.waehlen(kandidat) }
+                            }
+                        } label: {
+                            Text("Person wechseln")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .frame(minHeight: 52)
+                    }
                 }
                 .padding(.horizontal, 20)
 

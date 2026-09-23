@@ -5,7 +5,6 @@ import UIKit
 struct DrawingStudioView: View {
     @StateObject private var session: DrawingSession
     @StateObject private var palette: ColorPaletteStore
-    @ObservedObject private var sharing: LoveaSharingService
     @Environment(\.horizontalSizeClass) private var sizeClass
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -20,14 +19,11 @@ struct DrawingStudioView: View {
     @State private var imageItem: PhotosPickerItem?
     @State private var templateItem: PhotosPickerItem?
     @State private var templateData: Data?
-    @State private var livePublishTask: Task<Void, Never>?
-    @State private var shareMessage: String?
 
-    init(artworkID: UUID, library: ArtworkLibrary, sharing: LoveaSharingService, templateData: Data? = nil) {
+    init(artworkID: UUID, library: ArtworkLibrary, person: Person, templateData: Data? = nil) {
         _session = StateObject(wrappedValue: DrawingSession(artworkID: artworkID, library: library))
-        _palette = StateObject(wrappedValue: ColorPaletteStore(person: sharing.person.apiID))
+        _palette = StateObject(wrappedValue: ColorPaletteStore(person: person.rawValue))
         _templateData = State(initialValue: templateData)
-        self.sharing = sharing
     }
 
     private var compact: Bool { sizeClass == .compact }
@@ -89,7 +85,6 @@ struct DrawingStudioView: View {
         }
         .onChange(of: imageItem) { _, item in load(item, asTemplate: false) }
         .onChange(of: templateItem) { _, item in load(item, asTemplate: true) }
-        .onChange(of: session.document.updatedAt) { _, _ in scheduleLivePublish() }
         .onChange(of: scenePhase) { _, phase in
             if phase != .active { session.saveNow() }
         }
@@ -97,7 +92,6 @@ struct DrawingStudioView: View {
             session.engine?.handleMemoryWarning()
         }
         .onDisappear {
-            livePublishTask?.cancel()
             session.saveNow()
         }
     }
@@ -148,14 +142,6 @@ struct DrawingStudioView: View {
             Toggle(isOn: $session.drawsWithFinger) { Label("Mit Finger zeichnen", systemImage: "hand.draw") }
             Divider()
             Button { showsExport = true } label: { Label("Exportieren", systemImage: "square.and.arrow.up") }
-            if sharing.state == .connected {
-                Button("Als Bild an Partner senden") { sendSnapshot() }
-                if session.document.liveReadOnlyShare {
-                    Button("Live-Freigabe beenden", role: .destructive) { setLiveShare(false) }
-                } else {
-                    Button("Live ansehen lassen") { setLiveShare(true) }
-                }
-            }
         } label: {
             Image(systemName: "ellipsis.circle")
         }
@@ -262,13 +248,6 @@ struct DrawingStudioView: View {
             if session.isBusy {
                 ProgressView().padding(10).background(.regularMaterial, in: Circle())
             }
-            if let shareMessage {
-                Text(shareMessage)
-                    .font(.caption.weight(.medium))
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 7)
-                    .background(.regularMaterial, in: Capsule())
-            }
         }
         .padding(.top, 8)
         .animation(reduceMotion ? nil : .snappy, value: session.notice)
@@ -286,65 +265,6 @@ struct DrawingStudioView: View {
         }
     }
 
-    // MARK: Level 2 (eingefroren, nur an die neue Export-Schnittstelle angepasst)
-
-    private var currentProject: ArtworkProject? {
-        session.document.projectID.flatMap { id in session.library.projects.first(where: { $0.id == id }) }
-    }
-
-    private var isLiveShared: Bool {
-        session.document.liveReadOnlyShare || currentProject?.sharedReadOnly == true
-    }
-
-    private func sendSnapshot() {
-        Task {
-            guard let image = await session.flattenedImage() else { return }
-            do {
-                try await sharing.sendSnapshot(document: session.document, image: image)
-                showShareMessage("Bild gesendet")
-            } catch {
-                showShareMessage("Fehler beim Senden")
-            }
-        }
-    }
-
-    private func setLiveShare(_ enabled: Bool) {
-        Task {
-            do {
-                if enabled {
-                    guard let image = await session.flattenedImage() else { return }
-                    try await sharing.publishLive(document: session.document, project: currentProject, image: image)
-                } else {
-                    try await sharing.stopLive(artworkID: session.document.id)
-                }
-                var document = session.document
-                document.liveReadOnlyShare = enabled
-                session.library.saveDocument(document)
-                showShareMessage(enabled ? "Live-Ansehen aktiv" : "Live-Ansehen beendet")
-            } catch {
-                showShareMessage("Freigabe fehlgeschlagen")
-            }
-        }
-    }
-
-    /// Only runs when this drawing is actually shared.
-    private func scheduleLivePublish() {
-        guard isLiveShared, sharing.state == .connected else { return }
-        livePublishTask?.cancel()
-        livePublishTask = Task {
-            try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled, let image = await session.flattenedImage() else { return }
-            try? await sharing.publishLive(document: session.document, project: currentProject, image: image)
-        }
-    }
-
-    private func showShareMessage(_ text: String) {
-        withAnimation { shareMessage = text }
-        Task {
-            try? await Task.sleep(for: .seconds(2))
-            withAnimation { shareMessage = nil }
-        }
-    }
 }
 
 /// Live preview with one slider. "Fertig" writes into the layer, "Abbrechen" throws it away.
@@ -436,7 +356,7 @@ private struct TextSheet: View {
         DrawingStudioView(
             artworkID: UUID(),
             library: ArtworkLibrary(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview")),
-            sharing: LoveaSharingService(person: .annika)
+            person: .annika
         )
     }
     .environment(\.horizontalSizeClass, .regular)
@@ -447,7 +367,7 @@ private struct TextSheet: View {
         DrawingStudioView(
             artworkID: UUID(),
             library: ArtworkLibrary(rootURL: FileManager.default.temporaryDirectory.appendingPathComponent("preview")),
-            sharing: LoveaSharingService(person: .annika)
+            person: .annika
         )
     }
     .environment(\.horizontalSizeClass, .compact)
