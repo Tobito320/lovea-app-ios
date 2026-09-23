@@ -185,3 +185,12 @@ extension Standort: @preconcurrency CLLocationManagerDelegate {
 
     nonisolated func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {}
 }
+
+extension StandortDaten {
+    /// "vor 44 Min" / "gerade eben" - shared by the info card and the map's name labels.
+    var alterText: String {
+        guard let z = ISO8601DateFormatter().date(from: zeit) else { return "" }
+        let sekunden = Date().timeIntervalSince(z)
+        return sekunden < 90 ? "gerade eben" : "vor \(Int(sekunden / 60)) Min"
+    }
+}
