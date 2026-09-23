@@ -1,6 +1,7 @@
 import CoreTransferable
 import Foundation
 import PhotosUI
+import SwiftUI
 import UniformTypeIdentifiers
 
 /// `PhotosPickerItem.loadTransferable(type:)` needs a concrete `Transferable` to get a video as a
