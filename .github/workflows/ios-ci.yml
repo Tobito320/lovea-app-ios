@@ -60,6 +60,13 @@ jobs:
           COUNT=$(grep "warning:" iphone.log | sort -u | wc -l | tr -d ' ')
           echo "### Compiler-Warnungen: $COUNT" >> "$GITHUB_STEP_SUMMARY"
           grep "warning:" iphone.log | sort -u | head -50 | sed 's/^/    /' >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Upload render gallery
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: render-galerie
+          path: render-galerie/
+          retention-days: 7
       - name: Test on iPad
         run: |
           set -euo pipefail
