@@ -9,7 +9,8 @@ extension Color {
     static func person(_ p: Person) -> Color {
         switch p {
         case .annika:
-            return loveaRose
+            // #E0284A instead of the icon rosé #FF3B5C: white body text needs 4.5:1 (HIG), #FF3B5C gives 3.48:1.
+            return Color(red: 0xE0 / 255, green: 0x28 / 255, blue: 0x4A / 255)
         case .ahmed:
             return Color(uiColor: UIColor { traits in
                 traits.userInterfaceStyle == .dark
