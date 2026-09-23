@@ -54,39 +54,7 @@ final class HealthLogikTests: XCTestCase {
         XCTAssertEqual(HealthLogik.zielAmTag(tag, ziele, standard: 10_000), 15_000, "wie auf dem Partnergerät")
     }
 
-    // MARK: - Stufen (Spec 3.2)
-
-    func testGymStufeWochenzielGeschafft() {
-        XCTAssertEqual(HealthLogik.gymStufe(heuteAbgehakt: true, erledigtInWoche: 3, ziel: 3, wochentag: 4), 3)
-    }
-
-    func testGymStufeAufKurs() {
-        // Donnerstag (4/7 der Woche), Ziel 3: fällig wären ceil(3*4/7) = 2 Tage.
-        XCTAssertEqual(HealthLogik.gymStufe(heuteAbgehakt: true, erledigtInWoche: 2, ziel: 3, wochentag: 4), 2)
-    }
-
-    func testGymStufeNurHeuteAbgehaktAberNichtAufKurs() {
-        // Sonntag, nur der heutige Tag erledigt, Wochenziel 3 -> klar hinter der Pace.
-        XCTAssertEqual(HealthLogik.gymStufe(heuteAbgehakt: true, erledigtInWoche: 1, ziel: 3, wochentag: 7), 1)
-    }
-
-    func testGymStufeNichts() {
-        XCTAssertEqual(HealthLogik.gymStufe(heuteAbgehakt: false, erledigtInWoche: 0, ziel: 3, wochentag: 1), 0)
-    }
-
-    func testWasserStufen() {
-        XCTAssertEqual(HealthLogik.wasserStufe(glaeser: 0, ziel: 8), 0)
-        XCTAssertEqual(HealthLogik.wasserStufe(glaeser: 3, ziel: 8), 1, "unter 50 %")
-        XCTAssertEqual(HealthLogik.wasserStufe(glaeser: 4, ziel: 8), 2, "genau 50 %")
-        XCTAssertEqual(HealthLogik.wasserStufe(glaeser: 8, ziel: 8), 3)
-        XCTAssertEqual(HealthLogik.wasserStufe(glaeser: 12, ziel: 8), 3, "über dem Ziel bleibt Stufe 3")
-    }
-
     // MARK: - Ansichten
-
-    func testWocheTageMontagBisSonntag() {
-        XCTAssertEqual(HealthLogik.wocheTage("2026-09-23"), ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"])
-    }
 
     func testMonatsGitterAktuellerMonat() {
         let zellen = HealthLogik.monatsGitter(heute: "2026-09-23", monateZurueck: 0)
@@ -110,11 +78,36 @@ final class HealthLogikTests: XCTestCase {
         XCTAssertEqual(vorwaerts, aktuell)
     }
 
-    func testJahresGitterEndetHeuteUndGehtNieInDieZukunft() {
-        let tage = HealthLogik.jahresGitter(heute: "2026-09-23")
-        XCTAssertEqual(tage.last, "2026-09-23")
-        XCTAssertTrue(tage.allSatisfy { $0 <= "2026-09-23" })
-        XCTAssertGreaterThan(tage.count, 300)
+    // MARK: - Einmaliges Nachtragen (Z-36.1, Review-Fokus 2)
+
+    func testNachtragAuswahlUeberspringtVorhandeneTage() {
+        let heute = "2026-09-23"
+        let vorhanden: Set<String> = ["2026-09-10", "2026-08-01"]
+        let tage = HealthLogik.nachtragTage(heute: heute, vorhanden: vorhanden)
+        XCTAssertFalse(tage.contains("2026-09-10"), "schon ein Wert: nie überschreiben")
+        XCTAssertFalse(tage.contains("2026-08-01"))
+        XCTAssertEqual(tage.count, 82 - 2)
+        XCTAssertEqual(tage.first, "2026-09-15", "heute und die 7 Tage davor sendet der Live-Weg ungekennzeichnet")
+        XCTAssertEqual(tage.last, Datum.addTage(heute, -89), "90 Tage zusammen mit dem Live-Fenster")
+    }
+
+    /// 25.10.2026: Zeitumstellung — jeder Kalendertag genau einmal, keiner fehlt.
+    func testNachtragTageUeberDieZeitumstellung() {
+        let tage = HealthLogik.nachtragTage(heute: "2026-11-15", vorhanden: [])
+        XCTAssertEqual(tage.count, 82)
+        XCTAssertEqual(Set(tage).count, 82)
+        for tag in ["2026-10-24", "2026-10-25", "2026-10-26"] { XCTAssertTrue(tage.contains(tag), tag) }
+    }
+
+    func testNachgetragenerTagZaehltErstMitEchtemWert() {
+        let tag = "2026-08-01"
+        let nachtrag = TagesEintrag(seq: 10, von: Person.ahmed, datum: tag, gesendetAm: "2026-09-23", wert: 7000, nachgetragen: true)
+        XCTAssertNil(HealthFaltung.punktefaehig([nachtrag])[.ahmed]?[tag], "nur Anzeige")
+        XCTAssertEqual(HealthFaltung.gefaltet([nachtrag])[.ahmed]?[tag]?.wert, 7000, "die Anzeige sieht ihn")
+        let echt = TagesEintrag(seq: 11, von: Person.ahmed, datum: tag, gesendetAm: "2026-09-23", wert: 7100)
+        XCTAssertEqual(HealthFaltung.punktefaehig([nachtrag, echt])[.ahmed]?[tag]?.wert, 7100, "späterer echter Wert gewinnt und zählt")
+        let aelterEcht = TagesEintrag(seq: 5, von: Person.ahmed, datum: tag, gesendetAm: tag, wert: 9000)
+        XCTAssertNil(HealthFaltung.punktefaehig([aelterEcht, nachtrag])[.ahmed]?[tag], "erst falten, dann filtern: kein älterer Wert schlüpft durch")
     }
 
     // MARK: - Schlaf

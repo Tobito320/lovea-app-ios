@@ -1,37 +1,41 @@
 import SwiftUI
 
-/// Z-21.1, Spec 3.3: letzte Nacht beider Personen (Dauer, Einschlafen, Aufwachen) plus Wochen-Balken.
-/// Nur Lesen, keine Eingabe — `HealthModell` speist sich hier ausschließlich aus HealthKit.
+/// Z-36.3, Spec 3.4: last night of both (duration, asleep, awake) plus week bars, in the Health card
+/// look (indigo tint, SF Rounded numbers). Read-only — `HealthModell` gets sleep only from HealthKit.
 struct SchlafCard: View {
     private var health: HealthModell { HealthModell.shared }
-    private var heute: String { Datum.text(Date()) }
 
     var body: some View {
+        let heute = Datum.text(Date())
         VStack(alignment: .leading, spacing: 14) {
-            Text("Schlaf").font(.headline)
-            HStack(alignment: .top, spacing: 20) {
-                schlafPerson(.ahmed)
-                schlafPerson(.annika)
+            Label("Schlaf", systemImage: "moon.zzz.fill")
+                .font(.headline)
+                .foregroundStyle(HabitFarbe.indigo.farbe)
+                .accessibilityAddTraits(.isHeader)
+            HStack(alignment: .top, spacing: 16) {
+                schlafPerson(.ahmed, heute: heute)
+                schlafPerson(.annika, heute: heute)
             }
-            wocheBalken
+            wocheBalken(heute: heute)
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .healthKarte(HabitFarbe.indigo.farbe)
     }
 
-    private func schlafPerson(_ person: Person) -> some View {
+    private func schlafPerson(_ person: Person, heute: String) -> some View {
         let nacht = health.schlafNacht(person, heute)
         return VStack(alignment: .leading, spacing: 2) {
-            Text(person.name).font(.caption).foregroundStyle(.secondary)
+            Text(person.name).font(.caption.weight(.semibold)).foregroundStyle(Color.person(person))
+            Text(nacht.map { dauerText($0.minuten) } ?? "–")
+                .font(.system(.title2, design: .rounded).weight(.bold))
+                .monospacedDigit()
             if let nacht {
-                Text(dauerText(nacht.minuten)).font(.title3.bold()).monospacedDigit()
-                Text("\(uhrzeit(nacht.von))–\(uhrzeit(nacht.bis))").font(.caption2).foregroundStyle(.secondary)
-            } else {
-                Text("–").font(.title3.bold()).foregroundStyle(.secondary)
+                Text("\(uhrzeit(nacht.von))–\(uhrzeit(nacht.bis))").font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
         .accessibilityLabel(nacht.map { "\(person.name): \(dauerText($0.minuten)), \(uhrzeit($0.von)) bis \(uhrzeit($0.bis))" } ?? "\(person.name): keine Schlafdaten")
     }
 
@@ -41,19 +45,21 @@ struct SchlafCard: View {
         datum.formatted(.dateTime.hour().minute().locale(Locale(identifier: "de_DE")))
     }
 
-    private var wocheBalken: some View {
-        let tage = HealthLogik.wocheTage(heute)
+    private func wocheBalken(heute: String) -> some View {
+        let tage = HabitLogik.wochenTage(heute: heute)
         let alleMinuten = tage.flatMap { tag in Person.allCases.compactMap { health.schlafNacht($0, tag)?.minuten } }
         let maxMinuten = max(alleMinuten.max() ?? 480, 60)
         return HStack(alignment: .bottom, spacing: 8) {
             ForEach(tage, id: \.self) { tag in
-                VStack(spacing: 3) {
-                    HStack(alignment: .bottom, spacing: 2) {
+                VStack(spacing: 4) {
+                    HStack(alignment: .bottom, spacing: 3) {
                         balken(health.schlafNacht(.ahmed, tag)?.minuten, hoechstwert: maxMinuten, farbe: Color.person(.ahmed))
                         balken(health.schlafNacht(.annika, tag)?.minuten, hoechstwert: maxMinuten, farbe: Color.person(.annika))
                     }
                     .frame(height: 56)
-                    Text(kuerzel(tag)).font(.caption2).foregroundStyle(.secondary)
+                    Text(HabitLogik.wochentagKuerzel[Datum.wochentag(tag) - 1])
+                        .font(.caption2)
+                        .foregroundStyle(tag == heute ? Color.primary : Color.secondary)
                 }
                 .frame(maxWidth: .infinity)
             }
@@ -62,11 +68,9 @@ struct SchlafCard: View {
     }
 
     private func balken(_ minuten: Int?, hoechstwert: Int, farbe: Color) -> some View {
-        let hoehe = minuten.map { CGFloat($0) / CGFloat(hoechstwert) * 56 } ?? 2
-        return RoundedRectangle(cornerRadius: 2)
-            .fill(minuten != nil ? farbe : Color(uiColor: .tertiarySystemFill))
-            .frame(width: 8, height: Swift.max(2, hoehe))
+        let hoehe = minuten.map { CGFloat($0) / CGFloat(hoechstwert) * 56 } ?? 3
+        return Capsule()
+            .fill(minuten != nil ? farbe : farbe.opacity(0.15))
+            .frame(width: 7, height: max(3, hoehe))
     }
-
-    private func kuerzel(_ tag: String) -> String { ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][Datum.wochentag(tag) - 1] }
 }
