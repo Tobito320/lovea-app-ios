@@ -56,7 +56,7 @@ final class RenderGalerieHealthTests: XCTestCase {
         let gitter = HealthLogik.monatsGitter(heute: heute, monateZurueck: 0)
         let monat = LazyVGrid(columns: Array(repeating: GridItem(.fixed(40), spacing: 4), count: 7), spacing: 8) {
             ForEach(Array(gitter.enumerated()), id: \.offset) { i, tag in
-                if let tag, tag <= heute {
+                if let tag, tag <= self.heute {
                     MiniRing(anteil: tag == "2026-09-10" ? nil : Double((i * 37) % 13) / 10, farbe: Color.person(.ahmed), tag: tag)
                 } else {
                     Color.clear.frame(width: 36, height: 36)
