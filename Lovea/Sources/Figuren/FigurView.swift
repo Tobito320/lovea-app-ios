@@ -4523,14 +4523,14 @@ extension Zeichner {
     var rechteHandBelegt: Bool { extras.contains(.handyKabel) || schirmAktiv || hantelnAktiv }
 
     /// Curl phase 0 (arm down) … 1 (weight at the shoulder); the right arm runs half a beat behind.
-    func curl(_ versatz: Double) -> CGFloat { (1 + w(3.2, versatz)) / 2 }
+    func hub(_ versatz: Double) -> CGFloat { (1 + w(3.2, versatz)) / 2 }
 
     /// Half figure: the right hand holds the phone (the left one the cable) or the umbrella; with
     /// both, the umbrella moves to the left hand.
     func mitExtras(_ arme: (l: Arm?, r: Arm?)) -> (l: Arm?, r: Arm?) {
         var a = arme
         if hantelnAktiv {
-            let l = curl(0), r = curl(Double.pi)
+            let l = hub(0), r = hub(Double.pi)
             a.l = Arm(P(46, 212), P(54 + l * 8, 238 - l * 58))
             a.r = Arm(P(154, 212), P(146 - r * 8, 238 - r * 58))
         }
@@ -4552,7 +4552,7 @@ extension Zeichner {
         let rx: CGFloat = 100 + m.s - 6
         let y = m.schulterY
         if hantelnAktiv {
-            let l = curl(0), r = curl(Double.pi)
+            let l = hub(0), r = hub(Double.pi)
             a.l = Arm(P(lx - 4, y + 50), P(lx - 8 + l * 10, y + 92 - l * 52))
             a.r = Arm(P(rx + 4, y + 50), P(rx + 8 - r * 10, y + 92 - r * 52))
         }

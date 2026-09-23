@@ -53,11 +53,23 @@ final class ProfilSzeneTests: XCTestCase {
         XCTAssertFalse(ProfilSzene.schlaeft(anzeige: .imChat, zuletzt: .schlaeft, stunde: 23))
     }
 
-    func testEigenerZustand() {
-        XCTAssertTrue(ProfilSzene.eigenerZustand(.kuss))
-        XCTAssertTrue(ProfilSzene.eigenerZustand(.zwinkert))
-        XCTAssertFalse(ProfilSzene.eigenerZustand(.imChat))
-        XCTAssertFalse(ProfilSzene.eigenerZustand(.zuhause))
+    func testFigurInDerSzene() {
+        XCTAssertEqual(ProfilSzene.gym.figur(.imChat), .gym)
+        XCTAssertEqual(ProfilSzene.gym.figur(.kuss), .kuss)
+        XCTAssertEqual(ProfilSzene.gym.figur(.zwinkert), .zwinkert)
+        XCTAssertEqual(ProfilSzene.zimmer.figur(.zuhause), .ruhig)
+        XCTAssertEqual(ProfilSzene.zimmer.figur(.tippt), .tippt)
+        XCTAssertEqual(ProfilSzene.schlafen(zusammen: true).figur(.offline), .schlaeft)
+        XCTAssertEqual(ProfilSzene.draussen(wetter: .regen, nacht: false).figur(.laeuft), .laeuft)
+    }
+
+    func testExtrasInDerSzene() {
+        XCTAssertEqual(ProfilSzene.gym.extras(wetterCode: 61, temperatur: 2, laedt: false), [.hanteln])
+        XCTAssertEqual(ProfilSzene.zimmer.extras(wetterCode: 61, temperatur: 2, laedt: true), [])
+        XCTAssertEqual(ProfilSzene.draussen(wetter: .regen, nacht: false).extras(wetterCode: 61, temperatur: 12, laedt: false), [.schirm])
+        // Clear sky: sunglasses by day, none at night (same rule as the map figure).
+        XCTAssertEqual(ProfilSzene.draussen(wetter: .sonne, nacht: false).extras(wetterCode: 0, temperatur: 20, laedt: false), [.sonnenbrille])
+        XCTAssertEqual(ProfilSzene.draussen(wetter: .sonne, nacht: true).extras(wetterCode: 0, temperatur: 20, laedt: false), [])
     }
 
     // MARK: - profil.zimmer
