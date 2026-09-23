@@ -171,6 +171,7 @@ private struct ProfilInhalt: View {
                 figur(person).zIndex(1)
                 figur(person.partner)
             }
+            .overlay { KussSzene(person: person) }
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.trailing, -6)
 
