@@ -58,12 +58,12 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             a.mund = 1           // Zahnlächeln (breites Lächeln)
             a.bart = 13          // Feiner Schnurrbart
             a.koerperform = 3    // Athletisch
-            a.oberteil = 12      // Trikot
+            a.oberteil = 20      // Nike Trikot
             a.oberteilfarbe = 9  // Gelb (Brasilien-Trikot)
             a.hose = 2           // Weite Jeans
             a.hosenfarbe = 4     // Grau
             a.hosenfarbeHex = "8E8C93" // hose 2 ist ein Denim-Wash und ignoriert den Index sonst (siehe FigurView.hosenFarbe)
-            a.schuhe = 0
+            a.schuhe = 10        // Nike Air Force 1
             a.schuhfarbe = 2     // Weiß
         case .annika:
             a.haut = 1
