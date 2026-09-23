@@ -1,5 +1,6 @@
 import Foundation
 import Observation
+import UIKit
 
 // Usage: set `Raum.shared.ich = person` once at app start, call `Raum.shared.start()` and
 // `Raum.shared.aktiv(_:)` from `scenePhase`. Faltungen register with `beobachten`/`beobachtenStapel`;
@@ -14,6 +15,12 @@ final class Raum {
     private(set) var verbunden = false
     private(set) var wartet = 0
     let eingerichtet: Bool
+
+    /// Set by the Karte/Orte block to react to a `karte.offen` push before the socket is even
+    /// open — see `LoveaAppDelegate.application(_:didReceiveRemoteNotification:)`. The payload
+    /// keys (`art`/`an`) are assumed, mirroring the `fl "karte.offen" {an}` WS message — no
+    /// server push payload for this exists yet to confirm against.
+    var onKarteOffen: ((Bool) -> Void)?
 
     struct HttpKonfiguration: Sendable { let basis: URL; let headers: [String: String] }
 
@@ -34,6 +41,15 @@ final class Raum {
     private var geraeteToken: String?
     private var reconnectTask: Task<Void, Never>?
     private var hintergrundTask: Task<Void, Never>?
+    private var pingTask: Task<Void, Never>?
+    private var hintergrundAufgabe: UIBackgroundTaskIdentifier = .invalid
+    /// Only `Raum.shared` should rescan disk for interrupted uploads on `start()` — a test's own
+    /// `Raum` instance must not touch the real Application Support folder.
+    private let medienBeimStartFortsetzen: Bool
+    /// Bumped every time a genuine page response (`seite:true`) with `mehr == false` is applied —
+    /// i.e. we just caught up. `nachholenBisFertig` polls this instead of using a continuation,
+    /// to sidestep continuation/cancellation bookkeeping for what's a coarse, low-frequency wait.
+    private var catchUpZaehler = 0
 
     /// Serializes disk writes and sends so they happen in call order (a fast echo must never
     /// run before the `senden` that caused it finishes queuing). Tests await `leer()`.
@@ -50,7 +66,8 @@ final class Raum {
         log: OpLog = OpLog(),
         warteschlange: Warteschlange = Warteschlange(),
         server: URL? = Raum.plistServer(),
-        schluessel: String = Raum.plistSchluessel()
+        schluessel: String = Raum.plistSchluessel(),
+        medienBeimStartFortsetzen: Bool = true
     ) {
         self.transport = transport ?? WebSocketTransport()
         self.log = log
@@ -58,6 +75,7 @@ final class Raum {
         self.baseURL = server
         self.appKey = schluessel
         self.eingerichtet = server != nil && !schluessel.isEmpty
+        self.medienBeimStartFortsetzen = medienBeimStartFortsetzen
     }
 
     nonisolated static func plistServer() -> URL? {
@@ -75,13 +93,18 @@ final class Raum {
         guard eingerichtet, ich != nil else { return }
         aktivZustand = true
         hintergrundTask?.cancel(); hintergrundTask = nil
+        beendeHintergrundAufgabe()
         reconnectTask?.cancel(); reconnectTask = nil
-        backoff = 1
+        backoff = 1 // explicit start() means "try fresh"; verbinden() itself no longer resets this (I-1)
+        if medienBeimStartFortsetzen { Medien.fortsetzen() }
         guard !verbunden else { return }
         // Chained (not a bare Task) so `leer()` also waits for the connect + queue flush below.
         reiheOhneWarten { [weak self] in
             guard let self else { return }
-            self.empfangenBisSeq = await self.log.letzteSeq
+            // The persisted "complete up to" cursor, NOT log.letzteSeq (which can be higher than
+            // what we actually finished paging through, if a live broadcast with a high seq
+            // landed in the log before the pages below it were ever fetched).
+            self.empfangenBisSeq = await self.log.vollstaendigBisSeq()
             await self.wartetAktualisieren() // e.g. after an offline restart, before anything is sent
             self.verbinden()
         }
@@ -90,16 +113,62 @@ final class Raum {
     /// Call from `scenePhase`: connect when active, disconnect 30 s after going to background.
     func aktiv(_ ist: Bool) {
         if ist {
+            beendeHintergrundAufgabe()
             start()
         } else {
             guard aktivZustand else { return }
             aktivZustand = false
             hintergrundTask?.cancel()
+            beendeHintergrundAufgabe() // defensive: never overwrite a still-valid identifier
+            // iOS can suspend the app within seconds of backgrounding, well before the 30 s timer
+            // below fires — without real background time, `trennen()` (and its close frame) would
+            // just never run, leaving a socket the server only notices via its own ping timeout.
+            hintergrundAufgabe = UIApplication.shared.beginBackgroundTask(withName: "Lovea-Sync-Trennen") { [weak self] in
+                // Apple's overlay doesn't document this handler's closure as @MainActor, but it is
+                // documented to run on the main thread — assumeIsolated is the correct, safe way
+                // to call MainActor code from it without an (unavailable, since this isn't async) await.
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.trennen()
+                    self.beendeHintergrundAufgabe()
+                }
+            }
             hintergrundTask = Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .seconds(30))
                 guard let self, !Task.isCancelled else { return }
                 self.trennen()
+                self.beendeHintergrundAufgabe()
             }
+        }
+    }
+
+    private func beendeHintergrundAufgabe() {
+        guard hintergrundAufgabe != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(hintergrundAufgabe)
+        hintergrundAufgabe = .invalid
+    }
+
+    /// Connects (if needed) and waits for a real catch-up — the first page response after
+    /// connecting, or `timeout`, whichever comes first — instead of returning immediately.
+    /// Meant for a silent push's `didReceiveRemoteNotification`, so iOS doesn't suspend the app
+    /// again before anything was actually fetched.
+    func nachholenBisFertig(timeout: Duration = .seconds(20)) async {
+        guard eingerichtet, ich != nil else { return }
+        if verbunden { return } // already caught up / actively connected, nothing to wait for
+        start()
+        let zaehlerVorher = catchUpZaehler
+        let deadline = ContinuousClock.now + timeout
+        while catchUpZaehler == zaehlerVorher, ContinuousClock.now < deadline {
+            try? await Task.sleep(for: .milliseconds(200))
+        }
+        // `start()` set aktivZustand = true, which would otherwise leave the socket open and
+        // "verbunden" past this point even though nothing is foreground to keep it alive — the
+        // NEXT silent push would then see verbunden == true above and return without catching up,
+        // background `fluechtig("standort")` would go to a socket the server times out on its own
+        // 60 s ping check anyway, and pushes stay suppressed for it in the meantime (I-5).
+        if UIApplication.shared.applicationState != .active {
+            aktivZustand = false
+            trennen()
         }
     }
 
@@ -170,8 +239,30 @@ final class Raum {
         }
     }
 
+    /// `standort` still reaches the server while disconnected (e.g. backgrounded, no open
+    /// socket) via an HTTP fallback — everything else stays WS-only and is dropped while
+    /// disconnected, same as before.
     func fluechtig<T: Encodable>(_ art: String, _ d: T) {
+        guard verbunden else {
+            if art == "standort" { fluechtigPerHttp(art: art, d: d) }
+            return
+        }
         sende(FluechtigNachricht(art: art, d: d))
+    }
+
+    private func fluechtigPerHttp<T: Encodable>(art: String, d: T) {
+        guard let konfig = httpKonfiguration() else { return }
+        guard let body = try? JSONEncoder().encode(FluechtigHttpBody(art: art, d: d)) else { return }
+        var request = URLRequest(url: konfig.basis.appendingPathComponent("fl"))
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        for (feld, wert) in konfig.headers { request.setValue(wert, forHTTPHeaderField: feld) }
+        request.httpBody = body
+        let anfrage = request // capture a `let` — whether Task{} here inherits MainActor isn't
+        // something a `var` capture should rely on without a compiler to check it.
+        Task {
+            _ = try? await URLSession.shared.data(for: anfrage)
+        }
     }
 
     // MARK: - Connecting
@@ -197,17 +288,33 @@ final class Raum {
                 await self.getrenntBehandeln(gen: gen)
             }
         )
+        // NOT backoff = 1 here (I-1): the connection isn't confirmed yet at this point, only
+        // attempted. Resetting here made scheduleReconnect always see backoff == 1, so it never
+        // actually grew past 1 s between retries. It resets on the first received frame instead,
+        // in nachrichtAnwenden — real proof the connection is up.
         verbunden = true
-        backoff = 1
         if let token = geraeteToken { sende(GeraetNachricht(token: token)) }
         reiheOhneWarten { [weak self] in
             guard let self else { return }
             for op in await self.warteschlange.offen { self.sendeOp(op) }
         }
+        pingTask?.cancel()
+        pingTask = Task { @MainActor [weak self] in
+            // The server only counts a socket as alive if it heard SOMETHING (ping or any
+            // message) in the last 60 s and pushes are otherwise suppressed for it — 25 s keeps
+            // comfortably inside that. A native WebSocket ping isn't enough: the server can't see
+            // it as a message, so this sends the same JSON text frame it treats a real "ping" as.
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(25))
+                guard !Task.isCancelled, let self, self.generation == gen else { return }
+                self.sende(PingNachricht())
+            }
+        }
     }
 
     private func trennen() {
         reconnectTask?.cancel(); reconnectTask = nil
+        pingTask?.cancel(); pingTask = nil
         generation += 1
         transport.trennen()
         verbunden = false
@@ -215,6 +322,7 @@ final class Raum {
 
     private func getrenntBehandeln(gen: Int) async {
         guard gen == generation else { return }
+        pingTask?.cancel(); pingTask = nil
         verbunden = false
         scheduleReconnect()
     }
@@ -250,7 +358,10 @@ final class Raum {
         switch huelle.t {
         case "ops":
             guard let msg = try? JSONDecoder().decode(OpsHuelle.self, from: data) else { return nil }
-            return .ops(msg.ops, mehr: msg.mehr)
+            if msg.uebersprungen > 0 {
+                print("Raum: \(msg.uebersprungen) Op(s) in einer Seite konnten nicht dekodiert werden")
+            }
+            return .ops(msg.ops, mehr: msg.mehr, seite: msg.seite, hoechsteSeq: msg.hoechsteSeq)
         case "fl":
             guard let msg = try? JSONDecoder().decode(FlHuelle.self, from: data) else { return nil }
             let daten = (try? JSONEncoder().encode(msg.d)) ?? Data("{}".utf8)
@@ -270,11 +381,13 @@ final class Raum {
     /// Applies an already-decoded message. Cheap: actor calls, dictionary lookups, no parsing.
     private func nachrichtAnwenden(_ nachricht: EingehendeNachricht, gen: Int) async {
         guard gen == generation else { return }
+        // Real proof the connection is up — see the comment on backoff in `verbinden` (I-1).
+        backoff = 1
         switch nachricht {
-        case .ops(let ops, let mehr):
+        case .ops(let ops, let mehr, let seite, let hoechsteSeq):
             await reiheUndWarte { [weak self] in
                 guard let self else { return }
-                await self.opsVerarbeiten(ops, mehr: mehr)
+                await self.opsVerarbeiten(ops, mehr: mehr, seite: seite, hoechsteSeq: hoechsteSeq)
             }
         case .fl(let von, let art, let daten):
             for f in fluechtigBeobachter[art] ?? [] { f(von, daten) }
@@ -286,13 +399,27 @@ final class Raum {
         }
     }
 
-    private func opsVerarbeiten(_ ops: [Op], mehr: Bool) async {
+    /// `seite` (server's `seite:true`) distinguishes a genuine catch-up page from a live
+    /// broadcast (an echo, the partner's op, …) that happens to arrive while paging — a live
+    /// broadcast still gets logged and delivered above, but must never move the paging cursor or
+    /// be mistaken for "we just caught up" (C-2). `hoechsteSeq` is the highest `seq` seen across
+    /// the whole page even if some ops in it failed to decode (I-3), so one malformed op can't
+    /// stall pagination.
+    private func opsVerarbeiten(_ ops: [Op], mehr: Bool, seite: Bool, hoechsteSeq: Int?) async {
         await log.anhaengen(ops)
         for op in ops { await warteschlange.raus(id: op.id) }
         await wartetAktualisieren()
-        if let maxSeq = ops.compactMap(\.seq).max() { empfangenBisSeq = max(empfangenBisSeq, maxSeq) }
         liefereBatch(ops)
-        if mehr { sende(NachholenNachricht(seit: empfangenBisSeq)) }
+        guard seite else { return }
+        if let hoechsteSeq {
+            empfangenBisSeq = hoechsteSeq
+            await log.vollstaendigBisSeqSetzen(hoechsteSeq)
+        }
+        if mehr {
+            if let hoechsteSeq { sende(NachholenNachricht(seit: hoechsteSeq)) }
+        } else {
+            catchUpZaehler += 1
+        }
     }
 
     // MARK: - Helpers
@@ -348,14 +475,62 @@ final class Raum {
 
 /// Result of `Raum.nachrichtDekodieren` — everything needed to apply a message, already parsed.
 private enum EingehendeNachricht: Sendable {
-    case ops([Op], mehr: Bool)
+    case ops([Op], mehr: Bool, seite: Bool, hoechsteSeq: Int?)
     case fl(Person, String, Data)
     case da(ahmed: Bool, annika: Bool)
     case standort(Person, Data)
 }
 
 private struct TypHuelle: Decodable { let t: String }
-private struct OpsHuelle: Decodable { let ops: [Op]; let mehr: Bool }
+
+/// Decodes `{ops:[Op], mehr:Bool, seite:Bool}` tolerantly, per element (I-3): one malformed op
+/// (unknown `von`, missing `d`, …) is skipped instead of failing the whole array, which would
+/// otherwise silently drop `mehr`/`seite` too and stall paging. `hoechsteSeq` is the highest raw
+/// `seq` across ALL elements, decoded or not, so pagination doesn't stall even when it's exactly
+/// the highest-seq op in a page that fails to decode fully.
+private struct OpsHuelle: Decodable {
+    let ops: [Op]
+    let mehr: Bool
+    let seite: Bool
+    let hoechsteSeq: Int?
+    let uebersprungen: Int
+
+    private enum CodingKeys: String, CodingKey { case ops, mehr, seite }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        mehr = try c.decodeIfPresent(Bool.self, forKey: .mehr) ?? false
+        seite = try c.decodeIfPresent(Bool.self, forKey: .seite) ?? false
+
+        var opsContainer = try c.nestedUnkeyedContainer(forKey: .ops)
+        var geladen: [Op] = []
+        var uebersprungenZaehler = 0
+        var hoechste: Int?
+        while !opsContainer.isAtEnd {
+            let element = try opsContainer.decode(OpElement.self)
+            if let op = element.op { geladen.append(op) } else { uebersprungenZaehler += 1 }
+            if let seq = element.seq { hoechste = max(hoechste ?? seq, seq) }
+        }
+        ops = geladen
+        uebersprungen = uebersprungenZaehler
+        hoechsteSeq = hoechste
+    }
+}
+
+/// Never throws (both inner decodes are `try?`) — required so the unkeyed container in
+/// `OpsHuelle` always advances past a malformed element instead of getting stuck re-decoding it.
+private struct OpElement: Decodable {
+    let op: Op?
+    let seq: Int?
+
+    init(from decoder: Decoder) throws {
+        op = try? Op(from: decoder)
+        seq = try? SeqNur(from: decoder).seq
+    }
+}
+
+private struct SeqNur: Decodable { let seq: Int? }
+
 private struct FlHuelle: Decodable { let von: Person; let art: String; let d: JSONValue }
 private struct DaHuelle: Decodable { let ahmed: Bool; let annika: Bool }
 private struct StandortHuelle: Decodable { let person: Person; let d: JSONValue }
@@ -363,4 +538,6 @@ private struct StandortHuelle: Decodable { let person: Person; let d: JSONValue 
 private struct OpNachricht: Encodable { let t = "op"; let op: Op }
 private struct NachholenNachricht: Encodable { let t = "nachholen"; let seit: Int }
 private struct GeraetNachricht: Encodable { let t = "geraet"; let token: String }
+private struct PingNachricht: Encodable { let t = "ping" }
 private struct FluechtigNachricht<D: Encodable>: Encodable { let t = "fl"; let art: String; let d: D }
+private struct FluechtigHttpBody<D: Encodable>: Encodable { let art: String; let d: D }

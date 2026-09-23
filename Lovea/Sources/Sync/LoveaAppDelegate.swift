@@ -22,9 +22,17 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
 
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {}
 
-    /// Silent push: reconnect (and catch up) even if the app was suspended.
+    /// Silent push: connect and wait for a real catch-up (not just fire `start()` and return
+    /// immediately — iOS can suspend the app again before anything was actually fetched).
+    /// `userInfo["art"] == "karte.offen"` starts live location via `Raum.shared.onKarteOffen`,
+    /// which the Karte/Orte block sets — the exact payload keys (`art`/`an`) aren't confirmed
+    /// against a server push yet, see the note on `Raum.onKarteOffen`.
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
-        Raum.shared.start()
+        if let art = userInfo["art"] as? String, art == "karte.offen" {
+            let an = (userInfo["an"] as? Bool) ?? true
+            Raum.shared.onKarteOffen?(an)
+        }
+        await Raum.shared.nachholenBisFertig()
         return .newData
     }
 
