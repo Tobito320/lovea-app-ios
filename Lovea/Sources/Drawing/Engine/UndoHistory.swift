@@ -27,6 +27,9 @@ final class UndoHistory {
     private var undoStack: [Item] = []
     private var redoStack: [Item] = []
 
+    /// Shared drawing: every step goes to the shared history (`GemeinsamVerlauf`) instead of this stack.
+    var umleiten: ((UndoEntry) -> Void)?
+
     init(budgetBytes: Int = 256 << 20) {
         self.budgetBytes = budgetBytes
     }
@@ -37,6 +40,10 @@ final class UndoHistory {
     var bytesInUse: Int { (undoStack + redoStack).reduce(0) { $0 + $1.entry.bytes } }
 
     func push(_ entry: UndoEntry, autor: String? = nil) {
+        if let umleiten {
+            umleiten(entry)
+            return
+        }
         undoStack.append(Item(entry: entry, autor: autor))
         if autor == nil { redoStack.removeAll() }
         while undoStack.count > 1, bytesInUse > budgetBytes {
@@ -44,9 +51,8 @@ final class UndoHistory {
         }
     }
 
-    /// Pops the newest own entry.
-    /// ponytail: foreign entries above it are not re-applied, so an own undo under a partner stroke
-    /// restores the old region; Block 13 re-applies from `basis`.
+    /// Pops the newest own entry. Level 1 only: shared drawings undo through `GemeinsamVerlauf`,
+    /// which re-applies the partner's later steps.
     func popUndo() -> UndoEntry? {
         guard let index = undoStack.lastIndex(where: { $0.autor == nil }) else { return nil }
         let item = undoStack.remove(at: index)

@@ -119,6 +119,8 @@ struct ArtworkLayer: Identifiable, Codable, Equatable, Sendable {
     var alphaMaskFile: String?
     var transform = LayerTransform()
     var contentFile: String
+    /// Shared drawing: person (raw value) who locked this layer for the partner (Z-13.3).
+    var gesperrtVon: String?
 
     static func paint(name: String = "Ebene 1") -> ArtworkLayer {
         let id = UUID()
@@ -152,6 +154,9 @@ struct ArtworkDocument: Identifiable, Codable, Equatable, Sendable {
     var schemaVersion = 3
     var layers: [ArtworkLayer]
     var liveReadOnlyShare = false
+    /// Shared drawing: highest `zeichnung.op` seq contained, and own ops contained but still unconfirmed.
+    var basis: Int?
+    var offen: [String]?
 
     static func new(
         name: String,
