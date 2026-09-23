@@ -70,8 +70,28 @@ export class Raum {
 
     if (url.pathname === "/raum") return this.#upgrade(request, url, person);
     if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request);
+    if (url.pathname === "/fl" && request.method === "POST") return this.#flHttp(request, person);
     if (teile[0] === "medien") return this.#medien(request, teile, person);
     return new Response("not found", { status: 404 });
+  }
+
+  // Fürs Hintergrund-Standort-Tracking (I-5-Kontext): der WebSocket wird ~30s
+  // nach dem Backgrounden geschlossen, aber CLLocationManager liefert weiter
+  // Updates. POST /fl verhält sich exakt wie ein WebSocket-`fl` derselben
+  // Person -- kein eigener Zustand, nur ein zweiter Eingang zu #flVerarbeiten.
+  async #flHttp(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("unauthorized", { status: 401 });
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response("bad request", { status: 400 });
+    }
+    if (typeof body?.art !== "string" || typeof body?.d !== "object" || body.d === null || Array.isArray(body.d)) {
+      return new Response("bad request", { status: 400 });
+    }
+    await this.#flVerarbeiten(person, body.art, body.d);
+    return new Response(null, { status: 204 });
   }
 
   // --- WebSocket -----------------------------------------------------------
@@ -139,11 +159,7 @@ export class Raum {
     } else if (msg.t === "geraet") {
       geraetSpeichern(this.sql, person, msg.token);
     } else if (msg.t === "fl") {
-      if (msg.art === "standort") {
-        await this.#standort(person, msg.d);
-      } else {
-        this.#sendeAnPartner(person, { t: "fl", von: person, art: msg.art, d: msg.d });
-      }
+      await this.#flVerarbeiten(person, msg.art, msg.d);
     }
   }
 
@@ -210,6 +226,19 @@ export class Raum {
       } catch {
         // ignorieren -- Präsenz/Broadcast an einen toten Socket ist kein Fehler.
       }
+    }
+  }
+
+  // Gemeinsamer Weg für ein `fl` -- egal ob per WebSocket oder per POST /fl
+  // (Hintergrund-Standort, siehe #flHttp). `standort` hat sein eigenes
+  // Wire-Format (`{t:"standort",...}`, siehe schnittstellen.md und
+  // #standort()); alles andere geht als generisches `{t:"fl",von,art,d}`
+  // nur an den Partner raus und wird nie gespeichert.
+  async #flVerarbeiten(person, art, d) {
+    if (art === "standort") {
+      await this.#standort(person, d);
+    } else {
+      this.#sendeAnPartner(person, { t: "fl", von: person, art, d });
     }
   }
 
