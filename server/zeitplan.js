@@ -42,6 +42,22 @@ function tagVerschieben(datumStr, n) {
   return { y: dt.getUTCFullYear(), mo: dt.getUTCMonth() + 1, d: dt.getUTCDate() };
 }
 
+const pad2 = (n) => String(n).padStart(2, "0");
+const alsDatumStr = ({ y, mo, d }) => `${y}-${pad2(mo)}-${pad2(d)}`;
+
+// Montag der Woche, die `datumStr` enthält, als "YYYY-MM-DD" -- dieselbe Montag-first-Woche wie
+// der iOS-Client (`Datum.montagDerWoche`), hier lokal nachgebaut (kein Swift-Import im Worker).
+export function montagDerWoche(datumStr) {
+  const [y, mo, d] = datumStr.split("-").map(Number);
+  const utcTag = new Date(Date.UTC(y, mo - 1, d, 12)).getUTCDay(); // 0=So..6=Sa
+  const wochentag = utcTag === 0 ? 7 : utcTag; // 1=Mo..7=So
+  return alsDatumStr(tagVerschieben(datumStr, -(wochentag - 1)));
+}
+
+function letzterTagImMonat(y, mo) {
+  return new Date(Date.UTC(y, mo, 0)).getUTCDate(); // Tag 0 des Folgemonats = letzter Tag von mo
+}
+
 export function vorabendZeit(treffenDatum) {
   const t = tagVerschieben(treffenDatum, -1);
   return berlinInstant(t.y, t.mo, t.d, 20, 0, 0);
@@ -92,6 +108,48 @@ export function naechsteFaelligeTageszeit(jetztMs, hh, mm, heuteErledigt) {
   return naechsteTageszeit(jetztMs, hh, mm);
 }
 
+// --- Challenges (Z-22.3): Endspurt am letzten Tag (18 Uhr), Ende-Mitteilung kurz danach ---
+// (nicht mitten in der Nacht, deshalb 09:00 statt 00:00 -- ponytail: fest, keine Zustellzeit-
+// Personalisierung). "Ende" heißt hier nur "Zeitraum ist um", der Server rechnet keine Punkte.
+
+export function challengeEndspurtWocheZeit(heuteStr) {
+  const sonntag = alsDatumStr(tagVerschieben(montagDerWoche(heuteStr), 6));
+  const [y, mo, d] = sonntag.split("-").map(Number);
+  return berlinInstant(y, mo, d, 18, 0, 0);
+}
+
+export function challengeEndeWocheZeit(heuteStr) {
+  const naechsterMontag = alsDatumStr(tagVerschieben(montagDerWoche(heuteStr), 7));
+  const [y, mo, d] = naechsterMontag.split("-").map(Number);
+  return berlinInstant(y, mo, d, 9, 0, 0);
+}
+
+export function challengeEndspurtMonatZeit(heuteStr) {
+  const [y, mo] = heuteStr.split("-").map(Number);
+  return berlinInstant(y, mo, letzterTagImMonat(y, mo), 18, 0, 0);
+}
+
+export function challengeEndeMonatZeit(heuteStr) {
+  const [y, mo] = heuteStr.split("-").map(Number);
+  const naechster = mo === 12 ? { y: y + 1, mo: 1 } : { y, mo: mo + 1 };
+  return berlinInstant(naechster.y, naechster.mo, 1, 9, 0, 0);
+}
+
+// Wenn diese Periode schon erledigt ist, den Anker um eine Periode weiterschieben, damit `zeitFn`
+// die Zeit der NÄCHSTEN Woche/des NÄCHSTEN Monats liefert statt wieder derselben.
+function naechsteWoechentlicheChallengeZeit(jetztMs, zeitFn, erledigt) {
+  const heute = berlinDatum(jetztMs);
+  if (!erledigt) return zeitFn(heute);
+  return zeitFn(alsDatumStr(tagVerschieben(montagDerWoche(heute), 7)));
+}
+
+function naechsteMonatlicheChallengeZeit(jetztMs, zeitFn, erledigt) {
+  const heute = berlinDatum(jetztMs);
+  if (!erledigt) return zeitFn(heute);
+  const [y, mo] = heute.split("-").map(Number);
+  return zeitFn(mo === 12 ? `${y + 1}-01-01` : `${y}-${pad2(mo + 1)}-01`);
+}
+
 // kontext, von raum.js aus den Ops gebaut:
 // {
 //   treffen: [{datum:"YYYY-MM-DD", uhrzeit?:"HH:mm"}],
@@ -99,6 +157,7 @@ export function naechsteFaelligeTageszeit(jetztMs, hh, mm, heuteErledigt) {
 //   spielEinladungen: [{id, bis}],      // noch offene Einladungen
 //   streakLaeuftHeuteAb: boolean,
 //   erinnerungenHeute: {frage: boolean, streak: boolean},
+//   challengeErledigt: {endspurtWoche, endeWoche, endspurtMonat, endeMonat: boolean},
 // }
 export function naechsterAlarm(kontext, jetztMs) {
   const kandidaten = [];
@@ -121,6 +180,12 @@ export function naechsterAlarm(kontext, jetztMs) {
   if (kontext.streakLaeuftHeuteAb) {
     kandidaten.push({ art: "streakWarnung", zeitMs: naechsteFaelligeTageszeit(jetztMs, 21, 0, kontext.erinnerungenHeute?.streak) });
   }
+  // Duell der Woche + Gemeinsam Woche/Monat laufen immer, kein Op-Kontext nötig.
+  const ce = kontext.challengeErledigt ?? {};
+  kandidaten.push({ art: "challengeEndspurtWoche", zeitMs: naechsteWoechentlicheChallengeZeit(jetztMs, challengeEndspurtWocheZeit, ce.endspurtWoche) });
+  kandidaten.push({ art: "challengeEndeWoche", zeitMs: naechsteWoechentlicheChallengeZeit(jetztMs, challengeEndeWocheZeit, ce.endeWoche) });
+  kandidaten.push({ art: "challengeEndspurtMonat", zeitMs: naechsteMonatlicheChallengeZeit(jetztMs, challengeEndspurtMonatZeit, ce.endspurtMonat) });
+  kandidaten.push({ art: "challengeEndeMonat", zeitMs: naechsteMonatlicheChallengeZeit(jetztMs, challengeEndeMonatZeit, ce.endeMonat) });
 
   const faellig = kandidaten.filter((k) => k.zeitMs <= jetztMs).sort((a, b) => a.zeitMs - b.zeitMs);
   const kommend = kandidaten.filter((k) => k.zeitMs > jetztMs).sort((a, b) => a.zeitMs - b.zeitMs);

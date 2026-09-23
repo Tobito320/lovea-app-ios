@@ -1,6 +1,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { vorabendZeit, stundeVorherZeit, puenktlichZeit, naechsteTageszeit, naechsteFaelligeTageszeit, naechsterAlarm } from "./zeitplan.js";
+import {
+  vorabendZeit, stundeVorherZeit, puenktlichZeit, naechsteTageszeit, naechsteFaelligeTageszeit, naechsterAlarm,
+  challengeEndspurtWocheZeit, challengeEndeWocheZeit, challengeEndspurtMonatZeit, challengeEndeMonatZeit,
+} from "./zeitplan.js";
 
 // Review-Fokus 4: Tageswechsel in Europe/Berlin über die Zeitumstellung
 // 25.10.2026 (03:00 CEST -> 02:00 CET, Uhren eine Stunde zurück).
@@ -94,4 +97,40 @@ test("naechsterAlarm: Pünktlich-Karte wird am Morgen nach einem (auch gestrigen
   };
   const { faellig } = naechsterAlarm(kontext, morgenDanach);
   assert.ok(faellig.some((f) => f.art === "puenktlichKarte" && f.datum === "2026-10-23"));
+});
+
+// Z-22.3: Endspurt-Mitteilung am letzten Challenge-Tag (18 Uhr) + Mitteilung bei Challenge-Ende.
+
+test("challengeEndspurtWocheZeit: Sonntag 25.10. selbst ist schon Winterzeit", () => {
+  assert.equal(new Date(challengeEndspurtWocheZeit("2026-10-19")).toISOString(), "2026-10-25T17:00:00.000Z");
+});
+
+test("challengeEndspurtWocheZeit: Sommer-Sonntag ist noch Sommerzeit", () => {
+  assert.equal(new Date(challengeEndspurtWocheZeit("2026-09-21")).toISOString(), "2026-09-27T16:00:00.000Z");
+});
+
+test("challengeEndeWocheZeit: Montag danach, 09:00 Berlin", () => {
+  assert.equal(new Date(challengeEndeWocheZeit("2026-10-19")).toISOString(), "2026-10-26T08:00:00.000Z");
+});
+
+test("challengeEndspurtMonatZeit: 31.10. 18 Uhr ist schon Winterzeit", () => {
+  assert.equal(new Date(challengeEndspurtMonatZeit("2026-10-05")).toISOString(), "2026-10-31T17:00:00.000Z");
+});
+
+test("challengeEndeMonatZeit: 1. November, 09:00 Berlin", () => {
+  assert.equal(new Date(challengeEndeMonatZeit("2026-10-05")).toISOString(), "2026-11-01T08:00:00.000Z");
+});
+
+test("naechsterAlarm: Challenge-Kandidaten laufen immer mit, auch ohne Op-Kontext", () => {
+  const montagFrueh = Date.parse("2026-09-21T08:00:00.000Z");
+  const { faellig, naechste } = naechsterAlarm({ erinnerungenHeute: {} }, montagFrueh);
+  assert.ok(!faellig.some((f) => f.art.startsWith("challenge")), "so früh in der Woche ist noch nichts fällig");
+  assert.ok(naechste !== null);
+});
+
+test("naechsterAlarm: eine schon erledigte Challenge-Periode wird nicht nochmal fällig", () => {
+  const sonntagAbend = Date.parse("2026-09-27T17:30:00.000Z"); // 19:30 Berlin, nach dem 18-Uhr-Endspurt
+  const kontext = { erinnerungenHeute: {}, challengeErledigt: { endspurtWoche: true } };
+  const { faellig } = naechsterAlarm(kontext, sonntagAbend);
+  assert.ok(!faellig.some((f) => f.art === "challengeEndspurtWoche"));
 });
