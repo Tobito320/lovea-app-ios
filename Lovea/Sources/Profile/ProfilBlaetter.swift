@@ -1,5 +1,3 @@
-import CoreLocation
-import MapKit
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -42,7 +40,8 @@ struct ProfilWallpaper: View {
     }
 }
 
-private struct ZeichnungEintrag: Identifiable {
+/// An own drawing with its cached preview (also used by `BackdropAuswahl`).
+struct ZeichnungEintrag: Identifiable {
     let id: UUID
     let name: String
     let vorschau: URL
@@ -164,7 +163,7 @@ struct WallpaperAuswahl: View {
     }
 }
 
-private struct ZeichnungKachel: View {
+struct ZeichnungKachel: View {
     let eintrag: ZeichnungEintrag
     @State private var bild: UIImage?
 
@@ -180,153 +179,84 @@ private struct ZeichnungKachel: View {
     }
 }
 
-// MARK: - Chatfarbe
+// MARK: - Unser Chat: Briefe und Sterne (Z-34.2, the old Briefbox moved here)
 
-struct ChatFarbeAuswahl: View {
+/// Every letter, newest first, each as B1's `BriefBlase` (tap opens it in place).
+struct BriefeBlatt: View {
     let ich: Person
     @Environment(\.dismiss) private var dismiss
-    @State private var gewaehlt = 0
 
-    private var aktuell: String { EinstellungenModell.shared.string("chatfarbe", default: "", von: ich) }
+    private var briefe: [ChatModell.Nachricht] {
+        ChatModell.shared.nachrichten.filter { $0.brief != nil && !$0.geloescht }.sorted { $0.zeit > $1.zeit }
+    }
 
     var body: some View {
+        let liste = briefe
         NavigationStack {
-            VStack(spacing: 28) {
-                Text(ich.name)
-                    .font(.title2.bold())
-                    .foregroundStyle(ChatFarbe.farbe(ich))
-                    .padding(.horizontal, 20)
-                    .padding(.vertical, 10)
-                    .background(Color(uiColor: .secondarySystemBackground), in: Capsule())
-                    .accessibilityLabel("Vorschau: \(ich.name)")
-                LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 4), spacing: 20) {
-                    ForEach(ChatFarbe.auswahl, id: \.self) { option in
-                        Button {
-                            EinstellungenModell.shared.setzen("chatfarbe", .string(option.hex))
-                            gewaehlt += 1
-                        } label: {
-                            Circle()
-                                .fill(ChatFarbe.farbe(hex: option.hex) ?? .gray)
-                                .frame(width: 52, height: 52)
-                                .overlay {
-                                    if aktuell == option.hex {
-                                        Image(systemName: "checkmark").font(.headline.bold()).foregroundStyle(.white)
-                                    }
-                                }
+            Group {
+                if liste.isEmpty {
+                    ContentUnavailableView("Noch keine Briefe", systemImage: "envelope", description: Text("Schreib einen über Plus im Chat."))
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 18) {
+                            ForEach(liste) { brief in zeile(brief) }
                         }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel(option.name)
-                        .accessibilityAddTraits(aktuell == option.hex ? .isSelected : [])
+                        .padding(16)
                     }
                 }
-                Button("Standardfarbe") {
-                    EinstellungenModell.shared.setzen("chatfarbe", .string(""))
-                    gewaehlt += 1
-                }
-                .disabled(aktuell.isEmpty)
-                Spacer(minLength: 0)
             }
-            .padding(20)
-            .navigationTitle("Chatfarbe")
+            .navigationTitle("Briefe")
             .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
-            }
-            .sensoryFeedback(.selection, trigger: gewaehlt)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
         }
-        .presentationDetents([.medium])
+    }
+
+    private func zeile(_ n: ChatModell.Nachricht) -> some View {
+        let eigen = n.von == ich
+        return VStack(alignment: eigen ? .trailing : .leading, spacing: 4) {
+            BriefBlase(titel: n.brief?.titel ?? "", text: n.text ?? "", von: n.von)
+            Text("\(eigen ? "Von dir" : "Von \(n.von.name)") · \(n.zeit.formatted(date: .abbreviated, time: .omitted))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+        .frame(maxWidth: .infinity, alignment: eigen ? .trailing : .leading)
     }
 }
 
-// MARK: - Map preview ("Annika ist hier: …")
-
-struct KartenVorschau: View {
-    let person: Person
-    let oeffnen: () -> Void
-    @State private var ortName: String?
-
-    private var standort: StandortDaten? { Standort.shared.positionen[person] }
-    private var istIch: Bool { person == Raum.shared.ich }
+/// The own stars, newest first. Tap jumps to the message in the chat.
+struct SterneBlatt: View {
+    let ich: Person
+    let springen: (String) -> Void
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        Button(action: oeffnen) {
-            VStack(alignment: .leading, spacing: 0) {
-                ZStack(alignment: .bottom) {
-                    if let d = standort {
-                        karte(d)
-                        if let info = infoText(d) {
-                            Text(info)
-                                .font(.caption.weight(.semibold))
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 5)
-                                .background(.regularMaterial, in: Capsule())
-                                .padding(.bottom, 10)
-                        }
-                    } else {
-                        Rectangle().fill(Color(uiColor: .tertiarySystemFill))
-                        Label("Noch kein Standort", systemImage: "location.slash")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxHeight: .infinity)
+        let liste = ChatModell.shared.meineSterne(ich).sorted { $0.zeit > $1.zeit }
+        NavigationStack {
+            Group {
+                if liste.isEmpty {
+                    ContentUnavailableView("Noch keine Sterne", systemImage: "star", description: Text("Halte eine Nachricht gedrückt und tippe auf Stern."))
+                } else {
+                    List(liste) { n in
+                        Button { springen(n.id) } label: { zeile(n) }
+                            .buttonStyle(.plain)
                     }
                 }
-                .frame(height: 170)
-                .frame(maxWidth: .infinity)
-                .clipped()
-
-                HStack {
-                    Text("\(istIch ? "Du bist" : "\(person.name) ist") hier: \(Text(ortName ?? "…").bold())")
-                        .font(.subheadline)
-                        .foregroundStyle(.primary)
-                        .multilineTextAlignment(.leading)
-                    Spacer(minLength: 8)
-                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 12)
             }
-            .contentShape(Rectangle())
+            .navigationTitle("Sterne")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
         }
-        .buttonStyle(.plain)
-        .accessibilityHint("Öffnet die Karte")
-        .task(id: standort.map { "\($0.lat),\($0.lon)" }) { await ortLaden() }
     }
 
-    private func karte(_ d: StandortDaten) -> some View {
-        let punkt = CLLocationCoordinate2D(latitude: d.lat, longitude: d.lon)
-        return Map(initialPosition: .region(MKCoordinateRegion(center: punkt, latitudinalMeters: 1800, longitudinalMeters: 1800)), interactionModes: []) {
-            Annotation("", coordinate: punkt, anchor: .bottom) {
-                // Static: the profile already animates two figures, a third loop isn't worth the frames.
-                FigurView(FigurenModell.shared.aussehen(person), zustand: FigurenModell.shared.anzeige(person).haupt, groesse: 60, animiert: false)
-            }
+    private func zeile(_ n: ChatModell.Nachricht) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text("\(n.von == ich ? "Du" : n.von.name) · \(n.zeit.formatted(date: .abbreviated, time: .shortened))")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Text(ChatVorschau.inhalt(n)).lineLimit(3)
         }
-        .id("\(d.lat),\(d.lon)")
-        .allowsHitTesting(false)
-    }
-
-    private func infoText(_ d: StandortDaten) -> String? {
-        var teile: [String] = []
-        if let zeit = ISO8601DateFormatter().date(from: d.zeit) {
-            let sekunden = Date().timeIntervalSince(zeit)
-            teile.append(sekunden < 90 ? "gerade eben" : sekunden < 3600 ? "vor \(Int(sekunden / 60)) min" : "vor \(Int(sekunden / 3600)) h")
-        }
-        if !istIch, let ich = Raum.shared.ich, let eigene = Standort.shared.positionen[ich] {
-            let km = CLLocation(latitude: eigene.lat, longitude: eigene.lon).distance(from: CLLocation(latitude: d.lat, longitude: d.lon)) / 1000
-            teile.append(km < 1 ? "\(Int(km * 1000)) m" : "\(Int(km.rounded())) km")
-        }
-        return teile.isEmpty ? nil : teile.joined(separator: " · ")
-    }
-
-    private func ortLaden() async {
-        guard let d = standort else { ortName = nil; return }
-        if let info = OrteModell.shared.aktuellerOrt(person, lat: d.lat, lon: d.lon) {
-            ortName = info.name
-            return
-        }
-        // ponytail: `CLGeocoder` is deprecated on iOS 26 but still works (InfoKarteView uses it too);
-        // switch both to `MKReverseGeocodingRequest` together once someone can compile against it.
-        guard let orte = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: d.lat, longitude: d.lon)), let p = orte.first else { return }
-        let text = [p.subLocality ?? p.thoroughfare, p.locality].compactMap { $0 }.joined(separator: ", ")
-        ortName = text.isEmpty ? nil : text
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        .contentShape(Rectangle())
+        .accessibilityHint("Im Chat zeigen")
     }
 }

@@ -18,7 +18,18 @@ final class AppNavigation {
     var tabWunsch: String?
     /// Profile → "Kamera": ChatTab opens the snap camera and clears it.
     var kameraOeffnen = false
+    /// Z-32.1: message the chat tab scrolls to and highlights (notification tap, "Heute vor …").
+    /// Stays set until that message has arrived; the conversation clears it.
+    var chatZiel: String?
     private init() {}
+
+    /// Notification tap: chat pushes carry `art` (op kind) and `nachrichtId` (Z-32.1).
+    func mitteilungGeoeffnet(nachrichtId: String?, art: String?) {
+        let chat = nachrichtId != nil || art.map { $0.hasPrefix("nachricht.") || $0.hasPrefix("snap.") } == true
+        guard chat else { return }
+        chatZiel = nachrichtId
+        tabWunsch = "chat"
+    }
 }
 
 struct AppRootView: View {
@@ -46,6 +57,8 @@ struct AppRootView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        // Spec 2.1: the bar stays, and shrinks while scrolling (the chat is a tab, not a pushed screen).
+        .tabBarMinimizeBehavior(.onScrollDown)
         .tint(Color.loveaRose)
         .spieleBuehne()
         .onChange(of: AppNavigation.shared.tabWunsch) { _, wunsch in

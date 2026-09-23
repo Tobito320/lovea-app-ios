@@ -187,10 +187,14 @@ extension Standort: @preconcurrency CLLocationManagerDelegate {
 }
 
 extension StandortDaten {
-    /// "vor 44 Min" / "gerade eben" - shared by the info card and the map's name labels.
-    var alterText: String {
-        guard let z = ISO8601DateFormatter().date(from: zeit) else { return "" }
-        let sekunden = Date().timeIntervalSince(z)
-        return sekunden < 90 ? "gerade eben" : "vor \(Int(sekunden / 60)) Min"
+    var punkt: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lon) }
+
+    /// Age of the fix; `nil` if `zeit` doesn't parse. Texts come from `KarteLogik.alterText`.
+    var sekundenAlt: TimeInterval? {
+        ISO8601DateFormatter().date(from: zeit).map { Date().timeIntervalSince($0) }
+    }
+
+    func meter(bis andere: StandortDaten) -> CLLocationDistance {
+        CLLocation(latitude: lat, longitude: lon).distance(from: CLLocation(latitude: andere.lat, longitude: andere.lon))
     }
 }

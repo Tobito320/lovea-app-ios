@@ -40,10 +40,10 @@ struct ChatAnhang: Identifiable {
     }
 }
 
-/// Input bar (Block 18, Snapchat order): camera · rounded field (GIF/sticker + mic inside, mic turns
-/// into send once there is something to send) · photos · games. One line tall, grows only when the
-/// text needs more lines (max 5). Picked photos wait as thumbnails above; tap or hold one to edit it.
-/// Throttles the own "tippt" signal and the figure state (Z-4.5).
+/// Input bar (Z-32.3): [Kamera] [Feld] [Plus] as glass controls, every button 44 × 44 pt. The field
+/// (≥ 44 pt, 17 pt Dynamic Type, up to 6 lines) holds GIF/sticker and the mic; Return sends. Plus
+/// opens a glass drawer: Fotos, GIFs, Spiele, Brief, Effekte. Picked photos wait as thumbnails
+/// above; tap one to edit it. Throttles the own "tippt" signal and the figure state (Z-4.5).
 struct ChatEingabeleiste: View {
     let ich: Person
     @Binding var antwortAuf: ChatModell.Nachricht?
@@ -55,10 +55,14 @@ struct ChatEingabeleiste: View {
     @State private var fotoAuswahl: [PhotosPickerItem] = []
     @State private var anhaenge: [ChatAnhang] = []
     @State private var bearbeiten: ChatAnhang?
+    @State private var plusOffen = false
+    @State private var fotosOffen = false
     @State private var gifBlattOffen = false
     @State private var kameraOffen = false
     @State private var spieleOffen = false
-    @State private var kapselBriefOffen = false
+    @State private var briefOffen = false
+    /// Z-33.2: chosen by hand for the next text message.
+    @State private var effekt: ChatEffekt?
     @State private var sprachBelegt = false
     @State private var sprachEntwurf: SprachEntwurf?
     /// Z-26.2: once the user has typed/attached/recorded anything this session, a draft restore
@@ -75,86 +79,153 @@ struct ChatEingabeleiste: View {
     @State private var ausstehendeSprache: String?
     @Environment(\.scenePhase) private var scenePhase
 
-    private static let hoehe: CGFloat = 36
+    private static let hoehe: CGFloat = 44
 
     var body: some View {
-        VStack(spacing: 6) {
+        VStack(spacing: 8) {
             if let antwortAuf {
                 ZitatLeiste(nachricht: antwortAuf, ich: ich) { self.antwortAuf = nil }
             }
             if !anhaenge.isEmpty {
                 AnhangLeiste(anhaenge: $anhaenge, onAendert: { beruehrt = true; entwurfAktualisieren() }) { anhang in
-                    if anhang.istVideo { ChatHaptik.leicht() } else { bearbeiten = anhang }
+                    if anhang.istVideo { Haptik.leicht() } else { bearbeiten = anhang }
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
             }
-            HStack(alignment: .bottom, spacing: 6) {
-                Button { ChatHaptik.leicht(); kameraOffen = true } label: {
+            if plusOffen {
+                PlusLeiste(effekt: $effekt, onWahl: plusWahl) { schliessePlus() }
+                    .transition(.move(edge: .bottom).combined(with: .opacity).combined(with: .scale(scale: 0.9, anchor: .bottomTrailing)))
+            }
+            if let effekt, !plusOffen { effektChip(effekt) }
+            reihe
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .animation(Feder.schnell, value: anhaenge.count)
+        .animation(Feder.federnd, value: plusOffen)
+        .animation(Feder.schnell, value: effekt)
+        .onChange(of: fotoAuswahl) { _, neu in uebernehmen(neu) }
+        .photosPicker(isPresented: $fotosOffen, selection: $fotoAuswahl, maxSelectionCount: 20, selectionBehavior: .ordered, matching: .any(of: [.images, .videos]))
+        .modifier(Blaetter(
+            ich: ich, antwortAuf: $antwortAuf, eingabeAttr: $eingabeAttr, bearbeiten: $bearbeiten,
+            kameraOffen: $kameraOffen, gifBlattOffen: $gifBlattOffen, spieleOffen: $spieleOffen,
+            briefOffen: $briefOffen, vollansichtOffen: $vollansichtOffen, onErsetzen: ersetzen
+        ))
+        .modifier(Lebenszyklus(scenePhase: scenePhase, onFlush: entwurfFlush, onWiederherstellen: entwurfWiederherstellen))
+    }
+
+    /// [Kamera] [Feld] [Plus], one glass family.
+    private var reihe: some View {
+        GlassEffectContainer(spacing: 8) {
+            HStack(alignment: .bottom, spacing: 8) {
+                Button {
+                    Haptik.leicht()
+                    kameraOffen = true
+                } label: {
                     Image(systemName: "camera.fill")
                         .font(.system(size: 17, weight: .semibold))
                         .frame(width: Self.hoehe, height: Self.hoehe)
-                        .background(Color(uiColor: .tertiarySystemFill), in: Circle())
+                        .contentShape(.circle)
                 }
+                .glassEffect(.regular.interactive(), in: .circle)
                 .accessibilityLabel("Snap aufnehmen")
 
                 feld
 
-                PhotosPicker(selection: $fotoAuswahl, maxSelectionCount: 20, selectionBehavior: .ordered, matching: .any(of: [.images, .videos])) {
-                    Image(systemName: "photo.on.rectangle.angled")
-                        .font(.system(size: 20))
+                Button {
+                    Haptik.leicht()
+                    plusOffen.toggle()
+                } label: {
+                    Image(systemName: "plus")
+                        .font(.system(size: 19, weight: .semibold))
+                        .rotationEffect(.degrees(plusOffen ? 45 : 0))
                         .frame(width: Self.hoehe, height: Self.hoehe)
+                        .contentShape(.circle)
                 }
-                .accessibilityLabel("Fotos und Videos")
-
-                Button { ChatHaptik.leicht(); spieleOffen = true } label: {
-                    Image(systemName: "gamecontroller.fill")
-                        .font(.system(size: 20))
-                        .frame(width: Self.hoehe, height: Self.hoehe)
-                }
-                .accessibilityLabel("Spiel starten")
-
-                // Z-27.2: Zeitkapsel/Brief-Composer.
-                Button { ChatHaptik.leicht(); kapselBriefOffen = true } label: {
-                    Image(systemName: "envelope.fill")
-                        .font(.system(size: 19))
-                        .frame(width: Self.hoehe, height: Self.hoehe)
-                }
-                .accessibilityLabel("Zeitkapsel oder Brief")
+                .glassEffect(.regular.interactive(), in: .circle)
+                .accessibilityLabel(plusOffen ? "Mehr schließen" : "Mehr: Fotos, GIFs, Spiele, Brief, Effekte")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.primary)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .animation(.snappy(duration: 0.2), value: anhaenge.count)
-        .onChange(of: fotoAuswahl) { _, neu in uebernehmen(neu) }
-        .fullScreenCover(isPresented: $kameraOffen) {
-            SnapKameraFluss(ich: ich, antwortAuf: antwortAuf?.id) {
-                kameraOffen = false
-                self.antwortAuf = nil
+    }
+
+    private func effektChip(_ effekt: ChatEffekt) -> some View {
+        HStack(spacing: 6) {
+            Label("Mit \(effekt.titel)", systemImage: effekt.symbol).font(.footnote.weight(.medium))
+            Button {
+                Haptik.leicht()
+                self.effekt = nil
+            } label: {
+                Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44).contentShape(.rect)
             }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
+            .accessibilityLabel("Effekt entfernen")
         }
-        .fullScreenCover(item: $bearbeiten) { anhang in
-            if case .foto(let daten) = anhang.inhalt, let bild = UIImage(data: daten) {
-                SnapEditor(
-                    inhalt: .foto(bild), ich: ich, antwortAuf: nil,
-                    onFertig: { bearbeiten = nil },
-                    onUebernehmen: { jpeg in ersetzen(anhang.id, durch: jpeg) }
-                )
-            }
+        .padding(.leading, 14)
+        .glassEffect(.regular, in: .capsule)
+        .frame(maxWidth: .infinity, alignment: .trailing)
+        .transition(.scale.combined(with: .opacity))
+    }
+
+    private func plusWahl(_ wahl: PlusLeiste.Wahl) {
+        Haptik.leicht()
+        plusOffen = false
+        switch wahl {
+        case .fotos: fotosOffen = true
+        case .gifs: gifBlattOffen = true
+        case .spiele: spieleOffen = true
+        case .brief: briefOffen = true
         }
-        .sheet(isPresented: $gifBlattOffen) {
-            GifStickerBlatt(ich: ich, antwortAuf: antwortAuf?.id) {
-                gifBlattOffen = false
-                self.antwortAuf = nil
-            }
+    }
+
+    private func schliessePlus() {
+        plusOffen = false
+    }
+
+    /// Every sheet and cover of the input bar (split out of `body` for the type checker).
+    private struct Blaetter: ViewModifier {
+        let ich: Person
+        @Binding var antwortAuf: ChatModell.Nachricht?
+        @Binding var eingabeAttr: NSAttributedString
+        @Binding var bearbeiten: ChatAnhang?
+        @Binding var kameraOffen: Bool
+        @Binding var gifBlattOffen: Bool
+        @Binding var spieleOffen: Bool
+        @Binding var briefOffen: Bool
+        @Binding var vollansichtOffen: Bool
+        let onErsetzen: (UUID, Data) -> Void
+
+        func body(content: Content) -> some View {
+            content
+                .fullScreenCover(isPresented: $kameraOffen) {
+                    SnapKameraFluss(ich: ich, antwortAuf: antwortAuf?.id) {
+                        kameraOffen = false
+                        antwortAuf = nil
+                    }
+                }
+                .fullScreenCover(item: $bearbeiten) { anhang in
+                    if case .foto(let daten) = anhang.inhalt, let bild = UIImage(data: daten) {
+                        SnapEditor(
+                            inhalt: .foto(bild), ich: ich, antwortAuf: nil,
+                            onFertig: { bearbeiten = nil },
+                            onUebernehmen: { jpeg in onErsetzen(anhang.id, jpeg) }
+                        )
+                    }
+                }
+                .sheet(isPresented: $gifBlattOffen) {
+                    GifStickerBlatt(ich: ich, antwortAuf: antwortAuf?.id) {
+                        gifBlattOffen = false
+                        antwortAuf = nil
+                    }
+                }
+                .sheet(isPresented: $spieleOffen) { SpieleStarter() }
+                .sheet(isPresented: $briefOffen) { BriefBlatt() }
+                // Z-26.1: "Vollansicht" — same text, large editor, closes via the button or the
+                // sheet's own swipe-down.
+                .sheet(isPresented: $vollansichtOffen) { VollansichtEditor(text: $eingabeAttr) }
         }
-        .sheet(isPresented: $spieleOffen) { SpieleStarter() }
-        .sheet(isPresented: $kapselBriefOffen) { KapselBriefBlatt { kapselBriefOffen = false } }
-        // Z-26.1: "Vollansicht" — same text, large editor, closes via the button or the sheet's own
-        // swipe-down.
-        .sheet(isPresented: $vollansichtOffen) { VollansichtEditor(text: $eingabeAttr) }
-        .modifier(Lebenszyklus(scenePhase: scenePhase, onFlush: entwurfFlush, onWiederherstellen: entwurfWiederherstellen))
     }
 
     /// Split out of `body` (common.md: keep `body` expressions small, Runde-1 hit the compiler's
@@ -212,15 +283,17 @@ struct ChatEingabeleiste: View {
                             onSenden: senden, onAendert: { tippen.tastenanschlag(); beruehrt = true; entwurfAktualisieren() }
                         )
                     }
-                    .padding(.trailing, mehrzeilig ? 24 : 0)
+                    .padding(.trailing, mehrzeilig ? 36 : 0)
 
                     if mehrzeilig {
-                        Button { ChatHaptik.leicht(); vollansichtOffen = true } label: {
+                        Button { Haptik.leicht(); vollansichtOffen = true } label: {
                             Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.system(size: 11, weight: .semibold))
+                                .font(.system(size: 12, weight: .semibold))
                                 .foregroundStyle(.secondary)
-                                .frame(width: 24, height: 24)
+                                .frame(width: 30, height: 30)
                                 .background(Color(uiColor: .systemBackground).opacity(0.7), in: Circle())
+                                .frame(width: 44, height: 44, alignment: .topTrailing)
+                                .contentShape(.rect)
                         }
                         .buttonStyle(.plain)
                         .accessibilityLabel("Vollansicht")
@@ -228,11 +301,12 @@ struct ChatEingabeleiste: View {
                 }
                 .frame(maxWidth: .infinity, minHeight: Self.hoehe)
 
-                Button { ChatHaptik.leicht(); gifBlattOffen = true } label: {
+                Button { Haptik.leicht(); gifBlattOffen = true } label: {
                     Image(systemName: "face.smiling")
-                        .font(.system(size: 19))
+                        .font(.system(size: 20))
                         .foregroundStyle(.secondary)
-                        .frame(width: 32, height: Self.hoehe)
+                        .frame(width: Self.hoehe, height: Self.hoehe)
+                        .contentShape(.rect)
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("GIFs und Sticker")
@@ -244,12 +318,10 @@ struct ChatEingabeleiste: View {
             .foregroundStyle(.secondary)
             .padding(.trailing, sprachBelegt ? 4 : 0)
         }
-        .padding(.leading, sprachBelegt ? 8 : 10)
-        .padding(.trailing, 3)
+        .padding(.leading, sprachBelegt ? 8 : 12)
         // Fills the row even while recording, so the mic never moves under the holding finger.
         .frame(maxWidth: .infinity, minHeight: Self.hoehe, alignment: .trailing)
-        .overlay(RoundedRectangle(cornerRadius: Self.hoehe / 2).strokeBorder(Color(uiColor: .separator), lineWidth: 1))
-        .background(Color(uiColor: .systemBackground).opacity(0.6), in: RoundedRectangle(cornerRadius: Self.hoehe / 2))
+        .glassEffect(.regular, in: .rect(cornerRadius: Self.hoehe / 2))
     }
 
     private func uebernehmen(_ items: [PhotosPickerItem]) {
@@ -269,28 +341,33 @@ struct ChatEingabeleiste: View {
         }
     }
 
+    /// Z-33.5: the edited bytes go in synchronously, before the re-upload starts — the upload used
+    /// to read the old photo while the new one was still waiting for its thumbnail.
     private func ersetzen(_ id: UUID, durch jpeg: Data) {
+        guard let index = anhaenge.firstIndex(where: { $0.id == id }) else { return }
+        anhaenge[index].inhalt = .foto(jpeg)
+        anhaenge[index].hochgeladen = nil // Z-26.2: content changed, the old id no longer matches
+        entwurfAktualisieren()
+        hochladenFuerEntwurf(id)
         Task {
             let vorschau = await ChatAnhang.vorschau(jpeg)
-            guard let index = anhaenge.firstIndex(where: { $0.id == id }) else { return }
-            anhaenge[index].inhalt = .foto(jpeg)
-            anhaenge[index].vorschau = vorschau
-            anhaenge[index].hochgeladen = nil // Z-26.2: content changed, the old id no longer matches
-            entwurfAktualisieren()
+            guard let aktIndex = anhaenge.firstIndex(where: { $0.id == id }) else { return }
+            anhaenge[aktIndex].vorschau = vorschau
         }
-        hochladenFuerEntwurf(id)
     }
 
     /// Z-26.2: uploads (or re-uploads, after `ersetzen`) a draft photo attachment right away, so
-    /// its id can go into `entwurf.setzen`. Ignored if the attachment was removed/replaced again
-    /// by the time it finishes.
+    /// its id can go into `entwurf.setzen`. Ignored if the attachment was removed or its photo
+    /// replaced again by the time it finishes.
     private func hochladenFuerEntwurf(_ anhangId: UUID) {
         Task {
             guard let index = anhaenge.firstIndex(where: { $0.id == anhangId }),
                   case .foto(let daten) = anhaenge[index].inhalt
             else { return }
             guard let ergebnis = await ChatMedien.entwurfBildHochladen(daten) else { return }
-            guard let aktIndex = anhaenge.firstIndex(where: { $0.id == anhangId }) else { return }
+            guard let aktIndex = anhaenge.firstIndex(where: { $0.id == anhangId }),
+                  case .foto(let jetzt) = anhaenge[aktIndex].inhalt, jetzt == daten
+            else { return }
             anhaenge[aktIndex].hochgeladen = ergebnis
             entwurfAktualisieren()
         }
@@ -304,7 +381,7 @@ struct ChatEingabeleiste: View {
         // Final-Review I-6: a restored draft photo/voice note still downloading would be dropped by
         // the clear below. Hold the send until it is there (Enter again then sends everything).
         guard ausstehendeMedien.isEmpty, ausstehendeSprache == nil else {
-            UINotificationFeedbackGenerator().notificationOccurred(.warning)
+            Haptik.warnung()
             ausstehendeLaden()
             return
         }
@@ -315,6 +392,9 @@ struct ChatEingabeleiste: View {
         // Sendable, so this can't wait until inside the `Task` below.
         let glyphDaten = GenmojiExtraktion.glyphBilder(in: attributiert)
         let text = GenmojiExtraktion.textOhneGlyphen(attributiert)
+        // Z-33.2: a hand-picked effect rides on the next text; without text it waits for one.
+        let gewaehlterEffekt = text.isEmpty ? nil : effekt
+        if !text.isEmpty { effekt = nil }
 
         eingabeAttr = NSAttributedString()
         anhaenge = []
@@ -326,7 +406,7 @@ struct ChatEingabeleiste: View {
         tippen.beenden()
 
         guard !anhaengeZuSenden.isEmpty || !glyphDaten.isEmpty || !text.isEmpty else { return }
-        ChatHaptik.leicht()
+        Haptik.leicht()
         // Synchronous, not at the end of the Task below: a Genmoji/video send can await an upload
         // for a while, and a draft typed into the now-empty composer during that window must not
         // get wiped by a clear that was queued before any of that typing happened.
@@ -354,7 +434,7 @@ struct ChatEingabeleiste: View {
                 antwort = nil
             }
             if !text.isEmpty {
-                ChatModell.shared.nachrichtSenden(text: text, antwortAuf: antwort)
+                ChatModell.shared.nachrichtSenden(text: text, antwortAuf: antwort, effekt: gewaehlterEffekt)
             }
         }
     }
@@ -496,26 +576,27 @@ private struct AnhangLeiste: View {
                         }
 
                         Button {
-                            ChatHaptik.leicht()
-                            withAnimation(.snappy) { anhaenge.removeAll { $0.id == anhang.id } }
+                            Haptik.leicht()
+                            withAnimation(Feder.schnell) { anhaenge.removeAll { $0.id == anhang.id } }
                             onAendert()
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 20))
                                 .symbolRenderingMode(.palette)
                                 .foregroundStyle(Color.white, Color.black.opacity(0.65))
-                                .frame(width: 30, height: 30)
+                                .frame(width: 44, height: 44)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .offset(x: 9, y: -9)
+                        .offset(x: 16, y: -16)
                         .accessibilityLabel("Anhang entfernen")
                     }
                     .transition(.scale.combined(with: .opacity))
                 }
             }
             .padding(.horizontal, 4)
-            .padding(.top, 10)
+            .padding(.top, 16)
+            .padding(.trailing, 12)
         }
     }
 
@@ -534,8 +615,8 @@ private struct AnhangLeiste: View {
 /// — so Genmoji/Memoji/iOS-Sticker from the keyboard can be typed at all — is a `UITextInput`
 /// property, not a SwiftUI `View` modifier, hence UIKit here. Binds the live `NSAttributedString`
 /// (not `String`) so an attached glyph's `.adaptiveImageGlyph` attribute survives until send. One
-/// line tall, grows with the text up to five lines, then scrolls. Return sends (delegate
-/// `shouldChangeTextIn`, "\n" → `onSenden`, no newline inserted).
+/// line tall (44 pt with the insets), grows with the text up to six lines (Z-32.3), then scrolls.
+/// Return sends (delegate `shouldChangeTextIn`, "\n" → `onSenden`, no newline inserted).
 private struct GenmojiEingabefeld: UIViewRepresentable {
     @Binding var text: NSAttributedString
     @Binding var mehrzeilig: Bool
@@ -543,7 +624,7 @@ private struct GenmojiEingabefeld: UIViewRepresentable {
     var onSenden: () -> Void
     var onAendert: () -> Void
 
-    private static let maxZeilen: CGFloat = 5
+    private static let maxZeilen: CGFloat = 6
     private static let schrift = UIFont.preferredFont(forTextStyle: .body)
 
     func makeUIView(context: Context) -> UITextView {
@@ -553,7 +634,7 @@ private struct GenmojiEingabefeld: UIViewRepresentable {
         view.accessibilityLabel = "Nachricht"
         view.backgroundColor = .clear
         view.isScrollEnabled = false
-        view.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
+        view.textContainerInset = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.supportsAdaptiveImageGlyph = true
         view.typingAttributes = [.font: Self.schrift, .foregroundColor: UIColor.label]
@@ -717,13 +798,80 @@ private struct ZitatLeiste: View {
                 Text(ChatVorschau.inhalt(nachricht)).font(.caption).lineLimit(1)
             }
             Spacer()
-            Button { onAbbrechen() } label: { Image(systemName: "xmark.circle.fill").frame(minWidth: 32, minHeight: 32) }
+            Button { onAbbrechen() } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44).contentShape(.rect) }
+                .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .accessibilityLabel("Antwort abbrechen")
         }
-        .padding(8)
-        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 10))
+        .padding(.leading, 12)
+        .padding(.vertical, 2)
+        .glassEffect(.regular, in: .rect(cornerRadius: 18))
         .padding(.horizontal, 2)
+    }
+}
+
+/// Z-32.3: the plus drawer, a glass bar over the input. Springs in, closes on a choice or a swipe down.
+struct PlusLeiste: View {
+    enum Wahl { case fotos, gifs, spiele, brief }
+
+    @Binding var effekt: ChatEffekt?
+    let onWahl: (Wahl) -> Void
+    let onSchliessen: () -> Void
+
+    var body: some View {
+        HStack(spacing: 0) {
+            eintrag("Fotos", "photo.on.rectangle.angled", .fotos)
+            eintrag("GIFs", "face.smiling", .gifs)
+            eintrag("Spiele", "gamecontroller.fill", .spiele)
+            eintrag("Brief", "envelope.fill", .brief)
+            effekteMenue
+        }
+        .padding(.vertical, 6)
+        .glassEffect(.regular, in: .rect(cornerRadius: 26))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 12).onEnded { wert in
+                if wert.translation.height > 24 { onSchliessen() }
+            }
+        )
+    }
+
+    private func eintrag(_ titel: String, _ symbol: String, _ wahl: Wahl) -> some View {
+        Button { onWahl(wahl) } label: { inhalt(titel, symbol) }
+            .buttonStyle(.federnd)
+    }
+
+    private func inhalt(_ titel: String, _ symbol: String) -> some View {
+        VStack(spacing: 4) {
+            Image(systemName: symbol)
+                .font(.system(size: 20, weight: .semibold))
+                .frame(height: 26)
+            Text(titel).font(.caption2)
+        }
+        .foregroundStyle(.primary)
+        .frame(maxWidth: .infinity, minHeight: 56)
+        .contentShape(.rect)
+    }
+
+    private var effekteMenue: some View {
+        Menu {
+            ForEach(ChatEffekt.allCases, id: \.self) { wahl in
+                Button(wahl.titel, systemImage: wahl.symbol) {
+                    Haptik.auswahl()
+                    effekt = wahl
+                    onSchliessen()
+                }
+            }
+            if effekt != nil {
+                Button("Kein Effekt", systemImage: "xmark", role: .destructive) {
+                    effekt = nil
+                    onSchliessen()
+                }
+            }
+        } label: {
+            inhalt("Effekte", "sparkles")
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Effekt für die nächste Nachricht")
     }
 }
 

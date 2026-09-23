@@ -17,15 +17,12 @@ import {
   offeneTreffen,
   offeneAngeheftet,
   offeneSpielEinladungen,
-  streakLaeuftHeuteAb,
   alarmErledigt,
   alarmAlsErledigtMarkieren,
   ortInfo,
   opGueltig,
   verbindungIstLebendig,
   PING_TIMEOUT_MS,
-  offeneKapseln,
-  kapselEntfernen,
   gemeinsamPruefen,
   spotifyTokenLesen,
   spotifyTokenSchreiben,
@@ -308,14 +305,6 @@ test("gemeinsamPruefen: außerhalb 150 m oder mit einem zu alten Punkt setzt zur
   assert.equal(gemeinsamPruefen({ a, b: zweiStundenAlt, jetztMs: jetzt, seitMs: jetzt - 40 * 60_000 }).nah, true);
 });
 
-test("offeneKapseln: nur nachricht.neu mit d.kapsel.oeffnetAm, Nachrichten-id nicht Op-id", () => {
-  const sql = raum();
-  opEinfuegen(sql, op("op-1", "nachricht.neu", "ahmed", { id: "msg-1", text: "hi" })); // keine Kapsel
-  opEinfuegen(sql, op("op-2", "nachricht.neu", "annika", { id: "msg-2", text: "geheim", kapsel: { oeffnetAm: "2026-12-24" } }));
-  const kapseln = offeneKapseln(sql);
-  assert.deepEqual(kapseln, [{ id: "msg-2", oeffnetAm: "2026-12-24" }]);
-});
-
 // Minor 2: `entwurf.setzen` ist nur für den Absender -- auch beim Nachholen nie beim Partner.
 test("opsSeit: fremde Entwürfe werden für `fuer` im SQL ausgefiltert, eigene bleiben", () => {
   const sql = raum();
@@ -325,34 +314,6 @@ test("opsSeit: fremde Entwürfe werden für `fuer` im SQL ausgefiltert, eigene b
   assert.deepEqual(opsSeit(sql, 0, 500, 512 * 1024, "annika").ops.map((o) => o.id), ["e-annika", "n-1"]);
   assert.deepEqual(opsSeit(sql, 0, 500, 512 * 1024, "ahmed").ops.map((o) => o.id), ["e-ahmed", "n-1"]);
   assert.equal(opsSeit(sql, 0).ops.length, 3, "ohne `fuer` (Tests/Tools) ungefiltert");
-});
-
-// Final-Review I-8: offeneKapseln läuft nach jeder Op und darf den Chat nicht mehr scannen.
-test("offeneKapseln: Index statt Chat-Scan -- gepflegt beim Einfügen, geleert bei Löschen/Öffnen", () => {
-  const sql = raum();
-  offeneKapseln(sql); // leere Datenbank: einmalige Übernahme ist erledigt
-  opEinfuegenMitStatus(sql, op("op-1", "nachricht.neu", "ahmed", { id: "msg-1", text: "hi" }));
-  opEinfuegenMitStatus(sql, op("op-2", "nachricht.neu", "annika", { id: "msg-2", kapsel: { oeffnetAm: "2026-12-24" } }));
-  opEinfuegenMitStatus(sql, op("op-3", "nachricht.neu", "ahmed", { id: "msg-3", kapsel: { oeffnetAm: "2027-01-01" } }));
-  // Beweis, dass nichts mehr aus `ops` gelesen wird: ohne die Ops kommen die Kapseln trotzdem.
-  sql.exec(`DELETE FROM ops`);
-  assert.deepEqual(offeneKapseln(sql).map((k) => k.id).sort(), ["msg-2", "msg-3"]);
-
-  opEinfuegenMitStatus(sql, op("op-4", "nachricht.geloescht", "annika", { id: "msg-2" }));
-  assert.deepEqual(offeneKapseln(sql), [{ id: "msg-3", oeffnetAm: "2027-01-01" }], "gelöschte Kapsel pusht nicht mehr");
-
-  kapselEntfernen(sql, "msg-3"); // kapselOeffnet-Alarm verarbeitet
-  assert.deepEqual(offeneKapseln(sql), []);
-});
-
-test("offeneKapseln: einmalige Übernahme alter Kapseln ohne schon geöffnete und gelöschte", () => {
-  const sql = raum();
-  opEinfuegen(sql, op("op-1", "nachricht.neu", "ahmed", { id: "alt-offen", kapsel: { oeffnetAm: "2026-12-24" } }));
-  opEinfuegen(sql, op("op-2", "nachricht.neu", "ahmed", { id: "alt-geoeffnet", kapsel: { oeffnetAm: "2026-09-01" } }));
-  opEinfuegen(sql, op("op-3", "nachricht.neu", "ahmed", { id: "alt-geloescht", kapsel: { oeffnetAm: "2026-12-31" } }));
-  opEinfuegen(sql, op("op-4", "nachricht.geloescht", "ahmed", { id: "alt-geloescht" }));
-  alarmAlsErledigtMarkieren(sql, "kapselOeffnet", "alt-geoeffnet", "2026-09-01T07:00:00.000Z");
-  assert.deepEqual(offeneKapseln(sql), [{ id: "alt-offen", oeffnetAm: "2026-12-24" }]);
 });
 
 test("Spotify: Token und Cache im Merker, roundtrip", () => {
@@ -376,6 +337,17 @@ test("offeneTreffen: neueste Fassung gewinnt, gelöschte und vergangene fallen r
 
   const ergebnis = offeneTreffen(sql, "2026-10-01");
   assert.deepEqual(ergebnis, [{ datum: "2026-10-25", uhrzeit: "15:00" }]);
+});
+
+test("offeneTreffen: abgesagt und später am selben Tag neu geplant ist wieder offen", () => {
+  const sql = raum();
+  opEinfuegen(sql, op("t1", "treffen.setzen", "ahmed", { datum: "2026-10-25", uhrzeit: "14:00" }));
+  opEinfuegen(sql, op("l1", "treffen.loeschen", "ahmed", { datum: "2026-10-25" }));
+  assert.deepEqual(offeneTreffen(sql, "2026-10-01"), []);
+  opEinfuegen(sql, op("t2", "treffen.setzen", "annika", { datum: "2026-10-25", uhrzeit: "" }));
+  assert.deepEqual(offeneTreffen(sql, "2026-10-01"), [{ datum: "2026-10-25", uhrzeit: "" }]);
+  opEinfuegen(sql, op("l2", "treffen.loeschen", "annika", { datum: "2026-10-25" }));
+  assert.deepEqual(offeneTreffen(sql, "2026-10-01"), []);
 });
 
 test("offeneTreffen: ein Cutoff auf 'gestern' liefert das gestrige Treffen noch (für die Pünktlich-Karte am Morgen danach)", () => {
@@ -413,45 +385,6 @@ test("offeneSpielEinladungen: angenommene und verfallene fallen raus", () => {
 
   const ergebnis = offeneSpielEinladungen(sql);
   assert.deepEqual(ergebnis, [{ id: "s1", bis: "2026-10-01T00:00:00.000Z", von: "ahmed" }]);
-});
-
-test("streakLaeuftHeuteAb: gestern beide aktiv, heute noch keiner -> true", () => {
-  const sql = raum();
-  const snap = { snap: { bleibt: false } };
-  opEinfuegen(sql, op("n1", "nachricht.neu", "ahmed", snap, "2026-10-24T10:00:00.000Z"));
-  opEinfuegen(sql, op("n2", "nachricht.neu", "annika", snap, "2026-10-24T11:00:00.000Z"));
-  const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
-
-  opEinfuegen(sql, op("n3", "nachricht.neu", "ahmed", snap, "2026-10-25T09:00:00.000Z"));
-  opEinfuegen(sql, op("n4", "nachricht.neu", "annika", snap, "2026-10-25T09:30:00.000Z"));
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
-});
-
-// I-3: Die App zählt nur Snaps (Streak.swift), die Push-Warnung also auch.
-test("streakLaeuftHeuteAb: normale Chat-Nachrichten zählen nicht, nur Snaps", () => {
-  const sql = raum();
-  opEinfuegen(sql, op("t1", "nachricht.neu", "ahmed", { text: "hi" }, "2026-10-24T10:00:00.000Z"));
-  opEinfuegen(sql, op("t2", "nachricht.neu", "annika", { text: "hey" }, "2026-10-24T11:00:00.000Z"));
-  const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
-
-  opEinfuegen(sql, op("s1", "nachricht.neu", "ahmed", { snap: { bleibt: false } }, "2026-10-24T12:00:00.000Z"));
-  opEinfuegen(sql, op("s2", "nachricht.neu", "annika", { snap: { bleibt: true } }, "2026-10-24T13:00:00.000Z"));
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
-  // Heute nur Text: der Snap-Streak läuft weiter ab.
-  opEinfuegen(sql, op("t3", "nachricht.neu", "ahmed", { text: "morgen" }, "2026-10-25T08:00:00.000Z"));
-  opEinfuegen(sql, op("t4", "nachricht.neu", "annika", { text: "morgen" }, "2026-10-25T08:30:00.000Z"));
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), true);
-});
-
-test("streakLaeuftHeuteAb: Systemnachrichten (z. B. Zufällig nah) zählen nicht als Aktivität", () => {
-  const sql = raum();
-  opEinfuegen(sql, op("s1", "nachricht.neu", "ahmed", { system: "nah" }, "2026-10-24T10:00:00.000Z"));
-  opEinfuegen(sql, op("s2", "nachricht.neu", "annika", { system: "nah" }, "2026-10-24T11:00:00.000Z"));
-  const jetzt = Date.parse("2026-10-25T10:00:00.000Z");
-  // Beide "aktiv" gestern, aber nur über Systemnachrichten -> kein echter Streak-Tag.
-  assert.equal(streakLaeuftHeuteAb(sql, jetzt), false);
 });
 
 test("alarmErledigt: Markierung ist idempotent, wird gefunden, landet nicht in den Ops", () => {

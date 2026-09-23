@@ -37,48 +37,54 @@ struct IPhoneKalenderExport: UIViewControllerRepresentable {
     }
 }
 
-/// Z-9.6 „Zum iPhone-Kalender": fordert erst den Schreibzugriff an (`requestWriteOnlyAccessToEvents`)
-/// und zeigt danach `IPhoneKalenderExport` mit dem passenden `EKEvent` — beide auf demselben
-/// `EKEventStore`, sonst kennt der Editor das übergebene Event nicht.
+/// Z-9.6 „Zum iPhone-Kalender": fordert erst den Schreibzugriff an und zeigt danach
+/// `IPhoneKalenderExport` mit dem passenden `EKEvent`, beide auf demselben `EKEventStore`.
 struct IPhoneKalenderExportBlatt: View {
     let titel: String
     let start: Date
     let ende: Date
     var ganztaegig = false
     @Environment(\.dismiss) private var dismiss
-    @State private var store = EKEventStore()
-    @State private var status: ExportStatus = .laedt
-
-    private enum ExportStatus { case laedt, keineErlaubnis, bereit }
+    /// Erst in `.task` gebaut: `EKEventStore()` ist teuer und entstünde sonst bei jedem Neuaufbau
+    /// dieser Ansicht (jedes Rendern des Aufrufers, solange das Blatt offen ist).
+    @State private var store: EKEventStore?
+    @State private var keineErlaubnis = false
 
     var body: some View {
-        NavigationStack {
-            Group {
-                switch status {
-                case .laedt:
-                    ProgressView()
-                case .keineErlaubnis:
-                    ContentUnavailableView("Kein Zugriff", systemImage: "calendar.badge.exclamationmark", description: Text("Lovea braucht Zugriff auf deinen Kalender, um den Termin einzutragen."))
-                case .bereit:
-                    IPhoneKalenderExport(event: event, store: store, onFertig: { dismiss() })
-                        .ignoresSafeArea()
-                }
-            }
-            .navigationTitle("Zum iPhone-Kalender")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                if status != .bereit {
-                    ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+        Group {
+            if let store {
+                // Ohne eigenen NavigationStack: der System-Dialog bringt seine Leiste mit, sonst
+                // stünden zwei Leisten übereinander.
+                IPhoneKalenderExport(event: event(store), store: store, onFertig: { dismiss() })
+                    .ignoresSafeArea()
+            } else {
+                NavigationStack {
+                    Group {
+                        if keineErlaubnis {
+                            ContentUnavailableView("Kein Zugriff", systemImage: "calendar.badge.exclamationmark", description: Text("Lovea braucht Zugriff auf deinen Kalender, um den Termin einzutragen."))
+                        } else {
+                            ProgressView()
+                        }
+                    }
+                    .navigationTitle("Zum iPhone-Kalender")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                    }
                 }
             }
         }
         .task {
-            let erlaubt = (try? await store.requestWriteOnlyAccessToEvents()) ?? false
-            status = erlaubt ? .bereit : .keineErlaubnis
+            let neu = EKEventStore()
+            if (try? await neu.requestWriteOnlyAccessToEvents()) == true {
+                store = neu
+            } else {
+                keineErlaubnis = true
+            }
         }
     }
 
-    private var event: EKEvent {
+    private func event(_ store: EKEventStore) -> EKEvent {
         let event = EKEvent(eventStore: store)
         event.title = titel
         event.startDate = start
@@ -89,32 +95,46 @@ struct IPhoneKalenderExportBlatt: View {
     }
 }
 
+extension IPhoneKalenderExportBlatt {
+    /// Z-9.6: ein Lovea-Termin als Vorlage. Ohne Uhrzeit ganztägig, ohne Ende eine Stunde.
+    init(termin: Termin) {
+        let start = IPhoneKalenderDatum.kombiniert(termin.datum, termin.start)
+        let ende = termin.ende.map { IPhoneKalenderDatum.kombiniert(termin.datum, $0) } ?? start
+        self.init(titel: termin.titel, start: start, ende: ende > start ? ende : start.addingTimeInterval(60 * 60), ganztaegig: termin.start == nil)
+    }
+}
+
 /// Baut ein Datum aus `yyyy-MM-dd` und optional `HH:mm` (Berlin-Zeitzone). Ohne Uhrzeit wird
 /// für den Export sinnvoll 9 Uhr angenommen (ganztägige `EKEvent`s wären für ein Treffen unpassend).
 enum IPhoneKalenderDatum {
     static func kombiniert(_ datum: String, _ zeit: String?) -> Date {
         var komponenten = Datum.kalender.dateComponents([.year, .month, .day], from: Datum.datum(datum))
-        if let zeit, let doppelpunkt = zeit.firstIndex(of: ":"),
-           let stunde = Int(zeit[..<doppelpunkt]), let minute = Int(zeit[zeit.index(after: doppelpunkt)...]) {
-            komponenten.hour = stunde
-            komponenten.minute = minute
-        } else {
-            komponenten.hour = 9
-            komponenten.minute = 0
-        }
+        let minuten = Datum.minuten(zeit) ?? 9 * 60
+        komponenten.hour = minuten / 60
+        komponenten.minute = minuten % 60
         return Datum.kalender.date(from: komponenten) ?? Datum.datum(datum)
     }
 }
 
 /// Z-9.6 „Aus iPhone-Kalender holen": volle Erlaubnis beim ersten Gebrauch, Liste der nächsten
-/// 30 Tage, Auswahl ergibt `termin.setzen`.
+/// 30 Tage, Auswahl ergibt `termin.setzen`. Die `id` kommt aus dem iPhone-Termin, so legt ein
+/// zweites Holen desselben Termins kein Doppel an.
 struct IPhoneKalenderImport: View {
-    let datum: String
     @Environment(\.dismiss) private var dismiss
-    @State private var events: [EKEvent] = []
+    @State private var eintraege: [Eintrag] = []
     @State private var status: Status = .laedt
 
     private enum Status { case laedt, keineErlaubnis, fertig }
+
+    /// Wertkopie eines `EKEvent` (nicht Sendable), gelesen abseits des Main Threads. Die `id` ist
+    /// je Vorkommen eindeutig: Wiederholungen teilen sich sonst `eventIdentifier`.
+    struct Eintrag: Identifiable, Sendable {
+        let id: String
+        let titel: String
+        let start: Date
+        let ende: Date
+        let ganztaegig: Bool
+    }
 
     var body: some View {
         NavigationStack {
@@ -124,20 +144,12 @@ struct IPhoneKalenderImport: View {
                     ProgressView()
                 case .keineErlaubnis:
                     ContentUnavailableView("Kein Zugriff", systemImage: "calendar.badge.exclamationmark", description: Text("Lovea braucht Zugriff auf deinen Kalender, um Termine zu holen."))
-                case .fertig where events.isEmpty:
+                case .fertig where eintraege.isEmpty:
                     ContentUnavailableView("Keine Termine", systemImage: "calendar", description: Text("In den nächsten 30 Tagen stehen keine Termine in deinem iPhone-Kalender."))
                 case .fertig:
-                    List(events, id: \.eventIdentifier) { event in
-                        Button {
-                            uebernehmen(event)
-                        } label: {
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(event.title ?? "Ohne Titel")
-                                    .font(.body.weight(.medium))
-                                Text(event.startDate, style: .date) + Text(" · ") + Text(event.startDate, style: .time)
-                            }
-                        }
-                        .foregroundStyle(.primary)
+                    List(eintraege) { eintrag in
+                        Button { uebernehmen(eintrag) } label: { zeile(eintrag) }
+                            .foregroundStyle(.primary)
                     }
                 }
             }
@@ -150,38 +162,57 @@ struct IPhoneKalenderImport: View {
         .task { await laden() }
     }
 
-    private func laden() async {
-        let store = EKEventStore()
-        let erlaubt = (try? await store.requestFullAccessToEvents()) ?? false
-        guard erlaubt else {
-            status = .keineErlaubnis
-            return
+    private func zeile(_ eintrag: Eintrag) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            Text(eintrag.titel)
+                .font(.body.weight(.medium))
+            Text(eintrag.start.formatted(date: .abbreviated, time: eintrag.ganztaegig ? .omitted : .shortened))
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
         }
-        let start = Date()
-        let ende = Datum.kalender.date(byAdding: .day, value: 30, to: start) ?? start
-        let suche = store.predicateForEvents(withStart: start, end: ende, calendars: nil)
-        events = store.events(matching: suche).sorted { $0.startDate < $1.startDate }
-        status = .fertig
     }
 
-    private func uebernehmen(_ event: EKEvent) {
-        let start = event.startDate ?? Date()
-        let endeUhrzeit = event.isAllDay ? nil : event.endDate.map(Self.uhrzeitText)
+    private func laden() async {
+        // Abfrage und Lesen abseits des Main Threads: `events(matching:)` kann bei vielen
+        // Kalendern spürbar dauern.
+        let ergebnis: [Eintrag]? = await Task.detached(priority: .userInitiated) { () async -> [Eintrag]? in
+            let store = EKEventStore()
+            guard (try? await store.requestFullAccessToEvents()) == true else { return nil }
+            let start = Date()
+            let ende = Datum.kalender.date(byAdding: .day, value: 30, to: start) ?? start
+            return store.events(matching: store.predicateForEvents(withStart: start, end: ende, calendars: nil))
+                .map { event in
+                    let beginn: Date = event.startDate ?? start
+                    return Eintrag(
+                        id: "\(event.calendarItemIdentifier)-\(Int(beginn.timeIntervalSince1970))",
+                        titel: event.title ?? "Ohne Titel",
+                        start: beginn,
+                        ende: event.endDate ?? beginn,
+                        ganztaegig: event.isAllDay
+                    )
+                }
+                .sorted { $0.start < $1.start }
+        }.value
+        if let ergebnis {
+            eintraege = ergebnis
+            status = .fertig
+        } else {
+            status = .keineErlaubnis
+        }
+    }
+
+    private func uebernehmen(_ eintrag: Eintrag) {
         let termin = Termin(
-            id: UUID().uuidString,
+            id: "iphone-\(eintrag.id)",
             fuer: [(Raum.shared.ich ?? .ahmed).rawValue],
-            titel: event.title ?? "Termin",
+            titel: eintrag.titel,
             typ: "sonstiges",
-            datum: Datum.text(start),
-            start: event.isAllDay ? nil : Self.uhrzeitText(start),
-            ende: endeUhrzeit
+            datum: Datum.text(eintrag.start),
+            start: eintrag.ganztaegig ? nil : Datum.uhrzeit(eintrag.start),
+            ende: eintrag.ganztaegig ? nil : Datum.uhrzeit(eintrag.ende)
         )
         Raum.shared.senden("termin.setzen", termin)
+        Haptik.erfolg()
         dismiss()
-    }
-
-    private static func uhrzeitText(_ datum: Date) -> String {
-        let komponenten = Datum.kalender.dateComponents([.hour, .minute], from: datum)
-        return String(format: "%02d:%02d", komponenten.hour ?? 0, komponenten.minute ?? 0)
     }
 }

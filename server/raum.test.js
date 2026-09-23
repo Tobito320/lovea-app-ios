@@ -154,6 +154,36 @@ test("Push geht raus, sobald der Empfänger-Socket seit über 60s still ist, tro
   assert.match(calls[0].url, /api\.push\.apple\.com/);
 });
 
+// Z-32.1: Antippen einer Chat-Mitteilung springt zur Nachricht -- `art` und `nachrichtId` stehen oben
+// neben `aps`, nur bei `nachricht.*`-Ops mit `d.id`.
+test("Push für nachricht.neu und nachricht.reaktion trägt art und nachrichtId, eine Geste nicht", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+
+  const bodies = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    return new Response(null, { status: 200 });
+  };
+  try {
+    const zeit = new Date().toISOString();
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-1", art: "nachricht.neu", von: "ahmed", zeit, d: { id: "msg-1", text: "hi" } } }));
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-2", art: "nachricht.reaktion", von: "ahmed", zeit, d: { id: "msg-1", emoji: "figur:lacht" } } }));
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-3", art: "geste", von: "ahmed", zeit, d: { art: "herz" } } }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(bodies.length, 3);
+  assert.equal(bodies[0].art, "nachricht.neu");
+  assert.equal(bodies[0].nachrichtId, "msg-1");
+  assert.equal(bodies[0].aps.alert.body, "Ahmed: hi");
+  assert.deepEqual([bodies[1].art, bodies[1].nachrichtId], ["nachricht.reaktion", "msg-1"]);
+  assert.equal(bodies[2].nachrichtId, undefined);
+  assert.equal(bodies[2].aps.alert.body, "Ahmed denkt gerade an dich");
+});
+
 test("nachholen über offenen Socket liefert Seite wie beim Verbinden", async () => {
   const { raum, websockets } = raumMitVerbindung(["ahmed"]);
   for (let i = 0; i < 3; i++) {

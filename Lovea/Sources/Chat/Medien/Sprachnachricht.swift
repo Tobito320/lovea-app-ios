@@ -128,7 +128,7 @@ struct SprachAufnahmeButton: View {
                 }
             }
         }
-        .frame(minWidth: 34, minHeight: 36) // Block 18: same height as the input bar icons
+        .frame(minWidth: 44, minHeight: 44) // Z-32.3: every input bar button 44 × 44 pt
         .contentShape(Rectangle())
         .onLongPressGesture(minimumDuration: 0.3, maximumDistance: 40) {} onPressingChanged: { druecken in
             handlePress(druecken)
@@ -226,26 +226,26 @@ private struct VorschauLeiste: View {
     private var spielt: Bool { SprachSpieler.shared.spielendeID == vorschauID }
 
     var body: some View {
-        HStack(spacing: 10) {
-            Button(role: .destructive) { onVerwerfen() } label: { Image(systemName: "trash") }
+        HStack(spacing: 2) {
+            Button(role: .destructive) { onVerwerfen() } label: { Image(systemName: "trash").frame(width: 44, height: 44) }
                 .accessibilityLabel("Aufnahme verwerfen")
             Button {
                 if spielt { SprachSpieler.shared.pausieren() } else { SprachSpieler.shared.spielen(id: vorschauID, url: aufnahme.url) }
-            } label: { Image(systemName: spielt ? "pause.fill" : "play.fill") }
+            } label: { Image(systemName: spielt ? "pause.fill" : "play.fill").frame(width: 44, height: 44) }
                 .accessibilityLabel(spielt ? "Anhören pausieren" : "Anhören")
             // Z-26.2: "vor dem Senden anhören mit 1×/1,5×/2×" — same cycling speed `SprachSpieler`
             // already uses for sent voice messages.
             Button { SprachSpieler.shared.geschwindigkeitSchalten() } label: {
-                Text(String(format: "%.3gx", SprachSpieler.shared.geschwindigkeit)).font(.caption2.bold())
+                Text(String(format: "%.3gx", SprachSpieler.shared.geschwindigkeit)).font(.caption2.bold()).frame(minWidth: 44, minHeight: 44)
             }
             .accessibilityLabel("Geschwindigkeit")
             Text(String(format: "%d:%02d", Int(aufnahme.dauer) / 60, Int(aufnahme.dauer) % 60))
                 .font(.caption2).monospacedDigit()
             Spacer()
-            Button { onSenden() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2) }
+            Button { onSenden() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2).frame(width: 44, height: 44) }
                 .accessibilityLabel("Sprachnachricht senden")
         }
-        .frame(minHeight: 36)
+        .frame(minHeight: 44)
         .padding(.horizontal, 4)
     }
 }

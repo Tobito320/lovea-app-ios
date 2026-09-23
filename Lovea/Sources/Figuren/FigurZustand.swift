@@ -17,6 +17,14 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
     case anstupsen, kuss, herz, lacht, anstossen, pokal
     // Ruhe
     case ruhig
+    // Mimik (Runde 3): als Geste sendbar (`FigurGesten`), Reaktionen im Chat
+    case zwinkert, verliebt, sauer, schmollt, verlegen, muede, ueberrascht, lachtTraenen, weint, denkt, feiert, schockiert, daumen, tanzt
+
+    /// The Runde-3 expressions, in picker order.
+    static let mimik: [FigurZustand] = [
+        .zwinkert, .verliebt, .lachtTraenen, .daumen, .feiert, .tanzt, .denkt,
+        .ueberrascht, .schockiert, .verlegen, .schmollt, .sauer, .weint, .muede,
+    ]
 
     var titel: String {
         switch self {
@@ -60,6 +68,20 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         case .anstossen: "stößt an"
         case .pokal: "hat gewonnen"
         case .ruhig: "entspannt"
+        case .zwinkert: "zwinkert"
+        case .verliebt: "ist verliebt"
+        case .sauer: "ist sauer"
+        case .schmollt: "schmollt"
+        case .verlegen: "ist verlegen"
+        case .muede: "ist müde"
+        case .ueberrascht: "ist überrascht"
+        case .lachtTraenen: "lacht Tränen"
+        case .weint: "weint"
+        case .denkt: "denkt nach"
+        case .feiert: "feiert"
+        case .schockiert: "ist schockiert"
+        case .daumen: "Daumen hoch"
+        case .tanzt: "tanzt"
         }
     }
 

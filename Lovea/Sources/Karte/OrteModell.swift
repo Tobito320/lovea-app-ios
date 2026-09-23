@@ -26,7 +26,7 @@ final class OrteModell {
 
     private let besuche = BesucheSpeicher()
     private var monitor: CLMonitor?
-    private var monitorGestartet = false
+    private var monitorTask: Task<CLMonitor, Never>?
     private var verworfeneVorschlaege: Set<String>
 
     private init() {
@@ -128,11 +128,14 @@ final class OrteModell {
         Raum.shared.senden("ort.loeschen", OrtLoeschenD(id: ort.id))
     }
 
+    /// The saved place a coordinate lies in: names on the map and the map figure's place state (Z-41).
+    func ortBei(lat: Double, lon: Double) -> Ort? {
+        orte.first { CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: CLLocation(latitude: lat, longitude: lon)) <= $0.radius }
+    }
+
     /// For the info card: name and "since" for the place the given standort currently sits in.
     func aktuellerOrt(_ person: Person, lat: Double, lon: Double) -> (name: String, seit: Date?)? {
-        guard let ort = orte.first(where: {
-            CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: CLLocation(latitude: lat, longitude: lon)) <= $0.radius
-        }) else { return nil }
+        guard let ort = ortBei(lat: lat, lon: lon) else { return nil }
         let letztes = ereignisse["\(ort.id)|\(person.rawValue)"]
         return (ort.name, letztes?.art == "ankunft" ? letztes?.zeit : nil)
     }
@@ -141,19 +144,27 @@ final class OrteModell {
 
     // ponytail: unsure of the exact `CLMonitor` call shapes below on iOS 26 (no local compiler) -
     // see block-8-report.md for what to double-check before merging.
+    // Ein gemerkter Task statt `if let monitor` + `await CLMonitor(...)`: zwei Aufrufe über den
+    // `await` hinweg legten sonst zwei CLMonitor mit demselben Namen an, iOS beendet dann die App.
     private func monitorSicherstellen() async -> CLMonitor {
-        if let monitor { return monitor }
-        let neu = await CLMonitor("lovea.orte")
-        monitor = neu
-        if !monitorGestartet {
-            monitorGestartet = true
+        if let monitorTask { return await monitorTask.value }
+        let task = Task { @MainActor in
+            let neu = await CLMonitor("lovea.orte")
+            self.monitor = neu
             Task { @MainActor in await self.beobachteEreignisse(neu) }
+            return neu
         }
-        return neu
+        monitorTask = task
+        return await task.value
     }
 
+    // ponytail: stillgelegt, der erste gespeicherte Ort liess die App beim Start abstuerzen
+    // (CLMonitor). Die Figur bekommt .gym weiter ueber den Standort. Wieder an, wenn ein
+    // Crash-Log zeigt, dass der einzelne gemerkte Monitor oben sicher ist.
+    private static let monitorAn = false
+
     private func monitorAktualisieren() async {
-        guard let ich = Raum.shared.ich else { return }
+        guard Self.monitorAn, let ich = Raum.shared.ich, orte.contains(where: { $0.person == ich }) else { return }
         let monitor = await monitorSicherstellen()
         let vorhandene = await monitor.identifiers
         for ort in orte where ort.person == ich && !vorhandene.contains(ort.id) {

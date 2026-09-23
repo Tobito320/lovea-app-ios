@@ -99,6 +99,52 @@ final class KalenderLogikTests: XCTestCase {
         XCTAssertEqual(bloecke.count, 1)
         XCTAssertEqual(bloecke.first?.typ, "arbeit")
         XCTAssertEqual(bloecke.first?.status, "krank")
+        XCTAssertEqual(bloecke.first?.ausnahme, daten.ausnahmen.first) // Z-42.2: antippen → ändern/zurücknehmen
+        XCTAssertNil(Wochenplan.tag("2026-09-25", person: "ahmed", daten: daten).first?.ausnahme)
+    }
+
+    // MARK: - Z-42.1 Monatsraster
+
+    func testMonatsRasterZeigtRoutineUndMarker() {
+        var daten = standardDaten()
+        daten.ausnahmen = [
+            Ausnahme(person: "ahmed", datum: "2026-09-24", musterId: nil, status: "krank", bisDatum: nil, start: nil, ende: nil),
+            Ausnahme(person: "annika", datum: "2026-09-25", musterId: nil, status: "verschoben", bisDatum: nil, start: "10:00", ende: "14:00"),
+        ]
+        daten.termine = [Termin(id: "t", fuer: ["annika"], titel: "Arzt", typ: "sonstiges", datum: "2026-09-23", start: nil, ende: nil)]
+        daten.treffen = [Treffen(datum: "2026-09-26", uhrzeit: nil, wasMachenWir: "Kino")]
+
+        let raster = MonatsRaster(erster: "2026-09-01", daten: daten)
+        func zelle(_ tag: String) -> MonatsRaster.Zelle? { raster.zellen.compactMap { $0 }.first { $0.tag == tag } }
+
+        XCTAssertEqual(raster.zellen.count, 42)
+        XCTAssertNil(raster.zellen[0]) // der 1.9.2026 ist ein Dienstag
+        XCTAssertEqual(raster.zellen[1]?.tag, "2026-09-01")
+        XCTAssertEqual(raster.zellen.compactMap { $0 }.count, 30)
+        XCTAssertEqual(zelle("2026-09-22")?.ahmed, "schule") // Di, Woche A
+        XCTAssertEqual(zelle("2026-09-22")?.annika, "schule")
+        XCTAssertEqual(zelle("2026-09-21")?.ahmed, "arbeit") // Mo, Woche A
+        XCTAssertNil(zelle("2026-09-24")?.ahmed) // Arbeit, aber krank
+        XCTAssertEqual(zelle("2026-09-25")?.annika, "schule") // verschoben findet trotzdem statt
+        XCTAssertEqual(zelle("2026-09-23")?.termin, true)
+        XCTAssertEqual(zelle("2026-09-22")?.termin, false)
+        XCTAssertEqual(zelle("2026-09-26")?.treffen, true)
+        XCTAssertNil(zelle("2026-09-26")?.ahmed) // Samstag
+        XCTAssertEqual(zelle("2026-09-26")?.nummer, "26")
+        XCTAssertTrue(zelle("2026-09-22")?.vorlesen(heute: true).contains("Ahmed: Schule") ?? false)
+    }
+
+    // MARK: - Z-42.2 Uhrzeit-Hilfen
+
+    func testUhrzeitHilfen() {
+        XCTAssertEqual(Datum.minuten("08:30"), 510)
+        XCTAssertNil(Datum.minuten(nil))
+        XCTAssertNil(Datum.minuten("ganztägig"))
+        XCTAssertEqual(Datum.uhrzeit(minuten: 510), "08:30")
+        XCTAssertEqual(Datum.uhrzeit("10:00", plus: 90), "11:30")
+        XCTAssertEqual(Datum.uhrzeit("22:30", plus: 180), "23:59") // endet am selben Tag
+        // Zeitumstellung am 25.10.2026: die Uhrzeit bleibt in Berlin dieselbe.
+        XCTAssertEqual(Datum.uhrzeit(IPhoneKalenderDatum.kombiniert("2026-10-25", "18:15")), "18:15")
     }
 
     // MARK: - Z-9.7 DateVorschlag.naechste
