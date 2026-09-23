@@ -81,12 +81,8 @@ private final class KameraSitzung: @unchecked Sendable {
     /// Adds the mic, then records. false when the session can't record yet (not running, no
     /// active video connection) — `startRecording` would throw "No active/enabled connections".
     func aufnehmen(nach ziel: URL, delegate: any AVCaptureFileOutputRecordingDelegate) -> Bool {
-        guard session.isRunning else { return false }
+        guard session.isRunning, let verbindung = film.connection(with: .video), verbindung.isActive else { return false }
         mikroDazu()
-        guard let verbindung = film.connection(with: .video), verbindung.isActive else {
-            mikroWeg()
-            return false
-        }
         // App is portrait-only but a connection defaults to landscape (angle 0).
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
         film.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
