@@ -14,13 +14,15 @@ struct TreffenTagView: View {
     @State private var zeigtExport = false
     @State private var zeigtImport = false
 
-    private static let titelFormat: DateFormatter = {
+    // Fresh formatter per call: DateFormatter is a class and not Sendable, so a shared `static
+    // let` would trip Swift 6 strict concurrency (same reasoning as `Op.isoFormatierer`).
+    private static func titel(_ datum: Date) -> String {
         let f = DateFormatter()
         f.calendar = Datum.kalender
         f.locale = Locale(identifier: "de_DE")
         f.dateFormat = "EEEE, d. MMMM"
-        return f
-    }()
+        return f.string(from: datum)
+    }
 
     private var eintrag: KalenderModell.TreffenEintrag? { kalender.zustand.treffenText[datum] }
     private var checkliste: [KalenderModell.ChecklistEintrag] { kalender.zustand.checklisten[datum] ?? [] }
@@ -29,7 +31,7 @@ struct TreffenTagView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                Label(Self.titelFormat.string(from: Datum.datum(datum)), systemImage: "heart.fill")
+                Label(Self.titel(Datum.datum(datum)), systemImage: "heart.fill")
                     .font(.title3.weight(.semibold))
                     .foregroundStyle(Color.loveaRose)
 

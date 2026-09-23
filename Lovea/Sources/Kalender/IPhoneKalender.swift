@@ -26,7 +26,13 @@ struct IPhoneKalenderExport: UIViewControllerRepresentable {
         let onFertig: () -> Void
         init(onFertig: @escaping () -> Void) { self.onFertig = onFertig }
         func eventEditViewController(_ controller: EKEventEditViewController, didCompleteWith action: EKEventEditViewAction) {
-            controller.dismiss(animated: true, completion: onFertig)
+            // Not passed as `dismiss`'s `completion:` on purpose: that parameter's type requires a
+            // Sendable closure in the current SDK, and forwarding the stored `onFertig` there fails
+            // ("sending value of non-Sendable type '() -> Void' risks causing data races"). Calling
+            // it right after, instead of as the animation's completion, sidesteps that entirely —
+            // the tiny timing difference doesn't matter since SwiftUI tears down the sheet itself.
+            controller.dismiss(animated: true)
+            onFertig()
         }
     }
 }

@@ -9,13 +9,16 @@ struct MonatsAnsicht: View {
     @State private var monat = Date()
 
     private static let wochentagsKuerzel = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
-    private static let monatsFormat: DateFormatter = {
+
+    // Fresh formatter per call: DateFormatter is a class and not Sendable, so a shared `static
+    // let` would trip Swift 6 strict concurrency (same reasoning as `Op.isoFormatierer`).
+    private static func monatsTitel(_ datum: Date) -> String {
         let f = DateFormatter()
         f.calendar = Datum.kalender
         f.locale = Locale(identifier: "de_DE")
         f.dateFormat = "MMMM yyyy"
-        return f
-    }()
+        return f.string(from: datum)
+    }
 
     var body: some View {
         VStack(spacing: 10) {
@@ -23,7 +26,7 @@ struct MonatsAnsicht: View {
                 Button { wechsleMonat(-1) } label: { Image(systemName: "chevron.left") }
                     .accessibilityLabel("Vorheriger Monat")
                 Spacer()
-                Text(Self.monatsFormat.string(from: monat))
+                Text(Self.monatsTitel(monat))
                     .font(.headline)
                 Spacer()
                 Button { wechsleMonat(1) } label: { Image(systemName: "chevron.right") }
