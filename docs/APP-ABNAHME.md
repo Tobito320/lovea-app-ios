@@ -199,6 +199,84 @@ echte Wartezeit oder eine Ortsveränderung brauchen, stehen gesammelt im letzten
 - [ ] Kalender: Schultage blau umrandet, Arbeitstage in der anderen Farbe, mit Legende.
 - [ ] Zeichnen fühlt sich flüssig an, auch mit mehreren Ebenen.
 
+## Runde 2 – Navigation
+
+- [ ] Tabs sind Home · Chat · Zeichnen · Health · Profil, kein eigener Karten-Tab mehr.
+- [ ] Karte öffnet sich nur über die Karten-Vorschau im Partner-Profil, vollflächig.
+- [ ] Chat-Tab zeigt beim Öffnen die große Partner-Karte statt einer leeren Liste, Antippen öffnet die Unterhaltung.
+- [ ] Zahnrad für Einstellungen ist nur im eigenen Profil oben rechts.
+
+## Runde 2 – Health (Schritte, Gym, Wasser, Schlaf, Verlauf)
+
+- [ ] Health-Tab zeigt oben zwei Schritte-Ringe „Ahmed vs. Annika“ mit Zahl je Person.
+- [ ] Über 100 % Tagesziel läuft der Ring eine zweite Runde.
+- [ ] Ohne Health-Erlaubnis zeigt der Ring „Health nicht erlaubt“ mit Knopf, nie 0 Schritte.
+- [ ] Home zeigt nur das Schritte-Duell, Antippen öffnet den Health-Tab.
+- [ ] Gym-Zeile: eigenen Kreis antippen hakt ab (Haptik), Partner-Kreis ist nur sichtbar.
+- [ ] Wasser: Glas antippen zählt hoch, Tagesziel ist in den Zielen änderbar.
+- [ ] Verlauf Woche/Monat/Jahr: Monat lässt sich nach links/rechts wischen, nie in die Zukunft.
+- [ ] Jahresraster zeigt drei Grüntöne je nach Stufe (abgehakt/Woche auf Kurs/Wochenziel geschafft).
+- [ ] „…“ → „Vergangene Tage markieren“: eigene Tage im Raster antippen, werden grün, „Fertig“ schließt.
+- [ ] Schlaf-Karte zeigt Dauer, Einschlafen und Aufwachen für beide, ohne Eingabemöglichkeit.
+
+## Runde 2 – Punkte, Challenges, Shop, Geschenke
+
+- [ ] Punktestand-Kapsel im Health-Tab und eigenen Profil stimmt überein.
+- [ ] „Wofür?“ zeigt verdiente Punkte UND Käufe/Geschenke als negative Zeile mit Datum.
+- [ ] Laufende Challenges (Duell der Woche, Gemeinsam Woche/Monat, Serie) zeigen einen Fortschrittsbalken.
+- [ ] Abschluss einer Challenge löst Konfetti aus, danach nicht nochmal beim nächsten Öffnen.
+- [ ] Shop: Kategorien durchblättern, Vorschau an der eigenen Figur.
+- [ ] Artikel kaufen: Bestätigung vorher, Punktestand sinkt danach.
+- [ ] Zu wenig Punkte: „Nicht genug Punkte“ mit fehlender Zahl, kein Kauf.
+- [ ] Geschenk-Modus: Teil für den Partner kaufen, Partner bekommt Animation und Mitteilung, Teil gehört ihm.
+- [ ] Gekauftes Chat-Thema oder gekaufte Flamme im Partner-Profil unter „Unser Chat“ wählbar.
+- [ ] Gewähltes Chat-Thema ändert sichtbar den Chat-Hintergrund bei beiden.
+
+## Runde 2 – Figuren v3, Kuss, Profil v3
+
+- [ ] Getragene Shop-Teile (Tasche, Uhr, Schmuck, Pose, Tier) zeigen sich auf Profil, Karte und Chat.
+- [ ] Gekaufte Pose zeigt sich am Profilkopf und Kartenpin auch außerhalb vom reinen Nichtstun.
+- [ ] Kuss im eigenen Profil: eigene Figur küsst die des Partners, Ton und Haptik spürbar.
+- [ ] Beim Partner läuft dieselbe Kuss-Animation live (offene App) oder einmalig beim nächsten Öffnen.
+- [ ] Frisuren-/Bart-Auswahl zeigt deutlich mehr Optionen als vorher, weiblich/männlich nach Person getrennt.
+- [ ] Eigenes Profil ohne seitliches Scrollen: Hintergrund, Ganzkörper-Figur, Chips, Figur bearbeiten, Shop.
+- [ ] Eigenen Profil-Hintergrund einstellen: Foto, kostenloses Backdrop oder gekauftes Backdrop.
+
+## Runde 2 – Chat v3 (Eingabe, Entwürfe, Bilder, Genmoji)
+
+- [ ] Enter sendet die Nachricht, kein Senden-Knopf sichtbar.
+- [ ] Feld wächst beim Tippen nach oben, ab Zeile 2 erscheint oben rechts das „Vollansicht“-Symbol.
+- [ ] Text/Bilder/Sprachnachricht im Entwurf bleiben nach Verlassen des Chats erhalten.
+- [ ] Entwurf bleibt auch nach Neuinstallation erhalten (liegt auf dem Server).
+- [ ] Sprachnachricht vor dem Senden anhören mit 1×/1,5×/2×, danach verwerfen oder senden.
+- [ ] Bild im Entwurf einzeln entfernen (x) und per Ziehen umsortieren.
+- [ ] Langes Bild im Verlauf ist auf 320 pt Höhe/75 % Breite gekappt, Antippen zeigt das Original.
+- [ ] Genmoji/Memoji/Sticker aus der Tastatur kommen als Bild-Medium im Chat an.
+- [ ] Alte Umzug-Zeichnungen sind einmalig aus dem Chat verschwunden und liegen in der eigenen Galerie.
+
+## Runde 2 – Neue Funktionen (Gute Nacht, Zeitkapsel, Brief, Heute vor, Orte, Wetter, Spotify)
+
+- [ ] „Gute Nacht“ auf Home: eigene Figur schläft ein, Partner bekommt eine süße Mitteilung. „Guten Morgen“ umgekehrt.
+- [ ] Zeitkapsel anlegen: verschlossen mit Countdown, öffnet sich am Datum animiert mit Mitteilung.
+- [ ] Liebesbrief mit Siegel senden, öffnet sich animiert, liegt danach in der Briefbox im Chat-Tab.
+- [ ] „Heute vor …“ erscheint auf Home und im Chat-Tab, wenn es vor 1/3/12 Monaten etwas gab.
+- [ ] Vollbild-Karte: Umschalter „Unsere Orte“ zeigt Pins mit Fotos von gemeinsamen Tagen.
+- [ ] Wetter-Symbol an der Partner-Figur, auf der Karte und im Widget stimmt mit dem Ort des Partners.
+- [ ] Spotify verbinden (falls eingerichtet): „hört gerade“ mit Titel/Künstler/Cover an der Figur, Antippen öffnet Spotify.
+- [ ] Ohne Spotify-Zugang zeigt die Einstellung „nicht eingerichtet“, keine Sperre sonst in der App.
+
+## Runde 2 – Widgets
+
+- [ ] Gym-Woche (klein) auf dem Home-Bildschirm, heutiger Tag lässt sich direkt darauf abhaken.
+- [ ] Gym Ahmed vs. Annika (mittel) zeigt beide Wochen nebeneinander mit Ziel.
+- [ ] Schritte-Duell-Widget zeigt zwei Ringe mit Zahlen.
+- [ ] Partner-Figur-Widget zeigt Figur, Ort, Akku und Wetter.
+- [ ] Treffen-Widget zeigt die Tage bis zum nächsten Treffen.
+- [ ] Punkte-und-Challenge-Widget zeigt Punktestand beider und die laufende Challenge.
+- [ ] Foto-und-Frage-Widget (groß) zeigt letztes Partner-Foto oder letzte Zeichnung und die Frage des Tages.
+- [ ] Sperrbildschirm-Widgets (rund, rechteckig, Zeile) zeigen Schritte-Ring, Tage bis Treffen, Partner-Ort/Akku.
+- [ ] Gym auf dem Widget abhaken wirkt sofort auch in der App, gleicher Tag, gleicher Haken.
+
 ## Braucht Wartezeit oder echte Ortsveränderung
 
 Diese Punkte lassen sich nicht in einer Minute prüfen. Über mehrere Tage oder bei Gelegenheit
