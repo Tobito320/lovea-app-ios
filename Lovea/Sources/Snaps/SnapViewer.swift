@@ -13,8 +13,10 @@ struct SnapViewer: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var bild: UIImage?
-    @State private var localVideoURL: URL?
-    @State private var begonnen = Date()
+    @State private var spieler: AVPlayer?
+    /// Set only once the medium actually finished loading (not on open) — `schliessen()` uses this
+    /// both to time `lange` correctly and to never mark a snap "angesehen" that never rendered.
+    @State private var begonnen: Date?
     @State private var gemeldeteAufnahmeArten: Set<String> = []
 
     private var binEmpfaenger: Bool { nachricht.von != ich }
@@ -23,8 +25,8 @@ struct SnapViewer: View {
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
-            if istVideo, let localVideoURL {
-                VideoPlayer(player: AVPlayer(url: localVideoURL)).ignoresSafeArea()
+            if let spieler {
+                VideoPlayer(player: spieler).ignoresSafeArea()
             } else if let bild {
                 Image(uiImage: bild).resizable().scaledToFit()
             } else {
@@ -34,7 +36,7 @@ struct SnapViewer: View {
         .contentShape(Rectangle())
         .onTapGesture { schliessen() }
         .gesture(DragGesture().onEnded { wert in if wert.translation.height > 60 { schliessen() } })
-        .task { begonnen = Date(); await laden() }
+        .task { await laden() }
         .onAppear { FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild)) }
         .onDisappear { FigurenModell.shared.zustandSenden(.init(haupt: .imChat)) }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
@@ -43,18 +45,34 @@ struct SnapViewer: View {
         .task { await bildschirmaufnahmeUeberwachen() }
     }
 
+    /// The sender may still be uploading when this opens (Review-Fokus #5) — retries instead of
+    /// giving up after one miss, same pattern as `MedienNachrichtView.laden()`.
     private func laden() async {
         guard let medium = nachricht.medien.first else { return }
-        let url = ChatMedien.eigeneQuellen[medium.id] ?? Medien.lokal(medium.id) ?? (try? await Medien.holen(medium.id))
+        if let quelle = ChatMedien.eigeneQuellen[medium.id] ?? Medien.lokal(medium.id) {
+            anzeigen(quelle)
+            return
+        }
+        while !Task.isCancelled {
+            if let geholt = try? await Medien.holen(medium.id) {
+                anzeigen(geholt)
+                return
+            }
+            try? await Task.sleep(for: .seconds(2))
+        }
+    }
+
+    private func anzeigen(_ url: URL) {
+        begonnen = Date()
         if istVideo {
-            localVideoURL = url
+            spieler = AVPlayer(url: url)
         } else {
-            bild = url.flatMap { UIImage(contentsOfFile: $0.path) }
+            bild = UIImage(contentsOfFile: url.path)
         }
     }
 
     private func schliessen() {
-        if binEmpfaenger, !nachricht.snapAngesehen {
+        if binEmpfaenger, !nachricht.snapAngesehen, let begonnen {
             let sekunden = Date().timeIntervalSince(begonnen)
             ChatModell.shared.snapAngesehenSenden(nachricht.id, lange: sekunden >= 120)
         }

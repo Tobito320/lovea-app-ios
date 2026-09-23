@@ -96,7 +96,7 @@ private struct SnapUeberlagerung: View {
                     guard let erster = punkte.first else { continue }
                     pfad.move(to: erster)
                     for punkt in punkte.dropFirst() { pfad.addLine(to: punkt) }
-                    context.stroke(pfad, with: .color(linie.farbe), style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+                    context.stroke(pfad, with: .color(linie.farbe), style: StrokeStyle(lineWidth: groesse.width * SnapEditor.doodleLinienbreite, lineCap: .round, lineJoin: .round))
                 }
             }
             ForEach(sticker) { element in

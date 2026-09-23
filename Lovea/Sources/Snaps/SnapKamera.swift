@@ -84,10 +84,18 @@ final class SnapKameraSteuerung: NSObject {
         zoom = ziel
     }
 
+    /// App is locked to portrait (`project.yml`) but a capture connection defaults to landscape
+    /// (rotation angle 0) — without this, every photo/video comes out sideways.
+    private func aufAufrechtAusrichten(_ verbindung: AVCaptureConnection?) {
+        guard let verbindung, verbindung.isVideoRotationAngleSupported(90) else { return }
+        verbindung.videoRotationAngle = 90
+    }
+
     // MARK: - Foto (Z-6.1: Tippen)
 
     func fotoAufnehmen() async -> UIImage? {
-        await withCheckedContinuation { continuation in
+        aufAufrechtAusrichten(photoOutput.connection(with: .video))
+        return await withCheckedContinuation { continuation in
             fotoContinuation = continuation
             let einstellungen = AVCapturePhotoSettings()
             einstellungen.flashMode = blitzAn ? .on : .off
@@ -98,6 +106,7 @@ final class SnapKameraSteuerung: NSObject {
     // MARK: - Video (Z-6.1: Halten, bis zu 30 s)
 
     func videoStarten() async -> URL? {
+        aufAufrechtAusrichten(movieOutput.connection(with: .video))
         movieOutput.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
         return await withCheckedContinuation { continuation in
             videoContinuation = continuation
@@ -167,8 +176,7 @@ private struct KameraVorschau: UIViewRepresentable {
 
 /// Full-screen camera (Z-6.1): tap for a photo, hold (≥0.3s) for video up to 30s with a progress
 /// ring, haptic on shutter. Pinch anywhere zooms; while holding the shutter, dragging up also zooms
-/// (the same finger that started the recording). Tap-vs-hold uses the same proven timing pattern
-/// as `SprachAufnahmeButton` (Chat/Medien/Sprachnachricht.swift).
+/// (the same finger that started the recording).
 struct SnapKameraView: View {
     let onFoto: (UIImage) -> Void
     let onVideo: (URL) -> Void
@@ -177,6 +185,7 @@ struct SnapKameraView: View {
     @State private var steuerung = SnapKameraSteuerung()
     @State private var modus: Modus = .ruhe
     @State private var zoomStart: CGFloat = 1
+    @State private var haltTask: Task<Void, Never>?
 
     private enum Modus { case ruhe, haltend }
 
@@ -225,41 +234,44 @@ struct SnapKameraView: View {
             Circle().fill(.white).frame(width: 62, height: 62)
         }
         .contentShape(Circle())
-        .onLongPressGesture(minimumDuration: 0.3, maximumDistance: 60) {} onPressingChanged: { druecken in
-            handleDruck(druecken)
-        }
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 10)
-                .onChanged { wert in
-                    guard modus == .haltend else { return }
-                    steuerung.zoomSetzen(zoomStart + max(0, -wert.translation.height) / 100)
-                }
-        )
+        // One `DragGesture(minimumDistance: 0)` covers tap, hold-to-record AND the drag-up-to-zoom
+        // while recording — deliberately not `onLongPressGesture` + a second `simultaneousGesture`:
+        // `onLongPressGesture`'s `maximumDistance` cancels the whole press once the same finger
+        // drags past it, which is exactly what dragging up to zoom while holding does.
+        .gesture(shutterGeste)
         .padding(.bottom, 40)
     }
 
-    private func handleDruck(_ druecken: Bool) {
-        if druecken {
-            modus = .haltend
-            zoomStart = steuerung.zoom
-            Task {
-                try? await Task.sleep(for: .milliseconds(300))
-                guard modus == .haltend else { return } // released early → handled as a tap below
-                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                if let url = await steuerung.videoStarten() { onVideo(url) }
+    private var shutterGeste: some Gesture {
+        DragGesture(minimumDistance: 0)
+            .onChanged { wert in
+                if modus == .ruhe {
+                    modus = .haltend
+                    zoomStart = steuerung.zoom
+                    haltTask = Task {
+                        try? await Task.sleep(for: .milliseconds(300))
+                        guard modus == .haltend, !steuerung.nimmtVideoAuf else { return } // released early → tap
+                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        if let url = await steuerung.videoStarten() { onVideo(url) }
+                    }
+                }
+                if steuerung.nimmtVideoAuf {
+                    steuerung.zoomSetzen(zoomStart + max(0, -wert.translation.height) / 100)
+                }
             }
-            return
-        }
-        guard modus == .haltend else { return }
-        modus = .ruhe
-        if steuerung.nimmtVideoAuf {
-            steuerung.videoStoppen()
-            return
-        }
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
-        Task {
-            if let bild = await steuerung.fotoAufnehmen() { onFoto(bild) }
-        }
+            .onEnded { _ in
+                guard modus == .haltend else { return }
+                modus = .ruhe
+                if steuerung.nimmtVideoAuf {
+                    steuerung.videoStoppen()
+                    return
+                }
+                haltTask?.cancel()
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Task {
+                    if let bild = await steuerung.fotoAufnehmen() { onFoto(bild) }
+                }
+            }
     }
 }
 

@@ -43,25 +43,38 @@ struct SnapEditor: View {
     @State private var bleibt = false
     @State private var sendetGerade = false
     @State private var videoSpieler: AVPlayer?
+    /// The photo's/video's own aspect ratio — the content box below is locked to this, so the same
+    /// (fraction, fraction) numbers land on the same spot live and in `SnapExport`'s flatten pass.
+    /// Without this the box defaulted to the *screen's* aspect, `.scaledToFill` silently cropped
+    /// the content to match, and every element ended up shifted in the exported snap.
+    @State private var inhaltAspekt: CGFloat = 3.0 / 4.0
 
     private static let doodleFarben: [Color] = [.white, .black, Color.loveaRose, .yellow, .green, .blue]
+    /// Fraction of the content width — shared with `SnapExport`'s static re-render so a stroke has
+    /// the same visual thickness live and in the flattened snap.
+    static let doodleLinienbreite: CGFloat = 0.015
 
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                Color.black.ignoresSafeArea()
-                basisInhalt
-                lebendigeUeberlagerung(groesse: geo.size)
+        ZStack {
+            Color.black.ignoresSafeArea()
 
-                VStack {
-                    obereLeiste
-                    if zeichnenAktiv { farbAuswahl }
-                    Spacer()
-                    untereLeiste
+            GeometryReader { geo in
+                ZStack {
+                    basisInhalt
+                    lebendigeUeberlagerung(groesse: geo.size)
                 }
+                .frame(width: geo.size.width, height: geo.size.height)
+                .contentShape(Rectangle())
+                .gesture(doodleGeste(groesse: geo.size))
             }
-            .contentShape(Rectangle())
-            .gesture(doodleGeste(groesse: geo.size))
+            .aspectRatio(inhaltAspekt, contentMode: .fit)
+
+            VStack {
+                obereLeiste
+                if zeichnenAktiv { farbAuswahl }
+                Spacer()
+                untereLeiste
+            }
         }
         .statusBarHidden()
         .sheet(isPresented: $stickerBlattOffen) {
@@ -82,16 +95,38 @@ struct SnapEditor: View {
         }
         .task {
             if case .video(let url) = inhalt { videoSpieler = AVPlayer(url: url) }
+            await aspektErmitteln()
         }
         .onDisappear { videoSpieler?.pause() }
     }
 
+    /// Same source of truth `SnapExport.video` uses for `upright` — keeps the editor's aspect and
+    /// the export's aspect identical even when the camera's `preferredTransform` rotates the frame.
+    private func aspektErmitteln() async {
+        switch inhalt {
+        case .foto(let bild):
+            guard bild.size.height > 0 else { return }
+            inhaltAspekt = bild.size.width / bild.size.height
+        case .video(let url):
+            let asset = AVURLAsset(url: url)
+            guard let track = try? await asset.loadTracks(withMediaType: .video).first,
+                  let naturalSize = try? await track.load(.naturalSize),
+                  let transform = try? await track.load(.preferredTransform)
+            else { return }
+            let upright = CGSize(width: abs(naturalSize.applying(transform).width), height: abs(naturalSize.applying(transform).height))
+            guard upright.height > 0 else { return }
+            inhaltAspekt = upright.width / upright.height
+        }
+    }
+
     // MARK: - Base content + live overlay
 
+    /// `.scaledToFit`, not `.scaledToFill` — the container above is already locked to this content's
+    /// own aspect ratio, so nothing needs cropping; filling here would just reintroduce the mismatch.
     @ViewBuilder private var basisInhalt: some View {
         switch inhalt {
         case .foto(let bild):
-            Image(uiImage: bild).resizable().scaledToFill()
+            Image(uiImage: bild).resizable().scaledToFit()
         case .video:
             if let videoSpieler {
                 VideoPlayer(player: videoSpieler).disabled(true)
@@ -137,7 +172,9 @@ struct SnapEditor: View {
         guard let erster = punkte.first else { return }
         pfad.move(to: erster)
         for punkt in punkte.dropFirst() { pfad.addLine(to: punkt) }
-        context.stroke(pfad, with: .color(linie.farbe), style: StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round))
+        // Fraction of the content width, not an absolute point count — a photo is often thousands
+        // of pixels wide, an absolute width would look right live and near-invisible once exported.
+        context.stroke(pfad, with: .color(linie.farbe), style: StrokeStyle(lineWidth: groesse.width * Self.doodleLinienbreite, lineCap: .round, lineJoin: .round))
     }
 
     // MARK: - Gestures

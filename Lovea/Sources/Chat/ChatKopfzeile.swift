@@ -28,7 +28,7 @@ struct ChatKopfzeile: View {
 
                 Spacer()
 
-                if modell.streak.tage > 0 { StreakAnzeige(streak: modell.streak) }
+                StreakAnzeige(modell: modell)
 
                 Menu {
                     Button("Medien", systemImage: "photo.on.rectangle") { medienOffen = true }
@@ -80,16 +80,23 @@ struct ChatKopfzeile: View {
 }
 
 /// Streak-Badge (Z-6.5): Flamme (einstellbar über `flamme`, Standard 🔥) + Tage, Sanduhr ab 20 Uhr,
-/// solange heute noch nicht beide gesendet haben.
+/// solange heute noch nicht beide gesendet haben. `TimelineView` re-evaluates `modell.streak` once
+/// a minute — without it, the hourglass would only appear at 20:00 by coincidence, whenever some
+/// unrelated op happens to redraw the header next.
 private struct StreakAnzeige: View {
-    let streak: (tage: Int, laeuftAb: Bool)
+    let modell: ChatModell
 
     var body: some View {
-        HStack(spacing: 3) {
-            Text(EinstellungenModell.shared.string("flamme", default: "🔥"))
-            Text("\(streak.tage)").font(.subheadline.bold())
-            if streak.laeuftAb { Image(systemName: "hourglass").foregroundStyle(.secondary) }
+        TimelineView(.everyMinute) { _ in
+            let streak = modell.streak
+            if streak.tage > 0 {
+                HStack(spacing: 3) {
+                    Text(EinstellungenModell.shared.string("flamme", default: "🔥"))
+                    Text("\(streak.tage)").font(.subheadline.bold())
+                    if streak.laeuftAb { Image(systemName: "hourglass").foregroundStyle(.secondary) }
+                }
+                .font(.subheadline)
+            }
         }
-        .font(.subheadline)
     }
 }
