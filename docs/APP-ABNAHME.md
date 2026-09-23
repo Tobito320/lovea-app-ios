@@ -203,7 +203,8 @@ echte Wartezeit oder eine Ortsveränderung brauchen, stehen gesammelt im letzten
 
 - [ ] Tabs sind Home · Chat · Zeichnen · Health · Profil, kein eigener Karten-Tab mehr.
 - [ ] Karte öffnet sich nur über die Karten-Vorschau im Partner-Profil, vollflächig.
-- [ ] Chat-Tab zeigt beim Öffnen die große Partner-Karte statt einer leeren Liste, Antippen öffnet die Unterhaltung.
+- [ ] Chat-Tab zeigt beim Öffnen die große Partner-Karte statt einer leeren Liste, Antippen öffnet die Unterhaltung (Zoom-Übergang von der Karte).
+- [ ] Ganz oben in der Unterhaltung nach unten ziehen lädt ältere Nachrichten und schließt die Unterhaltung nicht.
 - [ ] Zahnrad für Einstellungen ist nur im eigenen Profil oben rechts.
 
 ## Runde 2 – Health (Schritte, Gym, Wasser, Schlaf, Verlauf)
@@ -224,7 +225,6 @@ echte Wartezeit oder eine Ortsveränderung brauchen, stehen gesammelt im letzten
 - [ ] Punktestand-Kapsel im Health-Tab und eigenen Profil stimmt überein.
 - [ ] „Wofür?“ zeigt verdiente Punkte UND Käufe/Geschenke als negative Zeile mit Datum.
 - [ ] Laufende Challenges (Duell der Woche, Gemeinsam Woche/Monat, Serie) zeigen einen Fortschrittsbalken.
-- [ ] Abschluss einer Challenge löst Konfetti aus, danach nicht nochmal beim nächsten Öffnen.
 - [ ] Shop: Kategorien durchblättern, Vorschau an der eigenen Figur.
 - [ ] Artikel kaufen: Bestätigung vorher, Punktestand sinkt danach.
 - [ ] Zu wenig Punkte: „Nicht genug Punkte“ mit fehlender Zahl, kein Kauf.
@@ -257,9 +257,8 @@ echte Wartezeit oder eine Ortsveränderung brauchen, stehen gesammelt im letzten
 ## Runde 2 – Neue Funktionen (Gute Nacht, Zeitkapsel, Brief, Heute vor, Orte, Wetter, Spotify)
 
 - [ ] „Gute Nacht“ auf Home: eigene Figur schläft ein, Partner bekommt eine süße Mitteilung. „Guten Morgen“ umgekehrt.
-- [ ] Zeitkapsel anlegen: verschlossen mit Countdown, öffnet sich am Datum animiert mit Mitteilung.
+- [ ] Zeitkapsel anlegen: verschlossen mit Countdown sichtbar, liegt in der Briefbox im Chat-Tab.
 - [ ] Liebesbrief mit Siegel senden, öffnet sich animiert, liegt danach in der Briefbox im Chat-Tab.
-- [ ] „Heute vor …“ erscheint auf Home und im Chat-Tab, wenn es vor 1/3/12 Monaten etwas gab.
 - [ ] Vollbild-Karte: Umschalter „Unsere Orte“ zeigt Pins mit Fotos von gemeinsamen Tagen.
 - [ ] Wetter-Symbol an der Partner-Figur, auf der Karte und im Widget stimmt mit dem Ort des Partners.
 - [ ] Spotify verbinden (falls eingerichtet): „hört gerade“ mit Titel/Künstler/Cover an der Figur, Antippen öffnet Spotify.
@@ -289,3 +288,6 @@ mitlaufen lassen, nicht Teil der Bereiche oben.
 - [ ] Am Ende eines Monats mit mehreren Pünktlich-Bewertungen: Monats-Krone erscheint im Profil beim Pünktlicheren.
 - [ ] Spiel-Einladung 2 Minuten unbeantwortet lassen: sie verfällt und verschwindet aus dem Verlauf.
 - [ ] Streak steht kurz vor dem Ablaufen: Sanduhr erscheint im Chat-Kopf, Mitteilung kommt rechtzeitig vorher.
+- [ ] Abschluss einer Challenge (Duell/Gemeinsam/Serie) löst Konfetti aus, danach nicht nochmal beim nächsten Öffnen.
+- [ ] Eine Zeitkapsel öffnet sich am eingestellten Datum animiert, mit Mitteilung.
+- [ ] „Heute vor …“ erscheint auf Home und im Chat-Tab, wenn es vor 1/3/12 Monaten ein Foto, eine Zeichnung oder eine Nachricht gab.

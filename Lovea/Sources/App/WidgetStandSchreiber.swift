@@ -99,6 +99,9 @@ final class WidgetStandSchreiber {
         let health = HealthModell.shared
         let heute = Datum.text(Date())
         let montag = Datum.montagDerWoche(heute)
+        // `verfuegbar` (Kontostand nach Käufen), nicht `stand` (Lebenszeit-verdient) — sonst zeigt
+        // das Widget nach dem ersten Kauf eine andere Zahl als die Punktestand-Kapsel in der App.
+        let verfuegbar = PunkteModell.shared.einkaufsStand(preis: { ShopKatalog.artikel($0)?.preis }).verfuegbar
         for person in Person.allCases {
             stand.schritteHeute[person.rawValue] = health.heuteSchritte(person)
             stand.zielSchritte[person.rawValue] = health.zielSchritte(person)
@@ -107,7 +110,7 @@ final class WidgetStandSchreiber {
                 let tag = Datum.addTage(montag, versatz)
                 return WidgetStand.TagEintrag(datum: tag, erledigt: health.gymAbgehakt(person, tag))
             }
-            stand.punkte[person.rawValue] = PunkteModell.shared.stand[person]
+            stand.punkte[person.rawValue] = verfuegbar[person]
         }
     }
 
