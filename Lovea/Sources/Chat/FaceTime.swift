@@ -34,7 +34,8 @@ struct FaceTimeKontaktZeile: View {
             .onAppear {
                 guard !geladen else { return }
                 geladen = true
-                wert = EinstellungenModell.shared.string("kontakt.facetime", default: "")
+                let m = EinstellungenModell.shared
+                wert = m.string("kontakt.facetime", default: m.string("telefon", default: ""))
             }
     }
 

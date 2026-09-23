@@ -9,22 +9,12 @@ struct EinstellungenView: View {
     @State private var zeigtOrte = false
     @State private var zeigtEntwickler = false
 
-    private var eigeneNummer: String { EinstellungenModell.shared.string("telefon", default: "") }
-
     var body: some View {
         List {
             Section("Mitteilungen") {
                 NavigationLink("Mitteilungen") { MitteilungenListe() }
             }
             Section("FaceTime") {
-                NavigationLink { TelefonEditor() } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Meine Telefonnummer für FaceTime")
-                        Text(eigeneNummer.isEmpty ? "Noch nicht eingetragen" : eigeneNummer)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
                 FaceTimeKontaktZeile()
             }
             Section("Figur") {
@@ -126,42 +116,6 @@ struct FigurEditorSeite: View {
             ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
         }
         .sheet(isPresented: $shopOffen) { ShopView() }
-    }
-}
-
-// MARK: - Telefonnummer (Block 18: FaceTime aus dem Profil des Partners)
-
-private struct TelefonEditor: View {
-    let modell = EinstellungenModell.shared
-    @Environment(\.dismiss) private var dismiss
-    @State private var nummer = ""
-
-    private var gueltig: Bool {
-        nummer.trimmingCharacters(in: .whitespaces).isEmpty || FaceTimeLink.url(nummer, audio: false) != nil
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                TextField("+49 151 23456789", text: $nummer)
-                    .keyboardType(.phonePad)
-                    .textContentType(.telephoneNumber)
-            } footer: {
-                Text("\(Raum.shared.ich?.partner.name ?? "Dein Partner") ruft dich damit direkt aus deinem Profil per FaceTime an. Nur ihr zwei seht die Nummer.")
-            }
-        }
-        .navigationTitle("Telefonnummer")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Sichern") {
-                    modell.setzen("telefon", .string(nummer.trimmingCharacters(in: .whitespaces)))
-                    dismiss()
-                }
-                .disabled(!gueltig)
-            }
-        }
-        .onAppear { nummer = modell.string("telefon", default: "") }
     }
 }
 
