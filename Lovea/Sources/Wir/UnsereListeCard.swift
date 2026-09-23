@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Spec 8.1 Nr. 6 / 8.5: gemeinsame Wunschliste mit „geschafft" und der Date-Würfel (Liste +
 /// die 40 Ideen der Web-App, meidet die letzten 5). „Machen wir" trägt ein Treffen ein.
@@ -40,9 +41,12 @@ struct UnsereListeCard: View {
                 .buttonStyle(.bordered)
 
                 if gewuerfelt != nil {
-                    Button("Machen wir") { zeigtMachenWir = true }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Color.loveaRose)
+                    Button("Machen wir") {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        zeigtMachenWir = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.loveaRose)
                 }
             }
             .frame(minHeight: 44)
@@ -56,6 +60,7 @@ struct UnsereListeCard: View {
     }
 
     private func wuerfeln() {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         withAnimation(.easeInOut(duration: 0.4)) { wuerfelDreht.toggle() }
         gewuerfelt = wir.wuerfeln()
     }
