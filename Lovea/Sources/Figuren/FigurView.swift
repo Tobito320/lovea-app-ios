@@ -539,7 +539,8 @@ private struct Zeichner {
         if lid { h.fill(box(c.x - rx, c.y - ry, rx * 2, ry * 1.05), with: .color(haut.farbe)) }
         linie(g, weiss, Pal.tinte.farbe.opacity(0.5), 1.6)
         let lidY: CGFloat = lid ? c.y + 1 : c.y - 2 * ry + 1
-        linie(g, bogen(P(c.x - rx, c.y - (lid ? 0 : 1)), P(c.x + rx, c.y - (lid ? 0 : 1)), P(c.x, lidY)), Pal.tinte.farbe, 3.2)
+        let kante: CGFloat = lid ? c.y : c.y - 1
+        linie(g, bogen(P(c.x - rx, kante), P(c.x + rx, kante), P(c.x, lidY)), Pal.tinte.farbe, 3.2)
     }
 
     func mund(_ g: GraphicsContext) {
@@ -1240,7 +1241,8 @@ private struct Zeichner {
     func herzen(_ g: GraphicsContext, _ bereich: CGRect, _ n: Int) {
         for i in 0..<n {
             let p = zyklus(2.4, Double(i) * 2.4 / Double(n))
-            let x = bereich.minX + bereich.width * CGFloat(i) / CGFloat(max(n - 1, 1)) + w(3, Double(i)) * 4
+            let anteil = CGFloat(i) / CGFloat(max(n - 1, 1))
+            let x = bereich.minX + bereich.width * anteil + w(3, Double(i)) * 4
             let y = bereich.maxY - p * bereich.height
             var h = g
             h.opacity = Double(1 - p)
