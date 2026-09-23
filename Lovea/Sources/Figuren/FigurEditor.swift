@@ -21,7 +21,7 @@ struct FigurEditor: View {
     private static let akzent = Color(red: 1, green: 59 / 255, blue: 92 / 255)
 
     /// How an option tile shows the figure.
-    fileprivate enum Kachel { case gesicht, kopf, koerper, koerperMitName }
+    fileprivate enum Kachel { case gesicht, kopf, koerper, koerperMitName, schmuck }
 
     fileprivate struct Farbwahl {
         let name: String
@@ -40,7 +40,7 @@ struct FigurEditor: View {
     fileprivate enum Kategorie: String, CaseIterable, Identifiable {
         case gesicht = "Gesicht", haare = "Haare", augen = "Augen", bart = "Bart"
         case oberteil = "Oberteil", jacke = "Jacke", hose = "Hose", schuhe = "Schuhe"
-        case accessoires = "Accessoires", koerper = "Körper"
+        case accessoires = "Accessoires", schmuck = "Schmuck", koerper = "Körper"
 
         var id: String { rawValue }
 
@@ -107,13 +107,23 @@ struct FigurEditor: View {
             case .accessoires:
                 return [
                     .optionen("Brille", \.brille, A.brillen, .gesicht, erlaubte: A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person)),
-                    .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht, erlaubte: nil),
+                    .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht, erlaubte: A.erlaubt(A.ohrringArten, geschlecht: A.ohrringeGeschlecht, fuer: person)),
                     .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf, erlaubte: nil),
                     .farben("Farbe der Kopfbedeckung", \.muetzenfarbe, kleidung, hexPfad: nil),
                 ]
-            case .koerper:
+            case .schmuck:
+                // Z-39.3: free everyday jewelry; luxury pieces come from the shop.
                 return [
-                    .optionen("Körperform", \.koerperform, A.koerperformen, .koerperMitName, erlaubte: nil),
+                    .optionen("Kette", \.kette, A.ketten, .schmuck, erlaubte: A.erlaubt(A.ketten, geschlecht: A.kettenGeschlecht, fuer: person)),
+                    .optionen("Ring", \.ring, A.ringe, .schmuck, erlaubte: A.erlaubt(A.ringe, geschlecht: A.ringeGeschlecht, fuer: person)),
+                    .optionen("Armband", \.armband, A.armbaender, .schmuck, erlaubte: A.erlaubt(A.armbaender, geschlecht: A.armbaenderGeschlecht, fuer: person)),
+                    .optionen("Uhr", \.uhrAlltag, A.uhrenAlltag, .schmuck, erlaubte: nil),
+                ]
+            case .koerper:
+                // Z-38.2: body types per person; "Normal" stays for old looks but is hidden.
+                let formen = A.erlaubt(A.koerperformen, geschlecht: A.koerperformenGeschlecht, shop: A.koerperformenVersteckt, fuer: person)
+                return [
+                    .optionen("Körperform", \.koerperform, A.koerperformen, .koerperMitName, erlaubte: formen),
                     .optionen("Größe", \.groesse, A.groessen, .koerperMitName, erlaubte: nil),
                 ]
             }
@@ -175,7 +185,32 @@ struct FigurEditor: View {
             .padding(12)
             .accessibilityLabel("Zufälliger Look")
         }
+        .overlay(alignment: .topLeading) { bitmojiKnopf }
         .background(LinearGradient(colors: [Self.akzent.opacity(0.16), Self.akzent.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+    }
+
+    private var bitmojiKnopf: some View {
+        Button(action: wieBitmoji) {
+            Label("Wie mein Bitmoji", systemImage: "person.crop.circle.badge.checkmark")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(.regularMaterial, in: Capsule())
+        }
+        .buttonStyle(.federnd)
+        .foregroundStyle(Self.akzent)
+        .padding(12)
+    }
+
+    /// Z-38.4: back to the Bitmoji look; bought shop pieces stay on.
+    private func wieBitmoji() {
+        var a = FigurAussehen.standard(for: person)
+        a.tasche = aussehen.tasche
+        a.uhr = aussehen.uhr
+        a.schmuck = aussehen.schmuck
+        a.pose = aussehen.pose
+        a.tier = aussehen.tier
+        withAnimation(Feder.weich) { aussehen = a }
     }
 
     private var kategorienLeiste: some View {
@@ -238,7 +273,7 @@ struct FigurEditor: View {
                             Text(namen[i]).font(.caption2.weight(.semibold)).padding(.bottom, 6)
                         }
                     }
-                    .frame(width: 76, height: kachel == .gesicht || kachel == .kopf ? 92 : 128)
+                    .frame(width: 76, height: kachel == .gesicht || kachel == .kopf || kachel == .schmuck ? 92 : 128)
                     .background(Color(uiColor: .secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(gewaehlt ? Self.akzent : Color.clear, lineWidth: 3))
@@ -266,6 +301,11 @@ struct FigurEditor: View {
             FigurView(a, zustand: .ruhig, groesse: 120, animiert: false, ganzkoerper: true)
         case .koerperMitName:
             FigurView(a, zustand: .ruhig, groesse: 104, animiert: false, ganzkoerper: true)
+        case .schmuck:
+            // Chest to hands of a larger full body, so rings and bracelets are visible.
+            FigurView(a, zustand: .ruhig, groesse: 230, animiert: false, ganzkoerper: true)
+                .frame(width: 76, height: 92)
+                .clipped()
         }
     }
 
