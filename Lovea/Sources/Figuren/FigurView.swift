@@ -855,7 +855,8 @@ private struct Zeichner {
         case .tippt, .arbeit:
             let tipp = w(16) * 2
             let y: CGFloat = z == .tippt ? 208 : 230
-            return (Arm(P(52, 226), P(88 - (z == .arbeit ? 12 : 0), y + tipp)), Arm(P(148, 226), P(112 + (z == .arbeit ? 12 : 0), y - tipp)))
+            let dx: CGFloat = z == .arbeit ? 12 : 0
+            return (Arm(P(52, 226), P(88 - dx, y + tipp)), Arm(P(148, 226), P(112 + dx, y - tipp)))
         case .kamera:
             return (restL, Arm(P(172, 166), P(172, 104)))
         case .sprache:
@@ -1270,8 +1271,11 @@ private struct Zeichner {
         let tinte = Pal.tinte.farbe
         switch z {
         case .imChat:
+            // Symmetric smiley, not text: the High-Five sticker mirrors this pose.
             blase(g, CGRect(x: 12, y: 30, width: 52, height: 30), spitze: P(52, 66))
-            text(g, "Hi!", P(38, 45), 15, tinte)
+            g.fill(kreis(P(31, 41), 2.5), with: .color(tinte))
+            g.fill(kreis(P(45, 41), 2.5), with: .color(tinte))
+            linie(g, bogen(P(29, 48), P(47, 48), P(38, 56)), tinte, 2.5)
         case .tippt:
             blase(g, CGRect(x: 136, y: 34, width: 50, height: 26), spitze: P(142, 66))
             let aktiv = Int(zyklus(0.9) * 3)
