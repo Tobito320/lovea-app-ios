@@ -72,6 +72,7 @@ struct DrawingStudioView: View {
                     .transition(.move(edge: .trailing))
             }
         }
+        .background(ZurueckWischenAus().frame(width: 0, height: 0))
         .navigationTitle(session.document.name)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar(.hidden, for: .tabBar)
@@ -329,6 +330,39 @@ struct DrawingStudioView: View {
         }
     }
 
+}
+
+/// Studio: no swipe back, a stroke from the left edge must never leave the drawing. Only the back button
+/// top left leaves. Switches the navigation controller's pop gestures off while the studio is on screen.
+private struct ZurueckWischenAus: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Steuerung { Steuerung() }
+    func updateUIViewController(_ controller: Steuerung, context: Context) {}
+
+    final class Steuerung: UIViewController {
+        private var aus: [(UIGestureRecognizer, Bool)] = []
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            guard let navigation = navigationController, aus.isEmpty else { return }
+            var gesten = [navigation.interactivePopGestureRecognizer]
+            // ponytail: iOS 26 adds a swipe-back from anywhere in the content; read by name so the build
+            // does not depend on the SDK symbol. Drop the lookup once the property is used directly.
+            let inhalt = NSSelectorFromString("interactiveContentPopGestureRecognizer")
+            if navigation.responds(to: inhalt) {
+                gesten.append(navigation.value(forKey: "interactiveContentPopGestureRecognizer") as? UIGestureRecognizer)
+            }
+            for case let geste? in gesten {
+                aus.append((geste, geste.isEnabled))
+                geste.isEnabled = false
+            }
+        }
+
+        override func viewWillDisappear(_ animated: Bool) {
+            super.viewWillDisappear(animated)
+            for (geste, vorher) in aus { geste.isEnabled = vorher }
+            aus = []
+        }
+    }
 }
 
 /// Live preview with one slider. "Fertig" writes into the layer, "Abbrechen" throws it away.

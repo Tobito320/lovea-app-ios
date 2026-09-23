@@ -20,6 +20,8 @@ struct DrawingView: View {
     @State private var newProjectName = ""
     @State private var templateItem: PhotosPickerItem?
     @State private var teilenProjekt: ArtworkProject?
+    /// Selection mode ("Auswählen"): nil = off.
+    @State private var auswahl: Set<UUID>?
 
     init(person: Person) {
         self.person = person
@@ -36,6 +38,7 @@ struct DrawingView: View {
                             LatestArtworkCard(artwork: latest, library: library)
                         }
                         .buttonStyle(.plain)
+                        .contextMenu { VerschiebenMenue(artwork: latest, library: library) }
                     }
 
                     HStack {
@@ -92,8 +95,12 @@ struct DrawingView: View {
                         } else {
                             LazyVGrid(columns: galleryColumns, spacing: 14) {
                                 ForEach(ungrouped) { artwork in
-                                    ArtworkCard(artwork: artwork, library: library) {
-                                        path.append(.artwork(artwork.id))
+                                    ArtworkCard(artwork: artwork, library: library, ausgewaehlt: auswahl.map { $0.contains(artwork.id) }) {
+                                        if auswahl != nil {
+                                            auswahl?.formSymmetricDifference([artwork.id])
+                                        } else {
+                                            path.append(.artwork(artwork.id))
+                                        }
                                     }
                                 }
                             }
@@ -102,6 +109,10 @@ struct DrawingView: View {
                 }
                 .padding()
             }
+            .safeAreaInset(edge: .bottom) {
+                if auswahl != nil { AuswahlLeiste(library: library, auswahl: $auswahl) }
+            }
+            .sensoryFeedback(.selection, trigger: auswahl)
             .navigationTitle("Meine Galerie")
             .navigationDestination(for: GalleryRoute.self) { route in
                 switch route {
@@ -130,6 +141,9 @@ struct DrawingView: View {
                 if path.last != GalleryRoute.geteilt(id) { path.append(.geteilt(id)) }
             }
             .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    if !library.artworks.isEmpty { AuswaehlenKnopf(auswahl: $auswahl) }
+                }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { duellOffen = true } label: { Image(systemName: "timer") }
                         .accessibilityLabel("Kritzel-Duell")
@@ -202,23 +216,40 @@ private struct ProjectGalleryView: View {
     @State private var showsRename = false
     @State private var showsDelete = false
     @State private var showsTeilen = false
+    @State private var auswahl: Set<UUID>?
 
     private var project: ArtworkProject? {
         library.projects.first(where: { $0.id == projectID })
     }
 
     var body: some View {
+        let items = library.sortedArtworks(sort).filter { $0.projectID == projectID }
         ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 230), spacing: 14)], spacing: 14) {
-                ForEach(library.sortedArtworks(sort).filter { $0.projectID == projectID }) { artwork in
-                    ArtworkCard(artwork: artwork, library: library) { open(artwork.id) }
+            if items.isEmpty {
+                leer
+            } else {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 150, maximum: 230), spacing: 14)], spacing: 14) {
+                    ForEach(items) { artwork in
+                        ArtworkCard(artwork: artwork, library: library, ausgewaehlt: auswahl.map { $0.contains(artwork.id) }) {
+                            if auswahl != nil {
+                                auswahl?.formSymmetricDifference([artwork.id])
+                            } else {
+                                open(artwork.id)
+                            }
+                        }
+                    }
                 }
+                .padding()
             }
-            .padding()
         }
+        .safeAreaInset(edge: .bottom) {
+            if auswahl != nil { AuswahlLeiste(library: library, auswahl: $auswahl) }
+        }
+        .sensoryFeedback(.selection, trigger: auswahl)
         .navigationTitle(project?.name ?? "Projekt")
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
+                if !items.isEmpty { AuswaehlenKnopf(auswahl: $auswahl) }
                 Button {
                     showsNewArtwork = true
                 } label: {
@@ -265,6 +296,125 @@ private struct ProjectGalleryView: View {
             Text("Was passiert mit den Zeichnungen in diesem Projekt?")
         }
     }
+
+    /// Empty project: start a drawing right here, or bring existing ones in.
+    private var leer: some View {
+        let andere = library.sortedArtworks(.newest).filter { $0.projectID != projectID }
+        return ContentUnavailableView {
+            Label("Noch keine Zeichnung", systemImage: "folder")
+        } description: {
+            Text("Fang hier eine neue an oder hol vorhandene Zeichnungen in dieses Projekt.")
+        } actions: {
+            Button {
+                let artwork = library.createArtwork(name: "", projectID: projectID, format: .square)
+                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                open(artwork.id)
+            } label: {
+                Label("Neue Zeichnung", systemImage: "plus")
+                    .frame(minHeight: 44)
+            }
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            if !andere.isEmpty {
+                Menu {
+                    ForEach(andere) { artwork in
+                        Button(artwork.name) {
+                            library.moveArtwork(artwork.id, to: projectID)
+                            UINotificationFeedbackGenerator().notificationOccurred(.success)
+                        }
+                    }
+                } label: {
+                    Label("Zeichnung hierher verschieben", systemImage: "folder.badge.plus")
+                        .frame(minHeight: 44)
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 48)
+    }
+}
+
+/// "Auswählen" / "Fertig" in the toolbar, like Fotos.
+private struct AuswaehlenKnopf: View {
+    @Binding var auswahl: Set<UUID>?
+
+    var body: some View {
+        Button(auswahl == nil ? "Auswählen" : "Fertig") {
+            auswahl = auswahl == nil ? [] : nil
+        }
+        .fontWeight(auswahl == nil ? .regular : .semibold)
+    }
+}
+
+/// Target list for moving drawings: "Ohne Projekt" and every project, the current one ticked.
+private struct VerschiebenZiele: View {
+    @ObservedObject var library: ArtworkLibrary
+    /// Where the drawing is now, ticked when `markieren` (one drawing; a selection can be mixed).
+    var aktuell: UUID? = nil
+    var markieren = false
+    let verschieben: (UUID?) -> Void
+
+    var body: some View {
+        Button { verschieben(nil) } label: {
+            Label("Ohne Projekt", systemImage: markieren && aktuell == nil ? "checkmark" : "tray")
+        }
+        ForEach(library.projects) { project in
+            Button { verschieben(project.id) } label: {
+                Label(project.name, systemImage: markieren && aktuell == project.id ? "checkmark" : "folder")
+            }
+        }
+    }
+}
+
+/// Bottom bar in selection mode: move the chosen drawings into a project or delete them.
+private struct AuswahlLeiste: View {
+    @ObservedObject var library: ArtworkLibrary
+    @Binding var auswahl: Set<UUID>?
+    @State private var loeschenFragen = false
+
+    var body: some View {
+        let ids = auswahl ?? []
+        HStack(spacing: 12) {
+            Menu {
+                VerschiebenZiele(library: library) { ziel in
+                    for id in ids { library.moveArtwork(id, to: ziel) }
+                    UINotificationFeedbackGenerator().notificationOccurred(.success)
+                    auswahl = nil
+                }
+            } label: {
+                Label("Verschieben", systemImage: "folder")
+                    .frame(minHeight: 44)
+            }
+            .disabled(ids.isEmpty)
+            Spacer()
+            Text(ids.isEmpty ? "Zeichnungen wählen" : ids.count == 1 ? "1 ausgewählt" : "\(ids.count) ausgewählt")
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+            Spacer()
+            Button(role: .destructive) { loeschenFragen = true } label: {
+                Label("Löschen", systemImage: "trash")
+                    .frame(minHeight: 44)
+            }
+            .disabled(ids.isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 6)
+        .background(.bar)
+        .confirmationDialog(
+            ids.count == 1 ? "Zeichnung löschen?" : "\(ids.count) Zeichnungen löschen?",
+            isPresented: $loeschenFragen, titleVisibility: .visible
+        ) {
+            Button("Löschen", role: .destructive) {
+                for id in ids { library.deleteArtwork(id) }
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                auswahl = nil
+            }
+            Button("Abbrechen", role: .cancel) {}
+        } message: {
+            Text("Das lässt sich nicht rückgängig machen.")
+        }
+    }
 }
 
 private struct ArtworkThumbnail: View {
@@ -301,6 +451,8 @@ private struct ArtworkThumbnail: View {
 private struct ArtworkCard: View {
     let artwork: ArtworkDocument
     @ObservedObject var library: ArtworkLibrary
+    /// Selection mode: nil = off, else whether this card is chosen.
+    var ausgewaehlt: Bool? = nil
     let open: () -> Void
     @State private var renameText = ""
     @State private var showsRename = false
@@ -313,6 +465,18 @@ private struct ArtworkCard: View {
                 ArtworkThumbnail(artwork: artwork, library: library)
                     .aspectRatio(CGFloat(artwork.canvasWidth / artwork.canvasHeight), contentMode: .fit)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .overlay(alignment: .bottomTrailing) {
+                        if let ausgewaehlt {
+                            Image(systemName: ausgewaehlt ? "checkmark.circle.fill" : "circle")
+                                .font(.title2)
+                                .symbolRenderingMode(.palette)
+                                .foregroundStyle(.white, ausgewaehlt ? Color.accentColor : Color.black.opacity(0.25))
+                                .shadow(color: .black.opacity(0.3), radius: 2)
+                                .padding(8)
+                        }
+                    }
+                    .scaleEffect(ausgewaehlt == true ? 0.94 : 1)
+                    .animation(.snappy, value: ausgewaehlt)
                 Text(artwork.name)
                     .font(.subheadline.weight(.semibold))
                     .lineLimit(1)
@@ -328,6 +492,7 @@ private struct ArtworkCard: View {
             }
         }
         .buttonStyle(.plain)
+        .accessibilityAddTraits(ausgewaehlt == true ? .isSelected : [])
         .contextMenu {
             Button("Öffnen", systemImage: "arrow.up.forward.app", action: open)
             Button("Umbenennen", systemImage: "pencil") {
@@ -337,15 +502,14 @@ private struct ArtworkCard: View {
             Button("Duplizieren", systemImage: "plus.square.on.square") {
                 _ = library.duplicateArtwork(artwork.id)
             }
-            Menu("In Projekt verschieben", systemImage: "folder") {
-                Button("Ohne Projekt") { library.moveArtwork(artwork.id, to: nil) }
-                ForEach(library.projects) { project in
-                    Button(project.name) { library.moveArtwork(artwork.id, to: project.id) }
-                }
-            }
+            VerschiebenMenue(artwork: artwork, library: library)
             Button("Exportieren", systemImage: "square.and.arrow.up") { showsExport = true }
             Divider()
             Button("Löschen", systemImage: "trash", role: .destructive) { showsDelete = true }
+        } preview: {
+            ArtworkThumbnail(artwork: artwork, library: library)
+                .aspectRatio(CGFloat(artwork.canvasWidth / artwork.canvasHeight), contentMode: .fit)
+                .frame(width: 320)
         }
         .sheet(isPresented: $showsExport) {
             ArtworkExportSheet(artwork: artwork, library: library)
@@ -358,6 +522,21 @@ private struct ArtworkCard: View {
         .confirmationDialog("Zeichnung löschen?", isPresented: $showsDelete, titleVisibility: .visible) {
             Button("Löschen", role: .destructive) { library.deleteArtwork(artwork.id) }
             Button("Abbrechen", role: .cancel) {}
+        }
+    }
+}
+
+/// "In Projekt verschieben …" for one drawing, in every card's long-press menu.
+private struct VerschiebenMenue: View {
+    let artwork: ArtworkDocument
+    @ObservedObject var library: ArtworkLibrary
+
+    var body: some View {
+        Menu("In Projekt verschieben …", systemImage: "folder") {
+            VerschiebenZiele(library: library, aktuell: artwork.projectID, markieren: true) { ziel in
+                library.moveArtwork(artwork.id, to: ziel)
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            }
         }
     }
 }

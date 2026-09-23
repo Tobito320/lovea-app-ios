@@ -33,6 +33,7 @@ struct HomeView: View {
             MonatsAnsicht { tag in
                 pfad.append(tag)
             }
+            MonatsLegende()
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))

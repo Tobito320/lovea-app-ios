@@ -10,12 +10,16 @@ final class EinstellungenModell {
     static let shared = EinstellungenModell()
 
     private(set) var werte: [Person: [String: JSONValue]] = [:]
+    /// Per key, the newest value from EITHER person (by `op.zeit`), for things both share, e.g.
+    /// `profilWallpaper` ("Du und Annika seht das Wallpaper").
+    private(set) var zuletzt: [String: (wert: JSONValue, zeit: Date)] = [:]
     private var angewendet: Set<String> = []
 
     private init() {
         Raum.shared.beobachten(["einstellung.setzen"]) { [weak self] op in
             guard let self, self.angewendet.insert(op.id).inserted, let d = op.daten(EinstellungD.self) else { return }
             self.werte[op.von, default: [:]][d.schluessel] = d.wert
+            if (self.zuletzt[d.schluessel]?.zeit ?? .distantPast) <= op.zeit { self.zuletzt[d.schluessel] = (d.wert, op.zeit) }
         }
         geburtstagsNachrichtFallsNoetig()
     }
@@ -23,6 +27,9 @@ final class EinstellungenModell {
     func setzen(_ schluessel: String, _ wert: JSONValue) {
         Raum.shared.senden("einstellung.setzen", EinstellungD(schluessel: schluessel, wert: wert))
     }
+
+    /// Shared key: whoever set it last wins.
+    func geteilt(_ schluessel: String) -> JSONValue? { zuletzt[schluessel]?.wert }
 
     private func wert(_ schluessel: String, von: Person?) -> JSONValue? {
         werte[von ?? Raum.shared.ich ?? .ahmed]?[schluessel]

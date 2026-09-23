@@ -30,6 +30,17 @@ actor OrtePOI {
         return ergebnis
     }
 
+    /// Cached locality name for the map's top overlay (Snap-Map-style "Huenshoven"), keyed by
+    /// the same ~110 m coordinate cell as `supermarktName` to avoid repeat reverse-geocodes.
+    func gebietName(lat: Double, lon: Double) async -> String? {
+        let schluessel = "gebiet:" + zelle(lat, lon)
+        if let cached = cache[schluessel] { return cached }
+        guard let orte = try? await CLGeocoder().reverseGeocodeLocation(CLLocation(latitude: lat, longitude: lon)), let p = orte.first else { return nil }
+        let name = p.locality ?? p.subLocality ?? p.name
+        cache[schluessel] = name
+        return name
+    }
+
     private func naechstesPOI(lat: Double, lon: Double, radius: CLLocationDistance, kategorien: [MKPointOfInterestCategory]?) async -> MKMapItem? {
         let mitte = CLLocationCoordinate2D(latitude: lat, longitude: lon)
         let anfrage = MKLocalPointsOfInterestRequest(center: mitte, radius: radius)

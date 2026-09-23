@@ -10,7 +10,7 @@ import Foundation
 /// jemand mit Schreibrecht auf Figuren/ das übernimmt.
 enum BesondereTage {
     /// Ahmed 27.02., Annika 06.06. (Spec 4.3).
-    private static func geburtstag(_ person: Person) -> (monat: Int, tag: Int) {
+    static func geburtstag(_ person: Person) -> (monat: Int, tag: Int) {
         person == .ahmed ? (2, 27) : (6, 6)
     }
 

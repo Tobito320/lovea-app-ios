@@ -7,7 +7,7 @@ import UIKit
 struct DuellSpiel: View {
     let k: SpielKontext
 
-    private var runden: Int { max(1, min(k.spiel.einstellungen.runden ?? 3, 5)) }
+    private var runden: Int { max(1, min(k.spiel.einstellungen.runden ?? 1, 5)) }
     private var dauer: Int { k.spiel.einstellungen.dauer ?? 60 }
 
     /// `spiel.bild`/`spiel.stimme` count rounds across "Nochmal": partie 1, round 0 is 10.

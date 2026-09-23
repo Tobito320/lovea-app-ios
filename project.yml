@@ -35,6 +35,7 @@ targets:
         NSFocusStatusUsageDescription: "Lovea zeigt deinem Partner, ob du gerade nicht gestört werden möchtest."
         NSCalendarsFullAccessUsageDescription: "Lovea liest deinen Kalender, um Termine mit deinem Partner abzugleichen."
         NSCalendarsWriteOnlyAccessUsageDescription: "Lovea trägt gemeinsame Termine in deinen Kalender ein."
+        NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte von heute."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea

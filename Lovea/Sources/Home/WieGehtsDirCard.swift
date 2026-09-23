@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Spec 8.1 Nr. 2: Stimmung (gut/mittel/schlecht) und „brauche" (Nähe/Worte/Ruhe) mit optionalem
 /// Satz. Beide sehen sich gegenseitig; die eigene Auswahl ist nur für die eigene Person editierbar.
@@ -91,6 +92,7 @@ struct WieGehtsDirCard: View {
     private func stimmungKnopf(_ wert: String, _ symbol: String, _ titel: String) -> some View {
         let aktiv = meineStimmung?.stimmung == wert
         return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
             senden(stimmung: wert, brauche: meineStimmung?.brauche)
         } label: {
             Label(titel, systemImage: symbol)
@@ -106,6 +108,7 @@ struct WieGehtsDirCard: View {
         let aktiv = meineStimmung?.brauche == wert
         return Button {
             guard let stimmung = meineStimmung?.stimmung else { return }
+            UISelectionFeedbackGenerator().selectionChanged()
             senden(stimmung: stimmung, brauche: aktiv ? nil : wert)
         } label: {
             Text(titel)
