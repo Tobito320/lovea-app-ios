@@ -338,8 +338,9 @@ final class CanvasEngine {
     // MARK: Rendering
 
     func draw(in view: MTKView, viewport: ArtworkCanvasViewport) {
-        guard let drawable = view.currentDrawable, let command = queue.makeCommandBuffer() else { return }
+        // Started before `currentDrawable`: waiting for a drawable (render server busy, e.g. with glass) counts too.
         let start = CACurrentMediaTime()
+        guard let drawable = view.currentDrawable, let command = queue.makeCommandBuffer() else { return }
         compositor.contentScale = view.contentScaleFactor
         render(into: drawable.texture, viewport: viewport, command: command)
         frameLog.append((start, (CACurrentMediaTime() - start) * 1000))

@@ -26,14 +26,18 @@ struct PerformanceHUD: View {
             let fps = log.filter { now - $0.time <= 1 }.count
             let idle = now - (log.last?.time ?? 0) > 0.25
             let worst = log.filter { now - $0.time <= 2 }.map(\.milliseconds).max() ?? 0
-            let gpu = (session.engine?.gpuLog ?? []).filter { now - $0.time <= 2 }.map(\.milliseconds).max() ?? 0
+            // Median, not max: the first frame of a stroke syncs the whole document once and often
+            // meets a GPU that just woke up; the max stays as the small second value.
+            let gpuTimes = (session.engine?.gpuLog ?? []).filter { now - $0.time <= 2 }.map(\.milliseconds).sorted()
+            let gpu = gpuTimes.isEmpty ? 0 : gpuTimes[gpuTimes.count / 2]
+            let gpuMax = gpuTimes.last ?? 0
             let freeMB = Double(os_proc_available_memory()) / 1_048_576
             let maxFPS = session.canvasState.canvas?.window?.windowScene?.screen.maximumFramesPerSecond ?? 60
             let budget = PerformanceTarget.budget(maxFPS: maxFPS)
             VStack(alignment: .leading, spacing: 2) {
                 Text(idle ? "Ruhe" : "\(fps) fps")
                 Text(String(format: "CPU max %.1f ms", worst)).foregroundStyle(worst > budget ? .red : .primary)
-                Text(String(format: "GPU max %.1f ms", gpu)).foregroundStyle(gpu > budget ? .red : .primary)
+                Text(String(format: "GPU %.1f ms (max %.1f)", gpu, gpuMax)).foregroundStyle(gpu > budget ? .red : .primary)
                 Text(String(format: "RAM frei %.0f MB", freeMB))
                 Toggle("Glas", isOn: $glass)
                     .toggleStyle(.switch)

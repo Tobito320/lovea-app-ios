@@ -350,17 +350,18 @@ private struct AuswaehlenKnopf: View {
 /// Target list for moving drawings: "Ohne Projekt" and every project, the current one ticked.
 private struct VerschiebenZiele: View {
     @ObservedObject var library: ArtworkLibrary
-    /// Project all chosen drawings share, for the tick. nil = none or mixed.
-    let aktuell: UUID??
+    /// Where the drawing is now, ticked when `markieren` (one drawing; a selection can be mixed).
+    var aktuell: UUID? = nil
+    var markieren = false
     let verschieben: (UUID?) -> Void
 
     var body: some View {
         Button { verschieben(nil) } label: {
-            Label("Ohne Projekt", systemImage: aktuell == .some(nil) ? "checkmark" : "tray")
+            Label("Ohne Projekt", systemImage: markieren && aktuell == nil ? "checkmark" : "tray")
         }
         ForEach(library.projects) { project in
             Button { verschieben(project.id) } label: {
-                Label(project.name, systemImage: aktuell == .some(project.id) ? "checkmark" : "folder")
+                Label(project.name, systemImage: markieren && aktuell == project.id ? "checkmark" : "folder")
             }
         }
     }
@@ -376,7 +377,7 @@ private struct AuswahlLeiste: View {
         let ids = auswahl ?? []
         HStack(spacing: 12) {
             Menu {
-                VerschiebenZiele(library: library, aktuell: nil) { ziel in
+                VerschiebenZiele(library: library) { ziel in
                     for id in ids { library.moveArtwork(id, to: ziel) }
                     UINotificationFeedbackGenerator().notificationOccurred(.success)
                     auswahl = nil
@@ -532,7 +533,7 @@ private struct VerschiebenMenue: View {
 
     var body: some View {
         Menu("In Projekt verschieben …", systemImage: "folder") {
-            VerschiebenZiele(library: library, aktuell: .some(artwork.projectID)) { ziel in
+            VerschiebenZiele(library: library, aktuell: artwork.projectID, markieren: true) { ziel in
                 library.moveArtwork(artwork.id, to: ziel)
                 UINotificationFeedbackGenerator().notificationOccurred(.success)
             }
