@@ -160,7 +160,8 @@ final class LiveZeichnung {
     private(set) var partnerDrin: String?
     /// Partner pen to show, nil = hidden. Never the own pen: `fl` only goes to the partner.
     private(set) var partnerStift: StiftNachricht?
-    @ObservationIgnored weak var offen: ZeichnungLive?
+    /// Strong on purpose (no `weak` inside `@Observable`); `verlassen()` clears it. It holds the session only weakly.
+    @ObservationIgnored var offen: ZeichnungLive?
     @ObservationIgnored private var stiftAus: Task<Void, Never>?
 
     private init() {
