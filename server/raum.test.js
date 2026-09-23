@@ -345,17 +345,62 @@ test("Spotify verbinden + jetzt: Token-Tausch, currently-playing, 20s-Cache", as
     assert.deepEqual(await verbinden.json(), { ok: true });
 
     const jetzt1 = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
-    assert.deepEqual(await jetzt1.json(), { titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
+    assert.deepEqual(await jetzt1.json(), { musik: true, titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
     const anrufeNachErstemJetzt = aufrufe.length;
 
     // Zweiter Abruf sofort danach: aus dem 20s-Cache, kein weiterer fetch.
     const jetzt2 = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
-    assert.deepEqual(await jetzt2.json(), { titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
+    assert.deepEqual(await jetzt2.json(), { musik: true, titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
     assert.equal(aufrufe.length, anrufeNachErstemJetzt);
 
     // Niemand hat für ahmed verbunden -> {}.
     const ohneVerbindung = await raum.fetch(new Request("https://x/spotify/jetzt?person=ahmed", { headers: { "X-Lovea-Person": "ahmed" } }));
     assert.deepEqual(await ohneVerbindung.json(), {});
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+});
+
+test("Spotify Freigabe: spotify.teilen der Zielperson filtert auf dem Server, trennen loescht den Token", async () => {
+  const ctx = fakeCtx();
+  const raum = new Raum(ctx, { ...fakeEnv(), SPOTIFY_CLIENT_ID: "test-client" });
+  const annikaWs = new FakeWs();
+  ctx.acceptWebSocket(annikaWs, ["annika"]);
+  const echterFetch = globalThis.fetch;
+  let spotifyAufrufe = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("accounts.spotify.com")) return Response.json({ access_token: "AT", refresh_token: "RT", expires_in: 3600 });
+    spotifyAufrufe += 1;
+    return Response.json({ is_playing: true, item: { name: "Song", artists: [{ name: "Band" }], album: { images: [{ url: "cover" }] }, external_urls: { spotify: "u" } } });
+  };
+  const teilen = (id, wert) =>
+    raum.webSocketMessage(annikaWs, JSON.stringify({ t: "op", op: { id, art: "einstellung.setzen", von: "annika", zeit: new Date().toISOString(), d: { schluessel: "spotify.teilen", wert } } }));
+  const jetzt = async () => (await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }))).json();
+  try {
+    await raum.fetch(
+      new Request("https://x/spotify/verbinden", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Lovea-Person": "annika" },
+        body: JSON.stringify({ code: "c", verifier: "v", redirectUri: "lovea://spotify" }),
+      })
+    );
+    await teilen("s1", "kuenstler");
+    assert.deepEqual(await jetzt(), { musik: true, kuenstler: "Band" });
+    await teilen("s2", "musik");
+    assert.deepEqual(await jetzt(), { musik: true }); // aus dem Cache, trotzdem gefiltert
+    await teilen("s3", "aus");
+    const vorher = spotifyAufrufe;
+    assert.deepEqual(await jetzt(), {});
+    assert.equal(spotifyAufrufe, vorher);
+    await teilen("s4", "song");
+    assert.equal((await jetzt()).titel, "Song");
+
+    // Ahmed kann Annikas Verbindung nicht trennen, nur Annika selbst.
+    await raum.fetch(new Request("https://x/spotify/trennen", { method: "POST", headers: { "X-Lovea-Person": "ahmed" } }));
+    assert.equal((await jetzt()).titel, "Song");
+    const trennen = await raum.fetch(new Request("https://x/spotify/trennen", { method: "POST", headers: { "X-Lovea-Person": "annika" } }));
+    assert.equal(trennen.status, 200);
+    assert.deepEqual(await jetzt(), {});
   } finally {
     globalThis.fetch = echterFetch;
   }
