@@ -433,7 +433,8 @@ final class ZeichnungLive {
         ankuendigen()
         guard let session else { return }
         // View-only: the owner sends no ops while nobody watches, so the stand may be behind.
-        veraltet = nurAnsehen
+        // Offline copy: the fold may have dropped ops it misses. Both take the next stand.
+        veraltet = nurAnsehen || (fremd && geladen == nil)
         if geteilt { aktivieren() }
         if !fremd, geteilt { StandPaket.planen(session.document.id, library: session.library) }
     }

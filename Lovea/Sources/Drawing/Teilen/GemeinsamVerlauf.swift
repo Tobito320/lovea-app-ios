@@ -69,17 +69,17 @@ struct EbenenAenderung: Codable, Equatable, Sendable {
 }
 
 /// Where a step acts. `ebene == nil`: the layer structure, or it reads every layer.
-struct Bereich {
+struct ZeichenBereich {
     static let alles = CGRect(x: -1e9, y: -1e9, width: 2e9, height: 2e9)
 
     var ebene: UUID?
     var rect: CGRect
 
-    func trifft(_ anderer: Bereich) -> Bool {
+    func trifft(_ anderer: ZeichenBereich) -> Bool {
         ebene == nil || anderer.ebene == nil || (ebene == anderer.ebene && rect.intersects(anderer.rect))
     }
 
-    init(ebene: UUID?, rect: CGRect = Bereich.alles) {
+    init(ebene: UUID?, rect: CGRect = ZeichenBereich.alles) {
         self.ebene = ebene
         self.rect = rect
     }
@@ -329,7 +329,7 @@ final class GemeinsamVerlauf {
 
     /// Rolls back every entry from `start` on that overlaps `zone` (the zone grows with each one, since
     /// its undo data covers its own region), runs `mitte`, then re-executes them in order.
-    private func umbauen(ab start: Int, zone: [Bereich], _ mitte: () -> Void) {
+    private func umbauen(ab start: Int, zone: [ZeichenBereich], _ mitte: () -> Void) {
         var zone = zone
         var betroffen: [Int] = []
         if start < eintraege.count {
@@ -346,8 +346,8 @@ final class GemeinsamVerlauf {
         for index in betroffen { ausfuehren(index) }
     }
 
-    private func bereiche(_ eintrag: Eintrag) -> [Bereich] {
-        [Bereich(eintrag.aktion)] + eintrag.schritte.map { Bereich($0) }
+    private func bereiche(_ eintrag: Eintrag) -> [ZeichenBereich] {
+        [ZeichenBereich(eintrag.aktion)] + eintrag.schritte.map { ZeichenBereich($0) }
     }
 
     private func zurueck(_ index: Int) {
