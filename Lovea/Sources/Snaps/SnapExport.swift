@@ -64,6 +64,10 @@ enum SnapExport {
         overlayLayer.contents = overlayBild?.cgImage
         let parentLayer = CALayer()
         parentLayer.frame = CGRect(origin: .zero, size: upright)
+        // Core Animation's own coordinate space is Y-up; `SnapUeberlagerung`'s `.position(x:y:)`
+        // (like every other SwiftUI/UIKit layout) is Y-down — without this, the overlay composites
+        // upside down (a well-known `AVVideoCompositionCoreAnimationTool` gotcha).
+        parentLayer.isGeometryFlipped = true
         parentLayer.addSublayer(videoLayer)
         parentLayer.addSublayer(overlayLayer)
         komposition.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: videoLayer, in: parentLayer)
