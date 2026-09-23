@@ -137,24 +137,53 @@ private struct FlammeEditor: View {
     }
 }
 
-// MARK: - Chat-Hintergrund (schlichte Auswahl, kein Foto/Zeichnung — das macht Chat/**)
+// MARK: - Chat-Hintergrund
+//
+// `Chat/Medien/ChatEinstellungen.swift` (Block 5, noch nicht auf app-komplett gemergt) faltet
+// `einstellung.setzen{schluessel:"hintergrund"}` bereits selbst, mit `wert` als Objekt
+// `{art:"farbe"|"foto"|"zeichnung", farbe:{red,green,blue,alpha}?, medienId, abgedunkelt}`
+// (`RGBAColor` aus Drawing/Library/ArtworkModels.swift, gehört keinem Block allein). Block 15
+// schreibt hier absichtlich dasselbe Objekt-Format (nur Farb-Presets, kein Foto/Zeichnung-Picker
+// — das bleibt Chat/**), statt einen eigenen, kollidierenden String-Wert unter demselben
+// Schlüssel zu senden. `HintergrundWert` unten ist eine lokale Kopie der Form, kein Import von
+// Chat/**, damit dieser Block ohne die noch ungemergte Datei baut.
+
+private struct HintergrundWert: Codable, Equatable {
+    enum Art: String, Codable { case farbe, foto, zeichnung }
+    var art: Art
+    var farbe: RGBAColor?
+    var medienId: String?
+    var abgedunkelt = false
+
+    static let standard = HintergrundWert(art: .farbe, farbe: nil)
+}
+
+private struct EinstellungWertPayload<Wert: Codable>: Codable {
+    var schluessel: String
+    var wert: Wert
+}
 
 private struct ChatHintergrundPicker: View {
     let modell = EinstellungenModell.shared
-    private static let optionen: [Kategorie] = [
-        Kategorie(id: "standard", titel: "Standard"), Kategorie(id: "rose", titel: "Rose"),
-        Kategorie(id: "mitternacht", titel: "Mitternacht"), Kategorie(id: "pfirsich", titel: "Pfirsich"),
+    private static let optionen: [(titel: String, wert: HintergrundWert)] = [
+        ("Standard", .standard),
+        ("Rose", HintergrundWert(art: .farbe, farbe: RGBAColor(red: 1, green: 59 / 255, blue: 92 / 255))),
+        ("Mitternacht", HintergrundWert(art: .farbe, farbe: RGBAColor(red: 0.06, green: 0.07, blue: 0.14))),
+        ("Pfirsich", HintergrundWert(art: .farbe, farbe: RGBAColor(red: 0.94, green: 0.75, blue: 0.61))),
     ]
 
+    private var aktuell: HintergrundWert { modell.dekodiert("hintergrund", als: HintergrundWert.self) ?? .standard }
+
     var body: some View {
-        List(Self.optionen) { option in
+        List(Self.optionen.indices, id: \.self) { i in
+            let option = Self.optionen[i]
             Button {
-                modell.setzen("hintergrund", .string(option.id))
+                Raum.shared.senden("einstellung.setzen", EinstellungWertPayload(schluessel: "hintergrund", wert: option.wert))
             } label: {
                 HStack {
                     Text(option.titel).foregroundStyle(.primary)
                     Spacer()
-                    if modell.string("hintergrund", default: "standard") == option.id {
+                    if aktuell == option.wert {
                         Image(systemName: "checkmark").foregroundStyle(Color.loveaRose)
                     }
                 }

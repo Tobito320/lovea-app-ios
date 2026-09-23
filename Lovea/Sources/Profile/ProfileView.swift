@@ -18,7 +18,7 @@ struct ProfileView: View {
                     if person == session.person {
                         ToolbarItem(placement: .primaryAction) {
                             NavigationLink { EinstellungenView(person: person, session: session) } label: {
-                                Image(systemName: "gearshape.fill")
+                                Label("Einstellungen", systemImage: "gearshape.fill")
                             }
                         }
                     }
@@ -176,7 +176,9 @@ private struct ProfilInhalt: View {
     private var abzeichen: [String] {
         var alle = Set(anzeige.abzeichen)
         let kalender = KalenderModell.shared.zustand
-        let jahrestag = kalender.jahrestag.map(Datum.datum)
+        // Ungesetzt fällt auf den Beziehungsbeginn zurück (26.08.2026, wie im Zusammensein-Zähler
+        // oben) statt auf "nie" — sonst gäbe es ohne expliziten Jahrestag-Eintrag nie Herzaugen.
+        let jahrestag = Datum.datum(kalender.jahrestag ?? "2026-08-26")
         let dateHeute = kalender.daten.treffen.contains { $0.datum == Datum.text(Date()) }
         alle.formUnion(BesondereTage.abzeichen(person: person, datum: Date(), jahrestag: jahrestag, dateHeute: dateHeute))
         if monatsKrone == person { alle.insert("krone") }

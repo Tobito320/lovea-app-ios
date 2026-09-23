@@ -40,7 +40,19 @@ final class EinstellungenModell {
 
     func stringListe(_ schluessel: String, von: Person? = nil) -> [String] {
         guard case .array(let arr) = wert(schluessel, von: von) else { return [] }
-        return arr.compactMap { if case .string(let s) = $0 { s } else { nil } }
+        return arr.compactMap { wert -> String? in
+            guard case .string(let s) = wert else { return nil }
+            return s
+        }
+    }
+
+    /// Für Werte, die kein simpler Bool/String/Array sind (z. B. der strukturierte
+    /// `hintergrund`-Wert aus `Chat/Medien/ChatEinstellungen.swift`) — re-kodiert den gespeicherten
+    /// `JSONValue` einmal nach `Data` und dekodiert ihn typisiert. Vermeidet eine Abhängigkeit auf
+    /// Chat/**s eigenen Typ; solange die JSON-Form gleich bleibt, passt das zusammen.
+    func dekodiert<T: Decodable>(_ schluessel: String, als: T.Type, von: Person? = nil) -> T? {
+        guard let w = wert(schluessel, von: von), let daten = try? JSONEncoder().encode(w) else { return nil }
+        return try? JSONDecoder().decode(T.self, from: daten)
     }
 
     // MARK: - Z-15.3 (Zusatz): Morgen-Systemnachricht bei Geburtstag

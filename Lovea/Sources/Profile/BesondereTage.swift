@@ -17,8 +17,8 @@ enum BesondereTage {
     static func abzeichen(person: Person, datum: Date, jahrestag: Date?, dateHeute: Bool) -> [String] {
         var abzeichen: [String] = []
         let heute = Calendar.berlin.dateComponents([.month, .day], from: datum)
-        let geburtstag = geburtstag(person)
-        if heute.month == geburtstag.monat, heute.day == geburtstag.tag { abzeichen.append("partyhut") }
+        let g = geburtstag(person)
+        if heute.month == g.monat, heute.day == g.tag { abzeichen.append("partyhut") }
         if let jahrestag {
             let j = Calendar.berlin.dateComponents([.month, .day], from: jahrestag)
             if j.month == heute.month, j.day == heute.day { abzeichen.append("herzaugen") }
