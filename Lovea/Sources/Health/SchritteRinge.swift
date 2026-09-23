@@ -82,7 +82,8 @@ struct HealthNichtErlaubtHinweis: View {
                     .tint(Color.person(person))
             }
         }
-        .frame(width: groesse, minHeight: groesse)
+        .frame(width: groesse)
+        .frame(minHeight: groesse)
         .accessibilityElement(children: .combine)
     }
 
