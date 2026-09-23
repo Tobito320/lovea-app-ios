@@ -556,7 +556,7 @@ private struct GenmojiEingabefeld: UIViewRepresentable {
         view.textContainerInset = UIEdgeInsets(top: 8, left: 0, bottom: 8, right: 0)
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.supportsAdaptiveImageGlyph = true
-        view.typingAttributes = [.font: Self.schrift]
+        view.typingAttributes = [.font: Self.schrift, .foregroundColor: UIColor.label]
         view.delegate = context.coordinator
         handle.view = view
         return view
@@ -573,7 +573,7 @@ private struct GenmojiEingabefeld: UIViewRepresentable {
         // otherwise leaves `typingAttributes` derived from whatever's now at the cursor — empty
         // text has nothing to derive from, so the next character typed can fall back to a tiny
         // default font.
-        uiView.typingAttributes = [.font: Self.schrift]
+        uiView.typingAttributes = [.font: Self.schrift, .foregroundColor: UIColor.label]
         // Deferred: mutating a binding synchronously inside `updateUIView` runs during SwiftUI's
         // own update pass. A `Task` (not `DispatchQueue.main.async`, whose closure is `@Sendable`
         // and can't capture the non-Sendable `uiView`) hops to the next run loop turn instead.
@@ -665,7 +665,7 @@ private struct VollansichtTextView: UIViewRepresentable {
         view.adjustsFontForContentSizeCategory = true
         view.accessibilityLabel = "Nachricht"
         view.supportsAdaptiveImageGlyph = true
-        view.typingAttributes = [.font: Self.schrift]
+        view.typingAttributes = [.font: Self.schrift, .foregroundColor: UIColor.label]
         view.delegate = context.coordinator
         return view
     }
@@ -673,7 +673,7 @@ private struct VollansichtTextView: UIViewRepresentable {
     func updateUIView(_ uiView: UITextView, context: Context) {
         guard uiView.attributedText.string != text.string else { return }
         uiView.attributedText = text
-        uiView.typingAttributes = [.font: Self.schrift]
+        uiView.typingAttributes = [.font: Self.schrift, .foregroundColor: UIColor.label]
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(text: $text) }

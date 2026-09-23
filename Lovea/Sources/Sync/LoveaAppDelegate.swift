@@ -48,8 +48,14 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         [.banner, .sound, .badge]
     }
 
-    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse) async {
-        await MainActor.run { Raum.shared.start() }
+    // Completion-handler form, completed on the main thread: the async variant hands the
+    // system's completion back on a background executor, which crashed on tapping a notification.
+    nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        let fertig = AbschlussBox(completionHandler)
+        DispatchQueue.main.async {
+            MainActor.assumeIsolated { Raum.shared.start() }
+            fertig.aufrufen()
+        }
     }
 
     /// Communication-notification donation so chat messages show the sender's figure image
@@ -79,4 +85,10 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         interaction.direction = .incoming
         interaction.donate(completion: nil)
     }
+}
+
+/// The notification completion handler isn't `Sendable`; it is only ever called once, on main.
+private struct AbschlussBox: @unchecked Sendable {
+    let aufrufen: () -> Void
+    init(_ f: @escaping () -> Void) { aufrufen = f }
 }

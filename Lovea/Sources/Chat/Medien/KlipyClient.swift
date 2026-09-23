@@ -44,7 +44,17 @@ enum KlipyClient {
 
 private struct KlipyHuelle: Decodable { let data: KlipyDaten? }
 private struct KlipyDaten: Decodable { let data: [KlipyEintrag]? }
-private struct KlipyEintrag: Decodable { let id: String?; let file: KlipyDateien? }
+/// Klipy sends `id` as a JSON number; a `String` field made the whole list fail to decode (empty grid).
+private struct KlipyEintrag: Decodable {
+    let id: String?
+    let file: KlipyDateien?
+    enum CodingKeys: String, CodingKey { case id, file }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        if let zahl = try? c.decode(Int64.self, forKey: .id) { id = String(zahl) } else { id = try? c.decode(String.self, forKey: .id) }
+        file = try? c.decode(KlipyDateien.self, forKey: .file)
+    }
+}
 private struct KlipyDateien: Decodable { let hd: KlipyGroesse?; let md: KlipyGroesse?; let sm: KlipyGroesse? }
 private struct KlipyGroesse: Decodable { let gif: KlipyGif? }
 private struct KlipyGif: Decodable { let url: String?; let width: Double?; let height: Double? }

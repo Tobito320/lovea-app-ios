@@ -89,11 +89,29 @@ final class SnapKameraSteuerung: NSObject {
                 konfigurieren()
                 konfiguriert = true
             }
+            // All configuration BEFORE startRunning: a begin/commitConfiguration on the main thread
+            // while startRunning runs on `sessionSchlange` throws NSGenericException (crash).
+            if audioEingang == nil {
+                session.beginConfiguration()
+                einrichtenAudioEingang()
+                session.commitConfiguration()
+            }
             laeuft = true
+            startLaeuft = true
             let box = SessionBox(session: session)
-            sessionSchlange.async { box.session.startRunning() }
-        }
-        if audioEingang == nil {
+            await withCheckedContinuation { (fertig: CheckedContinuation<Void, Never>) in
+                sessionSchlange.async {
+                    box.session.startRunning()
+                    fertig.resume()
+                }
+            }
+            startLaeuft = false
+            if stopNachStart {
+                stopNachStart = false
+                stop()
+                return
+            }
+        } else if audioEingang == nil, !startLaeuft {
             session.beginConfiguration()
             einrichtenAudioEingang()
             session.commitConfiguration()
@@ -102,6 +120,8 @@ final class SnapKameraSteuerung: NSObject {
     }
 
     private var konfiguriert = false
+    private var startLaeuft = false
+    private var stopNachStart = false
 
     private func konfigurieren() {
         session.beginConfiguration()
@@ -127,6 +147,11 @@ final class SnapKameraSteuerung: NSObject {
     /// a timer; `kameraVerlassen()` already sent that the moment the camera UI actually closed.
     func stop() {
         guard laeuft else { return }
+        // A stop during a pending startRunning would reconfigure mid-start (same crash); defer it.
+        if startLaeuft {
+            stopNachStart = true
+            return
+        }
         laeuft = false
         entferneAudioEingang() // belt-and-suspenders: a full stop must never leave a stale mic input
         let box = SessionBox(session: session)
