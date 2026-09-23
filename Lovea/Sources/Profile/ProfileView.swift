@@ -108,6 +108,8 @@ private struct ProfilInhalt: View {
                     if istEigenes {
                         eigeneChips
                         eigeneAktionen
+                        SchlafSchalter()
+                        ProfilPunkteKarte(person: person)
                         abschnitt("Spiele-Bilanz") { spieleAbschnittInhalt }
                     } else {
                         chips
@@ -306,7 +308,7 @@ private struct ProfilInhalt: View {
                 chip("💞", "\(tageZusammen) Tage", "\(tageZusammen) Tage zusammen")
                 chip(zeichen.symbol, zeichen.name, "Sternzeichen \(zeichen.name)")
                 if istEigenes {
-                    PunkteChip(person: person)
+                    PunkteKnopf(person: person)
                 }
             }
         }
@@ -338,7 +340,7 @@ private struct ProfilInhalt: View {
     }
 
     /// Spendable balance (after purchases), same number as the Health tab and the Shop.
-    private var punkteChip: some View { PunkteChip(person: person) }
+    private var punkteChip: some View { PunkteKnopf(person: person) }
 
     // MARK: - Eigene Aktionen (Z-25.1: Figur bearbeiten, Shop)
 

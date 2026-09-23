@@ -55,7 +55,7 @@ struct HealthTab: View {
             .accessibilityAddTraits(.isHeader)
             Spacer(minLength: 8)
             Button { oeffnen(.punkte) } label: {
-                PunkteChip(person: Raum.shared.ich ?? .ahmed).frame(minHeight: 44)
+                PunkteKnopf(person: Raum.shared.ich ?? .ahmed).frame(minHeight: 44)
             }
             .buttonStyle(.federnd)
             .matchedTransitionSource(id: HealthZiel.punkte, in: zoom)
