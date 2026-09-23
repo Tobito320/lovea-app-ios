@@ -280,7 +280,8 @@ private struct ProfilInhalt: View {
         let kuesst = live == .kuss || FigurenModell.shared.anzeige(p.partner).haupt == .kuss
         let richtung: CGFloat = p == person ? 1 : -1
         let wetter = WetterModell.shared.staende[p]
-        let extras = szene?.extras(wetterCode: wetter?.code, temperatur: wetter?.temperatur, laedt: zustand == .laedt) ?? []
+        // The kiss needs its arm: no umbrella or dumbbells for those 4 s.
+        let extras: Set<FigurExtra> = kuesst ? [] : szene?.extras(zustand, wetterCode: wetter?.code, temperatur: wetter?.temperatur) ?? []
         // A bought pose would replace the curls, so the gym keeps its own arms.
         let pose = szene.map { $0 != .gym } ?? true
         let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose, extras: extras)

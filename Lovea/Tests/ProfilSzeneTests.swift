@@ -64,12 +64,16 @@ final class ProfilSzeneTests: XCTestCase {
     }
 
     func testExtrasInDerSzene() {
-        XCTAssertEqual(ProfilSzene.gym.extras(wetterCode: 61, temperatur: 2, laedt: false), [.hanteln])
-        XCTAssertEqual(ProfilSzene.zimmer.extras(wetterCode: 61, temperatur: 2, laedt: true), [])
-        XCTAssertEqual(ProfilSzene.draussen(wetter: .regen, nacht: false).extras(wetterCode: 61, temperatur: 12, laedt: false), [.schirm])
+        XCTAssertEqual(ProfilSzene.gym.extras(.gym, wetterCode: 61, temperatur: 2), [.hanteln])
+        // A gesture or expression in the gym keeps its own arms and props.
+        XCTAssertEqual(ProfilSzene.gym.extras(.kuss, wetterCode: nil, temperatur: nil), [])
+        XCTAssertEqual(ProfilSzene.gym.extras(.daumen, wetterCode: nil, temperatur: nil), [])
+        XCTAssertEqual(ProfilSzene.zimmer.extras(.laedt, wetterCode: 61, temperatur: 2), [])
+        XCTAssertEqual(ProfilSzene.draussen(wetter: .regen, nacht: false).extras(.ruhig, wetterCode: 61, temperatur: 12), [.schirm])
+        XCTAssertEqual(ProfilSzene.draussen(wetter: .regen, nacht: false).extras(.laedt, wetterCode: 61, temperatur: 12), [.schirm, .handyKabel])
         // Clear sky: sunglasses by day, none at night (same rule as the map figure).
-        XCTAssertEqual(ProfilSzene.draussen(wetter: .sonne, nacht: false).extras(wetterCode: 0, temperatur: 20, laedt: false), [.sonnenbrille])
-        XCTAssertEqual(ProfilSzene.draussen(wetter: .sonne, nacht: true).extras(wetterCode: 0, temperatur: 20, laedt: false), [])
+        XCTAssertEqual(ProfilSzene.draussen(wetter: .sonne, nacht: false).extras(.ruhig, wetterCode: 0, temperatur: 20), [.sonnenbrille])
+        XCTAssertEqual(ProfilSzene.draussen(wetter: .sonne, nacht: true).extras(.ruhig, wetterCode: 0, temperatur: 20), [])
     }
 
     // MARK: - profil.zimmer

@@ -20,8 +20,9 @@ final class RenderGalerieSzeneTests: XCTestCase {
             let schlaefer = zusammen ? [p, p.partner] : [p]
             figuren = AnyView(SchlafendeFiguren(zimmer: zimmer, schlaefer: schlaefer.map { FigurAussehen.standard(for: $0) }, animiert: false))
         } else {
-            let extras = szene.extras(wetterCode: code, temperatur: temperatur, laedt: false)
-            figuren = AnyView(FigurView(.standard(for: p), zustand: szene.figur(.ruhig), groesse: 340, animiert: false, ganzkoerper: true, extras: extras))
+            let zustand = szene.figur(.ruhig)
+            let extras = szene.extras(zustand, wetterCode: code, temperatur: temperatur)
+            figuren = AnyView(FigurView(.standard(for: p), zustand: zustand, groesse: 340, animiert: false, ganzkoerper: true, extras: extras))
         }
         return AnyView(
             ZStack(alignment: .bottom) {

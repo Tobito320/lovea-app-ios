@@ -53,11 +53,12 @@ enum ProfilSzene: Equatable, Sendable {
         }
     }
 
-    /// What the figure carries: dumbbells in the gym, the map's weather extras outside.
-    func extras(wetterCode: Int?, temperatur: Double?, laedt: Bool) -> Set<FigurExtra> {
+    /// What the figure carries for the state it shows (`figur(_:)`): dumbbells while it curls in the
+    /// gym (a gesture keeps its own arms), the map's weather extras outside.
+    func extras(_ z: FigurZustand, wetterCode: Int?, temperatur: Double?) -> Set<FigurExtra> {
         switch self {
-        case .gym: return [.hanteln]
-        case .draussen(_, let nacht): return KarteLogik.extras(wetterCode: wetterCode, temperatur: temperatur, tag: !nacht, laedt: laedt)
+        case .gym: return z == .gym ? [.hanteln] : []
+        case .draussen(_, let nacht): return KarteLogik.extras(wetterCode: wetterCode, temperatur: temperatur, tag: !nacht, laedt: z == .laedt)
         case .zimmer, .schlafen: return []
         }
     }
