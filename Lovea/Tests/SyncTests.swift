@@ -69,7 +69,8 @@ final class SyncTests: XCTestCase {
             log: OpLog(rootURL: dir),
             warteschlange: Warteschlange(rootURL: dir),
             server: server,
-            schluessel: "schluessel"
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
         )
         offlineRaum.ich = .ahmed
         offlineRaum.senden("nachricht.neu", ["text": "eins"])
@@ -92,7 +93,8 @@ final class SyncTests: XCTestCase {
             log: log,
             warteschlange: reopenedQueue,
             server: server,
-            schluessel: "schluessel"
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
         )
         onlineRaum.ich = .ahmed
         onlineRaum.start()
@@ -102,7 +104,7 @@ final class SyncTests: XCTestCase {
         let sentOpMessages = onlineTransport.sent.filter { $0.contains("\"t\":\"op\"") }
         XCTAssertEqual(sentOpMessages.count, 3)
 
-        // Server confirms all three in one batch.
+        // Server confirms all three in one batch — a live broadcast (no "seite"), like a real echo.
         let confirmed = zip(queuedAfterRestart.map(\.id), [1, 2, 3]).map { (id: $0, seq: $1) }
         let echo = makeOpsMessage(ops: confirmed, mehr: false)
         await onlineTransport.receive(echo)
@@ -131,7 +133,8 @@ final class SyncTests: XCTestCase {
             log: OpLog(rootURL: dir),
             warteschlange: Warteschlange(rootURL: dir),
             server: URL(string: "https://sync.example.com")!,
-            schluessel: "schluessel"
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
         )
         raum.ich = .ahmed
         var receivedBatches: [[Op]] = []
@@ -140,14 +143,147 @@ final class SyncTests: XCTestCase {
         raum.start()
         await raum.leer()
 
-        await transport.receive(makeOpsMessage(ops: (1...500).map { (id: "op-\($0)", seq: $0) }, mehr: true))
-        await transport.receive(makeOpsMessage(ops: (501...1000).map { (id: "op-\($0)", seq: $0) }, mehr: true))
-        await transport.receive(makeOpsMessage(ops: (1001...1200).map { (id: "op-\($0)", seq: $0) }, mehr: false))
+        await transport.receive(makeOpsMessage(ops: (1...500).map { (id: "op-\($0)", seq: $0) }, mehr: true, seite: true))
+        await transport.receive(makeOpsMessage(ops: (501...1000).map { (id: "op-\($0)", seq: $0) }, mehr: true, seite: true))
+        await transport.receive(makeOpsMessage(ops: (1001...1200).map { (id: "op-\($0)", seq: $0) }, mehr: false, seite: true))
 
         XCTAssertEqual(receivedBatches.map(\.count), [500, 500, 200])
         XCTAssertEqual(receivedBatches.flatMap { $0 }.count, 1200)
         let nachholenRequests = transport.sent.filter { $0.contains("\"nachholen\"") }
         XCTAssertEqual(nachholenRequests.count, 2)
+    }
+
+    // MARK: - C-2: paging cursor is immune to a live broadcast landing mid-page
+
+    /// Exact regression scenario from the review: page 1 (seite, mehr), then the echo of an own
+    /// queued op arrives as a live broadcast (no "seite") with a much higher seq, then page 2 and
+    /// page 3. The old code used the highest seq ever seen for both `nachholen`'s `seit` and the
+    /// restart cursor, so the echo made it skip straight to seq 1201 and permanently lose
+    /// 1001-1200. This asserts the fix: `nachholen` always continues from the CURRENT page's own
+    /// last seq, the persisted "complete up to" cursor only moves for `seite` pages, and a
+    /// restart after just page 1 + the echo reconnects at seit=500, not seit=1201.
+    func testLiveBroadcastDuringPagingDoesNotSkipOrLoseOps() async {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        let raum = Raum(
+            transport: transport,
+            log: log,
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!,
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+
+        await transport.receive(makeOpsMessage(ops: (1...500).map { (id: "op-\($0)", seq: $0) }, mehr: true, seite: true))
+        await transport.receive(makeOpsMessage(ops: [(id: "eigene-op", seq: 1201)], mehr: false, seite: false))
+        await transport.receive(makeOpsMessage(ops: (501...1000).map { (id: "op-\($0)", seq: $0) }, mehr: true, seite: true))
+        await transport.receive(makeOpsMessage(ops: (1001...1200).map { (id: "op-\($0)", seq: $0) }, mehr: false, seite: true))
+
+        let nachholenSeitWerte = transport.sent.compactMap { text -> Int? in
+            guard text.contains("\"nachholen\"") else { return nil }
+            guard let bereich = text.range(of: "\"seit\":") else { return nil }
+            return Int(text[bereich.upperBound...].prefix { $0.isNumber })
+        }
+        XCTAssertEqual(nachholenSeitWerte, [500, 1000])
+
+        let alleOps = await log.alle(arten: [])
+        XCTAssertEqual(alleOps.count, 1201)
+
+        // All three pages are complete now, so a restart resumes at 1200 — the echo (1201) never
+        // pulled this ahead early, and no page was skipped to get here.
+        let vollstaendig = await log.vollstaendigBisSeq()
+        XCTAssertEqual(vollstaendig, 1200)
+
+        let transport2 = FakeTransport()
+        let raum2 = Raum(
+            transport: transport2,
+            log: OpLog(rootURL: dir),
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!,
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum2.ich = .ahmed
+        raum2.start()
+        await raum2.leer()
+        XCTAssertEqual(transport2.urls.last?.query, "seit=1200")
+    }
+
+    /// Isolates just the "echo arrives right after page 1, before page 2" step: the persisted
+    /// cursor must still read the page-1 value, not the echo's higher seq.
+    func testRestartRightAfterFirstPagePlusEchoResumesAtFirstPagesSeq() async {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        let raum = Raum(
+            transport: transport,
+            log: log,
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!,
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+
+        await transport.receive(makeOpsMessage(ops: (1...500).map { (id: "op-\($0)", seq: $0) }, mehr: true, seite: true))
+        await transport.receive(makeOpsMessage(ops: [(id: "eigene-op", seq: 1201)], mehr: false, seite: false))
+
+        let vollstaendig = await log.vollstaendigBisSeq()
+        XCTAssertEqual(vollstaendig, 500)
+
+        // And a fresh Raum over the same directory actually reconnects there, not just the log.
+        let restartTransport = FakeTransport()
+        let restartRaum = Raum(
+            transport: restartTransport,
+            log: OpLog(rootURL: dir),
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!,
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        restartRaum.ich = .ahmed
+        restartRaum.start()
+        await restartRaum.leer()
+        XCTAssertEqual(restartTransport.urls.last?.query, "seit=500")
+    }
+
+    // MARK: - I-3: one malformed op in a page must not drop the whole page
+
+    func testOneUndecodableOpInAPageStillAppliesTheRestAndContinuesPaging() async {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        let raum = Raum(
+            transport: transport,
+            log: log,
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!,
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+
+        // "von":"jemand" is not a valid Person — this op must be skipped, not fail the page.
+        let kaputt = "{\"seq\":2,\"id\":\"kaputt\",\"art\":\"test.art\",\"von\":\"jemand\",\"zeit\":\"2026-09-23T12:00:00.000Z\",\"d\":{}}"
+        let gut1 = "{\"seq\":1,\"id\":\"gut-1\",\"art\":\"test.art\",\"von\":\"annika\",\"zeit\":\"2026-09-23T12:00:00.000Z\",\"d\":{}}"
+        let gut3 = "{\"seq\":3,\"id\":\"gut-3\",\"art\":\"test.art\",\"von\":\"annika\",\"zeit\":\"2026-09-23T12:00:00.000Z\",\"d\":{}}"
+        let seite = "{\"t\":\"ops\",\"ops\":[\(gut1),\(kaputt),\(gut3)],\"mehr\":false,\"seite\":true}"
+        await transport.receive(seite)
+
+        let ops = await log.alle(arten: [])
+        XCTAssertEqual(ops.map(\.id).sorted(), ["gut-1", "gut-3"])
+        // The cursor must land on 3 (the highest raw seq in the page), not 1 (highest DECODED seq's
+        // predecessor) or stuck at 0 — otherwise the next reconnect would re-request seq 2 forever.
+        let vollstaendig = await log.vollstaendigBisSeq()
+        XCTAssertEqual(vollstaendig, 3)
     }
 
     // MARK: - Medien (Z-2.4, Review-Fokus 5)
@@ -156,6 +292,23 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(Medien.fehlendePlan(gesamt: 5, fehlend: [4, 2, 2, 10, -1]), [2, 4])
         XCTAssertEqual(Medien.fehlendePlan(gesamt: 3, fehlend: []), [])
         XCTAssertEqual(Medien.fehlendePlan(gesamt: 3, fehlend: [0, 1, 2]), [0, 1, 2])
+    }
+
+    /// C-1: `vorhanden` must win, even when `fehlend` is (misleadingly) empty — both for a brand
+    /// new id and for a partially-uploaded one below the server's "only gaps below the max" limit.
+    func testMedienPlanPrefersVorhandenOverAnEmptyOrLimitedFehlend() {
+        let neu = FehlendAntwort(teile: nil, fehlend: [], vorhanden: [])
+        XCTAssertEqual(Medien.plan(gesamt: 3, antwort: neu), [0, 1, 2])
+
+        let teilweise = FehlendAntwort(teile: nil, fehlend: [], vorhanden: [0, 1])
+        XCTAssertEqual(Medien.plan(gesamt: 4, antwort: teilweise), [2, 3])
+
+        let mitLuecke = FehlendAntwort(teile: nil, fehlend: [1], vorhanden: [0, 2])
+        XCTAssertEqual(Medien.plan(gesamt: 3, antwort: mitLuecke), [1])
+
+        // No `vorhanden` at all (hypothetical older server) falls back to `fehlend`.
+        let ohneVorhanden = FehlendAntwort(teile: nil, fehlend: [2], vorhanden: nil)
+        XCTAssertEqual(Medien.plan(gesamt: 3, antwort: ohneVorhanden), [2])
     }
 
     // MARK: - Helpers
@@ -170,18 +323,19 @@ final class SyncTests: XCTestCase {
         Op(id: UUID().uuidString, seq: seq, art: "test.art", von: .ahmed, zeit: Date(), d: Data("{}".utf8))
     }
 
-    private func makeOpsMessage(ops: [(id: String, seq: Int)], mehr: Bool) -> String {
+    private func makeOpsMessage(ops: [(id: String, seq: Int)], mehr: Bool, seite: Bool = false) -> String {
         let entries = ops.map {
             "{\"seq\":\($0.seq),\"id\":\"\($0.id)\",\"art\":\"test.art\",\"von\":\"annika\",\"zeit\":\"2026-09-23T12:00:00.000Z\",\"d\":{}}"
         }
-        return "{\"t\":\"ops\",\"ops\":[\(entries.joined(separator: ","))],\"mehr\":\(mehr)}"
+        return "{\"t\":\"ops\",\"ops\":[\(entries.joined(separator: ","))],\"mehr\":\(mehr),\"seite\":\(seite)}"
     }
 }
 
-/// Fake `RaumTransport`: records everything sent, and exposes `receive` to simulate a server
-/// message by calling the closure `Raum` handed to `verbinden`.
+/// Fake `RaumTransport`: records everything sent (and every connect URL), and exposes `receive`
+/// to simulate a server message by calling the closure `Raum` handed to `verbinden`.
 private final class FakeTransport: RaumTransport, @unchecked Sendable {
     private(set) var sent: [String] = []
+    private(set) var urls: [URL] = []
     private var onMessage: (@Sendable (String) async -> Void)?
     private var onDisconnect: (@Sendable (Error?) async -> Void)?
 
@@ -191,6 +345,7 @@ private final class FakeTransport: RaumTransport, @unchecked Sendable {
         nachricht: @escaping @Sendable (String) async -> Void,
         getrennt: @escaping @Sendable (Error?) async -> Void
     ) {
+        urls.append(url)
         onMessage = nachricht
         onDisconnect = getrennt
     }

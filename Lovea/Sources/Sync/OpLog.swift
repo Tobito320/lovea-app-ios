@@ -4,14 +4,41 @@ import Foundation
 /// Loaded lazily on first use so creating an `OpLog` never touches disk on the main thread.
 actor OpLog {
     private let fileURL: URL
+    private let cursorURL: URL
     private var ops: [Op] = []
     private var indexVonId: [String: Int] = [:]
     private var geladen = false
+    private var vollstaendigBisSeqWert: Int?
 
     init(rootURL: URL? = nil) {
         let basis = rootURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Lovea/sync", isDirectory: true)
         fileURL = basis.appendingPathComponent("ops.jsonl")
+        cursorURL = basis.appendingPathComponent("nachholt-bis.txt")
+    }
+
+    /// The last `seq` confirmed complete by an actual paging response (server's `seite:true`) —
+    /// never by a live broadcast landing in between, and never just "max seq ever logged". Used
+    /// by `Raum.start()` as the `seit` to reconnect with, so a restart resumes paging from
+    /// exactly where it left off instead of skipping ops that only a live op's high seq made it
+    /// look like we already had.
+    func vollstaendigBisSeq() -> Int {
+        ladenCursor()
+        return vollstaendigBisSeqWert ?? 0
+    }
+
+    func vollstaendigBisSeqSetzen(_ seq: Int) {
+        vollstaendigBisSeqWert = seq
+        try? String(seq).write(to: cursorURL, atomically: true, encoding: .utf8)
+    }
+
+    private func ladenCursor() {
+        guard vollstaendigBisSeqWert == nil else { return }
+        if let text = try? String(contentsOf: cursorURL, encoding: .utf8), let seq = Int(text) {
+            vollstaendigBisSeqWert = seq
+        } else {
+            vollstaendigBisSeqWert = 0
+        }
     }
 
     /// Appends confirmed ops. A duplicate `id` (a repeated echo) is silently skipped —

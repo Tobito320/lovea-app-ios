@@ -2,11 +2,6 @@ import Foundation
 
 /// Chunked media upload/download against `PUT /medien/<id>/<rolle>/<teil>`,
 /// `POST /medien/<id>/<rolle>/fertig` and `GET /medien/<id>`.
-///
-/// ponytail: the exact shape of `GET .../fehlend` isn't settled yet (Block 1 hadn't written the
-/// server route when this was built) — decoded tolerantly, see `fehlendeTeile`. Reconcile once
-/// Block 1's `server/raum.js` lands; if the field names differ this needs a one-line fix, not
-/// a redesign.
 enum Medien {
     static let teilGroesse = 1_048_576 // 1 MiB
 
@@ -18,17 +13,45 @@ enum Medien {
     }
 
     static func hochladen(id: String, original: URL, klein: URL? = nil) async throws {
-        guard let konfig = await Raum.shared.httpKonfiguration() else { throw MedienFehler.nichtEingerichtet }
-        // Copy into our own cache BEFORE uploading, not after: `original`/`klein` are often an
-        // ephemeral picker temp file that can be gone by the time a retry (after a dropped
-        // connection, or the app being killed mid-upload) reads it again. This also means the
-        // sender sees their own media right away instead of downloading it back.
-        let originalKopie = try lokaleKopie(von: original, id: id, rolle: "original")
-        let kleinKopie = try klein.map { try lokaleKopie(von: $0, id: id, rolle: "klein") }
-        try await teilHochladen(id: id, rolle: "original", datei: originalKopie, konfig: konfig)
-        if let kleinKopie { try await teilHochladen(id: id, rolle: "klein", datei: kleinKopie, konfig: konfig) }
-        try? FileManager.default.removeItem(at: cacheURL(for: id))
-        try? FileManager.default.copyItem(at: originalKopie, to: cacheURL(for: id))
+        guard await aktiveUploads.beanspruchen(id) else { return } // already uploading (e.g. fortsetzen())
+        do {
+            guard let konfig = await Raum.shared.httpKonfiguration() else { throw MedienFehler.nichtEingerichtet }
+            // Copy into our own cache BEFORE uploading, not after: `original`/`klein` are often an
+            // ephemeral picker temp file that can be gone by the time a retry (after a dropped
+            // connection, or the app being killed mid-upload) reads it again.
+            let originalKopie = try lokaleKopie(von: original, id: id, rolle: "original")
+            let kleinKopie = try klein.map { try lokaleKopie(von: $0, id: id, rolle: "klein") }
+            try await teilHochladen(id: id, rolle: "original", datei: originalKopie, konfig: konfig)
+            if let kleinKopie { try await teilHochladen(id: id, rolle: "klein", datei: kleinKopie, konfig: konfig) }
+            // Sender sees their own media right away instead of downloading it back.
+            try? FileManager.default.removeItem(at: cacheURL(for: id))
+            try? FileManager.default.copyItem(at: originalKopie, to: cacheURL(for: id))
+            // Upload finished — the resumable copy is no longer needed, and must go so
+            // `fortsetzen()` doesn't retry an already-finished upload forever (I-4/M-7).
+            try? FileManager.default.removeItem(at: originalKopie)
+            if let kleinKopie { try? FileManager.default.removeItem(at: kleinKopie) }
+            await aktiveUploads.freigeben(id)
+        } catch {
+            await aktiveUploads.freigeben(id)
+            throw error
+        }
+    }
+
+    /// Scans `Lovea/medien/hochladen/` for uploads that never finished (app killed mid-upload,
+    /// or offline) and retries them from the cached copy. Call once from `Raum.start()` — not
+    /// awaited there, this runs in the background. `hochladen`'s own `aktiveUploads` claim keeps
+    /// this from racing a fresh, still-in-flight `hochladen` call for the same id (I-4).
+    static func fortsetzen() {
+        Task {
+            let ordner = hochladenOrdner()
+            guard let dateien = try? FileManager.default.contentsOfDirectory(at: ordner, includingPropertiesForKeys: nil) else { return }
+            for original in dateien where original.lastPathComponent.hasSuffix("-original") {
+                let id = String(original.lastPathComponent.dropLast("-original".count))
+                let kleinURL = ordner.appendingPathComponent("\(id)-klein")
+                let klein = FileManager.default.fileExists(atPath: kleinURL.path) ? kleinURL : nil
+                try? await hochladen(id: id, original: original, klein: klein)
+            }
+        }
     }
 
     static func holen(_ id: String) async throws -> URL {
@@ -45,13 +68,44 @@ enum Medien {
         return ziel
     }
 
-    /// Pure: which part indices to (re)send. Clamps and dedupes whatever the server reports
-    /// missing against the locally known part count.
+    /// Pure: which part indices still need uploading, given the server's `/fehlend` response.
+    /// `vorhanden` (existing parts) is always reliable per the server — including `[]` for a
+    /// brand-new id — so it's preferred; `fehlend` alone (no `vorhanden`) is only a best-effort
+    /// fallback for gaps below the highest uploaded part, and an empty `fehlend` does NOT mean
+    /// "nothing missing" for a fresh upload (C-1).
+    static func plan(gesamt: Int, antwort: FehlendAntwort) -> [Int] {
+        let alle = Array(0..<max(gesamt, 1))
+        if let vorhanden = antwort.vorhanden {
+            let vorhandenSet = Set(vorhanden)
+            return alle.filter { !vorhandenSet.contains($0) }
+        }
+        if let fehlend = antwort.fehlend {
+            return fehlendePlan(gesamt: gesamt, fehlend: fehlend)
+        }
+        return alle
+    }
+
+    /// Pure: clamps and dedupes a `fehlend` list against the locally known part count. Used by
+    /// `plan` for the (rare) case the server response has no `vorhanden` at all.
     static func fehlendePlan(gesamt: Int, fehlend: [Int]) -> [Int] {
         Set(fehlend.filter { $0 >= 0 && $0 < gesamt }).sorted()
     }
 
     // MARK: - Upload
+
+    /// Tracks ids currently uploading, so `fortsetzen()` (a background rescan) never starts a
+    /// second, concurrent upload of an id a fresh `hochladen` call is already handling — both
+    /// would read/write the same cached copy.
+    private actor AktiveUploads {
+        private var ids: Set<String> = []
+        func beanspruchen(_ id: String) -> Bool {
+            guard !ids.contains(id) else { return false }
+            ids.insert(id)
+            return true
+        }
+        func freigeben(_ id: String) { ids.remove(id) }
+    }
+    private static let aktiveUploads = AktiveUploads()
 
     private static func teilHochladen(id: String, rolle: String, datei: URL, konfig: Raum.HttpKonfiguration) async throws {
         let attribute = try? FileManager.default.attributesOfItem(atPath: datei.path)
@@ -84,16 +138,14 @@ enum Medien {
         let alle = Array(0..<max(gesamt, 1))
         let basisURL = konfig.basis.appendingPathComponent("medien/\(id)/fehlend")
         guard var comps = URLComponents(url: basisURL, resolvingAgainstBaseURL: false) else { return alle }
-        comps.queryItems = [URLQueryItem(name: "rolle", value: rolle)]
+        comps.queryItems = [URLQueryItem(name: "rolle", value: rolle), URLQueryItem(name: "teile", value: String(gesamt))]
         guard let url = comps.url else { return alle }
         var request = URLRequest(url: url)
         headers(konfig, in: &request)
         guard let (data, response) = try? await URLSession.shared.data(for: request),
               let http = response as? HTTPURLResponse, http.statusCode == 200,
               let antwort = try? JSONDecoder().decode(FehlendAntwort.self, from: data) else { return alle }
-        if let fehlend = antwort.fehlend { return fehlendePlan(gesamt: gesamt, fehlend: fehlend) }
-        if let vorhanden = antwort.vorhanden { return fehlendePlan(gesamt: gesamt, fehlend: alle.filter { !vorhanden.contains($0) }) }
-        return alle
+        return plan(gesamt: gesamt, antwort: antwort)
     }
 
     // MARK: - Helpers
@@ -107,17 +159,30 @@ enum Medien {
             .appendingPathComponent("Lovea/medien/\(id)", isDirectory: false)
     }
 
+    private static func hochladenOrdner() -> URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Lovea/medien/hochladen", isDirectory: true)
+    }
+
     /// Copies a to-be-uploaded file into a stable location keyed by `id`/`rolle`, so re-running
     /// `hochladen` for the same `id` (e.g. after a crash) resumes from here even if the original
-    /// picker/recording temp file is already gone.
+    /// picker/recording temp file is already gone (I-2).
     private static func lokaleKopie(von quelle: URL, id: String, rolle: String) throws -> URL {
-        let ziel = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Lovea/medien/hochladen/\(id)-\(rolle)", isDirectory: false)
+        let ziel = hochladenOrdner().appendingPathComponent("\(id)-\(rolle)", isDirectory: false)
         try FileManager.default.createDirectory(at: ziel.deletingLastPathComponent(), withIntermediateDirectories: true)
-        if quelle != ziel {
-            try? FileManager.default.removeItem(at: ziel)
-            try FileManager.default.copyItem(at: quelle, to: ziel)
+        if FileManager.default.fileExists(atPath: ziel.path) {
+            // Already have a stable copy (e.g. resuming after a crash) — keep it. Deleting it
+            // first and then trying to copy from `quelle` (often long gone by now) would lose
+            // both, which is exactly the bug this guards against.
+            return ziel
         }
+        guard quelle != ziel, FileManager.default.fileExists(atPath: quelle.path) else { throw MedienFehler.datei }
+        // Copy to a temp file first, then move: a crash mid-copy leaves a truncated `.tmp`, never
+        // a truncated `ziel` that a later run would mistake for a complete, resumable copy.
+        let temp = ziel.appendingPathExtension("tmp")
+        try? FileManager.default.removeItem(at: temp)
+        try FileManager.default.copyItem(at: quelle, to: temp)
+        try FileManager.default.moveItem(at: temp, to: ziel)
         return ziel
     }
 
@@ -135,4 +200,4 @@ enum Medien {
 }
 
 private struct FertigBody: Encodable { let teile: Int; let typ: String; let bytes: Int }
-private struct FehlendAntwort: Decodable { let teile: Int?; let fehlend: [Int]?; let vorhanden: [Int]? }
+struct FehlendAntwort: Decodable { let teile: Int?; let fehlend: [Int]?; let vorhanden: [Int]? }
