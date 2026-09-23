@@ -76,7 +76,10 @@ final class FigurenTests: XCTestCase {
     func testNeuesAussehenRundreise() throws {
         for p in [Person.ahmed, .annika] {
             let a = FigurAussehen.standard(for: p)
-            XCTAssertEqual(try JSONDecoder().decode(FigurAussehen.self, from: JSONEncoder().encode(a)), a)
+            var zurueck = try JSONDecoder().decode(FigurAussehen.self, from: JSONEncoder().encode(a))
+            XCTAssertNil(zurueck.person, "person is local only, never synced")
+            zurueck.person = p
+            XCTAssertEqual(zurueck, a)
         }
     }
 
@@ -107,7 +110,7 @@ final class FigurenTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(A.hosen.count, 8)
         XCTAssertGreaterThanOrEqual(A.schuhArten.count, 6)
         XCTAssertGreaterThanOrEqual(A.farben.count, 16)
-        XCTAssertEqual(A.koerperformen.count, 3)
+        XCTAssertEqual(A.koerperformen.count, 7)
         XCTAssertEqual(A.groessen.count, 3)
     }
 
@@ -117,7 +120,8 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "Trikot")
         XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Weite Jeans")
         let annika = FigurAussehen.standard(for: .annika)
-        XCTAssertEqual(FigurAussehen.frisuren[annika.frisur], "Lang glatt")
+        XCTAssertEqual(FigurAussehen.frisuren[annika.frisur], "Lang glatt Mittelscheitel")
+        XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Bitmoji-Pony")
         XCTAssertEqual(FigurAussehen.jacken[annika.jacke], "Lederjacke")
         XCTAssertTrue(FigurAussehen.hosen[annika.hose].contains("Jeans"))
     }
@@ -194,5 +198,95 @@ final class FigurenTests: XCTestCase {
         XCTAssertNil(a.tasche)
         XCTAssertNil(a.pose)
         XCTAssertNil(a.haarfarbeHex)
+    }
+
+    // MARK: Runde 3 (Z-38, Z-39)
+
+    /// Z-38.4: the Bitmoji looks only use indices the person may pick in the editor (gender, shop, hidden).
+    func testStandardNutztNurErlaubteIndizes() {
+        typealias A = FigurAussehen
+        for p in Person.allCases {
+            let a = A.standard(for: p)
+            XCTAssertTrue(A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: p).contains(a.frisur), "frisur \(p)")
+            XCTAssertTrue(A.erlaubt(A.baerte, geschlecht: A.baerteGeschlecht, fuer: p).contains(a.bart), "bart \(p)")
+            XCTAssertTrue(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: p).contains(a.oberteil), "oberteil \(p)")
+            XCTAssertTrue(A.erlaubt(A.jacken, shop: A.jackenShop, fuer: p).contains(a.jacke), "jacke \(p)")
+            XCTAssertTrue(A.erlaubt(A.hosen, geschlecht: A.hosenGeschlecht, shop: A.hosenShop, fuer: p).contains(a.hose), "hose \(p)")
+            XCTAssertTrue(A.erlaubt(A.schuhArten, shop: A.schuheShop, fuer: p).contains(a.schuhe), "schuhe \(p)")
+            XCTAssertTrue(A.erlaubt(A.ohrringArten, geschlecht: A.ohrringeGeschlecht, fuer: p).contains(a.ohrringe), "ohrringe \(p)")
+            XCTAssertTrue(A.erlaubt(A.koerperformen, geschlecht: A.koerperformenGeschlecht, shop: A.koerperformenVersteckt, fuer: p).contains(a.koerperform), "koerper \(p)")
+            XCTAssertEqual(a.person, p)
+        }
+    }
+
+    /// Every gender tag array grows in step with its list, otherwise `erlaubt` shows the rest to both.
+    func testGeschlechtTagsPassenZuListen() {
+        typealias A = FigurAussehen
+        XCTAssertEqual(A.frisuren.count, A.frisurenGeschlecht.count)
+        XCTAssertEqual(A.baerte.count, A.baerteGeschlecht.count)
+        XCTAssertEqual(A.oberteile.count, A.oberteileGeschlecht.count)
+        XCTAssertEqual(A.hosen.count, A.hosenGeschlecht.count)
+        XCTAssertEqual(A.ohrringArten.count, A.ohrringeGeschlecht.count)
+        XCTAssertEqual(A.koerperformen.count, A.koerperformenGeschlecht.count)
+        XCTAssertEqual(A.ketten.count, A.kettenGeschlecht.count)
+        XCTAssertEqual(A.ringe.count, A.ringeGeschlecht.count)
+        XCTAssertEqual(A.armbaender.count, A.armbaenderGeschlecht.count)
+    }
+
+    /// Z-38.3: at least 40 new styles, at least 20 each person may pick; old indices keep their names.
+    func testNeueFrisurenJePerson() {
+        typealias A = FigurAussehen
+        XCTAssertEqual(A.frisuren[7], "Lang glatt")
+        XCTAssertEqual(A.frisuren[33], "Zurückgegelt")
+        XCTAssertGreaterThanOrEqual(A.frisuren.count - 34, 40)
+        for p in Person.allCases {
+            let neu = A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: p).filter { $0 >= 34 }
+            XCTAssertGreaterThanOrEqual(neu.count, 20, "\(p)")
+        }
+    }
+
+    /// Z-38.2: body types per person; "Normal" stays readable for old looks but is hidden.
+    func testKoerperformenJePerson() {
+        typealias A = FigurAussehen
+        func namen(_ p: Person) -> Set<String> {
+            Set(A.erlaubt(A.koerperformen, geschlecht: A.koerperformenGeschlecht, shop: A.koerperformenVersteckt, fuer: p).map { A.koerperformen[$0] })
+        }
+        XCTAssertEqual(namen(.ahmed), ["Schlank", "Athletisch", "Muskulös", "Kräftig"])
+        XCTAssertEqual(namen(.annika), ["Schlank", "Sportlich", "Kurvig", "Muskulös"])
+        XCTAssertEqual(Array(A.koerperformen.prefix(3)), ["Schlank", "Normal", "Kräftig"])
+    }
+
+    /// Z-39.3: the new jewelry fields decode from old JSON as "none" and survive a round trip.
+    func testSchmuckFelderTolerant() throws {
+        let alt = #"{"haut":1,"frisur":7,"haarfarbe":1,"augen":4,"brille":0,"bart":0,"oberteil":4,"oberteilfarbe":12}"#
+        let a = try JSONDecoder().decode(FigurAussehen.self, from: Data(alt.utf8))
+        XCTAssertEqual([a.kette, a.ring, a.armband, a.uhrAlltag], [0, 0, 0, 0])
+        var b = a
+        b.kette = 2
+        b.uhrAlltag = 1
+        let zurueck = try JSONDecoder().decode(FigurAussehen.self, from: JSONEncoder().encode(b))
+        XCTAssertEqual(zurueck.kette, 2)
+        XCTAssertEqual(zurueck.uhrAlltag, 1)
+        XCTAssertEqual(FigurAussehen.ketten.count, alltagsKetten.count + 1)
+        XCTAssertEqual(FigurAussehen.uhrenAlltag.count, alltagsUhren.count + 1)
+    }
+
+    /// Brand pieces for women only are hidden for Ahmed (Zara top, Puma leggings).
+    func testMarkenGeschlecht() {
+        typealias A = FigurAussehen
+        let zara = A.oberteile.firstIndex(of: "Zara Rippstrick-Top")!
+        let leggings = A.hosen.firstIndex(of: "Puma Leggings")!
+        XCTAssertFalse(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: .ahmed).contains(zara))
+        XCTAssertTrue(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: .annika).contains(zara))
+        XCTAssertFalse(A.erlaubt(A.hosen, geschlecht: A.hosenGeschlecht, shop: A.hosenShop, fuer: .ahmed).contains(leggings))
+        let nike = A.oberteile.firstIndex(of: "Nike Tech Fleece")!
+        XCTAssertTrue(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: .ahmed).contains(nike))
+    }
+
+    /// Raw names are the wire format of `geste` ops and chat reactions (B1 maps onto them).
+    func testMimikUndExtrasNamen() {
+        XCTAssertEqual(FigurZustand.mimik.map(\.rawValue).sorted(), ["daumen", "denkt", "feiert", "lachtTraenen", "muede", "sauer", "schmollt", "schockiert", "tanzt", "ueberrascht", "verlegen", "verliebt", "weint", "zwinkert"])
+        XCTAssertEqual(Set(FigurZustand.mimik).count, 14)
+        XCTAssertEqual(FigurExtra.allCases.map(\.rawValue), ["schirm", "sonnenbrille", "muetzeSchal", "handyKabel", "schneeflocken"])
     }
 }
