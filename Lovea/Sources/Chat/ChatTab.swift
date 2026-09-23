@@ -9,14 +9,18 @@ struct ChatTab: View {
     @State private var sucheAktiv = false
     @State private var profilOffen = false
     @State private var kameraOffen = false
+    /// Z-29.1: Partner-Karte → Unterhaltung als Zoom statt hartem Push (apple-design "spatial
+    /// consistency" — Ursprung und Ziel bleiben sichtbar verbunden).
+    @Namespace private var kartenNamespace
 
     var body: some View {
         NavigationStack {
             Group {
                 if let ich = Raum.shared.ich {
-                    ChatsListe(ich: ich, offen: $offen, profilOffen: $profilOffen, kameraOffen: $kameraOffen)
+                    ChatsListe(ich: ich, offen: $offen, profilOffen: $profilOffen, kameraOffen: $kameraOffen, kartenNamespace: kartenNamespace)
                         .navigationDestination(isPresented: $offen) {
                             Unterhaltung(ich: ich, partner: ich.partner, sucheAktiv: $sucheAktiv, profilOffen: $profilOffen)
+                                .navigationTransition(.zoom(sourceID: "chatPartnerKarte", in: kartenNamespace))
                         }
                 } else {
                     ContentUnavailableView("Chat", systemImage: "bubble.left.and.bubble.right")
@@ -63,6 +67,7 @@ private struct ChatsListe: View {
     @Binding var offen: Bool
     @Binding var profilOffen: Bool
     @Binding var kameraOffen: Bool
+    let kartenNamespace: Namespace.ID
 
     var body: some View {
         List {
@@ -70,6 +75,7 @@ private struct ChatsListe: View {
                 ChatHaptik.leicht()
                 offen = true
             }
+            .matchedTransitionSource(id: "chatPartnerKarte", in: kartenNamespace)
             .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
             .listRowSeparator(.hidden)
             .listRowBackground(Color.clear)
@@ -337,7 +343,7 @@ private struct ChatSuchleiste: View {
                 }
             }
             .padding(.horizontal, 10)
-            .frame(height: 36)
+            .frame(minHeight: 36)
             .background(Color(uiColor: .secondarySystemBackground), in: Capsule())
 
             Button { springe(-1) } label: { Image(systemName: "chevron.up").frame(width: 36, height: 44) }

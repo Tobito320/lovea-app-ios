@@ -12,6 +12,8 @@ struct PunkteChip: View {
             Text("⭐️")
             Text(verfuegbar.formatted(.number.locale(Locale(identifier: "de_DE"))))
                 .monospacedDigit()
+                .contentTransition(.numericText(value: Double(verfuegbar)))
+                .animation(.snappy, value: verfuegbar)
         }
         .font(.subheadline.weight(.semibold))
         .padding(.horizontal, 12)

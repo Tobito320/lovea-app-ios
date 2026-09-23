@@ -43,6 +43,7 @@ struct SchritteRing: View {
                     .font(.system(size: groesse * 0.17, weight: .bold, design: .rounded))
                     .monospacedDigit()
                     .minimumScaleFactor(0.6)
+                    .contentTransition(.numericText(value: Double(anzahl)))
                 Text(person.name)
                     .font(.system(size: groesse * 0.1))
                     .foregroundStyle(.secondary)
