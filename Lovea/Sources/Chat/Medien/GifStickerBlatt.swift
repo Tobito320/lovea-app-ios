@@ -13,7 +13,7 @@ struct GifStickerBlatt: View {
     var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
-    private enum Reiter: String, CaseIterable { case gifs = "GIFs", favoriten = "Favoriten", sticker = "Sticker" }
+    private enum Reiter: String, CaseIterable { case gifs = "GIFs", wir = "Wir", favoriten = "Favoriten", sticker = "Sticker" }
     @State private var reiter = Reiter.gifs
 
     var body: some View {
@@ -27,6 +27,7 @@ struct GifStickerBlatt: View {
 
                 switch reiter {
                 case .gifs: GifSuche(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .wir: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
                 case .favoriten: FavoritenAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
                 case .sticker: StickerAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
                 }
@@ -173,7 +174,9 @@ private struct FavoritenAnsicht: View {
                 let bild: UIImage?
                 switch eintrag.art {
                 case .gif: bild = await SnapBildQuelle.gif(eintrag.wert)
-                case .sticker: bild = await SnapBildQuelle.medium(eintrag.wert)
+                case .sticker:
+                    if let name = MitgelieferteSticker.assetName(eintrag.wert) { bild = UIImage(named: name) }
+                    else { bild = await SnapBildQuelle.medium(eintrag.wert) }
                 }
                 if let bild { aufBildWahl(bild) }
                 onGesendet()
@@ -220,7 +223,8 @@ private struct StickerAnsicht: View {
                         .accessibilityAddTraits(.isButton)
                 }
 
-                ForEach(EigeneSticker.alle(ich: ich), id: \.self) { id in
+                // Mitgelieferte (`asset:`) stehen im Reiter "Wir", nicht doppelt hier.
+                ForEach(EigeneSticker.alle(ich: ich).filter { MitgelieferteSticker.assetName($0) == nil }, id: \.self) { id in
                     StickerKachel(medienId: id)
                         .frame(width: 90, height: 90)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
@@ -282,6 +286,79 @@ private struct StickerAnsicht: View {
     }
 }
 
+/// Z-40.2: mitgelieferte Sticker aus `Assets.xcassets/Sticker`. Gesendet als `asset:<name>` ohne
+/// Upload. Namen stehen von Hand hier, weil sich ein Asset-Katalog nicht aufzählen lässt.
+enum MitgelieferteSticker {
+    static let praefix = "asset:"
+    static let alle = [
+        "wir-kuss", "wir-umarmung", "wir-selfie", "wir-kino", "wir-gym",
+        "wir-ich", "wir-du", "wir-zuhause", "wir-vermisse-dich", "wir-so-suess", "wir-lieblingsmensch",
+        "wir-nur-wir", "wir-wir-immer", "wir-fuer-dich", "wir-danke", "wir-danke-dass-es-dich-gibt",
+        "wir-du-bist-meine", "wir-pass-auf-dich-auf", "wir-so-gluecklich", "wir-gluecklich", "wir-mit-dir-besser",
+        "wir-zusammen-besser", "wir-wenn-wir-zusammen", "wir-alles-wird-gut", "wir-so-gut-aus",
+        "wir-gute-nacht", "wir-gute-nacht-bett", "wir-schlafen-gehen", "wir-noch-5-minuten", "wir-nur-noch-5-minuten",
+        "wir-gelesen", "wir-gleich-schreiben", "wir-wer-hat-geschrieben", "wir-schon-wieder-online",
+        "wir-hmm", "wir-interessant", "wir-interessant-tasse", "wir-interessant-trinken", "wir-echt-jetzt",
+        "wir-keine-ahnung", "wir-keine-ahnung-2", "wir-nicht-frech", "wir-essen", "wir-wochenende",
+        "wir-lernen-arbeit", "wir-zu-viel-zu-tun",
+        "meme-drake", "meme-this-is-fine", "meme-side-eye",
+    ]
+
+    static func assetName(_ medienId: String) -> String? {
+        medienId.hasPrefix(praefix) ? String(medienId.dropFirst(praefix.count)) : nil
+    }
+
+    static func medienId(_ name: String) -> String { praefix + name }
+}
+
+private struct WirStickerAnsicht: View {
+    let ich: Person
+    let antwortAuf: String?
+    var aufBildWahl: ((UIImage) -> Void)? = nil
+    let onGesendet: () -> Void
+
+    var body: some View {
+        // Nur Namen, deren Bild im Bundle liegt: eine Liste, die dem Katalog voraus ist, zeigt keine Lücken.
+        let namen = MitgelieferteSticker.alle.filter { UIImage(named: $0) != nil }
+        if namen.isEmpty {
+            ContentUnavailableView("Noch keine Sticker", systemImage: "heart.text.square")
+        } else {
+            ScrollView {
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 12) {
+                    ForEach(namen, id: \.self) { name in
+                        Image(name)
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 100, height: 100)
+                            .contentShape(Rectangle())
+                            .onTapGesture { senden(name) }
+                            .accessibilityElement()
+                            .accessibilityLabel("Sticker \(name.replacingOccurrences(of: "-", with: " "))")
+                            .accessibilityAddTraits(.isButton)
+                            .contextMenu {
+                                Button("Zu Favoriten", systemImage: "star") {
+                                    ChatEinstellungen.shared.favoritSchalten(.init(art: .sticker, wert: MitgelieferteSticker.medienId(name), breite: nil, hoehe: nil), ich: ich)
+                                }
+                            }
+                    }
+                }
+                .padding()
+            }
+        }
+    }
+
+    private func senden(_ name: String) {
+        if let aufBildWahl {
+            if let bild = UIImage(named: name) { aufBildWahl(bild) }
+            onGesendet()
+            return
+        }
+        ChatHaptik.leicht()
+        ChatModell.shared.stickerSenden(medienId: MitgelieferteSticker.medienId(name), antwortAuf: antwortAuf)
+        onGesendet()
+    }
+}
+
 /// A sticker medium's thumbnail — downloads (or reads the local/own copy) then renders the PNG.
 struct StickerKachel: View {
     let medienId: String
@@ -296,6 +373,7 @@ struct StickerKachel: View {
             }
         }
         .task(id: medienId) {
+            if let name = MitgelieferteSticker.assetName(medienId) { bild = UIImage(named: name); return }
             var url = ChatMedien.eigeneQuellen[medienId] ?? Medien.lokal(medienId)
             if url == nil { url = try? await Medien.holen(medienId) }
             guard let url else { return }

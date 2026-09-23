@@ -44,7 +44,7 @@ import {
 import { push } from "./push.js";
 import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
-import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt } from "./spotify.js";
+import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe } from "./spotify.js";
 
 const PERSONEN = ["ahmed", "annika"];
 const partnerVon = (person) => (person === "ahmed" ? "annika" : "ahmed");
@@ -89,6 +89,7 @@ export class Raum {
     if (teile[0] === "medien") return this.#medien(request, teile, person);
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
+    if (url.pathname === "/spotify/trennen" && request.method === "POST") return this.#spotifyTrennen(person);
     return new Response("not found", { status: 404 });
   }
 
@@ -440,9 +441,11 @@ export class Raum {
     const ziel = url.searchParams.get("person");
     if (!PERSONEN.includes(ziel)) return new Response("bad request", { status: 400 });
 
+    const stufe = einstellung(this.sql, ziel, "spotify.teilen");
+    if (stufe === "aus") return Response.json({}); // keine Spotify-Abfrage, wenn nichts geteilt wird
     const jetztMs = Date.now();
     const cache = spotifyCacheLesen(this.sql, ziel);
-    if (cacheGueltig(cache, jetztMs)) return Response.json(cache.daten);
+    if (cacheGueltig(cache, jetztMs)) return Response.json(nachFreigabe(cache.daten, stufe));
 
     let token = spotifyTokenLesen(this.sql, ziel);
     if (!token) return Response.json({});
@@ -460,7 +463,15 @@ export class Raum {
       return {};
     });
     spotifyCacheSchreiben(this.sql, ziel, { geladenMs: jetztMs, daten });
-    return Response.json(daten);
+    return Response.json(nachFreigabe(daten, stufe));
+  }
+
+  // Nur der Konto-Inhaber (Header) trennt sich selbst. `null` im Merker liest sich wie "nie verbunden".
+  #spotifyTrennen(person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    spotifyTokenSchreiben(this.sql, person, null);
+    spotifyCacheSchreiben(this.sql, person, null);
+    return Response.json({ ok: true });
   }
 
   // --- Alarme (Z-1.7) ---------------------------------------------------------
