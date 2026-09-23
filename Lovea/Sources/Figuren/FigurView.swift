@@ -1657,8 +1657,9 @@ private struct Zeichner {
             for seite in [CGFloat(-1), 1] {
                 let oberlippe = bogen(P(100, 123.5), P(100 + seite * 16, 127), P(100 + seite * 8, 120.5))
                 let spitze = bogen(P(100 + seite * 16, 127), P(100 + seite * 20, 121.5), P(100 + seite * 21, 127.5))
-                linie(h, oberlippe, haar.farbe, 3.2)
-                linie(h, spitze, haar.farbe, 2.2)
+                // Fix round 2: really thin and subtle, like the Bitmoji.
+                linie(h, oberlippe, haar.farbe.opacity(0.85), 2)
+                linie(h, spitze, haar.farbe.opacity(0.85), 1.4)
             }
         default:
             for x in [CGFloat(42), 146] { h.fill(box(x, 80, 12, 40, 4), with: .color(haar.farbe)) }
@@ -4157,14 +4158,19 @@ extension Zeichner {
     func neueFrisurVorn(_ g: GraphicsContext) {
         switch frisur {
         case 34:
-            // Ahmed's Bitmoji: dense, straight, tousled fringe swept to the viewer's left, volume on top.
-            let k = kappe(top: 8, scheitel: 122, ansatz: 46, unten: 100)
-            let fr = pony(48, 150, oben: 36, links: 84, rechts: 62, n: 7, neigung: -9)
-            let seiten = [locke(P(46, 70), P(36, 112), 14, -0.2), locke(P(154, 70), P(164, 108), 14, 0.2)]
-            let wirbel = locke(P(114, 16), P(128, 0), 10, 0.3)
-            let linien = verbinde(ponyLinien(48, 150, oben: 36, links: 84, rechts: 62, n: 7, neigung: -9),
-                                  [(P(120, 18), P(70, 44), P(90, 22)), (P(128, 24), P(100, 48), P(118, 30)), (P(136, 32), P(146, 60), P(144, 42))])
-            haarStueck(g, [k, fr, wirbel] + seiten, linien: linien, glanz: [(P(66, 34), P(96, 18), P(76, 20)), (P(104, 20), P(118, 22), P(112, 17))])
+            // Ahmed's Bitmoji (fix round 2, after the `wir-*` stickers): full, messy, textured hair with
+            // fluffy volume on top, locks falling over the ear tops and a wavy fringe into the forehead.
+            let k = kappe(top: 14, scheitel: 118, ansatz: 44, unten: 100)
+            let fr = pony(46, 152, oben: 34, links: 88, rechts: 72, n: 6, neigung: -7)
+            let volumen = [oval(P(64, 40), 22, 20), oval(P(88, 24), 23, 19), oval(P(114, 22), 23, 19), oval(P(138, 36), 22, 20)]
+            let locken = [locke(P(50, 66), P(38, 108), 18, -0.3), locke(P(150, 66), P(162, 106), 18, 0.3),
+                          locke(P(58, 30), P(42, 44), 14, -0.6), locke(P(142, 28), P(158, 42), 14, 0.6),
+                          locke(P(72, 20), P(60, 8), 10, -0.5), locke(P(130, 18), P(144, 8), 10, 0.5)]
+            let linien = verbinde(ponyLinien(46, 152, oben: 34, links: 88, rechts: 72, n: 6, neigung: -7),
+                                  [(P(118, 16), P(72, 44), P(90, 20)), (P(126, 22), P(100, 52), P(116, 28)), (P(140, 30), P(148, 62), P(148, 44)),
+                                   (P(70, 30), P(56, 60), P(58, 40)), (P(96, 12), P(84, 30), P(90, 18)),
+                                   (P(150, 60), P(160, 96), P(158, 76)), (P(50, 62), P(42, 98), P(42, 78))])
+            haarStueck(g, [k, fr] + volumen + locken, linien: linien, glanz: [(P(66, 34), P(92, 18), P(72, 20)), (P(104, 16), P(120, 18), P(112, 13))])
         case 35:
             seitenFade(g, 0.5)
             let fr = pony(54, 146, oben: 40, links: 70, rechts: 62, n: 6, neigung: -6)

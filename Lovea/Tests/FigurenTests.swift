@@ -260,6 +260,16 @@ final class FigurenTests: XCTestCase {
         }
     }
 
+    /// Fix round 2: long styles, braids, ponytails and buns never show in Ahmed's hair grid.
+    func testKeineLangenHaareFuerAhmed() {
+        typealias A = FigurAussehen
+        let weiblich = ["lang", "zopf", "zöpfe", "buns", "dutt", "bob", "pferdeschwanz", "halboffen"]
+        for i in A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: .ahmed) {
+            let name = A.frisuren[i].lowercased()
+            XCTAssertFalse(weiblich.contains { name.contains($0) }, "\(i) \(A.frisuren[i]) is offered to Ahmed")
+        }
+    }
+
     /// Z-38.2: body types per person; "Normal" stays readable for old looks but is hidden.
     func testKoerperformenJePerson() {
         typealias A = FigurAussehen

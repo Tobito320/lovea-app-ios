@@ -50,9 +50,9 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         switch person {
         case .ahmed:
             a.haut = 3
-            a.frisur = 34        // Bitmoji-Pony (dicht, glatt, zerzaust, seitlich)
+            a.frisur = 34        // Bitmoji-Pony: volles, wuscheliges Haar mit Volumen oben, Pony in die Stirn
             a.haarfarbe = 0      // Schwarz
-            a.augen = 1          // Braun
+            a.augen = 0          // Dunkelbraun
             a.augenform = 1      // Mandel
             a.brauen = 2         // Dick
             a.mund = 1           // Zahnlächeln (breites Lächeln)
@@ -107,7 +107,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         "Irokese", "Locken mittellang", "Zwei Zöpfe", "Zurückgegelt",
         // Z-38.3 (Runde 3): 22 für Ahmed (34–55), 22 für Annika (56–77), alle mit Strähnen und Glanzlicht.
         "Bitmoji-Pony", "Pony zerzaust kurz", "Curtains", "Quiff", "French Crop", "Buzz Cut mit Linie",
-        "Seitenscheitel Fade", "Pompadour", "Spikes", "Undercut lang", "Slick Back", "Bro Flow",
+        "Seitenscheitel Fade", "Pompadour", "Spikes", "Undercut Schwung", "Slick Back", "Bro Flow",
         "Mittelscheitel lang", "Mullet", "Edgar", "Textured Crop", "Faux Hawk", "Waves",
         "Twists kurz", "Cornrows", "Top Knot", "Wuschel glatt",
         "Lang glatt Mittelscheitel", "Lang Stufen", "Curtain Bangs lang", "Beach Waves", "Sleek Pferdeschwanz", "Messy Bun",
@@ -154,9 +154,11 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     /// Z-24.1: gender filter is fixed per person (Spec §5) — `n` shows for both, `m`/`w` only for that gender.
     /// Index-aligned with `frisuren`/`baerte`; new entries append at the end so stored indices never shift.
     static let frisurenGeschlecht: [FigurGeschlecht] = [
-        .n, .n, .n, .n, .n, .m, .n, .n, .n, .n, .n, .w, .n, .m, .m, .n, .n, .n, .m, .n,
-        .n, .n, .n, .n, .w, .n, .n, .w, .n, .n, .n, .n, .w, .n,
-        .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m,
+        // Fix round 2: every long style, braid, ponytail, bun and bob is female-only (Ahmed: "diese
+        // richtig langen Haare sind weiblich"); only short/medium male-typical and unisex styles stay.
+        .n, .n, .n, .n, .n, .m, .w, .w, .w, .w, .w, .w, .n, .m, .m, .n, .n, .n, .m, .n,
+        .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .n, .w, .w, .n,
+        .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .w, .m, .m, .m, .m, .m, .m, .m, .m, .m,
         .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w,
     ]
     static let baerteGeschlecht: [FigurGeschlecht] = [.n, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m]
