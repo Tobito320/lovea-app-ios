@@ -12,6 +12,7 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     NaechstesTreffenCard()
                     WieGehtsDirCard()
+                    SchritteDuellCard()
                     FrageDesTagesCard()
                     PuenktlichCard()
                     kalenderKarte

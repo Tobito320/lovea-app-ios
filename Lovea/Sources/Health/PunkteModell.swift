@@ -65,12 +65,34 @@ final class PunkteModell {
         return summe
     }
 
+    /// Z-22.2 "Wofür?": `PunkteLogik.verlauf` allein (Tage + Gym-Wochenziel) erklärt nicht die volle
+    /// `stand`-Summe — die Challenge-Boni aus `ChallengeLogik.punkteBonus` fehlen dort, weil die reine
+    /// Logik keine Vorstellung von "Woche"/"Monat" als Anzeige-Einheit hat. Hier zusammengeführt, damit
+    /// die Historie und der Punktestand-Chip (Z-22.2) auf dieselbe Summe kommen.
+    /// // ponytail: Käufe fehlen noch als negative Einträge (kein `datum` in `BesitzLogik.Kauf`, Shop
+    /// ist Block 23 — nachrüsten, sobald Käufe eine Op-Zeit mitführen).
     var verlauf: [PunkteLogik.Eintrag] {
-        PunkteLogik.verlauf(
+        var eintraege = PunkteLogik.verlauf(
             heute: heute, schritte: schritteEintraege, gym: gymEintraege, wasser: wasserEintraege,
             zielSchritte: HealthModell.shared.zielSchritteAenderungen, zielWasser: HealthModell.shared.zielWasserAenderungen,
             zielGym: HealthModell.shared.zielGymAenderungen, chatStreakTage: chatStreakTage, spieleSiege: spieleSiege
         )
+        for woche in wochen {
+            if woche.abgeschlossen, let sieger = woche.duellSieger {
+                eintraege.append(PunkteLogik.Eintrag(datum: woche.sonntag, von: sieger, grund: "Duell der Woche", punkte: 150))
+            }
+            if let erreichtAm = woche.gemeinsamErreichtAm {
+                for p in Person.allCases { eintraege.append(PunkteLogik.Eintrag(datum: erreichtAm, von: p, grund: "Gemeinsam Woche", punkte: 150)) }
+            }
+        }
+        for monat in monate {
+            guard let erreichtAm = monat.gemeinsamErreichtAm else { continue }
+            for p in Person.allCases { eintraege.append(PunkteLogik.Eintrag(datum: erreichtAm, von: p, grund: "Gemeinsam Monat", punkte: 500)) }
+        }
+        for bonus in serien {
+            eintraege.append(PunkteLogik.Eintrag(datum: bonus.datum, von: bonus.von, grund: "Serie \(bonus.laenge) Tage", punkte: bonus.punkte))
+        }
+        return eintraege.sorted { ($0.datum, $0.von.rawValue) < ($1.datum, $1.von.rawValue) }
     }
 
     // MARK: - Challenges
@@ -90,15 +112,27 @@ final class PunkteModell {
     /// Für die Health-Tab-Anzeige (Block 21/Z-22.2): laufende Woche/Monat/Serie mit Fortschritt.
     var aktuelleWoche: ChallengeLogik.WochenErgebnis? { wochen.first { $0.montag == Datum.montagDerWoche(heute) } }
     var aktuellerMonat: ChallengeLogik.MonatsErgebnis? { monate.first { $0.monat == String(heute.prefix(7)) } }
+    /// Die letzte ABGESCHLOSSENE Woche (für den Duell-Ausgang) — `aktuelleWoche` ist nie
+    /// `abgeschlossen`, solange sie noch läuft, deshalb braucht die Konfetti-Prüfung diese getrennt.
+    var letzteAbgeschlosseneWoche: ChallengeLogik.WochenErgebnis? {
+        wochen.filter(\.abgeschlossen).max { $0.montag < $1.montag }
+    }
     var laufendeSerien: [Person: Int] {
         ChallengeLogik.laufendeSerie(heute: heute, schritte: schritteEintraege, zielSchritte: HealthModell.shared.zielSchritteAenderungen)
     }
 
     // MARK: - Shop / Besitz (BesitzLogik aus Z-23.1)
 
-    /// `preis`: noch nicht verdrahtet — künftig `ShopKatalog.artikel(id)?.preis` (Katalog kommt aus
-    /// einem anderen Block, siehe Bericht). `nil` heißt "kein solcher Artikel".
-    func besitzt(_ artikel: String, _ person: Person, preis: (String) -> Int?) -> Bool {
+    /// Verfügbarer (ausgebbarer) Punktestand nach Käufen — das, was Anzeigen wie `PunkteChip` zeigen
+    /// sollten, nicht `stand` (Summe aller je verdienten Punkte, der Kaufeinsatz für `kaufen`/`besitzt`).
+    /// Default-`preis` ist `ShopKatalog` (Block 23); ein eigener Katalog lässt sich weiter durchreichen.
+    func verfuegbar(_ person: Person, preis: (String) -> Int? = { ShopKatalog.artikel($0)?.preis }) -> Int {
+        let ergebnis = BesitzLogik.auswerten(kaeufe, verdient: stand, preis: preis)
+        return (stand[person] ?? 0) - (ergebnis.ausgegeben[person] ?? 0)
+    }
+
+    /// `preis`: Default `ShopKatalog.artikel(id)?.preis`. `nil` heißt "kein solcher Artikel".
+    func besitzt(_ artikel: String, _ person: Person, preis: (String) -> Int? = { ShopKatalog.artikel($0)?.preis }) -> Bool {
         BesitzLogik.auswerten(kaeufe, verdient: stand, preis: preis).besitzt(artikel, person)
     }
 

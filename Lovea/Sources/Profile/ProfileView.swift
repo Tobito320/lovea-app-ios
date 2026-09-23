@@ -203,7 +203,9 @@ private struct ProfilInhalt: View {
                     chip(EinstellungenModell.shared.string("flamme", default: "🔥"), "\(streak)", "Streak \(streak) Tage")
                 }
                 chip(zeichen.symbol, zeichen.name, "Sternzeichen \(zeichen.name)")
-                SchritteChip(person: person)
+                if istEigenes {
+                    PunkteChip(person: person)
+                }
             }
         }
         .scrollClipDisabled()
