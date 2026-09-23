@@ -30,20 +30,24 @@ struct ChatTab: View {
     }
 
     private func inhalt(ich: Person, partner: Person) -> some View {
-        VStack(spacing: 0) {
-            ChatKopfzeile(partner: partner, modell: modell, onSpringeZu: { zielID = $0 }, profilOffen: $profilOffen)
+        ZStack {
+            ChatHintergrundAnsicht(ich: ich) // Z-5.4
 
-            NachrichtenListe(
-                modell: modell, ich: ich, zielID: $zielID,
-                onAntworten: { antwortAuf = $0 },
-                onBearbeiten: { bearbeitenNachricht = $0; bearbeitenText = $0.text ?? "" },
-                onLoeschen: { loeschenID = $0 }
-            )
-            .searchable(text: $suche, prompt: "Suchen")
-            .onSubmit(of: .search) { sucheSpringen() }
+            VStack(spacing: 0) {
+                ChatKopfzeile(ich: ich, partner: partner, modell: modell, onSpringeZu: { zielID = $0 }, profilOffen: $profilOffen)
 
-            PartnerFigurLeiste(partner: partner)
-            ChatEingabeleiste(ich: ich, antwortAuf: $antwortAuf)
+                NachrichtenListe(
+                    modell: modell, ich: ich, zielID: $zielID,
+                    onAntworten: { antwortAuf = $0 },
+                    onBearbeiten: { bearbeitenNachricht = $0; bearbeitenText = $0.text ?? "" },
+                    onLoeschen: { loeschenID = $0 }
+                )
+                .searchable(text: $suche, prompt: "Suchen")
+                .onSubmit(of: .search) { sucheSpringen() }
+
+                PartnerFigurLeiste(partner: partner)
+                ChatEingabeleiste(ich: ich, antwortAuf: $antwortAuf)
+            }
         }
         .sheet(isPresented: $profilOffen) { PartnerProfilKarte(person: partner) }
         .alert("Nachricht bearbeiten", isPresented: Binding(get: { bearbeitenNachricht != nil }, set: { if !$0 { bearbeitenNachricht = nil } })) {

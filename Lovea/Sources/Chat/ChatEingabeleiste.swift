@@ -1,13 +1,16 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 
-/// Input bar (Z-4.3): multi-line field, camera/media/GIF placeholders, send, reply quote.
-/// Throttles the own "tippt" signal and the figure state while typing (Z-4.5).
+/// Input bar (Z-4.3, Z-5.1–Z-5.3): multi-line field, photo/video picker, GIF/Sticker sheet, voice
+/// recording, send, reply quote. Throttles the own "tippt" signal and the figure state (Z-4.5).
 struct ChatEingabeleiste: View {
     let ich: Person
     @Binding var antwortAuf: ChatModell.Nachricht?
     @State private var eingabe = ""
     @State private var tippen = TippenSender()
+    @State private var fotoAuswahl: [PhotosPickerItem] = []
+    @State private var gifBlattOffen = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -17,10 +20,17 @@ struct ChatEingabeleiste: View {
             HStack(alignment: .bottom, spacing: 10) {
                 Button {} label: { Image(systemName: "camera.fill") }
                     .disabled(true) // ponytail: Snap-Kamera kommt in Block 6
-                Button {} label: { Image(systemName: "photo.on.rectangle") }
-                    .disabled(true) // ponytail: Medien-Auswahl kommt in Block 5
-                Button {} label: { Image(systemName: "face.smiling") }
-                    .disabled(true) // ponytail: GIF/Sticker-Suche kommt in Block 5
+                PhotosPicker(selection: $fotoAuswahl, matching: .any(of: [.images, .videos])) {
+                    Image(systemName: "photo.on.rectangle")
+                }
+                .onChange(of: fotoAuswahl) { _, neu in sendeAuswahl(neu) }
+                Button { gifBlattOffen = true } label: { Image(systemName: "face.smiling") }
+                    .sheet(isPresented: $gifBlattOffen) {
+                        GifStickerBlatt(ich: ich, antwortAuf: antwortAuf?.id) {
+                            gifBlattOffen = false
+                            self.antwortAuf = nil
+                        }
+                    }
 
                 ZStack(alignment: .topLeading) {
                     if eingabe.isEmpty {
@@ -33,14 +43,18 @@ struct ChatEingabeleiste: View {
                 .padding(2)
                 .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
 
-                Button { senden() } label: {
-                    Image(systemName: "arrow.up.circle.fill").font(.title2)
+                if eingabe.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    SprachAufnahmeButton(ich: ich, antwortAuf: antwortAuf?.id) { self.antwortAuf = nil }
+                } else {
+                    Button { senden() } label: {
+                        Image(systemName: "arrow.up.circle.fill").font(.title2)
+                    }
                 }
-                .disabled(eingabe.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
             }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .task { await ChatMedien.ausstehendeAbarbeiten() }
     }
 
     private func senden() {
@@ -48,6 +62,16 @@ struct ChatEingabeleiste: View {
         eingabe = ""
         antwortAuf = nil
         tippen.beenden()
+    }
+
+    private func sendeAuswahl(_ items: [PhotosPickerItem]) {
+        guard !items.isEmpty else { return }
+        let antwortAuf = antwortAuf?.id
+        Task {
+            await ChatMedien.auswahlSenden(items, antwortAuf: antwortAuf)
+            fotoAuswahl = []
+            self.antwortAuf = nil
+        }
     }
 }
 

@@ -2,8 +2,8 @@ import LinkPresentation
 import SwiftUI
 import UIKit
 
-/// One bubble (Z-4.2, Z-4.3). Renders `text` today; `medien`/`gif`/`sticker`/`snap`/`spiel`/`system`
-/// show a neutral placeholder row until Blocks 5/6 replace it.
+/// One bubble (Z-4.2, Z-4.3, Z-5.1–Z-5.3). Renders `text`, `medien` (photo/video/voice), `gif` and
+/// `sticker` for real; `snap`/`spiel`/`system` still show a neutral placeholder row (Blocks 6/14).
 struct ChatNachrichtRow: View {
     let nachricht: ChatModell.Nachricht
     let ich: Person
@@ -95,9 +95,26 @@ struct ChatNachrichtRow: View {
                 .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 18))
         } else {
             VStack(alignment: .leading, spacing: 6) {
+                // Z-5.1/Z-5.2/Z-5.3: real media views. Snap/Spiel/System (Block 6/14) still fall
+                // through to `platzhalter` below.
+                if let medium = nachricht.medien.first {
+                    if medium.typ == "sprache" {
+                        SprachBlase(medium: medium)
+                    } else {
+                        MedienNachrichtView(medium: medium, eigene: eigene)
+                    }
+                }
+                if let gif = nachricht.gif, let url = URL(string: gif.url) {
+                    AnimiertesGif(url: url)
+                        .frame(width: 180, height: gif.breite > 0 && gif.hoehe > 0 ? 180 * gif.hoehe / gif.breite : 180)
+                        .clipShape(RoundedRectangle(cornerRadius: 14))
+                }
+                if let sticker = nachricht.sticker {
+                    StickerKachel(medienId: sticker.medienId).frame(width: 140, height: 140)
+                }
                 if let text = nachricht.text, !text.isEmpty {
                     Text(text)
-                    if let url = ersteURL(in: text) {
+                    if let url = ersterLink(in: text) {
                         LinkVorschau(url: url)
                             .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
@@ -119,27 +136,12 @@ struct ChatNachrichtRow: View {
         }
     }
 
-    /// Blocks 5/6 replace this with the real photo/video/GIF/sticker/snap/game views.
+    /// Block 6/14 replace this with the real Snap/Spiel views; `system` stays text-only.
     private var platzhalter: (text: String, symbol: String)? {
-        if let medium = nachricht.medien.first {
-            switch medium.typ {
-            case "video": return ("Video", "video.fill")
-            case "sprache": return ("Sprachnachricht", "waveform")
-            default: return ("Foto", "photo.fill")
-            }
-        }
-        if nachricht.gif != nil { return ("GIF", "square.grid.2x2") }
-        if nachricht.sticker != nil { return ("Sticker", "seal") }
         if nachricht.snap != nil { return ("Snap", "bolt.fill") }
         if nachricht.spiel != nil { return ("Spiel", "gamecontroller.fill") }
         if let system = nachricht.system { return (system, "info.circle") }
         return nil
-    }
-
-    private func ersteURL(in text: String) -> URL? {
-        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.link.rawValue) else { return nil }
-        let bereich = NSRange(text.startIndex..., in: text)
-        return detector.firstMatch(in: text, range: bereich)?.url
     }
 
     @ViewBuilder private var kontextMenu: some View {
