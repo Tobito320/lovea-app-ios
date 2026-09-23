@@ -1,12 +1,15 @@
 import SwiftUI
 
-/// Snapchat-style header (Z-4.4): partner figure, name, online/last-seen, pinned bar.
+/// Snapchat-style header (Z-4.4): partner figure, name, online/last-seen, pinned bar, media menu.
 /// Flame stays empty until Block 6 computes the streak; the games button is a Block 14 placeholder.
 struct ChatKopfzeile: View {
+    let ich: Person
     let partner: Person
     let modell: ChatModell
     let onSpringeZu: (String) -> Void
     @Binding var profilOffen: Bool
+    @State private var medienOffen = false
+    @State private var hintergrundOffen = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -23,6 +26,13 @@ struct ChatKopfzeile: View {
                 .buttonStyle(.plain)
 
                 Spacer()
+
+                Menu {
+                    Button("Medien", systemImage: "photo.on.rectangle") { medienOffen = true }
+                    Button("Chat-Hintergrund", systemImage: "photo.artframe") { hintergrundOffen = true }
+                } label: { Image(systemName: "ellipsis.circle") }
+                .sheet(isPresented: $medienOffen) { MedienUebersicht(ich: ich) }
+                .sheet(isPresented: $hintergrundOffen) { ChatHintergrundEinstellung(ich: ich) }
 
                 Button {} label: { Image(systemName: "gamecontroller.fill") }
                     .disabled(true) // ponytail: Spiele im Chat kommen in Block 14

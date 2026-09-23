@@ -35,8 +35,8 @@ final class ChatEinstellungen {
         static let standard = Hintergrund(art: .farbe, farbe: nil, medienId: nil, abgedunkelt: false)
     }
 
-    private(set) var favoriten: [Person: [FavoritEintrag]] = [:]
-    private(set) var hintergrund: [Person: Hintergrund] = [:]
+    private(set) var favoritenProPerson: [Person: [FavoritEintrag]] = [:]
+    private(set) var hintergrundProPerson: [Person: Hintergrund] = [:]
     private let registrieren: Bool
 
     init(registrieren: Bool = true) {
@@ -52,17 +52,17 @@ final class ChatEinstellungen {
         switch schluessel {
         case "favoriten":
             guard let p = op.daten(EinstellungPayload<[FavoritEintrag]>.self) else { return }
-            favoriten[op.von] = p.wert
+            favoritenProPerson[op.von] = p.wert
         case "hintergrund":
             guard let p = op.daten(EinstellungPayload<Hintergrund>.self) else { return }
-            hintergrund[op.von] = p.wert
+            hintergrundProPerson[op.von] = p.wert
         default:
             break
         }
     }
 
-    func favoriten(_ ich: Person) -> [FavoritEintrag] { favoriten[ich] ?? [] }
-    func hintergrund(_ ich: Person) -> Hintergrund { hintergrund[ich] ?? .standard }
+    func favoriten(_ ich: Person) -> [FavoritEintrag] { favoritenProPerson[ich] ?? [] }
+    func hintergrund(_ ich: Person) -> Hintergrund { hintergrundProPerson[ich] ?? .standard }
 
     func favoritSchalten(_ eintrag: FavoritEintrag, ich: Person) {
         var liste = favoriten(ich)
@@ -71,12 +71,12 @@ final class ChatEinstellungen {
         } else {
             liste.append(eintrag)
         }
-        favoriten[ich] = liste // optimistic, matches the echo that follows
+        favoritenProPerson[ich] = liste // optimistic, matches the echo that follows
         Raum.shared.senden("einstellung.setzen", EinstellungPayload(schluessel: "favoriten", wert: liste))
     }
 
     func hintergrundSetzen(_ neu: Hintergrund, ich: Person) {
-        hintergrund[ich] = neu
+        hintergrundProPerson[ich] = neu
         Raum.shared.senden("einstellung.setzen", EinstellungPayload(schluessel: "hintergrund", wert: neu))
     }
 }

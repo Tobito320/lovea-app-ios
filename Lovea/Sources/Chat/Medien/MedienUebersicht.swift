@@ -104,7 +104,7 @@ private struct UebersichtKachel: View {
             bild = await Videobild.erstesBild(url)
         } else {
             bild = UIImage(contentsOfFile: url.path)
-            if let bild { await GesichtsFilter.pruefen(id: medium.id, dateiURL: url); _ = bild }
+            await GesichtsFilter.pruefen(id: medium.id, dateiURL: url)
         }
     }
 }
