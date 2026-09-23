@@ -11,6 +11,7 @@ struct ChatEingabeleiste: View {
     @State private var tippen = TippenSender()
     @State private var fotoAuswahl: [PhotosPickerItem] = []
     @State private var gifBlattOffen = false
+    @State private var kameraOffen = false
 
     var body: some View {
         VStack(spacing: 6) {
@@ -18,8 +19,13 @@ struct ChatEingabeleiste: View {
                 ZitatLeiste(nachricht: antwortAuf, ich: ich) { self.antwortAuf = nil }
             }
             HStack(alignment: .bottom, spacing: 10) {
-                Button {} label: { Image(systemName: "camera.fill") }
-                    .disabled(true) // ponytail: Snap-Kamera kommt in Block 6
+                Button { kameraOffen = true } label: { Image(systemName: "camera.fill") }
+                    .fullScreenCover(isPresented: $kameraOffen) {
+                        SnapKameraFluss(ich: ich, antwortAuf: antwortAuf?.id) {
+                            kameraOffen = false
+                            self.antwortAuf = nil
+                        }
+                    }
                 PhotosPicker(selection: $fotoAuswahl, matching: .any(of: [.images, .videos])) {
                     Image(systemName: "photo.on.rectangle")
                 }

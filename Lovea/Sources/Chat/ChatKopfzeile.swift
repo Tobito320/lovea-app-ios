@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// Snapchat-style header (Z-4.4): partner figure, name, online/last-seen, pinned bar, media menu.
-/// Flame stays empty until Block 6 computes the streak; the games button is a Block 14 placeholder.
+/// Snapchat-style header (Z-4.4): partner figure, name, online/last-seen, pinned bar, media menu,
+/// streak badge (Z-6.5).
 struct ChatKopfzeile: View {
     let ich: Person
     let partner: Person
@@ -27,6 +27,8 @@ struct ChatKopfzeile: View {
                 .buttonStyle(.plain)
 
                 Spacer()
+
+                StreakAnzeige(modell: modell)
 
                 Menu {
                     Button("Medien", systemImage: "photo.on.rectangle") { medienOffen = true }
@@ -74,5 +76,27 @@ struct ChatKopfzeile: View {
         if Raum.shared.partnerDa { return "online" }
         guard let zuletzt = modell.letzteAktivitaet[partner] else { return "offline" }
         return "zuletzt \(zuletzt.formatted(.relative(presentation: .named)))"
+    }
+}
+
+/// Streak-Badge (Z-6.5): Flamme (einstellbar über `flamme`, Standard 🔥) + Tage, Sanduhr ab 20 Uhr,
+/// solange heute noch nicht beide gesendet haben. `TimelineView` re-evaluates `modell.streak` once
+/// a minute — without it, the hourglass would only appear at 20:00 by coincidence, whenever some
+/// unrelated op happens to redraw the header next.
+private struct StreakAnzeige: View {
+    let modell: ChatModell
+
+    var body: some View {
+        TimelineView(.everyMinute) { _ in
+            let streak = modell.streak
+            if streak.tage > 0 {
+                HStack(spacing: 3) {
+                    Text(EinstellungenModell.shared.string("flamme", default: "🔥"))
+                    Text("\(streak.tage)").font(.subheadline.bold())
+                    if streak.laeuftAb { Image(systemName: "hourglass").foregroundStyle(.secondary) }
+                }
+                .font(.subheadline)
+            }
+        }
     }
 }

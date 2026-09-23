@@ -29,6 +29,11 @@ final class ChatModell {
         var angeheftet = false
         var angeheftetBis: Date?
         var gesternt: Set<Person> = []
+        // Block 6 (Z-6.3): folded from `snap.angesehen`/`snap.gespeichert`, not part of the
+        // `nachricht.neu` payload itself.
+        var snapAngesehen = false
+        var snapLange = false
+        var snapGespeichert = false
         /// Local chat line for a `zeichnung.einladung` (no own op, so no second push).
         var einladung: EinladungInfo?
     }
@@ -57,7 +62,7 @@ final class ChatModell {
     static let arten: Set<String> = [
         "nachricht.neu", "nachricht.bearbeitet", "nachricht.geloescht", "nachricht.reaktion",
         "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern",
-        "medium.abschrift", "zeichnung.einladung",
+        "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme", "zeichnung.einladung",
     ]
 
     init(registrieren: Bool = true) {
@@ -123,6 +128,25 @@ final class ChatModell {
         case "medium.abschrift":
             guard let p = op.daten(AbschriftPayload.self) else { return }
             abschriften[p.id] = p.text
+        case "snap.angesehen":
+            guard let p = op.daten(SnapAngesehenPayload.self) else { return }
+            byID[p.id]?.snapAngesehen = true
+            if p.lange { byID[p.id]?.snapLange = true }
+        case "snap.gespeichert":
+            guard let p = op.daten(IDPayload.self) else { return }
+            byID[p.id]?.snapGespeichert = true
+        case "snap.aufnahme":
+            // Not folded onto the snap message itself (that `id` is someone else's to own) — this
+            // becomes its own system-style row, keyed by `op.id` so the optimistic send and its
+            // echo share one row (same dedupe contract as every other op here).
+            guard let p = op.daten(SnapAufnahmePayload.self) else { return }
+            if var vorhanden = byID[op.id] {
+                if let seq = op.seq { vorhanden.seq = seq }
+                byID[op.id] = vorhanden
+            } else {
+                let text = op.von.name + (p.art == "bildschirmaufnahme" ? " hat den Bildschirm aufgenommen" : " hat einen Screenshot gemacht")
+                byID[op.id] = Nachricht(id: op.id, von: op.von, zeit: op.zeit, seq: op.seq, system: text)
+            }
         case "zeichnung.einladung":
             // Keyed by the op id: the optimistic op and its echo share it.
             guard let p = op.daten(EinladungPayload.self) else { return }
@@ -228,6 +252,38 @@ final class ChatModell {
         Raum.shared.senden("medium.abschrift", AbschriftPayload(id: medienId, text: text))
     }
 
+    // MARK: - Sending snaps (Z-6.1–Z-6.4)
+
+    @discardableResult
+    func snapSenden(_ medium: MedienEintrag, bleibt: Bool, antwortAuf: String? = nil) -> String {
+        let id = UUID().uuidString
+        Raum.shared.senden("nachricht.neu", NachrichtNeuPayload(id: id, medien: [medium], antwortAuf: antwortAuf, snap: SnapInfo(bleibt: bleibt)))
+        return id
+    }
+
+    /// `lange` = viewed at least 2 minutes at a stretch (Z-6.3). Only the recipient ever calls this
+    /// — a re-view via "Erneut ansehen" does not resend it (that menu item only re-opens the viewer).
+    func snapAngesehenSenden(_ id: String, lange: Bool) {
+        Raum.shared.senden("snap.angesehen", SnapAngesehenPayload(id: id, lange: lange))
+    }
+
+    func snapGespeichertSenden(_ id: String) {
+        Raum.shared.senden("snap.gespeichert", IDPayload(id: id))
+    }
+
+    /// `art` is `"screenshot"` or `"bildschirmaufnahme"` (Z-6.4); `von` (i.e. `Raum.shared.ich`) is
+    /// whoever is looking right now, not the snap's original sender.
+    func snapAufnahmeSenden(_ id: String, art: String) {
+        Raum.shared.senden("snap.aufnahme", SnapAufnahmePayload(id: id, art: art))
+    }
+
+    /// Z-6.5: every sent snap (not views/saves/screenshots) feeds the streak. Recomputed on demand
+    /// — cheap enough for a two-person chat, no reason to cache it alongside `nachrichten`.
+    var streak: (tage: Int, laeuftAb: Bool) {
+        let snaps = nachrichten.compactMap { nachricht in nachricht.snap != nil ? (von: nachricht.von, zeit: nachricht.zeit) : nil }
+        return Streak.berechnen(snaps: snaps, jetzt: Date())
+    }
+
     // MARK: - ISO dates for `bis` fields (Op itself formats `zeit` the same way, but keeps that formatter private)
 
     private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
@@ -264,4 +320,6 @@ private struct GelesenPayload: Codable { let bis: String }
 private struct AngeheftetPayload: Codable { let id: String; let bis: String? }
 private struct SternPayload: Codable { let id: String; let an: Bool }
 private struct AbschriftPayload: Codable { let id: String; let text: String }
+private struct SnapAngesehenPayload: Codable { let id: String; let lange: Bool }
+private struct SnapAufnahmePayload: Codable { let id: String; let art: String }
 private struct EinladungPayload: Codable { let zeichnungId: String; let name: String }

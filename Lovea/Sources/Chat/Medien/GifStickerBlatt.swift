@@ -1,10 +1,16 @@
 import PhotosUI
 import SwiftUI
+import UIKit
 
 /// GIF/Sticker sheet (Z-5.3): Reiter GIFs / Favoriten / Sticker.
+///
+/// `aufBildWahl` (Block 6, Z-6.2): when set, every tile hands its flattened `UIImage` to this
+/// closure instead of sending it to the chat — the Snap editor's "Sticker" button reuses this
+/// whole sheet (all three tabs) rather than rebuilding a picker.
 struct GifStickerBlatt: View {
     let ich: Person
     let antwortAuf: String?
+    var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
     private enum Reiter: String, CaseIterable { case gifs = "GIFs", favoriten = "Favoriten", sticker = "Sticker" }
@@ -20,9 +26,9 @@ struct GifStickerBlatt: View {
                 .padding()
 
                 switch reiter {
-                case .gifs: GifSuche(ich: ich, antwortAuf: antwortAuf, onGesendet: onGesendet)
-                case .favoriten: FavoritenAnsicht(ich: ich, antwortAuf: antwortAuf, onGesendet: onGesendet)
-                case .sticker: StickerAnsicht(ich: ich, antwortAuf: antwortAuf, onGesendet: onGesendet)
+                case .gifs: GifSuche(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .favoriten: FavoritenAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .sticker: StickerAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
                 }
             }
             .navigationTitle("GIFs & Sticker")
@@ -35,6 +41,7 @@ struct GifStickerBlatt: View {
 private struct GifSuche: View {
     let ich: Person
     let antwortAuf: String?
+    var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
     private enum Zustand { case laden, ok, nichtEingerichtet, fehler }
@@ -102,6 +109,13 @@ private struct GifSuche: View {
     }
 
     private func senden(_ gif: KlipyClient.Gif) {
+        if let aufBildWahl {
+            Task {
+                if let bild = await SnapBildQuelle.gif(gif.url) { aufBildWahl(bild) }
+                onGesendet()
+            }
+            return
+        }
         ChatModell.shared.gifSenden(url: gif.url, breite: gif.breite, hoehe: gif.hoehe, antwortAuf: antwortAuf)
         onGesendet()
     }
@@ -110,6 +124,7 @@ private struct GifSuche: View {
 private struct FavoritenAnsicht: View {
     let ich: Person
     let antwortAuf: String?
+    var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
     var body: some View {
@@ -148,6 +163,18 @@ private struct FavoritenAnsicht: View {
     }
 
     private func senden(_ eintrag: ChatEinstellungen.FavoritEintrag) {
+        if let aufBildWahl {
+            Task {
+                let bild: UIImage?
+                switch eintrag.art {
+                case .gif: bild = await SnapBildQuelle.gif(eintrag.wert)
+                case .sticker: bild = await SnapBildQuelle.medium(eintrag.wert)
+                }
+                if let bild { aufBildWahl(bild) }
+                onGesendet()
+            }
+            return
+        }
         switch eintrag.art {
         case .gif: ChatModell.shared.gifSenden(url: eintrag.wert, breite: eintrag.breite ?? 0, hoehe: eintrag.hoehe ?? 0, antwortAuf: antwortAuf)
         case .sticker: ChatModell.shared.stickerSenden(medienId: eintrag.wert, antwortAuf: antwortAuf)
@@ -159,6 +186,7 @@ private struct FavoritenAnsicht: View {
 private struct StickerAnsicht: View {
     let ich: Person
     let antwortAuf: String?
+    var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
     @State private var fotoAuswahl: PhotosPickerItem?
@@ -187,7 +215,7 @@ private struct StickerAnsicht: View {
                     StickerKachel(medienId: id)
                         .frame(width: 90, height: 90)
                         .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .onTapGesture { ChatModell.shared.stickerSenden(medienId: id, antwortAuf: antwortAuf); onGesendet() }
+                        .onTapGesture { sendenEigenerSticker(id) }
                         .contextMenu {
                             Button("Zu Favoriten", systemImage: "star") {
                                 ChatEinstellungen.shared.favoritSchalten(.init(art: .sticker, wert: id, breite: nil, hoehe: nil), ich: ich)
@@ -215,6 +243,11 @@ private struct StickerAnsicht: View {
 
     private func senden(figurenSticker: FreundschaftsSticker) {
         guard let png = figurenSticker.png(ahmed: FigurenModell.shared.aussehen(.ahmed), annika: FigurenModell.shared.aussehen(.annika)) else { return }
+        if let aufBildWahl {
+            if let bild = UIImage(data: png) { aufBildWahl(bild) }
+            onGesendet()
+            return
+        }
         laeuft = true
         Task {
             defer { laeuft = false }
@@ -222,6 +255,18 @@ private struct StickerAnsicht: View {
             ChatModell.shared.stickerSenden(medienId: id, antwortAuf: antwortAuf)
             onGesendet()
         }
+    }
+
+    private func sendenEigenerSticker(_ id: String) {
+        if let aufBildWahl {
+            Task {
+                if let bild = await SnapBildQuelle.medium(id) { aufBildWahl(bild) }
+                onGesendet()
+            }
+            return
+        }
+        ChatModell.shared.stickerSenden(medienId: id, antwortAuf: antwortAuf)
+        onGesendet()
     }
 }
 

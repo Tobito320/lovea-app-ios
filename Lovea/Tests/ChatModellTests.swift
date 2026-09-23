@@ -156,6 +156,50 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(modell.ungelesen(fuer: .annika), 0, "eigene Nachrichten zählen nie als ungelesen")
     }
 
+    // MARK: - snap.angesehen / snap.gespeichert (Z-6.3)
+
+    func testSnapAngesehenSetztFlaggenAufDieSnapNachricht() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "s1"], von: .ahmed, seq: 1)])
+        modell.anwenden([op("snap.angesehen", ["id": "s1", "lange": true], von: .annika)])
+
+        let nachricht = modell.nachrichten.first { $0.id == "s1" }
+        XCTAssertEqual(nachricht?.snapAngesehen, true)
+        XCTAssertEqual(nachricht?.snapLange, true)
+    }
+
+    func testSnapGespeichertSetztFlag() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "s1"], von: .ahmed, seq: 1)])
+        modell.anwenden([op("snap.gespeichert", ["id": "s1"], von: .annika)])
+
+        XCTAssertEqual(modell.nachrichten.first { $0.id == "s1" }?.snapGespeichert, true)
+    }
+
+    // MARK: - snap.aufnahme (Z-6.4; Review-Fokus #1: dieselbe Operation kommt zweimal)
+
+    func testSnapAufnahmeWirdZurSystemzeileUndIstIdempotentByOpID() {
+        let modell = ChatModell(registrieren: false)
+        let optimistisch = op("snap.aufnahme", ["id": "s1", "art": "screenshot"], von: .annika)
+        let bestaetigt = Op(id: optimistisch.id, seq: 7, art: optimistisch.art, von: optimistisch.von, zeit: optimistisch.zeit, d: optimistisch.d)
+
+        modell.anwenden([optimistisch])
+        XCTAssertEqual(modell.nachrichten.count, 1)
+        XCTAssertEqual(modell.nachrichten[0].system, "Annika hat einen Screenshot gemacht")
+        XCTAssertEqual(modell.nachrichten[0].seq, nil)
+
+        modell.anwenden([bestaetigt])
+        XCTAssertEqual(modell.nachrichten.count, 1, "das Echo (gleiche op.id) darf keine zweite Zeile erzeugen")
+        XCTAssertEqual(modell.nachrichten[0].seq, 7)
+    }
+
+    func testSnapAufnahmeBildschirmaufnahmeText() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("snap.aufnahme", ["id": "s1", "art": "bildschirmaufnahme"], von: .ahmed)])
+
+        XCTAssertEqual(modell.nachrichten.first?.system, "Ahmed hat den Bildschirm aufgenommen")
+    }
+
     // MARK: - Helpers
 
     private func neuOp(_ id: String, text: String, seq: Int?, von: Person = .ahmed) -> Op {
