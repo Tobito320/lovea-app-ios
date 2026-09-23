@@ -6,15 +6,16 @@ final class PunkteLogikTests: XCTestCase {
     // MARK: - Richtwert (Spec 4.1): sanity check for the whole formula at once
 
     /// "10.000 Schritte täglich, 3× Gym, Wasser meist geschafft ≈ 1.100 Punkte pro Woche."
+    /// (Eine Woche vor dem Streak-Ende am 24.09.2026, damit die +5 noch zählen.)
     func testRichtwertZehntausendSchritteWoche() {
-        let woche = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"]
+        let woche = ["2026-09-14", "2026-09-15", "2026-09-16", "2026-09-17", "2026-09-18", "2026-09-19", "2026-09-20"]
         let schritte = woche.map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: $0, wert: 10_000) }
         let gym = woche.prefix(3).map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: $0, wert: 1) }
         let wasser = woche.prefix(6).map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: $0, wert: 8) }
         let streak = Set(woche)
 
         let stand = PunkteLogik.stand(
-            heute: "2026-09-27", schritte: schritte, gym: Array(gym), wasser: Array(wasser),
+            heute: "2026-09-20", schritte: schritte, gym: Array(gym), wasser: Array(wasser),
             zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: streak, spieleSiege: []
         )
 
@@ -23,20 +24,41 @@ final class PunkteLogikTests: XCTestCase {
         XCTAssertEqual(stand[.ahmed], 1135)
     }
 
-    /// "Mit 15.000-Tagen ≈ 1.700."
+    /// "Mit 15.000-Tagen ≈ 1.700." Seit dem 24.09.2026 ohne Chat-Streak: 35 weniger.
     func testRichtwertFuenfzehntausendSchritteWoche() {
-        let woche = ["2026-09-21", "2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25", "2026-09-26", "2026-09-27"]
+        let woche = ["2026-09-28", "2026-09-29", "2026-09-30", "2026-10-01", "2026-10-02", "2026-10-03", "2026-10-04"]
         let schritte = woche.map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: $0, wert: 15_000) }
         let gym = woche.prefix(3).map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: $0, wert: 1) }
         let wasser = woche.prefix(6).map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: $0, wert: 8) }
 
         let stand = PunkteLogik.stand(
-            heute: "2026-09-27", schritte: schritte, gym: Array(gym), wasser: Array(wasser),
+            heute: "2026-10-04", schritte: schritte, gym: Array(gym), wasser: Array(wasser),
             zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: Set(woche), spieleSiege: []
         )
 
-        // 7*(150 + 20 + 30) + 120 + 80 + 60 + 35 = 1400 + 120 + 80 + 60 + 35 = 1695
-        XCTAssertEqual(stand[.ahmed], 1695)
+        // 7*(150 + 20 + 30) + 120 + 80 + 60 = 1400 + 120 + 80 + 60 = 1660
+        XCTAssertEqual(stand[.ahmed], 1660)
+    }
+
+    // MARK: - "Woraus bestehen die Punkte?" (Controller-Nachtrag): eine Zeile pro Quelle
+
+    func testTagesZeilenJeQuelleErgebenDieAlteTagessumme() {
+        let tag = "2026-09-22"
+        let stand = PunkteLogik.verlauf(
+            heute: tag,
+            schritte: [TagesEintrag(seq: 1, von: .ahmed, datum: tag, gesendetAm: tag, wert: 16_000)],
+            gym: [TagesEintrag(seq: 1, von: .ahmed, datum: tag, gesendetAm: tag, wert: 1)],
+            wasser: [TagesEintrag(seq: 1, von: .ahmed, datum: tag, gesendetAm: tag, wert: 8)],
+            zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: [tag],
+            spieleSiege: [PunkteLogik.SpielSieg(von: .ahmed, datum: tag), PunkteLogik.SpielSieg(von: .ahmed, datum: tag)]
+        )
+        let ahmed = stand.filter { $0.von == .ahmed }
+        let punkte = Dictionary(uniqueKeysWithValues: ahmed.map { ($0.grund, $0.punkte) })
+        XCTAssertEqual(punkte, ["Schritte": 160, "Schrittziel": 20, "15.000 Schritte": 30, "Gym": 40, "Wasserziel": 10, "Chat-Streak": 5, "Spiel gewonnen": 20])
+        let alteTagessumme = PunkteLogik.tagesPunkte(schritte: 16_000, zielSchritte: 10_000, gymAbgehakt: true, wasser: 8, zielWasser: 8, chatStreakTag: true, spieleGewonnen: 2)
+        XCTAssertEqual(ahmed.reduce(0) { $0 + $1.punkte }, alteTagessumme)
+        XCTAssertEqual(alteTagessumme, 285)
+        XCTAssertEqual(stand.filter { $0.von == .annika }.map(\.grund), ["Chat-Streak"], "keine Null-Zeilen")
     }
 
     // MARK: - 300er Deckel
@@ -102,6 +124,55 @@ final class PunkteLogikTests: XCTestCase {
             wasser: [], zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: [], spieleSiege: []
         )
         XCTAssertNil(stand[.ahmed], "keine Punkte, aber (anderswo) grün im Verlauf")
+    }
+
+    /// Jede Habit kann jetzt vergangene Tage markieren (Z-35.3): spät nachgetragenes Wasser gibt wie
+    /// Gym nach 7 Tagen keine Punkte mehr.
+    func testWasserNachtraeglichNurInnerhalbVonSiebenTagen() {
+        let stand = PunkteLogik.stand(
+            heute: "2026-09-23", schritte: [], gym: [],
+            wasser: [
+                TagesEintrag(seq: 1, von: .ahmed, datum: "2026-09-17", gesendetAm: "2026-09-23", wert: 8),
+                TagesEintrag(seq: 2, von: .ahmed, datum: "2026-09-10", gesendetAm: "2026-09-23", wert: 8),
+            ],
+            zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: [], spieleSiege: []
+        )
+        XCTAssertEqual(stand[.ahmed], 10, "nur der 17.")
+    }
+
+    // MARK: - Review-Fokus 2: nachgetragene Schritte
+
+    func testNachgetrageneSchritteGebenKeinePunkte() {
+        let nachtrag = TagesEintrag(seq: 50, von: Person.ahmed, datum: "2026-07-01", gesendetAm: "2026-09-23", wert: 16_000, nachgetragen: true)
+        let ohne = PunkteLogik.stand(
+            heute: "2026-09-23", schritte: [nachtrag], gym: [], wasser: [],
+            zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: [], spieleSiege: []
+        )
+        XCTAssertNil(ohne[.ahmed], "0 Punkte, nur Anzeige")
+        XCTAssertTrue(PunkteLogik.verlauf(
+            heute: "2026-09-23", schritte: [nachtrag], gym: [], wasser: [],
+            zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: [], spieleSiege: []
+        ).isEmpty, "keine Zeile in \"Wofür?\"")
+
+        // Kommt später ein echter Wert für denselben Tag (höhere seq), zählt der ganz normal.
+        let echt = TagesEintrag(seq: 60, von: Person.ahmed, datum: "2026-07-01", gesendetAm: "2026-07-01", wert: 10_000)
+        let mitEcht = PunkteLogik.stand(
+            heute: "2026-09-23", schritte: [nachtrag, echt], gym: [], wasser: [],
+            zielSchritte: [:], zielWasser: [:], zielGym: [:], chatStreakTage: [], spieleSiege: []
+        )
+        XCTAssertEqual(mitEcht[.ahmed], 120)
+    }
+
+    // MARK: - Review-Fokus 3: Chat-Streak endet am 24.09.2026
+
+    func testChatStreakPunkteNurVorDemStichtag() {
+        let stand = PunkteLogik.stand(
+            heute: "2026-09-30", schritte: [], gym: [], wasser: [],
+            zielSchritte: [:], zielWasser: [:], zielGym: [:],
+            chatStreakTage: ["2026-09-22", "2026-09-23", "2026-09-24", "2026-09-25"], spieleSiege: []
+        )
+        XCTAssertEqual(stand[.ahmed], 10, "22. und 23. bleiben, ab dem 24. nichts")
+        XCTAssertEqual(stand[.annika], 10)
     }
 
     // MARK: - Review-Fokus 4: Tag ohne Health-Daten ist kein Nachteil
