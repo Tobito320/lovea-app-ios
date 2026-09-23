@@ -1,5 +1,12 @@
 import SwiftUI
 
+/// Z-24.1: `w`/`m` show only for that person, `n` (neutral) shows for both. Fixed per person, no switch (Spec §5).
+enum FigurGeschlecht: String, Codable, Sendable { case w, m, n }
+
+extension Person {
+    var figurGeschlecht: FigurGeschlecht { self == .ahmed ? .m : .w }
+}
+
 /// Looks of one figure, synced as `figur.aussehen`. Every field is an index into the lists below.
 /// v1 fields keep their meaning and their lists only grow at the end, so stored ops keep drawing the same.
 /// v2 fields decode with defaults when missing (see `init(from:)`), and older builds ignore them.
@@ -14,12 +21,18 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     // v2: Kleidung und Körper (Farben sind Indizes in `farben`)
     var jacke = 0, jackenfarbe = 3, hose = 1, hosenfarbe = 3, schuhe = 0, schuhfarbe = 2
     var koerperform = 1, groesse = 1
+    // v3 (Z-23.1/Z-24.2): getragene Shop-Teile, String-IDs aus `ShopKatalog`, nil = nichts.
+    var tasche: String?, uhr: String?, schmuck: String?, pose: String?, tier: String?
+    // v3 (Z-24.1): freie Farbwahl für Haare und Kleidung, Hex "RRGGBB". nil = weiter der Index oben.
+    var haarfarbeHex: String?, oberteilfarbeHex: String?, jackenfarbeHex: String?, hosenfarbeHex: String?, schuhfarbeHex: String?
 
     enum CodingKeys: String, CodingKey {
         case haut, frisur, haarfarbe, augen, brille, bart, oberteil, oberteilfarbe
         case gesichtsform, augenform, brauen, nase, mund, wimpern, sommersprossen, muttermal, rouge
         case ohrringe, kopfbedeckung, muetzenfarbe
         case jacke, jackenfarbe, hose, hosenfarbe, schuhe, schuhfarbe, koerperform, groesse
+        case tasche, uhr, schmuck, pose, tier
+        case haarfarbeHex, oberteilfarbeHex, jackenfarbeHex, hosenfarbeHex, schuhfarbeHex
     }
 
     static func standard(for person: Person) -> FigurAussehen {
@@ -27,15 +40,18 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         switch person {
         case .ahmed:
             a.haut = 3
-            a.frisur = 12        // Wuschelig
+            a.frisur = 12        // Wuschelig (leicht zerzaust)
             a.haarfarbe = 0      // Schwarz
-            a.augen = 0
+            a.augen = 1          // Braun
             a.augenform = 1      // Mandel
             a.brauen = 2         // Dick
-            a.bart = 3           // Kinnbart mit Schnurrbart
-            a.oberteil = 1       // Hoodie
-            a.oberteilfarbe = 4  // Grau
-            a.hose = 1           // Jeans dunkel
+            a.mund = 1           // Zahnlächeln (breites Lächeln)
+            a.bart = 2           // Schnurrbart (dünn)
+            a.oberteil = 12      // Trikot
+            a.oberteilfarbe = 9  // Gelb (Brasilien-Trikot)
+            a.hose = 2           // Weite Jeans
+            a.hosenfarbe = 4     // Grau
+            a.hosenfarbeHex = "8E8C93" // hose 2 ist ein Denim-Wash und ignoriert den Index sonst (siehe FigurView.hosenFarbe)
             a.schuhe = 0
             a.schuhfarbe = 2     // Weiß
         case .annika:
@@ -107,20 +123,55 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     static let brillen = [
         "Keine", "Rund", "Eckig", "Sonnenbrille", "Oval", "Cat-Eye", "Nerd", "Randlos",
         "Pilotenbrille", "Herz-Sonnenbrille", "Sport-Sonnenbrille",
+        "XL-Sonnenbrille Gold", "Rahmenlose Luxusbrille",
     ]
-    static let baerte = ["Keiner", "Stoppeln", "Schnurrbart", "Kinnbart", "Vollbart", "Ziegenbart", "Kinnriemen", "Langer Bart", "Koteletten"]
+    static let baerte = [
+        "Keiner", "Stoppeln", "Schnurrbart", "Kinnbart", "Vollbart", "Ziegenbart", "Kinnriemen", "Langer Bart", "Koteletten",
+        "Fu-Manchu", "Anker-Bart", "Dichter Bart kurz", "Backenbart mit Schnurrbart",
+    ]
+    /// Z-24.1: gender filter is fixed per person (Spec §5) — `n` shows for both, `m`/`w` only for that gender.
+    /// Index-aligned with `frisuren`/`baerte`; new entries append at the end so stored indices never shift.
+    static let frisurenGeschlecht: [FigurGeschlecht] = [
+        .n, .n, .n, .n, .n, .m, .n, .n, .n, .n, .n, .w, .n, .m, .m, .n, .n, .n, .m, .n,
+        .n, .n, .n, .n, .w, .n, .n, .w, .n, .n, .n, .n, .w, .n,
+    ]
+    static let baerteGeschlecht: [FigurGeschlecht] = [.n, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m]
     static let ohrringArten = ["Keine", "Stecker", "Kreolen", "Hänger", "Perlen"]
     static let kopfbedeckungen = ["Keine", "Cap", "Cap rückwärts", "Beanie", "Fischerhut", "Stirnband", "Haarreif"]
 
     static let oberteile = [
         "T-Shirt", "Hoodie", "Hemd", "Pulli", "Top", "Jacke", "Trägertop", "Ringelshirt",
         "Kleid", "Polo", "Rollkragen", "Crop-Top", "Trikot", "Karohemd",
+        "Logo-Hoodie", "Statement-Shirt", "Seidenbluse",
     ]
-    static let jacken = ["Keine", "Lederjacke", "Jeansjacke", "Bomberjacke", "Blazer", "Pufferjacke"]
-    static let hosen = ["Jeans hell", "Jeans dunkel", "Weite Jeans", "Stoffhose", "Jogginghose", "Cargohose", "Shorts", "Rock", "Minirock", "Leggings"]
-    static let schuhArten = ["Sneaker", "High-Top", "Laufschuhe", "Stiefel", "Chelsea-Boots", "Sandalen", "Ballerinas", "Slipper"]
+    static let jacken = ["Keine", "Lederjacke", "Jeansjacke", "Bomberjacke", "Blazer", "Pufferjacke", "Pelzkragen-Jacke", "Cape"]
+    static let hosen = [
+        "Jeans hell", "Jeans dunkel", "Weite Jeans", "Stoffhose", "Jogginghose", "Cargohose", "Shorts", "Rock", "Minirock", "Leggings",
+        "Anzughose", "Glitzerhose",
+    ]
+    static let schuhArten = ["Sneaker", "High-Top", "Laufschuhe", "Stiefel", "Chelsea-Boots", "Sandalen", "Ballerinas", "Slipper", "Logo-Sneaker", "Two-Tone-Sneaker"]
     static let koerperformen = ["Schlank", "Normal", "Kräftig"]
     static let groessen = ["Klein", "Mittel", "Groß"]
+
+    /// Only "Kleid"/"Rock"/"Minirock" are gender-tagged (Spec §5); everything else is neutral.
+    static let oberteileGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .n, .w, .n, .n, .n, .n, .n, .n, .n, .n]
+    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n]
+    /// Z-23.1: indices appended for shop "mode"/"brille" items (`shopTeile` below) — hidden from the
+    /// free editor and `zufall()` so buying is the only way to wear them.
+    static let oberteileShop: Set<Int> = [14, 15, 16]
+    static let jackenShop: Set<Int> = [6, 7]
+    static let hosenShop: Set<Int> = [10, 11]
+    static let schuheShop: Set<Int> = [8, 9]
+    static let brillenShop: Set<Int> = [11, 12]
+
+    /// Indices of `liste` allowed for `person`: gender-appropriate (tag missing = always allowed)
+    /// and not shop-only. Keeps the original index so a filtered tile still sets the right int.
+    static func erlaubt<T>(_ liste: [T], geschlecht: [FigurGeschlecht] = [], shop: Set<Int> = [], fuer person: Person) -> [Int] {
+        let g = person.figurGeschlecht
+        return liste.indices.filter { i in
+            !shop.contains(i) && (i >= geschlecht.count || geschlecht[i] == .n || geschlecht[i] == g)
+        }
+    }
 
     /// Shared clothing palette: Oberteil, Jacke, Hose, Schuhe, Kopfbedeckung. The first 12 were the v1 top colors.
     static let farben: [(name: String, farbe: FigurFarbe)] = [
@@ -185,7 +236,69 @@ extension FigurAussehen {
         try lies(.schuhfarbe, &schuhfarbe)
         try lies(.koerperform, &koerperform)
         try lies(.groesse, &groesse)
+        try lies(.tasche, &tasche)
+        try lies(.uhr, &uhr)
+        try lies(.schmuck, &schmuck)
+        try lies(.pose, &pose)
+        try lies(.tier, &tier)
+        try lies(.haarfarbeHex, &haarfarbeHex)
+        try lies(.oberteilfarbeHex, &oberteilfarbeHex)
+        try lies(.jackenfarbeHex, &jackenfarbeHex)
+        try lies(.hosenfarbeHex, &hosenfarbeHex)
+        try lies(.schuhfarbeHex, &schuhfarbeHex)
     }
+}
+
+/// Which int field a "mode"/"brille" shop item sets (see `FigurAussehen.shopTeile`).
+/// ponytail: a plain enum instead of a `WritableKeyPath` — key paths carry Swift-6-Sendable risk
+/// in a static global table, and CI is the only compiler here, so the simpler type wins.
+enum ShopFeld: Sendable { case oberteil, jacke, hose, schuhe, brille }
+
+extension FigurAussehen {
+    /// Z-23.1: wears a purchased "mode"/"brille" shop item — those categories have no dedicated
+    /// field, they reuse the existing int index (see `oberteileShop` etc.). Unknown ids are ignored.
+    /// `tasche`/`uhr`/`schmuck`/`pose`/`tier` need no mapping, the shop id is stored directly.
+    mutating func anziehen(_ artikelId: String) {
+        guard let e = FigurAussehen.shopTeile[artikelId] else { return }
+        switch e.feld {
+        case .oberteil: oberteil = e.index; if let hex = e.hex { oberteilfarbeHex = hex }
+        case .jacke: jacke = e.index; if let hex = e.hex { jackenfarbeHex = hex }
+        case .hose: hose = e.index; if let hex = e.hex { hosenfarbeHex = hex }
+        case .schuhe: schuhe = e.index; if let hex = e.hex { schuhfarbeHex = hex }
+        case .brille: brille = e.index // keine freie Farbe für Brillen
+        }
+    }
+
+    /// ponytail: table-driven so a new "mode"/"brille" `ShopArtikel` needs one line here plus one
+    /// new geometry case in `FigurView.swift` (or reuses an existing one with a different hex color).
+    static let shopTeile: [String: (feld: ShopFeld, index: Int, hex: String?)] = [
+        "mode.tshirt-logo": (.oberteil, 14, nil),
+        "mode.guess-hoodie": (.oberteil, 14, "8E8C93"),
+        "mode.nike-hoodie": (.oberteil, 14, "2B2830"),
+        "mode.jordan-shirt": (.oberteil, 15, "2B2830"),
+        "mode.balenciaga-shirt": (.oberteil, 15, nil),
+        "mode.seidenbluse": (.oberteil, 16, nil),
+        "mode.dior-bluse": (.oberteil, 16, "F4F1EE"),
+        "mode.jeansjacke": (.jacke, 2, nil),
+        "mode.bomberjacke": (.jacke, 3, nil),
+        "mode.moncler-jacke": (.jacke, 6, "2C3E6B"),
+        "mode.pufferjacke-pelz": (.jacke, 6, "2B2830"),
+        "mode.dior-cape": (.jacke, 7, "F4F1EE"),
+        "mode.cargohose": (.hose, 5, nil),
+        "mode.anzughose": (.hose, 10, "2B2830"),
+        "mode.glitzerhose": (.hose, 11, nil),
+        "mode.balenciaga-hose": (.hose, 10, nil),
+        "mode.nike-sneaker": (.schuhe, 8, nil),
+        "mode.jordan-sneaker": (.schuhe, 8, "C8283F"),
+        "mode.gucci-sneaker": (.schuhe, 9, "3F7D52"),
+        "mode.balenciaga-sneaker": (.schuhe, 9, nil),
+        "brille.sport": (.brille, 10, nil),
+        "brille.pilot-gold": (.brille, 8, nil),
+        "brille.cartier-sonnenbrille": (.brille, 11, nil),
+        "brille.prada-sonnenbrille": (.brille, 11, nil),
+        "brille.rahmenlos": (.brille, 12, nil),
+        "brille.guess": (.brille, 5, nil),
+    ]
 }
 
 /// Figure fill color; the outline color is derived from it.
@@ -213,5 +326,24 @@ struct FigurFarbe: Equatable, Sendable {
 
     func mix(_ o: FigurFarbe, _ t: Double) -> FigurFarbe {
         FigurFarbe(r: r + (o.r - r) * t, g: g + (o.g - g) * t, b: b + (o.b - b) * t)
+    }
+
+    /// Z-24.1 free color picker: parses "RRGGBB" or "#RRGGBB". `nil` for anything malformed, so a
+    /// bad round-trip from `ColorPicker` never crashes rendering — the swatch index is used instead.
+    init?(hex: String) {
+        var s = Substring(hex)
+        if s.hasPrefix("#") { s.removeFirst() }
+        guard s.count == 6, let v = UInt32(s, radix: 16) else { return nil }
+        self.init(v)
+    }
+
+    /// "RRGGBB", no leading `#`. Values are clamped so an out-of-gamut round-trip stays a valid hex.
+    var hex: String {
+        let ziffern = Array("0123456789ABCDEF")
+        func kanal(_ x: Double) -> String {
+            let v = Swift.max(0, Swift.min(255, Int((x * 255).rounded())))
+            return String([ziffern[v / 16], ziffern[v % 16]])
+        }
+        return kanal(r) + kanal(g) + kanal(b)
     }
 }
