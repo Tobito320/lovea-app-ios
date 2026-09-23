@@ -1,3 +1,4 @@
+import AVFoundation
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -9,6 +10,11 @@ struct ChatAnhang: Identifiable {
     let id = UUID()
     var inhalt: Inhalt
     var vorschau: UIImage?
+    /// Z-26.2: set once this attachment is uploaded on its own (not at send time) — its id/pixel
+    /// size go straight into `entwurf.setzen` and, unchanged, into the eventual `nachricht.neu`
+    /// (no re-upload). Photos only — videos aren't part of the persisted draft (re-encoding on
+    /// every pick would double their upload for something most drafts never keep that long).
+    var hochgeladen: (medienId: String, breite: Double, hoehe: Double)?
 
     var istVideo: Bool {
         switch inhalt {
@@ -53,6 +59,12 @@ struct ChatEingabeleiste: View {
     @State private var kameraOffen = false
     @State private var spieleOffen = false
     @State private var sprachBelegt = false
+    @State private var sprachEntwurf: SprachEntwurf?
+    /// Z-26.2: once the user has typed/attached/recorded anything this session, a draft restore
+    /// (which can land late — after a reinstall, the catch-up finishes only once the log replays)
+    /// must never clobber it.
+    @State private var beruehrt = false
+    @Environment(\.scenePhase) private var scenePhase
 
     private static let hoehe: CGFloat = 36
 
@@ -62,7 +74,7 @@ struct ChatEingabeleiste: View {
                 ZitatLeiste(nachricht: antwortAuf, ich: ich) { self.antwortAuf = nil }
             }
             if !anhaenge.isEmpty {
-                AnhangLeiste(anhaenge: $anhaenge) { anhang in
+                AnhangLeiste(anhaenge: $anhaenge, onAendert: { beruehrt = true; entwurfAktualisieren() }) { anhang in
                     if anhang.istVideo { ChatHaptik.leicht() } else { bearbeiten = anhang }
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -130,15 +142,23 @@ struct ChatEingabeleiste: View {
         .onAppear {
             SnapKameraSteuerung.geteilt.halten()
             Task { await SnapKameraSteuerung.geteilt.vorwaermen() }
+            entwurfWiederherstellen()
         }
-        .onDisappear { SnapKameraSteuerung.geteilt.loslassen() }
-        // Z-26.4: same poll-for-`nachgeholt` idiom as `KalenderModell` — runs once the log has
-        // fully caught up, so `UmzugAufraeumen`'s own `aufgeraeumt` fold has already replayed.
+        .onDisappear {
+            SnapKameraSteuerung.geteilt.loslassen()
+            entwurfFlush()
+        }
+        // Z-26.2: the app being killed while backgrounded must not lose the last second of typing.
+        .onChange(of: scenePhase) { _, neu in if neu != .active { entwurfFlush() } }
+        // Z-26.4/Z-26.2: same poll-for-`nachgeholt` idiom as `KalenderModell` — runs once the log
+        // has fully caught up, so `UmzugAufraeumen`'s `aufgeraeumt` fold and the draft fold have
+        // both already replayed (a reinstall's restore can otherwise land after this view appears).
         .task {
             while !Raum.shared.nachgeholt {
                 try? await Task.sleep(for: .seconds(1))
             }
             UmzugAufraeumen.shared.versuchen()
+            entwurfWiederherstellen()
         }
     }
 
@@ -156,7 +176,7 @@ struct ChatEingabeleiste: View {
                         }
                         GenmojiEingabefeld(
                             text: $eingabeAttr, mehrzeilig: $mehrzeilig, handle: feldHandle,
-                            onSenden: senden, onAendert: { tippen.tastenanschlag() }
+                            onSenden: senden, onAendert: { tippen.tastenanschlag(); beruehrt = true; entwurfAktualisieren() }
                         )
                     }
                     .padding(.trailing, mehrzeilig ? 24 : 0)
@@ -184,9 +204,12 @@ struct ChatEingabeleiste: View {
                 .buttonStyle(.plain)
                 .accessibilityLabel("GIFs und Sticker")
             }
-            SprachAufnahmeButton(ich: ich, antwortAuf: antwortAuf?.id, onGesendet: { self.antwortAuf = nil }, onBelegt: { sprachBelegt = $0 })
-                .foregroundStyle(.secondary)
-                .padding(.trailing, sprachBelegt ? 4 : 0)
+            SprachAufnahmeButton(
+                ich: ich, antwortAuf: antwortAuf?.id, onGesendet: { self.antwortAuf = nil }, vorschau: $sprachEntwurf,
+                onEntwurfAendern: { beruehrt = true; entwurfAktualisieren() }, onBelegt: { sprachBelegt = $0 }
+            )
+            .foregroundStyle(.secondary)
+            .padding(.trailing, sprachBelegt ? 4 : 0)
         }
         .padding(.leading, sprachBelegt ? 8 : 10)
         .padding(.trailing, 3)
@@ -199,9 +222,12 @@ struct ChatEingabeleiste: View {
     private func uebernehmen(_ items: [PhotosPickerItem]) {
         guard !items.isEmpty else { return }
         fotoAuswahl = []
+        beruehrt = true
         Task {
             for item in items {
-                if let anhang = await ChatAnhang.laden(item) { anhaenge.append(anhang) }
+                guard let anhang = await ChatAnhang.laden(item) else { continue }
+                anhaenge.append(anhang)
+                hochladenFuerEntwurf(anhang.id)
             }
             ChatHaptik.leicht()
             // No send button anymore (Z-26.1) — an attachment-only send needs the keyboard up so
@@ -216,15 +242,34 @@ struct ChatEingabeleiste: View {
             guard let index = anhaenge.firstIndex(where: { $0.id == id }) else { return }
             anhaenge[index].inhalt = .foto(jpeg)
             anhaenge[index].vorschau = vorschau
+            anhaenge[index].hochgeladen = nil // Z-26.2: content changed, the old id no longer matches
+            entwurfAktualisieren()
+        }
+        hochladenFuerEntwurf(id)
+    }
+
+    /// Z-26.2: uploads (or re-uploads, after `ersetzen`) a draft photo attachment right away, so
+    /// its id can go into `entwurf.setzen`. Ignored if the attachment was removed/replaced again
+    /// by the time it finishes.
+    private func hochladenFuerEntwurf(_ anhangId: UUID) {
+        Task {
+            guard let index = anhaenge.firstIndex(where: { $0.id == anhangId }),
+                  case .foto(let daten) = anhaenge[index].inhalt
+            else { return }
+            guard let ergebnis = await ChatMedien.entwurfBildHochladen(daten) else { return }
+            guard let aktIndex = anhaenge.firstIndex(where: { $0.id == anhangId }) else { return }
+            anhaenge[aktIndex].hochgeladen = ergebnis
+            entwurfAktualisieren()
         }
     }
 
     /// Stickers first (each `NSAdaptiveImageGlyph` in the composed text, Z-26.1), then media (one
-    /// message per item, so they stack), then the leftover text. Only the very first thing sent
-    /// carries the reply reference.
+    /// message per item, so they stack, already-uploaded draft photos sent by reference instead of
+    /// re-uploaded), then the leftover text. Only the very first thing sent carries the reply
+    /// reference. Clears the persisted draft once everything is queued.
     private func senden() {
         let attributiert = eingabeAttr
-        let inhalte = anhaenge.map(\.inhalt)
+        let anhaengeZuSenden = anhaenge
         let antwortID = antwortAuf?.id
         // Extracted now, on the main actor — `NSAdaptiveImageGlyph`/`NSAttributedString` aren't
         // Sendable, so this can't wait until inside the `Task` below.
@@ -235,9 +280,10 @@ struct ChatEingabeleiste: View {
         anhaenge = []
         antwortAuf = nil
         mehrzeilig = false
+        beruehrt = false
         tippen.beenden()
 
-        guard !inhalte.isEmpty || !glyphDaten.isEmpty || !text.isEmpty else { return }
+        guard !anhaengeZuSenden.isEmpty || !glyphDaten.isEmpty || !text.isEmpty else { return }
         ChatHaptik.leicht()
 
         Task {
@@ -250,14 +296,81 @@ struct ChatEingabeleiste: View {
                 ChatModell.shared.stickerSenden(medienId: id, antwortAuf: antwort)
                 antwort = nil
             }
-            if !inhalte.isEmpty {
-                await ChatMedien.anhaengeSenden(inhalte, antwortAuf: antwort)
+            for anhang in anhaengeZuSenden {
+                if let hochgeladen = anhang.hochgeladen {
+                    ChatModell.shared.medienSenden(
+                        [ChatModell.MedienEintrag(id: hochgeladen.medienId, typ: "foto", breite: hochgeladen.breite, hoehe: hochgeladen.hoehe)],
+                        antwortAuf: antwort
+                    )
+                } else {
+                    await ChatMedien.anhaengeSenden([anhang.inhalt], antwortAuf: antwort)
+                }
                 antwort = nil
             }
             if !text.isEmpty {
                 ChatModell.shared.nachrichtSenden(text: text, antwortAuf: antwort)
             }
+            ChatModell.shared.entwurfLeeren()
         }
+    }
+
+    // MARK: - Draft (Z-26.2)
+
+    private func entwurfAktualisieren() {
+        // Glyphs can't survive as plain String — stripped here too, same as at send.
+        // ponytail: a Genmoji/sticker mid-draft is lost across relaunch, the text around it isn't.
+        let text = GenmojiExtraktion.textOhneGlyphen(eingabeAttr)
+        let medien = anhaenge.compactMap { $0.hochgeladen?.medienId }
+        ChatModell.shared.entwurfGeaendert(text: text, medien: medien, sprache: sprachEntwurf?.medienId)
+    }
+
+    private func entwurfFlush() {
+        let text = GenmojiExtraktion.textOhneGlyphen(eingabeAttr)
+        let medien = anhaenge.compactMap { $0.hochgeladen?.medienId }
+        ChatModell.shared.entwurfFlush(text: text, medien: medien, sprache: sprachEntwurf?.medienId)
+    }
+
+    /// Restores into an otherwise-empty, untouched composer only (never overwrites what's already
+    /// being typed this session) — safe to call repeatedly, on appear and again once the log has
+    /// caught up (a reinstall's own draft can arrive after this view already appeared).
+    private func entwurfWiederherstellen() {
+        guard !beruehrt, eingabeAttr.length == 0, anhaenge.isEmpty, sprachEntwurf == nil else { return }
+        let entwurf = ChatModell.shared.entwurf(fuer: ich)
+        guard !entwurf.leer else { return }
+        if !entwurf.text.isEmpty {
+            eingabeAttr = NSAttributedString(string: entwurf.text, attributes: [.font: UIFont.preferredFont(forTextStyle: .body)])
+        }
+        Task {
+            for medienId in entwurf.medien {
+                guard !beruehrt, let anhang = await entwurfBildLaden(medienId) else { continue }
+                anhaenge.append(anhang)
+            }
+            if let sprache = entwurf.sprache, !beruehrt {
+                sprachEntwurf = await entwurfSpracheLaden(sprache)
+            }
+        }
+    }
+
+    private func entwurfBildLaden(_ medienId: String) async -> ChatAnhang? {
+        guard let url = try? await Medien.holen(medienId) else { return nil }
+        // Off the main actor (Z-16.2/common.md "Main Thread frei") — same pattern UmzugImport uses.
+        guard let daten = await Task.detached(priority: .utility, operation: { try? Data(contentsOf: url) }).value else { return nil }
+        var anhang = ChatAnhang(inhalt: .foto(daten))
+        anhang.vorschau = await ChatAnhang.vorschau(daten)
+        let groesse = await Task.detached(priority: .utility) { () -> (Double, Double)? in
+            guard let bild = UIImage(data: daten) else { return nil }
+            return (Double(bild.size.width * bild.scale), Double(bild.size.height * bild.scale))
+        }.value
+        anhang.hochgeladen = (medienId, groesse?.0 ?? 0, groesse?.1 ?? 0)
+        return anhang
+    }
+
+    private func entwurfSpracheLaden(_ medienId: String) async -> SprachEntwurf? {
+        guard let url = try? await Medien.holen(medienId) else { return nil }
+        let dauer = (try? await AVURLAsset(url: url).load(.duration))?.seconds ?? 0
+        // ponytail: the waveform isn't persisted (Z-26.2 payload has no field for it) — a restored
+        // preview shows a flat bar until sent; upgrade only if that turns out to bother anyone.
+        return SprachEntwurf(medienId: medienId, url: url, dauer: dauer, pegel: [])
     }
 }
 
@@ -269,9 +382,12 @@ private final class TextFeldHandle {
     func fokussieren() { view?.becomeFirstResponder() }
 }
 
-/// Picked photos/videos as small thumbnails with a remove button each.
+/// Picked photos/videos as small thumbnails with a remove button each. Draggable to reorder
+/// (Z-26.2) — that gesture's own long-press lift is why editing is tap-only here now (a
+/// long-press-to-edit would fight the drag for the same touch).
 private struct AnhangLeiste: View {
     @Binding var anhaenge: [ChatAnhang]
+    let onAendert: () -> Void
     let onBearbeiten: (ChatAnhang) -> Void
 
     var body: some View {
@@ -297,16 +413,22 @@ private struct AnhangLeiste: View {
                         }
                         .contentShape(RoundedRectangle(cornerRadius: 12))
                         .onTapGesture { onBearbeiten(anhang) }
-                        .onLongPressGesture(minimumDuration: 0.35) { ChatHaptik.mittel(); onBearbeiten(anhang) }
                         .accessibilityElement(children: .ignore)
                         .accessibilityLabel(anhang.istVideo ? "Video" : "Foto")
                         .accessibilityHint(anhang.istVideo ? "" : "Bearbeiten")
                         .accessibilityAddTraits(.isButton)
                         .accessibilityAction { onBearbeiten(anhang) }
+                        .draggable(anhang.id.uuidString)
+                        .dropDestination(for: String.self) { ziehIDs, _ in
+                            guard let ziehID = ziehIDs.first.flatMap(UUID.init) else { return false }
+                            verschieben(ziehID, vor: anhang.id)
+                            return true
+                        }
 
                         Button {
                             ChatHaptik.leicht()
                             withAnimation(.snappy) { anhaenge.removeAll { $0.id == anhang.id } }
+                            onAendert()
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 20))
@@ -325,6 +447,16 @@ private struct AnhangLeiste: View {
             .padding(.horizontal, 4)
             .padding(.top, 10)
         }
+    }
+
+    private func verschieben(_ ziehID: UUID, vor zielID: UUID) {
+        guard ziehID != zielID, let von = anhaenge.firstIndex(where: { $0.id == ziehID }) else { return }
+        withAnimation(.snappy) {
+            let element = anhaenge.remove(at: von)
+            let zielIndex = anhaenge.firstIndex(where: { $0.id == zielID }) ?? anhaenge.count
+            anhaenge.insert(element, at: zielIndex)
+        }
+        onAendert()
     }
 }
 
