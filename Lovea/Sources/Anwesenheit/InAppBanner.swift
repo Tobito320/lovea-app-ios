@@ -8,8 +8,8 @@ import SwiftUI
 final class BannerZentrale {
     static let shared = BannerZentrale()
 
-    struct Banner: Identifiable, Equatable {
-        enum Aktion: Equatable { case keine, zeichnung(String) }
+    struct Banner: Identifiable, Equatable, Sendable {
+        enum Aktion: Equatable, Sendable { case keine, zeichnung(String) }
         let id = UUID()
         var text: String
         var aktion: Aktion = .keine
