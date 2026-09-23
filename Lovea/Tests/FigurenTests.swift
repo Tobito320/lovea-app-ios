@@ -117,7 +117,8 @@ final class FigurenTests: XCTestCase {
     func testStandardFiguren() {
         let ahmed = FigurAussehen.standard(for: .ahmed)
         XCTAssertGreaterThan(ahmed.bart, 0)
-        XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "Trikot")
+        XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "Nike Trikot")
+        XCTAssertEqual(FigurAussehen.schuhArten[ahmed.schuhe], "Nike Air Force 1")
         XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Weite Jeans")
         let annika = FigurAussehen.standard(for: .annika)
         XCTAssertEqual(FigurAussehen.frisuren[annika.frisur], "Lang glatt Mittelscheitel")
