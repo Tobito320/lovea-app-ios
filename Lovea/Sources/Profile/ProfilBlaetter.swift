@@ -97,7 +97,7 @@ struct WallpaperAuswahl: View {
                 if ProfilWallpaper.medienId != nil {
                     Section {
                         Button("Wallpaper entfernen", role: .destructive) {
-                            EinstellungenModell.shared.setzen("profilWallpaper", .null)
+                            EinstellungenModell.shared.setzen("profilWallpaper", .object([:]))
                             dismiss()
                         }
                     }
@@ -115,6 +115,7 @@ struct WallpaperAuswahl: View {
             }
             .onChange(of: fotoAuswahl) { _, item in
                 guard let item else { return }
+                fotoAuswahl = nil // lets the same photo be picked again after a failed upload
                 Task {
                     guard let daten = try? await item.loadTransferable(type: Data.self) else {
                         fehler = "Das Foto konnte nicht geladen werden."

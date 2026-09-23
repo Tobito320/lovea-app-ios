@@ -163,12 +163,12 @@ private struct ProfilInhalt: View {
     }
 
     /// Round head crop of the figure. The head sits at y 30…152 of FigurView's 240-unit canvas,
-    /// centre ≈ 0.38 of the height — at `groesse = 2d` that's 0.24·d above the view centre.
+    /// centre ≈ 0.38 of the height — at `groesse = 1.6d` that is 0.19·d above the view centre.
     private var avatar: some View {
         let d: CGFloat = 84
         let online = istEigenes ? Raum.shared.verbunden : Raum.shared.partnerDa
-        return FigurView(FigurenModell.shared.aussehen(person), zustand: .ruhig, groesse: d * 2, animiert: false)
-            .offset(y: d * 0.24)
+        return FigurView(FigurenModell.shared.aussehen(person), zustand: .ruhig, groesse: d * 1.6, animiert: false)
+            .offset(y: d * 0.19)
             .frame(width: d, height: d)
             .background(Color(uiColor: .secondarySystemBackground))
             .clipShape(Circle())
@@ -326,7 +326,7 @@ private struct ProfilInhalt: View {
 
     @ViewBuilder
     private var dieKarte: some View {
-        KartenVorschau(person: person) { navigieren("map") }
+        KartenVorschau(person: gegenueber) { navigieren("map") }
         Divider()
         zeile("bell.badge", "Ankunftsbenachrichtigungen", "Wenn jemand an einem Ort ankommt oder geht.") { blatt = .orte }
     }
