@@ -76,7 +76,8 @@ final class SyncTests: XCTestCase {
         offlineRaum.senden("nachricht.neu", ["text": "zwei"])
         offlineRaum.senden("nachricht.neu", ["text": "drei"])
         await offlineRaum.leer()
-        XCTAssertEqual(offlineTransport.gesendet.count, 0, "nothing should be sent while never connected")
+        XCTAssertEqual(offlineTransport.sent.count, 0, "nothing should be sent while never connected")
+        XCTAssertEqual(offlineRaum.wartet, 3, "the status line needs this to show \"Wartet auf Netz (3)\"")
 
         // "Restart": a fresh queue instance over the same directory still has all three.
         let reopenedQueue = Warteschlange(rootURL: dir)
@@ -96,22 +97,24 @@ final class SyncTests: XCTestCase {
         onlineRaum.ich = .ahmed
         onlineRaum.start()
         await onlineRaum.leer()
+        XCTAssertEqual(onlineRaum.wartet, 3, "status line must still show 3 right after reconnecting, before any echo")
 
-        let sentOpMessages = onlineTransport.gesendet.filter { $0.contains("\"t\":\"op\"") }
+        let sentOpMessages = onlineTransport.sent.filter { $0.contains("\"t\":\"op\"") }
         XCTAssertEqual(sentOpMessages.count, 3)
 
         // Server confirms all three in one batch.
         let confirmed = zip(queuedAfterRestart.map(\.id), [1, 2, 3]).map { (id: $0, seq: $1) }
         let echo = makeOpsMessage(ops: confirmed, mehr: false)
-        await onlineTransport.eingehend(echo)
+        await onlineTransport.receive(echo)
 
         let queueAfterEcho = await reopenedQueue.offen
         XCTAssertTrue(queueAfterEcho.isEmpty)
         let logAfterEcho = await log.alle(arten: [])
         XCTAssertEqual(logAfterEcho.count, 3)
+        XCTAssertEqual(onlineRaum.wartet, 0, "status line must clear once all three are confirmed")
 
         // A duplicate echo (repeated after a bad connection) changes nothing.
-        await onlineTransport.eingehend(echo)
+        await onlineTransport.receive(echo)
         let queueAfterDuplicate = await reopenedQueue.offen
         XCTAssertTrue(queueAfterDuplicate.isEmpty)
         let logAfterDuplicate = await log.alle(arten: [])
@@ -137,13 +140,13 @@ final class SyncTests: XCTestCase {
         raum.start()
         await raum.leer()
 
-        await transport.eingehend(makeOpsMessage(ops: (1...500).map { (id: "op-\($0)", seq: $0) }, mehr: true))
-        await transport.eingehend(makeOpsMessage(ops: (501...1000).map { (id: "op-\($0)", seq: $0) }, mehr: true))
-        await transport.eingehend(makeOpsMessage(ops: (1001...1200).map { (id: "op-\($0)", seq: $0) }, mehr: false))
+        await transport.receive(makeOpsMessage(ops: (1...500).map { (id: "op-\($0)", seq: $0) }, mehr: true))
+        await transport.receive(makeOpsMessage(ops: (501...1000).map { (id: "op-\($0)", seq: $0) }, mehr: true))
+        await transport.receive(makeOpsMessage(ops: (1001...1200).map { (id: "op-\($0)", seq: $0) }, mehr: false))
 
         XCTAssertEqual(receivedBatches.map(\.count), [500, 500, 200])
         XCTAssertEqual(receivedBatches.flatMap { $0 }.count, 1200)
-        let nachholenRequests = transport.gesendet.filter { $0.contains("\"nachholen\"") }
+        let nachholenRequests = transport.sent.filter { $0.contains("\"nachholen\"") }
         XCTAssertEqual(nachholenRequests.count, 2)
     }
 
@@ -175,12 +178,12 @@ final class SyncTests: XCTestCase {
     }
 }
 
-/// Fake `RaumTransport`: records everything `senden`, and exposes `eingehend` to simulate
-/// a server message by calling the closure `Raum` handed to `verbinden`.
+/// Fake `RaumTransport`: records everything sent, and exposes `receive` to simulate a server
+/// message by calling the closure `Raum` handed to `verbinden`.
 private final class FakeTransport: RaumTransport, @unchecked Sendable {
-    private(set) var gesendet: [String] = []
-    private var nachricht: (@Sendable (String) async -> Void)?
-    private var getrennt: (@Sendable (Error?) async -> Void)?
+    private(set) var sent: [String] = []
+    private var onMessage: (@Sendable (String) async -> Void)?
+    private var onDisconnect: (@Sendable (Error?) async -> Void)?
 
     func verbinden(
         url: URL,
@@ -188,20 +191,20 @@ private final class FakeTransport: RaumTransport, @unchecked Sendable {
         nachricht: @escaping @Sendable (String) async -> Void,
         getrennt: @escaping @Sendable (Error?) async -> Void
     ) {
-        self.nachricht = nachricht
-        self.getrennt = getrennt
+        onMessage = nachricht
+        onDisconnect = getrennt
     }
 
     func senden(_ text: String) {
-        gesendet.append(text)
+        sent.append(text)
     }
 
     func trennen() {
-        nachricht = nil
-        getrennt = nil
+        onMessage = nil
+        onDisconnect = nil
     }
 
-    func eingehend(_ text: String) async {
-        await nachricht?(text)
+    func receive(_ text: String) async {
+        await onMessage?(text)
     }
 }

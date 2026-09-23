@@ -76,6 +76,7 @@ final class Raum {
         reiheOhneWarten { [weak self] in
             guard let self else { return }
             self.empfangenBisSeq = await self.log.letzteSeq
+            await self.wartetAktualisieren() // e.g. after an offline restart, before anything is sent
             self.verbinden()
         }
     }
@@ -170,9 +171,13 @@ final class Raum {
         transport.verbinden(
             url: url,
             headers: headers,
+            // Decoding (up to 500 Ops, each rebuilding a JSONValue tree) runs here, off the main
+            // actor — this closure has no actor isolation of its own, so it executes wherever the
+            // transport's receive loop calls it from. Only the already-parsed result crosses over.
             nachricht: { [weak self] text in
+                guard let nachricht = Raum.nachrichtDekodieren(text) else { return }
                 guard let self else { return }
-                await self.nachrichtEmpfangen(text, gen: gen)
+                await self.nachrichtAnwenden(nachricht, gen: gen)
             },
             getrennt: { [weak self] _ in
                 guard let self else { return }
@@ -223,49 +228,58 @@ final class Raum {
 
     // MARK: - Receiving
 
-    private func nachrichtEmpfangen(_ text: String, gen: Int) async {
-        guard gen == generation, let data = text.data(using: .utf8) else { return }
-        guard let huelle = try? JSONDecoder().decode(TypHuelle.self, from: data) else { return }
+    /// Decodes a raw server message. `nonisolated` and `static` on purpose: this does the actual
+    /// parsing (a `JSONValue` tree per op, for up to 500 ops on a page) and must NOT run on the
+    /// main actor — see the comment at the call site in `verbinden`.
+    private nonisolated static func nachrichtDekodieren(_ text: String) -> EingehendeNachricht? {
+        guard let data = text.data(using: .utf8) else { return nil }
+        guard let huelle = try? JSONDecoder().decode(TypHuelle.self, from: data) else { return nil }
         switch huelle.t {
         case "ops":
-            guard let msg = try? JSONDecoder().decode(OpsHuelle.self, from: data) else { return }
-            await reiheUndWarte { [weak self] in
-                guard let self else { return }
-                await self.opsVerarbeiten(msg)
-            }
+            guard let msg = try? JSONDecoder().decode(OpsHuelle.self, from: data) else { return nil }
+            return .ops(msg.ops, mehr: msg.mehr)
         case "fl":
-            if let msg = try? JSONDecoder().decode(FlHuelle.self, from: data) { fluechtigVerarbeiten(msg) }
+            guard let msg = try? JSONDecoder().decode(FlHuelle.self, from: data) else { return nil }
+            let daten = (try? JSONEncoder().encode(msg.d)) ?? Data("{}".utf8)
+            return .fl(msg.von, msg.art, daten)
         case "da":
-            if let msg = try? JSONDecoder().decode(DaHuelle.self, from: data) { daVerarbeiten(msg) }
+            guard let msg = try? JSONDecoder().decode(DaHuelle.self, from: data) else { return nil }
+            return .da(ahmed: msg.ahmed, annika: msg.annika)
         case "standort":
-            if let msg = try? JSONDecoder().decode(StandortHuelle.self, from: data) { standortVerarbeiten(msg) }
+            guard let msg = try? JSONDecoder().decode(StandortHuelle.self, from: data) else { return nil }
+            let daten = (try? JSONEncoder().encode(msg.d)) ?? Data("{}".utf8)
+            return .standort(msg.person, daten)
         default:
-            break
+            return nil
         }
     }
 
-    private func opsVerarbeiten(_ msg: OpsHuelle) async {
-        await log.anhaengen(msg.ops)
-        for op in msg.ops { await warteschlange.raus(id: op.id) }
+    /// Applies an already-decoded message. Cheap: actor calls, dictionary lookups, no parsing.
+    private func nachrichtAnwenden(_ nachricht: EingehendeNachricht, gen: Int) async {
+        guard gen == generation else { return }
+        switch nachricht {
+        case .ops(let ops, let mehr):
+            await reiheUndWarte { [weak self] in
+                guard let self else { return }
+                await self.opsVerarbeiten(ops, mehr: mehr)
+            }
+        case .fl(let von, let art, let daten):
+            for f in fluechtigBeobachter[art] ?? [] { f(von, daten) }
+        case .da(let ahmed, let annika):
+            guard let ich else { return }
+            partnerDa = ich == .ahmed ? annika : ahmed
+        case .standort(let person, let daten):
+            for f in fluechtigBeobachter["standort"] ?? [] { f(person, daten) }
+        }
+    }
+
+    private func opsVerarbeiten(_ ops: [Op], mehr: Bool) async {
+        await log.anhaengen(ops)
+        for op in ops { await warteschlange.raus(id: op.id) }
         await wartetAktualisieren()
-        if let maxSeq = msg.ops.compactMap(\.seq).max() { empfangenBisSeq = max(empfangenBisSeq, maxSeq) }
-        liefereBatch(msg.ops)
-        if msg.mehr { sende(NachholenNachricht(seit: empfangenBisSeq)) }
-    }
-
-    private func fluechtigVerarbeiten(_ msg: FlHuelle) {
-        let daten = (try? JSONEncoder().encode(msg.d)) ?? Data("{}".utf8)
-        for f in fluechtigBeobachter[msg.art] ?? [] { f(msg.von, daten) }
-    }
-
-    private func daVerarbeiten(_ msg: DaHuelle) {
-        guard let ich else { return }
-        partnerDa = ich == .ahmed ? msg.annika : msg.ahmed
-    }
-
-    private func standortVerarbeiten(_ msg: StandortHuelle) {
-        let daten = (try? JSONEncoder().encode(msg.d)) ?? Data("{}".utf8)
-        for f in fluechtigBeobachter["standort"] ?? [] { f(msg.person, daten) }
+        if let maxSeq = ops.compactMap(\.seq).max() { empfangenBisSeq = max(empfangenBisSeq, maxSeq) }
+        liefereBatch(ops)
+        if mehr { sende(NachholenNachricht(seit: empfangenBisSeq)) }
     }
 
     // MARK: - Helpers
@@ -316,6 +330,14 @@ final class Raum {
         reiheOhneWarten(neu)
         await arbeit?.value
     }
+}
+
+/// Result of `Raum.nachrichtDekodieren` — everything needed to apply a message, already parsed.
+private enum EingehendeNachricht: Sendable {
+    case ops([Op], mehr: Bool)
+    case fl(Person, String, Data)
+    case da(ahmed: Bool, annika: Bool)
+    case standort(Person, Data)
 }
 
 private struct TypHuelle: Decodable { let t: String }

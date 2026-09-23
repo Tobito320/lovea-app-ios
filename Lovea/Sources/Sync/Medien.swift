@@ -19,12 +19,16 @@ enum Medien {
 
     static func hochladen(id: String, original: URL, klein: URL? = nil) async throws {
         guard let konfig = await Raum.shared.httpKonfiguration() else { throw MedienFehler.nichtEingerichtet }
-        try await teilHochladen(id: id, rolle: "original", datei: original, konfig: konfig)
-        if let klein { try await teilHochladen(id: id, rolle: "klein", datei: klein, konfig: konfig) }
-        // So the sender sees their own media right away instead of downloading it back.
-        try? FileManager.default.createDirectory(at: cacheURL(for: id).deletingLastPathComponent(), withIntermediateDirectories: true)
+        // Copy into our own cache BEFORE uploading, not after: `original`/`klein` are often an
+        // ephemeral picker temp file that can be gone by the time a retry (after a dropped
+        // connection, or the app being killed mid-upload) reads it again. This also means the
+        // sender sees their own media right away instead of downloading it back.
+        let originalKopie = try lokaleKopie(von: original, id: id, rolle: "original")
+        let kleinKopie = try klein.map { try lokaleKopie(von: $0, id: id, rolle: "klein") }
+        try await teilHochladen(id: id, rolle: "original", datei: originalKopie, konfig: konfig)
+        if let kleinKopie { try await teilHochladen(id: id, rolle: "klein", datei: kleinKopie, konfig: konfig) }
         try? FileManager.default.removeItem(at: cacheURL(for: id))
-        try? FileManager.default.copyItem(at: original, to: cacheURL(for: id))
+        try? FileManager.default.copyItem(at: originalKopie, to: cacheURL(for: id))
     }
 
     static func holen(_ id: String) async throws -> URL {
@@ -101,6 +105,20 @@ enum Medien {
     private static func cacheURL(for id: String) -> URL {
         FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Lovea/medien/\(id)", isDirectory: false)
+    }
+
+    /// Copies a to-be-uploaded file into a stable location keyed by `id`/`rolle`, so re-running
+    /// `hochladen` for the same `id` (e.g. after a crash) resumes from here even if the original
+    /// picker/recording temp file is already gone.
+    private static func lokaleKopie(von quelle: URL, id: String, rolle: String) throws -> URL {
+        let ziel = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Lovea/medien/hochladen/\(id)-\(rolle)", isDirectory: false)
+        try FileManager.default.createDirectory(at: ziel.deletingLastPathComponent(), withIntermediateDirectories: true)
+        if quelle != ziel {
+            try? FileManager.default.removeItem(at: ziel)
+            try FileManager.default.copyItem(at: quelle, to: ziel)
+        }
+        return ziel
     }
 
     private static func pruefeErfolg(_ response: URLResponse) throws {
