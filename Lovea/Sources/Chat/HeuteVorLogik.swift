@@ -43,11 +43,10 @@ enum HeuteVorLogik {
 
     /// "ein Foto, eine Zeichnung oder eine Nachricht" — an ungelöschte, nicht-System/Spiel-Zeile mit
     /// Text oder einem Foto (eine geteilte Zeichnung kommt als Foto-Medium an, keine eigene Kennung).
-    /// Zeitkapseln bleiben bis zur Öffnung draußen; nicht gespeicherte Snaps sind flüchtig.
+    /// Nicht gespeicherte Snaps sind flüchtig.
     private static func istKandidat(_ n: ChatModell.Nachricht) -> Bool {
         guard !n.geloescht, n.system == nil, n.spiel == nil, n.einladung == nil else { return false }
         if let snap = n.snap, !(n.snapGespeichert || snap.bleibt) { return false }
-        if n.kapsel != nil, ChatModell.verschlossen(n) { return false }
         let hatFoto = n.medien.contains { $0.typ == "foto" }
         let hatText = !(n.text ?? "").isEmpty
         return hatFoto || hatText

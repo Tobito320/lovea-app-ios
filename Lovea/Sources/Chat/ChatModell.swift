@@ -36,15 +36,15 @@ final class ChatModell {
         var snapGespeichert = false
         /// Local chat line for a `zeichnung.einladung` (no own op, so no second push).
         var einladung: EinladungInfo?
-        // Z-27.2: optional, at the end so every existing labeled `Nachricht(...)` call above still
-        // compiles unchanged.
-        var kapsel: KapselInfo?
+        // Optional and at the end, so every existing labeled `Nachricht(...)` call still compiles.
         var brief: BriefInfo?
+        /// Z-33.3: every earlier text, oldest first, folded from all `nachricht.bearbeitet`.
+        var fassungen: [String] = []
+        /// Z-33.2: full-screen effect sent with the message (unknown raw values are dropped).
+        var effekt: ChatEffekt?
     }
 
     struct EinladungInfo: Sendable, Equatable { let zeichnungId: String; let name: String }
-    /// `oeffnetAm` is a "yyyy-MM-dd" day (schnittstellen.md), compared in Europe/Berlin — see `verschlossen(_:)`.
-    struct KapselInfo: Codable, Sendable, Equatable { let oeffnetAm: String }
     struct BriefInfo: Codable, Sendable, Equatable { let titel: String }
 
     // Blocks 5/6 extend these; fields already match the op payloads in schnittstellen.md.
@@ -64,6 +64,8 @@ final class ChatModell {
     private(set) var abschriften: [String: String] = [:]
 
     private var byID: [String: Nachricht] = [:]
+    /// Op ids of applied edits: the optimistic op and its echo share one id and must add one version.
+    private var bearbeitungen: Set<String> = []
     private let registrieren: Bool
 
     /// Z-26.2: per-person draft fold — only ever read back for `Raum.shared.ich`'s own person
@@ -108,17 +110,21 @@ final class ChatModell {
                 if let seq = op.seq { vorhanden.seq = seq }
                 byID[p.id] = vorhanden
             } else {
+                // A Runde-2 `kapsel` field is simply not decoded any more: the message shows like any other.
                 byID[p.id] = Nachricht(
                     id: p.id, von: op.von, zeit: op.zeit, seq: op.seq, text: p.text,
                     medien: p.medien ?? [], antwortAuf: p.antwortAuf, snap: p.snap,
                     gif: p.gif, sticker: p.sticker, spiel: p.spiel, system: p.system,
-                    kapsel: p.kapsel, brief: p.brief
+                    brief: p.brief, effekt: p.effekt.flatMap(ChatEffekt.init(rawValue:))
                 )
             }
         case "nachricht.bearbeitet":
-            guard let p = op.daten(BearbeitetPayload.self) else { return }
-            byID[p.id]?.text = p.text
-            byID[p.id]?.bearbeitet = true
+            // Time limits (Z-33.3) are UI-only; the fold still accepts every edit, old ones included.
+            guard let p = op.daten(BearbeitetPayload.self), var n = byID[p.id], bearbeitungen.insert(op.id).inserted else { return }
+            if let alt = n.text { n.fassungen.append(alt) }
+            n.text = p.text
+            n.bearbeitet = true
+            byID[p.id] = n
         case "nachricht.geloescht":
             guard let p = op.daten(IDPayload.self) else { return }
             if p.id.hasPrefix("umzug:zeichnung/") {
@@ -198,6 +204,15 @@ final class ChatModell {
         nachrichten.filter { $0.gesternt.contains(ich) && !$0.geloescht }
     }
 
+    func nachricht(_ id: String) -> Nachricht? { byID[id] }
+
+    /// Chat search (Block 18): ids of every visible message whose text contains `begriff`, oldest first.
+    func suchen(_ begriff: String) -> [String] {
+        let b = begriff.trimmingCharacters(in: .whitespaces)
+        guard !b.isEmpty else { return [] }
+        return nachrichten.filter { !$0.geloescht && ($0.text ?? "").localizedCaseInsensitiveContains(b) }.map(\.id)
+    }
+
     func ungelesen(fuer ich: Person) -> Int {
         let grenze = gelesenBis[ich] ?? .distantPast
         return nachrichten.filter { $0.von != ich && !$0.geloescht && $0.zeit > grenze && Self.sichtbar($0) }.count
@@ -223,27 +238,19 @@ final class ChatModell {
 
     // MARK: - Sending
 
-    func nachrichtSenden(text: String, antwortAuf: String? = nil) {
+    /// Z-33.2: the effect is decided here, on the sender's side, and travels as `effekt` — so a
+    /// receiver never replays trigger words found in old history.
+    func nachrichtSenden(text: String, antwortAuf: String? = nil, effekt: ChatEffekt? = nil) {
         let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !getrimmt.isEmpty else { return }
-        Raum.shared.senden("nachricht.neu", NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, antwortAuf: antwortAuf))
-    }
-
-    /// Z-27.2: Zeitkapsel — `oeffnetAm` ist der Öffnungstag (Europe/Berlin), verschlossen bis dahin.
-    /// Spec 9 "Nachricht, Foto oder Zeichnung": `medium` ist optional, Text oder Foto reicht.
-    func kapselSenden(text: String, oeffnetAm: Date, medium: MedienEintrag? = nil) {
-        let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !getrimmt.isEmpty || medium != nil else { return }
+        let gewaehlt = effekt ?? ChatEffekt.erkennen(getrimmt)
         Raum.shared.senden(
             "nachricht.neu",
-            NachrichtNeuPayload(
-                id: UUID().uuidString, text: getrimmt.isEmpty ? nil : getrimmt, medien: medium.map { [$0] },
-                kapsel: KapselInfo(oeffnetAm: Datum.text(oeffnetAm))
-            )
+            NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, antwortAuf: antwortAuf, effekt: gewaehlt?.rawValue)
         )
     }
 
-    /// Z-27.2: Liebesbrief — kein Verschluss-Datum, nur Siegel + Öffnen-Animation (`ChatNachrichtRow`).
+    /// Z-27.2: Liebesbrief — Siegel + Öffnen-Animation (`BriefBlase`).
     func briefSenden(titel: String, text: String) {
         let titelGetrimmt = titel.trimmingCharacters(in: .whitespacesAndNewlines)
         let textGetrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -252,20 +259,6 @@ final class ChatModell {
             "nachricht.neu",
             NachrichtNeuPayload(id: UUID().uuidString, text: textGetrimmt, brief: BriefInfo(titel: titelGetrimmt))
         )
-    }
-
-    /// Z-27.2 "ist sie schon offen": Kalendertag-Vergleich in Europe/Berlin (`Datum`, wie der Server
-    /// bei `kapselOeffnetZeit`), NICHT die genaue Uhrzeit — die Push kommt bewusst erst um 09:00,
-    /// aber die Kapsel selbst öffnet sich schon ab Mitternacht des Tages (Spec 9).
-    // `nonisolated`: pure (no `self`/instance state), called from non-MainActor call sites too —
-    // `HeuteVorLogik` (plain enum) and `ChatVorschau.inhalt` (plain enum) both call this.
-    nonisolated static func verschlossen(oeffnetAm: String, jetzt: Date = Date()) -> Bool {
-        Datum.tageZwischen(oeffnetAm, Datum.text(jetzt)) < 0
-    }
-
-    nonisolated static func verschlossen(_ n: Nachricht, jetzt: Date = Date()) -> Bool {
-        guard let kapsel = n.kapsel else { return false }
-        return verschlossen(oeffnetAm: kapsel.oeffnetAm, jetzt: jetzt)
     }
 
     func bearbeiten(_ id: String, text: String) {
@@ -278,6 +271,11 @@ final class ChatModell {
 
     func reagieren(_ id: String, emoji: String?) {
         Raum.shared.senden("nachricht.reaktion", ReaktionPayload(id: id, emoji: emoji))
+    }
+
+    /// Z-33.1: choosing the reaction you already set removes it (iMessage).
+    func reagierenUmschalten(_ nachricht: Nachricht, _ reaktion: Reaktion, ich: Person) {
+        reagieren(nachricht.id, emoji: nachricht.reaktionen[ich] == reaktion.wert ? nil : reaktion.wert)
     }
 
     /// Called when the chat is visible and there are unread partner messages (Z-4.6).
@@ -410,13 +408,6 @@ final class ChatModell {
         Raum.shared.senden("snap.aufnahme", SnapAufnahmePayload(id: id, art: art))
     }
 
-    /// Z-6.5: every sent snap (not views/saves/screenshots) feeds the streak. Recomputed on demand
-    /// — cheap enough for a two-person chat, no reason to cache it alongside `nachrichten`.
-    var streak: (tage: Int, laeuftAb: Bool) {
-        let snaps = nachrichten.compactMap { nachricht in nachricht.snap != nil ? (von: nachricht.von, zeit: nachricht.zeit) : nil }
-        return Streak.berechnen(snaps: snaps, jetzt: Date())
-    }
-
     // MARK: - ISO dates for `bis` fields (Op itself formats `zeit` the same way, but keeps that formatter private)
 
     private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
@@ -444,8 +435,8 @@ private struct NachrichtNeuPayload: Codable {
     var sticker: ChatModell.StickerInfo?
     var spiel: ChatModell.SpielInfo?
     var system: String?
-    var kapsel: ChatModell.KapselInfo?
     var brief: ChatModell.BriefInfo?
+    var effekt: String?
 }
 
 /// Z-26.2 draft content: text, already-uploaded photo/voice medien ids.

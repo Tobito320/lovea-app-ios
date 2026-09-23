@@ -48,7 +48,7 @@ final class ChatMedienTests: XCTestCase {
         XCTAssertEqual(Int(ergebnis.height) % 2, 0)
     }
 
-    // MARK: - MedienNachrichtView.bildGroesse (Z-26.3 bubble sizing)
+    // MARK: - MedienNachrichtView.bildGroesse (Z-33.4: 240 pt tall, 70 % wide, 3:4 window)
 
     func testBildGroesseFitsNormalAspectWithinBounds() {
         let g = MedienNachrichtView.bildGroesse(breite: 1600, hoehe: 1200, maxBreite: 300)
@@ -56,27 +56,36 @@ final class ChatMedienTests: XCTestCase {
         XCTAssertEqual(g.height, 225, accuracy: 0.5)
     }
 
-    func testBildGroesseCapsHeightAtMax() {
+    func testHoeherAls3zu4WirdZum3zu4Fenster() {
         let g = MedienNachrichtView.bildGroesse(breite: 900, hoehe: 1600, maxBreite: 300)
-        XCTAssertEqual(g.height, 320)
-        XCTAssertLessThanOrEqual(g.width, 300)
+        XCTAssertEqual(g.height, 240, "capped at 240 pt")
+        XCTAssertEqual(g.width, 180, accuracy: 0.5, "3:4 window, not the 9:16 sliver")
+        XCTAssertTrue(MedienNachrichtView.istHoch(breite: 900, hoehe: 1600))
     }
 
-    func testBildGroesseFloorsShortSideForExtremeTallRatio() {
+    func testGenau3zu4IstNichtHoch() {
+        XCTAssertFalse(MedienNachrichtView.istHoch(breite: 900, hoehe: 1200))
+        let g = MedienNachrichtView.bildGroesse(breite: 900, hoehe: 1200, maxBreite: 300)
+        XCTAssertEqual(g.height, 240)
+        XCTAssertEqual(g.width, 180, accuracy: 0.5)
+    }
+
+    func testExtremHochBleibt3zu4() {
         let g = MedienNachrichtView.bildGroesse(breite: 200, hoehe: 3000, maxBreite: 300)
-        XCTAssertEqual(g.height, 320, "capped at maxHoehe")
-        XCTAssertEqual(g.width, 140, "floored at minSeite rather than shrinking to a sliver")
+        XCTAssertEqual(g.height, 240)
+        XCTAssertEqual(g.width, 180, accuracy: 0.5)
     }
 
     func testBildGroesseFloorsShortSideForExtremeWideRatio() {
         let g = MedienNachrichtView.bildGroesse(breite: 3000, hoehe: 200, maxBreite: 300)
         XCTAssertEqual(g.width, 300, "capped at maxBreite")
-        XCTAssertEqual(g.height, 140, "floored at minSeite rather than shrinking to a sliver")
+        XCTAssertEqual(g.height, 120, "floored at minSeite rather than shrinking to a sliver")
     }
 
     func testBildGroesseFallsBackForMissingDimensions() {
         let g = MedienNachrichtView.bildGroesse(breite: 0, hoehe: 0, maxBreite: 300)
-        XCTAssertEqual(g, CGSize(width: 300, height: 320))
+        XCTAssertEqual(g, CGSize(width: 300, height: 240))
+        XCTAssertFalse(MedienNachrichtView.istHoch(breite: 0, hoehe: 0))
     }
 
     // MARK: - KlipyClient.parse (Z-5.3 GIF search/trends JSON)
