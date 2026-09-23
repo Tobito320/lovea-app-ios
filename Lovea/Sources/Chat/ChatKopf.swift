@@ -64,6 +64,7 @@ struct ChatKopf: View {
                 anrufKnopf(audio: true)
                 anrufKnopf(audio: false)
             }
+            .padding(.leading, 4)
             .padding(.trailing, 6)
             .frame(minHeight: 56)
             .glassEffect(.regular, in: .capsule)
