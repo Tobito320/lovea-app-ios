@@ -200,6 +200,64 @@ test("standort (fl): geht live bei jedem Update an den Partner, auch innerhalb d
   assert.equal(empfangen.length, 2);
 });
 
+// Hintergrund-Standort: der WebSocket ist nach ~30s Backgrounding zu, aber
+// CLLocationManager liefert weiter. POST /fl ist der Ersatz-Eingang.
+test("POST /fl: standort geht wie über den WebSocket an den Partner, wird gedrosselt geschrieben, prüft Zufällig nah", async () => {
+  const { raum, websockets } = raumMitVerbindung(["annika"]);
+  // annika ist schon ganz nah dran, per WebSocket gemeldet.
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0, lon: 7.0 } }));
+
+  const res = await raum.fetch(
+    new Request("https://x/fl", {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Lovea-Person": "ahmed" },
+      body: JSON.stringify({ art: "standort", d: { lat: 51.0005, lon: 7.0 } }), // ~56 m von annika entfernt
+    })
+  );
+  assert.equal(res.status, 204);
+
+  // Live an den Partner weitergeleitet, genau wie über den WebSocket.
+  const standortNachricht = websockets.annika.gesendet.find((m) => m.t === "standort" && m.person === "ahmed");
+  assert.deepEqual(standortNachricht?.d, { lat: 51.0005, lon: 7.0 });
+
+  // Zufällig-nah-Prüfung lief mit -- beide bekommen die System-Op.
+  assert.ok(websockets.annika.gesendet.some((m) => m.t === "ops" && m.ops[0]?.d?.system === "nah"));
+});
+
+test("POST /fl: nicht-standort wird als generisches fl an den Partner weitergeleitet, nicht gespeichert", async () => {
+  const { raum, websockets } = raumMitVerbindung(["annika"]);
+  const res = await raum.fetch(
+    new Request("https://x/fl", {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Lovea-Person": "ahmed" },
+      body: JSON.stringify({ art: "tippt", d: { an: true } }),
+    })
+  );
+  assert.equal(res.status, 204);
+  const fl = websockets.annika.gesendet.find((m) => m.t === "fl");
+  assert.deepEqual(fl, { t: "fl", von: "ahmed", art: "tippt", d: { an: true } });
+});
+
+test("POST /fl: ohne gültige Person 401, mit kaputtem Body 400", async () => {
+  const { raum } = raumMitVerbindung(["annika"]);
+  const ohnePerson = await raum.fetch(new Request("https://x/fl", { method: "POST", body: JSON.stringify({ art: "tippt", d: {} }) }));
+  assert.equal(ohnePerson.status, 401);
+
+  const kaputterBody = await raum.fetch(
+    new Request("https://x/fl", { method: "POST", headers: { "X-Lovea-Person": "ahmed" }, body: "kein json" })
+  );
+  assert.equal(kaputterBody.status, 400);
+
+  const fehlendesD = await raum.fetch(
+    new Request("https://x/fl", {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Lovea-Person": "ahmed" },
+      body: JSON.stringify({ art: "tippt" }),
+    })
+  );
+  assert.equal(fehlendesD.status, 400);
+});
+
 // Review-Fokus / Z-1.8: "an beide eine Op", nicht zwei separate Bubbles.
 test("Zufällig nah: genau eine Op an beide, laute Push nur einmal pro 6h", async () => {
   const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
