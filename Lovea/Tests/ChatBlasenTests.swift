@@ -29,6 +29,16 @@ final class ChatBlasenTests: XCTestCase {
         XCTAssertEqual(nieGelesen.offen?.id, "d")
     }
 
+    // Fix round 2: header place label.
+    func testOrtLabelKurzerNameSonstKategorie() {
+        XCTAssertEqual(ChatKopfLogik.ortLabel(name: "Home", kategorie: "zuhause"), "Home")
+        XCTAssertEqual(ChatKopfLogik.ortLabel(name: "Gym", kategorie: "gym"), "Gym")
+        XCTAssertEqual(ChatKopfLogik.ortLabel(name: "Berufskolleg Geilenkirchen", kategorie: "schule"), "Schule")
+        XCTAssertEqual(ChatKopfLogik.ortLabel(name: "Wohnung bei Mama und Papa", kategorie: "zuhause"), "Home")
+        XCTAssertEqual(ChatKopfLogik.ortLabel(name: "  ", kategorie: "arbeit"), "Arbeit")
+        XCTAssertEqual(ChatKopfLogik.ortLabel(name: "Oma", kategorie: "sonstiges"), "Oma")
+    }
+
     func testNurEmoji() {
         XCTAssertTrue(NachrichtBlase.nurEmoji("😂"))
         XCTAssertTrue(NachrichtBlase.nurEmoji("❤️ 😘"))
