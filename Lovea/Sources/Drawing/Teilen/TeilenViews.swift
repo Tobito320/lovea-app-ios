@@ -119,12 +119,11 @@ struct GemeinsamOverlay: View {
         .accessibilityHidden(true)
         .animation(.spring, value: hub.kuss)
         .overlay { emojiAuswahl }
-        .onChange(of: hub.stupser) { _, _ in
+        .task(id: hub.stupser) {
+            guard hub.stupser > 0 else { return }
             wackeln = true
-            Task {
-                try? await Task.sleep(for: .seconds(1.2))
-                wackeln = false
-            }
+            try? await Task.sleep(for: .seconds(1.2))
+            wackeln = false
         }
     }
 
@@ -173,6 +172,44 @@ private struct SchwebendesEmojiView: View {
             .onAppear {
                 withAnimation(.easeOut(duration: 2)) { oben = true }
             }
+    }
+}
+
+/// Chat line for `zeichnung.einladung` (Spec 10.1): who invited, and "Öffnen" for the partner.
+struct ZeichnungEinladungZeile: View {
+    let zeichnungId: String
+    let name: String
+    let von: Person
+    let ich: Person
+    @State private var offen = false
+
+    var body: some View {
+        VStack(spacing: 6) {
+            Label(
+                von == ich ? "Du hast zum Mitzeichnen an ‚\(name)‘ eingeladen" : "\(von.name) lädt dich zum Mitzeichnen an ‚\(name)‘ ein",
+                systemImage: "paintbrush.pointed"
+            )
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            if von != ich {
+                Button("Öffnen") { offen = true }
+                    .buttonStyle(.bordered)
+                    .frame(minHeight: 44)
+            }
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.vertical, 6)
+        .fullScreenCover(isPresented: $offen) {
+            NavigationStack {
+                GeteiltStudioView(zeichnungId: zeichnungId, person: ich)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarLeading) {
+                            Button("Schließen") { offen = false }
+                        }
+                    }
+            }
+        }
     }
 }
 
