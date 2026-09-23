@@ -66,17 +66,17 @@ final class SnapKameraSteuerung: NSObject {
         }
     }
 
-    /// Starts the session ahead of time, once the chat becomes visible (Z-26.5) — silent: no
+    /// Configures the session ahead of time, once the chat becomes visible (Z-26.5) — silent: no
     /// permission prompt (that would pop the camera dialog just from opening the chat), so this
     /// only fires once the OS already granted access. `start()` still runs the real (possibly
     /// prompting) setup the moment the camera UI actually opens; if this already warmed the
     /// session, that call is then a no-op besides the figure-state signal.
+    // Configures only, never runs: a running session keeps the green camera indicator on (and
+    // drains battery) for as long as the chat is open. The expensive part is the configuration.
     func vorwaermen() async {
-        guard !laeuft, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        guard !konfiguriert, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
         konfigurieren()
-        laeuft = true
-        let box = SessionBox(session: session)
-        sessionSchlange.async { box.session.startRunning() }
+        konfiguriert = true
     }
 
     /// Full open (Z-6.1, possibly prompting): reuses an already-warm session as-is, then always
@@ -84,8 +84,11 @@ final class SnapKameraSteuerung: NSObject {
     /// pre-Z-26.5 behavior of setting it up at camera-open time) before signaling `.kamera`.
     func start() async {
         if !laeuft {
-            guard await berechtigung() else { return }
-            konfigurieren()
+            if !konfiguriert {
+                guard await berechtigung() else { return }
+                konfigurieren()
+                konfiguriert = true
+            }
             laeuft = true
             let box = SessionBox(session: session)
             sessionSchlange.async { box.session.startRunning() }
@@ -97,6 +100,8 @@ final class SnapKameraSteuerung: NSObject {
         }
         FigurenModell.shared.zustandSenden(.init(haupt: .kamera))
     }
+
+    private var konfiguriert = false
 
     private func konfigurieren() {
         session.beginConfiguration()
