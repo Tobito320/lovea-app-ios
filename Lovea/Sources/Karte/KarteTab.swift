@@ -122,7 +122,7 @@ struct KarteTab: View {
                 .font(.title3)
                 .frame(width: 44, height: 44)
         }
-        .glassEffect(.regular.interactive(), in: .circle)
+        .glassEffect(.clear.interactive(), in: .circle)
         .accessibilityLabel(label)
     }
 
