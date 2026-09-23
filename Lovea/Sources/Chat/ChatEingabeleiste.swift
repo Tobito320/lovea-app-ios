@@ -85,6 +85,7 @@ struct ChatEingabeleiste: View {
         VStack(spacing: 8) {
             if let antwortAuf {
                 ZitatLeiste(nachricht: antwortAuf, ich: ich) { self.antwortAuf = nil }
+                    .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             if !anhaenge.isEmpty {
                 AnhangLeiste(anhaenge: $anhaenge, onAendert: { beruehrt = true; entwurfAktualisieren() }) { anhang in
@@ -99,11 +100,17 @@ struct ChatEingabeleiste: View {
             if let effekt, !plusOffen { effektChip(effekt) }
             reihe
         }
+        // Lives in the conversation's bottom safe-area inset, which proposes the whole screen height:
+        // every piece takes only its own height (a greedy child filled the screen before).
+        .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
         .animation(Feder.schnell, value: anhaenge.count)
         .animation(Feder.federnd, value: plusOffen)
         .animation(Feder.schnell, value: effekt)
+        .animation(Feder.schnell, value: antwortAuf?.id)
+        // Replying opens the keyboard, like iMessage.
+        .onChange(of: antwortAuf?.id) { _, neu in if neu != nil { feldHandle.fokussieren() } }
         .onChange(of: fotoAuswahl) { _, neu in uebernehmen(neu) }
         .photosPicker(isPresented: $fotosOffen, selection: $fotoAuswahl, maxSelectionCount: 20, selectionBehavior: .ordered, matching: .any(of: [.images, .videos]))
         .modifier(Blaetter(
@@ -598,6 +605,7 @@ private struct AnhangLeiste: View {
             .padding(.top, 16)
             .padding(.trailing, 12)
         }
+        .frame(height: 84)
     }
 
     private func verschieben(_ ziehID: UUID, vor zielID: UUID) {
@@ -791,22 +799,28 @@ private struct ZitatLeiste: View {
     let onAbbrechen: () -> Void
 
     var body: some View {
-        HStack {
-            Rectangle().fill(Color.person(nachricht.von)).frame(width: 3)
+        // Fix round 2: the accent line had no height of its own and, inside the bottom inset (unbounded
+        // height), filled the whole screen. Fixed height now, one line of text, capped bar.
+        HStack(spacing: 10) {
+            Capsule().fill(Color.person(nachricht.von)).frame(width: 3, height: 32)
             VStack(alignment: .leading, spacing: 1) {
-                Text(nachricht.von == ich ? "Du" : nachricht.von.name).font(.caption.bold())
-                Text(ChatVorschau.inhalt(nachricht)).font(.caption).lineLimit(1)
+                Text(nachricht.von == ich ? "Antwort auf deine Nachricht" : "Antwort an \(nachricht.von.name)")
+                    .font(.caption.bold())
+                    .foregroundStyle(Color.person(nachricht.von))
+                Text(ChatVorschau.inhalt(nachricht)).font(.caption).foregroundStyle(.secondary).lineLimit(1)
             }
-            Spacer()
+            Spacer(minLength: 0)
             Button { onAbbrechen() } label: { Image(systemName: "xmark.circle.fill").frame(width: 44, height: 44).contentShape(.rect) }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
                 .accessibilityLabel("Antwort abbrechen")
         }
         .padding(.leading, 12)
-        .padding(.vertical, 2)
+        .frame(maxHeight: 56)
+        .fixedSize(horizontal: false, vertical: true)
         .glassEffect(.regular, in: .rect(cornerRadius: 18))
         .padding(.horizontal, 2)
+        .accessibilityElement(children: .contain)
     }
 }
 
