@@ -18,16 +18,20 @@ private final class KameraSitzung: @unchecked Sendable {
     private var kamera: AVCaptureDeviceInput?
     private var mikro: AVCaptureDeviceInput?
 
-    /// Configures once, then runs. Idempotent.
+    /// Inputs and outputs ready, not running (no camera dot). Idempotent.
+    func konfigurieren(_ position: AVCaptureDevice.Position) {
+        guard kamera == nil else { return }
+        session.beginConfiguration()
+        session.sessionPreset = .high
+        kameraSetzen(position)
+        if session.canAddOutput(foto) { session.addOutput(foto) }
+        if session.canAddOutput(film) { session.addOutput(film) }
+        session.commitConfiguration()
+    }
+
+    /// Configures if still needed, then runs. Returns once frames flow. Idempotent.
     func starten(_ position: AVCaptureDevice.Position) {
-        if kamera == nil {
-            session.beginConfiguration()
-            session.sessionPreset = .high
-            kameraSetzen(position)
-            if session.canAddOutput(foto) { session.addOutput(foto) }
-            if session.canAddOutput(film) { session.addOutput(film) }
-            session.commitConfiguration()
-        }
+        konfigurieren(position)
         if !session.isRunning { session.startRunning() }
     }
 
@@ -102,6 +106,9 @@ final class SnapKameraSteuerung: NSObject {
     var session: AVCaptureSession { sitzung.session }
 
     private(set) var laeuft = false
+    /// True once `startRunning` returned (frames flow); the preview fades in on it.
+    private(set) var bildDa = false
+    private var vorbereitet = false
     private(set) var nimmtVideoAuf = false
     private(set) var videoFortschritt: Double = 0 // 0...1 of the 30s cap
     var blitzAn = false
@@ -115,8 +122,8 @@ final class SnapKameraSteuerung: NSObject {
     private var fortschrittTask: Task<Void, Never>?
     private var aufnahmeStart: Date?
 
-    /// Shared instance (Z-26.5): the conversation prewarms it, `SnapKameraView` reuses the
-    /// already-running session, so opening the camera has nothing left to wait for.
+    /// Shared instance (Z-26.5): the conversation configures it ahead of time, `SnapKameraView`
+    /// reuses that session and only has to start it running.
     static let geteilt = SnapKameraSteuerung()
 
     // MARK: - Warm hold (Z-26.5)
@@ -127,7 +134,8 @@ final class SnapKameraSteuerung: NSObject {
     /// Ref-counted: the conversation view and the camera view each call this on appear/`loslassen()`
     /// on disappear. Needed because a `fullScreenCover` opening over the conversation re-fires ITS
     /// `onDisappear` too — without the counter and the grace period in `loslassen()`, that
-    /// transition would stop the very session the camera view is about to reuse.
+    /// transition could stop the session the camera view is just starting. The camera closing itself
+    /// stops at once (`kameraVerlassen()`); the hold only covers these hand-overs.
     func halten() {
         haltungen += 1
         abkuehlTask?.cancel()
@@ -144,15 +152,17 @@ final class SnapKameraSteuerung: NSObject {
         }
     }
 
-    /// Z-34.4: runs the session as soon as the chat is visible, so the viewfinder is live before
-    /// the camera's open animation ends. Silent: only once access was granted, never a prompt
-    /// just from opening the chat. Idempotent. (Running means the green camera dot shows.)
+    /// Z-34.4: configures the session (inputs and outputs, the slow part) as soon as the chat is
+    /// visible, but does not run it: no green camera dot while chatting. Silent: only once access
+    /// was granted, never a prompt just from opening the chat. Idempotent.
     func vorwaermen() async {
-        guard AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
-        laufenLassen()
+        guard !vorbereitet, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        vorbereitet = true
+        let sitzung = sitzung, position = position
+        sessionSchlange.async { sitzung.konfigurieren(position) }
     }
 
-    /// Camera UI opening (Z-6.1): may prompt, then runs the (usually already warm) session.
+    /// Camera UI opening (Z-6.1): may prompt, then runs the (usually already configured) session.
     func start() async {
         // After the prompt: only if the camera is still wanted, else this start would land after a stop.
         guard await berechtigung(), !Task.isCancelled, haltungen > 0 else { return }
@@ -163,25 +173,34 @@ final class SnapKameraSteuerung: NSObject {
     private func laufenLassen() {
         guard !laeuft else { return }
         laeuft = true
+        vorbereitet = true
         if geraet == nil { geraet = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) }
         let sitzung = sitzung, position = position
-        sessionSchlange.async { sitzung.starten(position) }
+        sessionSchlange.async {
+            sitzung.starten(position)
+            Task { @MainActor in self.bildBereit() }
+        }
     }
 
-    /// The camera UI itself closing, as opposed to the session merely staying warm for the chat:
-    /// the mic goes right away (a warm session must never keep recording audio) and `.imChat` is
-    /// signaled immediately instead of after `loslassen()`'s grace period.
+    /// A stop requested meanwhile wins: the queue already stopped the session again.
+    private func bildBereit() {
+        guard laeuft else { return }
+        bildDa = true
+    }
+
+    /// The camera UI closing: the session stops right away (camera dot off, mic gone) and
+    /// `.imChat` is signaled. The configuration stays, so the next open only has to start running.
     func kameraVerlassen() {
-        let sitzung = sitzung
-        sessionSchlange.async { sitzung.mikroWeg() }
+        stop()
         FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
         loslassen()
     }
 
-    /// Only ever stops the session — no figure-state signal (`kameraVerlassen()` sent that already).
+    /// Stops running (mic removed first); the configuration stays. No figure-state signal.
     func stop() {
         guard laeuft else { return }
         laeuft = false
+        bildDa = false
         let sitzung = sitzung
         sessionSchlange.async { sitzung.stoppen() }
     }
@@ -337,8 +356,8 @@ struct SnapKameraView: View {
     let onVideo: (URL) -> Void
     let onAbbrechen: () -> Void
 
-    // Z-26.5: the conversation's own shared instance — reused so a prewarmed session is already
-    // running by the time this view appears.
+    // Z-26.5/Z-34.4: the conversation's shared instance, already configured, so this view only
+    // has to start it running.
     @State private var steuerung = SnapKameraSteuerung.geteilt
     @State private var modus: Modus = .ruhe
     @State private var zoomStart: CGFloat = 1
@@ -350,6 +369,8 @@ struct SnapKameraView: View {
         ZStack {
             KameraVorschau(session: steuerung.session)
                 .ignoresSafeArea()
+                .opacity(steuerung.bildDa ? 1 : 0) // fades in with the first frames, no black flash
+                .animation(Feder.weich, value: steuerung.bildDa)
                 .gesture(
                     MagnificationGesture()
                         .onChanged { wert in steuerung.zoomSetzen(zoomStart * wert) }
