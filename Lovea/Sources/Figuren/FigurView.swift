@@ -530,8 +530,8 @@ private struct Zeichner {
 
     var ausschnitt: Int {
         switch oberteil {
-        case 2, 12, 13: 1
-        case 4, 8, 11: 2
+        case 2, 12, 13, 20, 25: 1
+        case 4, 8, 11, 18: 2
         default: 0
         }
     }
@@ -583,7 +583,7 @@ private struct Zeichner {
             }
             oberteilDetails(k, h)
             koerperDetails(h, nackt: false)
-            if [7, 12, 13].contains(oberteil) { linie(k, form, top.kontur, 3.5) }
+            if Self.konturNachMuster.contains(oberteil) { linie(k, form, top.kontur, 3.5) }
         }
         if jacke > 0 { jackeZeichnen(k, form: rumpf(0), oben: 161, unten: 240, s: 1) }
     }
@@ -741,8 +741,124 @@ private struct Zeichner {
             }
             teil(g, schleife, top.mal(0.85), 2)
             teil(g, gespiegelt(schleife), top.mal(0.85), 2)
+        case 17...26:
+            markenOberteil(g, h)
         default:
             break
+        }
+    }
+
+    /// Tops whose pattern runs over the torso edge, so the outline is drawn again on top.
+    static let konturNachMuster: Set<Int> = [7, 12, 13, 18, 24, 25]
+
+    /// Z-39.1/Z-39.2 brand tops, same spaces as `oberteilDetails` (`h` clipped to the torso).
+    func markenOberteil(_ g: GraphicsContext, _ h: GraphicsContext) {
+        let hell = top.mix(Pal.weiss, 0.75)
+        switch oberteil {
+        case 17:
+            // H&M: plain tee, red logo on the chest.
+            text(g, "H&M", P(126, 204), 11, FigurFarbe(0xE50010).farbe)
+        case 18:
+            // Zara: fitted rib knit with a square neck.
+            for x in stride(from: CGFloat(34), to: 170, by: 7) { linie(h, strich(P(x, 150), P(x, 320)), top.kontur.opacity(0.22), 1.4) }
+        case 19, 26:
+            let kapuze = bogen(P(70, 164), P(130, 164), P(100, 196))
+            linie(g, kapuze, top.kontur, 13)
+            linie(g, kapuze, top.mal(0.88).farbe, 8.5)
+            if oberteil == 19 {
+                // Nike Tech Fleece: center zip, chest zip pocket, curved panel seams, swoosh.
+                linie(h, strich(P(100, 190), P(100, 320)), Pal.silber.farbe, 2.5)
+                linie(h, strich(P(62, 212), P(84, 200)), top.kontur, 2)
+                teil(g, box(84, 197, 3, 6, 1), Pal.silber, 0.8)
+                for seite in [CGFloat(-1), 1] { linie(h, bogen(P(100 + seite * 66, 190), P(100 + seite * 40, 300), P(100 + seite * 34, 240)), top.kontur.opacity(0.5), 1.6) }
+                swoosh(g, P(128, 206), 0.9, hell.farbe)
+            } else {
+                // Balenciaga: oversized hoodie with the wordmark across the chest.
+                text(g, "BALENCIAGA", P(100, 222), 9, hell.farbe)
+            }
+        case 20:
+            // Nike jersey: trim-colored V collar, swoosh right, crest left (Brazil green on yellow).
+            let v = Path { p in
+                p.move(to: P(86, 161))
+                p.addLine(to: P(100, 186))
+                p.addLine(to: P(114, 161))
+            }
+            linie(g, v, trikotBesatz.kontur, 6)
+            linie(g, v, trikotBesatz.farbe, 4)
+            swoosh(g, P(74, 204), 0.8, trikotBesatz.farbe)
+            let wappen = Path { p in
+                p.move(to: P(118, 196))
+                p.addLine(to: P(134, 196))
+                p.addLine(to: P(134, 206))
+                p.addQuadCurve(to: P(126, 214), control: P(134, 212))
+                p.addQuadCurve(to: P(118, 206), control: P(118, 212))
+                p.closeSubpath()
+            }
+            teil(g, wappen, FigurFarbe(0x2C5DB0), 1.5)
+            g.fill(kreis(P(126, 204), 2.6), with: .color(Pal.gelb.farbe))
+        case 21:
+            // Puma: leaping cat over the wordmark.
+            let katze = Path { p in
+                p.move(to: P(84, 212))
+                p.addQuadCurve(to: P(108, 200), control: P(94, 198))
+                p.addLine(to: P(114, 194))
+                p.addLine(to: P(116, 200))
+                p.addQuadCurve(to: P(104, 210), control: P(112, 206))
+                p.addQuadCurve(to: P(88, 216), control: P(96, 214))
+                p.closeSubpath()
+            }
+            g.fill(katze, with: .color(hell.farbe))
+            linie(g, bogen(P(84, 212), P(76, 222), P(78, 214)), hell.farbe, 2)
+            text(g, "PUMA", P(100, 228), 10, hell.farbe)
+        case 22:
+            // Stüssy: the hand-written script logo.
+            g.draw(Text("Stüssy").font(.custom("SnellRoundhand-Black", size: 17)).foregroundStyle(hell.farbe), at: P(100, 210))
+        case 23:
+            // Gucci: green-red-green web band across the chest.
+            h.fill(box(20, 200, 160, 10), with: .color(FigurFarbe(0x1F7A45).farbe))
+            h.fill(box(20, 203, 160, 4), with: .color(FigurFarbe(0xC8283F).farbe))
+            text(g, "GUCCI", P(100, 190), 8, top.kontur)
+        case 24:
+            // Dior Oblique: diagonal jacquard lines and the wordmark.
+            for x in stride(from: CGFloat(-40), to: 200, by: 12) {
+                linie(h, strich(P(x, 330), P(x + 170, 150)), hell.farbe.opacity(0.35), 2)
+            }
+            text(g, "DIOR", P(100, 212), 11, hell.farbe)
+        case 25:
+            // Louis Vuitton: monogram flowers in gold on brown, shirt collar and buttons.
+            let gold = FigurFarbe(0xD8B46A).farbe
+            for y in stride(from: CGFloat(178), to: 320, by: 16) {
+                let versatz: CGFloat = Int((y - 178) / 16) % 2 == 0 ? 0 : 9
+                for x in stride(from: CGFloat(30) + versatz, to: 172, by: 18) { h.fill(funkel(P(x, y), 4), with: .color(gold)) }
+            }
+            hemdKragen(g)
+        default:
+            break
+        }
+    }
+
+    /// Nike swoosh centered at `c`, `s` scales it.
+    func swoosh(_ g: GraphicsContext, _ c: CGPoint, _ s: CGFloat, _ farbe: Color) {
+        let p = Path { p in
+            p.move(to: P(c.x - 9 * s, c.y - 1 * s))
+            p.addQuadCurve(to: P(c.x + 11 * s, c.y - 6 * s), control: P(c.x - 6 * s, c.y + 8 * s))
+            p.addQuadCurve(to: P(c.x - 9 * s, c.y - 1 * s), control: P(c.x - 5 * s, c.y + 4 * s))
+            p.closeSubpath()
+        }
+        g.fill(p, with: .color(farbe))
+    }
+
+    /// Adidas trefoil: three leaves over three bars.
+    func kleeblatt(_ g: GraphicsContext, _ c: CGPoint, _ s: CGFloat, _ farbe: Color) {
+        for (dx, grad) in [(CGFloat(-4.5), -38.0), (0, 0), (4.5, 38)] {
+            var h = g
+            h.translateBy(x: c.x + dx * s, y: c.y + abs(dx) * 0.3 * s)
+            h.rotate(by: .degrees(grad))
+            h.fill(oval(P(0, -4 * s), 2.6 * s, 4.6 * s), with: .color(farbe))
+        }
+        for i in 0..<3 {
+            let y: CGFloat = c.y + (2 + CGFloat(i) * 2) * s
+            linie(g, strich(P(c.x - 7 * s, y), P(c.x + 7 * s, y)), farbe, 0.9 * s)
         }
     }
 
@@ -750,8 +866,10 @@ private struct Zeichner {
     /// `s` scales details (1 in the half figure, smaller on the full-body torso).
     func jackeZeichnen(_ g: GraphicsContext, form: Path, oben: CGFloat, unten: CGFloat, s: CGFloat) {
         let f = jackeF
-        let innenO: CGFloat = 100 - 12 * s
-        let innenU: CGFloat = 100 - 20 * s
+        // Zipped jackets (Adidas, The North Face, Moncler) close in the middle.
+        let zu = [8, 9, 11].contains(jacke)
+        let innenO: CGFloat = zu ? 100 : 100 - 12 * s
+        let innenU: CGFloat = zu ? 100 : 100 - 20 * s
         let links = Path { p in
             p.move(to: P(-20, oben - 60))
             p.addLine(to: P(innenO, oben - 60))
@@ -839,6 +957,93 @@ private struct Zeichner {
             linie(g, bund, f.mal(0.75).farbe, 6.5 * s)
             teil(innen, box(0, unten - 12 * s, 200, 40), f.mal(0.75), 2)
             teil(g, kreis(P(100, oben + 6 * s), 4 * s), Pal.gold, 1.5)
+        case 8...13:
+            markenJacke(g, innen, oben: oben, unten: unten, s: s)
+        default:
+            break
+        }
+    }
+
+    /// Z-39.1/Z-39.2 brand jackets. `innen` is clipped to the torso, `s` scales the details.
+    func markenJacke(_ g: GraphicsContext, _ innen: GraphicsContext, oben: CGFloat, unten: CGFloat, s: CGFloat) {
+        let f = jackeF
+        let brustR = P(100 + 26 * s, oben + 38 * s)
+        switch jacke {
+        case 8:
+            // Adidas track jacket (stripes on the sleeves come with the arms): stand collar, zip, trefoil.
+            let kragen = bogen(P(100 - 24 * s, oben + 1), P(100 + 24 * s, oben + 1), P(100, oben + 12 * s))
+            linie(g, kragen, f.kontur, 9 * s)
+            linie(g, kragen, Pal.weiss.farbe, 6 * s)
+            linie(innen, strich(P(100, oben), P(100, unten)), Pal.silber.farbe, 2.2 * s)
+            kleeblatt(g, brustR, 1.1 * s, Pal.weiss.farbe)
+        case 9, 11:
+            // The North Face Nuptse (black shoulders, half-dome patch) and Moncler Maya (glossy, tricolore patch).
+            if jacke == 9 { innen.fill(box(0, oben - 20, 200, 30 * s + 20), with: .color(Pal.dunkel.farbe)) }
+            for i in 0..<8 {
+                let y: CGFloat = oben + (26 + CGFloat(i) * 19) * s
+                linie(innen, bogen(P(0, y), P(200, y), P(100, y + 7 * s)), f.kontur, 2.2)
+                if jacke == 11 { linie(innen, bogen(P(20, y - 8 * s), P(180, y - 8 * s), P(100, y - 2 * s)), .white.opacity(0.28), 3 * s) }
+            }
+            linie(innen, strich(P(100, oben), P(100, unten)), Pal.silber.farbe, 2 * s)
+            let kragen = bogen(P(100 - 22 * s, oben + 2), P(100 + 22 * s, oben + 2), P(100, oben + 10 * s))
+            linie(g, kragen, f.kontur, 11 * s)
+            linie(g, kragen, (jacke == 9 ? Pal.dunkel : f).farbe, 8 * s)
+            if jacke == 9 {
+                teil(g, box(brustR.x - 8 * s, brustR.y - 5 * s, 16 * s, 10 * s, 2 * s), Pal.dunkel, 1.2)
+                for r in [CGFloat(2), 3.6, 5.2] {
+                    linie(g, Path { p in p.addArc(center: P(brustR.x, brustR.y + 3 * s), radius: r * s, startAngle: .degrees(200), endAngle: .degrees(340), clockwise: false) }, .white, 0.9 * s)
+                }
+            } else {
+                let patch = kreis(brustR, 6 * s)
+                teil(g, patch, Pal.weiss, 1.2)
+                var p = g
+                p.clip(to: patch)
+                p.fill(box(brustR.x - 6 * s, brustR.y - 6 * s, 4 * s, 12 * s), with: .color(FigurFarbe(0x2C4FA8).farbe))
+                p.fill(box(brustR.x + 2 * s, brustR.y - 6 * s, 4 * s, 12 * s), with: .color(FigurFarbe(0xC8283F).farbe))
+            }
+        case 10:
+            // Carhartt Detroit jacket: corduroy collar, chest pocket with the square label.
+            let kragen = Path { p in
+                p.move(to: P(100 - 12 * s, oben))
+                p.addLine(to: P(100 - 34 * s, oben - 4 * s))
+                p.addLine(to: P(100 - 26 * s, oben + 22 * s))
+                p.closeSubpath()
+            }
+            let kord = FigurFarbe(0x4A3222)
+            teil(g, kragen, kord, 2)
+            teil(g, gespiegelt(kragen), kord, 2)
+            let tasche = box(brustR.x - 10 * s, brustR.y - 8 * s, 20 * s, 18 * s, 2 * s)
+            teil(innen, tasche, f.mal(0.93), 1.6)
+            teil(g, box(brustR.x - 4 * s, brustR.y - 6 * s, 8 * s, 8 * s, 1.2 * s), FigurFarbe(0xE3A33A), 1)
+            linie(g, strich(P(brustR.x - 1.5 * s, brustR.y - 2 * s), P(brustR.x + 1.5 * s, brustR.y - 2 * s)), Pal.tinte.farbe, 1.2 * s)
+        case 12:
+            // Chanel tweed: bouclé dots, braided trim along the front edges, gold buttons, CC.
+            for y in stride(from: oben, to: unten + 20, by: 6 * s) {
+                for x in stride(from: CGFloat(24), to: 180, by: 6 * s) {
+                    let dx: CGFloat = Int((y - oben) / (6 * s)) % 2 == 0 ? 0 : 3 * s
+                    innen.fill(kreis(P(x + dx, y), 1.1 * s), with: .color(f.kontur.opacity(0.35)))
+                }
+            }
+            let kante = strich(P(100 - 12 * s, oben), P(100 - 20 * s, unten))
+            linie(g, kante, Pal.tinte.farbe, 4 * s)
+            linie(g, kante, Pal.weiss.farbe, 2 * s)
+            linie(g, gespiegelt(kante), Pal.tinte.farbe, 4 * s)
+            linie(g, gespiegelt(kante), Pal.weiss.farbe, 2 * s)
+            for i in 0..<3 { teil(g, kreis(P(100 - 26 * s, oben + (34 + CGFloat(i) * 22) * s), 3 * s), Pal.gold, 1) }
+            chanelCC(g, brustR, 3.4 * s)
+        case 13:
+            // Prada Re-Nylon: glossy black nylon with the silver triangle plaque.
+            for seite in [CGFloat(-1), 1] {
+                linie(innen, strich(P(100 + seite * 44 * s, oben + 30 * s), P(100 + seite * 44 * s, unten - 10)), .white.opacity(0.18), 4 * s)
+            }
+            let dreieck = Path { p in
+                p.move(to: P(brustR.x - 8 * s, brustR.y - 5 * s))
+                p.addLine(to: P(brustR.x + 8 * s, brustR.y - 5 * s))
+                p.addLine(to: P(brustR.x, brustR.y + 6 * s))
+                p.closeSubpath()
+            }
+            teil(g, dreieck, Pal.silber, 1.2)
+            linie(g, strich(P(100 - 12 * s, oben + 4), P(100 - 20 * s, unten - 4)), Pal.silber.farbe, 2 * s)
         default:
             break
         }
@@ -1309,6 +1514,14 @@ private struct Zeichner {
             // Backenbart mit Schnurrbart: sideburns connected to the mustache, no chin.
             for x in [CGFloat(42), 146] { h.fill(box(x, 80, 14, 46, 4), with: .color(haar.farbe)) }
             teil(h, schnurr, haar, 2)
+        case 13:
+            // Feiner Schnurrbart (Ahmed's Bitmoji): thin, with little curled tips.
+            for seite in [CGFloat(-1), 1] {
+                let oberlippe = bogen(P(100, 123.5), P(100 + seite * 16, 127), P(100 + seite * 8, 120.5))
+                let spitze = bogen(P(100 + seite * 16, 127), P(100 + seite * 20, 121.5), P(100 + seite * 21, 127.5))
+                linie(h, oberlippe, haar.farbe, 3.2)
+                linie(h, spitze, haar.farbe, 2.2)
+            }
         default:
             for x in [CGFloat(42), 146] { h.fill(box(x, 80, 12, 40, 4), with: .color(haar.farbe)) }
         }
@@ -2746,6 +2959,7 @@ extension Zeichner {
         switch hose {
         case 0, 2: return FigurFarbe(0x9DB8D9)
         case 1: return FigurFarbe(0x34507A)
+        case 13: return FigurFarbe(0x4B6C98) // Levi's 501, mid blue wash
         default: return hoseF
         }
     }
@@ -2803,8 +3017,9 @@ extension Zeichner {
         let breiten: (CGFloat, CGFloat, CGFloat)
         switch hose {
         case 2: breiten = (0.64, 0.6, 0.84)
-        case 4: breiten = (0.66, 0.56, 0.42)
-        case 9: breiten = (0.54, 0.42, 0.34)
+        case 4, 14: breiten = (0.66, 0.56, 0.42)
+        case 9, 15: breiten = (0.54, 0.42, 0.34)
+        case 12: breiten = (0.64, 0.56, 0.5)
         default: breiten = (0.62, 0.5, 0.45)
         }
         let teile = [l, r].map { beinPfad($0, b * breiten.0, b * breiten.1, b * breiten.2) }
@@ -2834,6 +3049,8 @@ extension Zeichner {
             // Anzughose: crease line plus a thin belt at the waist.
             for bn in [l, r] { linie(g, strich(P(bn.h.x, bn.h.y + 14), P(bn.f.x, bn.f.y - 4)), farbe.kontur.opacity(0.4), 1.2) }
             linie(g, strich(P(100 - m.h, hy - 8), P(100 + m.h, hy - 8)), Pal.dunkel.farbe, 3)
+        case 12...15:
+            markenHose(g, seiten, m, hy)
         case 11:
             // Glitzerhose: scattered sparkles over the whole leg.
             for i in 0..<10 {
@@ -2841,6 +3058,46 @@ extension Zeichner {
                 let y = bn.h.y + CGFloat(i) * 8 + 6
                 g.fill(funkel(P(bn.h.x + (i % 3 == 0 ? -6 : 6), y), 2.5), with: .color(.white.opacity(0.8)))
             }
+        default:
+            break
+        }
+    }
+
+    /// Z-39.1 brand pants: Adidas three stripes, Levi's 501 button fly and red tab, Nike Tech Fleece
+    /// cuffs and swoosh, Puma leggings side stripe.
+    func markenHose(_ g: GraphicsContext, _ seiten: [(bein: Bein, seite: CGFloat)], _ m: Masse, _ hy: CGFloat) {
+        let b = m.bein
+        let farbe = hosenFarbe
+        let linksOben = seiten[0].bein.h
+        let rechtsOben = seiten[1].bein.h
+        switch hose {
+        case 12:
+            for s in seiten {
+                let oben = P(s.bein.h.x + s.seite * b * 0.46, s.bein.h.y + 6)
+                let unten = P(s.bein.f.x + s.seite * b * 0.36, s.bein.f.y - 4)
+                dreiStreifen(g, oben, unten, 0.55)
+            }
+        case 13:
+            for i in 0..<3 { g.fill(kreis(P(100, hy - 2 + CGFloat(i) * 6), 1.1), with: .color(Pal.gold.farbe)) }
+            g.fill(box(linksOben.x - b * 0.62, hy + 2, 3, 5, 1), with: .color(FigurFarbe(0xC8283F).farbe))
+            for s in seiten {
+                let naht = bogen(P(s.bein.h.x - s.seite * 2, hy - 4), P(s.bein.h.x + s.seite * b * 0.6, hy + 8), P(s.bein.h.x + s.seite * 2, hy + 8))
+                linie(g, naht, FigurFarbe(0xE3A33A).farbe.opacity(0.8), 1)
+            }
+        case 14:
+            for s in seiten {
+                let f = s.bein.f
+                teil(g, box(f.x - b * 0.44, f.y - 9, b * 0.88, 9, 3.5), farbe.mal(0.85), 2)
+            }
+            swoosh(g, P(linksOben.x, linksOben.y + 16), 0.5, farbe.mix(Pal.weiss, 0.8).farbe)
+            linie(g, strich(P(rechtsOben.x + 2, rechtsOben.y + 10), P(rechtsOben.x + 6, rechtsOben.y + 22)), farbe.kontur, 1.2)
+        case 15:
+            for s in seiten {
+                let oben = P(s.bein.h.x + s.seite * b * 0.5, s.bein.h.y + 4)
+                let unten = P(s.bein.f.x + s.seite * b * 0.3, s.bein.f.y - 6)
+                linie(g, strich(oben, unten), .white.opacity(0.85), 1.6)
+            }
+            g.fill(kreis(P(rechtsOben.x + 2, hy + 8), 1.8), with: .color(.white))
         default:
             break
         }
@@ -2891,6 +3148,40 @@ extension Zeichner {
             teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
             teil(g, box(x - 12, y - 5, 11, 15, 7), c.mix(Pal.weiss, 0.35), 2)
             g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
+        case 10:
+            // Nike Air Force 1: chunky upper, thick white cupsole, swoosh, perforated toe.
+            teil(g, box(x - 13, y - 6, 26, 14, 7), c, 3)
+            teil(g, box(x - 14, y + 4, 28, 7, 3), Pal.weiss, 2)
+            linie(g, strich(P(x - 13, y + 7.5), P(x + 13, y + 7.5)), Pal.silber.farbe, 1)
+            swoosh(g, P(x + 1, y + 1), 0.55, hell ? Pal.silber.mal(0.9).farbe : Pal.weiss.farbe)
+            for dx in [CGFloat(-9), -6.5, -4] { g.fill(kreis(P(x + dx, y - 1), 0.7), with: .color(c.kontur)) }
+        case 11:
+            // Adidas Samba: slim upper, suede T-toe, three stripes, gum sole.
+            teil(g, box(x - 13, y - 4, 26, 12, 6), c, 3)
+            g.fill(box(x - 13, y - 3, 7, 10, 3), with: .color(c.mal(0.85).farbe))
+            let streifenFarbe: Color = hell ? Pal.tinte.farbe : .white
+            for dx in [CGFloat(-1), 2.5, 6] { linie(g, strich(P(x + dx, y + 6), P(x + dx + 3.5, y - 3)), streifenFarbe, 1.6) }
+            teil(g, box(x - 13.5, y + 7, 27, 4, 2), FigurFarbe(0xC98A4B), 1.5)
+        case 12:
+            // New Balance 550: chunky leather, green "N", colored heel.
+            teil(g, box(x - 13, y - 7, 26, 15, 7), c, 3)
+            teil(g, box(x - 13.5, y + 6, 27, 5, 2.5), Pal.weiss, 1.8)
+            text(g, "N", P(x + 1, y + 1), 9, FigurFarbe(0x2E7D4F).farbe)
+            g.fill(box(x + 8, y - 5, 4, 10, 2), with: .color(FigurFarbe(0x2E7D4F).farbe))
+        case 13:
+            // Gucci Ace: white leather with the green-red-green web and a gold bee.
+            teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
+            g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
+            g.fill(box(x - 4, y - 4, 4, 10), with: .color(FigurFarbe(0x1F7A45).farbe))
+            g.fill(box(x - 2.8, y - 4, 1.6, 10), with: .color(FigurFarbe(0xC8283F).farbe))
+            g.fill(kreis(P(x + 6, y), 1.6), with: .color(Pal.gold.farbe))
+        case 14:
+            // Balenciaga Triple S: stacked chunky sole, layered upper.
+            teil(g, box(x - 13, y - 7, 26, 13, 6), c, 3)
+            teil(g, box(x - 11, y - 5, 12, 8, 3), c.mix(Pal.weiss, 0.4), 1.5)
+            teil(g, box(x - 15, y + 4, 30, 4, 2), Pal.silber, 1.5)
+            teil(g, box(x - 15, y + 8, 30, 4, 2), FigurFarbe(0xD8C3A0), 1.5)
+            teil(g, box(x - 14, y + 12, 28, 3, 1.5), Pal.dunkel.mix(Pal.weiss, 0.3), 1)
         default:
             teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
             g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
@@ -2975,7 +3266,7 @@ extension Zeichner {
             d.translateBy(x: -100, y: -161)
             oberteilDetails(dg, d)
             koerperDetails(d, nackt: false)
-            if [7, 12, 13].contains(oberteil) { linie(g, form, top.kontur, 3.5) }
+            if Self.konturNachMuster.contains(oberteil) { linie(g, form, top.kontur, 3.5) }
         }
         if oberteil == 8 {
             let taille: CGFloat = sY + 58
