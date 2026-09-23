@@ -1,5 +1,24 @@
+import CoreTransferable
 import Foundation
 import PhotosUI
+import UniformTypeIdentifiers
+
+/// `PhotosPickerItem.loadTransferable(type:)` needs a concrete `Transferable` to get a video as a
+/// file URL (there's no built-in one). The import copies the file out of `received.file` before the
+/// closure returns — that path is deleted once it does.
+struct VideoDatei: Transferable {
+    let url: URL
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(contentType: .movie) { video in
+            SentTransferredFile(video.url)
+        } importing: { empfangen in
+            let ziel = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
+            try FileManager.default.copyItem(at: empfangen.file, to: ziel)
+            return Self(url: ziel)
+        }
+    }
+}
 
 /// Own resume queue for `Medien.hochladen` (Review-Fokus #5: an upload killed mid-flight must
 /// continue, not leave the partner staring at "wird geladen" forever). `Medien.hochladen` itself
@@ -19,18 +38,22 @@ enum ChatMedien {
     private static let warteschlangeURL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Lovea/chat-hochladen.json")
 
-    // MARK: - Photos (Z-5.1)
+    // MARK: - Photos + videos, mixed PhotosPicker selection (Z-5.1)
 
-    static func fotosSenden(_ items: [PhotosPickerItem], antwortAuf: String? = nil) async {
+    /// One `PhotosPicker` selects both kinds (`matching: .any(of: [.images, .videos])`); each item
+    /// becomes its own `nachricht.neu` — simplest correct mapping onto the one-id-per-upload model,
+    /// and matches sending several photos "auf einmal" as several bubbles instead of a multi-image one.
+    static func auswahlSenden(_ items: [PhotosPickerItem], antwortAuf: String? = nil) async {
         for item in items {
-            guard let daten = try? await item.loadTransferable(type: Data.self) else { continue }
-            let id = UUID().uuidString
-            guard let ergebnis = await Task.detached(priority: .userInitiated) { MedienKodierung.foto(daten, id: id) }.value else { continue }
-            await hochladenUndSenden(id: id, ergebnis: ergebnis, typ: "foto", antwortAuf: antwortAuf)
+            if let video = try? await item.loadTransferable(type: VideoDatei.self) {
+                await videoSenden(video.url, antwortAuf: antwortAuf)
+            } else if let daten = try? await item.loadTransferable(type: Data.self) {
+                let id = UUID().uuidString
+                guard let ergebnis = await Task.detached(priority: .userInitiated) { MedienKodierung.foto(daten, id: id) }.value else { continue }
+                await hochladenUndSenden(id: id, ergebnis: ergebnis, typ: "foto", antwortAuf: antwortAuf)
+            }
         }
     }
-
-    // MARK: - Videos (Z-5.1)
 
     static func videoSenden(_ quelle: URL, antwortAuf: String? = nil) async {
         let id = UUID().uuidString

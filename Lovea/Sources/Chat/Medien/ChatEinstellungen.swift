@@ -16,7 +16,7 @@ final class ChatEinstellungen {
     /// correct merge for a short list edited from one device at a time.
     // ponytail: no per-item CRDT, last `einstellung.setzen{favoriten}` from a person wins outright.
     struct FavoritEintrag: Codable, Equatable, Sendable, Identifiable {
-        enum Art: String, Codable, Sendable { case gif, sticker }
+        enum Art: String, Codable, Equatable, Sendable { case gif, sticker }
         var art: Art
         var wert: String // gif: URL; sticker: medienId
         var breite: Double?
@@ -24,7 +24,7 @@ final class ChatEinstellungen {
         var id: String { "\(art.rawValue):\(wert)" }
     }
 
-    enum HintergrundArt: String, Codable, Sendable { case farbe, foto, zeichnung }
+    enum HintergrundArt: String, Codable, Equatable, Sendable { case farbe, foto, zeichnung }
 
     struct Hintergrund: Codable, Equatable, Sendable {
         var art: HintergrundArt
