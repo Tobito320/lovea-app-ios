@@ -33,7 +33,7 @@ import {
 } from "./raum-logic.js";
 import { push } from "./push.js";
 import { regel } from "./regeln.js";
-import { naechsterAlarm, berlinDatum } from "./zeitplan.js";
+import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
 
 const PERSONEN = ["ahmed", "annika"];
 const partnerVon = (person) => (person === "ahmed" ? "annika" : "ahmed");
@@ -44,6 +44,11 @@ const ALARM_TEXT = {
   stundeVorher: { titel: "Lovea", text: "In einer Stunde geht's los", stufe: "laut", kategorie: "kalender" },
   frageDesTages: { titel: "Lovea", text: "Die Frage des Tages ist da", stufe: "leise", kategorie: "frage" },
   streakWarnung: { titel: "Lovea", text: "Euer Streak läuft heute ab!", stufe: "laut", kategorie: "streak" },
+  // Z-22.3: nur eine Mitteilung, der Server rechnet keine Punkte -- die App zeigt beim Öffnen, wie's steht.
+  challengeEndspurtWoche: { titel: "Lovea", text: "Letzter Tag für die Wochen-Challenges!", stufe: "laut", kategorie: "challenge" },
+  challengeEndeWoche: { titel: "Lovea", text: "Die Wochen-Challenges sind vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
+  challengeEndspurtMonat: { titel: "Lovea", text: "Letzter Tag für Gemeinsam Monat!", stufe: "laut", kategorie: "challenge" },
+  challengeEndeMonat: { titel: "Lovea", text: "Der Monats-Challenge ist vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
 };
 
 export class Raum {
@@ -398,6 +403,12 @@ export class Raum {
         frage: alarmErledigt(this.sql, "frageDesTages", heute),
         streak: alarmErledigt(this.sql, "streakWarnung", heute),
       },
+      challengeErledigt: {
+        endspurtWoche: alarmErledigt(this.sql, "challengeEndspurtWoche", montagDerWoche(heute)),
+        endeWoche: alarmErledigt(this.sql, "challengeEndeWoche", montagDerWoche(heute)),
+        endspurtMonat: alarmErledigt(this.sql, "challengeEndspurtMonat", heute.slice(0, 7)),
+        endeMonat: alarmErledigt(this.sql, "challengeEndeMonat", heute.slice(0, 7)),
+      },
     };
   }
 
@@ -446,6 +457,22 @@ export class Raum {
         const op = { id: `verfallen-${ereignis.id}`, art: "spiel.verfallen", von: ereignis.von ?? "ahmed", zeit: jetztIso, d: { id: ereignis.id } };
         const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
         if (neu) this.#sendeAn(this.ctx.getWebSockets(), { t: "ops", ops: [{ ...op, seq }], mehr: false });
+        break;
+      }
+      case "challengeEndspurtWoche":
+      case "challengeEndeWoche": {
+        const schluessel = montagDerWoche(berlinDatum(jetztMs));
+        if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
+        alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
+        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
+        break;
+      }
+      case "challengeEndspurtMonat":
+      case "challengeEndeMonat": {
+        const schluessel = berlinDatum(jetztMs).slice(0, 7);
+        if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
+        alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
+        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
         break;
       }
     }

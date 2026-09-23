@@ -1,11 +1,13 @@
 import SwiftUI
 
-/// Kleine Kapsel „👟 8.432 Schritte" für Profil und Karte (Z-18.8). Platzhalter, solange die Zahl
-/// unbekannt ist (keine Berechtigung, Simulator, oder der Partner hat heute noch nichts gesendet).
+/// Kleine Kapsel „👟 8.432 Schritte" für die Karte (Z-18.8). Platzhalter, solange die Zahl unbekannt
+/// ist (keine Berechtigung, Simulator, oder der Partner hat heute noch nichts gesendet). War
+/// `Schritte/SchritteChip` — mit `SchritteModell` nach Health verschoben (Profil zeigt sie laut
+/// Spec 6 in Runde 2 nicht mehr, das räumt Block 25 auf; hier nur der Umzug nach `HealthModell`).
 struct SchritteChip: View {
     let person: Person
 
-    private var anzahl: Int? { SchritteModell.shared.heute[person] }
+    private var anzahl: Int? { HealthModell.shared.heuteSchritte(person) }
 
     var body: some View {
         HStack(spacing: 4) {

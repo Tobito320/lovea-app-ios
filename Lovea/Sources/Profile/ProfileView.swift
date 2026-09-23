@@ -203,7 +203,6 @@ private struct ProfilInhalt: View {
             }
         }
         .scrollClipDisabled()
-        .task { SchritteModell.shared.sicherstellen() }
     }
 
     private func chip(_ emoji: String, _ text: String, _ vorlesen: String) -> some View {
