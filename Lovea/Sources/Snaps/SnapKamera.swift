@@ -33,20 +33,70 @@ final class SnapKameraSteuerung: NSObject {
     private var videoContinuation: CheckedContinuation<URL?, Never>?
     private var fortschrittTask: Task<Void, Never>?
     private var aufnahmeStart: Date?
+    private var audioEingerichtet = false
 
-    func start() async {
-        guard !laeuft, await berechtigung() else { return }
-        session.beginConfiguration()
-        session.sessionPreset = .high
-        einrichtenEingang(position: position)
-        einrichtenAudioEingang()
-        if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
-        if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
-        session.commitConfiguration()
+    /// Shared instance (Z-26.5): the conversation prewarms this ahead of time, `SnapKameraView`
+    /// then reuses the already-running session instead of a fresh one, so the first real open has
+    /// nothing left to wait for.
+    static let geteilt = SnapKameraSteuerung()
+
+    // MARK: - Warm hold (Z-26.5)
+
+    private var haltungen = 0
+    private var abkuehlTask: Task<Void, Never>?
+
+    /// Ref-counted: the conversation view and the camera view each call this on appear/`loslassen()`
+    /// on disappear. Needed because a `fullScreenCover` opening over the conversation re-fires ITS
+    /// `onDisappear` too (see ChatTab.swift's `Unterhaltung`, same discovery) — without the counter
+    /// and the grace period in `loslassen()`, that transition would stop the very session the camera
+    /// view is about to reuse.
+    func halten() {
+        haltungen += 1
+        abkuehlTask?.cancel()
+        abkuehlTask = nil
+    }
+
+    func loslassen() {
+        haltungen = max(0, haltungen - 1)
+        guard haltungen == 0 else { return }
+        abkuehlTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self, !Task.isCancelled, self.haltungen == 0 else { return }
+            self.stop()
+        }
+    }
+
+    /// Starts the session ahead of time, once the chat becomes visible (Z-26.5) — silent: no
+    /// permission prompt (that would pop the camera dialog just from opening the chat), so this
+    /// only fires once the OS already granted access. `start()` still runs the real (possibly
+    /// prompting) setup the moment the camera UI actually opens; if this already warmed the
+    /// session, that call is then a no-op besides the figure-state signal.
+    func vorwaermen() async {
+        guard !laeuft, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        konfigurieren()
         laeuft = true
         let box = SessionBox(session: session)
         sessionSchlange.async { box.session.startRunning() }
+    }
+
+    func start() async {
+        if !laeuft {
+            guard await berechtigung() else { return }
+            konfigurieren()
+            laeuft = true
+            let box = SessionBox(session: session)
+            sessionSchlange.async { box.session.startRunning() }
+        }
         FigurenModell.shared.zustandSenden(.init(haupt: .kamera))
+    }
+
+    private func konfigurieren() {
+        session.beginConfiguration()
+        session.sessionPreset = .high
+        einrichtenEingang(position: position)
+        if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
+        if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
+        session.commitConfiguration()
     }
 
     func stop() {
@@ -140,6 +190,15 @@ final class SnapKameraSteuerung: NSObject {
     // MARK: - Video (Z-6.1: Halten, bis zu 30 s)
 
     func videoStarten() async -> URL? {
+        // Z-26.5: the mic input is added here, not at session start — a session running with an
+        // audio input the moment the chat is merely prewarmed would show the orange mic dot and
+        // reconfigure the shared audio session out from under `SprachSpieler`/`AufnahmeSteuerung`.
+        if !audioEingerichtet {
+            session.beginConfiguration()
+            einrichtenAudioEingang()
+            session.commitConfiguration()
+            audioEingerichtet = true
+        }
         aufAufrechtAusrichten(movieOutput.connection(with: .video))
         if blitzAn { taschenlampeSchalten(an: true) }
         movieOutput.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
@@ -218,7 +277,9 @@ struct SnapKameraView: View {
     let onVideo: (URL) -> Void
     let onAbbrechen: () -> Void
 
-    @State private var steuerung = SnapKameraSteuerung()
+    // Z-26.5: the conversation's own shared instance — reused so a prewarmed session is already
+    // running by the time this view appears.
+    @State private var steuerung = SnapKameraSteuerung.geteilt
     @State private var modus: Modus = .ruhe
     @State private var zoomStart: CGFloat = 1
     @State private var haltTask: Task<Void, Never>?
@@ -243,8 +304,9 @@ struct SnapKameraView: View {
         }
         .background(Color.black)
         .statusBarHidden()
+        .onAppear { steuerung.halten() }
         .task { await steuerung.start() }
-        .onDisappear { steuerung.stop() }
+        .onDisappear { steuerung.loslassen() }
     }
 
     private var obereLeiste: some View {

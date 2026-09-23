@@ -123,6 +123,13 @@ struct ChatEingabeleiste: View {
         }
         .sheet(isPresented: $spieleOffen) { SpieleStarter() }
         .task { await ChatMedien.ausstehendeAbarbeiten() }
+        // Z-26.5: prewarms the capture session as soon as the conversation (this bar is only ever
+        // shown inside it) is visible, so the very first camera open has nothing left to wait for.
+        .onAppear {
+            SnapKameraSteuerung.geteilt.halten()
+            Task { await SnapKameraSteuerung.geteilt.vorwaermen() }
+        }
+        .onDisappear { SnapKameraSteuerung.geteilt.loslassen() }
     }
 
     /// The rounded outline field: text, then GIF/sticker and mic (or send) inside on the right.
