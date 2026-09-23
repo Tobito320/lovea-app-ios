@@ -1,6 +1,15 @@
 // Push-Regeln: Op-Art -> Stufe, Kategorie (für einstellung.setzen
 // "mitteilungen.<kategorie>") und Text (Spec 12).
 
+// Gleiche Texte wie ChatHinweis.text in der App.
+const AUFNAHME_TEXT = {
+  bildschirmaufnahme: "hat den Bildschirm aufgenommen",
+  chatScreenshot: "hat einen Screenshot vom Chat gemacht",
+  chatAufnahme: "nimmt den Chat auf",
+  gespeichertFoto: "hat ein Bild in Aufnahmen gespeichert",
+  gespeichertVideo: "hat ein Video in Aufnahmen gespeichert",
+};
+
 const NAME = { ahmed: "Ahmed", annika: "Annika" };
 
 function kuerzen(text, n = 120) {
@@ -68,7 +77,7 @@ const TABELLE = {
     stufe: "leise",
     kategorie: "chat",
     titel: "Lovea",
-    text: `${NAME[von]} hat ${d.art === "bildschirmaufnahme" ? "den Bildschirm aufgenommen" : "einen Screenshot gemacht"}`,
+    text: `${NAME[von]} ${AUFNAHME_TEXT[d.art] ?? "hat einen Screenshot gemacht"}`,
   }),
   // Z-23.2: nur bei einem Geschenk (fuer != von) - ein Kauf fuer sich selbst loest keine Push aus.
   "shop.kauf": (von, d) => (d.fuer === von ? null : { stufe: "laut", kategorie: "shop", titel: "Lovea", text: `${NAME[von]} hat dir etwas geschenkt` }),
