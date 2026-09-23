@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Spec 8.1 Nr. 4 / 8.4: nur am Morgen nach einem Treffen (7 Tage lang), zum Bewerten des
 /// Partners, wegwischbar. Wertung trägt die Figur einen Tag als Abzeichen (Block 7/Figuren liest
@@ -47,6 +48,7 @@ struct PuenktlichCard: View {
 
     private func wertungsKnopf(_ kandidat: (datum: String, ueber: Person), wert: String, zustand: FigurZustand, titel: String) -> some View {
         Button {
+            UIImpactFeedbackGenerator(style: .light).impactOccurred()
             Raum.shared.senden("puenktlich.setzen", PuenktlichEintrag(datum: kandidat.datum, ueber: kandidat.ueber, wert: wert))
         } label: {
             VStack(spacing: 6) {
@@ -55,13 +57,14 @@ struct PuenktlichCard: View {
                     .font(.caption2.weight(.medium))
                     .multilineTextAlignment(.center)
             }
-            .frame(maxWidth: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 44)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(titel)
     }
 
     private func wegwischen(_ kandidat: (datum: String, ueber: Person)) {
+        UIImpactFeedbackGenerator(style: .soft).impactOccurred()
         Raum.shared.senden("puenktlich.setzen", PuenktlichEintrag(datum: kandidat.datum, ueber: kandidat.ueber, wert: "weg"))
         withAnimation { versatz = 500 }
     }

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Z-9.5: Monatsraster mit farbigen Punkten pro Person und Herz für Treffen. Wischen wechselt
 /// den Monat. Einen Tag antippen ruft `onTagWaehlen` mit dem `yyyy-MM-dd`-String auf.
@@ -70,6 +71,7 @@ struct MonatsAnsicht: View {
     }
 
     private func wechsleMonat(_ delta: Int) {
+        UISelectionFeedbackGenerator().selectionChanged()
         monat = Datum.kalender.date(byAdding: .month, value: delta, to: monat) ?? monat
     }
 
@@ -89,13 +91,24 @@ struct MonatsAnsicht: View {
 
     private func tagZelle(_ tag: String) -> some View {
         let heute = tag == Datum.text(Date())
-        let hatTreffen = kalender.zustand.daten.treffen.contains { $0.datum == tag }
-        let belegt = Person.allCases.filter { !Wochenplan.tag(tag, person: $0.rawValue, daten: kalender.zustand.daten).isEmpty }
+        let daten = kalender.zustand.daten
+        let hatTreffen = daten.treffen.contains { $0.datum == tag }
+        let hatTermin = daten.termine.contains { $0.datum == tag }
+        // Left bar = Ahmed, right bar = Annika — a fixed position (not the person's own accent
+        // color, which is already used for identity elsewhere) reads unambiguously even for two
+        // people who share the same "A" initial, so a border-split cell or letter label isn't needed.
+        let routineAhmed = routineTyp(tag, person: .ahmed)
+        let routineAnnika = routineTyp(tag, person: .annika)
+
         var vorlesen = [Datum.anzeige(tag)]
         if heute { vorlesen.insert("Heute", at: 0) }
-        if !belegt.isEmpty { vorlesen.append("Termine: " + belegt.map(\.name).joined(separator: " und ")) }
+        if let routineAhmed { vorlesen.append("Ahmed: \(Self.typName(routineAhmed))") }
+        if let routineAnnika { vorlesen.append("Annika: \(Self.typName(routineAnnika))") }
+        if hatTermin { vorlesen.append("Termin") }
         if hatTreffen { vorlesen.append("Treffen") }
+
         return Button {
+            UISelectionFeedbackGenerator().selectionChanged()
             onTagWaehlen(tag)
         } label: {
             VStack(spacing: 3) {
@@ -103,8 +116,13 @@ struct MonatsAnsicht: View {
                     .font(.subheadline.weight(heute ? .bold : .regular))
                     .foregroundStyle(heute ? Color.loveaRose : .primary)
                 HStack(spacing: 3) {
-                    ForEach(belegt, id: \.self) { person in
-                        Circle().fill(Color.person(person)).frame(width: 5, height: 5)
+                    routinebalken(routineAhmed)
+                    routinebalken(routineAnnika)
+                }
+                .frame(height: 3)
+                HStack(spacing: 3) {
+                    if hatTermin {
+                        Circle().fill(Color.loveaRose).frame(width: 5, height: 5)
                     }
                     if hatTreffen {
                         Image(systemName: "heart.fill")
@@ -112,16 +130,85 @@ struct MonatsAnsicht: View {
                             .foregroundStyle(Color.loveaRose)
                     }
                 }
-                .frame(height: 6)
+                .frame(height: 7)
             }
-            .frame(maxWidth: .infinity, minHeight: 40)
+            .frame(maxWidth: .infinity, minHeight: 44)
             .background(heute ? Color.loveaRose.opacity(0.12) : .clear, in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
         .accessibilityLabel(vorlesen.joined(separator: ", "))
     }
 
+    private func routinebalken(_ typ: String?) -> some View {
+        RoundedRectangle(cornerRadius: 1.5)
+            .fill(typ.map(Self.farbeFuerTyp) ?? Color.clear)
+            .frame(width: 14, height: 3)
+    }
+
+    /// Schule/Arbeit-Muster eines Tages, nur laufende (keine Ausnahme wie "frei"/"krank"). Ein
+    /// Tag zeigt höchstens eine Farbe pro Person; Priorität Schule > Arbeit > Fahrschule > Sonstiges
+    /// deckt den seltenen Fall mehrerer Muster am selben Tag ab.
+    private func routineTyp(_ tag: String, person: Person) -> String? {
+        let typen = Set(Wochenplan.tag(tag, person: person.rawValue, daten: kalender.zustand.daten)
+            .filter { $0.quelle == "muster" && $0.status == "normal" }
+            .map(\.typ))
+        return Self.typPrioritaet.first { typen.contains($0) }
+    }
+
+    private static let typPrioritaet = ["schule", "arbeit", "fahrschule", "sonstiges"]
+
+    static func farbeFuerTyp(_ typ: String) -> Color {
+        switch typ {
+        case "schule": return .blue
+        case "arbeit": return .orange
+        default: return .gray // fahrschule, sonstiges
+        }
+    }
+
+    static func typName(_ typ: String) -> String {
+        switch typ {
+        case "schule": return "Schule"
+        case "arbeit": return "Arbeit"
+        case "fahrschule": return "Fahrschule"
+        default: return "Sonstiges"
+        }
+    }
+
     private func tagesnummer(_ tag: String) -> String {
         String(Int(tag.suffix(2)) ?? 0)
+    }
+}
+
+/// Kompakte Legende unter dem Monatsraster (Z-Feedback 23.09.2026): erklärt die Farben, da eine
+/// Markierung nie allein über Farbe verständlich sein darf (VoiceOver liest den Typ ohnehin aus).
+struct MonatsLegende: View {
+    // Adaptives Raster statt HStack: bei großer Schrift (Accessibility-Größen, hier nicht
+    // gedeckelt wie MonatsAnsicht) brechen die vier Einträge in mehrere Zeilen um, statt zu clippen.
+    private static let spalten = [GridItem(.adaptive(minimum: 90), spacing: 10, alignment: .leading)]
+
+    var body: some View {
+        LazyVGrid(columns: Self.spalten, alignment: .leading, spacing: 6) {
+            eintrag(Color.blue, "Schule")
+            eintrag(Color.orange, "Arbeit")
+            eintrag(Color.loveaRose, "Termin", istPunkt: true)
+            eintrag(Color.loveaRose, "Treffen", istHerz: true)
+        }
+        .font(.caption2)
+        .foregroundStyle(.secondary)
+        .accessibilityElement(children: .combine)
+    }
+
+    @ViewBuilder
+    private func eintrag(_ farbe: Color, _ titel: String, istPunkt: Bool = false, istHerz: Bool = false) -> some View {
+        HStack(spacing: 4) {
+            if istHerz {
+                Image(systemName: "heart.fill").font(.system(size: 8)).foregroundStyle(farbe)
+            } else if istPunkt {
+                Circle().fill(farbe).frame(width: 6, height: 6)
+            } else {
+                RoundedRectangle(cornerRadius: 1.5).fill(farbe).frame(width: 12, height: 3)
+            }
+            Text(titel)
+        }
     }
 }
