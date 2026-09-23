@@ -1,56 +1,22 @@
 import SwiftUI
-import UIKit
 
-/// Z-21.2 "…"-Menü: vergangene Gym-Tage nachtragen und die eigenen/gemeinsamen Ziele ändern.
-
+/// Z-35.3 "Vergangene Tage markieren" (wie Runde 2, jetzt für jede Habit): tapping a past day ticks
+/// it (counting habits: up to the daily goal) or clears it again. Only own days.
 struct VergangeneTageView: View {
-    @Environment(\.dismiss) private var dismiss
-    @State private var monateZurueck = 0
+    let habit: Habit
 
+    @Environment(\.dismiss) private var dismiss
     private var health: HealthModell { HealthModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
-    private var heute: String { Datum.text(Date()) }
 
     var body: some View {
         NavigationStack {
             ScrollView {
-                VStack(spacing: 16) {
-                    HStack {
-                        Button { wechsleMonat(1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
-                            .accessibilityLabel("Vorheriger Monat")
-                        Spacer()
-                        Text(monatsTitel).font(.subheadline.weight(.semibold))
-                        Spacer()
-                        Button { wechsleMonat(-1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
-                            .disabled(monateZurueck == 0)
-                            .accessibilityLabel("Nächster Monat")
-                    }
-                    .buttonStyle(.plain)
-
-                    LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 8) {
-                        ForEach(Array(gitter.enumerated()), id: \.offset) { _, tag in
-                            if let tag, tag <= heute {
-                                tagKnopf(tag)
-                            } else {
-                                Color.clear.frame(height: 40)
-                            }
-                        }
-                    }
-                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-                    .contentShape(Rectangle())
-                    .gesture(
-                        // Wie `MonatsAnsicht`: links wischen = später, rechts wischen = früher.
-                        DragGesture(minimumDistance: 24).onEnded { wert in
-                            if wert.translation.width < -30 { wechsleMonat(-1) }
-                            else if wert.translation.width > 30 { wechsleMonat(1) }
-                        }
-                    )
-
-                    Text("Nur Gym-Tage der letzten 7 Tage geben noch Punkte. Ältere zählen nur hier grün, ohne Punkte.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 16) {
+                    MonatsPager { zurueck in monat(zurueck).padding(.horizontal, 16) }
+                    Text(hinweis).font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 16)
                 }
-                .padding(16)
+                .padding(.vertical, 16)
             }
             .navigationTitle("Vergangene Tage")
             .navigationBarTitleDisplayMode(.inline)
@@ -60,45 +26,50 @@ struct VergangeneTageView: View {
         }
     }
 
-    private var gitter: [String?] { HealthLogik.monatsGitter(heute: heute, monateZurueck: monateZurueck) }
-
-    private func wechsleMonat(_ delta: Int) {
-        UISelectionFeedbackGenerator().selectionChanged()
-        monateZurueck = max(0, monateZurueck + delta)
+    /// Spec 4.1 (Runde 2): Gym and Wasser marked more than 7 days late give no points (`PunkteLogik`).
+    private var hinweis: String {
+        habit.istEingebaut
+            ? "Nur Tage der letzten 7 Tage geben noch Punkte. Ältere werden grün, ohne Punkte."
+            : "Eigene Habits geben keine Punkte, sie zählen für Serie und Quote."
     }
 
-    private var monatsTitel: String {
-        let aktuellerErster = String(heute.prefix(7)) + "-01"
-        guard let ziel = Datum.kalender.date(byAdding: .month, value: -monateZurueck, to: Datum.datum(aktuellerErster)) else { return "" }
-        let f = DateFormatter()
-        f.calendar = Datum.kalender
-        f.locale = Locale(identifier: "de_DE")
-        f.dateFormat = "MMMM yyyy"
-        return f.string(from: ziel)
+    private func monat(_ zurueck: Int) -> some View {
+        let heute = Datum.text(Date())
+        let gitter = HealthLogik.monatsGitter(heute: heute, monateZurueck: zurueck)
+        let zellen = gitter + [String?](repeating: nil, count: max(0, 42 - gitter.count))
+        return VStack(alignment: .leading, spacing: 10) {
+            Text(HealthText.monat(gitter)).font(.title3.weight(.semibold))
+            WochentagsKopf()
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 6) {
+                ForEach(Array(zellen.enumerated()), id: \.offset) { _, tag in
+                    if let tag, tag <= heute { tagKnopf(tag) } else { Color.clear.frame(height: 44) }
+                }
+            }
+        }
     }
 
     private func tagKnopf(_ tag: String) -> some View {
-        let an = health.gymAbgehakt(ich, tag)
+        let ziel = health.habitZiel(habit.id, ich)
+        let an = HabitLogik.erledigt(habit, wert: health.habitWert(habit.id, ich, tag), ziel: ziel)
         return Button {
-            UIImpactFeedbackGenerator(style: .light).impactOccurred()
-            health.setzeGym(datum: tag, an: !an)
+            health.setzeHabit(habit.id, datum: tag, wert: an ? 0 : (habit.zaehlen ? max(1, ziel ?? habit.tagesziel ?? 1) : 1))
+            if an { Haptik.leicht() } else { Haptik.erfolg() }
         } label: {
-            VStack(spacing: 2) {
-                Text(String(Int(tag.suffix(2)) ?? 0)).font(.caption)
-                if an { Image(systemName: "checkmark.circle.fill").font(.caption2) }
-            }
-            .frame(width: 40, height: 40)
-            // Spec 3.2: "sie werden grün" — bewusst Grün statt Personenfarbe, damit es wie die
-            // Jahres-/Monatsübersicht (`HabitVerlaufInhalt`) liest, nicht wie ein Besitz-Merkmal.
-            .background(an ? Color.green : Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 8))
-            .foregroundStyle(an ? Color.white : Color.primary)
+            Text(HealthText.tagesnummer(tag))
+                .font(.subheadline.weight(an ? .bold : .regular))
+                .monospacedDigit()
+                .foregroundStyle(an ? Color.aufHabitFarbe : Color.primary)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(an ? habit.tint : Color(uiColor: .tertiarySystemFill)))
         }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(Datum.anzeige(tag)), Gym \(an ? "abgehakt" : "nicht abgehakt")")
-        .accessibilityAddTraits(.isButton)
+        .buttonStyle(.federnd)
+        .accessibilityLabel("\(Datum.anzeige(tag)), \(habit.name)")
+        .accessibilityValue(an ? "erledigt" : "offen")
     }
 }
 
+/// Own goals (steps, Gym per week, Wasser per day) and the shared weekly steps goal. For Gym and
+/// Wasser this is also their "Bearbeiten".
 struct ZieleAendernView: View {
     @Environment(\.dismiss) private var dismiss
 
@@ -120,21 +91,22 @@ struct ZieleAendernView: View {
             Form {
                 Section("Eigene Ziele") {
                     Stepper(value: $schritte, in: 1_000...30_000, step: 500) {
-                        Text("Schritte: \(schritte.formatted(.number.locale(Locale(identifier: "de_DE"))))")
+                        Text("Schritte: \(HealthText.zahl(schritte))")
                     }
                     Stepper("Gym pro Woche: \(gym)×", value: $gym, in: 1...7)
                     Stepper("Wasser pro Tag: \(wasser) Gläser", value: $wasser, in: 1...20)
                 }
                 Section("Gemeinsam") {
                     Stepper(value: $gemeinsamWoche, in: 10_000...500_000, step: 10_000) {
-                        Text("Wöchentliches Ziel: \(gemeinsamWoche.formatted(.number.locale(Locale(identifier: "de_DE"))))")
+                        Text("Wöchentliches Ziel: \(HealthText.zahl(gemeinsamWoche))")
                     }
                 }
             }
             .navigationTitle("Ziele ändern")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { speichern(); dismiss() } }
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Sichern") { speichern(); dismiss() } }
             }
         }
     }
@@ -145,5 +117,6 @@ struct ZieleAendernView: View {
         if gym != h.zielGym() { h.setzeZiel("ziel.gym", gym) }
         if wasser != h.zielWasser() { h.setzeZiel("ziel.wasser", wasser) }
         if gemeinsamWoche != h.zielGemeinsamWoche { h.setzeZiel("ziel.gemeinsamWoche", gemeinsamWoche) }
+        Haptik.erfolg()
     }
 }

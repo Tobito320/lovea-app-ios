@@ -1,41 +1,36 @@
 import SwiftUI
 
-/// Block 21/22: Health-Tab — Ahmed-vs-Annika-Ringe, laufende Challenges, Habits Heute, Schlaf,
-/// Habit-Historie über die einzelnen Zeilen, "…"-Menü (vergangene Tage, Ziele) und Punkte.
+/// Where the Health tab navigates; also the zoom source id of the tile or ring it came from.
+enum HealthZiel: Hashable {
+    case habit(String), schritteMonat, schritteVergleich, punkte
+}
+
+/// Spec 3.1, HabitLink style: date eyebrow and "Health", the points chip with the Lovea coin, step
+/// duel, week, habits, challenges and sleep. Tiles and rings zoom into their detail.
 struct HealthTab: View {
-    @State private var blatt: HealthBlatt?
+    @State private var pfad: [HealthZiel] = []
+    @State private var zieleOffen = false
     @State private var zeigtKonfetti = false
+    @Namespace private var zoom
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $pfad) {
             ScrollView {
-                VStack(spacing: 16) {
+                VStack(alignment: .leading, spacing: 20) {
                     kopf
-                    VerlaufCard()
+                    SchritteKarte(zoom: zoom, oeffnen: oeffnen)
+                    SchritteWocheKarte()
+                    HabitsSektion(zoom: zoom, oeffnen: oeffnen)
                     LaufendeChallengesCard()
-                    HabitsHeuteCard()
                     SchlafCard()
                 }
                 .padding(16)
             }
-            .navigationTitle("Health")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button("Vergangene Tage markieren") { blatt = .vergangeneTage }
-                        Button("Ziele ändern") { blatt = .ziele }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .accessibilityLabel("Mehr")
-                }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: HealthZiel.self) { ziel in
+                ansicht(ziel).navigationTransition(.zoom(sourceID: ziel, in: zoom))
             }
-            .sheet(item: $blatt) { b in
-                switch b {
-                case .vergangeneTage: VergangeneTageView()
-                case .ziele: ZieleAendernView()
-                }
-            }
+            .sheet(isPresented: $zieleOffen) { ZieleAendernView() }
         }
         .onAppear {
             HealthModell.shared.sicherstellen()
@@ -47,24 +42,44 @@ struct HealthTab: View {
         }
     }
 
+    /// "MITTWOCH, 23. SEPTEMBER" above a large "Health", points chip and goals menu on the right.
     private var kopf: some View {
-        VStack(spacing: 14) {
-            HStack {
-                Text("Ahmed vs. Annika").font(.headline)
-                Spacer()
-                PunkteChip(person: Raum.shared.ich ?? .ahmed)
+        HStack(alignment: .center, spacing: 4) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(Datum.anzeige(Datum.text(Date())).uppercased())
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text("Health").font(.largeTitle.bold())
             }
-            HStack(spacing: 28) {
-                SchritteRing(person: .ahmed)
-                SchritteRing(person: .annika)
+            .accessibilityElement(children: .combine)
+            .accessibilityAddTraits(.isHeader)
+            Spacer(minLength: 8)
+            Button { oeffnen(.punkte) } label: {
+                PunkteChip(person: Raum.shared.ich ?? .ahmed).frame(minHeight: 44)
             }
-            .frame(maxWidth: .infinity)
-            NavigationLink("Wofür?") { PunkteVerlaufView() }
-                .font(.caption.weight(.semibold))
+            .buttonStyle(.federnd)
+            .matchedTransitionSource(id: HealthZiel.punkte, in: zoom)
+            .accessibilityHint("Zeigt, wofür es Punkte gab")
+            Menu {
+                Button("Ziele ändern", systemImage: "target") { zieleOffen = true }
+            } label: {
+                Image(systemName: "ellipsis").font(.body.weight(.semibold)).frame(width: 44, height: 44)
+            }
+            .accessibilityLabel("Mehr")
         }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
     }
+
+    @ViewBuilder
+    private func ansicht(_ ziel: HealthZiel) -> some View {
+        switch ziel {
+        case .habit(let id): HabitDetailView(habitId: id)
+        case .schritteMonat: SchritteMonatView()
+        case .schritteVergleich: SchritteVergleichView()
+        case .punkte: PunkteVerlaufView()
+        }
+    }
+
+    private func oeffnen(_ ziel: HealthZiel) { pfad.append(ziel) }
 
     /// Feiert einen frisch abgeschlossenen Duell-/Gemeinsam-/Serien-Meilenstein genau einmal
     /// (`ChallengeKonfetti`, Z-22.2) — ausgelöst beim Öffnen des Tabs und bei jeder Punktestand-Änderung.
@@ -76,9 +91,4 @@ struct HealthTab: View {
             zeigtKonfetti = false
         }
     }
-}
-
-private enum HealthBlatt: String, Identifiable {
-    case vergangeneTage, ziele
-    var id: String { rawValue }
 }
