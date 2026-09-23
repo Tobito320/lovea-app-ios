@@ -156,22 +156,24 @@ final class HealthModell {
 
     private func beobachteAenderungen() {
         let schritteAbfrage = HKObserverQuery(sampleType: stepType, predicate: nil) { [weak self] _, fertig, _ in
+            let fertig = ErledigtBox(fertig)
             Task { @MainActor in
                 await Raum.shared.leer() // eigene Replay (aus `init`) muss zuerst durch sein, sonst wirkt jeder Wert "geändert"
                 await self?.schritteAktualisierenUndSenden()
                 await Self.vorMoeglichemHintergrundNachholen()
-                fertig()
+                fertig.aufrufen()
             }
         }
         store.execute(schritteAbfrage)
         store.enableBackgroundDelivery(for: stepType, frequency: .hourly) { _, _ in }
 
         let schlafAbfrage = HKObserverQuery(sampleType: sleepType, predicate: nil) { [weak self] _, fertig, _ in
+            let fertig = ErledigtBox(fertig)
             Task { @MainActor in
                 await Raum.shared.leer()
                 await self?.schlafAktualisierenUndSenden()
                 await Self.vorMoeglichemHintergrundNachholen()
-                fertig()
+                fertig.aufrufen()
             }
         }
         store.execute(schlafAbfrage)
@@ -275,3 +277,9 @@ private struct SchritteD: Codable { let datum: String; let anzahl: Int }
 private struct SchlafD: Codable { var datum: String; var minuten: Int; var von: String; var bis: String }
 private struct HabitD: Codable { var art: String; var datum: String; var wert: Int }
 private struct EinstellungD: Codable { var schluessel: String; var wert: JSONValue }
+
+/// HealthKit's observer completion handler is not `Sendable`; calling it from any thread is fine.
+private struct ErledigtBox: @unchecked Sendable {
+    let aufrufen: () -> Void
+    init(_ f: @escaping () -> Void) { aufrufen = f }
+}

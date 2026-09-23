@@ -2520,9 +2520,9 @@ extension Zeichner {
         // there for v2 back-compat, but a free hex color (Z-24.1) always wins.
         if hosenHexAktiv { return hoseF }
         switch hose {
-        case 0, 2: FigurFarbe(0x9DB8D9)
-        case 1: FigurFarbe(0x34507A)
-        default: hoseF
+        case 0, 2: return FigurFarbe(0x9DB8D9)
+        case 1: return FigurFarbe(0x34507A)
+        default: return hoseF
         }
     }
 
