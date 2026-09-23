@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct HomeView: View {
-    let person: LoveaPerson
+    let person: Person
 
     var body: some View {
         NavigationStack {
@@ -13,7 +13,7 @@ struct HomeView: View {
                     .foregroundStyle(.secondary)
                 Divider()
                     .padding(.top, 12)
-                Text("Du bist als \(person.rawValue) drin.")
+                Text("Du bist als \(person.name) drin.")
                     .foregroundStyle(.secondary)
                 Spacer()
             }

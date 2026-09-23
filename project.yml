@@ -2,7 +2,7 @@ name: Lovea
 options:
   bundleIdPrefix: com.onlyus
   deploymentTarget:
-    iOS: "18.0"
+    iOS: "26.0"
 settings:
   base:
     SWIFT_VERSION: "6.0"
@@ -13,6 +13,28 @@ targets:
     platform: iOS
     sources:
       - Lovea/Sources
+    info:
+      path: Lovea/Info.plist
+      properties:
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LoveaAppKey: $(LOVEA_APP_KEY)
+        LoveaServer: $(LOVEA_SERVER)
+        UIBackgroundModes:
+          - location
+          - remote-notification
+          - audio
+        NSCameraUsageDescription: "Lovea nutzt die Kamera, damit du Fotos und Videos für den Chat und die Snaps aufnehmen kannst."
+        NSMicrophoneUsageDescription: "Lovea nutzt das Mikrofon für Sprachnachrichten und Videos im Chat."
+        NSPhotoLibraryUsageDescription: "Lovea liest Fotos, damit du sie im Chat oder als Zeichen-Vorlage nutzen kannst."
+        NSPhotoLibraryAddUsageDescription: "Lovea speichert deine fertigen Bilder in Fotos."
+        NSLocationWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auf der Karte, solange du die App offen hast."
+        NSLocationAlwaysAndWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auch im Hintergrund und meldet Ankunft und Abfahrt an euren Orten."
+        NSMotionUsageDescription: "Lovea erkennt Bewegung wie Laufen oder Fahren, damit eure Figuren euren Alltag zeigen."
+        NSSpeechRecognitionUsageDescription: "Lovea wandelt deine Sprachnachrichten in Text um, wenn du das im Chat anforderst."
+        NSFocusStatusUsageDescription: "Lovea zeigt deinem Partner, ob du gerade nicht gestört werden möchtest."
+        NSCalendarsFullAccessUsageDescription: "Lovea liest deinen Kalender, um Termine mit deinem Partner abzugleichen."
+        NSCalendarsWriteOnlyAccessUsageDescription: "Lovea trägt gemeinsame Termine in deinen Kalender ein."
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea
@@ -23,13 +45,15 @@ targets:
         GENERATE_INFOPLIST_FILE: YES
         INFOPLIST_KEY_CFBundleDisplayName: Lovea
         INFOPLIST_KEY_ITSAppUsesNonExemptEncryption: NO
-        INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription: "Lovea speichert deine fertigen Bilder in Fotos."
-        MARKETING_VERSION: 0.1.0
-        CURRENT_PROJECT_VERSION: 1
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: YES
         INFOPLIST_KEY_UILaunchScreen_Generation: YES
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone: UIInterfaceOrientationPortrait
         INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad: "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight"
+        MARKETING_VERSION: 0.1.0
+        CURRENT_PROJECT_VERSION: 1
+        LOVEA_APP_KEY: ""
+        LOVEA_SERVER: "https://lovea-live.ahmedhdplay12345.workers.dev"
+        CODE_SIGN_ENTITLEMENTS: Lovea/Lovea.entitlements
   LoveaTests:
     type: bundle.unit-test
     platform: iOS

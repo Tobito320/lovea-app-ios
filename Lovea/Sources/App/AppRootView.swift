@@ -1,30 +1,51 @@
 import SwiftUI
 
-private enum AppTab: Hashable {
-    case home
-    case drawing
-    case profile
+private enum AppTab: String, Hashable {
+    case home, chat, drawing, map, profile
 }
 
 struct AppRootView: View {
-    let person: LoveaPerson
-    let onChangePerson: () -> Void
-    @State private var selectedTab: AppTab = .drawing
+    @ObservedObject var session: PersonSession
+    let person: Person
+    @SceneStorage("app.selectedTab") private var selectedTab: AppTab = .drawing
 
     var body: some View {
         TabView(selection: $selectedTab) {
-            HomeView(person: person)
-                .tabItem { Label("Home", systemImage: "house") }
-                .tag(AppTab.home)
-
-            DrawingView(person: person)
-                .tabItem { Label("Zeichnen", systemImage: "paintbrush.pointed") }
-                .tag(AppTab.drawing)
-
-            ProfileView(person: person, onChangePerson: onChangePerson)
-                .tabItem { Label("Profil", systemImage: "person.crop.circle") }
-                .tag(AppTab.profile)
+            Tab("Home", systemImage: "house", value: AppTab.home) {
+                HomeView(person: person)
+            }
+            Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: AppTab.chat) {
+                ChatTab()
+            }
+            Tab("Zeichnen", systemImage: "paintbrush.pointed", value: AppTab.drawing) {
+                DrawingView(person: person)
+            }
+            Tab("Karte", systemImage: "map", value: AppTab.map) {
+                KarteTab()
+            }
+            Tab("Profil", systemImage: "person.crop.circle", value: AppTab.profile) {
+                ProfileView(person: person, session: session)
+            }
         }
-        .tint(.blue)
+        .tabViewStyle(.sidebarAdaptable)
+        .tint(Color.loveaRose)
+    }
+}
+
+struct ChatTab: View {
+    var body: some View {
+        NavigationStack {
+            ContentUnavailableView("Chat", systemImage: "bubble.left.and.bubble.right")
+                .navigationTitle("Chat")
+        }
+    }
+}
+
+struct KarteTab: View {
+    var body: some View {
+        NavigationStack {
+            ContentUnavailableView("Karte", systemImage: "map")
+                .navigationTitle("Karte")
+        }
     }
 }
