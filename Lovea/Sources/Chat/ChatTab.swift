@@ -88,6 +88,14 @@ private struct ChatsListe: View {
                 Button("Im Chat suchen", systemImage: "magnifyingglass") { AppNavigation.shared.chatSuche = true }
             }
             // Block 27: "Heute vor …", Zeitkapseln, Briefbox – nur wenn vorhanden (Spec 2), sonst nichts.
+            HeuteVorCard(onOeffnen: { offen = true })
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            KapselnUndBriefeSektion(modell: ChatModell.shared, ich: ich, offen: $offen)
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .safeAreaInset(edge: .top, spacing: 0) { SyncStatusZeile() }
@@ -120,11 +128,19 @@ private struct ChatPartnerKarte: View {
             .accessibilityElement(children: .combine)
             .accessibilityHint("Chat öffnen")
 
+            // Z-27.6: eigene Zeile, nicht in den Karten-`Button` verschachtelt (kein Button im Button).
+            if SpotifyModell.shared.partner != nil {
+                HStack { Spacer(); SpotifyHoertGeradeChip() }
+            }
             spieleKnopf
         }
         .padding(16)
         .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
         .sheet(isPresented: $spieleOffen) { SpieleStarter() }
+        // Spec 9 "nur wenn der Partner hinschaut": die Chat-Tab-Startkarte zeigt den Partner
+        // prominent, zählt also als "hinschauen", ref-gezählt zusammen mit der Konversation/Karte.
+        .task { SpotifyModell.shared.schauen() }
+        .onDisappear { SpotifyModell.shared.wegschauen() }
     }
 
     /// Figur, Name, Streak, Status und die letzte-Nachricht-Vorschau – getrennt vom `Button` und
@@ -158,6 +174,8 @@ private struct ChatPartnerKarte: View {
                     .foregroundStyle(zustand == .tippt ? Color.person(partner) : Color.secondary)
             }
             Spacer(minLength: 0)
+            // Z-27.5: Wetter an der Partner-Figur.
+            if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
         }
     }
 
@@ -345,7 +363,8 @@ private struct ChatSuchleiste: View {
     private func suchen() {
         let begriff = text.trimmingCharacters(in: .whitespaces)
         treffer = begriff.isEmpty ? [] : modell.nachrichten
-            .filter { !$0.geloescht && ($0.text ?? "").localizedCaseInsensitiveContains(begriff) }
+            // Z-27.2: eine verschlossene Zeitkapsel darf nicht über die Suche verraten werden.
+            .filter { !$0.geloescht && !ChatModell.verschlossen($0) && ($0.text ?? "").localizedCaseInsensitiveContains(begriff) }
             .map(\.id)
         index = max(treffer.count - 1, 0)
         if let id = treffer.last { onSpringeZu(id) }

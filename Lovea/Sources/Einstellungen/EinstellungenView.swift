@@ -41,6 +41,9 @@ struct EinstellungenView: View {
                 NavigationLink("Jahrestag") { JahrestagEditor() }
                 NavigationLink("Wochenplan") { WochenplanEditor() }
             }
+            Section("Spotify") {
+                SpotifyVerbindenRow()
+            }
             Section {
                 Toggle("Leistungsanzeige", isOn: $showsHUD)
             }

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   vorabendZeit, stundeVorherZeit, puenktlichZeit, naechsteTageszeit, naechsteFaelligeTageszeit, naechsterAlarm,
   challengeEndspurtWocheZeit, challengeEndeWocheZeit, challengeEndspurtMonatZeit, challengeEndeMonatZeit,
+  kapselOeffnetZeit,
 } from "./zeitplan.js";
 
 // Review-Fokus 4: Tageswechsel in Europe/Berlin über die Zeitumstellung
@@ -27,6 +28,12 @@ test("Pünktlich-Karte am Morgen danach liegt im neuen Kalendertag", () => {
   const ms = puenktlichZeit("2026-10-24");
   const berlin = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "short", timeStyle: "short" }).format(ms);
   assert.match(berlin, /^25\.10\.(20)?26, 09:00$/);
+});
+
+// Z-27.2: Zeitkapsel-Push, 09:00 Berlin am Öffnungstag, auch über die Zeitumstellung hinweg.
+test("kapselOeffnetZeit: 09:00 Berlin, vor und nach der Zeitumstellung", () => {
+  assert.equal(new Date(kapselOeffnetZeit("2026-10-24")).toISOString(), "2026-10-24T07:00:00.000Z"); // CEST, UTC+2
+  assert.equal(new Date(kapselOeffnetZeit("2026-10-26")).toISOString(), "2026-10-26T08:00:00.000Z"); // CET, UTC+1
 });
 
 test("naechsteTageszeit: heute, falls noch nicht vorbei, sonst morgen", () => {

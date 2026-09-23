@@ -417,6 +417,44 @@ export function zufaelligNah({ a, b, jetztMs, heuteTreffen }) {
   return distanzMeter(a.d, b.d) < 100;
 }
 
+// --- Unsere Orte (Z-27.4) ---------------------------------------------------
+//
+// Der Server kennt nur den jeweils letzten Standort (siehe `standort`-Tabelle), keine Historie --
+// deshalb server-seitig statt aus einer client-seitigen Historie berechnet (die es nicht gibt):
+// jeder `#standort`-Aufruf prüft live, ob beide gerade nah beieinander sind, und zählt die Zeit
+// über den Merker `gemeinsam.seit` weiter. Läuft auch im Hintergrund (POST /fl), anders als eine
+// rein client-seitige Lösung, die nur bei offener App Standorte des Partners sähe.
+//
+// Reine Zustandsübergangsfunktion: `seitMs` ist der vorherige Merker-Wert (oder null), das
+// Ergebnis sagt, ob (noch) nah, seit wann, und ob jetzt gemeldet werden soll (>= 30 min am Stück).
+// ponytail: großzügiges Stale-Fenster (4h) -- zwei Handys in der Tasche beim Essen senden zwischen
+// Ankunfts- und Abfahrts-Visit (`startMonitoringSignificantLocationChanges`, ~500 m Auflösung)
+// nichts; ein zu enges Fenster würde den Aufenthalt beim Abfahrts-Check schon als "zu alt" verwerfen
+// und nie melden. Obergrenze des Kompromisses: ein liegen gelassenes/totes Handy in der Nähe kann
+// einen Aufenthalt künstlich verlängern. Upgrade-Weg: `CLBackgroundActivitySession` für dichtere
+// Hintergrund-Punkte, dann das Fenster wieder verkleinern.
+export function gemeinsamPruefen({ a, b, jetztMs, seitMs, radius = 150, mindestDauerMs = 30 * 60_000, staleMs = 4 * 60 * 60_000 }) {
+  if (!a || !b) return { nah: false, seit: null, melden: false };
+  if (jetztMs - Date.parse(a.zeit) >= staleMs) return { nah: false, seit: null, melden: false };
+  if (jetztMs - Date.parse(b.zeit) >= staleMs) return { nah: false, seit: null, melden: false };
+  if (distanzMeter(a.d, b.d) >= radius) return { nah: false, seit: null, melden: false };
+  const seit = seitMs ?? jetztMs;
+  return { nah: true, seit, melden: jetztMs - seit >= mindestDauerMs };
+}
+
+export function gemeinsamSeitMs(sql) {
+  const wert = merkerLesen(sql, "gemeinsam.seit");
+  return wert === null ? null : Number(wert);
+}
+
+export function gemeinsamSeitSetzen(sql, seitMs) {
+  merkerSchreiben(sql, "gemeinsam.seit", String(seitMs));
+}
+
+export function gemeinsamZuruecksetzen(sql) {
+  sql.exec(`DELETE FROM merker WHERE schluessel = 'gemeinsam.seit'`);
+}
+
 // --- Zeitplan-Kontext (Z-1.7): aus den Ops abgeleiteter Stand, den
 // zeitplan.naechsterAlarm() braucht. Reine Ableitung, keine Zeitpläne selbst. --
 
@@ -453,6 +491,21 @@ export function offeneSpielEinladungen(sql) {
   const byId = new Map();
   for (const op of gesetzt) byId.set(op.d.id, { id: op.d.id, bis: op.d.bis, von: op.von });
   return [...byId.values()].filter((x) => !erledigt.has(x.id));
+}
+
+// Noch nicht geöffnete Zeitkapseln: `art = 'nachricht.neu'` mit `d.kapsel.oeffnetAm` gesetzt.
+// json_extract statt "alle nachricht.neu laden und in JS filtern" (M-6/Last, Spec 13) -- #alarmAktualisieren
+// läuft nach JEDER Op, ein Full-Scan über den ganzen Chat wäre hier zu teuer.
+// `id` ist die Nachrichten-id aus `d.id` (schnittstellen.md), NICHT die Op-id (Zeile `ops.id`) --
+// dieselbe id, gegen die auch `nachricht.bearbeitet`/`nachricht.geloescht`/... referenzieren.
+export function offeneKapseln(sql) {
+  return sql
+    .exec(
+      `SELECT json_extract(d, '$.id') AS id, json_extract(d, '$.kapsel.oeffnetAm') AS oeffnetAm
+       FROM ops WHERE art = 'nachricht.neu' AND json_extract(d, '$.kapsel.oeffnetAm') IS NOT NULL`
+    )
+    .toArray()
+    .map((row) => ({ id: row.id, oeffnetAm: row.oeffnetAm }));
 }
 
 // Neueste Fassung eines Orts (für Namen/`melden` bei ort.ereignis-Push).
@@ -497,4 +550,30 @@ export function alarmErledigt(sql, art, schluessel) {
 
 export function alarmAlsErledigtMarkieren(sql, art, schluessel, jetztIso) {
   merkerSchreiben(sql, `alarm.${art}.${schluessel}`, jetztIso);
+}
+
+// --- Spotify (Z-27.6) -------------------------------------------------------
+//
+// Tokens liegen im Merker, NICHT als Op: sie sind reine Server-Buchhaltung für den DO selbst,
+// kein Ereignis, das beide Handys über den OpLog synchronisieren müssten (und nie als unbekannte
+// Op-Art beim Client ankommen sollen) -- gleiches Muster wie die Alarm-Buchhaltung oben.
+
+export function spotifyTokenLesen(sql, person) {
+  const wert = merkerLesen(sql, `spotify.token.${person}`);
+  return wert === null ? null : JSON.parse(wert);
+}
+
+// `token = {accessToken, refreshToken, ablaeuftMs}`.
+export function spotifyTokenSchreiben(sql, person, token) {
+  merkerSchreiben(sql, `spotify.token.${person}`, JSON.stringify(token));
+}
+
+export function spotifyCacheLesen(sql, person) {
+  const wert = merkerLesen(sql, `spotify.cache.${person}`);
+  return wert === null ? null : JSON.parse(wert);
+}
+
+// `eintrag = {geladenMs, daten}` -- `daten` ist die schon fertige Antwort für GET /spotify/jetzt.
+export function spotifyCacheSchreiben(sql, person, eintrag) {
+  merkerSchreiben(sql, `spotify.cache.${person}`, JSON.stringify(eintrag));
 }

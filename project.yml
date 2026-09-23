@@ -12,6 +12,7 @@ settings:
     CURRENT_PROJECT_VERSION: 1
     LOVEA_APP_KEY: ""
     LOVEA_SERVER: "https://lovea-live.ahmedhdplay12345.workers.dev"
+    SPOTIFY_CLIENT_ID: ""
 targets:
   Lovea:
     type: application
@@ -31,6 +32,7 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LoveaAppKey: $(LOVEA_APP_KEY)
         LoveaServer: $(LOVEA_SERVER)
+        LoveaSpotifyClientID: $(SPOTIFY_CLIENT_ID)
         CFBundleURLTypes:
           - CFBundleURLName: com.onlyus.lovea
             CFBundleURLSchemes:

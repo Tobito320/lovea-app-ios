@@ -36,9 +36,16 @@ final class ChatModell {
         var snapGespeichert = false
         /// Local chat line for a `zeichnung.einladung` (no own op, so no second push).
         var einladung: EinladungInfo?
+        // Z-27.2: optional, at the end so every existing labeled `Nachricht(...)` call above still
+        // compiles unchanged.
+        var kapsel: KapselInfo?
+        var brief: BriefInfo?
     }
 
     struct EinladungInfo: Sendable, Equatable { let zeichnungId: String; let name: String }
+    /// `oeffnetAm` is a "yyyy-MM-dd" day (schnittstellen.md), compared in Europe/Berlin — see `verschlossen(_:)`.
+    struct KapselInfo: Codable, Sendable, Equatable { let oeffnetAm: String }
+    struct BriefInfo: Codable, Sendable, Equatable { let titel: String }
 
     // Blocks 5/6 extend these; fields already match the op payloads in schnittstellen.md.
     // `pegel` (Z-5.2 waveform, ≤64 dB-derived values) is an extra field beyond schnittstellen.md,
@@ -104,7 +111,8 @@ final class ChatModell {
                 byID[p.id] = Nachricht(
                     id: p.id, von: op.von, zeit: op.zeit, seq: op.seq, text: p.text,
                     medien: p.medien ?? [], antwortAuf: p.antwortAuf, snap: p.snap,
-                    gif: p.gif, sticker: p.sticker, spiel: p.spiel, system: p.system
+                    gif: p.gif, sticker: p.sticker, spiel: p.spiel, system: p.system,
+                    kapsel: p.kapsel, brief: p.brief
                 )
             }
         case "nachricht.bearbeitet":
@@ -219,6 +227,45 @@ final class ChatModell {
         let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !getrimmt.isEmpty else { return }
         Raum.shared.senden("nachricht.neu", NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, antwortAuf: antwortAuf))
+    }
+
+    /// Z-27.2: Zeitkapsel — `oeffnetAm` ist der Öffnungstag (Europe/Berlin), verschlossen bis dahin.
+    /// Spec 9 "Nachricht, Foto oder Zeichnung": `medium` ist optional, Text oder Foto reicht.
+    func kapselSenden(text: String, oeffnetAm: Date, medium: MedienEintrag? = nil) {
+        let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !getrimmt.isEmpty || medium != nil else { return }
+        Raum.shared.senden(
+            "nachricht.neu",
+            NachrichtNeuPayload(
+                id: UUID().uuidString, text: getrimmt.isEmpty ? nil : getrimmt, medien: medium.map { [$0] },
+                kapsel: KapselInfo(oeffnetAm: Datum.text(oeffnetAm))
+            )
+        )
+    }
+
+    /// Z-27.2: Liebesbrief — kein Verschluss-Datum, nur Siegel + Öffnen-Animation (`ChatNachrichtRow`).
+    func briefSenden(titel: String, text: String) {
+        let titelGetrimmt = titel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let textGetrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !titelGetrimmt.isEmpty, !textGetrimmt.isEmpty else { return }
+        Raum.shared.senden(
+            "nachricht.neu",
+            NachrichtNeuPayload(id: UUID().uuidString, text: textGetrimmt, brief: BriefInfo(titel: titelGetrimmt))
+        )
+    }
+
+    /// Z-27.2 "ist sie schon offen": Kalendertag-Vergleich in Europe/Berlin (`Datum`, wie der Server
+    /// bei `kapselOeffnetZeit`), NICHT die genaue Uhrzeit — die Push kommt bewusst erst um 09:00,
+    /// aber die Kapsel selbst öffnet sich schon ab Mitternacht des Tages (Spec 9).
+    // `nonisolated`: pure (no `self`/instance state), called from non-MainActor call sites too —
+    // `HeuteVorLogik` (plain enum) and `ChatVorschau.inhalt` (plain enum) both call this.
+    nonisolated static func verschlossen(oeffnetAm: String, jetzt: Date = Date()) -> Bool {
+        Datum.tageZwischen(oeffnetAm, Datum.text(jetzt)) < 0
+    }
+
+    nonisolated static func verschlossen(_ n: Nachricht, jetzt: Date = Date()) -> Bool {
+        guard let kapsel = n.kapsel else { return false }
+        return verschlossen(oeffnetAm: kapsel.oeffnetAm, jetzt: jetzt)
     }
 
     func bearbeiten(_ id: String, text: String) {
@@ -390,6 +437,8 @@ private struct NachrichtNeuPayload: Codable {
     var sticker: ChatModell.StickerInfo?
     var spiel: ChatModell.SpielInfo?
     var system: String?
+    var kapsel: ChatModell.KapselInfo?
+    var brief: ChatModell.BriefInfo?
 }
 
 /// Z-26.2 draft content: text, already-uploaded photo/voice medien ids.

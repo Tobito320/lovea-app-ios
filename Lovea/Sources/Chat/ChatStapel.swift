@@ -14,7 +14,7 @@ enum ChatStapel {
 
     static func istBild(_ n: ChatModell.Nachricht) -> Bool {
         !n.geloescht && n.snap == nil && (n.text ?? "").isEmpty && n.gif == nil && n.sticker == nil
-            && n.spiel == nil && n.system == nil && n.einladung == nil
+            && n.spiel == nil && n.system == nil && n.einladung == nil && n.kapsel == nil && n.brief == nil
             && !n.medien.isEmpty && n.medien.allSatisfy { $0.typ == "foto" || $0.typ == "video" }
     }
 
@@ -65,6 +65,10 @@ enum ChatVorschau {
     }
 
     static func inhalt(_ n: ChatModell.Nachricht) -> String {
+        // Z-27.2: der Inhalt einer verschlossenen Zeitkapsel/eines Briefs darf nie als Vorschau,
+        // Zitat oder Suchtreffer auftauchen — vor `n.text` geprüft, auch wenn beide gesetzt sind.
+        if let kapsel = n.kapsel { return ChatModell.verschlossen(oeffnetAm: kapsel.oeffnetAm) ? "🔒 Zeitkapsel" : "🔓 Zeitkapsel geöffnet" }
+        if let brief = n.brief { return "💌 Brief „\(brief.titel)“" }
         if let text = n.text, !text.isEmpty { return text }
         if n.snap != nil { return "Snap" }
         if let einladung = n.einladung { return "Zeichnung „\(einladung.name)“" }

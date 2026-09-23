@@ -11,6 +11,8 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     NaechstesTreffenCard()
+                    GrussKnopfCard()
+                    HeuteVorCard()
                     WieGehtsDirCard()
                     SchritteDuellCard()
                     FrageDesTagesCard()

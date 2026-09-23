@@ -150,10 +150,15 @@ struct ChatNachrichtRow: View {
                 .foregroundStyle(.secondary)
                 .padding(10)
                 .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
+        } else if let kapsel = nachricht.kapsel, ChatModell.verschlossen(nachricht) {
+            KapselVerschlossenBlase(oeffnetAm: kapsel.oeffnetAm, von: nachricht.von)
+        } else if let brief = nachricht.brief {
+            BriefBlase(titel: brief.titel, text: nachricht.text ?? "", von: nachricht.von)
         } else if istStapel {
             FotoStapel(medien: alleMedien, eigene: eigene)
         } else {
             VStack(alignment: .leading, spacing: 6) {
+                if nachricht.kapsel != nil { KapselGeoeffnetKennzeichen() }
                 // A snap is never rendered via the plain medium path (view-once).
                 if let snap = nachricht.snap {
                     SnapZeile(nachricht: nachricht, snap: snap, ich: ich, eigene: eigene, onAntworten: onAntworten)
@@ -226,11 +231,14 @@ struct ChatNachrichtRow: View {
             }
         }
         Button("Antworten", systemImage: "arrowshape.turn.up.left") { onAntworten(nachricht) }
-        if eigene, !nachricht.geloescht, !(nachricht.text ?? "").isEmpty {
-            Button("Bearbeiten", systemImage: "pencil") { onBearbeiten(nachricht) }
-        }
-        if let text = nachricht.text, !text.isEmpty {
-            Button("Kopieren", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+        // Z-27.2: eine verschlossene Zeitkapsel darf ihren Text nicht über Bearbeiten/Kopieren preisgeben.
+        if !ChatModell.verschlossen(nachricht) {
+            if eigene, !nachricht.geloescht, !(nachricht.text ?? "").isEmpty {
+                Button("Bearbeiten", systemImage: "pencil") { onBearbeiten(nachricht) }
+            }
+            if let text = nachricht.text, !text.isEmpty {
+                Button("Kopieren", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+            }
         }
         if nachricht.snap == nil, !nachricht.geloescht, !lokaleFotos.isEmpty {
             Button(lokaleFotos.count > 1 ? "Alle in Galerie speichern" : "In Galerie speichern", systemImage: "photo.badge.plus") {
