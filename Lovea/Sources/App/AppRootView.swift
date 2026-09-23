@@ -12,6 +12,10 @@ private enum AppTab: String, Hashable {
 final class AppNavigation {
     static let shared = AppNavigation()
     var geteilteZeichnung: String?
+    /// Profile → "Im Chat suchen": ChatTab opens the conversation with search active and clears it.
+    var chatSuche = false
+    /// Switch tab from anywhere ("home", "chat", "drawing", "map", "profile"); AppRootView clears it.
+    var tabWunsch: String?
     private init() {}
 }
 
@@ -41,6 +45,11 @@ struct AppRootView: View {
         .tabViewStyle(.sidebarAdaptable)
         .tint(Color.loveaRose)
         .spieleBuehne()
+        .onChange(of: AppNavigation.shared.tabWunsch) { _, wunsch in
+            guard let wunsch, let tab = AppTab(rawValue: wunsch) else { return }
+            selectedTab = tab
+            AppNavigation.shared.tabWunsch = nil
+        }
         // Z-7.3: partner online / drawing invite / Anstupsen & Kuss, glass capsule on top.
         .overlay(alignment: .top) {
             InAppBannerView(aufZeichnungGetippt: { id in
