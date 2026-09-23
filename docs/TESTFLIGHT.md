@@ -1,7 +1,7 @@
 # Lovea zu TestFlight bringen
 
 Der Workflow `.github/workflows/testflight.yml` baut die App auf GitHub. Er lädt sie dann zu TestFlight hoch.
-Er startet nur von Hand. Vorher braucht er sieben Secrets im Repo.
+Er startet nur von Hand. Vorher braucht er acht Secrets im Repo.
 
 Wichtig: Passwörter tippst du selbst ein. Kein Agent gibt ein Passwort ein.
 
@@ -14,7 +14,7 @@ Das machst du einmal.
 3. Öffne https://appstoreconnect.apple.com → Apps → Plus → Neue App.
 4. Plattform iOS. Name `Lovea`. Bundle ID `com.onlyus.lovea`. SKU zum Beispiel `lovea`.
 
-## 2. Die sieben Secrets
+## 2. Die acht Secrets
 
 Alle Befehle laufen in PowerShell. Du brauchst die GitHub CLI (`gh auth login`).
 `gh secret set` fragt nach dem Wert, wenn keiner übergeben wird. Dann tippst oder fügst du ihn selbst ein.
@@ -102,7 +102,17 @@ gh secret set ASC_ISSUER_ID --repo Tobito320/lovea-app-ios
 [Convert]::ToBase64String([IO.File]::ReadAllBytes("AuthKey_XXXXXXXXXX.p8")) | gh secret set ASC_KEY_P8_BASE64 --repo Tobito320/lovea-app-ios
 ```
 
-Prüfen, ob alle sieben da sind:
+### LOVEA_APP_KEY
+
+Der App-Schlüssel für den Server. Zufällig erzeugt, 32 Byte als Hex. Derselbe Wert steht auch als
+Worker-Secret `LOVEA_APP_KEY` (siehe [`README.md`](../README.md) Abschnitt „Server“). Lokal liegt
+er in `signing/lovea-app.key`, nicht im Repo.
+
+```powershell
+(Get-Content signing\lovea-app.key -Raw).Trim() | gh secret set LOVEA_APP_KEY --repo Tobito320/lovea-app-ios
+```
+
+Prüfen, ob alle acht da sind:
 
 ```powershell
 gh secret list --repo Tobito320/lovea-app-ios
@@ -110,9 +120,15 @@ gh secret list --repo Tobito320/lovea-app-ios
 
 ## 3. Workflow starten
 
+Das Actions-Budget für private Repos ist zurzeit aufgebraucht. Deshalb laufen CI und TestFlight
+derzeit mit kurzzeitig öffentlich gestelltem Repo: erst öffentlich stellen, Workflow laufen lassen,
+danach wieder zurück auf privat.
+
 ```powershell
+gh repo edit Tobito320/lovea-app-ios --visibility public --accept-visibility-change-consequences
 gh workflow run testflight.yml --repo Tobito320/lovea-app-ios
 gh run watch --repo Tobito320/lovea-app-ios
+gh repo edit Tobito320/lovea-app-ios --visibility private --accept-visibility-change-consequences
 ```
 
 Fehlt ein Secret, bricht der erste Schritt ab. Er nennt dann die fehlenden Namen.
