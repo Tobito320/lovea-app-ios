@@ -155,8 +155,13 @@ final class OrteModell {
         return await task.value
     }
 
+    // ponytail: stillgelegt, der erste gespeicherte Ort liess die App beim Start abstuerzen
+    // (CLMonitor). Die Figur bekommt .gym weiter ueber den Standort. Wieder an, wenn ein
+    // Crash-Log zeigt, dass der einzelne gemerkte Monitor oben sicher ist.
+    private static let monitorAn = false
+
     private func monitorAktualisieren() async {
-        guard let ich = Raum.shared.ich else { return }
+        guard Self.monitorAn, let ich = Raum.shared.ich, orte.contains(where: { $0.person == ich }) else { return }
         let monitor = await monitorSicherstellen()
         let vorhandene = await monitor.identifiers
         for ort in orte where ort.person == ich && !vorhandene.contains(ort.id) {
