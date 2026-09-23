@@ -77,6 +77,7 @@ private struct ProfilInhalt: View {
                         .figurGesten(person: person) { FigurenModell.shared.gesteSenden($0) }
                 } else {
                     FigurView(FigurenModell.shared.aussehen(person), zustand: anzeige.haupt, abzeichen: abzeichen, groesse: 220)
+                        .accessibilityLabel("Deine Figur")
                 }
             }
             Text(person.name)
@@ -100,7 +101,7 @@ private struct ProfilInhalt: View {
 
     private var andichGedacht: some View {
         HStack(spacing: 10) {
-            Image(systemName: "heart.fill").foregroundStyle(Color.loveaRose)
+            Image(systemName: "heart.fill").foregroundStyle(Color.loveaRose).accessibilityHidden(true)
             Text(andichGedachtText)
                 .font(.subheadline)
         }

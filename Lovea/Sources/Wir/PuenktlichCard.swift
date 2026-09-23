@@ -6,25 +6,31 @@ import SwiftUI
 struct PuenktlichCard: View {
     let kalender = KalenderModell.shared
     @State private var versatz: CGFloat = 0
+    @Environment(\.dynamicTypeSize) private var schrift
 
     var body: some View {
         if let kandidat = kalender.puenktlichKandidat() {
+            // Drei Figuren nebeneinander passen ab AX-Größen nicht mehr, dann untereinander.
+            let reihe = schrift.isAccessibilitySize ? AnyLayout(VStackLayout(spacing: 12)) : AnyLayout(HStackLayout(spacing: 12))
             VStack(alignment: .leading, spacing: 12) {
                 Text("Wie pünktlich war \(kandidat.ueber.name) gestern?")
                     .font(.headline)
-                HStack(spacing: 12) {
+                reihe {
                     wertungsKnopf(kandidat, wert: "uhrwerk", zustand: .pokal, titel: "Schweizer Uhrwerk")
                     wertungsKnopf(kandidat, wert: "charmant", zustand: .lacht, titel: "Knapp aber charmant")
                     wertungsKnopf(kandidat, wert: "troedel", zustand: .ruhig, titel: kandidat.ueber == .annika ? "Trödelkönigin" : "Trödelkönig")
                 }
-                Text("Wegwischen zum Überspringen")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                // Wischen allein reicht nicht (VoiceOver, Schalterbedienung): sichtbarer Knopf dazu.
+                Button("Überspringen") { wegwischen(kandidat) }
+                    .font(.footnote)
+                    .frame(minHeight: 44)
             }
             .padding(16)
             .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
             .offset(x: versatz)
             .opacity(Double(1 - min(abs(versatz) / 200, 1)))
+            // After a skip the next unrated meeting reuses this view; start it in place again.
+            .onChange(of: kandidat.datum, initial: true) { versatz = 0 }
             .gesture(
                 DragGesture()
                     .onChanged { versatz = $0.translation.width }
@@ -52,6 +58,7 @@ struct PuenktlichCard: View {
             .frame(maxWidth: .infinity)
         }
         .buttonStyle(.plain)
+        .accessibilityLabel(titel)
     }
 
     private func wegwischen(_ kandidat: (datum: String, ueber: Person)) {

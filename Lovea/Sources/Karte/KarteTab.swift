@@ -58,10 +58,12 @@ struct KarteTab: View {
                 if let d = standort.positionen[person] {
                     let punkt = CLLocationCoordinate2D(latitude: d.lat, longitude: d.lon)
                     Annotation(person.name, coordinate: punkt) {
-                        FigurView(figuren.aussehen(person), zustand: zustand(person), groesse: 64)
+                        // 15 fps: the map redraws annotations while panning, the loop needs no more.
+                        FigurView(figuren.aussehen(person), zustand: zustand(person), groesse: 64, bildrate: 15)
                             .onTapGesture { if person != Raum.shared.ich { ausgewaehlt = PersonAuswahl(person: person) } }
                             .accessibilityLabel("Figur von \(person.name)")
                             .accessibilityHint(person == Raum.shared.ich ? "" : "Öffnet Standort-Details")
+                            .accessibilityAddTraits(person == Raum.shared.ich ? [] : .isButton)
                     }
                     if d.genau > 20 {
                         MapCircle(center: punkt, radius: d.genau)

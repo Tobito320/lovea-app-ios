@@ -66,4 +66,6 @@ struct Block: Equatable {
     var ende: String?
     var status: String // "normal" | "krank" | "urlaub" | "frei" | "verschoben"
     var quelle: String // "muster" | "termin" | "treffen"
+    /// Nur bei `quelle == "termin"`: für „Zum iPhone-Kalender" pro Termin (Z-9.6).
+    var terminId: String? = nil
 }
