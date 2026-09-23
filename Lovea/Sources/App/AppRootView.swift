@@ -1,7 +1,18 @@
+import Observation
 import SwiftUI
 
 private enum AppTab: String, Hashable {
     case home, chat, drawing, map, profile
+}
+
+/// Deep links across tabs. The banner "… zeichnet gerade an ‚X' – zuschauen?" sets
+/// `geteilteZeichnung`; `DrawingView` pushes that drawing and clears it again.
+@MainActor
+@Observable
+final class AppNavigation {
+    static let shared = AppNavigation()
+    var geteilteZeichnung: String?
+    private init() {}
 }
 
 struct AppRootView: View {
@@ -32,7 +43,10 @@ struct AppRootView: View {
         .spieleBuehne()
         // Z-7.3: partner online / drawing invite / Anstupsen & Kuss, glass capsule on top.
         .overlay(alignment: .top) {
-            InAppBannerView(aufZeichnungGetippt: { _ in selectedTab = .drawing })
+            InAppBannerView(aufZeichnungGetippt: { id in
+                AppNavigation.shared.geteilteZeichnung = id
+                selectedTab = .drawing
+            })
         }
     }
 }

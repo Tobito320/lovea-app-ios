@@ -123,6 +123,12 @@ struct DrawingView: View {
                 _ = TeilenModell.shared
                 _ = LiveZeichnung.shared
             }
+            // Banner deep link (AppNavigation): open the partner's drawing on top of whatever is open.
+            .onChange(of: AppNavigation.shared.geteilteZeichnung, initial: true) { _, id in
+                guard let id else { return }
+                AppNavigation.shared.geteilteZeichnung = nil
+                if path.last != GalleryRoute.geteilt(id) { path.append(.geteilt(id)) }
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { duellOffen = true } label: { Image(systemName: "timer") }
