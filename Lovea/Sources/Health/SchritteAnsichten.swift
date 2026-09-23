@@ -44,7 +44,11 @@ struct SchritteWocheChart: View {
 
     var body: some View {
         let hoechster = max(balken.compactMap(\.anzahl).max() ?? 0, 1000)
-        Chart(balken) { b in marke(b) }
+        // Only one value label (the tallest bar of the week or of the selected day): two labels
+        // over the paired bars overlapped. The summary line above names both values.
+        let sichtbar = balken.filter { auswahl == nil || $0.kuerzel == auswahl }
+        let beschriftet = sichtbar.max { ($0.anzahl ?? 0) < ($1.anzahl ?? 0) }
+        Chart(balken) { b in marke(b, beschriftet: beschriftet?.id == b.id) }
             .chartXSelection(value: $auswahl)
             .chartYScale(domain: 0...Int(Double(hoechster) * 1.2))
             .chartYAxis(.hidden)
@@ -53,14 +57,14 @@ struct SchritteWocheChart: View {
             .onChange(of: auswahl) { _, neu in if neu != nil { Haptik.auswahl() } }
     }
 
-    private func marke(_ b: SchrittBalken) -> some ChartContent {
+    private func marke(_ b: SchrittBalken, beschriftet: Bool) -> some ChartContent {
         BarMark(x: .value("Tag", b.kuerzel), y: .value("Schritte", b.anzahl ?? 0), width: .ratio(0.9))
             .position(by: .value("Person", b.person.name))
             .foregroundStyle(Color.person(b.person))
             .cornerRadius(5)
             .opacity(auswahl == nil || auswahl == b.kuerzel ? 1 : 0.35)
             .annotation(position: .top, spacing: 3) {
-                if let anzahl = b.anzahl {
+                if beschriftet, let anzahl = b.anzahl {
                     Text(HealthText.kurz(anzahl)).font(.caption2.weight(.semibold)).monospacedDigit().foregroundStyle(.secondary)
                 }
             }
