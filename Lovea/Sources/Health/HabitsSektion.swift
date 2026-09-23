@@ -163,15 +163,56 @@ struct HabitVerlaufInhalt: View {
             .pickerStyle(.segmented)
 
             switch ansicht {
-            case 0: wocheAnsicht
+            case 0:
+                // Spec 3.1 ist hier explizit: Schritte-Woche sind Balken, nicht die Stufen-Kästchen.
+                if art == .schritte { schritteWoche } else { wocheAnsicht }
             case 1: monatAnsicht
             default: jahrAnsicht
             }
-            legende
+            if !(art == .schritte && ansicht == 0) { legende }
         }
     }
 
     // MARK: Woche
+
+    /// Spec 3.1 "Woche (Balken pro Tag, beide)" — nur für Schritte, Gym/Wasser bleiben bei den
+    /// Stufen-Kästchen (`wocheAnsicht`), weil sie 0…3-Level sind, keine stetige Menge wie Schritte.
+    private var schritteWoche: some View {
+        let tage = HealthLogik.wocheTage(heute)
+        let werte = Person.allCases.map { p in tage.map { health.schritteAm(p, $0) } }
+        let ziele = Person.allCases.map { HealthLogik.zielAmTag(heute, health.zielSchritteAenderungen[$0] ?? [], standard: 10_000) }
+        let hoechstwert = max(werte.flatMap { $0.compactMap { $0 } }.max() ?? 0, ziele.max() ?? 10_000, 1)
+        return HStack(alignment: .bottom, spacing: 8) {
+            ForEach(tage, id: \.self) { tag in
+                VStack(spacing: 3) {
+                    HStack(alignment: .bottom, spacing: 2) {
+                        schrittBalken(health.schritteAm(.ahmed, tag), hoechstwert: hoechstwert, farbe: Color.person(.ahmed))
+                        schrittBalken(health.schritteAm(.annika, tag), hoechstwert: hoechstwert, farbe: Color.person(.annika))
+                    }
+                    .frame(height: 56)
+                    Text(wochentagsKuerzel(tag)).font(.caption2).foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(schrittTagBeschriftung(tag))
+            }
+        }
+    }
+
+    private func schrittBalken(_ anzahl: Int?, hoechstwert: Int, farbe: Color) -> some View {
+        let hoehe = anzahl.map { CGFloat($0) / CGFloat(hoechstwert) * 56 } ?? 2
+        return RoundedRectangle(cornerRadius: 2)
+            .fill(anzahl != nil ? farbe : Color(uiColor: .tertiarySystemFill))
+            .frame(width: 8, height: Swift.max(2, hoehe))
+    }
+
+    private func schrittTagBeschriftung(_ tag: String) -> String {
+        let ahmed = health.schritteAm(.ahmed, tag).map { "\($0)" } ?? "keine Daten"
+        let annika = health.schritteAm(.annika, tag).map { "\($0)" } ?? "keine Daten"
+        return "\(Datum.anzeige(tag)): Ahmed \(ahmed), Annika \(annika)"
+    }
+
+    private func wochentagsKuerzel(_ tag: String) -> String { ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][Datum.wochentag(tag) - 1] }
 
     private var wocheAnsicht: some View {
         let tage = HealthLogik.wocheTage(heute)
@@ -285,8 +326,11 @@ struct HabitVerlaufInhalt: View {
 
     /// UI-seitige Anwendung von `HealthLogik.gymStufe`/`wasserStufe` je Tag — die Logik selbst bleibt
     /// in `HealthLogik` (Z-22.1), hier wird sie nur pro Kalendertag aufgerufen statt nur für "heute".
-    /// // ponytail: Schritte nutzen `wasserStufe`s Prozent-vom-Ziel-Schwellen (<50 %/≥50 %/100 %,
-    /// Spec 4.2s Wasser-Stufen) statt einer eigenen `schritteStufe` — dieselbe Skala passt, spart
+    /// Für Monat/Jahr (Spec 3.1: "GitHub-Raster, drei Grüntöne", Zielplan Z-21.1) auch für Schritte —
+    /// nur die Woche ist dort explizit Balken (`schritteWoche`), diese Funktion wird für `ansicht == 0`
+    /// bei `.schritte` also nie aufgerufen.
+    /// // ponytail: Schritte-Monat/-Jahr nutzen `wasserStufe`s Prozent-vom-Ziel-Schwellen (<50 %/≥50 %/
+    /// 100 %, Spec 4.2s Wasser-Stufen) statt einer eigenen `schritteStufe` — dieselbe Skala passt, spart
     /// eine vierte Funktion in `HealthLogik` für exakt dieselbe Formel.
     private func stufe(_ person: Person, _ tag: String) -> Int {
         switch art {

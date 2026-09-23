@@ -36,6 +36,13 @@ final class HealthModell {
 
     private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt"
 
+    /// Für den "Health nicht erlaubt"-Hinweis (Z-21.1/Z-21.3, Review-Fokus 4): unterscheidet "noch
+    /// nie gefragt" (Knopf soll `sicherstellen()` erneut auslösen) von "schon gefragt, aber keine
+    /// Daten" (Knopf soll in die Einstellungen führen). Gespeichert statt berechnet, damit `@Observable`
+    /// den Hinweis-Knopf sofort umschaltet, sobald `sicherstellen()` läuft — ein reiner UserDefaults-
+    /// Lesezugriff würde SwiftUI keine Änderung melden.
+    private(set) var berechtigungAngefragt = UserDefaults.standard.bool(forKey: HealthModell.angefragtSchluessel)
+
     private init() {
         Raum.shared.beobachten(["schritte.setzen"]) { [weak self] op in self?.schritteOpAnwenden(op) }
         Raum.shared.beobachten(["schlaf.setzen"]) { [weak self] op in self?.schlafOpAnwenden(op) }
@@ -120,20 +127,16 @@ final class HealthModell {
 
     // MARK: - HealthKit
 
-    /// Für den "Health nicht erlaubt"-Hinweis (Z-21.1/Z-21.3, Review-Fokus 4): unterscheidet "noch
-    /// nie gefragt" (Knopf soll `sicherstellen()` erneut auslösen) von "schon gefragt, aber keine
-    /// Daten" (Knopf soll in die Einstellungen führen — ein zweiter Systemdialog kommt eh nicht mehr).
-    var berechtigungAngefragt: Bool { UserDefaults.standard.bool(forKey: Self.angefragtSchluessel) }
-
     /// Vom `onAppear` des Health-Tabs: fragt die Leseberechtigung höchstens einmal jemals an
     /// (Flag in `UserDefaults`, überlebt Neustarts) — nicht nur einmal pro Prozess.
     func sicherstellen() {
         guard HKHealthStore.isHealthDataAvailable() else { return }
-        guard !UserDefaults.standard.bool(forKey: Self.angefragtSchluessel) else {
+        guard !berechtigungAngefragt else {
             beobachtenStartenFallsErlaubt()
             return
         }
         UserDefaults.standard.set(true, forKey: Self.angefragtSchluessel)
+        berechtigungAngefragt = true
         Task {
             _ = await berechtigungAnfragen()
             beobachtenStartenFallsErlaubt()
@@ -144,7 +147,7 @@ final class HealthModell {
     /// App-Start laufen (auch einem Hintergrund-Start), sonst bleibt Background Delivery nach
     /// einem Neustart aus. No-op, solange nie erfolgreich `sicherstellen()` aufgerufen wurde.
     func beobachtenStartenFallsErlaubt() {
-        guard HKHealthStore.isHealthDataAvailable(), UserDefaults.standard.bool(forKey: Self.angefragtSchluessel), !beobachterGestartet else { return }
+        guard HKHealthStore.isHealthDataAvailable(), berechtigungAngefragt, !beobachterGestartet else { return }
         beobachterGestartet = true
         beobachteAenderungen()
     }

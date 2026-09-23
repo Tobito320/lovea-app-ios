@@ -7,8 +7,6 @@ import UIKit
 struct SchritteRing: View {
     let person: Person
     var groesse: CGFloat = 108
-    /// Siehe `HealthNichtErlaubtHinweis.zeigtKnopf`.
-    var zeigtKnopf = true
 
     private var anzahl: Int? { HealthModell.shared.heuteSchritte(person) }
     private var ziel: Int { max(1, HealthModell.shared.zielSchritte(person)) }
@@ -17,7 +15,7 @@ struct SchritteRing: View {
         if let anzahl {
             ringGefuellt(anzahl)
         } else {
-            HealthNichtErlaubtHinweis(person: person, groesse: groesse, zeigtKnopf: zeigtKnopf)
+            HealthNichtErlaubtHinweis(person: person, groesse: groesse)
         }
     }
 
@@ -67,10 +65,6 @@ struct HealthNichtErlaubtHinweis: View {
 
     private var eigenes: Bool { person == (Raum.shared.ich ?? .ahmed) }
 
-    /// Nur auf dem Health-Tab (nicht auf Homes Duell-Karte, die selbst schon eine Tippfläche ist —
-    /// ein Knopf im Knopf lässt sich per Tap/VoiceOver nicht zuverlässig treffen).
-    var zeigtKnopf = true
-
     var body: some View {
         VStack(spacing: 6) {
             Image(systemName: "heart.slash")
@@ -80,7 +74,7 @@ struct HealthNichtErlaubtHinweis: View {
                 .font(.caption2)
                 .multilineTextAlignment(.center)
                 .foregroundStyle(.secondary)
-            if eigenes, zeigtKnopf {
+            if eigenes {
                 Button(HealthModell.shared.berechtigungAngefragt ? "Einstellungen" : "Erlauben") { einstellungenOeffnen() }
                     .font(.caption2.weight(.semibold))
                     .buttonStyle(.bordered)
@@ -88,7 +82,7 @@ struct HealthNichtErlaubtHinweis: View {
                     .tint(Color.person(person))
             }
         }
-        .frame(width: groesse, height: groesse)
+        .frame(width: groesse, minHeight: groesse)
         .accessibilityElement(children: .combine)
     }
 
