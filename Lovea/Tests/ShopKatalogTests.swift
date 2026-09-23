@@ -30,9 +30,9 @@ final class ShopKatalogTests: XCTestCase {
 
     func testKatalogDecktAlleKategorienAb() throws {
         let alle = try geladenerKatalog()
-        let erwartet = ["mode", "tasche", "uhr", "schmuck", "brille", "backdrop", "chatTheme", "flamme", "pose", "tier"]
-        let vorhanden = Set(alle.map(\.kategorie))
-        for k in erwartet { XCTAssertTrue(vorhanden.contains(k), k) }
+        let erwartet: Set<String> = ["mode", "tasche", "uhr", "schmuck", "brille", "backdrop", "pose", "tier"]
+        // Z-39.2: Flammen und Chat-Themes sind raus, gekaufte werden erstattet (kein Katalog-Preis mehr).
+        XCTAssertEqual(Set(alle.map(\.kategorie)), erwartet)
     }
 
     func testKatalogPreiseInDenStufenAusSpec() throws {
@@ -54,8 +54,6 @@ final class ShopKatalogTests: XCTestCase {
     func testKatalogMindestzahlenProKategorie() throws {
         let alle = try geladenerKatalog()
         func anzahl(_ k: String) -> Int { alle.filter { $0.kategorie == k }.count }
-        XCTAssertGreaterThanOrEqual(anzahl("chatTheme"), 6)
-        XCTAssertGreaterThanOrEqual(anzahl("flamme"), 8)
         XCTAssertGreaterThanOrEqual(anzahl("pose"), 4)
         XCTAssertGreaterThanOrEqual(anzahl("tier"), 4)
     }
@@ -73,18 +71,33 @@ final class ShopKatalogTests: XCTestCase {
             case "tier": XCTAssertNotNil(haustierKatalog[a.id], a.id)
             case "pose": XCTAssertTrue(posenIds.contains(a.id), a.id)
             case "mode", "brille": XCTAssertNotNil(FigurAussehen.shopTeile[a.id], a.id)
-            case "chatTheme": XCTAssertNotNil(ChatThemes.von(a.id), a.id)
-            case "flamme": XCTAssertNotNil(Flammen.von(a.id), a.id)
             case "backdrop": XCTAssertNotNil(BackdropKatalog.eintrag(a.id), a.id)
             default: XCTFail("unbekannte Kategorie \(a.kategorie)")
             }
         }
     }
 
-    func testChatThemesUndFlammenMindestzahl() {
-        XCTAssertGreaterThanOrEqual(ChatThemes.alle.count, 6)
-        XCTAssertGreaterThanOrEqual(Flammen.alle.count, 8)
-        XCTAssertEqual(Set(ChatThemes.alle.map(\.id)).count, ChatThemes.alle.count)
-        XCTAssertEqual(Set(Flammen.alle.map(\.id)).count, Flammen.alle.count)
+    /// Z-39.2: every luxury house has at least one piece; flames and chat themes are gone.
+    func testLuxusMarkenImShop() throws {
+        let alle = try geladenerKatalog()
+        let marken = Set(alle.compactMap(\.marke))
+        for m in ["Gucci", "Dior", "Louis Vuitton", "Prada", "Balenciaga", "Moncler", "Chanel", "Rolex", "Cartier"] {
+            XCTAssertTrue(marken.contains(m), m)
+        }
+        XCTAssertFalse(alle.contains { $0.kategorie == "chatTheme" || $0.kategorie == "flamme" })
+    }
+
+    /// Luxury mode pieces are shop-only: their index must be hidden from the free editor.
+    func testLuxusModeNurImShop() {
+        typealias A = FigurAussehen
+        for (id, e) in A.shopTeile {
+            switch e.feld {
+            case .oberteil: XCTAssertTrue(A.oberteileShop.contains(e.index) || e.index < 14, id)
+            case .jacke: XCTAssertTrue(A.jackenShop.contains(e.index) || e.index < 6, id)
+            case .hose: XCTAssertTrue(A.hosenShop.contains(e.index) || e.index < 10, id)
+            case .schuhe: XCTAssertTrue(A.schuheShop.contains(e.index) || e.index < 8, id)
+            case .brille: break
+            }
+        }
     }
 }
