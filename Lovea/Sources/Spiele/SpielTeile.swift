@@ -156,21 +156,42 @@ struct SpielKonfetti: View {
     }
 }
 
-/// Small tally per game type, for the profile ("Die Bilanz steht im Profil").
+/// Tally card for the profile ("Die Bilanz steht im Profil"): one row per played game with the
+/// same cover as the starter and the chat card. Renders nothing before the first result.
 struct SpieleBilanz: View {
     var body: some View {
         let modell = SpieleModell.shared
         let arten = SpielArt.allCases.filter { (modell.gespielt[$0] ?? 0) > 0 }
-        if arten.isEmpty {
-            Text("Noch keine Spiele. Starte eins im Chat.").foregroundStyle(.secondary)
-        } else {
-            ForEach(arten) { art in
-                LabeledContent {
-                    Text((modell.bilanz[art] ?? SpielPunkte()).text).monospacedDigit()
-                } label: {
-                    Label("\(art.titel) · \(modell.gespielt[art] ?? 0)×", systemImage: art.symbol)
+        if !arten.isEmpty {
+            let gesamt = arten.reduce(SpielPunkte()) { $0 + (modell.bilanz[$1] ?? SpielPunkte()) }
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Spiele").font(.headline)
+                    Spacer()
+                    if let krone = gesamt.fuehrend {
+                        Label(krone.name, systemImage: "crown.fill")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.yellow)
+                    }
+                }
+                ForEach(arten) { art in
+                    HStack(spacing: 12) {
+                        SpielCover(art: art).frame(width: 40, height: 40)
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(art.titel).font(.subheadline.weight(.semibold))
+                            Text("\(modell.gespielt[art] ?? 0)× gespielt").font(.caption).foregroundStyle(.secondary)
+                        }
+                        Spacer(minLength: 8)
+                        Text((modell.bilanz[art] ?? SpielPunkte()).text)
+                            .font(.subheadline.monospacedDigit())
+                            .foregroundStyle(.secondary)
+                    }
+                    .accessibilityElement(children: .combine)
                 }
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(16)
+            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
         }
     }
 }

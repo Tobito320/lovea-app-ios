@@ -20,17 +20,6 @@ enum SpielArt: String, Codable, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    var beschreibung: String {
-        switch self {
-        case .duell: "Gleiches Wort, gleiche Zeit. Wer malt es schöner?"
-        case .xo: "Drei in einer Reihe, mit euren Köpfen."
-        case .ssp: "Eure Figuren spielen gegeneinander, Best of 3."
-        case .kennen: "Einer antwortet, der andere rät."
-        case .reaktion: "Wer tippt zuerst, wenn die Figur auftaucht?"
-        case .memory: "Eure Fotos, Bilder und Sticker als Paare."
-        }
-    }
-
     var symbol: String {
         switch self {
         case .duell: "paintbrush.pointed.fill"
@@ -233,7 +222,7 @@ enum Wortliste {
         case "essen": "Essen"
         case "orte": "Orte"
         case eigene: "Eure Insider"
-        default: "Bunt gemischt"
+        default: "Zufällig"
         }
     }
 

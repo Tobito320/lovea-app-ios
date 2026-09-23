@@ -26,6 +26,11 @@ final class SpieleModell {
         var runden: Int?
         var dauer: Int?
         var vibes: [String]?
+
+        /// Kritzel-Duell: 1 round with the chosen vibe, or 3 rounds that always go leicht → mittel → schwer.
+        static func duell(runden: Int = 1, dauer: Int = 60, vibe: String = Wortliste.gemischt) -> Einstellungen {
+            Einstellungen(runden: runden, dauer: dauer, vibes: runden >= 3 ? ["leicht", "mittel", "schwer"] : [vibe])
+        }
     }
 
     struct Ergebnis: Codable, Sendable, Equatable {
@@ -66,7 +71,7 @@ final class SpieleModell {
     private let registriert: Bool
 
     static let arten: Set<String> = [
-        "spiel.einladung", "spiel.angenommen", "spiel.verfallen", "spiel.bild", "spiel.stimme",
+        "spiel.einladung", "spiel.angenommen", "spiel.verfallen", "spiel.abgebrochen", "spiel.bild", "spiel.stimme",
         "spiel.ergebnis", "nachricht.neu", "einstellung.setzen",
     ]
 
@@ -98,6 +103,10 @@ final class SpieleModell {
             }
         case "spiel.verfallen":
             guard let d = op.daten(SpielIdD.self) else { return }
+            spiele[d.id]?.verfallen = true
+        case "spiel.abgebrochen":
+            // Only the inviter can take an invitation back.
+            guard let d = op.daten(SpielIdD.self), spiele[d.id]?.von == op.von else { return }
             spiele[d.id]?.verfallen = true
         case "spiel.bild":
             guard let d = op.daten(SpielBildD.self) else { return }
@@ -131,6 +140,11 @@ final class SpieleModell {
 
     func sichtbar(_ spielId: String) -> Bool { spiele[spielId]?.sichtbar() ?? true }
 
+    /// Invitations of `person` still waiting for an answer. One per person: a new one replaces these.
+    func offeneEinladungen(von person: Person, jetzt: Date = Date()) -> [String] {
+        spiele.values.filter { $0.von == person && $0.wartet(jetzt: jetzt) }.map(\.id)
+    }
+
     /// Tally per game type for the profile ("Bilanz").
     var bilanz: [SpielArt: SpielPunkte] {
         var b: [SpielArt: SpielPunkte] = [:]
@@ -161,10 +175,17 @@ final class SpieleModell {
     @discardableResult
     func einladen(_ art: SpielArt, einstellungen: Einstellungen = Einstellungen()) -> String {
         let id = UUID().uuidString
+        if let ich = Raum.shared.ich {
+            for alt in offeneEinladungen(von: ich) { abbrechen(alt) }
+        }
         // Invitation first, then the chat card that points at it.
         Raum.shared.senden("spiel.einladung", SpielEinladungD(id: id, art: art.rawValue, einstellungen: einstellungen, bis: Self.datumString(Date().addingTimeInterval(120))))
         Raum.shared.senden("nachricht.neu", SpielNachrichtD(id: UUID().uuidString, spiel: ChatModell.SpielInfo(id: id)))
         return id
+    }
+
+    func abbrechen(_ spielId: String) {
+        Raum.shared.senden("spiel.abgebrochen", SpielIdD(id: spielId))
     }
 
     func annehmen(_ spielId: String) {

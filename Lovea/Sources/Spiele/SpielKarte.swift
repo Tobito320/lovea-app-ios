@@ -1,7 +1,8 @@
 import SwiftUI
+import UIKit
 
 /// The chat card for a message with `spiel` (Z-14.1): the invitation with "Annehmen" and a
-/// countdown, then "Läuft", then "XO · 3× gespielt · Annika 2 : Ahmed 1". An invitation that
+/// countdown (the inviter gets "Abbrechen"), then "Läuft", then "XO · 3× gespielt · Annika 2 : Ahmed 1". An invitation that
 /// expired unanswered renders nothing; skip the whole row with `SpieleModell.shared.sichtbar(id)`.
 struct SpielKarte: View {
     let nachricht: ChatModell.Nachricht
@@ -41,12 +42,8 @@ struct SpielKarte: View {
         return rahmen {
             VStack(alignment: .leading, spacing: 10) {
                 zeile {
-                    Image(systemName: spiel.art.symbol)
-                        .font(.title3)
-                        .foregroundStyle(.white)
+                    SpielCover(art: spiel.art)
                         .frame(width: 46, height: 46)
-                        .background(RoundedRectangle(cornerRadius: 13).fill(Color.loveaRose.gradient))
-                        .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(titel(spiel)).font(.headline)
                         Text(untertitel(spiel, eingeladen: eingeladen, partner: partner, jetzt: jetzt))
@@ -56,9 +53,20 @@ struct SpielKarte: View {
                     Spacer(minLength: 6)
                     if spiel.wartet(jetzt: jetzt) {
                         if eingeladen {
-                            Button("Annehmen") { modell.annehmen(spiel.id) }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.loveaRose)
+                            Button("Annehmen") {
+                                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                                modell.annehmen(spiel.id)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(.loveaRose)
+                        } else {
+                            // The card disappears with the tap, so the haptic can't hang on view state.
+                            Button("Abbrechen") {
+                                UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                                modell.abbrechen(spiel.id)
+                            }
+                            .buttonStyle(.bordered)
+                            .tint(Color.secondary)
                         }
                     } else if spiel.angenommen {
                         Button(spiel.ergebnis == nil ? "Öffnen" : "Weiter") { modell.offen = OffenesSpiel(id: spiel.id) }
