@@ -134,6 +134,10 @@ struct DrawingView: View {
                 _ = TeilenModell.shared
                 _ = LiveZeichnung.shared
             }
+            // Brief I.4: pick up drawings a DIFFERENT `ArtworkLibrary()` instance wrote to disk
+            // (Umzug-Aufräumen's migration, "In Galerie speichern" from Chat) — event-driven, not a
+            // synchronous `load()` on every tab switch (Z-29.2, Main Thread frei).
+            .onReceive(NotificationCenter.default.publisher(for: .artworkLibraryGeaendert)) { _ in library.load() }
             // Banner deep link (AppNavigation): open the partner's drawing on top of whatever is open.
             .onChange(of: AppNavigation.shared.geteilteZeichnung, initial: true) { _, id in
                 guard let id else { return }
@@ -142,7 +146,7 @@ struct DrawingView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if !library.artworks.isEmpty { AuswaehlenKnopf(auswahl: $auswahl) }
+                    if !library.artworks.isEmpty { GalerieMenuKnopf(auswahl: $auswahl) }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { duellOffen = true } label: { Image(systemName: "timer") }
@@ -332,6 +336,27 @@ private struct ProjectGalleryView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 48)
+    }
+}
+
+/// Z-19.3: "Auswählen" sitzt in der Hauptgalerie im "…"-Menü; aktiv ersetzt es sich direkt durch
+/// "Fertig", wie in `AuswaehlenKnopf` (dort bleibt der eigenständige Knopf, Projekt-Galerie hat
+/// schon ein eigenes "…"-Menü daneben).
+private struct GalerieMenuKnopf: View {
+    @Binding var auswahl: Set<UUID>?
+
+    var body: some View {
+        if auswahl == nil {
+            Menu {
+                Button("Auswählen", systemImage: "checkmark.circle") { auswahl = [] }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("Mehr")
+        } else {
+            Button("Fertig") { auswahl = nil }
+                .fontWeight(.semibold)
+        }
     }
 }
 

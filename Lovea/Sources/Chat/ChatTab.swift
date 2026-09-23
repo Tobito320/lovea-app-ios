@@ -9,14 +9,18 @@ struct ChatTab: View {
     @State private var sucheAktiv = false
     @State private var profilOffen = false
     @State private var kameraOffen = false
+    /// Z-29.1: Partner-Karte → Unterhaltung als Zoom statt hartem Push (apple-design "spatial
+    /// consistency" — Ursprung und Ziel bleiben sichtbar verbunden).
+    @Namespace private var kartenNamespace
 
     var body: some View {
         NavigationStack {
             Group {
                 if let ich = Raum.shared.ich {
-                    ChatsListe(ich: ich, offen: $offen, profilOffen: $profilOffen, kameraOffen: $kameraOffen)
+                    ChatsListe(ich: ich, offen: $offen, profilOffen: $profilOffen, kameraOffen: $kameraOffen, kartenNamespace: kartenNamespace)
                         .navigationDestination(isPresented: $offen) {
                             Unterhaltung(ich: ich, partner: ich.partner, sucheAktiv: $sucheAktiv, profilOffen: $profilOffen)
+                                .navigationTransition(.zoom(sourceID: "chatPartnerKarte", in: kartenNamespace))
                         }
                 } else {
                     ContentUnavailableView("Chat", systemImage: "bubble.left.and.bubble.right")
@@ -63,12 +67,18 @@ private struct ChatsListe: View {
     @Binding var offen: Bool
     @Binding var profilOffen: Bool
     @Binding var kameraOffen: Bool
+    let kartenNamespace: Namespace.ID
 
     var body: some View {
         List {
-            Button { ChatHaptik.leicht(); offen = true } label: {
-                ChatZeile(ich: ich, partner: ich.partner, modell: ChatModell.shared)
+            ChatPartnerKarte(ich: ich, partner: ich.partner, modell: ChatModell.shared) {
+                ChatHaptik.leicht()
+                offen = true
             }
+            .matchedTransitionSource(id: "chatPartnerKarte", in: kartenNamespace)
+            .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+            .listRowSeparator(.hidden)
+            .listRowBackground(Color.clear)
             .swipeActions(edge: .leading, allowsFullSwipe: true) {
                 Button { kameraOffen = true } label: { Label("Snap", systemImage: "camera.fill") }
                     .tint(Color.loveaRose)
@@ -83,6 +93,15 @@ private struct ChatsListe: View {
                 Button("Profil ansehen", systemImage: "person.crop.circle") { profilOffen = true }
                 Button("Im Chat suchen", systemImage: "magnifyingglass") { AppNavigation.shared.chatSuche = true }
             }
+            // Block 27: "Heute vor …", Zeitkapseln, Briefbox – nur wenn vorhanden (Spec 2), sonst nichts.
+            HeuteVorCard(onOeffnen: { offen = true })
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
+            KapselnUndBriefeSektion(modell: ChatModell.shared, ich: ich, offen: $offen)
+                .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
         }
         .listStyle(.plain)
         .safeAreaInset(edge: .top, spacing: 0) { SyncStatusZeile() }
@@ -95,46 +114,102 @@ private struct ChatsListe: View {
     }
 }
 
-private struct ChatZeile: View {
+/// Chat-Tab-Startbildschirm (Z-19.2, Spec 2): große Partner-Karte statt leerer Liste, Antippen
+/// öffnet die Unterhaltung. Der Spiele-Knopf ist ein eigener Button, nicht in `oeffnen` verschachtelt.
+private struct ChatPartnerKarte: View {
     let ich: Person
     let partner: Person
     let modell: ChatModell
+    let oeffnen: () -> Void
+    @State private var spieleOffen = false
 
     var body: some View {
-        TimelineView(.everyMinute) { _ in
-            let anzeige = FigurenModell.shared.anzeige(partner)
-            let nachrichten = modell.nachrichten.filter { ChatModell.sichtbar($0) }
-            let vorschau = ChatVorschau.zeile(
-                nachrichten: nachrichten, ich: ich,
-                gelesenVonPartner: modell.gelesenBis[partner], gelesenVonMir: modell.gelesenBis[ich],
-                partnerTippt: anzeige.haupt == .tippt
-            )
-            HStack(spacing: 12) {
-                FigurView(FigurenModell.shared.aussehen(partner), zustand: anzeige.haupt, groesse: 52)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(partner.name).font(.headline).foregroundStyle(ChatFarbe.farbe(partner))
-                    HStack(spacing: 5) {
-                        Image(systemName: vorschau.symbol)
-                            .font(.caption)
-                            .foregroundStyle(vorschau.neu ? Color.person(partner) : Color.secondary)
-                        Text(vorschau.text).lineLimit(1)
-                        if let zeit = nachrichten.last?.zeit {
-                            Text("· " + zeit.formatted(.relative(presentation: .numeric, unitsStyle: .abbreviated)))
-                                .lineLimit(1)
-                                .layoutPriority(1)
-                        }
-                    }
-                    .font(.subheadline.weight(vorschau.neu ? .semibold : .regular))
-                    .foregroundStyle(vorschau.neu ? HierarchicalShapeStyle.primary : HierarchicalShapeStyle.secondary)
-                }
-                Spacer(minLength: 8)
-                ChatStreakAnzeige(modell: modell)
+        VStack(spacing: 12) {
+            Button(action: oeffnen) {
+                TimelineView(.everyMinute) { _ in kopfUndVorschau }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(Rectangle())
             }
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
             .accessibilityElement(children: .combine)
             .accessibilityHint("Chat öffnen")
+
+            // Z-27.6: eigene Zeile, nicht in den Karten-`Button` verschachtelt (kein Button im Button).
+            if SpotifyModell.shared.partner != nil {
+                HStack { Spacer(); SpotifyHoertGeradeChip() }
+            }
+            spieleKnopf
         }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
+        .sheet(isPresented: $spieleOffen) { SpieleStarter() }
+        // Spec 9 "nur wenn der Partner hinschaut": die Chat-Tab-Startkarte zeigt den Partner
+        // prominent, zählt also als "hinschauen", ref-gezählt zusammen mit der Konversation/Karte.
+        .task { SpotifyModell.shared.schauen() }
+        .onDisappear { SpotifyModell.shared.wegschauen() }
+    }
+
+    /// Figur, Name, Streak, Status und die letzte-Nachricht-Vorschau – getrennt vom `Button` und
+    /// vom `spieleKnopf`, damit der Compiler nicht einen einzigen, tief verschachtelten Ausdruck
+    /// mit mehreren Ternaries auf einmal prüfen muss (Regel aus common.md, Runde-1-CI-Fehler).
+    private var kopfUndVorschau: some View {
+        let anzeige = FigurenModell.shared.anzeige(partner)
+        let vorschau = vorschauZeile(anzeige.haupt)
+        return VStack(alignment: .leading, spacing: 14) {
+            figurUndName(anzeige.haupt)
+            HStack(spacing: 5) {
+                Image(systemName: vorschau.symbol)
+                    .foregroundStyle(vorschau.neu ? Color.person(partner) : Color.secondary)
+                Text(vorschau.text).lineLimit(1)
+            }
+            .font(.subheadline.weight(vorschau.neu ? .semibold : .regular))
+            .foregroundStyle(vorschau.neu ? HierarchicalShapeStyle.primary : HierarchicalShapeStyle.secondary)
+        }
+    }
+
+    private func figurUndName(_ zustand: FigurZustand) -> some View {
+        HStack(spacing: 14) {
+            FigurView(FigurenModell.shared.aussehen(partner), zustand: zustand, groesse: 76)
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(partner.name).font(.title3.bold()).foregroundStyle(ChatFarbe.farbe(partner))
+                    ChatStreakAnzeige(modell: modell)
+                }
+                Text(statusText(zustand))
+                    .font(.subheadline)
+                    .foregroundStyle(zustand == .tippt ? Color.person(partner) : Color.secondary)
+            }
+            Spacer(minLength: 0)
+            // Z-27.5: Wetter an der Partner-Figur.
+            if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
+        }
+    }
+
+    private var spieleKnopf: some View {
+        Button { spieleOffen = true } label: {
+            Label("Spiele", systemImage: "gamecontroller.fill")
+                .frame(maxWidth: .infinity, minHeight: 36)
+        }
+        .buttonStyle(.bordered)
+        .tint(Color.loveaRose)
+    }
+
+    private func vorschauZeile(_ zustand: FigurZustand) -> ChatVorschau.Zeile {
+        let nachrichten = modell.nachrichten.filter { ChatModell.sichtbar($0) }
+        return ChatVorschau.zeile(
+            nachrichten: nachrichten, ich: ich,
+            gelesenVonPartner: modell.gelesenBis[partner], gelesenVonMir: modell.gelesenBis[ich],
+            partnerTippt: zustand == .tippt
+        )
+    }
+
+    /// Wie `ChatPartnerKopf.statusText` (Konversations-Header), hier dupliziert – ein eigenes,
+    /// kleines Property statt der geteilten Header-Datei, die Block 26 parallel anfasst.
+    private func statusText(_ zustand: FigurZustand) -> String {
+        if zustand == .tippt { return "tippt …" }
+        if Raum.shared.partnerDa { return "online" }
+        guard let zuletzt = modell.letzteAktivitaet[partner] else { return "offline" }
+        return "zuletzt \(zuletzt.formatted(.relative(presentation: .named)))"
     }
 }
 
@@ -268,7 +343,7 @@ private struct ChatSuchleiste: View {
                 }
             }
             .padding(.horizontal, 10)
-            .frame(height: 36)
+            .frame(minHeight: 36)
             .background(Color(uiColor: .secondarySystemBackground), in: Capsule())
 
             Button { springe(-1) } label: { Image(systemName: "chevron.up").frame(width: 36, height: 44) }
@@ -294,7 +369,8 @@ private struct ChatSuchleiste: View {
     private func suchen() {
         let begriff = text.trimmingCharacters(in: .whitespaces)
         treffer = begriff.isEmpty ? [] : modell.nachrichten
-            .filter { !$0.geloescht && ($0.text ?? "").localizedCaseInsensitiveContains(begriff) }
+            // Z-27.2: eine verschlossene Zeitkapsel darf nicht über die Suche verraten werden.
+            .filter { !$0.geloescht && !ChatModell.verschlossen($0) && ($0.text ?? "").localizedCaseInsensitiveContains(begriff) }
             .map(\.id)
         index = max(treffer.count - 1, 0)
         if let id = treffer.last { onSpringeZu(id) }

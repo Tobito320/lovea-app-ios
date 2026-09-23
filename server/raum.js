@@ -9,6 +9,9 @@ import {
   opGueltig,
   verbindungIstLebendig,
   opsSeit,
+  SEITE,
+  SEITE_BYTES,
+  NUR_FUER_ABSENDER,
   medienTeilSpeichern,
   medienFertig,
   medienFehlend,
@@ -30,10 +33,21 @@ import {
   letzteZufaelligNahMs,
   zufaelligNahAlsGemeldetMarkieren,
   ortInfo,
+  offeneKapseln,
+  kapselEntfernen,
+  gemeinsamPruefen,
+  gemeinsamSeitMs,
+  gemeinsamSeitSetzen,
+  gemeinsamZuruecksetzen,
+  spotifyTokenLesen,
+  spotifyTokenSchreiben,
+  spotifyCacheLesen,
+  spotifyCacheSchreiben,
 } from "./raum-logic.js";
 import { push } from "./push.js";
 import { regel } from "./regeln.js";
-import { naechsterAlarm, berlinDatum } from "./zeitplan.js";
+import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
+import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt } from "./spotify.js";
 
 const PERSONEN = ["ahmed", "annika"];
 const partnerVon = (person) => (person === "ahmed" ? "annika" : "ahmed");
@@ -44,6 +58,12 @@ const ALARM_TEXT = {
   stundeVorher: { titel: "Lovea", text: "In einer Stunde geht's los", stufe: "laut", kategorie: "kalender" },
   frageDesTages: { titel: "Lovea", text: "Die Frage des Tages ist da", stufe: "leise", kategorie: "frage" },
   streakWarnung: { titel: "Lovea", text: "Euer Streak läuft heute ab!", stufe: "laut", kategorie: "streak" },
+  // Z-22.3: nur eine Mitteilung, der Server rechnet keine Punkte -- die App zeigt beim Öffnen, wie's steht.
+  challengeEndspurtWoche: { titel: "Lovea", text: "Letzter Tag für die Wochen-Challenges!", stufe: "laut", kategorie: "challenge" },
+  challengeEndeWoche: { titel: "Lovea", text: "Die Wochen-Challenges sind vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
+  challengeEndspurtMonat: { titel: "Lovea", text: "Letzter Tag für Gemeinsam Monat!", stufe: "laut", kategorie: "challenge" },
+  challengeEndeMonat: { titel: "Lovea", text: "Der Monats-Challenge ist vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
+  kapselOeffnet: { titel: "Lovea", text: "Eure Zeitkapsel hat sich geöffnet", stufe: "laut", kategorie: "chat" },
 };
 
 export class Raum {
@@ -72,6 +92,8 @@ export class Raum {
     if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request);
     if (url.pathname === "/fl" && request.method === "POST") return this.#flHttp(request, person);
     if (teile[0] === "medien") return this.#medien(request, teile, person);
+    if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
+    if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
     return new Response("not found", { status: 404 });
   }
 
@@ -109,7 +131,7 @@ export class Raum {
     // der Client kann so eine sicheren Nachhol-Cursor führen, der nicht durch
     // dazwischenkommende Echos verfälscht wird. Zusatzfeld, kein Bruch: alte
     // Clients ignorieren es.
-    const seitenDaten = opsSeit(this.sql, seit);
+    const seitenDaten = opsSeit(this.sql, seit, SEITE, SEITE_BYTES, person);
     server.send(JSON.stringify({ t: "ops", ...seitenDaten, seite: true }));
 
     const letzter = letzterStandort(this.sql, partnerVon(person));
@@ -146,12 +168,12 @@ export class Raum {
       // Wiederholung nach Funkloch, damit die Op die Warteschlange verlässt.
       ws.send(JSON.stringify({ t: "ops", ops: [bestaetigt], mehr: false }));
       if (neu) {
-        this.#sendeAnPartner(person, { t: "ops", ops: [bestaetigt], mehr: false });
+        if (bestaetigt.art !== NUR_FUER_ABSENDER) this.#sendeAnPartner(person, { t: "ops", ops: [bestaetigt], mehr: false });
         await this.#pushFuerOp(bestaetigt).catch((err) => this.#log("push für Op fehlgeschlagen", bestaetigt.art, err));
         await this.#alarmAktualisieren();
       }
     } else if (msg.t === "nachholen") {
-      ws.send(JSON.stringify({ t: "ops", ...opsSeit(this.sql, msg.seit ?? 0), seite: true }));
+      ws.send(JSON.stringify({ t: "ops", ...opsSeit(this.sql, msg.seit ?? 0, SEITE, SEITE_BYTES, person), seite: true }));
     } else if (msg.t === "ping") {
       // Fallback für den Fall, dass ein Client kein rohes "ping" (natives
       // Hibernation-Auto-Response, siehe Konstruktor) senden kann.
@@ -251,6 +273,26 @@ export class Raum {
     this.#sendeAnPartner(person, { t: "standort", person, d });
     standortSchreiben(this.sql, person, d, jetztIso, jetzt);
     await this.#pruefeZufaelligNah(person, d, jetzt).catch((err) => this.#log("Zufällig-nah-Prüfung fehlgeschlagen", err));
+    this.#pruefeGemeinsam(person, d, jetzt);
+  }
+
+  // --- Unsere Orte (Z-27.4) ---------------------------------------------------
+
+  #pruefeGemeinsam(person, d, jetztMs) {
+    const partner = letzterStandort(this.sql, partnerVon(person));
+    const a = { d, zeit: new Date(jetztMs).toISOString() };
+    const { nah, seit, melden } = gemeinsamPruefen({ a, b: partner, jetztMs, seitMs: gemeinsamSeitMs(this.sql) });
+    if (!nah) {
+      gemeinsamZuruecksetzen(this.sql);
+      return;
+    }
+    if (seit !== gemeinsamSeitMs(this.sql)) gemeinsamSeitSetzen(this.sql, seit);
+    if (!melden) return;
+    // Deterministische Op-id über `seit` -- solange die Streak andauert, dedupt INSERT OR IGNORE
+    // jeden weiteren Aufruf, kein eigener "schon gemeldet"-Merker nötig.
+    const op = { id: `gemeinsam-${seit}`, art: "ort.gemeinsam", von: person, zeit: new Date(jetztMs).toISOString(), d: { lat: d.lat, lon: d.lon, datum: berlinDatum(jetztMs) } };
+    const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
+    if (neu) this.#sendeAn(this.ctx.getWebSockets(), { t: "ops", ops: [{ ...op, seq }], mehr: false });
   }
 
   // --- Push für eintreffende Ops (Z-1.6) ------------------------------------
@@ -323,7 +365,7 @@ export class Raum {
       }
       const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
       letzteSeq = seq;
-      if (neu) this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
+      if (neu && op.art !== NUR_FUER_ABSENDER) this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
     }
     await this.#alarmAktualisieren();
     return Response.json({ seq: letzteSeq, uebersprungen });
@@ -373,6 +415,59 @@ export class Raum {
     return new Response("not found", { status: 404 });
   }
 
+  // --- Spotify "hört gerade" (Z-27.6) -----------------------------------------
+
+  // `person` (Header, schon geprüft) ist immer der Konto-Inhaber, der sich gerade verbindet --
+  // ein `person` im Body wird ignoriert statt vertraut (M-3-artig: der Absender steht schon fest).
+  async #spotifyVerbinden(request, person) {
+    if (!this.env.SPOTIFY_CLIENT_ID) return Response.json({ fehler: "nicht eingerichtet" }, { status: 503 });
+    let body;
+    try {
+      body = await request.json();
+    } catch {
+      return new Response("bad request", { status: 400 });
+    }
+    if (typeof body?.code !== "string" || typeof body?.verifier !== "string" || typeof body?.redirectUri !== "string") {
+      return new Response("bad request", { status: 400 });
+    }
+    const token = await tokenTauschen(this.env, { code: body.code, verifier: body.verifier, redirectUri: body.redirectUri }).catch((err) => {
+      this.#log("Spotify-Token-Tausch fehlgeschlagen", err);
+      return null;
+    });
+    if (!token) return Response.json({ fehler: "tausch fehlgeschlagen" }, { status: 502 });
+    spotifyTokenSchreiben(this.sql, person, token);
+    return Response.json({ ok: true });
+  }
+
+  // `person` in der Query ist die Zielperson (wessen Song gerade läuft), nicht der Abfragende --
+  // der Partner schaut sich die eigene Figur des anderen an.
+  async #spotifyJetzt(url) {
+    const ziel = url.searchParams.get("person");
+    if (!PERSONEN.includes(ziel)) return new Response("bad request", { status: 400 });
+
+    const jetztMs = Date.now();
+    const cache = spotifyCacheLesen(this.sql, ziel);
+    if (cacheGueltig(cache, jetztMs)) return Response.json(cache.daten);
+
+    let token = spotifyTokenLesen(this.sql, ziel);
+    if (!token) return Response.json({});
+    if (brauchtErneuerung(token.ablaeuftMs, jetztMs)) {
+      const erneuert = await tokenErneuern(this.env, token).catch((err) => {
+        this.#log("Spotify-Token-Erneuerung fehlgeschlagen", err);
+        return null;
+      });
+      if (!erneuert) return Response.json({}); // Partner hat die Spotify-Verbindung selbst widerrufen
+      token = erneuert;
+      spotifyTokenSchreiben(this.sql, ziel, token);
+    }
+    const daten = await jetztSpielt(token.accessToken).catch((err) => {
+      this.#log("Spotify jetztSpielt fehlgeschlagen", err);
+      return {};
+    });
+    spotifyCacheSchreiben(this.sql, ziel, { geladenMs: jetztMs, daten });
+    return Response.json(daten);
+  }
+
   // --- Alarme (Z-1.7) ---------------------------------------------------------
 
   async #alarmAktualisieren() {
@@ -393,10 +488,17 @@ export class Raum {
       treffen: offeneTreffen(this.sql, kontextAb),
       angeheftet: offeneAngeheftet(this.sql),
       spielEinladungen: offeneSpielEinladungen(this.sql),
+      kapseln: offeneKapseln(this.sql),
       streakLaeuftHeuteAb: streakLaeuftHeuteAb(this.sql, jetztMs),
       erinnerungenHeute: {
         frage: alarmErledigt(this.sql, "frageDesTages", heute),
         streak: alarmErledigt(this.sql, "streakWarnung", heute),
+      },
+      challengeErledigt: {
+        endspurtWoche: alarmErledigt(this.sql, "challengeEndspurtWoche", montagDerWoche(heute)),
+        endeWoche: alarmErledigt(this.sql, "challengeEndeWoche", montagDerWoche(heute)),
+        endspurtMonat: alarmErledigt(this.sql, "challengeEndspurtMonat", heute.slice(0, 7)),
+        endeMonat: alarmErledigt(this.sql, "challengeEndeMonat", heute.slice(0, 7)),
       },
     };
   }
@@ -446,6 +548,30 @@ export class Raum {
         const op = { id: `verfallen-${ereignis.id}`, art: "spiel.verfallen", von: ereignis.von ?? "ahmed", zeit: jetztIso, d: { id: ereignis.id } };
         const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
         if (neu) this.#sendeAn(this.ctx.getWebSockets(), { t: "ops", ops: [{ ...op, seq }], mehr: false });
+        break;
+      }
+      case "challengeEndspurtWoche":
+      case "challengeEndeWoche": {
+        const schluessel = montagDerWoche(berlinDatum(jetztMs));
+        if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
+        alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
+        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
+        break;
+      }
+      case "challengeEndspurtMonat":
+      case "challengeEndeMonat": {
+        const schluessel = berlinDatum(jetztMs).slice(0, 7);
+        if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
+        alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
+        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
+        break;
+      }
+      case "kapselOeffnet": {
+        // Schlüssel = Nachrichten-id (offeneKapseln): jede Zeitkapsel öffnet einmal.
+        kapselEntfernen(this.sql, ereignis.id); // I-8: vor dem erledigt-Check, sonst bliebe sie ewig "offen"
+        if (alarmErledigt(this.sql, ereignis.art, ereignis.id)) return;
+        alarmAlsErledigtMarkieren(this.sql, ereignis.art, ereignis.id, jetztIso);
+        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
         break;
       }
     }

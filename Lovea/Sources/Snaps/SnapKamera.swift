@@ -33,28 +33,112 @@ final class SnapKameraSteuerung: NSObject {
     private var videoContinuation: CheckedContinuation<URL?, Never>?
     private var fortschrittTask: Task<Void, Never>?
     private var aufnahmeStart: Date?
+    private var audioEingang: AVCaptureDeviceInput?
 
+    /// Shared instance (Z-26.5): the conversation prewarms this ahead of time, `SnapKameraView`
+    /// then reuses the already-running session instead of a fresh one, so the first real open has
+    /// nothing left to wait for.
+    static let geteilt = SnapKameraSteuerung()
+
+    // MARK: - Warm hold (Z-26.5)
+
+    private var haltungen = 0
+    private var abkuehlTask: Task<Void, Never>?
+
+    /// Ref-counted: the conversation view and the camera view each call this on appear/`loslassen()`
+    /// on disappear. Needed because a `fullScreenCover` opening over the conversation re-fires ITS
+    /// `onDisappear` too (see ChatTab.swift's `Unterhaltung`, same discovery) — without the counter
+    /// and the grace period in `loslassen()`, that transition would stop the very session the camera
+    /// view is about to reuse.
+    func halten() {
+        haltungen += 1
+        abkuehlTask?.cancel()
+        abkuehlTask = nil
+    }
+
+    func loslassen() {
+        haltungen = max(0, haltungen - 1)
+        guard haltungen == 0 else { return }
+        abkuehlTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self, !Task.isCancelled, self.haltungen == 0 else { return }
+            self.stop()
+        }
+    }
+
+    /// Configures the session ahead of time, once the chat becomes visible (Z-26.5) — silent: no
+    /// permission prompt (that would pop the camera dialog just from opening the chat), so this
+    /// only fires once the OS already granted access. `start()` still runs the real (possibly
+    /// prompting) setup the moment the camera UI actually opens; if this already warmed the
+    /// session, that call is then a no-op besides the figure-state signal.
+    // Configures only, never runs: a running session keeps the green camera indicator on (and
+    // drains battery) for as long as the chat is open. The expensive part is the configuration.
+    func vorwaermen() async {
+        guard !konfiguriert, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        konfigurieren()
+        konfiguriert = true
+    }
+
+    /// Full open (Z-6.1, possibly prompting): reuses an already-warm session as-is, then always
+    /// makes sure the mic input is present (added here, not just during recording — matches the
+    /// pre-Z-26.5 behavior of setting it up at camera-open time) before signaling `.kamera`.
     func start() async {
-        guard !laeuft, await berechtigung() else { return }
-        session.beginConfiguration()
-        session.sessionPreset = .high
-        einrichtenEingang(position: position)
-        einrichtenAudioEingang()
-        if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
-        if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
-        session.commitConfiguration()
-        laeuft = true
-        let box = SessionBox(session: session)
-        sessionSchlange.async { box.session.startRunning() }
+        if !laeuft {
+            if !konfiguriert {
+                guard await berechtigung() else { return }
+                konfigurieren()
+                konfiguriert = true
+            }
+            laeuft = true
+            let box = SessionBox(session: session)
+            sessionSchlange.async { box.session.startRunning() }
+        }
+        if audioEingang == nil {
+            session.beginConfiguration()
+            einrichtenAudioEingang()
+            session.commitConfiguration()
+        }
         FigurenModell.shared.zustandSenden(.init(haupt: .kamera))
     }
 
+    private var konfiguriert = false
+
+    private func konfigurieren() {
+        session.beginConfiguration()
+        session.sessionPreset = .high
+        einrichtenEingang(position: position)
+        if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
+        if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
+        session.commitConfiguration()
+    }
+
+    /// The camera UI itself closing (Z-6.1/Z-26.5), as opposed to the session merely staying warm
+    /// in the background while the conversation still holds it: removes the mic right away (a warm
+    /// session sitting in chat must never keep recording audio) and signals `.imChat` immediately,
+    /// instead of waiting for `loslassen()`'s grace period to eventually `stop()` the session.
+    func kameraVerlassen() {
+        entferneAudioEingang()
+        FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
+        loslassen()
+    }
+
+    /// Only ever stops the session itself — no figure-state signal, so a warm session that outlives
+    /// the camera UI (still just sitting in an open chat) never tells the partner "im Chat" again on
+    /// a timer; `kameraVerlassen()` already sent that the moment the camera UI actually closed.
     func stop() {
         guard laeuft else { return }
         laeuft = false
-        FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
+        entferneAudioEingang() // belt-and-suspenders: a full stop must never leave a stale mic input
         let box = SessionBox(session: session)
         sessionSchlange.async { box.session.stopRunning() }
+    }
+
+    private func entferneAudioEingang() {
+        guard let audioEingang else { return }
+        session.beginConfiguration()
+        session.removeInput(audioEingang)
+        session.commitConfiguration()
+        self.audioEingang = nil
     }
 
     /// Camera access is required; microphone (Z-6.1 videos have sound) is requested too but a "no"
@@ -92,6 +176,7 @@ final class SnapKameraSteuerung: NSObject {
               session.canAddInput(eingang)
         else { return }
         session.addInput(eingang)
+        audioEingang = eingang
     }
 
     func kameraWechseln() {
@@ -218,7 +303,9 @@ struct SnapKameraView: View {
     let onVideo: (URL) -> Void
     let onAbbrechen: () -> Void
 
-    @State private var steuerung = SnapKameraSteuerung()
+    // Z-26.5: the conversation's own shared instance — reused so a prewarmed session is already
+    // running by the time this view appears.
+    @State private var steuerung = SnapKameraSteuerung.geteilt
     @State private var modus: Modus = .ruhe
     @State private var zoomStart: CGFloat = 1
     @State private var haltTask: Task<Void, Never>?
@@ -243,8 +330,9 @@ struct SnapKameraView: View {
         }
         .background(Color.black)
         .statusBarHidden()
+        .onAppear { steuerung.halten() }
         .task { await steuerung.start() }
-        .onDisappear { steuerung.stop() }
+        .onDisappear { steuerung.kameraVerlassen() }
     }
 
     private var obereLeiste: some View {

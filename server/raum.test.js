@@ -276,6 +276,91 @@ test("Zufällig nah: genau eine Op an beide, laute Push nur einmal pro 6h", asyn
   assert.equal(nochmal.length, 1);
 });
 
+// Z-27.4: Server erkennt "zusammen unterwegs" über zwei Standort-Meldungen, mindestens 30 min
+// auseinander -- die Wartezeit hier über einen gemockten Date.now(), damit der Test nicht wirklich
+// 30 Minuten läuft.
+test("Unsere Orte: ort.gemeinsam erst nach 30 Minuten am Stück, danach nicht doppelt", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const echtesDatumNow = Date.now;
+  try {
+    let jetzt = Date.parse("2026-09-23T10:00:00.000Z");
+    Date.now = () => jetzt;
+
+    await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0, lon: 7.0 } }));
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0005, lon: 7.0 } }));
+    assert.equal(websockets.ahmed.gesendet.filter((m) => m.t === "ops" && m.ops[0]?.art === "ort.gemeinsam").length, 0);
+
+    jetzt += 31 * 60_000;
+    await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0, lon: 7.0 } }));
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0005, lon: 7.0 } }));
+    const gemeinsam = websockets.ahmed.gesendet.filter((m) => m.t === "ops" && m.ops[0]?.art === "ort.gemeinsam");
+    assert.equal(gemeinsam.length, 1);
+    // annika sendet in diesem Block zuerst -- ihr Standort löst die Meldung aus, mit ihren Koordinaten.
+    assert.deepEqual(gemeinsam[0].ops[0].d, { lat: 51.0, lon: 7.0, datum: "2026-09-23" });
+
+    // Noch einmal nah -- dieselbe Streak, deterministische Op-id dedupt, kein zweiter Broadcast.
+    jetzt += 60_000;
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "standort", d: { lat: 51.0005, lon: 7.0 } }));
+    assert.equal(websockets.ahmed.gesendet.filter((m) => m.t === "ops" && m.ops[0]?.art === "ort.gemeinsam").length, 1);
+  } finally {
+    Date.now = echtesDatumNow;
+  }
+});
+
+// Z-27.6: Verbinden ohne SPOTIFY_CLIENT_ID meldet "nicht eingerichtet" wie /gif ohne KLIPY_KEY.
+test("POST /spotify/verbinden: ohne SPOTIFY_CLIENT_ID 503 nicht eingerichtet", async () => {
+  const { raum } = raumMitVerbindung([]);
+  const res = await raum.fetch(
+    new Request("https://x/spotify/verbinden", {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Lovea-Person": "ahmed" },
+      body: JSON.stringify({ code: "c", verifier: "v", redirectUri: "lovea://spotify" }),
+    })
+  );
+  assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { fehler: "nicht eingerichtet" });
+});
+
+test("Spotify verbinden + jetzt: Token-Tausch, currently-playing, 20s-Cache", async () => {
+  const ctx = fakeCtx();
+  const raum = new Raum(ctx, { ...fakeEnv(), SPOTIFY_CLIENT_ID: "test-client" });
+  const aufrufe = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    aufrufe.push({ url: String(url), init });
+    if (String(url).includes("accounts.spotify.com")) {
+      return Response.json({ access_token: "AT", refresh_token: "RT", expires_in: 3600 });
+    }
+    return Response.json({ item: { name: "Song", artists: [{ name: "Band" }], album: { images: [{ url: "cover" }] }, external_urls: { spotify: "u" } } });
+  };
+  try {
+    const verbinden = await raum.fetch(
+      new Request("https://x/spotify/verbinden", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Lovea-Person": "annika" },
+        body: JSON.stringify({ code: "c", verifier: "v", redirectUri: "lovea://spotify" }),
+      })
+    );
+    assert.equal(verbinden.status, 200);
+    assert.deepEqual(await verbinden.json(), { ok: true });
+
+    const jetzt1 = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
+    assert.deepEqual(await jetzt1.json(), { titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
+    const anrufeNachErstemJetzt = aufrufe.length;
+
+    // Zweiter Abruf sofort danach: aus dem 20s-Cache, kein weiterer fetch.
+    const jetzt2 = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
+    assert.deepEqual(await jetzt2.json(), { titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
+    assert.equal(aufrufe.length, anrufeNachErstemJetzt);
+
+    // Niemand hat für ahmed verbunden -> {}.
+    const ohneVerbindung = await raum.fetch(new Request("https://x/spotify/jetzt?person=ahmed", { headers: { "X-Lovea-Person": "ahmed" } }));
+    assert.deepEqual(await ohneVerbindung.json(), {});
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+});
+
 test("Medien: PUT Teile, fertig erst wenn alle da, GET liefert Bytes, fehlend meldet Lücken", async () => {
   const { raum } = raumMitVerbindung([]);
   const put = (teil, bytes) => raum.fetch(new Request(`https://x/medien/m1/original/${teil}`, { method: "PUT", body: bytes, headers: { "X-Lovea-Person": "ahmed" } }));

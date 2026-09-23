@@ -114,10 +114,85 @@ final class FigurenTests: XCTestCase {
     func testStandardFiguren() {
         let ahmed = FigurAussehen.standard(for: .ahmed)
         XCTAssertGreaterThan(ahmed.bart, 0)
-        XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "Hoodie")
+        XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "Trikot")
+        XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Weite Jeans")
         let annika = FigurAussehen.standard(for: .annika)
         XCTAssertEqual(FigurAussehen.frisuren[annika.frisur], "Lang glatt")
         XCTAssertEqual(FigurAussehen.jacken[annika.jacke], "Lederjacke")
         XCTAssertTrue(FigurAussehen.hosen[annika.hose].contains("Jeans"))
+    }
+
+    // MARK: Aussehen v3 (Z-24.1/Z-24.2)
+
+    func testGenderFilterMindestens30ProGeschlecht() {
+        typealias A = FigurAussehen
+        let fuerAhmed = A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: .ahmed)
+        let fuerAnnika = A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: .annika)
+        XCTAssertGreaterThanOrEqual(fuerAhmed.count, 30)
+        XCTAssertGreaterThanOrEqual(fuerAnnika.count, 30)
+        // Kein Umschalter: eine als weiblich getaggte Frisur ist für Ahmed nicht wählbar und umgekehrt.
+        let weiblicheOnly = A.frisurenGeschlecht.indices.first { A.frisurenGeschlecht[$0] == .w }!
+        let maennlicheOnly = A.frisurenGeschlecht.indices.first { A.frisurenGeschlecht[$0] == .m }!
+        XCTAssertFalse(fuerAhmed.contains(weiblicheOnly))
+        XCTAssertFalse(fuerAnnika.contains(maennlicheOnly))
+    }
+
+    func testBaerteMindestens12OhneKeiner() {
+        XCTAssertGreaterThanOrEqual(FigurAussehen.baerte.count - 1, 12)
+        XCTAssertEqual(FigurAussehen.baerte.count, FigurAussehen.baerteGeschlecht.count)
+    }
+
+    func testShopIndizesSindAusserhalbDerFreienAuswahl() {
+        typealias A = FigurAussehen
+        let frei = A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: .ahmed)
+        for i in A.oberteileShop { XCTAssertFalse(frei.contains(i)) }
+    }
+
+    func testShopTeileZeigenAufGueltigeIndizes() {
+        typealias A = FigurAussehen
+        for (id, e) in A.shopTeile {
+            let anzahl: Int
+            switch e.feld {
+            case .oberteil: anzahl = A.oberteile.count
+            case .jacke: anzahl = A.jacken.count
+            case .hose: anzahl = A.hosen.count
+            case .schuhe: anzahl = A.schuhArten.count
+            case .brille: anzahl = A.brillen.count
+            }
+            XCTAssertTrue((0..<anzahl).contains(e.index), "\(id): Index \(e.index) außerhalb 0..<\(anzahl)")
+        }
+    }
+
+    func testAnziehenSetztFeldUndHex() {
+        var a = FigurAussehen.standard(for: .ahmed)
+        a.anziehen("mode.nike-hoodie")
+        XCTAssertEqual(a.oberteil, 14)
+        XCTAssertEqual(a.oberteilfarbeHex, "2B2830")
+        a.anziehen("unbekannt.id") // ignoriert unbekannte ids statt zu crashen
+        XCTAssertEqual(a.oberteil, 14)
+    }
+
+    func testFreieFarbeGewinntVorIndex() throws {
+        var a = FigurAussehen()
+        a.haarfarbeHex = "FF00AA"
+        let json = try JSONEncoder().encode(a)
+        let zurueck = try JSONDecoder().decode(FigurAussehen.self, from: json)
+        XCTAssertEqual(zurueck.haarfarbeHex, "FF00AA")
+    }
+
+    func testFigurFarbeHexRundreise() {
+        let f = FigurFarbe(0x3F74B5)
+        XCTAssertEqual(FigurFarbe(hex: f.hex)?.hex, f.hex)
+        XCTAssertNil(FigurFarbe(hex: "nicht-hex"))
+        XCTAssertNil(FigurFarbe(hex: "12345"))
+        XCTAssertEqual(FigurFarbe(hex: "#3F74B5")?.hex, "3F74B5")
+    }
+
+    func testAlteOhneV3FelderDekodiertMitNilStandards() throws {
+        let json = #"{"haut":0,"frisur":0,"haarfarbe":0,"augen":0,"brille":0,"bart":0,"oberteil":0,"oberteilfarbe":0}"#
+        let a = try JSONDecoder().decode(FigurAussehen.self, from: Data(json.utf8))
+        XCTAssertNil(a.tasche)
+        XCTAssertNil(a.pose)
+        XCTAssertNil(a.haarfarbeHex)
     }
 }

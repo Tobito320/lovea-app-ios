@@ -51,3 +51,32 @@ test("weitere Arten: Einladungen laut, Termin/Frage/Screenshot leise", () => {
 test("nicht gelistete Art hat keine Push", () => {
   assert.equal(regel("nachricht.gelesen", "annika", { bis: "x" }), null);
 });
+
+test("shop.kauf: Geschenk (fuer != von) ist laut, eigener Kauf keine Push", () => {
+  const geschenk = regel("shop.kauf", "ahmed", { id: "k1", artikel: "tasche.gucci-tasche", fuer: "annika" });
+  assert.equal(geschenk.stufe, "laut");
+  assert.equal(geschenk.text, "Ahmed hat dir etwas geschenkt");
+  assert.equal(geschenk.kategorie, "shop");
+  assert.equal(regel("shop.kauf", "ahmed", { id: "k2", artikel: "socken", fuer: "ahmed" }), null);
+});
+
+// Z-27.1
+test("gruss: laut, Text je nach nacht/morgen, Kategorie geste", () => {
+  const nacht = regel("gruss", "annika", { art: "nacht" });
+  assert.equal(nacht.stufe, "laut");
+  assert.equal(nacht.kategorie, "geste");
+  assert.equal(nacht.text, "Annika sagt Gute Nacht");
+  assert.equal(regel("gruss", "ahmed", { art: "morgen" }).text, "Ahmed sagt Guten Morgen");
+});
+
+// Z-27.2: eine Zeitkapsel/ein Brief darf ihren Inhalt nie im Push-Text preisgeben, auch wenn
+// `text`/`medien` zusätzlich gesetzt sind.
+test("nachricht.neu mit kapsel/brief verrät den Inhalt nicht im Push-Text", () => {
+  const kapsel = regel("nachricht.neu", "annika", { text: "geheimer Inhalt", kapsel: { oeffnetAm: "2026-12-24" } });
+  assert.equal(kapsel.text, "Annika hat dir eine Zeitkapsel geschickt");
+  assert.doesNotMatch(kapsel.text, /geheim/);
+
+  const brief = regel("nachricht.neu", "ahmed", { text: "ein langer Liebesbrief", brief: { titel: "Für dich" } });
+  assert.equal(brief.text, "Ahmed hat dir einen Brief geschrieben");
+  assert.doesNotMatch(brief.text, /Liebesbrief/);
+});

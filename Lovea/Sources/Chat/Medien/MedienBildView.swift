@@ -31,9 +31,32 @@ struct MedienNachrichtView: View {
                 LadePlatzhalter(istVideo: medium.typ == "video")
             }
         }
-        .frame(width: 220, height: medium.hoehe > 0 ? 220 * medium.hoehe / max(medium.breite, 1) : 220)
+        .frame(width: groesse.width, height: groesse.height)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .task(id: medium.id) { if let gefunden = await MedienDatei.url(medium, eigene: eigene) { localURL = gefunden } }
+    }
+
+    /// Z-26.3: a photo bubble is capped at 320 pt tall and 75 % of the screen wide. `MedienVorschau`
+    /// already renders `.aspectRatio(contentMode: .fill)` inside this frame and the outer
+    /// `.clipShape` crops it, so an extreme aspect ratio (very tall/very wide) just needs its short
+    /// side floored instead of shrinking to a sliver — the long side gets cropped away, same as the
+    /// spec's "Seitenverhältnis gekappt". Video bubbles keep their existing fixed-width sizing.
+    private var groesse: CGSize {
+        guard medium.typ != "video" else {
+            return CGSize(width: 220, height: medium.hoehe > 0 ? 220 * medium.hoehe / max(medium.breite, 1) : 220)
+        }
+        return Self.bildGroesse(breite: medium.breite, hoehe: medium.hoehe, maxBreite: UIScreen.main.bounds.width * 0.75)
+    }
+
+    /// Pure geometry (testable without `UIScreen`, which is main-actor-isolated): fits (breite,hoehe)
+    /// into (maxBreite,maxHoehe), then floors whichever side an extreme ratio shrank past `minSeite`.
+    nonisolated static func bildGroesse(breite: Double, hoehe: Double, maxBreite: CGFloat, maxHoehe: CGFloat = 320, minSeite: CGFloat = 140) -> CGSize {
+        guard breite > 0, hoehe > 0 else { return CGSize(width: maxBreite, height: maxHoehe) }
+        let verhaeltnis = CGFloat(breite / hoehe)
+        var b = maxBreite
+        var h = b / verhaeltnis
+        if h > maxHoehe { h = maxHoehe; b = h * verhaeltnis }
+        return CGSize(width: max(b, minSeite), height: max(h, minSeite))
     }
 }
 
@@ -210,28 +233,35 @@ enum Bilddatei {
 enum ChatGalerie {
     // ponytail: a fresh `ArtworkLibrary()` pointed at its default Application Support folder — the
     // same file on disk Drawing's own `@StateObject ArtworkLibrary` uses, so this survives and shows
-    // up there. That tab's already-open instance won't refresh until it re-`load()`s though — Chat
-    // doesn't own Drawing/**, so this is reported instead of fixed here.
+    // up there. `DrawingView` reloads that instance on `.artworkLibraryGeaendert` (Brief I.4), so an
+    // already-open Zeichnen tab picks this up without a restart.
     static func inGaleriesSpeichern(bildURL: URL) {
         Task {
-            // Decode + PNG encode off the main actor (Z-16.2); only the library calls stay on it.
-            let geladen = await Task.detached(priority: .userInitiated) { () -> (png: Data, breite: Double, hoehe: Double)? in
-                guard let image = UIImage(contentsOfFile: bildURL.path), let png = image.pngData() else { return nil }
-                return (png, Double(image.size.width * image.scale), Double(image.size.height * image.scale))
-            }.value
-            guard let geladen else { return }
-            speichern(png: geladen.png, pixelBreite: geladen.breite, pixelHoehe: geladen.hoehe)
+            guard await speichernUndWarten(bildURL: bildURL, name: "Aus dem Chat") else { return }
+            NotificationCenter.default.post(name: .artworkLibraryGeaendert, object: nil)
         }
     }
 
-    private static func speichern(png: Data, pixelBreite: Double, pixelHoehe: Double) {
-        let library = ArtworkLibrary()
-        let breite = ArtworkLibrary.clampDimension(pixelBreite)
-        let hoehe = ArtworkLibrary.clampDimension(pixelHoehe)
-        var artwork = library.createArtwork(name: "Aus dem Chat", projectID: nil, format: .custom, customWidth: breite, customHeight: hoehe, background: .white)
+    /// Awaitable variant (Z-26.4's umzug cleanup needs to know the write finished before deleting
+    /// the chat message it came from). `true` once the artwork is fully on disk. `library` lets a
+    /// batch caller (Z-26.4) reuse one instance instead of paying `ArtworkLibrary.init`'s
+    /// synchronous library.json/document.json reads (Main Thread frei) once per message.
+    static func speichernUndWarten(bildURL: URL, name: String, library: ArtworkLibrary? = nil) async -> Bool {
+        // Decode + PNG encode off the main actor (Z-16.2); only the library calls stay on it.
+        let geladen = await Task.detached(priority: .userInitiated) { () -> (png: Data, breite: Double, hoehe: Double)? in
+            guard let image = UIImage(contentsOfFile: bildURL.path), let png = image.pngData() else { return nil }
+            return (png, Double(image.size.width * image.scale), Double(image.size.height * image.scale))
+        }.value
+        guard let geladen else { return false }
+        let library = library ?? ArtworkLibrary()
+        let breite = ArtworkLibrary.clampDimension(geladen.breite)
+        let hoehe = ArtworkLibrary.clampDimension(geladen.hoehe)
+        var artwork = library.createArtwork(name: name, projectID: nil, format: .custom, customWidth: breite, customHeight: hoehe, background: .white)
         let bildEbene = ArtworkLayer.image(name: "Bild")
         artwork.layers.append(bildEbene)
-        library.saveLayerData(png, layer: bildEbene, artworkID: artwork.id)
+        library.saveLayerData(geladen.png, layer: bildEbene, artworkID: artwork.id)
         library.saveDocument(artwork)
+        await library.waitForWrites()
+        return true
     }
 }

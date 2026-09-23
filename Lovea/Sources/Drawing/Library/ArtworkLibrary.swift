@@ -2,6 +2,13 @@ import Combine
 import Foundation
 import UIKit
 
+extension Notification.Name {
+    /// Brief I.4: posted whenever something wrote a new artwork to disk through a DIFFERENT
+    /// `ArtworkLibrary()` instance than the one an already-open gallery is observing (Umzug-
+    /// Aufräumen's migration, "In Galerie speichern" from Chat) — `DrawingView` reloads on this.
+    static let artworkLibraryGeaendert = Notification.Name("lovea.artworkLibrary.geaendert")
+}
+
 @MainActor
 final class ArtworkLibrary: ObservableObject {
     @Published private(set) var projects: [ArtworkProject] = []

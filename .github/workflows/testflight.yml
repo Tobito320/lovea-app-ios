@@ -14,16 +14,18 @@ jobs:
       APPLE_CERT_P12_BASE64: ${{ secrets.APPLE_CERT_P12_BASE64 }}
       APPLE_CERT_PASSWORD: ${{ secrets.APPLE_CERT_PASSWORD }}
       APPSTORE_PROFILE_BASE64: ${{ secrets.APPSTORE_PROFILE_BASE64 }}
+      APPSTORE_WIDGETS_PROFILE_BASE64: ${{ secrets.APPSTORE_WIDGETS_PROFILE_BASE64 }}
       ASC_KEY_ID: ${{ secrets.ASC_KEY_ID }}
       ASC_ISSUER_ID: ${{ secrets.ASC_ISSUER_ID }}
       ASC_KEY_P8_BASE64: ${{ secrets.ASC_KEY_P8_BASE64 }}
       DEVELOPMENT_TEAM: ${{ secrets.DEVELOPMENT_TEAM }}
       LOVEA_APP_KEY: ${{ secrets.LOVEA_APP_KEY }}
+      SPOTIFY_CLIENT_ID: ${{ secrets.SPOTIFY_CLIENT_ID }}
     steps:
       - name: Secrets prüfen
         run: |
           missing=""
-          for name in APPLE_CERT_P12_BASE64 APPLE_CERT_PASSWORD APPSTORE_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 DEVELOPMENT_TEAM; do
+          for name in APPLE_CERT_P12_BASE64 APPLE_CERT_PASSWORD APPSTORE_PROFILE_BASE64 APPSTORE_WIDGETS_PROFILE_BASE64 ASC_KEY_ID ASC_ISSUER_ID ASC_KEY_P8_BASE64 DEVELOPMENT_TEAM; do
             if [ -z "${!name}" ]; then
               missing="$missing $name"
             fi
@@ -41,7 +43,7 @@ jobs:
       - name: Generate project
         run: xcodegen generate
 
-      - name: Zertifikat und Profil installieren
+      - name: Zertifikat und Profile installieren
         run: |
           set -euo pipefail
           KEYCHAIN="$RUNNER_TEMP/lovea.keychain-db"
@@ -55,17 +57,31 @@ jobs:
           security list-keychains -d user -s "$KEYCHAIN"
           rm "$RUNNER_TEMP/cert.p12"
 
-          PROFILE="$RUNNER_TEMP/profile.mobileprovision"
-          printf '%s' "$APPSTORE_PROFILE_BASE64" | base64 --decode > "$PROFILE"
-          security cms -D -i "$PROFILE" > "$RUNNER_TEMP/profile.plist"
-          UUID="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$RUNNER_TEMP/profile.plist")"
-          NAME="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$RUNNER_TEMP/profile.plist")"
-          # ponytail: Xcode 16+ reads UserData, older Xcode reads MobileDevice
-          for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
-            mkdir -p "$dir"
-            cp "$PROFILE" "$dir/$UUID.mobileprovision"
-          done
-          echo "PROFILE_NAME=$NAME" >> "$GITHUB_ENV"
+          # Ein Profil dekodieren, installieren (beide Ordner, siehe iOS-Apps-ohne-Mac-Notiz F-Liste),
+          # den Namen als GitHub-Env-Variable ablegen und die App-Group-Entitlement zur Diagnose
+          # ausgeben (nicht geheim). Zwei Profile (App + LoveaWidgets, Z-28.1), zwei eigene
+          # PROVISIONING_PROFILE_SPECIFIER-Build-Settings statt einem globalen (bricht sonst das
+          # jeweils andere Target).
+          installiere_profil() {
+            local base64_inhalt="$1"
+            local ziel="$2"
+            local env_name="$3"
+            local uuid name
+            printf '%s' "$base64_inhalt" | base64 --decode > "$ziel"
+            security cms -D -i "$ziel" > "$ziel.plist"
+            uuid="$(/usr/libexec/PlistBuddy -c 'Print :UUID' "$ziel.plist")"
+            name="$(/usr/libexec/PlistBuddy -c 'Print :Name' "$ziel.plist")"
+            for dir in "$HOME/Library/MobileDevice/Provisioning Profiles" "$HOME/Library/Developer/Xcode/UserData/Provisioning Profiles"; do
+              mkdir -p "$dir"
+              cp "$ziel" "$dir/$uuid.mobileprovision"
+            done
+            echo "$ziel: App-Group-Entitlement:"
+            /usr/libexec/PlistBuddy -c 'Print :Entitlements:com.apple.security.application-groups' "$ziel.plist" || echo "  (keine gefunden)"
+            echo "$env_name=$name" >> "$GITHUB_ENV"
+          }
+
+          installiere_profil "$APPSTORE_PROFILE_BASE64" "$RUNNER_TEMP/profile-app.mobileprovision" LOVEA_APP_PROFILE
+          installiere_profil "$APPSTORE_WIDGETS_PROFILE_BASE64" "$RUNNER_TEMP/profile-widgets.mobileprovision" LOVEA_WIDGETS_PROFILE
 
       - name: API-Schlüssel ablegen
         run: |
@@ -82,12 +98,12 @@ jobs:
             -destination 'generic/platform=iOS' \
             -archivePath "$RUNNER_TEMP/Lovea.xcarchive" \
             DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-            CODE_SIGN_STYLE=Manual \
-            CODE_SIGN_IDENTITY="Apple Distribution" \
-            PROVISIONING_PROFILE_SPECIFIER="$PROFILE_NAME" \
+            LOVEA_APP_PROFILE="$LOVEA_APP_PROFILE" \
+            LOVEA_WIDGETS_PROFILE="$LOVEA_WIDGETS_PROFILE" \
             CURRENT_PROJECT_VERSION=${{ github.run_number }} \
             LOVEA_APP_KEY="${{ secrets.LOVEA_APP_KEY }}" \
-            LOVEA_SERVER="https://lovea-live.ahmedhdplay12345.workers.dev"
+            LOVEA_SERVER="https://lovea-live.ahmedhdplay12345.workers.dev" \
+            SPOTIFY_CLIENT_ID="${{ secrets.SPOTIFY_CLIENT_ID }}"
 
       - name: IPA exportieren
         run: |
@@ -106,7 +122,9 @@ jobs:
             <key>provisioningProfiles</key>
             <dict>
               <key>com.onlyus.lovea</key>
-              <string>$PROFILE_NAME</string>
+              <string>$LOVEA_APP_PROFILE</string>
+              <key>com.onlyus.lovea.widgets</key>
+              <string>$LOVEA_WIDGETS_PROFILE</string>
             </dict>
           </dict>
           </plist>

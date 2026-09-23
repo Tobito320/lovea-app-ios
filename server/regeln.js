@@ -15,6 +15,10 @@ const SYSTEM_TEXT = {
 function nachrichtText(von, d) {
   const name = NAME[von];
   if (d.system) return SYSTEM_TEXT[d.system] ?? `${name} hat dir geschrieben`;
+  // Z-27.2: der Inhalt einer Zeitkapsel/eines Briefs darf nie im Push-Text stehen -- vor allen
+  // anderen Feldern geprüft, auch wenn `d.text`/`d.medien` zusätzlich gesetzt sind.
+  if (d.kapsel) return `${name} hat dir eine Zeitkapsel geschickt`;
+  if (d.brief) return `${name} hat dir einen Brief geschrieben`;
   const typ = d.medien?.[0]?.typ;
   if (typ === "foto") return `${name} hat ein Foto geschickt`;
   if (typ === "video") return `${name} hat ein Video geschickt`;
@@ -35,11 +39,21 @@ function gesteRegel(von, d) {
   return { stufe: "inapp", kategorie: "geste", titel: "Lovea", text: null };
 }
 
+// Z-27.1: eigene Funktion (nicht in TABELLE inline), damit Block F "shop.kauf" daneben ergänzen
+// kann, ohne dieselbe Zeile zu berühren. Kategorie "geste" -- passt zur bestehenden Einstellung,
+// keine eigene "gruss"-Kategorie nötig.
+function grussRegel(von, d) {
+  const name = NAME[von];
+  const text = d.art === "nacht" ? `${name} sagt Gute Nacht` : `${name} sagt Guten Morgen`;
+  return { stufe: "laut", kategorie: "geste", titel: "Lovea", text };
+}
+
 // art -> (von, d) => {stufe, kategorie, titel, text, ton?} | null (keine Push)
 const TABELLE = {
   "nachricht.neu": (von, d) => ({ stufe: "laut", kategorie: "chat", titel: "Lovea", text: nachrichtText(von, d) }),
   "nachricht.reaktion": (von) => ({ stufe: "leise", kategorie: "chat", titel: "Lovea", text: `${NAME[von]} hat reagiert` }),
   "geste": gesteRegel,
+  "gruss": grussRegel,
   "zeichnung.einladung": (von) => ({ stufe: "laut", kategorie: "zeichnen", titel: "Lovea", text: `${NAME[von]} lädt dich zum Mitzeichnen ein` }),
   "spiel.einladung": (von) => ({ stufe: "laut", kategorie: "spiel", titel: "Lovea", text: `${NAME[von]} hat dich zu einem Spiel eingeladen` }),
   "ort.ereignis": (von, d, kontext) => ({
@@ -56,6 +70,8 @@ const TABELLE = {
     titel: "Lovea",
     text: `${NAME[von]} hat ${d.art === "bildschirmaufnahme" ? "den Bildschirm aufgenommen" : "einen Screenshot gemacht"}`,
   }),
+  // Z-23.2: nur bei einem Geschenk (fuer != von) - ein Kauf fuer sich selbst loest keine Push aus.
+  "shop.kauf": (von, d) => (d.fuer === von ? null : { stufe: "laut", kategorie: "shop", titel: "Lovea", text: `${NAME[von]} hat dir etwas geschenkt` }),
 };
 
 // Liefert die Push-Regel für eine Op, oder null, wenn diese Art keine Push

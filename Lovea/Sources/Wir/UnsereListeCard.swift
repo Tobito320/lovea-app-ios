@@ -23,12 +23,20 @@ struct UnsereListeCard: View {
                     .frame(minHeight: 44)
             }
 
-            if let gewuerfelt {
-                Text(gewuerfelt.text)
+            if let text = gewuerfelt?.text {
+                Text(text)
                     .font(.subheadline.weight(.medium))
                     .padding(10)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.loveaRose.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+            } else if let vorschlag {
+                // Z-19.3: statt leer die häufigste Kalender-Idee, solange nichts gewürfelt ist.
+                Text("Vorschlag: \(vorschlag)")
+                    .font(.subheadline.weight(.medium))
+                    .foregroundStyle(.secondary)
+                    .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(Color(uiColor: .tertiarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
             }
 
             reihe {
@@ -63,6 +71,13 @@ struct UnsereListeCard: View {
         UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         withAnimation(.easeInOut(duration: 0.4)) { wuerfelDreht.toggle() }
         gewuerfelt = wir.wuerfeln()
+    }
+
+    private var vorschlag: String? {
+        let eintraege = KalenderModell.shared.zustand.treffenText.values.compactMap { eintrag in
+            eintrag.text.map { (text: $0, zeit: eintrag.zeit) }
+        }
+        return UnsereListeVorschlag.haeufigste(eintraege)
     }
 }
 

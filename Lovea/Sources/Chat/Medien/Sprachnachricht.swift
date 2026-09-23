@@ -67,19 +67,35 @@ final class AufnahmeSteuerung {
     }
 }
 
+/// A recorded-but-not-yet-sent voice note (Z-26.2): uploaded right away, just like a draft photo,
+/// so it can round-trip through `entwurf.setzen {sprache: medienId}` — `medienId` is nil until
+/// that upload finishes; sending falls back to the full encode-and-send pipeline until then
+/// (Z-26.2's own contract: sending never waits for the upload).
+struct SprachEntwurf: Sendable {
+    var medienId: String?
+    let url: URL
+    let dauer: TimeInterval
+    let pegel: [Float]
+}
+
 /// Mic/send button (Z-5.2): a quick tap starts recording, a second quick tap stops it into a
-/// preview bar (Vorhören/Verwerfen/Senden); holding it down and releasing sends immediately.
+/// preview bar (Vorhören mit 1×/1,5×/2×, Verwerfen/Senden); holding it down and releasing sends
+/// immediately. `vorschau` is lifted into the input bar (Z-26.2) so the draft can restore and
+/// clear it across relaunch.
 struct SprachAufnahmeButton: View {
     let ich: Person
     let antwortAuf: String?
     let onGesendet: () -> Void
+    @Binding var vorschau: SprachEntwurf?
+    /// Z-26.2: called once the preview starts, is replaced, or is cleared, so the input bar can
+    /// push an updated `entwurf.setzen`.
+    var onEntwurfAendern: () -> Void = {}
     /// Block 18: true while recording or previewing, so the input bar can give this the whole field.
     var onBelegt: (Bool) -> Void = { _ in }
 
     private enum Modus { case ruhe, haltend, tippModus }
 
     @State private var steuerung = AufnahmeSteuerung()
-    @State private var vorschau: (url: URL, dauer: TimeInterval, pegel: [Float])?
     @State private var modus: Modus = .ruhe
     @State private var druckBeginn: Date?
 
@@ -88,8 +104,8 @@ struct SprachAufnahmeButton: View {
             if let vorschau {
                 VorschauLeiste(
                     aufnahme: vorschau,
-                    onSenden: { senden(vorschau); self.vorschau = nil },
-                    onVerwerfen: { try? FileManager.default.removeItem(at: vorschau.url); self.vorschau = nil }
+                    onSenden: { senden(vorschau); self.vorschau = nil; onEntwurfAendern() },
+                    onVerwerfen: { try? FileManager.default.removeItem(at: vorschau.url); self.vorschau = nil; onEntwurfAendern() }
                 )
             } else {
                 aufnahmeKnopf
@@ -146,23 +162,49 @@ struct SprachAufnahmeButton: View {
         switch modus {
         case .haltend:
             if Date().timeIntervalSince(druckBeginn ?? Date()) > 0.3 {
-                if let ergebnis = steuerung.stop() { senden(ergebnis) }
+                if let ergebnis = steuerung.stop() {
+                    senden(SprachEntwurf(medienId: nil, url: ergebnis.url, dauer: ergebnis.dauer, pegel: ergebnis.pegel))
+                }
                 modus = .ruhe
             } else {
                 modus = .tippModus
             }
         case .tippModus:
-            if let ergebnis = steuerung.stop() { vorschau = ergebnis }
+            if let ergebnis = steuerung.stop() {
+                let entwurf = SprachEntwurf(medienId: nil, url: ergebnis.url, dauer: ergebnis.dauer, pegel: ergebnis.pegel)
+                vorschau = entwurf
+                onEntwurfAendern()
+                hochladenFuerEntwurf(entwurf)
+            }
             modus = .ruhe
         case .ruhe:
             break
         }
     }
 
-    private func senden(_ aufnahme: (url: URL, dauer: TimeInterval, pegel: [Float])) {
+    /// Z-26.2: uploads the preview right away, off the send path, so its id can go into
+    /// `entwurf.setzen`. Ignored if the user already discarded/replaced this recording by the time
+    /// it finishes.
+    private func hochladenFuerEntwurf(_ entwurf: SprachEntwurf) {
+        Task {
+            guard let id = await ChatMedien.entwurfSprachHochladen(entwurf.url) else { return }
+            guard vorschau?.url == entwurf.url else { return }
+            vorschau?.medienId = id
+            onEntwurfAendern()
+        }
+    }
+
+    private func senden(_ aufnahme: SprachEntwurf) {
         ChatHaptik.leicht()
         Task {
-            await ChatMedien.sprachSenden(aufnahme.url, dauer: aufnahme.dauer, pegel: aufnahme.pegel, antwortAuf: antwortAuf)
+            if let medienId = aufnahme.medienId {
+                ChatModell.shared.medienSenden(
+                    [ChatModell.MedienEintrag(id: medienId, typ: "sprache", breite: 0, hoehe: 0, dauer: aufnahme.dauer, pegel: aufnahme.pegel)],
+                    antwortAuf: antwortAuf
+                )
+            } else {
+                await ChatMedien.sprachSenden(aufnahme.url, dauer: aufnahme.dauer, pegel: aufnahme.pegel, antwortAuf: antwortAuf)
+            }
             onGesendet()
         }
     }
@@ -173,18 +215,30 @@ struct SprachAufnahmeButton: View {
 }
 
 private struct VorschauLeiste: View {
-    let aufnahme: (url: URL, dauer: TimeInterval, pegel: [Float])
+    let aufnahme: SprachEntwurf
     let onSenden: () -> Void
     let onVerwerfen: () -> Void
+
+    // Z-26.2: the file's own name, not a constant "vorschau" — a fixed id would make
+    // `SprachSpieler.shared` think a re-recorded (or sent/discarded and freshly recorded) preview
+    // is still the previous file and resume it instead of restarting.
+    private var vorschauID: String { aufnahme.url.lastPathComponent }
+    private var spielt: Bool { SprachSpieler.shared.spielendeID == vorschauID }
 
     var body: some View {
         HStack(spacing: 10) {
             Button(role: .destructive) { onVerwerfen() } label: { Image(systemName: "trash") }
                 .accessibilityLabel("Aufnahme verwerfen")
             Button {
-                SprachSpieler.shared.spielen(id: "vorschau", url: aufnahme.url)
-            } label: { Image(systemName: "play.fill") }
-                .accessibilityLabel("Anhören")
+                if spielt { SprachSpieler.shared.pausieren() } else { SprachSpieler.shared.spielen(id: vorschauID, url: aufnahme.url) }
+            } label: { Image(systemName: spielt ? "pause.fill" : "play.fill") }
+                .accessibilityLabel(spielt ? "Anhören pausieren" : "Anhören")
+            // Z-26.2: "vor dem Senden anhören mit 1×/1,5×/2×" — same cycling speed `SprachSpieler`
+            // already uses for sent voice messages.
+            Button { SprachSpieler.shared.geschwindigkeitSchalten() } label: {
+                Text(String(format: "%.3gx", SprachSpieler.shared.geschwindigkeit)).font(.caption2.bold())
+            }
+            .accessibilityLabel("Geschwindigkeit")
             Text(String(format: "%d:%02d", Int(aufnahme.dauer) / 60, Int(aufnahme.dauer) % 60))
                 .font(.caption2).monospacedDigit()
             Spacer()

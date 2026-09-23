@@ -13,6 +13,10 @@ final class OrteModell {
 
     private(set) var orte: [Ort] = []
     private(set) var vorschlag: OrtVorschlagAnzeige?
+    /// Z-27.4 "Unsere Orte": server-erkannte gemeinsame Aufenthalte (`ort.gemeinsam`, raum.js
+    /// `#pruefeGemeinsam` — der Server sieht beide Standort-Ströme auch im Hintergrund, ein rein
+    /// client-seitiger Verlauf hätte das nicht, siehe brief-G-report.md).
+    private(set) var gemeinsameOrte: [GemeinsamerOrt] = []
     /// `"<ortId>|<person>"` -> letztes `ort.ereignis` dieser Person an diesem Ort. Für die
     /// Info-Karte ("seit") und um `CLMonitor` nicht doppelt senden zu lassen.
     private(set) var ereignisse: [String: (zeit: Date, art: String)] = [:]
@@ -27,7 +31,7 @@ final class OrteModell {
 
     private init() {
         verworfeneVorschlaege = Set(UserDefaults.standard.stringArray(forKey: "lovea.orte.verworfen") ?? [])
-        Raum.shared.beobachten(["ort.setzen", "ort.loeschen", "ort.ereignis", "nachricht.neu"]) { [weak self] op in
+        Raum.shared.beobachten(["ort.setzen", "ort.loeschen", "ort.ereignis", "ort.gemeinsam", "nachricht.neu"]) { [weak self] op in
             self?.anwenden(op)
         }
     }
@@ -45,6 +49,11 @@ final class OrteModell {
         case "ort.ereignis":
             guard let d = op.daten(OrtEreignisD.self) else { return }
             ereignisse["\(d.ortId)|\(op.von.rawValue)"] = (op.zeit, d.art)
+        case "ort.gemeinsam":
+            // Idempotent by op.id, wie jede andere Faltung hier (optimistischer Send + Echo teilen sich eine id).
+            guard let d = op.daten(GemeinsamD.self) else { return }
+            let neu = GemeinsamerOrt(id: op.id, lat: d.lat, lon: d.lon, datum: d.datum)
+            if let i = gemeinsameOrte.firstIndex(where: { $0.id == op.id }) { gemeinsameOrte[i] = neu } else { gemeinsameOrte.append(neu) }
         case "nachricht.neu":
             guard Date().timeIntervalSince(op.zeit) < 30, op.daten(SystemD.self)?.system == "nah" else { return }
             nahBis = Date().addingTimeInterval(5)
@@ -179,6 +188,16 @@ struct OrtVorschlagAnzeige: Equatable {
 private struct OrtLoeschenD: Codable { let id: String }
 private struct OrtEreignisD: Codable { let ortId: String; let art: String }
 private struct SystemD: Codable { let system: String? }
+private struct GemeinsamD: Codable { let lat: Double; let lon: Double; let datum: String }
+
+/// Z-27.4: one "Unsere Orte" pin — `datum` is the Berlin calendar day it happened, for the same-day
+/// chat photo lookup in `GemeinsamerOrtDetail`.
+struct GemeinsamerOrt: Identifiable, Sendable, Equatable {
+    let id: String
+    let lat: Double
+    let lon: Double
+    let datum: String
+}
 
 /// Local visit history at `Application Support/Lovea/orte/besuche.json` - only 30 days are kept,
 /// well beyond the 14-day window `Orte.vorschlaege` looks at.
