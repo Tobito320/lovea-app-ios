@@ -329,9 +329,7 @@ private struct WirStickerAnsicht: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 12) {
                     ForEach(namen, id: \.self) { name in
-                        Image(name)
-                            .resizable()
-                            .scaledToFit()
+                        StickerKachel(medienId: MitgelieferteSticker.medienId(name))
                             .frame(width: 100, height: 100)
                             .contentShape(Rectangle())
                             .onTapGesture { senden(name) }
@@ -368,6 +366,15 @@ struct StickerKachel: View {
     @State private var bild: UIImage?
 
     var body: some View {
+        // Mitgelieferte Sticker mit Bewegung liegen zusätzlich als `<name>.gif` im Bundle (StickerGIFs/).
+        if let name = MitgelieferteSticker.assetName(medienId), let gif = Bundle.main.url(forResource: name, withExtension: "gif") {
+            AnimiertesGif(url: gif)
+        } else {
+            standbild
+        }
+    }
+
+    private var standbild: some View {
         Group {
             if let bild {
                 Image(uiImage: bild).resizable().scaledToFit()
