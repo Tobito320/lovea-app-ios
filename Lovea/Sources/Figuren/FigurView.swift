@@ -1,8 +1,9 @@
 import SwiftUI
 
 /// Z-39.4: small extras on the figure, drawn in half and full body. The map derives them from the
-/// weather (rain, sun, cold, snow) and from charging.
-enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, muetzeSchal, handyKabel, schneeflocken }
+/// weather (rain, sun, cold, snow) and from charging. `hanteln` (Brief G): a dumbbell in each hand,
+/// curled in turn - the profile's gym scene.
+enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, muetzeSchal, handyKabel, schneeflocken, hanteln }
 
 /// Bitmoji-style figure. `groesse` is the height. Half figure (chat, stickers): width is 5/6 of the height.
 /// `ganzkoerper` (map, profile): head, body, legs and shoes with standing/walking/sitting poses; width is 1/2 of the height.
@@ -4646,13 +4647,24 @@ extension Zeichner {
         extras.contains(.schirm) && ![.faehrt, .fahrschule, .rad, .schlaeft, .zuhause, .ruhe].contains(z)
     }
 
-    /// The right hand holds the phone or the umbrella, so the state's own hand prop steps aside.
-    var rechteHandBelegt: Bool { extras.contains(.handyKabel) || schirmAktiv }
+    /// Dumbbells only while both hands are free of phone and umbrella.
+    var hantelnAktiv: Bool { extras.contains(.hanteln) && !extras.contains(.handyKabel) && !schirmAktiv }
+
+    /// The right hand holds the phone, the umbrella or a dumbbell, so the state's own hand prop steps aside.
+    var rechteHandBelegt: Bool { extras.contains(.handyKabel) || schirmAktiv || hantelnAktiv }
+
+    /// Curl phase 0 (arm down) … 1 (weight at the shoulder); the right arm runs half a beat behind.
+    func hub(_ versatz: Double) -> CGFloat { (1 + w(3.2, versatz)) / 2 }
 
     /// Half figure: the right hand holds the phone (the left one the cable) or the umbrella; with
     /// both, the umbrella moves to the left hand.
     func mitExtras(_ arme: (l: Arm?, r: Arm?)) -> (l: Arm?, r: Arm?) {
         var a = arme
+        if hantelnAktiv {
+            let l = hub(0), r = hub(Double.pi)
+            a.l = Arm(P(46, 212), P(54 + l * 8, 238 - l * 58))
+            a.r = Arm(P(154, 212), P(146 - r * 8, 238 - r * 58))
+        }
         let mitHandy = extras.contains(.handyKabel)
         if mitHandy {
             a.l = Arm(P(40, 222), P(62, 206))
@@ -4670,6 +4682,11 @@ extension Zeichner {
         let lx: CGFloat = 100 - m.s + 6
         let rx: CGFloat = 100 + m.s - 6
         let y = m.schulterY
+        if hantelnAktiv {
+            let l = hub(0), r = hub(Double.pi)
+            a.l = Arm(P(lx - 4, y + 50), P(lx - 8 + l * 10, y + 92 - l * 52))
+            a.r = Arm(P(rx + 4, y + 50), P(rx + 8 - r * 10, y + 92 - r * 52))
+        }
         let mitHandy = extras.contains(.handyKabel)
         if mitHandy {
             a.l = Arm(P(lx - 6, y + 46), P(lx + 8, y + 44))
@@ -4731,6 +4748,15 @@ extension Zeichner {
     /// What the hands hold: the umbrella shaft with its hook, the phone (right) and the white
     /// charging cable ending in a plug in the left hand. `s` scales it (0.66 on the full body).
     func extrasInHand(_ g: GraphicsContext, l: CGPoint?, r: CGPoint?, dach: CGPoint?, groesse s: CGFloat) {
+        if hantelnAktiv {
+            for h in [l, r].compactMap({ $0 }) {
+                let stange = strich(P(h.x - 20 * s, h.y), P(h.x + 20 * s, h.y))
+                linie(g, stange, Pal.silber.kontur, 7 * s)
+                linie(g, stange, Pal.silber.farbe, 4 * s)
+                teil(g, box(h.x - 28 * s, h.y - 12 * s, 9 * s, 24 * s, 3 * s), Pal.dunkel, 3 * s)
+                teil(g, box(h.x + 19 * s, h.y - 12 * s, 9 * s, 24 * s, 3 * s), Pal.dunkel, 3 * s)
+            }
+        }
         let mitHandy = extras.contains(.handyKabel)
         if let dach, let griff = mitHandy ? l : r {
             let stock = strich(griff, dach)
