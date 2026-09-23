@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Z-23.2: categories, grid of item previews (each tile a live "try-on" on the target figure, or
-/// the theme/flame/backdrop's own preview), a bigger live preview + buy/wear sheet, gift mode.
+/// the backdrop's own preview), a bigger live preview + buy/wear sheet, gift mode.
 /// Reachable from the own profile (Profile/) and the figure editor (Einstellungen/).
 struct ShopView: View {
     @Environment(\.dismiss) private var dismiss
@@ -127,7 +127,7 @@ struct ShopView: View {
 }
 
 private enum ShopKategorie: String, CaseIterable, Identifiable {
-    case mode, tasche, uhr, schmuck, brille, backdrop, chatTheme, flamme, pose, tier
+    case mode, tasche, uhr, schmuck, brille, backdrop, pose, tier
     var id: String { rawValue }
 
     var titel: String {
@@ -138,8 +138,6 @@ private enum ShopKategorie: String, CaseIterable, Identifiable {
         case .schmuck: "Schmuck"
         case .brille: "Brillen"
         case .backdrop: "Backdrops"
-        case .chatTheme: "Chat-Themes"
-        case .flamme: "Flammen"
         case .pose: "Posen & Tänze"
         case .tier: "Haustiere"
         }
@@ -153,15 +151,13 @@ private enum ShopKategorie: String, CaseIterable, Identifiable {
         case .schmuck: "sparkles"
         case .brille: "eyeglasses"
         case .backdrop: "photo"
-        case .chatTheme: "paintpalette"
-        case .flamme: "flame"
         case .pose: "figure.dance"
         case .tier: "pawprint"
         }
     }
 }
 
-/// One grid tile: a live preview (figure try-on, or the theme's/flame's/backdrop's own preview).
+/// One grid tile: a live preview (figure try-on, or the backdrop's own preview).
 private struct ArtikelKachel: View {
     let artikel: ShopArtikel
     let besitzt: Bool
@@ -196,10 +192,6 @@ private struct ArtikelKachel: View {
 
     @ViewBuilder private var vorschau: some View {
         switch artikel.kategorie {
-        case "chatTheme":
-            if let t = ChatThemes.von(artikel.id) { ChatThemePreviewView(thema: t) }
-        case "flamme":
-            if let f = Flammen.von(artikel.id) { FlammenPreviewView(flamme: f) }
         case "backdrop":
             BackdropView(id: artikel.id)
         default:
@@ -229,7 +221,7 @@ private struct ArtikelDetail: View {
     private var vorschauAussehen: FigurAussehen { FigurenModell.shared.aussehen(ziel).mitVorschau(artikel) }
     private var fehlend: Int { max(0, artikel.preis - verfuegbar) }
     private var getragen: Bool { vorschauAussehen.traegt(artikel) }
-    private var direktTeil: Bool { !["chatTheme", "flamme", "backdrop"].contains(artikel.kategorie) }
+    private var direktTeil: Bool { artikel.kategorie != "backdrop" }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -254,10 +246,6 @@ private struct ArtikelDetail: View {
 
     @ViewBuilder private var vorschau: some View {
         switch artikel.kategorie {
-        case "chatTheme":
-            if let t = ChatThemes.von(artikel.id) { ChatThemePreviewView(thema: t).scaleEffect(2.4) }
-        case "flamme":
-            if let f = Flammen.von(artikel.id) { FlammenPreviewView(flamme: f).scaleEffect(2.4) }
         case "backdrop":
             BackdropView(id: artikel.id).clipShape(RoundedRectangle(cornerRadius: 18)).padding(.horizontal, 24)
         default:
