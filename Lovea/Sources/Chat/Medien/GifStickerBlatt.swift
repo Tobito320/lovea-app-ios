@@ -291,6 +291,9 @@ private struct StickerAnsicht: View {
 enum MitgelieferteSticker {
     static let praefix = "asset:"
     static let alle = [
+        "wir-annika-kuss-winken", "wir-annika-rosen", "wir-annika-kichern", "wir-annika-schuechtern",
+        "wir-annika-finger-grinsen", "wir-annika-finger-sw", "wir-annika-frech", "wir-annika-schulterblick",
+        "wir-annika-zunge", "wir-annika-augenrollen", "wir-annika-telefon", "wir-annika-cheers",
         "wir-kuss", "wir-umarmung", "wir-selfie", "wir-kino", "wir-gym",
         "wir-ich", "wir-du", "wir-zuhause", "wir-vermisse-dich", "wir-so-suess", "wir-lieblingsmensch",
         "wir-nur-wir", "wir-wir-immer", "wir-fuer-dich", "wir-danke", "wir-danke-dass-es-dich-gibt",
@@ -326,9 +329,7 @@ private struct WirStickerAnsicht: View {
             ScrollView {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 12) {
                     ForEach(namen, id: \.self) { name in
-                        Image(name)
-                            .resizable()
-                            .scaledToFit()
+                        StickerKachel(medienId: MitgelieferteSticker.medienId(name))
                             .frame(width: 100, height: 100)
                             .contentShape(Rectangle())
                             .onTapGesture { senden(name) }
@@ -365,6 +366,15 @@ struct StickerKachel: View {
     @State private var bild: UIImage?
 
     var body: some View {
+        // Mitgelieferte Sticker mit Bewegung liegen zusätzlich als `<name>.gif` im Bundle (StickerGIFs/).
+        if let name = MitgelieferteSticker.assetName(medienId), let gif = Bundle.main.url(forResource: name, withExtension: "gif") {
+            AnimiertesGif(url: gif)
+        } else {
+            standbild
+        }
+    }
+
+    private var standbild: some View {
         Group {
             if let bild {
                 Image(uiImage: bild).resizable().scaledToFit()
