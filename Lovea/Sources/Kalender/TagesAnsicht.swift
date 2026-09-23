@@ -9,18 +9,20 @@ struct TagesAnsicht: View {
     @State private var zeigtTerminEditor = false
     @State private var zeigtAusnahmeEditor = false
 
-    private static let titelFormat: DateFormatter = {
+    // Fresh formatter per call: DateFormatter is a class and not Sendable, so a shared `static
+    // let` would trip Swift 6 strict concurrency (same reasoning as `Op.isoFormatierer`).
+    private static func titel(_ datum: Date) -> String {
         let f = DateFormatter()
         f.calendar = Datum.kalender
         f.locale = Locale(identifier: "de_DE")
         f.dateFormat = "EEEE, d. MMMM"
-        return f
-    }()
+        return f.string(from: datum)
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                Text(Self.titelFormat.string(from: Datum.datum(tag)))
+                Text(Self.titel(Datum.datum(tag)))
                     .font(.title3.weight(.semibold))
 
                 if let treffen = kalender.zustand.daten.treffen.first(where: { $0.datum == tag }) {
