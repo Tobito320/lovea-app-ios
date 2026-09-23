@@ -173,6 +173,8 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         // Z-39.1 Alltagsmarken (frei), Z-39.2 Luxus (nur Shop, siehe `oberteileShop`).
         "H&M Basic-Shirt", "Zara Rippstrick-Top", "Nike Tech Fleece", "Nike Trikot", "Puma Shirt", "Stüssy Shirt",
         "Gucci Web-Shirt", "Dior Oblique-Pulli", "Louis Vuitton Monogramm-Hemd", "Balenciaga Oversize-Hoodie",
+        // Aus Ahmeds und Annikas Fotos (frei), Zeichnung über `fotoOberteile`.
+        "Weißes Kompressions-Longsleeve", "Schwarzes Kompressions-Tee", "Waldgrünes Oversize-Tee", "Weißes Rippen-Tank",
     ]
     static let jacken = [
         "Keine", "Lederjacke", "Jeansjacke", "Bomberjacke", "Blazer", "Pufferjacke", "Pelzkragen-Jacke", "Cape",
@@ -183,11 +185,13 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         "Jeans hell", "Jeans dunkel", "Weite Jeans", "Stoffhose", "Jogginghose", "Cargohose", "Shorts", "Rock", "Minirock", "Leggings",
         "Anzughose", "Glitzerhose",
         "Adidas Trainingshose", "Levi's 501", "Nike Tech Fleece Jogger", "Puma Leggings",
+        "Schwarze Gym-Shorts", "Hellgraue Wide-Jogger", "Hellgraue Baggy-Jeans",
     ]
     static let schuhArten = [
         "Sneaker", "High-Top", "Laufschuhe", "Stiefel", "Chelsea-Boots", "Sandalen", "Ballerinas", "Slipper", "Logo-Sneaker", "Two-Tone-Sneaker",
         "Nike Air Force 1", "Adidas Samba", "New Balance 550",
         "Gucci Ace", "Balenciaga Triple S",
+        "Weiße Low-Top-Sneaker",
     ]
     static let groessen = ["Klein", "Mittel", "Groß"]
 
@@ -229,8 +233,9 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     static let oberteileGeschlecht: [FigurGeschlecht] = [
         .n, .n, .n, .n, .n, .n, .n, .n, .w, .n, .n, .n, .n, .n, .n, .n, .n,
         .n, .w, .n, .n, .n, .n, .n, .n, .n, .n,
+        .m, .m, .m, .w,
     ]
-    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n, .n, .n, .n, .w]
+    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n, .n, .n, .n, .w, .m, .m, .m]
     /// Z-23.1: indices appended for shop "mode"/"brille" items (`shopTeile` below) — hidden from the
     /// free editor and `zufall()` so buying is the only way to wear them.
     static let oberteileShop: Set<Int> = [14, 15, 16, 23, 24, 25, 26]

@@ -304,20 +304,24 @@ private struct Zeichner {
         // A trained body in the gym: below "Athletisch" the shirtless look switches to it.
         koerperform = mannImGym && A.koerper[form].muskel < 0.6 ? 3 : form
         groesseStufe = grenze(a.groesse, A.groessen.count)
-        schuhe = grenze(a.schuhe, A.schuhArten.count)
-        schuhF = a.schuhfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.schuhfarbe).farbe
+        let freieSchuhe = grenze(a.schuhe, A.schuhArten.count)
+        let fotoSchuh = A.fotoSchuhe[freieSchuhe]
+        schuhe = fotoSchuh?.basis ?? freieSchuhe
+        schuhF = fotoSchuh?.farbe ?? a.schuhfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.schuhfarbe).farbe
         jackeF = a.jackenfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.jackenfarbe).farbe
         let schlafanzug = z == .abend
-        let oberteilFarbe = schlafanzug ? FigurFarbe(0xAFC8EE) : (a.oberteilfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.oberteilfarbe).farbe)
-        top = oberteilFarbe
         let freiesOberteil = grenze(a.oberteil, A.oberteile.count)
-        oberteil = schlafanzug ? 2 : (gym && !mannImGym ? 11 : freiesOberteil)
+        let fotoOberteil = A.fotoOberteile[freiesOberteil]
+        let oberteilFarbe = schlafanzug ? FigurFarbe(0xAFC8EE) : (fotoOberteil?.farbe ?? a.oberteilfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.oberteilfarbe).farbe)
+        top = oberteilFarbe
+        oberteil = schlafanzug ? 2 : (gym && !mannImGym ? 11 : (fotoOberteil?.basis ?? freiesOberteil))
         jacke = schlafanzug || gym ? 0 : grenze(a.jacke, A.jacken.count)
         let freieHose = grenze(a.hose, A.hosen.count)
-        hose = schlafanzug ? 3 : (gym ? (mannImGym ? 6 : 9) : freieHose)
-        let freieHosenFarbe = a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.hosenfarbe).farbe
+        let fotoHose = A.fotoHosen[freieHose]
+        hose = schlafanzug ? 3 : (gym ? (mannImGym ? 6 : 9) : (fotoHose?.basis ?? freieHose))
+        let freieHosenFarbe = fotoHose?.farbe ?? a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.hosenfarbe).farbe
         hoseF = schlafanzug ? oberteilFarbe : (gym ? FigurFarbe(0x2B2830) : freieHosenFarbe)
-        hosenHexAktiv = !schlafanzug && !gym && a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } != nil
+        hosenHexAktiv = !schlafanzug && !gym && (fotoHose != nil || a.hosenfarbeHex.flatMap { FigurFarbe(hex: $0) } != nil)
         let winter = extras.contains(.muetzeSchal)
         muetzeF = winter ? FigurFarbe(0xB33A4A) : A.farben.wahl(a.muetzenfarbe).farbe
         let ohneHut = schlafanzug || z == .rad || z == .schlaeft

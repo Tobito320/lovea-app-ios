@@ -314,4 +314,15 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(Set(FigurZustand.mimik).count, 14)
         XCTAssertEqual(FigurExtra.allCases.map(\.rawValue), ["schirm", "sonnenbrille", "muetzeSchal", "handyKabel", "schneeflocken"])
     }
+
+    /// Photo pieces: keys are real list indices, the drawn basis is an older index.
+    func testFotoTeileZeigenAufGueltigeIndizes() {
+        typealias A = FigurAussehen
+        for (i, t) in A.fotoOberteile { XCTAssertTrue(A.oberteile.indices.contains(i)); XCTAssertLessThan(t.basis, 27) }
+        for (i, t) in A.fotoHosen { XCTAssertTrue(A.hosen.indices.contains(i)); XCTAssertLessThan(t.basis, 16) }
+        for (i, t) in A.fotoSchuhe { XCTAssertTrue(A.schuhArten.indices.contains(i)); XCTAssertLessThan(t.basis, 15) }
+        XCTAssertEqual(A.oberteile[27], "Weißes Kompressions-Longsleeve")
+        XCTAssertEqual(A.oberteile.count, A.oberteileGeschlecht.count)
+        XCTAssertEqual(A.hosen.count, A.hosenGeschlecht.count)
+    }
 }
