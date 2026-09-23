@@ -865,7 +865,8 @@ private struct Zeichner {
 
     /// Adidas trefoil: three leaves over three bars.
     func kleeblatt(_ g: GraphicsContext, _ c: CGPoint, _ s: CGFloat, _ farbe: Color) {
-        for (dx, grad) in [(CGFloat(-4.5), -38.0), (0, 0), (4.5, 38)] {
+        let blaetter: [(CGFloat, Double)] = [(-4.5, -38), (0, 0), (4.5, 38)]
+        for (dx, grad) in blaetter {
             var h = g
             h.translateBy(x: c.x + dx * s, y: c.y + abs(dx) * 0.3 * s)
             h.rotate(by: .degrees(grad))
@@ -1033,12 +1034,15 @@ private struct Zeichner {
             linie(g, strich(P(brustR.x - 1.5 * s, brustR.y - 2 * s), P(brustR.x + 1.5 * s, brustR.y - 2 * s)), Pal.tinte.farbe, 1.2 * s)
         case 12:
             // Chanel tweed: bouclé dots, braided trim along the front edges, gold buttons, CC.
-            for y in stride(from: oben, to: unten + 20, by: 6 * s) {
-                for x in stride(from: CGFloat(24), to: 180, by: 6 * s) {
-                    let dx: CGFloat = Int((y - oben) / (6 * s)) % 2 == 0 ? 0 : 3 * s
-                    innen.fill(kreis(P(x + dx, y), 1.1 * s), with: .color(f.kontur.opacity(0.35)))
+            // ponytail: one path for all bouclé dots (a single fill per frame), fixed 9-unit grid.
+            var boucle = Path()
+            for y in stride(from: oben, to: unten + 20, by: 9) {
+                let dx: CGFloat = Int((y - oben) / 9) % 2 == 0 ? 0 : 4.5
+                for x in stride(from: CGFloat(24), to: 180, by: 9) {
+                    boucle.addEllipse(in: CGRect(x: x + dx - 1.3, y: y - 1.3, width: 2.6, height: 2.6))
                 }
             }
+            innen.fill(boucle, with: .color(f.kontur.opacity(0.35)))
             let kante = strich(P(100 - 12 * s, oben), P(100 - 20 * s, unten))
             linie(g, kante, Pal.tinte.farbe, 4 * s)
             linie(g, kante, Pal.weiss.farbe, 2 * s)
@@ -2285,7 +2289,7 @@ private struct Zeichner {
     /// device/mood states, plus live Gesten (kiss lean in `ProfileView`, high-five/laugh/toast/
     /// trophy), which are meaningful and brief, unlike the all-day Ort/Tageszeit states `FigurView`'s
     /// `poseImmer` (Brief I.5) substitutes `.ruhig` for.
-    static let keinePoseUeberschreibung: Set<FigurZustand> = Set([.schlaeft, .offline, .akkuLeer, .schlecht, .kuss, .herz, .lacht, .anstossen, .pokal] + FigurZustand.mimik)
+    static let keinePoseUeberschreibung: Set<FigurZustand> = Set<FigurZustand>([.schlaeft, .offline, .akkuLeer, .schlecht, .kuss, .herz, .lacht, .anstossen, .pokal]).union(FigurZustand.mimik)
 
     /// Z-23.3/Z-24.2: a bought pose/dance shows while the figure is just idling (Profil, Karte) —
     /// it never fights a meaningful activity pose (typing, sleeping, …).

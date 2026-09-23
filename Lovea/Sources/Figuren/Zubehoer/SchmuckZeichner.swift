@@ -107,6 +107,7 @@ private func halsSchmuck(_ h: GraphicsContext, _ stil: SchmuckStil, _ f: FigurFa
         linie(h, kette, f.farbe, 2)
         teil(h, herzPfad(P(0, 16), 4), Pal.rose, 1)
     case .kettePerlen:
+        linie(h, kette, f.farbe, 2)
         for dx in stride(from: CGFloat(-14), through: 14, by: 5) {
             teil(h, kreis(P(dx, 10 - abs(dx) * 0.3), 2.2), f, 1)
         }
