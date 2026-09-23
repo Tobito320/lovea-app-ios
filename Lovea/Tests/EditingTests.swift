@@ -543,6 +543,55 @@ final class EditingTests: XCTestCase {
         engine.cancelStroke()
     }
 
+    // MARK: Block 18: stroke frame cost (device HUD showed GPU 23.9 ms)
+
+    /// A stroke frame used to blit the whole document twice (scratch → preview, layer → activeTemp).
+    func testStrokeFrameCopiesOnlyWhatChanged() async throws {
+        let size = 1024
+        let engine = try await TestGPU.engine(TestGPU.document(width: Double(size), height: Double(size)))
+        engine.beginStroke(StrokeInput(location: CGPoint(x: 100, y: 100)), settings: TestGPU.settings(size: 10), layerID: engine.activeLayerID)
+        engine.renderOffscreen()
+        for frame in 1...20 {
+            let x = 100 + Double(frame) * 4
+            let before = EngineStats.copiedPixels
+            engine.continueStroke([StrokeInput(location: CGPoint(x: x, y: 100))], predicted: [StrokeInput(location: CGPoint(x: x + 8, y: 104))])
+            engine.renderOffscreen()
+            XCTAssertLessThan(EngineStats.copiedPixels - before, size * size / 50, "frame \(frame) copied most of the document")
+        }
+        engine.cancelStroke()
+    }
+
+    /// The partial frames must show exactly what a full rebuild shows: old predicted stamps gone, mirror kept.
+    func testPartialStrokeFramesMatchAFullFrame() async throws {
+        let engine = try await TestGPU.engine(TestGPU.document(width: 256, height: 256))
+        engine.mirrorX = 128
+        engine.beginStroke(StrokeInput(location: CGPoint(x: 20, y: 40)), settings: TestGPU.settings(size: 8), layerID: engine.activeLayerID)
+        engine.renderOffscreen()
+        for frame in 1...15 {
+            let x = 20 + Double(frame) * 5
+            engine.continueStroke([StrokeInput(location: CGPoint(x: x, y: 40 + Double(frame % 3)))],
+                                  predicted: [StrokeInput(location: CGPoint(x: x + 30, y: 90))])
+            engine.renderOffscreen()
+        }
+        let temp = try XCTUnwrap(engine.compositor.activeTemp)
+        let partial = await GPU.readBytes(temp)
+        engine.compositor.invalidateCaches()
+        engine.renderOffscreen()
+        let full = await GPU.readBytes(temp)
+        XCTAssertFalse(partial.isEmpty)
+        XCTAssertEqual(partial, full)
+        engine.cancelStroke()
+    }
+
+    /// `.shaderWrite` switches off lossless compression; layer and working textures must not carry it.
+    func testLayerTexturesStayCompressible() async throws {
+        let engine = try await TestGPU.engine(TestGPU.document())
+        let layer = try XCTUnwrap(engine.texture(for: engine.activeLayerID))
+        XCTAssertFalse(layer.usage.contains(.shaderWrite))
+        engine.renderOffscreen()
+        XCTAssertFalse(try XCTUnwrap(engine.compositor.activeTemp).usage.contains(.shaderWrite))
+    }
+
     // MARK: Z-15.5 memory warning
 
     func testMemoryWarningDropsHalfTheUndo() async throws {

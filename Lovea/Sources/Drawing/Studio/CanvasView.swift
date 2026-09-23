@@ -126,9 +126,9 @@ struct CanvasRepresentable: UIViewRepresentable {
         CanvasView(session: session)
     }
 
-    func updateUIView(_ view: CanvasView, context: Context) {
-        view.setNeedsDisplay()
-    }
+    /// No redraw here: the engine asks for one on every pixel change (`requestRedraw`). Redrawing on every
+    /// SwiftUI update of the studio (thumbnails, notices, autosave) cost a full composite each time.
+    func updateUIView(_ view: CanvasView, context: Context) {}
 }
 
 @MainActor
