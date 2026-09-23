@@ -20,6 +20,9 @@ import {
   alarmErledigt,
   alarmAlsErledigtMarkieren,
   ortInfo,
+  opGueltig,
+  verbindungIstLebendig,
+  PING_TIMEOUT_MS,
 } from "./raum-logic.js";
 
 function raum() {
@@ -91,6 +94,52 @@ test("Medium mit fehlendem Teil ist nicht abrufbar, nach Nachreichen schon", () 
   const gelesen = medienLesen(sql, "m1", "annika");
   assert.equal(gelesen.rolle, "original");
   assert.deepEqual([...gelesen.daten], [1, 2, 3, 4, 5, 6]);
+});
+
+// C-1: `vorhanden` muss für eine unbekannte id verlässlich [] sein, damit der
+// Client seinen Upload-Plan daraus bauen kann, statt `fehlend` (ohne `gesamt`
+// nur die Lücken unterhalb des höchsten Teils, für eine neue id also auch [])
+// fälschlich als "nichts fehlt" zu lesen.
+test("medienFehlend: unbekannte id liefert vorhanden:[] (C-1)", () => {
+  const sql = raum();
+  assert.deepEqual(medienFehlend(sql, "unbekannt", "original"), { vorhanden: [], fehlend: [] });
+});
+
+test("medienFehlend: mit ?teile=N ist fehlend die volle Komplementmenge 0..N-1, nicht nur Lücken unterhalb des Maximums", () => {
+  const sql = raum();
+  medienTeilSpeichern(sql, "m2", "original", 0, new Uint8Array([1]));
+  medienTeilSpeichern(sql, "m2", "original", 2, new Uint8Array([1]));
+  // Ohne gesamt: nur die Lücke unterhalb von max(vorhanden)=2.
+  assert.deepEqual(medienFehlend(sql, "m2", "original"), { vorhanden: [0, 2], fehlend: [1] });
+  // Mit gesamt=5: auch 3 und 4 fehlen, die vorher unsichtbar waren.
+  assert.deepEqual(medienFehlend(sql, "m2", "original", 5), { vorhanden: [0, 2], fehlend: [1, 3, 4], gesamt: 5 });
+});
+
+// I-3/M-3/M-4: reine Formprüfung.
+test("opGueltig: prüft id/art/von/zeit/d-Form und optional den Absender", () => {
+  const gueltig = { id: "x", art: "nachricht.neu", von: "ahmed", zeit: "2026-01-01T00:00:00.000Z", d: {} };
+  assert.equal(opGueltig(gueltig), true);
+  assert.equal(opGueltig(gueltig, "ahmed"), true);
+  assert.equal(opGueltig(gueltig, "annika"), false); // von passt nicht zum Socket-Tag (M-3)
+
+  assert.equal(opGueltig(null), false);
+  assert.equal(opGueltig({ ...gueltig, id: "" }), false);
+  assert.equal(opGueltig({ ...gueltig, id: undefined }), false); // M-4: keine id -> nie .one() erreichen
+  assert.equal(opGueltig({ ...gueltig, art: 5 }), false);
+  assert.equal(opGueltig({ ...gueltig, von: "niemand" }), false);
+  assert.equal(opGueltig({ ...gueltig, zeit: "" }), false);
+  assert.equal(opGueltig({ ...gueltig, d: null }), false);
+  assert.equal(opGueltig({ ...gueltig, d: [] }), false);
+  assert.equal(opGueltig({ ...gueltig, d: "text" }), false);
+});
+
+// I-5: reine Zeitvergleichs-Logik hinter der Ping-Erkennung.
+test("verbindungIstLebendig: null/undefined gilt als frisch verbunden, sonst 60s-Fenster", () => {
+  assert.equal(verbindungIstLebendig(null, 1_000_000), true);
+  assert.equal(verbindungIstLebendig(undefined, 1_000_000), true);
+  assert.equal(verbindungIstLebendig(1_000_000 - PING_TIMEOUT_MS + 1, 1_000_000), true);
+  assert.equal(verbindungIstLebendig(1_000_000 - PING_TIMEOUT_MS, 1_000_000), false);
+  assert.equal(verbindungIstLebendig(1_000_000 - PING_TIMEOUT_MS - 1, 1_000_000), false);
 });
 
 test("Original wird gelöscht, sobald der Partner es geholt hat und klein existiert", () => {

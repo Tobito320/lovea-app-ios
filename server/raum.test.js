@@ -10,9 +10,19 @@ import { fakeSql } from "./fake-sql.js";
 class FakeWs {
   constructor() {
     this.gesendet = [];
+    this._attachment = null;
   }
   send(data) {
     this.gesendet.push(JSON.parse(data));
+  }
+  // Nachbildung der echten Hibernation-API: pro Socket angehängte, JSON-
+  // serialisierbare Daten, die einen DO-Neustart überleben (hier: einfach im
+  // Objekt gehalten, weil dieser Test-Prozess ohnehin nicht neu startet).
+  serializeAttachment(data) {
+    this._attachment = data;
+  }
+  deserializeAttachment() {
+    return this._attachment;
   }
 }
 
@@ -45,8 +55,18 @@ function fakeCtx() {
   };
 }
 
+// Ein echtes (aber wegwerfbares) EC-Schlüsselpaar, damit push.js einen
+// gültigen ES256-JWT bauen kann, falls ein Test wirklich pusht (die meisten
+// tun das nicht, weil niemand ein Geräte-Token registriert).
+const TEST_APNS_KEY_P8 = await (async () => {
+  const paar = await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, ["sign", "verify"]);
+  const pkcs8 = await crypto.subtle.exportKey("pkcs8", paar.privateKey);
+  const b64 = Buffer.from(pkcs8).toString("base64");
+  return `-----BEGIN PRIVATE KEY-----\n${b64.match(/.{1,64}/g).join("\n")}\n-----END PRIVATE KEY-----\n`;
+})();
+
 function fakeEnv() {
-  return { APNS_KEY_ID: "k", APNS_TEAM_ID: "t", APNS_KEY_P8: null }; // Push wird in diesen Tests nicht ausgelöst (niemand hat ein Token)
+  return { APNS_KEY_ID: "k", APNS_TEAM_ID: "t", APNS_KEY_P8: TEST_APNS_KEY_P8 };
 }
 
 function raumMitVerbindung(personen = []) {
@@ -73,6 +93,65 @@ test("op über WebSocket: Echo an Absender, Broadcast an Partner, seq stabil bei
   await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op }));
   assert.equal(websockets.ahmed.gesendet.at(-1).ops[0].seq, 1);
   assert.equal(websockets.annika.gesendet.filter((m) => m.t === "ops" && m.ops[0]?.id === "m1").length, 1);
+});
+
+// I-3/M-3/M-4: eine ungültige Op (fehlende id, oder `von` stimmt nicht mit
+// dem Socket überein) wird abgelehnt, nicht gespeichert, kein Broadcast.
+test("op über WebSocket: ungültige Op wird mit fehler abgelehnt und nicht gespeichert", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { art: "nachricht.neu", von: "ahmed", zeit: "2026-09-23T10:00:00.000Z", d: {} } }));
+  assert.equal(websockets.ahmed.gesendet.at(-1).t, "fehler");
+
+  await raum.webSocketMessage(
+    websockets.ahmed,
+    JSON.stringify({ t: "op", op: { id: "gefaelscht", art: "nachricht.neu", von: "annika", zeit: "2026-09-23T10:00:00.000Z", d: {} } })
+  );
+  assert.equal(websockets.ahmed.gesendet.at(-1).t, "fehler");
+  assert.equal(websockets.ahmed.gesendet.at(-1).opId, "gefaelscht");
+
+  // Weder Ops noch Broadcasts durch die abgelehnten Versuche.
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "nachholen", seit: 0 }));
+  assert.equal(websockets.ahmed.gesendet.at(-1).ops.length, 0);
+  assert.ok(!websockets.annika.gesendet.some((m) => m.t === "ops" && m.ops.some((o) => o.id === "gefaelscht")));
+});
+
+// I-5: Ping/Pong plus Kontakt-Tracking.
+test("ping/pong: Server antwortet, und jede Nachricht aktualisiert den Kontakt-Zeitstempel", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed"]);
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "ping" }));
+  const pong = websockets.ahmed.gesendet.at(-1);
+  assert.equal(pong.t, "pong");
+  assert.ok(typeof pong.zeit === "string");
+  assert.ok(typeof websockets.ahmed.deserializeAttachment().letzterKontakt === "number");
+});
+
+// I-5: ein seit > 60s stiller Socket zählt für Push-Entscheidungen als
+// getrennt, auch wenn er noch in getWebSockets() auftaucht (z. B. eine im
+// Hintergrund suspendierte App, deren Close-Frame nie rausging).
+test("Push geht raus, sobald der Empfänger-Socket seit über 60s still ist, trotz offener Verbindung", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  // annikas letzter Kontakt liegt weit in der Vergangenheit -- Socket ist
+  // technisch noch da (getWebSockets() liefert ihn), aber "tot".
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+
+  const calls = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ url, init });
+    return new Response(null, { status: 200 });
+  };
+  try {
+    await raum.webSocketMessage(
+      websockets.ahmed,
+      JSON.stringify({ t: "op", op: { id: "n1", art: "nachricht.neu", von: "ahmed", zeit: new Date().toISOString(), d: { text: "hi" } } })
+    );
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(calls.length, 1);
+  assert.match(calls[0].url, /api\.push\.apple\.com/);
 });
 
 test("nachholen über offenen Socket liefert Seite wie beim Verbinden", async () => {
@@ -193,7 +272,28 @@ test("POST /ops: Batch wird gespeichert, Antwort ist die letzte seq", async () =
     })
   );
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { seq: 2 });
+  assert.deepEqual(await res.json(), { seq: 2, uebersprungen: 0 });
+});
+
+// I-3: eine kaputte Op im Batch (Umzugsskript) darf die gültigen nicht
+// verhindern und muss gezählt werden, statt den ganzen Batch zu verwerfen.
+test("POST /ops: ungültige Ops im Batch werden übersprungen und gezählt", async () => {
+  const { raum } = raumMitVerbindung([]);
+  const res = await raum.fetch(
+    new Request("https://x/ops", {
+      method: "POST",
+      headers: { "content-type": "application/json", "X-Lovea-Person": "ahmed" },
+      body: JSON.stringify({
+        ops: [
+          { id: "g1", art: "nachricht.neu", von: "ahmed", zeit: "2026-09-23T10:00:00.000Z", d: {} },
+          { art: "nachricht.neu", von: "ahmed", zeit: "2026-09-23T10:00:00.000Z", d: {} }, // keine id
+          { id: "g2", art: "nachricht.neu", von: "niemand", zeit: "2026-09-23T10:00:00.000Z", d: {} }, // unbekannte Person
+          { id: "g3", art: "nachricht.neu", von: "ahmed", zeit: "2026-09-23T10:00:00.000Z", d: "kaputt" }, // d ist kein Objekt
+        ],
+      }),
+    })
+  );
+  assert.deepEqual(await res.json(), { seq: 1, uebersprungen: 3 });
 });
 
 test("alarm(): setzt einen zukünftigen Alarm, wenn ein Treffen ansteht", async () => {

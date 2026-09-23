@@ -6,6 +6,8 @@
 import {
   initSchema,
   opEinfuegenMitStatus,
+  opGueltig,
+  verbindungIstLebendig,
   opsSeit,
   medienTeilSpeichern,
   medienFertig,
@@ -50,6 +52,15 @@ export class Raum {
     this.env = env;
     this.sql = ctx.storage.sql;
     ctx.blockConcurrencyWhile(async () => initSchema(this.sql));
+    // I-5: native Hibernation-Ping/Pong. Der Server antwortet auf ein rohes
+    // "ping" (kein JSON) mit "pong", ganz ohne den DO aufzuwecken --
+    // funktioniert auch, während er evictet ist. `typeof` schützt den Node-
+    // Test-Import (WebSocketRequestResponsePair existiert nur im Workers-
+    // Runtime-Global-Scope); `ctx.setWebSocketAutoResponse?.` schützt die
+    // Fake-ctx in den Tests.
+    if (typeof WebSocketRequestResponsePair !== "undefined") {
+      ctx.setWebSocketAutoResponse?.(new WebSocketRequestResponsePair("ping", "pong"));
+    }
   }
 
   async fetch(request) {
@@ -71,9 +82,15 @@ export class Raum {
     const pair = new WebSocketPair();
     const [client, server] = Object.values(pair);
     this.ctx.acceptWebSocket(server, [person]);
+    this.#kontaktAktualisieren(server);
 
-    const seite = opsSeit(this.sql, seit);
-    server.send(JSON.stringify({ t: "ops", ...seite }));
+    // `seite: true` markiert eine Nachhol-Seite (beim Verbinden oder auf
+    // `nachholen`) im Unterschied zu einem einzelnen Echo/Live-Broadcast --
+    // der Client kann so eine sicheren Nachhol-Cursor führen, der nicht durch
+    // dazwischenkommende Echos verfälscht wird. Zusatzfeld, kein Bruch: alte
+    // Clients ignorieren es.
+    const seitenDaten = opsSeit(this.sql, seit);
+    server.send(JSON.stringify({ t: "ops", ...seitenDaten, seite: true }));
 
     const letzter = letzterStandort(this.sql, partnerVon(person));
     if (letzter) server.send(JSON.stringify({ t: "standort", person: partnerVon(person), d: letzter.d }));
@@ -84,6 +101,10 @@ export class Raum {
 
   async webSocketMessage(ws, message) {
     const person = this.ctx.getTags(ws)[0];
+    // I-5: JEDE Nachricht zählt als Lebenszeichen, nicht nur ein Ping --
+    // überlebt Hibernation über die Socket-Attachment (serializeAttachment).
+    this.#kontaktAktualisieren(ws);
+
     let msg;
     try {
       msg = JSON.parse(typeof message === "string" ? message : new TextDecoder().decode(message));
@@ -92,6 +113,13 @@ export class Raum {
     }
 
     if (msg.t === "op") {
+      // I-3/M-3/M-4: Form prüfen und `von` gegen den Socket-Tag, BEVOR
+      // gespeichert wird -- eine kaputte Op (fehlende id, falscher Absender,
+      // unbekannte Person) wird nie in `ops` geschrieben.
+      if (!opGueltig(msg.op, person)) {
+        ws.send(JSON.stringify({ t: "fehler", meldung: "ungültige Op", opId: msg.op?.id }));
+        return;
+      }
       const { seq, neu } = opEinfuegenMitStatus(this.sql, msg.op);
       const bestaetigt = { ...msg.op, seq };
       // Das Echo an den Absender ist die Bestätigung -- auch bei einer
@@ -103,7 +131,11 @@ export class Raum {
         await this.#alarmAktualisieren();
       }
     } else if (msg.t === "nachholen") {
-      ws.send(JSON.stringify({ t: "ops", ...opsSeit(this.sql, msg.seit ?? 0) }));
+      ws.send(JSON.stringify({ t: "ops", ...opsSeit(this.sql, msg.seit ?? 0), seite: true }));
+    } else if (msg.t === "ping") {
+      // Fallback für den Fall, dass ein Client kein rohes "ping" (natives
+      // Hibernation-Auto-Response, siehe Konstruktor) senden kann.
+      ws.send(JSON.stringify({ t: "pong", zeit: new Date().toISOString() }));
     } else if (msg.t === "geraet") {
       geraetSpeichern(this.sql, person, msg.token);
     } else if (msg.t === "fl") {
@@ -116,19 +148,51 @@ export class Raum {
   }
 
   webSocketClose(ws) {
-    this.#sendePraesenz();
+    this.#sendePraesenz(ws); // M-2: den gerade schließenden Socket ausdrücklich ausschließen
   }
 
   webSocketError(ws) {
-    this.#sendePraesenz();
+    this.#sendePraesenz(ws);
   }
 
-  #istVerbunden(person) {
-    return this.ctx.getWebSockets(person).length > 0;
+  // I-5: "verbunden" heißt jetzt "hat sich in den letzten 60s gemeldet"
+  // (Ping oder irgendeine Nachricht), nicht mehr nur "Socket existiert" --
+  // eine im Hintergrund suspendierte App bleibt sonst fälschlich "verbunden"
+  // und bekommt keine Push mehr.
+  #istVerbunden(person, ausser) {
+    const jetzt = Date.now();
+    return this.ctx.getWebSockets(person).some((ws) => {
+      if (ws === ausser) return false;
+      return verbindungIstLebendig(this.#letzterKontakt(ws), jetzt);
+    });
   }
 
-  #sendePraesenz() {
-    const status = { t: "da", ahmed: this.#istVerbunden("ahmed"), annika: this.#istVerbunden("annika") };
+  #kontaktAktualisieren(ws) {
+    try {
+      ws.serializeAttachment({ letzterKontakt: Date.now() });
+    } catch {
+      // Fake-Sockets in Tests haben kein serializeAttachment -- dann bleibt
+      // #letzterKontakt() null, was verbindungIstLebendig() als "verbunden" wertet.
+    }
+  }
+
+  #letzterKontakt(ws) {
+    let angehaengt = null;
+    try {
+      angehaengt = ws.deserializeAttachment?.()?.letzterKontakt ?? null;
+    } catch {
+      // ignorieren, s. o.
+    }
+    // Das native Ping/Pong (Konstruktor) überlebt Hibernation unabhängig vom
+    // Attachment -- der jüngere der beiden Werte gewinnt.
+    const autoDate = this.ctx.getWebSocketAutoResponseTimestamp?.(ws) ?? null;
+    const autoMs = autoDate ? autoDate.getTime() : null;
+    const werte = [angehaengt, autoMs].filter((x) => typeof x === "number");
+    return werte.length ? Math.max(...werte) : null;
+  }
+
+  #sendePraesenz(ausser) {
+    const status = { t: "da", ahmed: this.#istVerbunden("ahmed", ausser), annika: this.#istVerbunden("annika", ausser) };
     this.#sendeAn(this.ctx.getWebSockets(), status);
   }
 
@@ -220,13 +284,20 @@ export class Raum {
     // Push -- sonst spammen hunderte migrierte Ops beide Handys wach.
     const { ops } = await request.json();
     let letzteSeq = 0;
+    let uebersprungen = 0;
     for (const op of ops ?? []) {
+      // I-3: keine Verbindung hier, also nur "ist überhaupt eine gültige Op
+      // einer bekannten Person" prüfen (kein Abgleich gegen einen Socket-Tag).
+      if (!opGueltig(op)) {
+        uebersprungen++;
+        continue;
+      }
       const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
       letzteSeq = seq;
       if (neu) this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
     }
     await this.#alarmAktualisieren();
-    return Response.json({ seq: letzteSeq });
+    return Response.json({ seq: letzteSeq, uebersprungen });
   }
 
   // --- Medien (Z-1.4) --------------------------------------------------------
@@ -257,7 +328,9 @@ export class Raum {
     if (request.method === "GET" && teile[2] === "fehlend") {
       const url = new URL(request.url);
       const rolle = url.searchParams.get("rolle") ?? "original";
-      return Response.json(medienFehlend(this.sql, id, rolle));
+      const teileParam = url.searchParams.get("teile"); // C-1: optionale Gesamtzahl vom Client
+      const gesamt = teileParam !== null ? Number(teileParam) : undefined;
+      return Response.json(medienFehlend(this.sql, id, rolle, gesamt));
     }
 
     if (request.method === "GET" && teile.length === 2) {

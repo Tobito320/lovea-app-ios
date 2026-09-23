@@ -69,6 +69,34 @@ export function merkerSchreiben(sql, schluessel, wert) {
 
 // --- Ops ---------------------------------------------------------------
 
+const PERSONEN_SET = new Set(["ahmed", "annika"]);
+
+// I-3/M-3/M-4: Form- und Absender-Prüfung, BEVOR eine Op gespeichert wird.
+// Prüft nicht die Bedeutung von `d` (die ist je nach `art` verschieden,
+// siehe schnittstellen.md) -- nur, dass überhaupt gespeichert werden darf,
+// ohne die `ops`-Tabelle zu beschädigen oder auf `.one()` zu crashen (M-4).
+// `erwarteteVon`, wenn gesetzt (WebSocket-Pfad): `von` muss zum Absender-Tag
+// der Verbindung passen (M-3) -- beim Batch-Import (POST /ops) gibt es keine
+// Verbindung, dort reicht "ist überhaupt eine gültige Person".
+export function opGueltig(op, erwarteteVon) {
+  if (op == null || typeof op !== "object") return false;
+  if (typeof op.id !== "string" || op.id.length === 0) return false;
+  if (typeof op.art !== "string" || op.art.length === 0) return false;
+  if (!PERSONEN_SET.has(op.von)) return false;
+  if (typeof op.zeit !== "string" || op.zeit.length === 0) return false;
+  if (typeof op.d !== "object" || op.d === null || Array.isArray(op.d)) return false;
+  if (erwarteteVon !== undefined && op.von !== erwarteteVon) return false;
+  return true;
+}
+
+// I-5: ein Socket gilt als verbunden, wenn er entweder noch nie "belauscht"
+// wurde (frisch akzeptiert, `letzterKontaktMs === null`) oder sich innerhalb
+// der letzten 60s gemeldet hat (Ping oder irgendeine andere Nachricht).
+export const PING_TIMEOUT_MS = 60_000;
+export function verbindungIstLebendig(letzterKontaktMs, jetztMs) {
+  return letzterKontaktMs === null || letzterKontaktMs === undefined || jetztMs - letzterKontaktMs < PING_TIMEOUT_MS;
+}
+
 // Speichert eine Op. Doppelte id -> vorhandene seq zurück (INSERT OR IGNORE).
 export function opEinfuegen(sql, op) {
   sql.exec(
@@ -148,14 +176,31 @@ function vorhandeneTeile(sql, id, rolle) {
     .map((r) => r.teil);
 }
 
-// Lücken innerhalb 0..max(vorhanden): das, was noch nachgereicht werden muss.
-export function medienFehlend(sql, id, rolle) {
+// C-1: `vorhanden` ist die verlässliche Quelle und IMMER korrekt, auch für
+// eine unbekannte/neue id ([]) -- der Client kann seinen Upload-Plan daraus
+// bauen (alle 0..gesamt-1, die nicht in `vorhanden` stehen), unabhängig davon,
+// wie `fehlend` gemeint ist. Teile zählen serverweit ab 0 (0-based).
+//
+// `gesamt` (aus `?teile=N`, wenn der Client seine Gesamtzahl schon kennt):
+// dann ist `fehlend` die volle Komplementmenge 0..gesamt-1 \ vorhanden, und
+// `gesamt` steht mit in der Antwort. Ohne `gesamt` (Gesamtzahl noch nicht
+// bekannt, z. B. vor dem ersten `fertig`-Versuch) bleibt `fehlend` best-effort
+// auf die Lücken unterhalb des bisher höchsten Teils beschränkt -- mehr lässt
+// sich ohne die Gesamtzahl nicht sagen.
+export function medienFehlend(sql, id, rolle, gesamt) {
   const vorhanden = vorhandeneTeile(sql, id, rolle);
+  const vorhandenSet = new Set(vorhanden);
+
+  if (gesamt != null) {
+    const fehlend = [];
+    for (let i = 0; i < gesamt; i++) if (!vorhandenSet.has(i)) fehlend.push(i);
+    return { vorhanden, fehlend, gesamt };
+  }
+
   const fehlend = [];
   if (vorhanden.length) {
     const max = vorhanden[vorhanden.length - 1];
-    const set = new Set(vorhanden);
-    for (let i = 0; i < max; i++) if (!set.has(i)) fehlend.push(i);
+    for (let i = 0; i < max; i++) if (!vorhandenSet.has(i)) fehlend.push(i);
   }
   return { vorhanden, fehlend };
 }
@@ -185,6 +230,11 @@ function medienInfo(sql, id, rolle) {
   return rows[0] ?? null;
 }
 
+// ponytail: baut das ganze Medium im DO-Speicher zusammen (M-6) -- bei
+// großen Videos droht das 128-MB-Limit. Upgrade-Weg: Response mit einem
+// ReadableStream füttern, der Teil für Teil aus `medien` liest, statt hier
+// zu konkatenieren. Für 1-MiB-Teile und Fotos/kurze Clips unkritisch, daher
+// zurückgestellt.
 function medienBytes(sql, id, rolle) {
   const teile = sql.exec(`SELECT daten FROM medien WHERE id = ? AND rolle = ? ORDER BY teil ASC`, id, rolle).toArray();
   const gesamt = teile.reduce((n, t) => n + t.daten.byteLength, 0);
