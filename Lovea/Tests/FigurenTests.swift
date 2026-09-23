@@ -136,7 +136,15 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Weite Jeans")
         let annika = FigurAussehen.standard(for: .annika)
         XCTAssertEqual(FigurAussehen.frisuren[annika.frisur], "Lang glatt Mittelscheitel")
-        XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Bitmoji-Pony")
+        XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Mushroom Taper")
+        // Fix round 3 (Ahmed's photos): fair skin, long face, thick straight brows, sharp eyes,
+        // thin medium-brown mustache plus a light goatee.
+        XCTAssertEqual(FigurAussehen.hautToene[ahmed.haut].name, "Hell")
+        XCTAssertEqual(FigurAussehen.gesichtsformen[ahmed.gesichtsform], "Länglich")
+        XCTAssertEqual(FigurAussehen.augenbrauen[ahmed.brauen], "Dick gerade")
+        XCTAssertEqual(FigurAussehen.augenformen[ahmed.augenform], "Scharf")
+        XCTAssertEqual(FigurAussehen.baerte[ahmed.bart], "Oberlippenbart hellbraun")
+        XCTAssertEqual(FigurAussehen.kinnbaerte[ahmed.kinnbart], "Leichter Kinnbart")
         XCTAssertEqual(FigurAussehen.jacken[annika.jacke], "Lederjacke")
         XCTAssertTrue(FigurAussehen.hosen[annika.hose].contains("Jeans"))
     }
@@ -324,5 +332,37 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(A.oberteile[27], "Weißes Kompressions-Longsleeve")
         XCTAssertEqual(A.oberteile.count, A.oberteileGeschlecht.count)
         XCTAssertEqual(A.hosen.count, A.hosenGeschlecht.count)
+    }
+
+    /// Fix round 3: presets only change clothes, point at real indices, and the worn one is recognized.
+    func testOutfitsWechselnNurKleidung() {
+        typealias A = FigurAussehen
+        let basis = A.standard(for: .ahmed)
+        for o in A.outfits {
+            XCTAssertTrue(A.oberteile.indices.contains(o.oberteil), o.name)
+            XCTAssertTrue(A.jacken.indices.contains(o.jacke), o.name)
+            XCTAssertTrue(A.hosen.indices.contains(o.hose), o.name)
+            XCTAssertTrue(A.schuhArten.indices.contains(o.schuhe), o.name)
+            var a = basis
+            a.anziehen(outfit: o)
+            XCTAssertTrue(a.traegt(outfit: o), o.name)
+            XCTAssertEqual(a.frisur, basis.frisur)
+            XCTAssertEqual(a.haut, basis.haut)
+            XCTAssertEqual(a.bart, basis.bart)
+        }
+        let namen = A.outfits(fuer: .ahmed).map(\.name)
+        for n in ["Pink Knit", "All Black", "Pink & Black", "Gym Black", "Oben ohne Gym", "Grey Denim"] { XCTAssertTrue(namen.contains(n), n) }
+        XCTAssertFalse(A.outfits(fuer: .annika).contains { $0.name == "Oben ohne Gym" })
+    }
+
+    /// Fix round 3: the goatee field decodes as "none" from older JSON and round-trips.
+    func testKinnbartTolerant() throws {
+        let alt = #"{"haut":1,"frisur":0,"haarfarbe":0,"augen":0,"brille":0,"bart":2,"oberteil":0,"oberteilfarbe":0}"#
+        var a = try JSONDecoder().decode(FigurAussehen.self, from: Data(alt.utf8))
+        XCTAssertEqual(a.kinnbart, 0)
+        a.kinnbart = 2
+        let zurueck = try JSONDecoder().decode(FigurAussehen.self, from: JSONEncoder().encode(a))
+        XCTAssertEqual(zurueck.kinnbart, 2)
+        XCTAssertEqual(FigurAussehen.augenformen.count, 9)
     }
 }

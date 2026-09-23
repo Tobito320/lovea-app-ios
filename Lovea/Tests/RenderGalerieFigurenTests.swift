@@ -174,4 +174,29 @@ final class RenderGalerieFigurenTests: XCTestCase {
         }
         RenderTafel.speichern("figuren-standard-neu", spalten: 8, zellen: zellen)
     }
+
+    /// Fix round 3: every outfit preset on its person, plus Ahmed's own hairstyles and beards.
+    func testOutfitsUndAhmed() {
+        var zellen: [Zelle] = []
+        for p in Person.allCases {
+            for o in A.outfits(fuer: p) {
+                var a = A.standard(for: p)
+                a.anziehen(outfit: o)
+                zellen.append((titel: o.name, ansicht: figur(a, groesse: 160, ganz: true)))
+            }
+        }
+        for i in 78..<A.frisuren.count {
+            var a = A.standard(for: .ahmed)
+            a.frisur = i
+            zellen.append((titel: A.frisuren[i], ansicht: figur(a)))
+        }
+        let baerte: [(Int, Int)] = [(14, 1), (15, 1), (14, 0), (15, 2)]
+        for (bart, kinn) in baerte {
+            var a = A.standard(for: .ahmed)
+            a.bart = bart
+            a.kinnbart = kinn
+            zellen.append((titel: "\(A.baerte[bart]) + \(A.kinnbaerte[kinn])", ansicht: figur(a)))
+        }
+        RenderTafel.speichern("figuren-ahmed-outfits", spalten: 8, zellen: zellen)
+    }
 }
