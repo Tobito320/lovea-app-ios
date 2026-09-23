@@ -378,19 +378,35 @@ private struct Zeichner {
     /// Z-24.2/Z-39.3: worn shop parts and free jewelry (bag on the free hand, watch on the other
     /// wrist, necklace at the collar, rings and bracelets on the hands).
     func zubehoer(_ g: GraphicsContext, _ arme: (l: Arm?, r: Arm?)) {
-        if let id = tascheId { zeichneTasche(g, id: id, an: arme.r?.hand ?? P(142, 252)) }
-        uhrZeichnen(g, arme.l.map { zwischen($0.ellbogen, $0.hand, 0.72) } ?? P(54, 235), groesse: 1)
+        if let id = tascheId {
+            // Fix round 1: bags were drawn at hand-circle size on the hand, i.e. tiny, and in the
+            // half figure the resting hand sits below the frame. Now: carried in a raised hand,
+            // otherwise on a shoulder strap at the hip.
+            if let hand = arme.r?.hand, hand.y < 226 {
+                zeichneTasche(g, id: id, an: P(hand.x + 2, hand.y + 26), groesse: 1.3)
+            } else {
+                let strap = bogen(P(128, 168), P(162, 190), P(158, 170))
+                linie(g, strap, Pal.dunkel.kontur, 5)
+                linie(g, strap, Pal.dunkel.farbe, 3)
+                zeichneTasche(g, id: id, an: P(162, 218), groesse: 1.3)
+            }
+        }
+        uhrZeichnen(g, arme.l, groesse: km.armHalb)
         schmuckZeichnen(g, hals: P(100, 162), linkerArm: arme.l, rechterArm: arme.r, groesse: 1)
     }
 
     /// Wrist, not the hand itself — a hand-centered watch would just replace the hand circle.
     /// A shop watch wins over the free everyday one.
-    func uhrZeichnen(_ g: GraphicsContext, _ handgelenk: CGPoint, groesse: CGFloat) {
+    /// The band wraps across the forearm (fix round 1); `groesse` follows the arm thickness.
+    func uhrZeichnen(_ g: GraphicsContext, _ unterarm: Arm?, groesse: CGFloat) {
+        guard let a = unterarm, uhrId != nil || uhrAlltag > 0 else { return }
+        let handgelenk = zwischen(a.ellbogen, a.hand, 0.74)
+        let winkel = atan2(Double(a.hand.y - a.ellbogen.y), Double(a.hand.x - a.ellbogen.x)) - Double.pi / 2
         if let id = uhrId {
-            zeichneUhr(g, id: id, an: handgelenk, groesse: groesse)
-        } else if uhrAlltag > 0 {
+            zeichneUhr(g, id: id, an: handgelenk, winkel: winkel, groesse: groesse)
+        } else {
             let u = alltagsUhren[uhrAlltag - 1]
-            zeichneUhr(g, u.stil, band: u.band, gehaeuse: u.gehaeuse, an: handgelenk, groesse: groesse)
+            zeichneUhr(g, u.stil, band: u.band, gehaeuse: u.gehaeuse, an: handgelenk, winkel: winkel, groesse: groesse)
         }
     }
 
@@ -618,6 +634,10 @@ private struct Zeichner {
                 linie(h, bogen(P(100 + seite * 32, 202), P(100 + seite * 5, 206), P(100 + seite * 19, 216)), top.kontur.opacity(0.28), 2)
                 h.fill(oval(P(100 + seite * 19, 196), 7, 3.5), with: .color(.white.opacity(0.14)))
             }
+        }
+        if koerperform == 2 {
+            // Kräftig: the round belly shows as a soft fold.
+            linie(h, bogen(P(62, 254), P(138, 254), P(100, 274)), (nackt ? haut.kontur : top.kontur).opacity(0.32), 2.2)
         }
         guard nackt else { return }
         for seite in [CGFloat(-1), 1] {
@@ -1083,12 +1103,22 @@ private struct Zeichner {
         let obenFarbe = aermel == .keine ? haut : aermelFarbe
         let untenFarbe = aermel == .lang ? aermelFarbe : haut
         let muskeln = muskelBeulen(schulter, a.ellbogen, d)
+        // A raised or folded forearm lies in front of the upper arm, so it is drawn last;
+        // otherwise the thick upper arm would swallow it (fix round 1: floating fists).
+        let vorn = a.hand.y < a.ellbogen.y - 4
         linie(g, oben, obenFarbe.kontur, 25 * d)
         for m in muskeln { g.fill(kreis(m.c, m.r + 3 * d), with: .color(obenFarbe.kontur)) }
-        linie(g, unten, untenFarbe.kontur, 21 * d)
-        linie(g, unten, untenFarbe.farbe, 15.5 * d)
-        linie(g, oben, obenFarbe.farbe, 19 * d)
-        for m in muskeln { g.fill(kreis(m.c, m.r), with: .color(obenFarbe.farbe)) }
+        if vorn {
+            linie(g, oben, obenFarbe.farbe, 19 * d)
+            for m in muskeln { g.fill(kreis(m.c, m.r), with: .color(obenFarbe.farbe)) }
+            linie(g, unten, untenFarbe.kontur, 21 * d)
+            linie(g, unten, untenFarbe.farbe, 15.5 * d)
+        } else {
+            linie(g, unten, untenFarbe.kontur, 21 * d)
+            linie(g, unten, untenFarbe.farbe, 15.5 * d)
+            linie(g, oben, obenFarbe.farbe, 19 * d)
+            for m in muskeln { g.fill(kreis(m.c, m.r), with: .color(obenFarbe.farbe)) }
+        }
         aermelDetails(g, schulter, a, d)
     }
 
@@ -1933,15 +1963,14 @@ private struct Zeichner {
             haarTeil(g, gespiegelt(straehneGlatt(166)))
         case 23:
             haarTeil(g, kappe(top: 18, scheitel: 100, ansatz: 50, unten: 92))
-            teil(g, kreis(P(104, 18), 7), Pal.rose, 2)
         case 25:
             haarTeil(g, kappe(top: 18, scheitel: 76, ansatz: 52, unten: 100))
             haarTeil(g, gespiegelt(straehneGlatt(120)))
             var glieder: [CGPoint] = []
-            for i in 0..<7 { glieder.append(P(152 - CGFloat(i) * 2.5, 112 + CGFloat(i) * 16)) }
+            // Fix round 1: five links end above the elbow, no stray tie dot.
+            for i in 0..<5 { glieder.append(P(152 - CGFloat(i) * 2.5, 112 + CGFloat(i) * 16)) }
             for c in glieder { g.fill(oval(c, 13, 12), with: .color(haar.kontur)) }
             for c in glieder { g.fill(oval(c, 11, 10), with: .color(haar.farbe)) }
-            teil(g, kreis(P(136, 222), 5), Pal.rose, 2)
         case 27:
             haarTeil(g, kappe(top: 20, scheitel: 70, ansatz: 60, unten: 92))
             let schwung = Path { p in
@@ -2348,8 +2377,11 @@ private struct Zeichner {
         case .nichtStoeren:
             return (Arm(P(34, 222), P(46, 208)), restR)
         case .laeuft:
-            let s = w(7)
-            return (Arm(P(50, 210 - s * 4), P(58 + s * 4, 238 - s * 12)), Arm(P(150, 210 + s * 4), P(142 - s * 4, 238 + s * 12)))
+            // Arms swing opposite to the legs; a still frame shows mid-stride.
+            let s: CGFloat = statisch ? 0.9 : w(7)
+            let vl: CGFloat = max(0, -s)
+            let vr: CGFloat = max(0, s)
+            return (Arm(P(44 + vl * 8, 214 - vl * 10), P(54 + vl * 18, 246 - vl * 34)), Arm(P(156 - vr * 8, 214 - vr * 10), P(146 - vr * 18, 246 - vr * 34)))
         case .rennt:
             let s = w(12)
             return (Arm(P(44, 204), P(66, 184 + s * 14)), Arm(P(156, 204), P(134, 184 - s * 14)))
@@ -2388,11 +2420,12 @@ private struct Zeichner {
             return (Arm(P(50, 224), P(80, 206)), Arm(P(172, 160), P(168, 100)))
         // Mimik (Runde 3)
         case .zwinkert:
-            return (Arm(P(28, 222), P(50, 250)), Arm(P(166, 208), P(150, 172)))
+            return (Arm(P(28, 222), P(50, 250)), Arm(P(182, 200), P(170, 158)))
         case .verliebt:
             return (Arm(P(56, 214), P(92, 160)), Arm(P(144, 214), P(108, 160)))
         case .sauer:
-            return (Arm(P(40, 222), P(122, 214)), Arm(P(160, 222), P(78, 214)))
+            // Crossed: two diagonal forearms at different heights, hands tucked at the far elbow.
+            return (Arm(P(40, 228), P(136, 204)), Arm(P(160, 216), P(64, 236)))
         case .schmollt:
             return (Arm(P(28, 220), P(48, 248)), Arm(P(172, 220), P(152, 248)))
         case .verlegen:
@@ -2408,7 +2441,7 @@ private struct Zeichner {
             let s = w(10) * 2
             return (Arm(P(46, 196), P(76, 108 + s)), Arm(P(154, 196), P(124, 108 - s)))
         case .denkt:
-            return (Arm(P(46, 224), P(140, 220)), Arm(P(156, 214), P(114, 150)))
+            return (Arm(P(44, 230), P(142, 214)), Arm(P(160, 218), P(114, 150)))
         case .feiert:
             let s = w(6) * 6
             return (Arm(P(30, 160), P(38, 104 + s)), Arm(P(170, 160), P(162, 104 - s)))
@@ -2719,7 +2752,7 @@ private struct Zeichner {
             teil(g, box(66, 194, 28, 9, 3), Pal.gold.mal(0.85), 2.5)
             g.fill(funkel(P(72, 166), 5), with: .color(.white.opacity(0.9)))
         case .zwinkert:
-            fingerZeigt(g, hand, richtung: P(-14, -6), s: 1)
+            fingerZeigt(g, hand, richtung: P(-6, -15), s: 1)
         case .daumen:
             daumenHoch(g, hand, s: 1)
         case .muede:
@@ -3150,8 +3183,11 @@ extension Zeichner {
     /// Z-24.2/Z-39.3: worn shop parts and free jewelry, scaled like `jackeZeichnen`'s `s: 0.66` onto the full-body torso.
     func zubehoerGanz(_ g: GraphicsContext, _ arme: (l: Arm, r: Arm), _ m: Masse) {
         let s: CGFloat = 0.66
-        if let id = tascheId { zeichneTasche(g, id: id, an: arme.r.hand, groesse: s) }
-        uhrZeichnen(g, zwischen(arme.l.ellbogen, arme.l.hand, 0.72), groesse: s)
+        if let id = tascheId {
+            // Hangs from the right hand, the handle in the fist, big enough to read (fix round 1).
+            zeichneTasche(g, id: id, an: P(arme.r.hand.x + 2, arme.r.hand.y + 22), groesse: 1.15)
+        }
+        uhrZeichnen(g, arme.l, groesse: m.arm)
         schmuckZeichnen(g, hals: P(100, m.schulterY - 6), linkerArm: arme.l, rechterArm: arme.r, groesse: s)
     }
 
@@ -3195,7 +3231,8 @@ extension Zeichner {
             let hebt: CGFloat = max(0, phase)
             switch hal {
             case .gehen:
-                return Bein(h: P(x, hy), k: P(x + phase * 3, m.knieY - hebt * 5), f: P(x + phase * 7, fy - hebt * 12))
+                // Stride: the lifted leg bends, its foot kicks back and up; the other one is planted.
+                return Bein(h: P(x, hy), k: P(x + seite * 2 + phase * 4, m.knieY - hebt * 12), f: P(x + seite * 3 - phase * 6, fy - hebt * 24))
             case .rennen:
                 return Bein(h: P(x, hy), k: P(x + phase * 2, m.knieY - hebt * 22), f: P(x + phase * 5, fy - 4 - hebt * 30))
             case .sitzen, .fahren:
@@ -3210,7 +3247,7 @@ extension Zeichner {
         }
         let s: CGFloat
         switch hal {
-        case .gehen: s = w(7)
+        case .gehen: s = statisch ? 0.9 : w(7)
         case .rennen: s = w(12)
         case .rad: s = statisch ? 0.6 : w(6)
         default: s = 0
@@ -3475,16 +3512,20 @@ extension Zeichner {
         let taille: CGFloat = min(sY + 58, unten - 4)
         let saum: CGFloat = unten < m.hueftY ? m.t + 1 : m.h
         // Z-38.2: chest (muscular) or bust (curvy) bows the flank outward; 0 keeps the old straight flank.
-        let bauch: CGFloat = 5 * km.muskel + 4 * km.kurve
+        let bauch: CGFloat = 8 * km.muskel + 5 * km.kurve
         let flankeX: CGFloat = (m.s + m.t) / 2 + bauch
         let flankeY: CGFloat = (sY + 14 + taille) / 2
+        // Kräftig: a round belly between waist and hem.
+        let bauchRund: CGFloat = koerperform == 2 ? 9 : 0
+        let bauchX: CGFloat = (m.t + saum) / 2 + bauchRund
+        let bauchY: CGFloat = (taille + unten) / 2
         return Path { p in
             p.move(to: P(89, sY - 2))
             p.addQuadCurve(to: P(100 - m.s, sY + 14), control: P(104 - m.s, sY - 2))
             p.addQuadCurve(to: P(100 - m.t, taille), control: P(100 - flankeX, flankeY))
-            p.addLine(to: P(100 - saum, unten))
+            p.addQuadCurve(to: P(100 - saum, unten), control: P(100 - bauchX, bauchY))
             p.addQuadCurve(to: P(100 + saum, unten), control: P(100, unten + 4))
-            p.addLine(to: P(100 + m.t, taille))
+            p.addQuadCurve(to: P(100 + m.t, taille), control: P(100 + bauchX, bauchY))
             p.addQuadCurve(to: P(100 + m.s, sY + 14), control: P(100 + flankeX, flankeY))
             p.addQuadCurve(to: P(111, sY - 2), control: P(96 + m.s, sY - 2))
             p.addQuadCurve(to: P(89, sY - 2), control: P(100, sY + 10))
@@ -3504,7 +3545,7 @@ extension Zeichner {
             var d = g
             d.clip(to: voll)
             d.translateBy(x: 100, y: sY - 2)
-            d.scaleBy(x: 0.66, y: 0.8)
+            d.scaleBy(x: 0.66 * m.s / 41, y: 0.8)
             d.translateBy(x: -100, y: -161)
             koerperDetails(d, nackt: true)
             return
@@ -3534,13 +3575,15 @@ extension Zeichner {
         if oberteil != 6 {
             // Top details are drawn in the half-figure torso space, mapped onto this torso.
             var dg = g
+            // Details follow the body's width (Normal = the old 0.66).
+            let quer: CGFloat = 0.66 * m.s / 41
             dg.translateBy(x: 100, y: sY - 2)
-            dg.scaleBy(x: 0.66, y: 0.8)
+            dg.scaleBy(x: quer, y: 0.8)
             dg.translateBy(x: -100, y: -161)
             var d = g
             d.clip(to: form)
             d.translateBy(x: 100, y: sY - 2)
-            d.scaleBy(x: 0.66, y: 0.8)
+            d.scaleBy(x: quer, y: 0.8)
             d.translateBy(x: -100, y: -161)
             oberteilDetails(dg, d)
             koerperDetails(d, nackt: false)
@@ -3621,10 +3664,11 @@ extension Zeichner {
         case .supermarkt:
             return (Arm(P(lx - 4, y + 50), P(78, y + 70)), Arm(P(rx + 4, y + 50), P(122, y + 70)))
         case .laeuft:
-            let s = w(7)
+            // Opposite to the legs: when the left leg lifts, the right arm swings forward (up and in).
+            let s: CGFloat = statisch ? 0.9 : w(7)
             let vl: CGFloat = max(0, -s)
             let vr: CGFloat = max(0, s)
-            return (Arm(P(lx - 6, y + 50), P(lx - 4 + vl * 7, y + 90 - vl * 10)), Arm(P(rx + 6, y + 50), P(rx + 4 - vr * 7, y + 90 - vr * 10)))
+            return (Arm(P(lx - 6 + vl * 6, y + 48 - vl * 6), P(lx - 2 + vl * 16, y + 88 - vl * 30)), Arm(P(rx + 6 - vr * 6, y + 48 - vr * 6), P(rx + 2 - vr * 16, y + 88 - vr * 30)))
         case .rennt:
             let s = w(12)
             return (Arm(P(lx - 12, y + 40), P(lx + 4, y + 30 + s * 14)), Arm(P(rx + 12, y + 40), P(rx - 4, y + 30 - s * 14)))
@@ -3639,11 +3683,11 @@ extension Zeichner {
             return (Arm(P(lx - 6, y + 48), P(86, y + 84)), Arm(P(rx + 6, y + 48), P(114, y + 84)))
         // Mimik (Runde 3); the head space maps to y + (hy - 133.6) * 0.8 here.
         case .zwinkert:
-            return (Arm(P(lx - 16, y + 50), P(lx + 4, y + 88)), Arm(P(rx + 14, y + 40), P(rx - 2, y + 14)))
+            return (Arm(P(lx - 16, y + 50), P(lx + 4, y + 88)), Arm(P(rx + 24, y + 26), P(rx + 20, y - 8)))
         case .verliebt:
             return (Arm(P(lx - 2, y + 44), P(94, y - 6)), Arm(P(rx + 2, y + 44), P(106, y - 6)))
         case .sauer:
-            return (Arm(P(lx - 6, y + 46), P(rx - 6, y + 40)), Arm(P(rx + 6, y + 46), P(lx + 6, y + 40)))
+            return (Arm(P(lx - 4, y + 50), P(rx + 2, y + 32)), Arm(P(rx + 4, y + 42), P(lx - 2, y + 58)))
         case .schmollt:
             return (Arm(P(lx - 20, y + 46), P(lx + 2, y + 88)), Arm(P(rx + 20, y + 46), P(rx - 2, y + 88)))
         case .verlegen:
@@ -3659,14 +3703,14 @@ extension Zeichner {
             let s: CGFloat = w(10) * 1.5
             return (Arm(P(lx - 6, y + 20), P(88, y - 50 + s)), Arm(P(rx + 6, y + 20), P(112, y - 50 - s)))
         case .denkt:
-            return (Arm(P(lx - 4, y + 48), P(rx - 2, y + 44)), Arm(P(rx + 8, y + 36), P(110, y - 8)))
+            return (Arm(P(lx - 4, y + 54), P(rx, y + 40)), Arm(P(rx + 10, y + 40), P(110, y - 8)))
         case .feiert:
             let s: CGFloat = w(6) * 5
             return (Arm(P(lx - 18, y - 2), P(lx - 26, y - 44 + s)), Arm(P(rx + 18, y - 2), P(rx + 26, y - 44 - s)))
         case .schockiert:
             return (Arm(P(lx - 12, y + 24), P(78, y - 36)), Arm(P(rx + 12, y + 24), P(122, y - 36)))
         case .daumen:
-            return (restL, Arm(P(rx + 12, y + 40), P(rx + 4, y + 8)))
+            return (restL, Arm(P(rx + 22, y + 32), P(rx + 16, y + 2)))
         case .tanzt:
             let s = w(5)
             return (Arm(P(lx - 16, y + 10 - s * 8), P(lx - 30, y - 24 + s * 14)), Arm(P(rx + 16, y + 10 + s * 8), P(rx + 30, y - 24 - s * 14)))
@@ -3712,7 +3756,7 @@ extension Zeichner {
             let schlag = CGFloat(1 + 0.14 * a1 + 0.09 * a2)
             teil(g, herzPfad(P(100, y + 24), 14 * schlag), Pal.rose, 2.5)
         case .zwinkert:
-            fingerZeigt(g, arme.r.hand, richtung: P(-14, -6), s: 0.66)
+            fingerZeigt(g, arme.r.hand, richtung: P(-6, -15), s: 0.66)
         case .daumen:
             daumenHoch(g, arme.r.hand, s: 0.66)
         case .muede:
