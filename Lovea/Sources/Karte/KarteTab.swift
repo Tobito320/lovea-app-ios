@@ -11,6 +11,8 @@ private struct PersonAuswahl: Identifiable {
 }
 
 struct KarteTab: View {
+    /// Z-19.1: kein Tab mehr, öffnet sich vollflächig über das Partner-Profil, Schließen-Knopf statt Tab-Wechsel.
+    var schliessen: (() -> Void)?
     @Environment(\.scenePhase) private var scenePhase
     @State private var kamera: MapCameraPosition = .automatic
     @State private var satellit = false
@@ -50,6 +52,14 @@ struct KarteTab: View {
             }
             .navigationTitle("Karte")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if let schliessen {
+                    ToolbarItem(placement: .cancellationAction) {
+                        Button { schliessen() } label: { Image(systemName: "xmark") }
+                            .accessibilityLabel("Schließen")
+                    }
+                }
+            }
             .sheet(item: $ausgewaehlt) { auswahl in
                 InfoKarteView(person: auswahl.person)
             }
@@ -93,6 +103,8 @@ struct KarteTab: View {
             }
         }
         .mapStyle(satellit ? .imagery(elevation: .realistic) : .standard(elevation: .realistic, pointsOfInterest: .including(Self.poiKategorien)))
+        // Z-19.3: `Annotation`s eigener Titel würde den Namen zusätzlich zu `namensSchild` zeigen.
+        .annotationTitles(.hidden)
         .mapControls { MapCompass() }
         .onAppear { kameraZentrieren() }
         .onChange(of: standort.positionen.count) { _, _ in kameraZentrieren() }
@@ -301,7 +313,10 @@ private struct FigurPin: View {
             let prozent = Int((akku * 100).rounded())
             HStack(spacing: 2) {
                 Image(systemName: daten.laedt ? "bolt.fill" : "battery.100")
-                Text("\(prozent)%")
+                // Z-19.3: nie abgeschnitten, auch bei "100 %".
+                Text("\(prozent) %")
+                    .monospacedDigit()
+                    .fixedSize()
             }
             .font(.system(size: 10, weight: .bold))
             .foregroundStyle(.white)

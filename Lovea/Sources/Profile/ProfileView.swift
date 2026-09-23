@@ -63,6 +63,8 @@ private struct ProfilInhalt: View {
     @State private var tipps = 0
     @State private var nummerFehlt = 0
     @State private var blatt: ProfilBlatt?
+    /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
+    @State private var karteOffen = false
 
     private static let kopfHoehe: CGFloat = 430
     private static let monate = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
@@ -109,6 +111,7 @@ private struct ProfilInhalt: View {
             case .orte: OrteListeView()
             }
         }
+        .fullScreenCover(isPresented: $karteOffen) { KarteTab(schliessen: { karteOffen = false }) }
     }
 
     // MARK: - Header (stretchy wallpaper, both figures, avatar + name)
@@ -328,7 +331,7 @@ private struct ProfilInhalt: View {
 
     @ViewBuilder
     private var dieKarte: some View {
-        KartenVorschau(person: gegenueber) { navigieren("map") }
+        KartenVorschau(person: gegenueber) { tipps += 1; karteOffen = true }
         Divider()
         zeile("bell.badge", "Ankunftsbenachrichtigungen", "Wenn jemand an einem Ort ankommt oder geht.") { blatt = .orte }
     }

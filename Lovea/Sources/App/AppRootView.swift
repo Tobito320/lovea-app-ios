@@ -2,7 +2,7 @@ import Observation
 import SwiftUI
 
 private enum AppTab: String, Hashable {
-    case home, chat, drawing, map, profile
+    case home, chat, drawing, health, profile
 }
 
 /// Deep links across tabs. The banner "… zeichnet gerade an ‚X' – zuschauen?" sets
@@ -14,7 +14,7 @@ final class AppNavigation {
     var geteilteZeichnung: String?
     /// Profile → "Im Chat suchen": ChatTab opens the conversation with search active and clears it.
     var chatSuche = false
-    /// Switch tab from anywhere ("home", "chat", "drawing", "map", "profile"); AppRootView clears it.
+    /// Switch tab from anywhere ("home", "chat", "drawing", "health", "profile"); AppRootView clears it.
     var tabWunsch: String?
     /// Profile → "Kamera": ChatTab opens the snap camera and clears it.
     var kameraOeffnen = false
@@ -38,8 +38,8 @@ struct AppRootView: View {
             Tab("Zeichnen", systemImage: "paintbrush.pointed", value: AppTab.drawing) {
                 DrawingView(person: person)
             }
-            Tab("Karte", systemImage: "map", value: AppTab.map) {
-                KarteTab()
+            Tab("Health", systemImage: "heart.text.square", value: AppTab.health) {
+                HealthTab()
             }
             Tab("Profil", systemImage: "person.crop.circle", value: AppTab.profile) {
                 ProfileView(person: person, session: session, bilanz: spieleBilanz)

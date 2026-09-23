@@ -142,7 +142,7 @@ struct DrawingView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarLeading) {
-                    if !library.artworks.isEmpty { AuswaehlenKnopf(auswahl: $auswahl) }
+                    if !library.artworks.isEmpty { GalerieMenuKnopf(auswahl: $auswahl) }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
                     Button { duellOffen = true } label: { Image(systemName: "timer") }
@@ -332,6 +332,27 @@ private struct ProjectGalleryView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 48)
+    }
+}
+
+/// Z-19.3: "Auswählen" sitzt in der Hauptgalerie im "…"-Menü; aktiv ersetzt es sich direkt durch
+/// "Fertig", wie in `AuswaehlenKnopf` (dort bleibt der eigenständige Knopf, Projekt-Galerie hat
+/// schon ein eigenes "…"-Menü daneben).
+private struct GalerieMenuKnopf: View {
+    @Binding var auswahl: Set<UUID>?
+
+    var body: some View {
+        if auswahl == nil {
+            Menu {
+                Button("Auswählen", systemImage: "checkmark.circle") { auswahl = [] }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .accessibilityLabel("Mehr")
+        } else {
+            Button("Fertig") { auswahl = nil }
+                .fontWeight(.semibold)
+        }
     }
 }
 
