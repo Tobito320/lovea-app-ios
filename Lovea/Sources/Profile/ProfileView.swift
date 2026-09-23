@@ -351,7 +351,14 @@ private struct ProfilInhalt: View {
 
     // MARK: - Actions (Kamera · Chat · FaceTime Audio · FaceTime Video)
 
-    private var partnerNummer: String { EinstellungenModell.shared.string("telefon", default: "", von: gegenueber) }
+    /// Z-32.2: the partner's `kontakt.facetime` (number or Apple ID); empty → the older `telefon`
+    /// entry, so numbers typed in before Runde 3 keep working. Same rule as the chat header.
+    private var partnerKontakt: String {
+        let kontakt = EinstellungenModell.shared.string("kontakt.facetime", default: "", von: gegenueber)
+        return kontakt.trimmingCharacters(in: .whitespaces).isEmpty
+            ? EinstellungenModell.shared.string("telefon", default: "", von: gegenueber)
+            : kontakt
+    }
 
     private var aktionen: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -365,8 +372,8 @@ private struct ProfilInhalt: View {
                 aktion("phone.fill", "FaceTime Audio") { anrufen(audio: true) }
                 aktion("video.fill", "FaceTime Video") { anrufen(audio: false) }
             }
-            if FaceTimeLink.url(partnerNummer, audio: false) == nil {
-                Text("\(gegenueber.name) hat noch keine Nummer eingetragen")
+            if FaceTime.url(audio: false, kontakt: partnerKontakt) == nil {
+                Text("\(gegenueber.name) hat noch keine FaceTime-Nummer eingetragen")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
@@ -395,7 +402,7 @@ private struct ProfilInhalt: View {
     }
 
     private func anrufen(audio: Bool) {
-        guard let url = FaceTimeLink.url(partnerNummer, audio: audio) else {
+        guard let url = FaceTime.url(audio: audio, kontakt: partnerKontakt) else {
             nummerFehlt += 1
             return
         }
