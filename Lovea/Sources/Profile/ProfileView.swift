@@ -49,7 +49,7 @@ struct PartnerProfilView: View {
 }
 
 private enum ProfilBlatt: String, Identifiable {
-    case wallpaper, medien, orte, eigenerHintergrund, briefe, sterne
+    case wallpaper, medien, orte, zimmer, briefe, sterne
     var id: String { rawValue }
 }
 
@@ -154,25 +154,23 @@ private struct ProfilInhalt: View {
         case .wallpaper: WallpaperAuswahl(partner: gegenueber)
         case .medien: MedienUebersicht(ich: ich)
         case .orte: OrteListeView()
-        case .eigenerHintergrund: EigenerHintergrundAuswahl(person: person)
+        case .zimmer: NavigationStack { ZimmerEditor(person: person) }
         case .briefe: BriefeBlatt(ich: ich)
         case .sterne: SterneBlatt(ich: ich) { zurNachricht($0) }
         }
     }
 
-    // MARK: - Header (stretchy wallpaper, both figures, avatar + name)
+    // MARK: - Header (stretchy scene, both figures, avatar + name)
 
-    /// The container keeps a fixed height; only the wallpaper behind it grows upwards while pulling
+    /// The container keeps a fixed height; only the scene behind it grows upwards while pulling
     /// down, so nothing below shifts and feeds back into the scroll offset.
     private var kopf: some View {
-        ZStack(alignment: .bottomLeading) {
-            HStack(alignment: .bottom, spacing: -64) {
-                figur(person).zIndex(1)
-                figur(person.partner)
-            }
-            .overlay { KussSzene(person: person) }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, -6)
+        let szene = ProfilSzene.fuer(person: person)
+        return ZStack(alignment: .bottomLeading) {
+            kopfFiguren(szene, paar: true)
+                .overlay { KussSzene(person: person) }
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, -6)
 
             HStack(spacing: 12) {
                 avatar
@@ -190,21 +188,15 @@ private struct ProfilInhalt: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) {
-            // Z-25.2 "jeder stellt nur seinen eigenen ein": the partner profile shows the
-            // partner's own background too, not the old shared one — `EigenerHintergrund`
-            // falls back to the shared `profilWallpaper` on its own if `person` hasn't set one.
-            EigenerHintergrund(person: person)
-                .frame(height: Self.kopfHoehe + dehnung)
-                .overlay { kopfSchatten }
-        }
+        .background(alignment: .bottom) { szenenHintergrund(szene) }
     }
 
-    /// Z-25.1: own profile only — the person's own `profil.hintergrund`, a single full-body figure,
-    /// name and a "Hintergrund ändern" tap target (no partner figure, no "Unser Chat", no steps).
+    /// Z-25.1: own profile only — a single full-body figure in the person's scene, name and a
+    /// "Zimmer gestalten" tap target (no partner figure, no "Unser Chat", no steps).
     private var eigenerKopf: some View {
-        ZStack(alignment: .bottomLeading) {
-            figur(person)
+        let szene = ProfilSzene.fuer(person: person)
+        return ZStack(alignment: .bottomLeading) {
+            kopfFiguren(szene, paar: false)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 20)
             HStack(spacing: 12) {
@@ -223,14 +215,35 @@ private struct ProfilInhalt: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) {
-            EigenerHintergrund(person: person)
-                .frame(height: Self.kopfHoehe + dehnung)
-                .overlay { kopfSchatten }
-        }
-        .onTapGesture { blatt = .eigenerHintergrund }
+        .background(alignment: .bottom) { szenenHintergrund(szene) }
+        .onTapGesture { blatt = .zimmer }
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Ändert deinen Profil-Hintergrund")
+        .accessibilityHint("Gestaltet dein Zimmer")
+    }
+
+    /// Brief G: the scene follows real life (room, bed, gym, outside) and replaces the plain
+    /// wallpaper; like before it grows upward while pulling down.
+    private func szenenHintergrund(_ szene: ProfilSzene) -> some View {
+        ProfilSzeneHintergrund(szene: szene, zimmer: Zimmer.von(person), nacht: ProfilSzene.nacht(person: person))
+            .frame(height: Self.kopfHoehe + dehnung)
+            .overlay { kopfSchatten }
+    }
+
+    /// Asleep: the bed takes the figures' place (both in it when both sleep). Otherwise the
+    /// standing figure(s), the profile person dressed for the scene.
+    @ViewBuilder
+    private func kopfFiguren(_ szene: ProfilSzene, paar: Bool) -> some View {
+        if case .schlafen(let zusammen) = szene {
+            let schlaefer = zusammen ? [person, person.partner] : [person]
+            SchlafendeFiguren(zimmer: Zimmer.von(person), schlaefer: schlaefer.map { FigurenModell.shared.aussehen($0) })
+        } else if paar {
+            HStack(alignment: .bottom, spacing: -64) {
+                figur(person, szene: szene).zIndex(1)
+                figur(person.partner)
+            }
+        } else {
+            figur(person, szene: szene)
+        }
     }
 
     private var kopfSchatten: some View {
@@ -257,14 +270,20 @@ private struct ProfilInhalt: View {
     /// Z-24.3: while a `kuss` is live (fresh receive, own optimistic send, or a missed-kiss replay
     /// — all three go through `FigurenModell.anzeige`/`geste`), the figure leans toward the other
     /// one. `person` sits left/front of the pair (see `kopf`'s HStack order), `person.partner`
-    /// right/behind, so they lean opposite directions.
+    /// right/behind, so they lean opposite directions. `szene` (Brief G, profile person only): the
+    /// scene's state and extras (dumbbells in the gym, umbrella or sunglasses outside).
     @ViewBuilder
-    private func figur(_ p: Person) -> some View {
-        let zustand = FigurenModell.shared.anzeige(p).haupt
+    private func figur(_ p: Person, szene: ProfilSzene? = nil) -> some View {
+        let live = FigurenModell.shared.anzeige(p).haupt
+        let zustand = szene?.figur(live) ?? live
         // Ein Kuss gehört beiden: küsst einer, gleiten beide zueinander, neigen sich und spitzen die Lippen.
-        let kuesst = zustand == .kuss || FigurenModell.shared.anzeige(p.partner).haupt == .kuss
+        let kuesst = live == .kuss || FigurenModell.shared.anzeige(p.partner).haupt == .kuss
         let richtung: CGFloat = p == person ? 1 : -1
-        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: true)
+        let wetter = WetterModell.shared.staende[p]
+        let extras = szene?.extras(wetterCode: wetter?.code, temperatur: wetter?.temperatur, laedt: zustand == .laedt) ?? []
+        // A bought pose would replace the curls, so the gym keeps its own arms.
+        let pose = szene.map { $0 != .gym } ?? true
+        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose, extras: extras)
             .rotationEffect(.degrees(kuesst ? Double(richtung) * 7 : 0), anchor: .bottom)
             .offset(x: kuesst ? richtung * 38 : 0)
             .scaleEffect(kuesst ? 1.05 : 1, anchor: .bottom)
@@ -344,11 +363,12 @@ private struct ProfilInhalt: View {
     /// Spendable balance (after purchases), same number as the Health tab and the Shop.
     private var punkteChip: some View { PunkteKnopf(person: person) }
 
-    // MARK: - Eigene Aktionen (Z-25.1: Figur bearbeiten, Shop)
+    // MARK: - Eigene Aktionen (Z-25.1: Figur bearbeiten, Shop; Brief G: Zimmer gestalten)
 
     private var eigeneAktionen: some View {
         HStack(spacing: 10) {
             aktion("person.crop.square", "Figur bearbeiten") { figurBearbeitenOffen = true }
+            aktion("bed.double.fill", "Zimmer gestalten") { blatt = .zimmer }
             aktion("bag.fill", "Shop") { shopOffen = true }
         }
     }
