@@ -2,23 +2,31 @@ import LinkPresentation
 import SwiftUI
 import UIKit
 
-/// One bubble (Z-4.2, Z-4.3, Z-5.1–Z-5.3, Z-6.3). Renders `text`, `medien` (photo/video/voice),
-/// `gif`, `sticker` and `snap` for real; `spiel` still shows a neutral placeholder row (Block 14).
+/// One bubble (Z-4.2, Z-4.3, Z-5.1–Z-5.3, Z-6.3, Block 18). Gestures: swipe right to reply (haptic
+/// at the threshold), swipe left to peek at the time, double tap for ❤️, long press for the menu
+/// with a reaction row on top. A photo stack (several photo messages in a row) renders as `FotoStapel`.
 struct ChatNachrichtRow: View {
     let nachricht: ChatModell.Nachricht
     let ich: Person
+    /// Every message of this row's photo stack (first == `nachricht`); just `[nachricht]` otherwise.
+    var stapel: [ChatModell.Nachricht] = []
     let zeigeDatumstrenner: Bool
     let zeigeZeitstempel: Bool
     let zustellStatus: String?
     let onAntworten: (ChatModell.Nachricht) -> Void
     let onBearbeiten: (ChatModell.Nachricht) -> Void
-    let onLoeschen: (String) -> Void
+    let onLoeschen: ([String]) -> Void
     let onSpringeZu: (String) -> Void
 
     @State private var wischOffset: CGFloat = 0
-    @State private var zeigeReaktionen = false
+    @State private var herzSichtbar = false
+
+    static let emojis = ["❤️", "😂", "👍", "😮", "😢", "🙏"]
+    private static let antwortSchwelle: CGFloat = 56
 
     private var eigene: Bool { nachricht.von == ich }
+    private var alleMedien: [ChatModell.MedienEintrag] { stapel.count > 1 ? stapel.flatMap(\.medien) : nachricht.medien }
+    private var istStapel: Bool { ChatStapel.istBild(nachricht) && alleMedien.count > 1 }
 
     var body: some View {
         if let einladung = nachricht.einladung {
@@ -53,6 +61,17 @@ struct ChatNachrichtRow: View {
                     }
 
                     blase
+                        .overlay {
+                            Image(systemName: "heart.fill")
+                                .font(.system(size: 44))
+                                .foregroundStyle(.red)
+                                .shadow(color: .black.opacity(0.25), radius: 4)
+                                .scaleEffect(herzSichtbar ? 1 : 0.3)
+                                .opacity(herzSichtbar ? 1 : 0)
+                                .allowsHitTesting(false)
+                        }
+                        .onTapGesture(count: 2) { herzReaktion() }
+                        .contextMenu { kontextMenu }
 
                     if !nachricht.reaktionen.isEmpty {
                         Text(nachricht.reaktionen.values.joined())
@@ -69,31 +88,59 @@ struct ChatNachrichtRow: View {
                 }
                 if !eigene { Spacer(minLength: 40) }
             }
+            .offset(x: wischOffset)
+            // Revealed behind the moving bubble: reply arrow on the left, time on the right.
+            .background(alignment: .leading) {
+                Image(systemName: "arrowshape.turn.up.left.circle.fill")
+                    .font(.title2)
+                    .foregroundStyle(Color.loveaRose)
+                    .scaleEffect(wischOffset >= Self.antwortSchwelle ? 1.15 : 0.8)
+                    .opacity(Double(max(wischOffset, 0) / Self.antwortSchwelle))
+                    .animation(.snappy(duration: 0.15), value: wischOffset >= Self.antwortSchwelle)
+                    .accessibilityHidden(true)
+            }
+            .background(alignment: .trailing) {
+                Text(nachricht.zeit.formatted(date: .omitted, time: .shortened))
+                    .font(.caption2).foregroundStyle(.secondary)
+                    .opacity(Double(max(-wischOffset, 0) / 50))
+                    .accessibilityHidden(true)
+            }
         }
         .padding(.horizontal, 12)
-        .offset(x: wischOffset)
+        .contentShape(Rectangle())
         // `.simultaneousGesture` (not `.gesture`) so this never steals the ScrollView's vertical
         // pan; the width-vs-height check keeps it from reacting to an ordinary vertical scroll touch.
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 20)
-                .onChanged { value in
-                    guard value.translation.width > 0, value.translation.width > abs(value.translation.height) else { return }
-                    wischOffset = min(value.translation.width, 70)
-                }
-                .onEnded { value in
-                    if wischOffset > 50 { onAntworten(nachricht) }
-                    withAnimation(.spring(duration: 0.25)) { wischOffset = 0 }
-                }
-        )
-        .onTapGesture(count: 2) { zeigeReaktionen = true }
-        .popover(isPresented: $zeigeReaktionen) {
-            ReaktionsAuswahl(aktuell: nachricht.reaktionen[ich]) { emoji in
-                ChatModell.shared.reagieren(nachricht.id, emoji: emoji)
-                zeigeReaktionen = false
+        .simultaneousGesture(wischGeste)
+        .accessibilityAction(named: "Antworten") { onAntworten(nachricht) }
+    }
+
+    private var wischGeste: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onChanged { wert in
+                // Leave the left screen edge to the system back swipe.
+                guard wert.startLocation.x > 30, abs(wert.translation.width) > abs(wert.translation.height) else { return }
+                let breite = wert.translation.width
+                let neu = breite > 0 ? min(breite * 0.8, 84) : max(breite * 0.8, -64)
+                if wischOffset < Self.antwortSchwelle, neu >= Self.antwortSchwelle { ChatHaptik.mittel() }
+                wischOffset = neu
             }
-            .presentationCompactAdaptation(.popover)
+            .onEnded { _ in
+                if wischOffset >= Self.antwortSchwelle { onAntworten(nachricht) }
+                withAnimation(.spring(duration: 0.3)) { wischOffset = 0 }
+            }
+    }
+
+    private func herzReaktion() {
+        guard !nachricht.geloescht else { return }
+        let neu: String? = nachricht.reaktionen[ich] == "❤️" ? nil : "❤️"
+        ChatModell.shared.reagieren(nachricht.id, emoji: neu)
+        ChatHaptik.mittel()
+        guard neu != nil else { return }
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.5)) { herzSichtbar = true }
+        Task {
+            try? await Task.sleep(for: .milliseconds(650))
+            withAnimation(.easeOut(duration: 0.25)) { herzSichtbar = false }
         }
-        .contextMenu { kontextMenu }
     }
 
     @ViewBuilder private var blase: some View {
@@ -103,12 +150,13 @@ struct ChatNachrichtRow: View {
                 .foregroundStyle(.secondary)
                 .padding(10)
                 .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
+        } else if istStapel {
+            FotoStapel(medien: alleMedien, eigene: eigene)
         } else {
             VStack(alignment: .leading, spacing: 6) {
-                // Z-5.1/Z-5.2/Z-5.3/Z-6.2–6.3: real media views. Spiel/System still fall through to
-                // `platzhalter` below; a snap is never rendered via the plain medium path (view-once).
+                // A snap is never rendered via the plain medium path (view-once).
                 if let snap = nachricht.snap {
-                    SnapZeile(nachricht: nachricht, snap: snap, ich: ich, eigene: eigene)
+                    SnapZeile(nachricht: nachricht, snap: snap, ich: ich, eigene: eigene, onAntworten: onAntworten)
                 } else if let medium = nachricht.medien.first {
                     if medium.typ == "sprache" {
                         SprachBlase(medium: medium)
@@ -149,27 +197,48 @@ struct ChatNachrichtRow: View {
         }
     }
 
-    /// Block 14 still replaces `spiel`'s row with the real game view; `system` stays text-only.
+    /// `system` stays text-only; `spiel` rows are `SpielKarte` in the list, this is only a fallback.
     private var platzhalter: (text: String, symbol: String)? {
         if nachricht.spiel != nil { return ("Spiel", "gamecontroller.fill") }
         if let system = nachricht.system { return (system, "info.circle") }
         return nil
     }
 
+    private var reaktion: Binding<String> {
+        Binding(
+            get: { nachricht.reaktionen[ich] ?? "" },
+            set: { neu in
+                ChatHaptik.leicht()
+                ChatModell.shared.reagieren(nachricht.id, emoji: neu.isEmpty ? nil : neu)
+            }
+        )
+    }
+
     @ViewBuilder private var kontextMenu: some View {
-        if eigene, !nachricht.geloescht { Button("Bearbeiten", systemImage: "pencil") { onBearbeiten(nachricht) } }
-        Button("Antworten", systemImage: "arrowshape.turn.up.left") { onAntworten(nachricht) }
-        // Long press offers reactions too (Spec 5.2); the double tap alone is out of reach for VoiceOver.
         if !nachricht.geloescht {
-            Menu("Reagieren", systemImage: "face.smiling") {
-                ForEach(ReaktionsAuswahl.emojis, id: \.self) { emoji in
-                    Button(emoji) {
-                        ChatModell.shared.reagieren(nachricht.id, emoji: nachricht.reaktionen[ich] == emoji ? nil : emoji)
-                    }
-                }
+            // Reaction row on top of the menu, like iMessage/Instagram (Spec 5.2).
+            Picker("Reagieren", selection: reaktion) {
+                ForEach(Self.emojis, id: \.self) { Text($0).tag($0) }
+            }
+            .pickerStyle(.palette)
+            if nachricht.reaktionen[ich] != nil {
+                Button("Reaktion entfernen", systemImage: "heart.slash") { ChatModell.shared.reagieren(nachricht.id, emoji: nil) }
             }
         }
-        Menu("Anheften") {
+        Button("Antworten", systemImage: "arrowshape.turn.up.left") { onAntworten(nachricht) }
+        if eigene, !nachricht.geloescht, !(nachricht.text ?? "").isEmpty {
+            Button("Bearbeiten", systemImage: "pencil") { onBearbeiten(nachricht) }
+        }
+        if let text = nachricht.text, !text.isEmpty {
+            Button("Kopieren", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+        }
+        if nachricht.snap == nil, !nachricht.geloescht, !lokaleFotos.isEmpty {
+            Button(lokaleFotos.count > 1 ? "Alle in Galerie speichern" : "In Galerie speichern", systemImage: "photo.badge.plus") {
+                for url in lokaleFotos { ChatGalerie.inGaleriesSpeichern(bildURL: url) }
+                ChatHaptik.leicht()
+            }
+        }
+        Menu("Anheften", systemImage: "pin") {
             Button("Für immer") { ChatModell.shared.anheften(nachricht.id, bis: nil) }
             Button("Bis morgen") { ChatModell.shared.anheften(nachricht.id, bis: naechsteBerlinMitternacht()) }
             Button("1 Woche") { ChatModell.shared.anheften(nachricht.id, bis: Date().addingTimeInterval(7 * 86_400)) }
@@ -180,18 +249,15 @@ struct ChatNachrichtRow: View {
         Button {
             ChatModell.shared.sternSetzen(nachricht.id, an: !nachricht.gesternt.contains(ich))
         } label: {
-            HStack {
-                Image(systemName: nachricht.gesternt.contains(ich) ? "star.slash" : "star")
-                Text(nachricht.gesternt.contains(ich) ? "Stern entfernen" : "Stern")
-            }
-        }
-        if let text = nachricht.text {
-            Button("Kopieren", systemImage: "doc.on.doc") { UIPasteboard.general.string = text }
+            Label(nachricht.gesternt.contains(ich) ? "Stern entfernen" : "Stern", systemImage: nachricht.gesternt.contains(ich) ? "star.slash" : "star")
         }
         if eigene {
-            Button("Löschen", systemImage: "trash", role: .destructive) { onLoeschen(nachricht.id) }
+            Button(eigeneIDs.count > 1 ? "Alle löschen" : "Löschen", systemImage: "trash", role: .destructive) { onLoeschen(eigeneIDs) }
         }
     }
+
+    private var lokaleFotos: [URL] { alleMedien.filter { $0.typ == "foto" }.compactMap { MedienDatei.lokal($0) } }
+    private var eigeneIDs: [String] { (stapel.isEmpty ? [nachricht] : stapel).filter { $0.von == ich }.map(\.id) }
 
     private func naechsteBerlinMitternacht() -> Date {
         Calendar.berlin.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime) ?? Date().addingTimeInterval(86_400)
@@ -207,6 +273,7 @@ private struct SnapZeile: View {
     let snap: ChatModell.SnapInfo
     let ich: Person
     let eigene: Bool
+    let onAntworten: (ChatModell.Nachricht) -> Void
 
     @State private var vollbild = false
 
@@ -222,6 +289,7 @@ private struct SnapZeile: View {
             } else if nachricht.snapAngesehen {
                 spur(nachricht.snapLange ? "Snap lange angesehen" : "Snap angesehen")
                     .contextMenu {
+                        Button("Antworten", systemImage: "arrowshape.turn.up.left") { onAntworten(nachricht) }
                         Button("Erneut ansehen", systemImage: "arrow.clockwise") { vollbild = true }
                         Button("Speichern", systemImage: "square.and.arrow.down") {
                             ChatModell.shared.snapGespeichertSenden(nachricht.id)
@@ -237,7 +305,7 @@ private struct SnapZeile: View {
     }
 
     private func spur(_ text: String) -> some View {
-        Button { vollbild = true } label: {
+        Button { ChatHaptik.leicht(); vollbild = true } label: {
             HStack(spacing: 4) {
                 Image(systemName: "bolt.fill")
                 Text(text)
@@ -245,27 +313,6 @@ private struct SnapZeile: View {
             .font(.subheadline)
         }
         .buttonStyle(.plain)
-    }
-}
-
-/// Small emoji bar, opened by a double tap (Spec 5.2).
-private struct ReaktionsAuswahl: View {
-    let aktuell: String?
-    let onWahl: (String?) -> Void
-    static let emojis = ["❤️", "😂", "👍", "😮", "😢", "🙏"]
-
-    var body: some View {
-        HStack(spacing: 14) {
-            ForEach(Self.emojis, id: \.self) { emoji in
-                Button {
-                    onWahl(aktuell == emoji ? nil : emoji)
-                } label: {
-                    Text(emoji).font(.title2)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(14)
     }
 }
 

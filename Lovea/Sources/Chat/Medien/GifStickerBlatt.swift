@@ -117,6 +117,7 @@ private struct GifSuche: View {
             }
             return
         }
+        ChatHaptik.leicht()
         ChatModell.shared.gifSenden(url: gif.url, breite: gif.breite, hoehe: gif.hoehe, antwortAuf: antwortAuf)
         onGesendet()
     }

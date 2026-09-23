@@ -349,7 +349,9 @@ struct SnapKameraFluss: View {
                 onAbbrechen: onFertig
             )
         case .editor(let inhalt):
-            SnapEditor(inhalt: inhalt, ich: ich, antwortAuf: antwortAuf, onFertig: onFertig)
+            // Never sent straight from the camera: the editor's send button is the only way out
+            // that sends; its X goes back to the camera instead of closing everything.
+            SnapEditor(inhalt: inhalt, ich: ich, antwortAuf: antwortAuf, onFertig: onFertig, onVerwerfen: { schritt = .kamera })
         }
     }
 }
