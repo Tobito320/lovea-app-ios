@@ -27,7 +27,10 @@ final class FigurenModell {
     private init() {
         let raum = Raum.shared
         raum.beobachten(["figur.aussehen"]) { [weak self] op in
-            if let a = op.daten(FigurAussehen.self) { self?.aussehen[op.von] = a }
+            guard var a = op.daten(FigurAussehen.self) else { return }
+            // v1 ops (before Figuren v2) have no v2 keys: fill the new parts from the person's standard.
+            if op.daten(V2Kennung.self)?.augenform == nil { a = .ausV1(a, fuer: op.von) }
+            self?.aussehen[op.von] = a
         }
         raum.beobachten(["geste"]) { [weak self] op in
             guard let self, let art = op.daten([String: String].self)?["art"] else { return }
@@ -94,4 +97,9 @@ extension Calendar {
         c.firstWeekday = 2
         return c
     }()
+}
+
+/// Only present in `figur.aussehen` ops written by Figuren v2.
+private struct V2Kennung: Decodable {
+    let augenform: Int?
 }
