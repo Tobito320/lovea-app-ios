@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// Bitmoji-style half figure. `groesse` is the height; the width is 5/6 of it.
+/// Bitmoji-style figure. `groesse` is the height. Half figure (chat, stickers): width is 5/6 of the height.
+/// `ganzkoerper` (map, profile): head, body, legs and shoes with standing/walking/sitting poses; width is 1/2 of the height.
 /// Abzeichen: "partyhut", "herzaugen", "outfit", "uhrwerk", "schnecke", "krone".
 struct FigurView: View {
     private let aussehen: FigurAussehen
@@ -9,18 +10,20 @@ struct FigurView: View {
     private let groesse: CGFloat
     private let animiert: Bool
     private let bildrate: Double
+    private let ganzkoerper: Bool
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
 
     /// `bildrate`: frames per second of the loop; lower it where many figures or a map redraw.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30) {
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false) {
         self.aussehen = aussehen
         self.zustand = zustand
         self.abzeichen = abzeichen
         self.groesse = groesse
         self.animiert = animiert
         self.bildrate = bildrate
+        self.ganzkoerper = ganzkoerper
     }
 
     var body: some View {
@@ -33,7 +36,7 @@ struct FigurView: View {
                 leinwand(0.4, statisch: true)
             }
         }
-        .frame(width: groesse * 5 / 6, height: groesse)
+        .frame(width: ganzkoerper ? groesse / 2 : groesse * 5 / 6, height: groesse)
         .saturation(zustand == .offline ? 0.15 : 1)
         .opacity(zustand == .offline ? 0.7 : 1)
         .onAppear { sichtbar = true }
@@ -46,7 +49,7 @@ struct FigurView: View {
     }
 
     private func leinwand(_ t: Double, statisch: Bool) -> some View {
-        let zeichner = Zeichner(aussehen, zustand, abzeichen, t: t, statisch: statisch)
+        let zeichner = Zeichner(aussehen, zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper)
         return Canvas { g, size in zeichner.zeichne(g, size) }
     }
 }
@@ -134,6 +137,18 @@ fileprivate extension Array {
     func wahl(_ i: Int) -> Element { self[Swift.min(Swift.max(i, 0), count - 1)] }
 }
 
+fileprivate func grenze(_ i: Int, _ n: Int) -> Int { min(max(i, 0), n - 1) }
+
+fileprivate func zwischen(_ a: CGPoint, _ b: CGPoint, _ t: CGFloat) -> CGPoint {
+    P(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t)
+}
+
+/// Fills several overlapping parts as one piece: all outlines first, then all fills.
+fileprivate func verbunden(_ g: GraphicsContext, _ teile: [Path], _ f: FigurFarbe, _ breite: CGFloat = 3.5) {
+    for p in teile { g.stroke(p, with: .color(f.kontur), style: StrokeStyle(lineWidth: breite, lineCap: .round, lineJoin: .round)) }
+    for p in teile { g.fill(p, with: .color(f.farbe)) }
+}
+
 fileprivate enum Pal {
     static let weiss = FigurFarbe(0xFFFFFF)
     static let tinte = FigurFarbe(0x3A2630)
@@ -172,44 +187,84 @@ fileprivate struct Arm {
     }
 }
 
+fileprivate struct Bein {
+    let h: CGPoint
+    let k: CGPoint
+    let f: CGPoint
+}
+
 fileprivate enum Mund { case laecheln, grinsen, offen(CGFloat), neutral, traurig, kuss }
 fileprivate enum Auge { case offen(gross: Bool), zu, froh, muede }
 fileprivate enum Aermel { case lang, kurz, keine }
+fileprivate enum Haltung { case stehen, gehen, rennen, rad, fahren, sitzen }
 
-// MARK: - Drawing (figure space 200 x 240)
+/// Full-body proportions in the 200 x 400 space. Feet stand at `fussY`, taller figures have longer legs.
+fileprivate struct Masse {
+    let s: CGFloat          // shoulder half width
+    let t: CGFloat          // waist half width
+    let h: CGFloat          // hip half width
+    let arm: CGFloat        // arm thickness relative to the half figure
+    let bein: CGFloat       // leg thickness
+    let hueftY: CGFloat
+    let schulterY: CGFloat
+    let knieY: CGFloat
+    static let fussY: CGFloat = 372
+}
+
+// MARK: - Drawing (half figure 200 x 240, full body 200 x 400 with the head drawn in the half space)
 
 private struct Zeichner {
     let z: FigurZustand
     let abz: Set<String>
     let t: Double
     let statisch: Bool
-    let haut: FigurFarbe
-    let haar: FigurFarbe
-    let iris: FigurFarbe
-    let top: FigurFarbe
-    let frisur: Int
-    let oberteil: Int
-    let brille: Int
-    let bart: Int
+    let ganz: Bool
+    let haut, haar, iris, top, jackeF, hoseF, schuhF, muetzeF: FigurFarbe
+    let straehne: FigurFarbe?
+    let frisur, oberteil, brille, bart, gesichtsform, augenform, brauenStil, nasenStil, mundStil: Int
+    let ohrring, muetze, jacke, hose, schuhe, koerperform, groesseStufe: Int
+    let wimpern, sommersprossen, muttermal, rouge: Bool
 
-    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool) {
+    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool) {
+        typealias A = FigurAussehen
         self.z = z
         self.abz = Set(abz)
         self.t = t
         self.statisch = statisch
-        haut = FigurAussehen.hautToene.wahl(a.haut).farbe
-        haar = FigurAussehen.haarfarben.wahl(a.haarfarbe).farbe
-        iris = FigurAussehen.augenfarben.wahl(a.augen).farbe
-        frisur = min(max(a.frisur, 0), FigurAussehen.frisuren.count - 1)
-        brille = min(max(a.brille, 0), FigurAussehen.brillen.count - 1)
-        bart = min(max(a.bart, 0), FigurAussehen.baerte.count - 1)
-        if z == .abend {
-            top = FigurFarbe(0xAFC8EE)  // Schlafanzug
-            oberteil = 2
-        } else {
-            top = FigurAussehen.oberteilfarben.wahl(a.oberteilfarbe).farbe
-            oberteil = min(max(a.oberteil, 0), FigurAussehen.oberteile.count - 1)
-        }
+        self.ganz = ganz
+        haut = A.hautToene.wahl(a.haut).farbe
+        let hf = A.haarfarben.wahl(a.haarfarbe)
+        haar = hf.farbe
+        straehne = hf.straehne
+        iris = A.augenfarben.wahl(a.augen).farbe
+        frisur = grenze(a.frisur, A.frisuren.count)
+        brille = grenze(a.brille, A.brillen.count)
+        bart = grenze(a.bart, A.baerte.count)
+        gesichtsform = grenze(a.gesichtsform, A.gesichtsformen.count)
+        augenform = grenze(a.augenform, A.augenformen.count)
+        brauenStil = grenze(a.brauen, A.augenbrauen.count)
+        nasenStil = grenze(a.nase, A.nasen.count)
+        mundStil = grenze(a.mund, A.muender.count)
+        ohrring = grenze(a.ohrringe, A.ohrringArten.count)
+        wimpern = a.wimpern
+        sommersprossen = a.sommersprossen
+        muttermal = a.muttermal
+        rouge = a.rouge
+        koerperform = grenze(a.koerperform, A.koerperformen.count)
+        groesseStufe = grenze(a.groesse, A.groessen.count)
+        schuhe = grenze(a.schuhe, A.schuhArten.count)
+        schuhF = A.farben.wahl(a.schuhfarbe).farbe
+        muetzeF = A.farben.wahl(a.muetzenfarbe).farbe
+        jackeF = A.farben.wahl(a.jackenfarbe).farbe
+        let schlafanzug = z == .abend
+        let oberteilFarbe = schlafanzug ? FigurFarbe(0xAFC8EE) : A.farben.wahl(a.oberteilfarbe).farbe
+        top = oberteilFarbe
+        oberteil = schlafanzug ? 2 : grenze(a.oberteil, A.oberteile.count)
+        jacke = schlafanzug ? 0 : grenze(a.jacke, A.jacken.count)
+        hose = schlafanzug ? 3 : grenze(a.hose, A.hosen.count)
+        hoseF = schlafanzug ? oberteilFarbe : A.farben.wahl(a.hosenfarbe).farbe
+        let ohneHut = schlafanzug || z == .rad || z == .schlaeft
+        muetze = ohneHut ? 0 : grenze(a.kopfbedeckung, A.kopfbedeckungen.count)
     }
 
     // MARK: Time
@@ -226,6 +281,10 @@ private struct Zeichner {
     // MARK: Frame
 
     func zeichne(_ ctx: GraphicsContext, _ size: CGSize) {
+        if ganz {
+            zeichneGanz(ctx, size)
+            return
+        }
         var g = ctx
         g.scaleBy(x: size.width / 200, y: size.height / 240)
         g.clip(to: Path(CGRect(x: 0, y: 0, width: 200, height: 240)))
@@ -237,22 +296,43 @@ private struct Zeichner {
         g.translateBy(x: -100, y: bew.hoch - 240)
 
         hintergrund(g)
-        haareHinten(g)
+        haareHinten(haarKontext(g))
         koerper(g)
-        kopf(g)
-        gesicht(g)
-        haareVorn(g)
-        kopfschmuck(g)
-        brillen(g)
+        kopfGruppe(g)
         mitte(g)
         let arme = pose()
-        if let l = arme.l { arm(g, P(60, 184), l) }
-        if let r = arme.r { arm(g, P(140, 184), r) }
+        let schulter: CGFloat = 40 * breite
+        if let l = arme.l { arm(g, P(100 - schulter, 184), l) }
+        if let r = arme.r { arm(g, P(100 + schulter, 184), r) }
         requisite(g, arme.r?.hand ?? P(142, 252))
         if let l = arme.l { teil(g, kreis(l.hand, 9.5), haut) }
         if let r = arme.r { teil(g, kreis(r.hand, 9.5), haut) }
         effekte(g)
         abzeichenVorn(g)
+    }
+
+    /// Head, face, hair and everything worn on the head, in the half-figure space.
+    func kopfGruppe(_ g: GraphicsContext) {
+        kopf(g)
+        gesicht(g)
+        haareVorn(haarKontext(g))
+        ohrringeZeichnen(g)
+        muetzeZeichnen(g)
+        kopfschmuck(g)
+        brillen(g)
+    }
+
+    /// Under a covering hat the hair stops at the hat line, so tall styles never poke through.
+    func haarKontext(_ g: GraphicsContext) -> GraphicsContext {
+        guard (1...4).contains(muetze) else { return g }
+        var h = g
+        h.clip(to: Path(CGRect(x: -100, y: 34, width: 400, height: 400)))
+        return h
+    }
+
+    var breite: CGFloat {
+        let werte: [CGFloat] = [0.93, 1, 1.07]
+        return werte[koerperform]
     }
 
     func bewegung() -> (winkel: Double, hoch: CGFloat) {
@@ -283,20 +363,34 @@ private struct Zeichner {
     // MARK: Body
 
     var aermel: Aermel {
+        if jacke > 0 { return .lang }
         switch oberteil {
-        case 1, 2, 3, 5: .lang
-        case 6: .keine
-        default: .kurz
+        case 1, 2, 3, 5, 10, 13: return .lang
+        case 6: return .keine
+        default: return .kurz
         }
     }
 
+    var aermelFarbe: FigurFarbe { jacke > 0 ? jackeF : top }
+
+    /// Face shapes keep the cheekbone width, so hair, ears, glasses and hats fit every shape.
+    static let formen: [(stirn: CGFloat, kieferX: CGFloat, kieferY: CGFloat, kinnB: CGFloat, kinnY: CGFloat)] = [
+        (44, 58, 128, 34, 152),  // Oval
+        (50, 58, 138, 44, 148),  // Rund
+        (54, 50, 124, 18, 154),  // Herz
+        (54, 58, 146, 42, 150),  // Eckig
+        (40, 56, 134, 30, 158),  // Länglich
+        (30, 50, 122, 22, 154),  // Diamant
+    ]
+
     var kopfPfad: Path {
-        Path { p in
+        let f = Self.formen[gesichtsform]
+        return Path { p in
             p.move(to: P(100, 30))
-            p.addCurve(to: P(158, 94), control1: P(144, 30), control2: P(158, 56))
-            p.addCurve(to: P(100, 152), control1: P(158, 128), control2: P(134, 152))
-            p.addCurve(to: P(42, 94), control1: P(66, 152), control2: P(42, 128))
-            p.addCurve(to: P(100, 30), control1: P(42, 56), control2: P(56, 30))
+            p.addCurve(to: P(158, 94), control1: P(100 + f.stirn, 30), control2: P(158, 56))
+            p.addCurve(to: P(100, f.kinnY), control1: P(100 + f.kieferX, f.kieferY), control2: P(100 + f.kinnB, f.kinnY))
+            p.addCurve(to: P(42, 94), control1: P(100 - f.kinnB, f.kinnY), control2: P(100 - f.kieferX, f.kieferY))
+            p.addCurve(to: P(100, 30), control1: P(42, 56), control2: P(100 - f.stirn, 30))
             p.closeSubpath()
         }
     }
@@ -325,15 +419,27 @@ private struct Zeichner {
         }
     }
 
+    var ausschnitt: Int {
+        switch oberteil {
+        case 2, 12, 13: 1
+        case 4, 8, 11: 2
+        default: 0
+        }
+    }
+
     func koerper(_ g: GraphicsContext) {
         teil(g, box(86, 132, 28, 58, 10), haut)
         g.fill(box(78, 156, 44, 36), with: .color(haut.farbe))
         g.fill(oval(P(100, 152), 15, 6), with: .color(haut.mal(0.8).farbe.opacity(0.6)))
+        var k = g
+        k.translateBy(x: 100, y: 0)
+        k.scaleBy(x: breite, y: 1)
+        k.translateBy(x: -100, y: 0)
 
         if oberteil == 6 {
             let form = rumpf(0)
-            teil(g, form, haut)
-            g.fill(box(80, 150, 40, 28), with: .color(haut.farbe))
+            teil(k, form, haut)
+            k.fill(box(80, 150, 40, 28), with: .color(haut.farbe))
             let kleid = Path { p in
                 p.move(to: P(20, 250))
                 p.addLine(to: P(24, 190))
@@ -341,22 +447,46 @@ private struct Zeichner {
                 p.addLine(to: P(180, 250))
                 p.closeSubpath()
             }
-            var h = g
+            var h = k
             h.clip(to: form)
             teil(h, kleid, top)
-            linie(g, form, haut.kontur, 3.5)
+            linie(k, form, haut.kontur, 3.5)
             for seite in [CGFloat(-1), 1] {
                 let traeger = strich(P(100 + seite * 26, 164), P(100 + seite * 30, 194))
-                linie(g, traeger, top.kontur, 6.5)
-                linie(g, traeger, top.farbe, 3.5)
+                linie(k, traeger, top.kontur, 6.5)
+                linie(k, traeger, top.farbe, 3.5)
             }
-            return
+        } else {
+            let form = rumpf(ausschnitt)
+            teil(k, form, top)
+            var h = k
+            h.clip(to: form)
+            if oberteil == 11 {
+                teil(h, box(0, 226, 200, 40), haut, 2.5)
+                h.fill(oval(P(100, 234), 1.6, 2.4), with: .color(haut.kontur))
+            }
+            oberteilDetails(k, h)
+            if [7, 12, 13].contains(oberteil) { linie(k, form, top.kontur, 3.5) }
         }
+        if jacke > 0 { jackeZeichnen(k, form: rumpf(0), oben: 161, unten: 240, s: 1) }
+    }
 
-        let form = rumpf(oberteil == 2 ? 1 : oberteil == 4 ? 2 : 0)
-        teil(g, form, top)
-        var h = g
-        h.clip(to: form)
+    func hemdKragen(_ g: GraphicsContext) {
+        let kragen = top.mix(Pal.weiss, 0.4)
+        let links = Path { p in
+            p.move(to: P(86, 160))
+            p.addLine(to: P(100, 186))
+            p.addLine(to: P(78, 178))
+            p.closeSubpath()
+        }
+        teil(g, links, kragen, 2.5)
+        teil(g, gespiegelt(links), kragen, 2.5)
+        for y in [CGFloat(198), 214, 230, 246, 262] { g.fill(kreis(P(100, y), 2.2), with: .color(top.kontur)) }
+    }
+
+    /// Top details in the half-figure space. `g` draws freely, `h` is clipped to the torso.
+    /// Patterns run past y 240 so the full body (which maps this space onto its torso) is covered too.
+    func oberteilDetails(_ g: GraphicsContext, _ h: GraphicsContext) {
         switch oberteil {
         case 1:
             let kapuze = bogen(P(70, 164), P(130, 164), P(100, 196))
@@ -368,21 +498,12 @@ private struct Zeichner {
         case 2:
             if z == .abend {
                 for x in stride(from: CGFloat(36), to: 170, by: 18) {
-                    for y in stride(from: CGFloat(180), to: 240, by: 18) {
+                    for y in stride(from: CGFloat(180), to: 290, by: 18) {
                         h.fill(kreis(P(x, y), 3), with: .color(.white.opacity(0.7)))
                     }
                 }
             }
-            let kragen = top.mix(Pal.weiss, 0.4)
-            let links = Path { p in
-                p.move(to: P(86, 160))
-                p.addLine(to: P(100, 186))
-                p.addLine(to: P(78, 178))
-                p.closeSubpath()
-            }
-            teil(g, links, kragen, 2.5)
-            teil(g, gespiegelt(links), kragen, 2.5)
-            for y in [CGFloat(198), 214, 230] { g.fill(kreis(P(100, y), 2.2), with: .color(top.kontur)) }
+            hemdKragen(g)
         case 3:
             let bund = bogen(P(86, 161), P(114, 161), P(100, 178))
             linie(g, bund, top.kontur, 8)
@@ -398,9 +519,9 @@ private struct Zeichner {
             teil(g, schleife, top.mal(0.8), 2)
             teil(g, gespiegelt(schleife), top.mal(0.8), 2)
         case 5:
-            h.fill(box(88, 150, 24, 100), with: .color(Pal.weiss.farbe))
-            linie(h, strich(P(88, 166), P(88, 240)), top.kontur, 3)
-            linie(h, strich(P(112, 166), P(112, 240)), top.kontur, 3)
+            h.fill(box(88, 150, 24, 160), with: .color(Pal.weiss.farbe))
+            linie(h, strich(P(88, 166), P(88, 300)), top.kontur, 3)
+            linie(h, strich(P(112, 166), P(112, 300)), top.kontur, 3)
             let revers = Path { p in
                 p.move(to: P(86, 161))
                 p.addLine(to: P(96, 200))
@@ -410,10 +531,126 @@ private struct Zeichner {
             teil(g, revers, top.mal(0.9), 2.5)
             teil(g, gespiegelt(revers), top.mal(0.9), 2.5)
         case 7:
-            for y in stride(from: CGFloat(178), to: 240, by: 14) {
+            for y in stride(from: CGFloat(178), to: 300, by: 14) {
                 h.fill(box(20, y, 160, 6), with: .color(.white.opacity(0.75)))
             }
-            linie(g, form, top.kontur, 3.5)
+        case 8:
+            let guertel = strich(P(20, 232), P(180, 232))
+            linie(h, guertel, top.kontur, 8)
+            linie(h, guertel, top.mal(0.8).farbe, 5)
+            teil(g, kreis(P(100, 232), 5), top.mal(0.75), 2)
+            g.fill(herzPfad(P(100, 186), 5), with: .color(top.mix(Pal.weiss, 0.5).farbe))
+        case 9:
+            let kragen = top.mix(Pal.weiss, 0.2)
+            let links = Path { p in
+                p.move(to: P(86, 160))
+                p.addLine(to: P(99, 174))
+                p.addLine(to: P(80, 176))
+                p.closeSubpath()
+            }
+            teil(g, links, kragen, 2.5)
+            teil(g, gespiegelt(links), kragen, 2.5)
+            linie(g, strich(P(100, 170), P(100, 196)), top.kontur, 2)
+            for y in [CGFloat(182), 192] { g.fill(kreis(P(100, y), 2), with: .color(top.kontur)) }
+        case 10:
+            let kragen = box(82, 138, 36, 30, 12)
+            teil(g, kragen, top.mal(0.92))
+            var r = g
+            r.clip(to: kragen)
+            for x in stride(from: CGFloat(86), to: 118, by: 6) { linie(r, strich(P(x, 138), P(x, 168)), top.kontur.opacity(0.5), 1.5) }
+        case 12:
+            h.fill(box(30, 160, 12, 160), with: .color(.white.opacity(0.85)))
+            h.fill(box(158, 160, 12, 160), with: .color(.white.opacity(0.85)))
+            let v = Path { p in
+                p.move(to: P(86, 161))
+                p.addLine(to: P(100, 186))
+                p.addLine(to: P(114, 161))
+            }
+            linie(g, v, .white, 3.5)
+            text(g, "10", P(100, 216), 26, .white)
+        case 13:
+            let streifen = top.mal(0.62).farbe.opacity(0.45)
+            for x in stride(from: CGFloat(28), to: 180, by: 16) { h.fill(box(x, 150, 6, 170), with: .color(streifen)) }
+            for y in stride(from: CGFloat(172), to: 320, by: 16) { h.fill(box(20, y, 160, 6), with: .color(streifen)) }
+            hemdKragen(g)
+        default:
+            break
+        }
+    }
+
+    /// Open jacket: two front panels cut from the torso `form`, the top shows in the middle.
+    /// `s` scales details (1 in the half figure, smaller on the full-body torso).
+    func jackeZeichnen(_ g: GraphicsContext, form: Path, oben: CGFloat, unten: CGFloat, s: CGFloat) {
+        let f = jackeF
+        let innenO: CGFloat = 100 - 12 * s
+        let innenU: CGFloat = 100 - 20 * s
+        let links = Path { p in
+            p.move(to: P(-20, oben - 60))
+            p.addLine(to: P(innenO, oben - 60))
+            p.addLine(to: P(innenO, oben))
+            p.addLine(to: P(innenU, unten + 30))
+            p.addLine(to: P(-20, unten + 30))
+            p.closeSubpath()
+        }
+        let rechts = gespiegelt(links)
+        for seite in [links, rechts] {
+            var h = g
+            h.clip(to: seite)
+            teil(h, form, f)
+        }
+        var innen = g
+        innen.clip(to: form)
+        linie(innen, links, f.kontur, 3)
+        linie(innen, rechts, f.kontur, 3)
+
+        switch jacke {
+        case 1, 4:
+            let revers = Path { p in
+                p.move(to: P(innenO, oben))
+                p.addLine(to: P(100 - 34 * s, oben + 8 * s))
+                p.addLine(to: P(100 - 17 * s, oben + 46 * s))
+                p.closeSubpath()
+            }
+            let rf = jacke == 4 ? f.mix(Pal.weiss, 0.12) : f.mal(0.8)
+            teil(g, revers, rf, 2.5)
+            teil(g, gespiegelt(revers), rf, 2.5)
+            if jacke == 1 {
+                linie(g, strich(P(innenO - 3 * s, oben + 48 * s), P(innenU - 3 * s, unten - 4)), Pal.silber.farbe, 2.2)
+                for seite in [CGFloat(-1), 1] {
+                    let x: CGFloat = 100 + seite * 44 * s
+                    linie(innen, strich(P(x, oben + 30 * s), P(x, unten - 10)), .white.opacity(0.22), 4 * s)
+                }
+            } else {
+                teil(g, kreis(P(innenU + 2 * s, unten - 30 * s), 3.5 * s), f.mal(0.7), 1.5)
+            }
+        case 2:
+            let kragen = Path { p in
+                p.move(to: P(innenO, oben))
+                p.addLine(to: P(100 - 32 * s, oben - 4 * s))
+                p.addLine(to: P(100 - 24 * s, oben + 20 * s))
+                p.closeSubpath()
+            }
+            teil(g, kragen, f.mix(Pal.weiss, 0.12), 2)
+            teil(g, gespiegelt(kragen), f.mix(Pal.weiss, 0.12), 2)
+            for seite in [CGFloat(-1), 1] {
+                let x: CGFloat = 100 + seite * 32 * s - 9 * s
+                teil(innen, box(x, oben + 34 * s, 18 * s, 13 * s, 3 * s), f.mal(0.88), 1.8)
+            }
+        case 3:
+            let bund = bogen(P(100 - 26 * s, oben + 1), P(100 + 26 * s, oben + 1), P(100, oben + 24 * s))
+            linie(g, bund, f.kontur, 9 * s)
+            linie(g, bund, f.mal(0.75).farbe, 6.5 * s)
+            teil(innen, box(0, unten - 12 * s, 200, 40), f.mal(0.75), 2)
+            linie(g, strich(P(innenO - 2 * s, oben + 20 * s), P(innenU - 2 * s, unten)), Pal.silber.farbe, 2)
+        case 5:
+            for seite in [links, rechts] {
+                var h = innen
+                h.clip(to: seite)
+                for i in 0..<9 {
+                    let y: CGFloat = oben + (18 + CGFloat(i) * 17) * s
+                    linie(h, bogen(P(0, y), P(200, y), P(100, y + 6 * s)), f.kontur, 2)
+                }
+            }
         default:
             break
         }
@@ -427,20 +664,21 @@ private struct Zeichner {
         teil(g, kopfPfad, haut)
     }
 
-    func arm(_ g: GraphicsContext, _ schulter: CGPoint, _ a: Arm) {
+    /// `d` scales the thickness (1 for the half figure, thinner on the full body).
+    func arm(_ g: GraphicsContext, _ schulter: CGPoint, _ a: Arm, _ d: CGFloat = 1) {
         let oben = strich(schulter, a.ellbogen)
         let unten = strich(a.ellbogen, a.hand)
-        let obenFarbe = aermel == .keine ? haut : top
-        let untenFarbe = aermel == .lang ? top : haut
-        linie(g, oben, obenFarbe.kontur, 25)
-        linie(g, unten, untenFarbe.kontur, 21)
-        linie(g, unten, untenFarbe.farbe, 15.5)
-        linie(g, oben, obenFarbe.farbe, 19)
+        let obenFarbe = aermel == .keine ? haut : aermelFarbe
+        let untenFarbe = aermel == .lang ? aermelFarbe : haut
+        linie(g, oben, obenFarbe.kontur, 25 * d)
+        linie(g, unten, untenFarbe.kontur, 21 * d)
+        linie(g, unten, untenFarbe.farbe, 15.5 * d)
+        linie(g, oben, obenFarbe.farbe, 19 * d)
     }
 
     // MARK: Face
 
-    var augenForm: Auge {
+    var augenAusdruck: Auge {
         switch z {
         case .schlaeft, .morgen: .zu
         case .lacht, .kuss, .gut, .naehe: .froh
@@ -475,31 +713,73 @@ private struct Zeichner {
     }
 
     func gesicht(_ g: GraphicsContext) {
-        let staerke = (z == .kuss || z == .herz || z == .naehe) ? 0.5 : 0.28
+        let staerke = (z == .kuss || z == .herz || z == .naehe || rouge) ? 0.5 : 0.28
         let wange = Pal.rose.farbe.opacity(staerke)
         g.fill(oval(P(68, 120), 10, 6), with: .color(wange))
         g.fill(oval(P(132, 120), 10, 6), with: .color(wange))
+        if sommersprossen {
+            let punkte: [CGPoint] = [P(62, 114), P(69, 110), P(74, 117), P(66, 121), P(92, 110), P(97, 106)]
+            for c in punkte {
+                g.fill(kreis(c, 1.4), with: .color(haut.mal(0.72).farbe))
+                g.fill(kreis(P(200 - c.x, c.y), 1.4), with: .color(haut.mal(0.72).farbe))
+            }
+        }
+        if muttermal { g.fill(kreis(P(122, 127), 1.9), with: .color(Pal.tinte.farbe.opacity(0.8))) }
         bartZeichnen(g)
         brauen(g)
         augen(g)
-        linie(g, bogen(P(96, 115), P(104, 115), P(100, 119)), haut.kontur, 2.5)
+        nase(g)
         mund(g)
     }
 
     func brauen(_ g: GraphicsContext) {
-        let farbe = haar.mal(0.8).farbe
+        let farbe = haar.mal(0.8)
         let hoch: CGFloat = (z == .schautBild || z == .schautVideo || z == .anstupsen) ? -5 : 0
-        let innenY: CGFloat = (z == .schlecht || z == .akkuLeer) ? 74 : 80
+        let traurig: CGFloat = (z == .schlecht || z == .akkuLeer) ? -6 : 0
+        let dicken: [CGFloat] = [4.5, 2.6, 7, 5, 4.5, 4.5, 4.5, 4]
         for seite in [CGFloat(-1), 1] {
-            let aussen = P(100 + seite * 30, 81 + hoch)
-            let innen = P(100 + seite * 10, innenY + hoch)
-            let ctrl = P(100 + seite * 20, 75 + hoch)
-            linie(g, bogen(aussen, innen, ctrl), farbe, 4.5)
+            var aussen = P(100 + seite * 30, 81 + hoch)
+            var innen = P(100 + seite * 10, 80 + hoch + traurig)
+            var ctrl = P(100 + seite * 20, 75 + hoch)
+            switch brauenStil {
+            case 3:
+                ctrl.y = 79 + hoch
+                aussen.y = 80 + hoch
+            case 4:
+                ctrl.y = 68 + hoch
+                aussen.y = 80 + hoch
+            case 7:
+                aussen = P(100 + seite * 26, 80 + hoch)
+                innen.x = 100 + seite * 13
+                ctrl.y = 76 + hoch
+            default:
+                break
+            }
+            switch brauenStil {
+            case 5:
+                let busch = Path { p in
+                    p.move(to: P(innen.x, innen.y + 3))
+                    p.addQuadCurve(to: aussen, control: P(ctrl.x, ctrl.y + 5))
+                    p.addQuadCurve(to: P(innen.x, innen.y - 5), control: P(ctrl.x, ctrl.y - 3))
+                    p.closeSubpath()
+                }
+                teil(g, busch, farbe, 2)
+            case 6:
+                let spitze = P(100 + seite * 23, 74 + hoch)
+                let knick = Path { p in
+                    p.move(to: innen)
+                    p.addLine(to: spitze)
+                    p.addLine(to: aussen)
+                }
+                linie(g, knick, farbe.farbe, 4.5)
+            default:
+                linie(g, bogen(aussen, innen, ctrl), farbe.farbe.opacity(brauenStil == 7 ? 0.85 : 1), dicken[brauenStil])
+            }
         }
     }
 
     func augen(_ g: GraphicsContext) {
-        let form = augenForm
+        let form = augenAusdruck
         var offen = true
         if case .zu = form { offen = false }
         if case .froh = form { offen = false }
@@ -509,86 +789,218 @@ private struct Zeichner {
             return
         }
         let blinzelt = !statisch && zyklus(4.2, 1.3) < 0.035
-        for x in [CGFloat(80), 120] {
-            let c = P(x, 98)
+        let seiten: [(x: CGFloat, aussen: CGFloat)] = [(80, -1), (120, 1)]
+        for s in seiten {
+            let c = P(s.x, 98)
             if blinzelt && offen {
-                geschlossen(g, c, froh: false)
+                geschlossen(g, c, s.aussen, froh: false)
                 continue
             }
             switch form {
-            case .zu: geschlossen(g, c, froh: false)
-            case .froh: geschlossen(g, c, froh: true)
-            case .offen(let gross): offenesAuge(g, c, gross: gross, lid: false)
-            case .muede: offenesAuge(g, c, gross: false, lid: true)
+            case .zu: geschlossen(g, c, s.aussen, froh: false)
+            case .froh: geschlossen(g, c, s.aussen, froh: true)
+            case .offen(let gross): offenesAuge(g, c, s.aussen, gross: gross, lid: false)
+            case .muede: offenesAuge(g, c, s.aussen, gross: false, lid: true)
             }
         }
     }
 
-    func geschlossen(_ g: GraphicsContext, _ c: CGPoint, froh: Bool) {
+    func geschlossen(_ g: GraphicsContext, _ c: CGPoint, _ aussen: CGFloat, froh: Bool) {
         let dy: CGFloat = froh ? -8 : 6
         linie(g, bogen(P(c.x - 9, c.y + 1), P(c.x + 9, c.y + 1), P(c.x, c.y + 1 + dy)), Pal.tinte.farbe, 3.2)
+        if wimpern {
+            let ende = P(c.x + aussen * 9, c.y + 1)
+            linie(g, strich(ende, P(ende.x + aussen * 4, ende.y - 3)), Pal.tinte.farbe, 2.2)
+        }
     }
 
-    func offenesAuge(_ g: GraphicsContext, _ c: CGPoint, gross: Bool, lid: Bool) {
-        let rx: CGFloat = gross ? 11 : 9.5
-        let ry: CGFloat = gross ? 14 : 12
-        let weiss = oval(c, rx, ry)
-        g.fill(weiss, with: .color(.white))
-        var h = g
+    /// Eye shapes: size, tilt of the outer corner, lid cover and a liner wing.
+    static let augenMasse: [(sx: CGFloat, sy: CGFloat, kipp: Double, deckel: CGFloat, strich: Bool)] = [
+        (1, 1, 0, 0, false),          // Rund
+        (1.12, 0.78, 6, 0, false),    // Mandel
+        (1.15, 1.15, 0, 0, false),    // Groß
+        (1.05, 0.6, 0, 0, false),     // Schmal
+        (1.05, 0.95, 0, 0.38, false), // Verträumt
+        (1.05, 0.85, -9, 0.12, false),// Hängend
+        (1.1, 0.8, 12, 0, true),      // Katzenauge
+        (0.8, 0.8, 0, 0, false),      // Klein
+    ]
+
+    /// `aussen` is -1 for the left eye and 1 for the right one (side of the outer corner).
+    func offenesAuge(_ g: GraphicsContext, _ c: CGPoint, _ aussen: CGFloat, gross: Bool, lid: Bool) {
+        let f = Self.augenMasse[augenform]
+        let tinte = Pal.tinte.farbe
+        let rx: CGFloat = (gross ? 11 : 9.5) * f.sx
+        let ry: CGFloat = (gross ? 14 : 12) * f.sy
+        var e = g
+        e.translateBy(x: c.x, y: c.y)
+        e.rotate(by: .degrees(-f.kipp * Double(aussen)))
+        let weiss = oval(.zero, rx, ry)
+        e.fill(weiss, with: .color(.white))
+        var h = e
         h.clip(to: weiss)
         let b = blick
-        let ic = P(c.x + b.x * 3, c.y + 2 + b.y * 3)
-        h.fill(kreis(ic, 7.5), with: .color(iris.farbe))
-        h.fill(kreis(ic, 3.8), with: .color(Pal.tinte.farbe))
+        let ic = P(b.x * 3, 2 + b.y * 3)
+        let ir: CGFloat = 7.5 * min(f.sx, 1.05)
+        h.fill(kreis(ic, ir), with: .color(iris.farbe))
+        h.fill(kreis(ic, ir * 0.5), with: .color(tinte))
         h.fill(kreis(P(ic.x - 2.5, ic.y - 3), 2.3), with: .color(.white))
-        if lid { h.fill(box(c.x - rx, c.y - ry, rx * 2, ry * 1.05), with: .color(haut.farbe)) }
-        linie(g, weiss, Pal.tinte.farbe.opacity(0.5), 1.6)
-        let lidY: CGFloat = lid ? c.y + 1 : c.y - 2 * ry + 1
-        let kante: CGFloat = lid ? c.y : c.y - 1
-        linie(g, bogen(P(c.x - rx, kante), P(c.x + rx, kante), P(c.x, lidY)), Pal.tinte.farbe, 3.2)
+        let deckel: CGFloat = lid ? 1.05 : f.deckel * 2
+        if deckel > 0 { h.fill(box(-rx, -ry, rx * 2, ry * deckel), with: .color(haut.farbe)) }
+        linie(e, weiss, tinte.opacity(0.5), 1.6)
+        let kante: CGFloat = deckel > 0 ? -ry + ry * deckel : -1
+        let bogenY: CGFloat = deckel > 0 ? kante + 1 : -2 * ry + 1
+        linie(e, bogen(P(-rx, kante), P(rx, kante), P(0, bogenY)), tinte, 3.2)
+        let ax: CGFloat = aussen * rx
+        if wimpern {
+            let y1: CGFloat = min(-ry * 0.45, kante)
+            linie(e, strich(P(ax * 0.92, y1), P(ax * 0.92 + aussen * 5, y1 - 4)), tinte, 2.2)
+            let y2: CGFloat = min(-ry * 0.78, kante)
+            linie(e, strich(P(ax * 0.66, y2), P(ax * 0.66 + aussen * 4, y2 - 5)), tinte, 2.2)
+        }
+        if f.strich {
+            let y: CGFloat = -ry * 0.3
+            linie(e, strich(P(ax * 0.9, y), P(ax + aussen * 7, y - 5)), tinte, 3)
+        }
+    }
+
+    func nase(_ g: GraphicsContext) {
+        let k = haut.kontur
+        switch nasenStil {
+        case 1:
+            g.fill(oval(P(100, 114), 5.5, 4.5), with: .color(haut.mal(0.84).farbe))
+            g.fill(kreis(P(98, 112), 1.5), with: .color(.white.opacity(0.6)))
+        case 2:
+            let p = Path { p in
+                p.move(to: P(101, 100))
+                p.addLine(to: P(104, 113))
+                p.addQuadCurve(to: P(96, 116), control: P(106, 118))
+            }
+            linie(g, p, k, 2.5)
+        case 3:
+            linie(g, bogen(P(91, 114), P(109, 114), P(100, 121)), k, 2.5)
+            for x in [CGFloat(95), 105] { g.fill(kreis(P(x, 115), 1.5), with: .color(k)) }
+        case 4:
+            linie(g, kreis(P(100, 112), 3.5), k, 2)
+            for x in [CGFloat(97), 103] { g.fill(kreis(P(x, 116.5), 1.2), with: .color(k)) }
+        case 5:
+            let p = Path { p in
+                p.move(to: P(99, 98))
+                p.addLine(to: P(97, 114))
+                p.addQuadCurve(to: P(104, 115), control: P(98, 119))
+            }
+            linie(g, p, k, 2.5)
+        default:
+            linie(g, bogen(P(96, 115), P(104, 115), P(100, 119)), k, 2.5)
+        }
+    }
+
+    var lippe: FigurFarbe? {
+        switch mundStil {
+        case 3: haut.mix(Pal.rose, 0.4).mal(0.9)
+        case 6: FigurFarbe(0xE56B8A)
+        case 7: FigurFarbe(0xC8283F)
+        default: nil
+        }
+    }
+
+    func volleLippen(_ g: GraphicsContext, _ f: FigurFarbe) {
+        let oben = Path { p in
+            p.move(to: P(88, 128))
+            p.addQuadCurve(to: P(100, 126), control: P(94, 121))
+            p.addQuadCurve(to: P(112, 128), control: P(106, 121))
+            p.addQuadCurve(to: P(88, 128), control: P(100, 131))
+            p.closeSubpath()
+        }
+        let unten = Path { p in
+            p.move(to: P(89, 129))
+            p.addQuadCurve(to: P(111, 129), control: P(100, 141))
+            p.addQuadCurve(to: P(89, 129), control: P(100, 132))
+            p.closeSubpath()
+        }
+        teil(g, unten, f, 1.5)
+        teil(g, oben, f, 1.5)
+        linie(g, bogen(P(88, 128), P(112, 128), P(100, 132)), Pal.tinte.farbe, 2)
+        g.fill(oval(P(103, 134), 3, 1.5), with: .color(.white.opacity(0.4)))
     }
 
     func mund(_ g: GraphicsContext) {
         let tinte = Pal.tinte.farbe
+        let rand: Color = lippe?.mal(0.75).farbe ?? tinte
         switch mundForm {
         case .laecheln:
-            linie(g, bogen(P(90, 128), P(110, 128), P(100, 137)), tinte, 3)
+            if let l = lippe {
+                volleLippen(g, l)
+                return
+            }
+            switch mundStil {
+            case 1:
+                let m = Path { p in
+                    p.move(to: P(90, 127))
+                    p.addLine(to: P(110, 127))
+                    p.addQuadCurve(to: P(90, 127), control: P(100, 140))
+                    p.closeSubpath()
+                }
+                g.fill(m, with: .color(.white))
+                linie(g, m, tinte, 2.5)
+            case 2:
+                linie(g, bogen(P(91, 130), P(111, 126), P(101, 136)), tinte, 3)
+                linie(g, strich(P(112, 124), P(113, 128)), tinte, 2)
+            case 4:
+                linie(g, bogen(P(93, 129), P(107, 129), P(100, 133)), tinte, 2.5)
+            case 5:
+                linie(g, bogen(P(84, 126), P(116, 126), P(100, 141)), tinte, 3)
+                linie(g, bogen(P(82, 123), P(83, 130), P(80, 126)), tinte, 2)
+                linie(g, bogen(P(118, 123), P(117, 130), P(120, 126)), tinte, 2)
+            default:
+                linie(g, bogen(P(90, 128), P(110, 128), P(100, 137)), tinte, 3)
+            }
         case .grinsen:
+            let breit: CGFloat = mundStil == 5 ? 4 : 0
             let m = Path { p in
-                p.move(to: P(86, 126))
-                p.addLine(to: P(114, 126))
-                p.addQuadCurve(to: P(86, 126), control: P(100, 150))
+                p.move(to: P(86 - breit, 126))
+                p.addLine(to: P(114 + breit, 126))
+                p.addQuadCurve(to: P(86 - breit, 126), control: P(100, 150))
                 p.closeSubpath()
             }
             g.fill(m, with: .color(Pal.mundInnen.farbe))
             var h = g
             h.clip(to: m)
             h.fill(oval(P(100, 142), 9, 6), with: .color(Pal.zunge.farbe))
-            h.fill(box(86, 124, 28, 5), with: .color(.white))
-            linie(g, m, tinte, 2.5)
+            h.fill(box(80, 124, 40, 5), with: .color(.white))
+            linie(g, m, rand, lippe == nil ? 2.5 : 3.5)
         case .offen(let r):
             let o = oval(P(100, 132), r * 0.8, r)
             g.fill(o, with: .color(Pal.mundInnen.farbe))
-            linie(g, o, tinte, 2.5)
+            linie(g, o, rand, lippe == nil ? 2.5 : 3.5)
         case .neutral:
-            linie(g, strich(P(92, 131), P(108, 131)), tinte, 3)
+            linie(g, strich(P(92, 131), P(108, 131)), rand, lippe == nil ? 3 : 4)
         case .traurig:
-            linie(g, bogen(P(91, 134), P(109, 134), P(100, 125)), tinte, 3)
+            linie(g, bogen(P(91, 134), P(109, 134), P(100, 125)), rand, lippe == nil ? 3 : 4)
         case .kuss:
-            teil(g, oval(P(101, 131), 6, 5), Pal.rose, 2.5)
-            linie(g, strich(P(96, 131), P(106, 131)), Pal.rose.kontur, 1.5)
+            let f = lippe ?? Pal.rose
+            teil(g, oval(P(101, 131), 6, 5), f, 2.5)
+            linie(g, strich(P(96, 131), P(106, 131)), f.kontur, 1.5)
         }
     }
 
-    func kinnband(innen: CGFloat) -> Path {
-        Path { p in
-            p.move(to: P(42, 96))
-            p.addCurve(to: P(100, 152), control1: P(42, 128), control2: P(66, 152))
-            p.addCurve(to: P(158, 96), control1: P(134, 152), control2: P(158, 128))
+    /// Beard area: the head minus the face above `innen` (works for every face shape).
+    func bartZone(_ g: GraphicsContext, innen: CGFloat, deckung: Double) {
+        let gesichtsFeld = Path { p in
+            p.move(to: P(52, 40))
+            p.addLine(to: P(148, 40))
             p.addLine(to: P(148, 100))
             p.addCurve(to: P(100, innen + 12), control1: P(146, innen), control2: P(124, innen + 12))
             p.addCurve(to: P(52, 100), control1: P(76, innen + 12), control2: P(54, innen))
             p.closeSubpath()
+        }
+        var h = g
+        h.clip(to: gesichtsFeld, options: .inverse)
+        h.opacity = deckung
+        h.fill(Path(CGRect(x: 20, y: 92, width: 160, height: 90)), with: .color(haar.farbe))
+        if deckung >= 1 {
+            linie(h, gesichtsFeld, haar.kontur, 5)
+            linie(h, kopfPfad, haar.kontur, 7)
         }
     }
 
@@ -606,16 +1018,38 @@ private struct Zeichner {
         }
         switch bart {
         case 1:
-            h.fill(kinnband(innen: 130), with: .color(haar.farbe.opacity(0.22)))
+            bartZone(h, innen: 130, deckung: 0.22)
             h.fill(schnurr, with: .color(haar.farbe.opacity(0.22)))
         case 2:
             teil(h, schnurr, haar, 2)
         case 3:
             teil(h, oval(P(100, 144), 11, 8), haar, 2)
             teil(h, schnurr, haar, 2)
-        default:
-            teil(h, kinnband(innen: 118), haar, 2.5)
+        case 4:
+            bartZone(h, innen: 118, deckung: 1)
             teil(h, schnurr, haar, 2)
+        case 5:
+            let spitz = Path { p in
+                p.move(to: P(92, 139))
+                p.addQuadCurve(to: P(100, 156), control: P(92, 150))
+                p.addQuadCurve(to: P(108, 139), control: P(108, 150))
+                p.closeSubpath()
+            }
+            teil(h, spitz, haar, 2)
+        case 6:
+            bartZone(h, innen: 136, deckung: 1)
+        case 7:
+            bartZone(h, innen: 118, deckung: 1)
+            let lang = Path { p in
+                p.move(to: P(66, 136))
+                p.addQuadCurve(to: P(100, 186), control: P(70, 182))
+                p.addQuadCurve(to: P(134, 136), control: P(130, 182))
+                p.closeSubpath()
+            }
+            teil(g, lang, haar, 2.5)
+            teil(h, schnurr, haar, 2)
+        default:
+            for x in [CGFloat(42), 146] { h.fill(box(x, 80, 12, 40, 4), with: .color(haar.farbe)) }
         }
     }
 
@@ -633,23 +1067,63 @@ private struct Zeichner {
         }
     }
 
+    /// Hair part with outline, plus highlight streaks when the hair color has them.
+    func haarTeil(_ g: GraphicsContext, _ p: Path, _ breite: CGFloat = 3.5) {
+        teil(g, p, haar, breite)
+        guard let s = straehne else { return }
+        var h = g
+        h.clip(to: p)
+        for i in 0..<7 {
+            let x = CGFloat(34 + i * 22)
+            linie(h, bogen(P(x, 0), P(x + 10, 240), P(x - 14, 110)), s.farbe.opacity(0.85), 4)
+        }
+    }
+
+    func lockenKette(_ g: GraphicsContext, _ punkte: [CGPoint], _ r: CGFloat) {
+        for c in punkte { g.fill(kreis(c, r + 2), with: .color(haar.kontur)) }
+        for c in punkte { g.fill(kreis(c, r), with: .color(haar.farbe)) }
+    }
+
+    func langHinten(_ u: CGFloat) -> Path {
+        Path { p in
+            p.move(to: P(100, 22))
+            p.addCurve(to: P(34, 92), control1: P(56, 22), control2: P(34, 50))
+            p.addLine(to: P(30, u - 8))
+            p.addQuadCurve(to: P(60, u), control: P(40, u + 2))
+            p.addLine(to: P(140, u))
+            p.addQuadCurve(to: P(170, u - 8), control: P(160, u + 2))
+            p.addLine(to: P(166, 92))
+            p.addCurve(to: P(100, 22), control1: P(166, 50), control2: P(144, 22))
+            p.closeSubpath()
+        }
+    }
+
+    func seitenLocken(_ bis: CGFloat) -> [CGPoint] {
+        var punkte: [CGPoint] = []
+        for y in stride(from: CGFloat(104), through: bis, by: 18) {
+            punkte.append(P(40, y))
+            punkte.append(P(160, y))
+        }
+        return punkte
+    }
+
     func haareHinten(_ g: GraphicsContext) {
         switch frisur {
-        case 6:
-            teil(g, box(32, 30, 136, 124, 50), haar)
-        case 7, 8:
-            let lang = Path { p in
-                p.move(to: P(100, 22))
-                p.addCurve(to: P(34, 92), control1: P(56, 22), control2: P(34, 50))
-                p.addLine(to: P(30, 214))
-                p.addQuadCurve(to: P(60, 222), control: P(40, 224))
-                p.addLine(to: P(140, 222))
-                p.addQuadCurve(to: P(170, 214), control: P(160, 224))
-                p.addLine(to: P(166, 92))
-                p.addCurve(to: P(100, 22), control1: P(166, 50), control2: P(144, 22))
-                p.closeSubpath()
-            }
-            teil(g, lang, haar)
+        case 6, 28:
+            haarTeil(g, box(32, 30, 136, 124, 50))
+        case 7, 8, 20, 29:
+            haarTeil(g, langHinten(222))
+        case 26:
+            haarTeil(g, kreis(P(100, 20), 11))
+            haarTeil(g, langHinten(222))
+        case 21:
+            haarTeil(g, langHinten(222))
+            lockenKette(g, seitenLocken(212), 13)
+        case 22:
+            haarTeil(g, langHinten(168))
+        case 31:
+            haarTeil(g, langHinten(170))
+            lockenKette(g, seitenLocken(164), 13)
         case 9:
             let zopf = Path { p in
                 p.move(to: P(132, 40))
@@ -657,18 +1131,71 @@ private struct Zeichner {
                 p.addCurve(to: P(150, 100), control1: P(162, 176), control2: P(150, 136))
                 p.closeSubpath()
             }
-            teil(g, zopf, haar)
+            haarTeil(g, zopf)
         case 10:
-            teil(g, kreis(P(100, 24), 18), haar)
+            haarTeil(g, kreis(P(100, 24), 18))
+        case 17:
+            var bumps: [CGPoint] = []
+            for i in 0..<14 {
+                let a = Double(i) / 14 * 2 * Double.pi
+                bumps.append(P(100 + 66 * CGFloat(cos(a)), 78 + 62 * CGFloat(sin(a))))
+            }
+            for b in bumps { g.fill(kreis(b, 16), with: .color(haar.kontur)) }
+            g.fill(oval(P(100, 78), 68, 64), with: .color(haar.kontur))
+            for b in bumps { g.fill(kreis(b, 13.5), with: .color(haar.farbe)) }
+            g.fill(oval(P(100, 78), 66, 62), with: .color(haar.farbe))
+        case 18:
+            haarTeil(g, kreis(P(100, 16), 13))
+            g.fill(box(88, 25, 24, 5, 2), with: .color(haar.mal(0.6).farbe))
+        case 19:
+            for x in stride(from: CGFloat(36), through: 164, by: 14) {
+                let lang: CGFloat = abs(x - 100) > 40 ? 132 : 70
+                let strang = box(x - 6, 40, 12, lang - 40, 6)
+                linie(g, strang, haar.kontur, 3)
+                g.fill(strang, with: .color(haar.farbe))
+            }
+        case 23:
+            let schweif = Path { p in
+                p.move(to: P(96, 20))
+                p.addCurve(to: P(172, 150), control1: P(150, -10), control2: P(186, 80))
+                p.addCurve(to: P(146, 90), control1: P(160, 150), control2: P(150, 120))
+                p.addCurve(to: P(112, 22), control1: P(146, 60), control2: P(130, 30))
+                p.closeSubpath()
+            }
+            haarTeil(g, schweif)
+        case 24:
+            haarTeil(g, kreis(P(52, 34), 20))
+            haarTeil(g, kreis(P(148, 34), 20))
+        case 32:
+            let schwanz = Path { p in
+                p.move(to: P(50, 60))
+                p.addCurve(to: P(16, 150), control1: P(14, 60), control2: P(6, 110))
+                p.addCurve(to: P(40, 118), control1: P(28, 150), control2: P(40, 136))
+                p.addCurve(to: P(56, 76), control1: P(40, 96), control2: P(50, 84))
+                p.closeSubpath()
+            }
+            haarTeil(g, schwanz)
+            haarTeil(g, gespiegelt(schwanz))
         default:
             break
         }
     }
 
+    func lockenKopf(_ g: GraphicsContext) {
+        g.fill(kappe(top: 22, scheitel: 100, ansatz: 62, unten: 96), with: .color(haar.farbe))
+        var locken: [CGPoint] = []
+        for grad in stride(from: 190.0, through: 350.0, by: 20.0) {
+            let r = grad * Double.pi / 180
+            locken.append(P(100 + 60 * CGFloat(cos(r)), 84 + 60 * CGFloat(sin(r))))
+        }
+        locken += [P(66, 60), P(84, 54), P(100, 52), P(116, 54), P(134, 60)]
+        lockenKette(g, locken, 11.8)
+    }
+
     func haareVorn(_ g: GraphicsContext) {
         switch frisur {
         case 0:
-            teil(g, kappe(top: 18, scheitel: 100, ansatz: 58, unten: 92), haar)
+            haarTeil(g, kappe(top: 18, scheitel: 100, ansatz: 58, unten: 92))
             let bueschel = Path { p in
                 p.move(to: P(76, 40))
                 p.addQuadCurve(to: P(90, 12), control: P(76, 20))
@@ -681,7 +1208,7 @@ private struct Zeichner {
         case 1:
             teil(g, kappe(top: 24, scheitel: 100, ansatz: 54, unten: 88), haar.mix(haut, 0.35), 2.5)
         case 2:
-            teil(g, kappe(top: 18, scheitel: 72, ansatz: 56, unten: 92), haar)
+            haarTeil(g, kappe(top: 18, scheitel: 72, ansatz: 56, unten: 92))
             let welle = Path { p in
                 p.move(to: P(70, 46))
                 p.addCurve(to: P(152, 86), control1: P(112, 30), control2: P(150, 52))
@@ -689,19 +1216,11 @@ private struct Zeichner {
                 p.addCurve(to: P(70, 46), control1: P(88, 64), control2: P(74, 56))
                 p.closeSubpath()
             }
-            teil(g, welle, haar, 3)
+            haarTeil(g, welle, 3)
         case 3:
-            g.fill(kappe(top: 22, scheitel: 100, ansatz: 62, unten: 96), with: .color(haar.farbe))
-            var locken: [CGPoint] = []
-            for grad in stride(from: 190.0, through: 350.0, by: 20.0) {
-                let r = grad * Double.pi / 180
-                locken.append(P(100 + 60 * CGFloat(cos(r)), 84 + 60 * CGFloat(sin(r))))
-            }
-            locken += [P(66, 60), P(84, 54), P(100, 52), P(116, 54), P(134, 60)]
-            for c in locken { g.fill(kreis(c, 13.8), with: .color(haar.kontur)) }
-            for c in locken { g.fill(kreis(c, 11.8), with: .color(haar.farbe)) }
+            lockenKopf(g)
         case 4:
-            teil(g, kappe(top: 22, scheitel: 100, ansatz: 58, unten: 92), haar)
+            haarTeil(g, kappe(top: 22, scheitel: 100, ansatz: 58, unten: 92))
             let tolle = Path { p in
                 p.move(to: P(64, 50))
                 p.addCurve(to: P(118, 6), control1: P(60, 20), control2: P(88, 4))
@@ -710,21 +1229,21 @@ private struct Zeichner {
                 p.addCurve(to: P(64, 50), control1: P(86, 56), control2: P(72, 56))
                 p.closeSubpath()
             }
-            teil(g, tolle, haar, 3)
+            haarTeil(g, tolle, 3)
         case 5:
             linie(g, bogen(P(62, 56), P(84, 38), P(66, 42)), .white.opacity(0.35), 5)
             return
         case 6:
-            teil(g, kappe(top: 16, scheitel: 100, ansatz: 70, unten: 106), haar)
-        case 7, 8:
-            teil(g, kappe(top: 16, scheitel: frisur == 7 ? 100 : 80, ansatz: 50, unten: 106), haar)
-            let straehne = frisur == 7 ? straehneGlatt : straehneWellig
-            teil(g, straehne, haar)
-            teil(g, gespiegelt(straehne), haar)
-        case 9, 10:
-            teil(g, kappe(top: 20, scheitel: 100, ansatz: 54, unten: 96), haar)
-        default:
-            teil(g, kappe(top: 18, scheitel: 100, ansatz: 52, unten: 100), haar)
+            haarTeil(g, kappe(top: 16, scheitel: 100, ansatz: 70, unten: 106))
+        case 7, 8, 26:
+            haarTeil(g, kappe(top: 16, scheitel: frisur == 8 ? 80 : 100, ansatz: 50, unten: 106))
+            let strang = frisur == 8 ? straehneWellig : straehneGlatt()
+            haarTeil(g, strang)
+            haarTeil(g, gespiegelt(strang))
+        case 9, 10, 24:
+            haarTeil(g, kappe(top: 20, scheitel: 100, ansatz: 54, unten: 96))
+        case 11:
+            haarTeil(g, kappe(top: 18, scheitel: 100, ansatz: 52, unten: 100))
             for seite in [CGFloat(-1), 1] {
                 var glieder: [CGPoint] = []
                 for i in 0..<6 { glieder.append(P(100 + seite * (54 + CGFloat(i) * 1.5), 112 + CGFloat(i) * 16)) }
@@ -733,18 +1252,163 @@ private struct Zeichner {
                 let ende = P(100 + seite * 63, 206)
                 teil(g, kreis(ende, 5), Pal.rose, 2)
             }
+        case 12:
+            let k = kappe(top: 18, scheitel: 100, ansatz: 60, unten: 94)
+            haarTeil(g, k)
+            var buschel: [Path] = []
+            for i in 0..<6 {
+                let x0 = CGFloat(48 + i * 17)
+                let dx: CGFloat = i % 2 == 0 ? 6 : 12
+                let sy: CGFloat = i % 2 == 0 ? 72 : 66
+                let spitze = P(x0 + dx, sy)
+                buschel.append(Path { p in
+                    p.move(to: P(x0, 52))
+                    p.addQuadCurve(to: spitze, control: P(x0 + 1, 66))
+                    p.addQuadCurve(to: P(x0 + 19, 52), control: P(x0 + 16, 62))
+                    p.closeSubpath()
+                })
+            }
+            for p in buschel { linie(g, p, haar.kontur, 5) }
+            for p in buschel { g.fill(p, with: .color(haar.farbe)) }
+            g.fill(k, with: .color(haar.farbe))
+        case 13:
+            teil(g, kappe(top: 24, scheitel: 100, ansatz: 60, unten: 92), haar.mix(haut, 0.45), 2.5)
+            let oben = Path { p in
+                p.move(to: P(48, 62))
+                p.addCurve(to: P(100, 8), control1: P(42, 26), control2: P(68, 8))
+                p.addCurve(to: P(154, 54), control1: P(134, 8), control2: P(158, 30))
+                p.addCurve(to: P(48, 62), control1: P(122, 44), control2: P(78, 34))
+                p.closeSubpath()
+            }
+            haarTeil(g, oben, 3)
+            linie(g, bogen(P(70, 40), P(140, 30), P(100, 20)), haar.kontur, 2)
+        case 14:
+            teil(g, kappe(top: 22, scheitel: 100, ansatz: 60, unten: 94), haar.mix(haut, 0.6), 2.5)
+            let oben = Path { p in
+                p.move(to: P(52, 60))
+                p.addCurve(to: P(100, 18), control1: P(50, 32), control2: P(70, 18))
+                p.addCurve(to: P(148, 60), control1: P(130, 18), control2: P(150, 32))
+                p.addQuadCurve(to: P(52, 60), control: P(100, 50))
+                p.closeSubpath()
+            }
+            haarTeil(g, oben, 3)
+        case 15:
+            haarTeil(g, kappe(top: 18, scheitel: 100, ansatz: 50, unten: 94))
+            let vorhang = Path { p in
+                p.move(to: P(100, 34))
+                p.addCurve(to: P(50, 92), control1: P(74, 36), control2: P(52, 58))
+                p.addLine(to: P(60, 94))
+                p.addCurve(to: P(98, 46), control1: P(64, 64), control2: P(80, 48))
+                p.closeSubpath()
+            }
+            haarTeil(g, vorhang, 3)
+            haarTeil(g, gespiegelt(vorhang), 3)
+        case 16:
+            haarTeil(g, kappe(top: 18, scheitel: 100, ansatz: 72, unten: 98))
+            for x in [CGFloat(72), 88, 112, 128] { linie(g, strich(P(x, 58), P(x + 1, 70)), haar.kontur, 2) }
+        case 17:
+            g.fill(kappe(top: 14, scheitel: 100, ansatz: 56, unten: 96), with: .color(haar.farbe))
+            var punkte: [CGPoint] = []
+            for x in stride(from: CGFloat(58), through: 142, by: 14) { punkte.append(P(x, 56 + abs(x - 100) * 0.3)) }
+            lockenKette(g, punkte, 9)
+        case 18:
+            teil(g, kappe(top: 22, scheitel: 100, ansatz: 54, unten: 90), haar.mix(haut, 0.3), 2.5)
+            let oben = Path { p in
+                p.move(to: P(56, 58))
+                p.addCurve(to: P(100, 22), control1: P(54, 34), control2: P(72, 22))
+                p.addCurve(to: P(144, 58), control1: P(128, 22), control2: P(146, 34))
+                p.addQuadCurve(to: P(56, 58), control: P(100, 46))
+                p.closeSubpath()
+            }
+            haarTeil(g, oben, 3)
+            for x in [CGFloat(78), 100, 122] { linie(g, bogen(P(x, 50), P(100, 26), P(x, 34)), haar.kontur, 1.8) }
+        case 19:
+            haarTeil(g, kappe(top: 20, scheitel: 100, ansatz: 58, unten: 94))
+            for x in stride(from: CGFloat(58), through: 142, by: 12) {
+                let lang: CGFloat = x.truncatingRemainder(dividingBy: 24) == 10 ? 34 : 28
+                let strang = box(x - 5, 40, 10, lang, 5)
+                linie(g, strang, haar.kontur, 3)
+                g.fill(strang, with: .color(haar.farbe))
+            }
+        case 20:
+            haarTeil(g, kappe(top: 16, scheitel: 100, ansatz: 72, unten: 106))
+            haarTeil(g, straehneGlatt())
+            haarTeil(g, gespiegelt(straehneGlatt()))
+        case 21:
+            haarTeil(g, kappe(top: 16, scheitel: 88, ansatz: 52, unten: 104))
+            lockenKette(g, seitenLocken(200), 11)
+        case 22:
+            haarTeil(g, kappe(top: 16, scheitel: 100, ansatz: 50, unten: 106))
+            haarTeil(g, straehneGlatt(166))
+            haarTeil(g, gespiegelt(straehneGlatt(166)))
+        case 23:
+            haarTeil(g, kappe(top: 18, scheitel: 100, ansatz: 50, unten: 92))
+            teil(g, kreis(P(104, 18), 7), Pal.rose, 2)
+        case 25:
+            haarTeil(g, kappe(top: 18, scheitel: 76, ansatz: 52, unten: 100))
+            haarTeil(g, gespiegelt(straehneGlatt(120)))
+            var glieder: [CGPoint] = []
+            for i in 0..<7 { glieder.append(P(152 - CGFloat(i) * 2.5, 112 + CGFloat(i) * 16)) }
+            for c in glieder { g.fill(oval(c, 13, 12), with: .color(haar.kontur)) }
+            for c in glieder { g.fill(oval(c, 11, 10), with: .color(haar.farbe)) }
+            teil(g, kreis(P(136, 222), 5), Pal.rose, 2)
+        case 27:
+            haarTeil(g, kappe(top: 20, scheitel: 70, ansatz: 60, unten: 92))
+            let schwung = Path { p in
+                p.move(to: P(58, 46))
+                p.addCurve(to: P(144, 66), control1: P(98, 30), control2: P(138, 40))
+                p.addCurve(to: P(96, 64), control1: P(130, 74), control2: P(112, 64))
+                p.addCurve(to: P(58, 46), control1: P(80, 64), control2: P(60, 60))
+                p.closeSubpath()
+            }
+            haarTeil(g, schwung, 3)
+        case 28:
+            haarTeil(g, kappe(top: 16, scheitel: 100, ansatz: 74, unten: 106))
+        case 29:
+            haarTeil(g, kappe(top: 16, scheitel: 70, ansatz: 50, unten: 106))
+            haarTeil(g, straehneGlatt())
+            haarTeil(g, gespiegelt(straehneGlatt()))
+            let schwung = Path { p in
+                p.move(to: P(70, 36))
+                p.addCurve(to: P(156, 110), control1: P(120, 34), control2: P(160, 70))
+                p.addLine(to: P(146, 112))
+                p.addCurve(to: P(72, 50), control1: P(140, 76), control2: P(110, 50))
+                p.closeSubpath()
+            }
+            haarTeil(g, schwung, 3)
+        case 30:
+            teil(g, kappe(top: 26, scheitel: 100, ansatz: 60, unten: 92), haar.mix(haut, 0.6), 2.5)
+            let kamm = Path { p in
+                p.move(to: P(86, 58))
+                p.addCurve(to: P(100, 2), control1: P(84, 22), control2: P(92, 6))
+                p.addCurve(to: P(114, 58), control1: P(108, 6), control2: P(116, 22))
+                p.closeSubpath()
+            }
+            haarTeil(g, kamm, 3)
+        case 31:
+            lockenKopf(g)
+            lockenKette(g, seitenLocken(150), 11)
+        case 32:
+            haarTeil(g, kappe(top: 18, scheitel: 100, ansatz: 54, unten: 96))
+            teil(g, kreis(P(46, 70), 6), Pal.rose, 2)
+            teil(g, kreis(P(154, 70), 6), Pal.rose, 2)
+        case 33:
+            haarTeil(g, kappe(top: 20, scheitel: 100, ansatz: 44, unten: 88))
+            for x in [CGFloat(78), 100, 122] { linie(g, bogen(P(x, 46), P(x + 4, 20), P(x - 6, 32)), .white.opacity(0.35), 3) }
+        default:
+            break
         }
-        if frisur != 1 {
+        if ![1, 14, 17, 30].contains(frisur) {
             linie(g, bogen(P(58, 62), P(86, 30), P(62, 36)), .white.opacity(0.45), 5)
         }
     }
 
-    var straehneGlatt: Path {
+    func straehneGlatt(_ u: CGFloat = 212) -> Path {
         Path { p in
             p.move(to: P(42, 92))
-            p.addCurve(to: P(32, 206), control1: P(34, 130), control2: P(30, 180))
-            p.addQuadCurve(to: P(58, 212), control: P(42, 216))
-            p.addCurve(to: P(54, 104), control1: P(60, 170), control2: P(58, 130))
+            p.addCurve(to: P(32, u - 6), control1: P(34, 130), control2: P(30, u - 32))
+            p.addQuadCurve(to: P(58, u), control: P(42, u + 4))
+            p.addCurve(to: P(54, 104), control1: P(60, u - 42), control2: P(58, 130))
             p.closeSubpath()
         }
     }
@@ -831,21 +1495,155 @@ private struct Zeichner {
 
     func brillen(_ g: GraphicsContext) {
         guard brille > 0 else { return }
-        let rahmen = Pal.tinte.farbe
-        let links = brille == 1 ? kreis(P(80, 98), 14) : box(64, 86, 32, 25, 7)
-        let rechts = brille == 1 ? kreis(P(120, 98), 14) : box(104, 86, 32, 25, 7)
-        let glas: Color = brille == 3 ? rahmen.opacity(0.9) : .white.opacity(0.15)
-        g.fill(links, with: .color(glas))
-        g.fill(rechts, with: .color(glas))
-        if brille == 3 {
-            linie(g, strich(P(70, 92), P(78, 90)), .white.opacity(0.6), 2.5)
-            linie(g, strich(P(110, 92), P(118, 90)), .white.opacity(0.6), 2.5)
+        let sonne = [3, 8, 9, 10].contains(brille)
+        let rahmen: Color
+        switch brille {
+        case 7: rahmen = Pal.tinte.farbe.opacity(0.5)
+        case 8: rahmen = Pal.gold.mal(0.8).farbe
+        case 9: rahmen = Pal.rose.kontur
+        default: rahmen = Pal.tinte.farbe
         }
-        linie(g, links, rahmen, 3)
-        linie(g, rechts, rahmen, 3)
-        linie(g, bogen(P(94, 96), P(106, 96), P(100, 91)), rahmen, 3)
-        linie(g, strich(P(66, 95), P(44, 92)), rahmen, 3)
-        linie(g, strich(P(134, 95), P(156, 92)), rahmen, 3)
+        let links: Path
+        switch brille {
+        case 1:
+            links = kreis(P(80, 98), 14)
+        case 4:
+            links = oval(P(80, 98), 16, 11)
+        case 5:
+            links = Path { p in
+                p.move(to: P(60, 84))
+                p.addQuadCurve(to: P(96, 90), control: P(80, 84))
+                p.addQuadCurve(to: P(82, 110), control: P(98, 108))
+                p.addQuadCurve(to: P(60, 84), control: P(64, 106))
+                p.closeSubpath()
+            }
+        case 6:
+            links = box(62, 84, 36, 28, 5)
+        case 7:
+            links = box(66, 88, 30, 22, 8)
+        case 8:
+            links = Path { p in
+                p.move(to: P(64, 88))
+                p.addLine(to: P(96, 88))
+                p.addQuadCurve(to: P(82, 112), control: P(98, 110))
+                p.addQuadCurve(to: P(64, 88), control: P(62, 108))
+                p.closeSubpath()
+            }
+        case 9:
+            links = herzPfad(P(80, 97), 15)
+        case 10:
+            links = Path { p in
+                p.move(to: P(56, 88))
+                p.addQuadCurve(to: P(144, 88), control: P(100, 80))
+                p.addLine(to: P(140, 106))
+                p.addQuadCurve(to: P(60, 106), control: P(100, 116))
+                p.closeSubpath()
+            }
+        default:
+            links = box(64, 86, 32, 25, 7)
+        }
+        let glaeser = brille == 10 ? [links] : [links, gespiegelt(links)]
+        let glas: Color
+        switch brille {
+        case 9: glas = Pal.rose.farbe.opacity(0.85)
+        case 10: glas = Pal.himmel.mal(0.7).farbe.opacity(0.9)
+        default: glas = sonne ? Pal.tinte.farbe.opacity(0.9) : .white.opacity(0.15)
+        }
+        let dicke: CGFloat = brille == 6 ? 5 : brille == 7 ? 1.4 : 3
+        for l in glaeser { g.fill(l, with: .color(glas)) }
+        if sonne {
+            linie(g, strich(P(70, 92), P(78, 90)), .white.opacity(0.6), 2.5)
+            if brille != 10 { linie(g, strich(P(110, 92), P(118, 90)), .white.opacity(0.6), 2.5) }
+        }
+        for l in glaeser { linie(g, l, rahmen, dicke) }
+        if brille != 10 { linie(g, bogen(P(94, 96), P(106, 96), P(100, 91)), rahmen, dicke) }
+        linie(g, strich(P(62, 95), P(44, 92)), rahmen, dicke)
+        linie(g, strich(P(138, 95), P(156, 92)), rahmen, dicke)
+    }
+
+    func ohrringeZeichnen(_ g: GraphicsContext) {
+        guard ohrring > 0 else { return }
+        for x in [CGFloat(42), 158] {
+            switch ohrring {
+            case 1:
+                teil(g, kreis(P(x, 110), 3), Pal.gold, 1.5)
+            case 2:
+                linie(g, kreis(P(x, 119), 8), Pal.gold.kontur, 4.5)
+                linie(g, kreis(P(x, 119), 8), Pal.gold.farbe, 2.5)
+            case 3:
+                linie(g, strich(P(x, 110), P(x, 121)), Pal.gold.farbe, 2)
+                teil(g, oval(P(x, 126), 3.5, 5), Pal.gold, 1.5)
+            default:
+                teil(g, kreis(P(x, 112), 4.2), FigurFarbe(0xF4EEE6), 1.5)
+                g.fill(kreis(P(x - 1.3, 110.7), 1.3), with: .color(.white))
+            }
+        }
+    }
+
+    func muetzeZeichnen(_ g: GraphicsContext) {
+        let f = muetzeF
+        switch muetze {
+        case 1, 2:
+            let krone = Path { p in
+                p.move(to: P(40, 66))
+                p.addCurve(to: P(100, 6), control1: P(36, 22), control2: P(64, 6))
+                p.addCurve(to: P(160, 66), control1: P(136, 6), control2: P(164, 22))
+                p.addQuadCurve(to: P(40, 66), control: P(100, 54))
+                p.closeSubpath()
+            }
+            teil(g, krone, f)
+            var h = g
+            h.clip(to: krone)
+            for x in [CGFloat(72), 128] { linie(h, bogen(P(x, 62), P(100, 6), P(x, 20)), f.kontur, 1.5) }
+            teil(g, kreis(P(100, 8), 4.5), f.mal(0.85), 2)
+            if muetze == 1 {
+                teil(g, oval(P(100, 64), 58, 10), f.mal(0.85))
+                g.fill(herzPfad(P(100, 38), 8), with: .color(f.mix(Pal.weiss, 0.7).farbe))
+            } else {
+                teil(g, box(84, 46, 32, 14, 6), haar, 2)
+                linie(g, strich(P(86, 53), P(114, 53)), f.mal(0.7).farbe, 3)
+            }
+        case 3:
+            let form = Path { p in
+                p.move(to: P(38, 70))
+                p.addCurve(to: P(100, 2), control1: P(34, 20), control2: P(64, 2))
+                p.addCurve(to: P(162, 70), control1: P(136, 2), control2: P(166, 20))
+                p.closeSubpath()
+            }
+            teil(g, form, f)
+            let bund = box(34, 50, 132, 22, 10)
+            teil(g, bund, f.mal(0.85))
+            var h = g
+            h.clip(to: bund)
+            for x in stride(from: CGFloat(42), to: 164, by: 9) { linie(h, strich(P(x, 50), P(x, 72)), f.kontur, 1.5) }
+        case 4:
+            let krone = Path { p in
+                p.move(to: P(50, 58))
+                p.addCurve(to: P(100, 6), control1: P(48, 18), control2: P(70, 6))
+                p.addCurve(to: P(150, 58), control1: P(130, 6), control2: P(152, 18))
+                p.closeSubpath()
+            }
+            let krempe = Path { p in
+                p.move(to: P(40, 52))
+                p.addLine(to: P(160, 52))
+                p.addLine(to: P(178, 76))
+                p.addQuadCurve(to: P(22, 76), control: P(100, 88))
+                p.closeSubpath()
+            }
+            teil(g, krone, f)
+            teil(g, krempe, f.mal(0.9))
+            linie(g, strich(P(50, 53), P(150, 53)), f.mal(0.7).farbe, 4)
+        case 5:
+            let band = bogen(P(42, 72), P(158, 72), P(100, 42))
+            linie(g, band, f.kontur, 14)
+            linie(g, band, f.farbe, 10)
+        case 6:
+            let reif = bogen(P(44, 84), P(156, 84), P(100, -6))
+            linie(g, reif, f.kontur, 7)
+            linie(g, reif, f.farbe, 4)
+        default:
+            break
+        }
     }
 
     // MARK: Poses
@@ -1407,7 +2205,7 @@ private struct Zeichner {
             }
         case .ruhig:
             let p = zyklus(5)
-            if p < 0.5 {
+            if p < 0.5 && !statisch {
                 var h = g
                 h.opacity = Double(1 - p * 2)
                 h.fill(herzPfad(P(152, 70 - p * 60), 6), with: .color(Pal.rose.farbe))
@@ -1453,6 +2251,576 @@ private struct Zeichner {
     }
 }
 
+// MARK: - Full body (200 x 400; the head is the half-figure head scaled by 0.8)
+
+extension Zeichner {
+    func zeichneGanz(_ ctx: GraphicsContext, _ size: CGSize) {
+        var g = ctx
+        g.scaleBy(x: size.width / 200, y: size.height / 400)
+        g.clip(to: Path(CGRect(x: 0, y: 0, width: 200, height: 400)))
+        let m = masse()
+        let hal = haltung
+        let bew = bewegung()
+        // Scenes with furniture or vehicles only bob; standing figures may also sway.
+        let winkel: Double = [.stehen, .gehen, .rennen].contains(hal) ? bew.winkel : 0
+        let atem: CGFloat = z == .offline ? 1 : 1.005 + 0.005 * w(2 * Double.pi / 3.6)
+        g.translateBy(x: 100, y: 392)
+        g.rotate(by: .degrees(winkel))
+        g.scaleBy(x: atem, y: atem)
+        g.translateBy(x: -100, y: bew.hoch - 392)
+
+        let oben = obenVersatz(hal, m)
+        var u = g
+        u.translateBy(x: 0, y: oben)
+        // Head space: half-figure chin (100, 152) sits 12 above the shoulders.
+        var k = u
+        k.translateBy(x: 20, y: m.schulterY - 133.6)
+        k.scaleBy(x: 0.8, y: 0.8)
+
+        if z == .morgen || z == .abend { hintergrund(k) }
+        szeneHinten(g, m, oben)
+        haareHinten(haarKontext(k))
+        if hal != .fahren { beine(g, m, hal, oben) }
+        rumpfGanz(u, m)
+        kopfGruppe(k)
+        vorArmen(g, u, m, oben)
+        let arme = poseGanz(m)
+        arm(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm)
+        arm(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm)
+        handRequisite(u, arme, m)
+        let hand: CGFloat = 10 * m.arm
+        teil(u, kreis(arme.l.hand, hand), haut, 2.5)
+        teil(u, kreis(arme.r.hand, hand), haut, 2.5)
+        auto(g, m, oben)
+        switch z {
+        case .laeuft, .rennt, .rad: tempoStriche(g, m.schulterY + oben)
+        case .schautVideo: break
+        default: effekte(k)
+        }
+        abzeichenVorn(k)
+    }
+
+    func masse() -> Masse {
+        let beinLaengen: [CGFloat] = [112, 124, 136]
+        let schultern: [CGFloat] = [37, 41, 46]
+        let taillen: [CGFloat] = [26, 30, 37]
+        let hueften: [CGFloat] = [29, 32, 38]
+        let arme: [CGFloat] = [0.6, 0.66, 0.74]
+        let beine: [CGFloat] = [15, 17, 20]
+        let f = koerperform
+        let beinL = beinLaengen[groesseStufe]
+        let hueftY = Masse.fussY - beinL
+        return Masse(s: schultern[f], t: taillen[f], h: hueften[f], arm: arme[f], bein: beine[f],
+                     hueftY: hueftY, schulterY: hueftY - 96, knieY: hueftY + beinL * 0.5)
+    }
+
+    var haltung: Haltung {
+        switch z {
+        case .laeuft: .gehen
+        case .rennt: .rennen
+        case .rad: .rad
+        case .faehrt, .fahrschule: .fahren
+        case .zuhause, .schule, .arbeit, .schautVideo, .ruhe: .sitzen
+        default: .stehen
+        }
+    }
+
+    /// How far the upper body drops: sitting puts the hips at knee height.
+    func obenVersatz(_ hal: Haltung, _ m: Masse) -> CGFloat {
+        switch hal {
+        case .sitzen, .fahren: m.knieY - m.hueftY - 4
+        case .rad: 40
+        default: 0
+        }
+    }
+
+    // MARK: Legs, pants, shoes
+
+    func beinGelenke(_ hal: Haltung, _ m: Masse, _ oben: CGFloat) -> (l: Bein, r: Bein) {
+        let hx: CGFloat = m.h * 0.52
+        let hy: CGFloat = m.hueftY + oben
+        let fy = Masse.fussY
+        func bein(_ seite: CGFloat, _ phase: CGFloat) -> Bein {
+            let x: CGFloat = 100 + seite * hx
+            let hebt: CGFloat = max(0, phase)
+            switch hal {
+            case .gehen:
+                return Bein(h: P(x, hy), k: P(x + phase * 3, m.knieY - hebt * 5), f: P(x + phase * 7, fy - hebt * 12))
+            case .rennen:
+                return Bein(h: P(x, hy), k: P(x + phase * 2, m.knieY - hebt * 22), f: P(x + phase * 5, fy - 4 - hebt * 30))
+            case .sitzen, .fahren:
+                return Bein(h: P(x, hy), k: P(x + seite * 5, m.knieY + 10), f: P(x + seite * 4, fy))
+            case .rad:
+                let pedal: CGFloat = 346 + phase * 14
+                let knie: CGFloat = hy + 26 + phase * 11
+                return Bein(h: P(x, hy), k: P(x + seite * 10, knie), f: P(x + seite * 2, pedal))
+            case .stehen:
+                return Bein(h: P(x, hy), k: P(x + seite, m.knieY), f: P(x + seite * 2, fy))
+            }
+        }
+        let s: CGFloat
+        switch hal {
+        case .gehen: s = w(7)
+        case .rennen: s = w(12)
+        case .rad: s = statisch ? 0.6 : w(6)
+        default: s = 0
+        }
+        return (bein(-1, s), bein(1, -s))
+    }
+
+    func beinPfad(_ b: Bein, _ oben: CGFloat, _ mitte: CGFloat, _ unten: CGFloat) -> Path {
+        Path { p in
+            p.move(to: P(b.h.x - oben, b.h.y))
+            p.addLine(to: P(b.k.x - mitte, b.k.y))
+            p.addLine(to: P(b.f.x - unten, b.f.y))
+            p.addLine(to: P(b.f.x + unten, b.f.y))
+            p.addLine(to: P(b.k.x + mitte, b.k.y))
+            p.addLine(to: P(b.h.x + oben, b.h.y))
+            p.closeSubpath()
+        }
+    }
+
+    var hosenFarbe: FigurFarbe {
+        switch hose {
+        case 0, 2: FigurFarbe(0x9DB8D9)
+        case 1: FigurFarbe(0x34507A)
+        default: hoseF
+        }
+    }
+
+    func beine(_ g: GraphicsContext, _ m: Masse, _ hal: Haltung, _ oben: CGFloat) {
+        let (l, r) = beinGelenke(hal, m, oben)
+        let b = m.bein
+        let kleid = oberteil == 8
+        let nackt = kleid || (6...8).contains(hose)
+        let stiefelUeber = schuhe == 3 && hose != 2
+        if nackt {
+            for bn in [l, r] { teil(g, beinPfad(bn, b * 0.46, b * 0.36, b * 0.3), haut) }
+        }
+        if !stiefelUeber {
+            for bn in [l, r] { schuhZeichnen(g, bn.f) }
+        }
+        if !kleid { hoseZeichnen(g, l, r, m, m.hueftY + oben) }
+        if stiefelUeber {
+            for bn in [l, r] { schuhZeichnen(g, bn.f) }
+        }
+    }
+
+    func hoseZeichnen(_ g: GraphicsContext, _ l: Bein, _ r: Bein, _ m: Masse, _ hy: CGFloat) {
+        let b = m.bein
+        let farbe = hosenFarbe
+        let bund = box(100 - m.h + 1, hy - 10, (m.h - 1) * 2, 26, 8)
+        if hose == 7 || hose == 8 {
+            let saum: CGFloat = hose == 7 ? m.knieY + 4 : hy + 36
+            let weite: CGFloat = hose == 7 ? 12 : 8
+            let rock = Path { p in
+                p.move(to: P(100 - m.h + 2, hy - 10))
+                p.addLine(to: P(100 - m.h - weite, saum))
+                p.addQuadCurve(to: P(100 + m.h + weite, saum), control: P(100, saum + 6))
+                p.addLine(to: P(100 + m.h - 2, hy - 10))
+                p.closeSubpath()
+            }
+            teil(g, rock, farbe)
+            if hose == 7 {
+                var h = g
+                h.clip(to: rock)
+                for dx in [CGFloat(-14), 0, 14] {
+                    linie(h, strich(P(100 + dx * 0.6, hy + 4), P(100 + dx, saum)), farbe.kontur.opacity(0.5), 1.5)
+                }
+            }
+            return
+        }
+        let seiten: [(bein: Bein, seite: CGFloat)] = [(l, -1), (r, 1)]
+        if hose == 6 {
+            let teile = seiten.map { s in
+                beinPfad(Bein(h: s.bein.h, k: zwischen(s.bein.h, s.bein.k, 0.4), f: zwischen(s.bein.h, s.bein.k, 0.85)), b * 0.66, b * 0.62, b * 0.6)
+            }
+            verbunden(g, teile + [bund], farbe)
+            return
+        }
+        let breiten: (CGFloat, CGFloat, CGFloat)
+        switch hose {
+        case 2: breiten = (0.64, 0.6, 0.84)
+        case 4: breiten = (0.66, 0.56, 0.42)
+        case 9: breiten = (0.54, 0.42, 0.34)
+        default: breiten = (0.62, 0.5, 0.45)
+        }
+        let teile = [l, r].map { beinPfad($0, b * breiten.0, b * breiten.1, b * breiten.2) }
+        verbunden(g, teile + [bund], farbe)
+        switch hose {
+        case 0, 1, 2:
+            linie(g, strich(P(100, hy - 4), P(100, hy + 14)), farbe.kontur, 1.5)
+            for bn in [l, r] { g.fill(oval(bn.k, b * 0.3, b * 0.9), with: .color(.white.opacity(0.14))) }
+        case 3:
+            for bn in [l, r] { linie(g, strich(P(bn.h.x, bn.h.y + 14), P(bn.f.x, bn.f.y - 4)), farbe.kontur.opacity(0.35), 1.2) }
+        case 4:
+            for s in seiten {
+                let f = s.bein.f
+                teil(g, box(f.x - b * 0.44, f.y - 9, b * 0.88, 9, 3.5), farbe.mal(0.85), 2)
+                let oben = P(s.bein.h.x + s.seite * b * 0.5, s.bein.h.y + 6)
+                let unten = P(f.x + s.seite * b * 0.32, f.y - 10)
+                linie(g, strich(oben, unten), .white.opacity(0.85), 2.5)
+            }
+            for dx in [CGFloat(-3), 3] { linie(g, strich(P(100 + dx, hy - 4), P(100 + dx * 1.6, hy + 8)), .white, 1.5) }
+        case 5:
+            for s in seiten {
+                let mp = zwischen(s.bein.h, s.bein.k, 0.75)
+                let x: CGFloat = mp.x + s.seite * b * 0.25 - 6
+                teil(g, box(x, mp.y - 8, 12, 16, 3), farbe.mal(0.88), 1.8)
+            }
+        default:
+            break
+        }
+    }
+
+    func schuhZeichnen(_ g: GraphicsContext, _ f: CGPoint) {
+        let c = schuhF
+        let hell = c.r > 0.9 && c.g > 0.9 && c.b > 0.9
+        let sohle = hell ? FigurFarbe(0xC9CCD3) : FigurFarbe(0xF4F1EE)
+        let x = f.x
+        let y = f.y
+        switch schuhe {
+        case 1:
+            teil(g, box(x - 11, y - 16, 22, 26, 7), c, 3)
+            teil(g, oval(P(x, y + 5), 10, 5.5), sohle, 2)
+            g.fill(box(x - 12, y + 8, 24, 4, 2), with: .color(sohle.farbe))
+            for dy in [CGFloat(-10), -4] { linie(g, strich(P(x - 4, y + dy), P(x + 4, y + dy)), .white.opacity(0.9), 1.6) }
+        case 2:
+            teil(g, box(x - 12, y - 4, 24, 14, 7), c, 3)
+            teil(g, box(x - 13, y + 6, 26, 6, 3), sohle, 2)
+            linie(g, bogen(P(x - 8, y + 4), P(x + 8, y - 1), P(x, y + 6)), sohle.farbe, 2)
+        case 3:
+            teil(g, box(x - 11, y - 34, 22, 44, 7), c, 3)
+            g.fill(box(x - 12, y + 6, 24, 5, 2), with: .color(c.mal(0.55).farbe))
+        case 4:
+            teil(g, box(x - 11, y - 16, 22, 26, 7), c, 3)
+            g.fill(box(x - 4, y - 15, 8, 12, 3), with: .color(c.mal(0.7).farbe))
+            g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(c.mal(0.55).farbe))
+        case 5:
+            teil(g, oval(P(x, y + 3), 10, 7), haut, 2.5)
+            g.fill(box(x - 12, y + 8, 24, 4, 2), with: .color(c.farbe))
+            for dy in [CGFloat(0), 5] { linie(g, strich(P(x - 10, y + dy), P(x + 10, y + dy)), c.farbe, 3.5) }
+        case 6:
+            teil(g, oval(P(x, y), 8.5, 6), haut, 2.5)
+            teil(g, box(x - 11, y + 1, 22, 10, 5), c, 2.5)
+            teil(g, kreis(P(x, y + 3), 2.5), c.mal(0.8), 1.5)
+        case 7:
+            teil(g, box(x - 12, y - 3, 24, 13, 6), c, 3)
+            g.fill(box(x - 7, y, 14, 4, 2), with: .color(c.mal(0.75).farbe))
+            g.fill(box(x - 12, y + 8, 24, 3, 1.5), with: .color(c.mal(0.55).farbe))
+        default:
+            teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
+            g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
+            linie(g, strich(P(x - 4, y - 1), P(x + 4, y - 1)), sohle.farbe, 1.6)
+            linie(g, strich(P(x - 4, y + 2.5), P(x + 4, y + 2.5)), sohle.farbe, 1.6)
+        }
+    }
+
+    // MARK: Torso
+
+    func rumpfPfad(_ m: Masse, unten: CGFloat) -> Path {
+        let sY = m.schulterY
+        let taille: CGFloat = min(sY + 58, unten - 4)
+        let saum: CGFloat = unten < m.hueftY ? m.t + 1 : m.h
+        return Path { p in
+            p.move(to: P(89, sY - 2))
+            p.addQuadCurve(to: P(100 - m.s, sY + 14), control: P(104 - m.s, sY - 2))
+            p.addLine(to: P(100 - m.t, taille))
+            p.addLine(to: P(100 - saum, unten))
+            p.addQuadCurve(to: P(100 + saum, unten), control: P(100, unten + 4))
+            p.addLine(to: P(100 + m.t, taille))
+            p.addLine(to: P(100 + m.s, sY + 14))
+            p.addQuadCurve(to: P(111, sY - 2), control: P(96 + m.s, sY - 2))
+            p.addQuadCurve(to: P(89, sY - 2), control: P(100, sY + 10))
+            p.closeSubpath()
+        }
+    }
+
+    func rumpfGanz(_ g: GraphicsContext, _ m: Masse) {
+        let sY = m.schulterY
+        let unten = m.hueftY + 4
+        teil(g, box(91, sY - 28, 18, 34, 8), haut)
+        g.fill(oval(P(100, sY - 14), 9, 3.5), with: .color(haut.mal(0.8).farbe.opacity(0.6)))
+        let voll = rumpfPfad(m, unten: unten)
+        let form: Path
+        switch oberteil {
+        case 6:
+            teil(g, voll, haut)
+            var h = g
+            h.clip(to: voll)
+            teil(h, box(-10, sY + 18, 220, 200), top)
+            for seite in [CGFloat(-1), 1] {
+                let traeger = strich(P(100 + seite * 22, sY + 2), P(100 + seite * 24, sY + 20))
+                linie(g, traeger, top.kontur, 5)
+                linie(g, traeger, top.farbe, 2.8)
+            }
+            form = voll
+        case 11:
+            teil(g, voll, haut)
+            g.fill(oval(P(100, sY + 80), 1.6, 2.4), with: .color(haut.kontur))
+            form = rumpfPfad(m, unten: sY + 64)
+            teil(g, form, top)
+        default:
+            form = voll
+            teil(g, form, top)
+        }
+        if oberteil != 6 {
+            // Top details are drawn in the half-figure torso space, mapped onto this torso.
+            var dg = g
+            dg.translateBy(x: 100, y: sY - 2)
+            dg.scaleBy(x: 0.66, y: 0.8)
+            dg.translateBy(x: -100, y: -161)
+            var d = g
+            d.clip(to: form)
+            d.translateBy(x: 100, y: sY - 2)
+            d.scaleBy(x: 0.66, y: 0.8)
+            d.translateBy(x: -100, y: -161)
+            oberteilDetails(dg, d)
+            if [7, 12, 13].contains(oberteil) { linie(g, form, top.kontur, 3.5) }
+        }
+        if oberteil == 8 {
+            let taille: CGFloat = sY + 58
+            let saum: CGFloat = m.knieY + 6
+            let rock = Path { p in
+                p.move(to: P(100 - m.t, taille))
+                p.addLine(to: P(100 - m.h - 18, saum))
+                p.addQuadCurve(to: P(100 + m.h + 18, saum), control: P(100, saum + 8))
+                p.addLine(to: P(100 + m.t, taille))
+                p.closeSubpath()
+            }
+            teil(g, rock, top)
+        }
+        if jacke > 0 { jackeZeichnen(g, form: voll, oben: sY - 2, unten: unten, s: 0.66) }
+    }
+
+    // MARK: Arms and props
+
+    func poseGanz(_ m: Masse) -> (l: Arm, r: Arm) {
+        let lx: CGFloat = 100 - m.s + 6
+        let rx: CGFloat = 100 + m.s - 6
+        let y = m.schulterY
+        let wiege: CGFloat = statisch ? 0 : w(1.3) * 1.5
+        let restL = Arm(P(lx - 6, y + 50), P(lx - 4 + wiege, y + 92))
+        let restR = Arm(P(rx + 6, y + 50), P(rx + 4 - wiege, y + 92))
+        switch z {
+        case .imChat:
+            let welle: CGFloat = zyklus(5) < 0.45 ? w(9) * 7 : 0
+            return (restL, Arm(P(rx + 18, y + 2), P(rx + 22 + welle, y - 36)))
+        case .tippt, .liest, .spielt, .karte, .schautBild, .zeichnet, .laedt:
+            let tipp: CGFloat = z == .tippt ? w(16) * 1.5 : 0
+            return (Arm(P(lx - 4, y + 48), P(94, y + 50 + tipp)), Arm(P(rx + 4, y + 48), P(106, y + 50 - tipp)))
+        case .kamera:
+            return (restL, Arm(P(rx + 16, y + 16), P(rx + 14, y - 30)))
+        case .sprache:
+            return (restL, Arm(P(rx + 6, y + 40), P(112, y - 18)))
+        case .gut, .pokal, .morgen, .lacht, .anstossen:
+            let s: CGFloat = z == .morgen ? w(1.6) * 4 : 0
+            return (Arm(P(lx - 18, y - 2 - s), P(lx - 22, y - 40 - s)), Arm(P(rx + 18, y - 2 - s), P(rx + 22, y - 40 - s)))
+        case .naehe:
+            let o: CGFloat = w(2.4) * 4
+            return (Arm(P(lx - 24, y + 26 - o), P(lx - 44, y + 10 - o)), Arm(P(rx + 24, y + 26 - o), P(rx + 44, y + 10 - o)))
+        case .kuss:
+            return (restL, Arm(P(rx + 8, y + 36), P(108, y - 24)))
+        case .herz:
+            return (Arm(P(lx - 6, y + 44), P(93, y + 32)), Arm(P(rx + 6, y + 44), P(107, y + 32)))
+        case .gym:
+            let c: CGFloat = (1 + w(3.2)) / 2
+            return (restL, Arm(P(rx + 4, y + 50), P(rx + 8 - c * 10, y + 92 - c * 52)))
+        case .supermarkt:
+            return (Arm(P(lx - 4, y + 50), P(78, y + 70)), Arm(P(rx + 4, y + 50), P(122, y + 70)))
+        case .laeuft:
+            let s = w(7)
+            let vl: CGFloat = max(0, -s)
+            let vr: CGFloat = max(0, s)
+            return (Arm(P(lx - 6, y + 50), P(lx - 4 + vl * 7, y + 90 - vl * 10)), Arm(P(rx + 6, y + 50), P(rx + 4 - vr * 7, y + 90 - vr * 10)))
+        case .rennt:
+            let s = w(12)
+            return (Arm(P(lx - 12, y + 40), P(lx + 4, y + 30 + s * 14)), Arm(P(rx + 12, y + 40), P(rx - 4, y + 30 - s * 14)))
+        case .rad:
+            return (Arm(P(lx - 8, y + 40), P(66, y + 58)), Arm(P(rx + 8, y + 40), P(134, y + 58)))
+        case .faehrt, .fahrschule:
+            return (Arm(P(lx - 6, y + 44), amSteuer(200, y)), Arm(P(rx + 6, y + 44), amSteuer(340, y)))
+        case .arbeit:
+            let tipp: CGFloat = w(16) * 1.5
+            return (Arm(P(lx - 6, y + 48), P(90, y + 78 + tipp)), Arm(P(rx + 6, y + 48), P(110, y + 78 - tipp)))
+        case .zuhause, .schule, .schautVideo, .ruhe:
+            return (Arm(P(lx - 6, y + 48), P(86, y + 84)), Arm(P(rx + 6, y + 48), P(114, y + 84)))
+        default:
+            return (restL, restR)
+        }
+    }
+
+    func amSteuer(_ grad: Double, _ y: CGFloat) -> CGPoint {
+        let r = (grad + lenkWinkel) * Double.pi / 180
+        return P(100 + 24 * CGFloat(cos(r)), y + 62 + 24 * CGFloat(sin(r)))
+    }
+
+    func kleinesHandy(_ g: GraphicsContext, _ c: CGPoint) {
+        var h = g
+        h.translateBy(x: c.x, y: c.y)
+        h.scaleBy(x: 0.55, y: 0.55)
+        handy(h, .zero, rueckseite: true)
+    }
+
+    func handRequisite(_ g: GraphicsContext, _ arme: (l: Arm, r: Arm), _ m: Masse) {
+        let y = m.schulterY
+        switch z {
+        case .tippt, .liest, .spielt, .karte, .schautBild, .zeichnet, .laedt:
+            kleinesHandy(g, P(100, y + 40))
+        case .kamera:
+            kleinesHandy(g, P(arme.r.hand.x, arme.r.hand.y - 12))
+        case .sprache:
+            kleinesHandy(g, P(arme.r.hand.x + 2, arme.r.hand.y - 8))
+        case .gym:
+            let h = arme.r.hand
+            let stange = strich(P(h.x - 13, h.y), P(h.x + 13, h.y))
+            linie(g, stange, Pal.silber.kontur, 5)
+            linie(g, stange, Pal.silber.farbe, 3)
+            teil(g, box(h.x - 19, h.y - 8, 6, 16, 2), Pal.dunkel, 2)
+            teil(g, box(h.x + 13, h.y - 8, 6, 16, 2), Pal.dunkel, 2)
+        case .herz:
+            let p = Double(zyklus(1.0))
+            let a1 = exp(-pow((p - 0.1) / 0.06, 2))
+            let a2 = exp(-pow((p - 0.3) / 0.06, 2))
+            let schlag = CGFloat(1 + 0.14 * a1 + 0.09 * a2)
+            teil(g, herzPfad(P(100, y + 24), 14 * schlag), Pal.rose, 2.5)
+        default:
+            break
+        }
+    }
+
+    // MARK: Scenes
+
+    func szeneHinten(_ g: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
+        let sitz = m.hueftY + oben
+        switch z {
+        case .zuhause, .schautVideo, .ruhe:
+            teil(g, box(6, sitz - 112, 188, 118, 30), Pal.sofa)
+            teil(g, box(16, sitz - 102, 82, 98, 22), Pal.sofa.mix(Pal.weiss, 0.15))
+            teil(g, box(102, sitz - 102, 82, 98, 22), Pal.sofa.mix(Pal.weiss, 0.15))
+            for x in [CGFloat(22), 178] { linie(g, strich(P(x, sitz + 40), P(x, 384)), Pal.holz.kontur, 6) }
+            teil(g, box(0, sitz - 6, 200, 48, 16), Pal.sofa.mal(0.92))
+            teil(g, box(-10, sitz - 54, 36, 92, 14), Pal.sofa.mal(0.85))
+            teil(g, box(174, sitz - 54, 36, 92, 14), Pal.sofa.mal(0.85))
+        case .schule, .arbeit:
+            for x in [CGFloat(74), 126] {
+                let fuss: CGFloat = x < 100 ? x - 6 : x + 6
+                linie(g, strich(P(x, sitz + 8), P(fuss, 384)), Pal.holz.kontur, 5)
+            }
+            teil(g, box(64, sitz - 2, 72, 12, 6), Pal.holz)
+        default:
+            break
+        }
+    }
+
+    func vorArmen(_ g: GraphicsContext, _ u: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
+        let sY = m.schulterY
+        let sitz = m.hueftY + oben
+        switch z {
+        case .rad:
+            let lenkY: CGFloat = sY + oben + 58
+            let reifen = oval(P(100, 336), 8, 38)
+            linie(g, reifen, Pal.dunkel.kontur, 10)
+            linie(g, reifen, Pal.dunkel.farbe, 6)
+            let gabel = strich(P(100, lenkY + 4), P(100, 336))
+            linie(g, gabel, Pal.silber.kontur, 7)
+            linie(g, gabel, Pal.silber.farbe, 4)
+            let lenker = bogen(P(56, lenkY - 6), P(144, lenkY - 6), P(100, lenkY + 10))
+            linie(g, lenker, Pal.dunkel.kontur, 8)
+            linie(g, lenker, Pal.silber.farbe, 4.5)
+            teil(g, kreis(P(100, lenkY + 12), 6), Pal.gelb, 2)
+        case .faehrt, .fahrschule:
+            var h = u
+            h.translateBy(x: 100, y: sY + 62)
+            h.rotate(by: .degrees(lenkWinkel))
+            linie(h, kreis(.zero, 24), Pal.dunkel.kontur, 9)
+            linie(h, kreis(.zero, 24), Pal.dunkel.farbe, 5.5)
+            for grad in [90.0, 210, 330] {
+                let r = grad * Double.pi / 180
+                linie(h, strich(.zero, P(24 * CGFloat(cos(r)), 24 * CGFloat(sin(r)))), Pal.dunkel.farbe, 4)
+            }
+            teil(h, kreis(.zero, 7), Pal.dunkel, 2)
+        case .supermarkt:
+            einkaufswagen(g, griffY: sY + 70)
+        case .arbeit:
+            teil(g, box(66, sitz - 60, 68, 48, 6), Pal.silber)
+            g.fill(herzPfad(P(100, sitz - 36), 6), with: .color(Pal.rose.farbe))
+            teil(g, box(60, sitz - 14, 80, 8, 3), Pal.silber.mal(0.85), 2.5)
+        case .schule:
+            teil(g, box(72, sitz - 22, 56, 16, 3), Pal.rose, 2.5)
+            teil(g, box(75, sitz - 25, 25, 14, 2), Pal.weiss, 1.5)
+            teil(g, box(100, sitz - 25, 25, 14, 2), Pal.weiss, 1.5)
+        case .ruhe:
+            teil(g, box(34, sitz - 34, 132, 72, 24), Pal.decke)
+        default:
+            break
+        }
+    }
+
+    func einkaufswagen(_ g: GraphicsContext, griffY: CGFloat) {
+        let rand = griffY + 6
+        let korb = Path { p in
+            p.move(to: P(44, rand))
+            p.addLine(to: P(156, rand))
+            p.addLine(to: P(146, rand + 64))
+            p.addLine(to: P(54, rand + 64))
+            p.closeSubpath()
+        }
+        for x in [CGFloat(60), 140] { linie(g, strich(P(x, rand + 64), P(x, 372)), Pal.silber.kontur, 3.5) }
+        for x in [CGFloat(60), 140] { teil(g, kreis(P(x, 376), 6), Pal.dunkel, 2) }
+        teil(g, kreis(P(76, rand - 2), 8), Pal.gruen, 2)
+        var brot = g
+        brot.translateBy(x: 108, y: rand - 8)
+        brot.rotate(by: .degrees(18))
+        teil(brot, oval(.zero, 7, 18), Pal.brot, 2.5)
+        teil(g, kreis(P(132, rand - 2), 8), Pal.rose, 2)
+        g.fill(korb, with: .color(Pal.silber.farbe.opacity(0.45)))
+        var k = g
+        k.clip(to: korb)
+        for x in stride(from: CGFloat(48), to: 156, by: 12) { linie(k, strich(P(x, rand), P(x, rand + 64)), Pal.silber.kontur, 2) }
+        for y in stride(from: rand + 12, to: rand + 64, by: 12) { linie(k, strich(P(40, y), P(160, y)), Pal.silber.kontur, 2) }
+        linie(g, korb, Pal.silber.kontur, 3)
+        let griff = strich(P(40, griffY), P(160, griffY))
+        linie(g, griff, Pal.rose.kontur, 8)
+        linie(g, griff, Pal.rose.farbe, 5)
+    }
+
+    /// Convertible seen from the front; drawn over the lower body, the hands stay on the wheel.
+    func auto(_ g: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
+        guard z == .faehrt || z == .fahrschule else { return }
+        let dach: CGFloat = m.schulterY + oben + 80
+        for x in [CGFloat(16), 150] { teil(g, box(x, 356, 34, 30, 9), Pal.dunkel) }
+        let karosserie = Path { p in
+            p.move(to: P(10, 372))
+            p.addLine(to: P(10, dach + 28))
+            p.addQuadCurve(to: P(40, dach), control: P(12, dach))
+            p.addLine(to: P(160, dach))
+            p.addQuadCurve(to: P(190, dach + 28), control: P(188, dach))
+            p.addLine(to: P(190, 372))
+            p.closeSubpath()
+        }
+        teil(g, karosserie, Pal.rose)
+        for x in [CGFloat(42), 158] {
+            teil(g, kreis(P(x, dach + 38), 12), Pal.weiss, 2.5)
+            g.fill(kreis(P(x, dach + 38), 6), with: .color(Pal.gelb.farbe))
+        }
+        teil(g, box(72, dach + 44, 56, 18, 7), Pal.dunkel, 2.5)
+        teil(g, box(4, 356, 192, 18, 9), Pal.silber)
+        if z == .fahrschule {
+            teil(g, box(88, dach + 6, 24, 24, 4), Pal.weiss, 2.5)
+            text(g, "L", P(100, dach + 18), 18, Pal.rose.farbe)
+        }
+    }
+
+    func tempoStriche(_ g: GraphicsContext, _ y0: CGFloat) {
+        for i in 0..<3 {
+            let y: CGFloat = y0 + 30 + CGFloat(i) * 22
+            let x: CGFloat = 6 + zyklus(0.5, Double(i) * 0.17) * 10
+            linie(g, strich(P(x, y), P(x + 20, y)), Pal.silber.kontur.opacity(0.7), 3.5)
+        }
+    }
+}
+
 // MARK: - Previews
 
 private func variante(_ a: FigurAussehen, _ k: WritableKeyPath<FigurAussehen, Int>, _ n: Int) -> FigurAussehen {
@@ -1464,15 +2832,25 @@ private func variante(_ a: FigurAussehen, _ k: WritableKeyPath<FigurAussehen, In
 private struct AlleOptionenVorschau: View {
     var body: some View {
         let basis = FigurAussehen.standard(for: .annika)
-        let reihen: [(String, WritableKeyPath<FigurAussehen, Int>, Int)] = [
-            ("Haut", \.haut, FigurAussehen.hautToene.count),
-            ("Frisur", \.frisur, FigurAussehen.frisuren.count),
-            ("Haarfarbe", \.haarfarbe, FigurAussehen.haarfarben.count),
-            ("Augen", \.augen, FigurAussehen.augenfarben.count),
-            ("Brille", \.brille, FigurAussehen.brillen.count),
-            ("Bart", \.bart, FigurAussehen.baerte.count),
-            ("Oberteil", \.oberteil, FigurAussehen.oberteile.count),
-            ("Oberteil-Farbe", \.oberteilfarbe, FigurAussehen.oberteilfarben.count),
+        let reihen: [(String, WritableKeyPath<FigurAussehen, Int>, Int, Bool)] = [
+            ("Gesichtsform", \.gesichtsform, FigurAussehen.gesichtsformen.count, false),
+            ("Haut", \.haut, FigurAussehen.hautToene.count, false),
+            ("Frisur", \.frisur, FigurAussehen.frisuren.count, false),
+            ("Haarfarbe", \.haarfarbe, FigurAussehen.haarfarben.count, false),
+            ("Augenform", \.augenform, FigurAussehen.augenformen.count, false),
+            ("Augenbrauen", \.brauen, FigurAussehen.augenbrauen.count, false),
+            ("Nase", \.nase, FigurAussehen.nasen.count, false),
+            ("Mund", \.mund, FigurAussehen.muender.count, false),
+            ("Brille", \.brille, FigurAussehen.brillen.count, false),
+            ("Bart", \.bart, FigurAussehen.baerte.count, false),
+            ("Ohrringe", \.ohrringe, FigurAussehen.ohrringArten.count, false),
+            ("Kopfbedeckung", \.kopfbedeckung, FigurAussehen.kopfbedeckungen.count, false),
+            ("Oberteil", \.oberteil, FigurAussehen.oberteile.count, true),
+            ("Jacke", \.jacke, FigurAussehen.jacken.count, true),
+            ("Hose", \.hose, FigurAussehen.hosen.count, true),
+            ("Schuhe", \.schuhe, FigurAussehen.schuhArten.count, true),
+            ("Körperform", \.koerperform, FigurAussehen.koerperformen.count, true),
+            ("Größe", \.groesse, FigurAussehen.groessen.count, true),
         ]
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
@@ -1481,7 +2859,7 @@ private struct AlleOptionenVorschau: View {
                     ScrollView(.horizontal) {
                         HStack {
                             ForEach(0..<reihen[i].2, id: \.self) { n in
-                                FigurView(variante(basis, reihen[i].1, n), zustand: .ruhig, groesse: 96, animiert: false)
+                                FigurView(variante(basis, reihen[i].1, n), zustand: .ruhig, groesse: reihen[i].3 ? 160 : 96, animiert: false, ganzkoerper: reihen[i].3)
                             }
                         }
                     }
@@ -1502,6 +2880,20 @@ private struct AlleOptionenVorschau: View {
             ForEach(FigurZustand.allCases, id: \.self) { z in
                 VStack {
                     FigurView(.standard(for: .ahmed), zustand: z, groesse: 132)
+                    Text(z.titel).font(.caption)
+                }
+            }
+        }
+        .padding()
+    }
+}
+
+#Preview("Ganzkörper") {
+    ScrollView {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 16) {
+            ForEach(FigurZustand.allCases, id: \.self) { z in
+                VStack {
+                    FigurView(.standard(for: .annika), zustand: z, groesse: 200, ganzkoerper: true)
                     Text(z.titel).font(.caption)
                 }
             }
