@@ -38,6 +38,12 @@ final class Raum {
     /// Serializes disk writes and sends so they happen in call order (a fast echo must never
     /// run before the `senden` that caused it finishes queuing). Tests await `leer()`.
     private var arbeit: Task<Void, Never>?
+    /// Bumped every time `reiheOhneWarten` chains a new tail — including a tail chained by a
+    /// closure that is itself already running as part of the chain (`start()` chains its own
+    /// work, whose body calls `verbinden()`, which chains the queue flush again). `leer()` uses
+    /// this to notice such nesting and keep waiting instead of returning after only the outer
+    /// task finishes while the freshly-nested one is still pending.
+    private var arbeitVersion = 0
 
     init(
         transport: RaumTransport? = nil,
@@ -97,8 +103,15 @@ final class Raum {
         }
     }
 
+    /// Waits for the `arbeit` chain to fully settle — not just for whatever the tail was at the
+    /// moment of the call, but for any further work a running link chains onto it meanwhile.
     func leer() async {
-        await arbeit?.value
+        while true {
+            let versionVorher = arbeitVersion
+            guard let letzte = arbeit else { return }
+            await letzte.value
+            if arbeitVersion == versionVorher { return }
+        }
     }
 
     func httpKonfiguration() -> HttpKonfiguration? {
@@ -318,6 +331,7 @@ final class Raum {
     /// Chains `arbeit` without waiting for it — used by fire-and-forget callers like `senden`.
     private func reiheOhneWarten(_ neu: @escaping @MainActor () async -> Void) {
         let vorherige = arbeit
+        arbeitVersion += 1
         arbeit = Task { @MainActor in
             await vorherige?.value
             await neu()
