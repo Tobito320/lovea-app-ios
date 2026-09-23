@@ -61,9 +61,9 @@ enum ChatMedien {
                 ergebnis = await MedienKodierung.video(quelle, id: id)
                 typ = "video"
             }
-            guard let ergebnis else { continue }
-            vormerkenUndSenden(id: id, ergebnis: ergebnis, typ: typ, antwortAuf: antwort)
-            hochzuladen.append((id: id, ergebnis: ergebnis))
+            guard let fertig = ergebnis else { continue }
+            vormerkenUndSenden(id: id, ergebnis: fertig, typ: typ, antwortAuf: antwort)
+            hochzuladen.append((id: id, ergebnis: fertig))
             antwort = nil
         }
         for eintrag in hochzuladen { await hochladen(id: eintrag.id, ergebnis: eintrag.ergebnis) }

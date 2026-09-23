@@ -24,6 +24,8 @@ struct ChatTab: View {
             }
             .navigationTitle("Chats")
         }
+        // Search mode ends with the conversation; not in its onDisappear, which also fires for covers.
+        .onChange(of: offen) { _, auf in if !auf { sucheAktiv = false } }
         .sheet(isPresented: $profilOffen) {
             if let ich = Raum.shared.ich { PartnerProfilView(person: ich.partner) }
         }
