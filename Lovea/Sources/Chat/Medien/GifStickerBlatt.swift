@@ -290,7 +290,10 @@ private struct StickerAnsicht: View {
 /// Upload. Namen stehen von Hand hier, weil sich ein Asset-Katalog nicht aufzählen lässt.
 enum MitgelieferteSticker {
     static let praefix = "asset:"
-    static let alle = ["wir-kuss", "wir-umarmung"]
+    static let alle = [
+        "wir-kuss", "wir-umarmung", "wir-selfie", "wir-kino", "wir-gym",
+        "meme-drake", "meme-this-is-fine",
+    ]
 
     static func assetName(_ medienId: String) -> String? {
         medienId.hasPrefix(praefix) ? String(medienId.dropFirst(praefix.count)) : nil

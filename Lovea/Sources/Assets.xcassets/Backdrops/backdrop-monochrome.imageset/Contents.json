@@ -1,0 +1,12 @@
+{
+  "images": [
+    {
+      "filename": "backdrop-monochrome.jpg",
+      "idiom": "universal"
+    }
+  ],
+  "info": {
+    "author": "xcode",
+    "version": 1
+  }
+}
