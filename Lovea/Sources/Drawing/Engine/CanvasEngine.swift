@@ -50,6 +50,7 @@ final class CanvasEngine {
     private var predicted: [Stamp] = []
     private var detached: [UUID: MTLTexture] = [:]
     private var remoteStrokes: [String: RemoteStroke] = [:]
+    private var spareScratches: [MTLTexture] = []
     private(set) var dirtyLayers: Set<UUID> = []
     private(set) var frameCount = 0
     private(set) var fixedStampsEncoded = 0
@@ -238,7 +239,7 @@ final class CanvasEngine {
     /// Starts a stroke from someone else. It ignores the local selection and lock; the caller redraws.
     func remoteBegin(id: String, layerID: UUID, settings: BrushSettings, first: StrokeInput, mirrorX: Float? = nil, autor: String? = nil) {
         guard remoteStrokes[id] == nil, layer(layerID)?.kind == .paint, store.texture(for: layerID) != nil,
-              let scratch = GPU.makeTexture(device, width: store.width, height: store.height),
+              let scratch = spareScratches.popLast() ?? GPU.makeTexture(device, width: store.width, height: store.height),
               let command = queue.makeCommandBuffer() else { return }
         GPU.fill(scratch, command: command)
         var sampler = StrokeSampler(settings: settings)
@@ -266,11 +267,18 @@ final class CanvasEngine {
                        into: stroke.scratch, mask: nil, mirrorX: stroke.mirrorX, command: command)
         land(stroke.scratch, sampler: stroke.sampler, into: target, layerID: stroke.layerID,
              mirrorX: stroke.mirrorX, autor: stroke.autor, command: command)
+        keepSpare(stroke.scratch)
         didEditPixels(of: stroke.layerID)
     }
 
     func remoteCancel(id: String) {
-        remoteStrokes[id] = nil
+        if let stroke = remoteStrokes.removeValue(forKey: id) { keepSpare(stroke.scratch) }
+    }
+
+    /// A partner draws several strokes a second; a document-sized scratch each would churn 16 MB at 2048².
+    /// Reuse is safe: everything runs on one queue, so the next clear waits for the last use.
+    private func keepSpare(_ scratch: MTLTexture) {
+        if spareScratches.count < 2 { spareScratches.append(scratch) }
     }
 
     func cancelStroke() {
@@ -642,6 +650,7 @@ final class CanvasEngine {
     func handleMemoryWarning() {
         undo.dropOldestHalf()
         detached.removeAll()
+        spareScratches.removeAll()
         compositor.releaseCaches()
         onChange?()
     }

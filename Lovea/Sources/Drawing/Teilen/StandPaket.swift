@@ -36,8 +36,10 @@ enum StandPaket {
         let id = artworkID.uuidString
         let teilen = TeilenModell.shared.stand
         guard let document = library.document(artworkID), teilen.istGeteilt(document) else { return }
-        // Already published after the last save (also across app starts, from the op log).
-        if let letzter = teilen.staende[id], letzter.von == Raum.shared.ich, letzter.zeit >= document.updatedAt { return }
+        // This save is already published (also across app starts, from the op log). The library's
+        // ISO dates drop fractions after a restart, which only rounds down: still "not newer".
+        if let letzter = teilen.staende[id], letzter.von == Raum.shared.ich,
+           let gespeichert = letzter.wert.gespeichert, document.updatedAt.timeIntervalSince1970 <= gespeichert { return }
         await library.waitForWrites()
         do {
             var ebenen: [ZeichnungStand.Ebene] = []
@@ -55,7 +57,7 @@ enum StandPaket {
             let stand = ZeichnungStand(
                 zeichnungId: id, medienId: medienId, basis: TeilenModell.shared.stand.letzteOpSeq[id] ?? 0,
                 ebenen: ebenen, name: document.name, projektId: document.projectID?.uuidString,
-                vorschau: vorschau, strich: strich[id]
+                vorschau: vorschau, strich: strich[id], gespeichert: document.updatedAt.timeIntervalSince1970
             )
             guard stand != letzterStand[id] else { return }
             letzterStand[id] = stand

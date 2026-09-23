@@ -111,6 +111,8 @@ struct DrawingStudioView: View {
             session.saveNow()
             session.live.verlassen()
         }
+        .onChange(of: Raum.shared.verbunden) { _, an in if an { session.live.ankuendigen() } }
+        .onChange(of: Raum.shared.partnerDa) { _, da in if da { session.live.ankuendigen() } }
     }
 
     // MARK: Top bar

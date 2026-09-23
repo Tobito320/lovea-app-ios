@@ -50,6 +50,8 @@ struct ZeichnungStand: Codable, Equatable, Sendable {
     var vorschau: String?
     /// Last live stroke (`strichId`) already in the stand. The viewer replays the ones after it.
     var strich: String?
+    /// `updatedAt` of the uploaded document (seconds since 1970), so the owner can skip unchanged publishes.
+    var gespeichert: Double?
 }
 
 /// One finished non-stroke action. Strokes (also the eraser) travel as `strich.live`.
@@ -72,7 +74,6 @@ struct TeilenStand: Sendable {
         var id: String
         var seq: Int?
         var von: Person
-        var zeit: Date
         var wert: T
     }
 
@@ -114,7 +115,7 @@ struct TeilenStand: Sendable {
         if let alt = tabelle[schluessel], alt.id != op.id, let seq = op.seq {
             guard let altSeq = alt.seq, seq >= altSeq else { return }
         }
-        tabelle[schluessel] = Eintrag(id: op.id, seq: op.seq, von: op.von, zeit: op.zeit, wert: wert)
+        tabelle[schluessel] = Eintrag(id: op.id, seq: op.seq, von: op.von, wert: wert)
     }
 
     // MARK: Queries

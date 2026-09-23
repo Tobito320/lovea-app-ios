@@ -116,8 +116,10 @@ struct StiftNachricht: Codable, Equatable, Sendable {
 }
 
 /// `zeichnung.drin`: which drawing someone has open, nil when they leave.
+/// `antwort`: reply to an announce; never answered again, so the handshake stays two messages.
 struct DrinNachricht: Codable, Sendable {
     var zeichnungId: String?
+    var antwort: Bool?
 }
 
 /// `ansicht` (new fl kind, Level 2): the drawer's view, for "Folgen".
@@ -164,7 +166,7 @@ final class LiveZeichnung {
     private init() {
         let raum = Raum.shared
         raum.fluechtigBeobachten("zeichnung.drin") { [weak self] _, data in
-            self?.drinEmpfangen((try? JSONDecoder().decode(DrinNachricht.self, from: data))?.zeichnungId)
+            self?.drinEmpfangen((try? JSONDecoder().decode(DrinNachricht.self, from: data)) ?? DrinNachricht())
         }
         raum.fluechtigBeobachten("strich.live") { [weak self] _, data in
             guard let strich = try? JSONDecoder().decode(LiveStrich.self, from: data) else { return }
@@ -185,13 +187,14 @@ final class LiveZeichnung {
         partnerDrin == zeichnungId && Raum.shared.partnerDa
     }
 
-    private func drinEmpfangen(_ id: String?) {
-        let vorher = partnerDrin
-        partnerDrin = id
-        guard id != vorher else { return }
-        partnerStift = nil
-        // Answer once, so whoever opened the drawing second also knows the other one is there.
-        if let id, offen?.zeichnungId == id { Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: id)) }
+    private func drinEmpfangen(_ nachricht: DrinNachricht) {
+        if nachricht.zeichnungId != partnerDrin { partnerStift = nil }
+        partnerDrin = nachricht.zeichnungId
+        // Answer every announce for the drawing open here, also a repeated one (the partner's app may
+        // have restarted and forgotten us), so whoever came second knows the other one is there.
+        if nachricht.antwort != true, let id = nachricht.zeichnungId, offen?.zeichnungId == id {
+            Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: id, antwort: true))
+        }
     }
 
     /// Shows the pen while it draws or hovers. An explicit "off" hides it after 0.3 s,
@@ -263,17 +266,22 @@ final class ZeichnungLive {
         geoeffnet = true
         LiveZeichnung.shared.offen = self
         FigurenModell.shared.zustandSenden(.init(haupt: .zeichnet))
+        ankuendigen()
         guard let session else { return }
         if nurAnsehen {
-            Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: zeichnungId))
             Task { [weak self] in
                 await self?.session?.engine?.loading?.value
                 self?.opsNachholen()
             }
         } else if TeilenModell.shared.stand.istGeteilt(session.document) {
-            Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: zeichnungId))
             StandPaket.planen(session.document.id, library: session.library, strich: letzterStrich)
         }
+    }
+
+    /// Tells the partner this drawing is open. Again after a reconnect: `fl` without a socket is dropped.
+    func ankuendigen() {
+        guard geoeffnet, let session, nurAnsehen || TeilenModell.shared.stand.istGeteilt(session.document) else { return }
+        Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: zeichnungId))
     }
 
     func verlassen() {
