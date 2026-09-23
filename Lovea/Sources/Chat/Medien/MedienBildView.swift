@@ -31,9 +31,32 @@ struct MedienNachrichtView: View {
                 LadePlatzhalter(istVideo: medium.typ == "video")
             }
         }
-        .frame(width: 220, height: medium.hoehe > 0 ? 220 * medium.hoehe / max(medium.breite, 1) : 220)
+        .frame(width: groesse.width, height: groesse.height)
         .clipShape(RoundedRectangle(cornerRadius: 14))
         .task(id: medium.id) { if let gefunden = await MedienDatei.url(medium, eigene: eigene) { localURL = gefunden } }
+    }
+
+    /// Z-26.3: a photo bubble is capped at 320 pt tall and 75 % of the screen wide. `MedienVorschau`
+    /// already renders `.aspectRatio(contentMode: .fill)` inside this frame and the outer
+    /// `.clipShape` crops it, so an extreme aspect ratio (very tall/very wide) just needs its short
+    /// side floored instead of shrinking to a sliver — the long side gets cropped away, same as the
+    /// spec's "Seitenverhältnis gekappt". Video bubbles keep their existing fixed-width sizing.
+    private var groesse: CGSize {
+        guard medium.typ != "video" else {
+            return CGSize(width: 220, height: medium.hoehe > 0 ? 220 * medium.hoehe / max(medium.breite, 1) : 220)
+        }
+        return Self.bildGroesse(breite: medium.breite, hoehe: medium.hoehe, maxBreite: UIScreen.main.bounds.width * 0.75)
+    }
+
+    /// Pure geometry (testable without `UIScreen`, which is main-actor-isolated): fits (breite,hoehe)
+    /// into (maxBreite,maxHoehe), then floors whichever side an extreme ratio shrank past `minSeite`.
+    nonisolated static func bildGroesse(breite: Double, hoehe: Double, maxBreite: CGFloat, maxHoehe: CGFloat = 320, minSeite: CGFloat = 140) -> CGSize {
+        guard breite > 0, hoehe > 0 else { return CGSize(width: maxBreite, height: maxHoehe) }
+        let verhaeltnis = CGFloat(breite / hoehe)
+        var b = maxBreite
+        var h = b / verhaeltnis
+        if h > maxHoehe { h = maxHoehe; b = h * verhaeltnis }
+        return CGSize(width: max(b, minSeite), height: max(h, minSeite))
     }
 }
 
