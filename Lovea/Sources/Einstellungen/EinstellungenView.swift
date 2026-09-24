@@ -20,6 +20,21 @@ struct EinstellungenView: View {
             Section("Figur") {
                 NavigationLink("Figuren-Editor") { FigurEditorSeite(person: person) }
             }
+            Section("Szenen") {
+                ForEach(RaumOrt.allCases, id: \.self) { ort in
+                    NavigationLink {
+                        ZimmerEditor(person: person, ort: ort)
+                    } label: {
+                        HStack(spacing: 12) {
+                            Label(ort.titel, systemImage: ort.symbol)
+                            Spacer()
+                            ZimmerKachel(zimmer: Zimmer.von(person, ort: ort), ort: ort, art: .raum, aussehen: FigurenModell.shared.aussehen(person))
+                                .frame(width: 40, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                }
+            }
             Section("Chat") {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
             }

@@ -1,14 +1,26 @@
 import SwiftUI
 
-/// Brief G: the places a person can furnish, each with its own saved `Zimmer`.
+/// Brief G: the places a person can furnish, each with its own saved `Zimmer`. `gym` (Brief S) added
+/// at the end so old `profil.raeume` JSON keeps decoding.
 enum RaumOrt: String, CaseIterable, Sendable {
-    case zuhause, arbeit, schule
+    case zuhause, arbeit, schule, gym
 
     var titel: String {
         switch self {
         case .zuhause: "Zimmer gestalten"
         case .arbeit: "Büro gestalten"
         case .schule: "Klassenzimmer gestalten"
+        case .gym: "Gym gestalten"
+        }
+    }
+
+    /// Brief S: the Einstellungen row per place.
+    var symbol: String {
+        switch self {
+        case .zuhause: "house.fill"
+        case .arbeit: "briefcase.fill"
+        case .schule: "graduationcap.fill"
+        case .gym: "dumbbell.fill"
         }
     }
 }
@@ -59,6 +71,10 @@ struct Zimmer: Equatable, Sendable {
         case .zuhause: self.init()
         case .arbeit: self.init(wand: 2, boden: 1, deko: ["regal", "pflanze", "kaffeemaschine", "wanduhr"], tisch: 2)
         case .schule: self.init(wand: 0, boden: 0, deko: ["globus", "pinnwand", "wanduhr"], tisch: 0)
+        // Brief S: no bed or desk, just the fixed gym backdrop plus a couple of its own pieces. No
+        // poster preset (index 5, "Gym Shark", is a drawn one the picker doesn't offer, see
+        // `posterAuswahl`) so the default stays pickable from the Poster tab.
+        case .gym: self.init(deko: ["lautsprecher"])
         }
     }
 
@@ -71,12 +87,12 @@ struct Zimmer: Equatable, Sendable {
     static let dekoArten: [(id: String, name: String, wo: String)] = [
         ("fenster", "Fenster", "z"), ("lampe", "Nachttisch-Lampe", "z"),
         ("teppich", "Teppich", "zas"), ("teppichRund", "Runder Teppich", "zas"), ("teppichSchwarz", "Schwarzer Teppich", "zas"),
-        ("pflanze", "Pflanze", "zas"), ("monstera", "Monstera", "zas"), ("kaktus", "Kaktus", "zas"), ("blumen", "Blumenvase", "zas"),
+        ("pflanze", "Pflanze", "zasg"), ("monstera", "Monstera", "zas"), ("kaktus", "Kaktus", "zas"), ("blumen", "Blumenvase", "zas"),
         ("regal", "Regal", "zas"), ("buecherregal", "Bücherregal", "zas"), ("lichterkette", "Lichterkette", "zas"),
         ("lichtervorhang", "Lichtervorhang", "za"), ("ledStreifen", "LED rosa", "zas"), ("ledWeiss", "LED kaltweiß", "zas"),
         ("ledRot", "LED rot", "zas"), ("neonHerz", "Neon-Herz", "za"), ("spiegel", "Spiegel", "za"),
         ("kleiderstange", "Kleiderstange", "z"), ("sneakerRegal", "Sneaker-Regal", "za"), ("jordanBox", "Sneaker-Kartons", "za"),
-        ("gaming", "Gaming-Ecke", "za"), ("lautsprecher", "Lautsprecher", "za"), ("plattenspieler", "Plattenspieler", "za"),
+        ("gaming", "Gaming-Ecke", "za"), ("lautsprecher", "Lautsprecher", "zag"), ("plattenspieler", "Plattenspieler", "za"),
         ("kerze", "Kerzen", "za"), ("sitzsack", "Sitzsack", "za"), ("hanteln", "Hanteln", "za"), ("yogamatte", "Yogamatte", "za"),
         ("pinnwand", "Pinnwand mit Polaroids", "zas"), ("globus", "Globus", "as"), ("stehlampe", "Stehlampe", "zas"),
         ("kopfhoerer", "Kopfhörer", "za"), ("kaffeemaschine", "Kaffeemaschine", "a"), ("wanduhr", "Wanduhr", "zas"),
@@ -1154,7 +1170,7 @@ enum SzenenZeichnung {
 
     // MARK: Gym
 
-    static func gym(_ g: GraphicsContext) {
+    static func gym(_ g: GraphicsContext, _ z: Zimmer) {
         g.fill(alles, with: .linearGradient(Gradient(colors: [farbe(0x3C4048), farbe(0x5A5F68)]), startPoint: P(0, -60), endPoint: P(0, 300)))
         for x in [CGFloat(70), 195, 320] {
             g.fill(kreis(P(x, 30), 60), with: .radialGradient(Gradient(colors: [.white.opacity(0.12), .clear]), center: P(x, 30), startRadius: 4, endRadius: 60))
@@ -1189,6 +1205,22 @@ enum SzenenZeichnung {
         teil(g, kreis(P(356, 296), 30), FigurFarbe(0x1F2024), 3)
         linie(g, kreis(P(356, 296), 20), .white.opacity(0.15), 2)
         teil(g, kreis(P(356, 296), 5), Pal.silber, 1.5)
+        einrichtungGym(g, z)
+    }
+
+    // ponytail: hand-picked free spots in the fixed gym backdrop (mirror x168-374/y64-196, rack
+    // x8-144/y222-320), not pixel-checked in Xcode; nudge these two positions after a visual pass.
+    /// Brief S: gym decor reuses two pieces from the shared deco set (`Zimmer.dekoArten`, flag "g"),
+    /// shifted (`translateBy`) into the fixed scene's free floor and wall space, plus the ordinary
+    /// right-wall poster spot every non-home place already has.
+    private static func einrichtungGym(_ g: GraphicsContext, _ z: Zimmer) {
+        posterAufhaengen(g, z.poster, P(70, 108))
+        if z.hat("lautsprecher") { lautsprecher(g) }
+        if z.hat("pflanze") {
+            var v = g
+            v.translateBy(x: -280, y: 76)
+            pflanze(v)
+        }
     }
 
     // MARK: School and work (the desk comes with the sitting figure, `FigurView.schreibtisch`)

@@ -224,6 +224,24 @@ final class ProfilSzeneTests: XCTestCase {
         }
     }
 
+    // MARK: - Gym (Brief S)
+
+    func testGymOrt() {
+        XCTAssertEqual(RaumOrt.allCases.last, .gym, "added at the end, so old JSON keeps decoding")
+        let z = Zimmer(ort: .gym)
+        XCTAssertEqual(z.deko, ["lautsprecher"])
+        XCTAssertEqual(z.poster, 0, "no preset poster: index 5 (Gym Shark) isn't in posterAuswahl")
+        XCTAssertEqual(Zimmer.dekoArten(fuer: .gym).map(\.id), ["pflanze", "lautsprecher"], "only the pieces that fit the gym")
+        // Pieces that don't fit the gym (the bedroom mirror) are dropped on read.
+        let gelesen = Zimmer.lesen(.object(["deko": .array([.string("pflanze"), .string("spiegel")])]), ort: .gym)
+        XCTAssertEqual(gelesen.deko, ["pflanze"])
+        // Old `profil.raeume` without a "gym" key falls back to the gym's own defaults, not home's.
+        let karte: JSONValue = .object(["arbeit": Zimmer(ort: .arbeit).json])
+        XCTAssertEqual(Zimmer.lesen(raeume: karte, altesZimmer: nil, ort: .gym), z)
+        // The gym scene (Brief G) now points at its own furnishable place.
+        XCTAssertEqual(ProfilSzene.gym.raumOrt, .gym)
+    }
+
     func testDekoAnSchaltetNachbarnAus() {
         var z = Zimmer(deko: ["teppich", "pflanze", "gaming"])
         z.dekoAn("teppichSchwarz")
