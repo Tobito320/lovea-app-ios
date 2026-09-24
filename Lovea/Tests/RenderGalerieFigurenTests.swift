@@ -199,4 +199,24 @@ final class RenderGalerieFigurenTests: XCTestCase {
         }
         RenderTafel.speichern("figuren-ahmed-outfits", spalten: 8, zellen: zellen)
     }
+
+    /// Fix round 4: put these next to `design/ki/sticker/wir-ich.png` — standard half and full body,
+    /// each of his hairstyles large, and the cap look.
+    func testAhmedVergleich() {
+        var zellen: [Zelle] = []
+        let a = A.standard(for: .ahmed)
+        zellen.append((titel: "Standard halb", ansicht: figur(a, groesse: 240)))
+        zellen.append((titel: "Standard ganz", ansicht: figur(a, groesse: 300, ganz: true)))
+        for i in 78...82 {
+            var b = a
+            b.frisur = i
+            zellen.append((titel: A.frisuren[i], ansicht: figur(b, groesse: 240)))
+        }
+        if let cap = A.outfits.first(where: { $0.name == "Cap Look" }) {
+            var b = a
+            b.anziehen(outfit: cap)
+            zellen.append((titel: "Cap Look", ansicht: figur(b, groesse: 240)))
+        }
+        RenderTafel.speichern("figuren-ahmed-vergleich", spalten: 4, zellen: zellen)
+    }
 }

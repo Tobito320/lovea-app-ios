@@ -29,6 +29,8 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     var kette = 0, ring = 0, armband = 0, uhrAlltag = 0
     // v5 (fix round 3): Kinnbart, combines with any mustache; index into `kinnbaerte`, 0 = none.
     var kinnbart = 0
+    // v6 (fix round 4): several small moles on the cheeks, white AirPods in both ears.
+    var muttermale = false, airpods = false
     /// Whose figure this is. Not synced (missing from `CodingKeys`): `standard(for:)` and
     /// `FigurenModell.aussehen(_:)` set it, so the drawing can dress Ahmed and Annika differently
     /// in the gym. `nil` = unknown, draws the chosen outfit.
@@ -43,6 +45,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         case haarfarbeHex, oberteilfarbeHex, jackenfarbeHex, hosenfarbeHex, schuhfarbeHex
         case kette, ring, armband, uhrAlltag
         case kinnbart
+        case muttermale, airpods
     }
 
     /// Z-38.4: the looks of Ahmed's and Annika's Bitmojis (`docs/figuren-vorlage/`). Whoever never sent
@@ -52,22 +55,28 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         a.person = person
         switch person {
         case .ahmed:
-            // Fix round 3, from Ahmed's photos: fair skin, longer face with a defined jaw, a straight
-            // prominent nose, thick straight dark brows, relaxed heavy-lidded dark eyes, a thin
-            // medium-brown mustache, dark voluminous hair as a mushroom top over a taper fade.
-            a.haut = 1           // Hell
-            a.gesichtsform = 4   // Länglich
-            a.frisur = 79        // Mushroom Taper
-            a.haarfarbe = 0      // Schwarz (wie auf seinen Fotos)
+            // Fix round 4: his real everyday look, after his photos and the ChatGPT stickers
+            // (`design/ki/sticker/wir-ich.png`): long angular face, light warm skin with moles,
+            // almost black curly cloud with a heavy fringe over a low taper, thick straight brows,
+            // heavy relaxed lids, long nose, full light-pink lips, medium-brown mustache, a trace of
+            // chin stubble, AirPods, black tee, grey wide jeans, white low tops.
+            a.haut = 12          // Hell warm
+            a.gesichtsform = 6   // Kantig lang
+            a.frisur = 79        // Mushroom Taper (Locken-Wolke mit Pony)
+            a.haarfarbe = 16     // Fast schwarz
             a.augen = 0          // Dunkelbraun
-            a.augenform = 8      // Scharf (klare Iris, definiertes Oberlid, entspannt)
+            a.augenform = 4      // Verträumt (schwere, entspannte Lider)
             a.brauen = 8         // Dick gerade
             a.nase = 5           // Lang
             a.mund = 8           // Lippen hellrosa
-            a.bart = 14          // Oberlippenbart hellbraun (natürlich)
+            a.bart = 14          // Oberlippenbart hellbraun
             a.kinnbart = 1       // Leichter Kinnbart
+            a.muttermale = true
+            a.airpods = true
             a.koerperform = 3    // Athletisch
-            if let o = outfits.first(where: { $0.name == "Pink & Black" }) { a.anziehen(outfit: o) } // seine Lieblingsfarben
+            a.oberteil = 32      // Schwarzes Rundhals-Tee
+            a.hose = 18          // Hellgraue Baggy-Jeans
+            a.schuhe = 15        // Weiße Low-Top-Sneaker
         case .annika:
             a.haut = 1
             a.frisur = 56        // Lang glatt Mittelscheitel
@@ -97,9 +106,10 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         ("Kakao", FigurFarbe(0x7F4F2F)), ("Espresso", FigurFarbe(0x5A3620)),
         ("Rosig", FigurFarbe(0xF3C6B0)), ("Oliv", FigurFarbe(0xC7A07A)),
         ("Bronze", FigurFarbe(0x8E5B3A)), ("Ebenholz", FigurFarbe(0x3E2518)),
+        ("Hell warm", FigurFarbe(0xE8C2A6)), // Fix round 4 (Ahmed)
     ]
 
-    static let gesichtsformen = ["Oval", "Rund", "Herz", "Eckig", "Länglich", "Diamant"]
+    static let gesichtsformen = ["Oval", "Rund", "Herz", "Eckig", "Länglich", "Diamant", "Kantig lang"]
 
     static let frisuren = [
         "Kurz", "Raspel", "Seitenscheitel", "Locken", "Tolle", "Glatze",
@@ -132,6 +142,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         ("Schwarz mit Strähnen", FigurFarbe(0x221C1C), FigurFarbe(0xB88B55)),
         ("Braun mit Karamell", FigurFarbe(0x5A3A26), FigurFarbe(0xD9A26A)),
         ("Blond mit Strähnen", FigurFarbe(0xC89E5E), FigurFarbe(0xF4E3B5)),
+        ("Fast schwarz", FigurFarbe(0x241712), nil), // Fix round 4 (Ahmed)
     ]
 
     static let augenfarben: [(name: String, farbe: FigurFarbe)] = [
@@ -170,7 +181,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     static let baerteGeschlecht: [FigurGeschlecht] = [.n, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m]
     static let ohrringArten = ["Keine", "Stecker", "Kreolen", "Hänger", "Perlen", "Diamant-Stecker", "Große Kreolen", "Herz-Hänger"]
     static let ohrringeGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .w]
-    static let kopfbedeckungen = ["Keine", "Cap", "Cap rückwärts", "Beanie", "Fischerhut", "Stirnband", "Haarreif", "Carhartt Beanie"]
+    static let kopfbedeckungen = ["Keine", "Cap", "Cap rückwärts", "Beanie", "Fischerhut", "Stirnband", "Haarreif", "Carhartt Beanie", "Trucker Cap"]
 
     static let oberteile = [
         "T-Shirt", "Hoodie", "Hemd", "Pulli", "Top", "Jacke", "Trägertop", "Ringelshirt",
@@ -183,6 +194,8 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         "Weißes Kompressions-Longsleeve", "Schwarzes Kompressions-Tee", "Waldgrünes Oversize-Tee", "Weißes Rippen-Tank",
         // Fix round 3 (Ahmed's photos): 31 has its own drawing, 32 via `fotoOberteile`, 33 = bare torso.
         "Rosa Strickpulli mit Grafik", "Schwarzes Rundhals-Tee", "Oben ohne",
+        // Fix round 4: Gymshark (own drawing with the logo).
+        "Gymshark Tee schwarz", "Gymshark Longsleeve weiß",
     ]
     static let jacken = [
         "Keine", "Lederjacke", "Jeansjacke", "Bomberjacke", "Blazer", "Pufferjacke", "Pelzkragen-Jacke", "Cape",
@@ -246,6 +259,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         .n, .w, .n, .n, .n, .n, .n, .n, .n, .n,
         .m, .m, .m, .w,
         .m, .m, .m,
+        .n, .n,
     ]
     static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n, .n, .n, .n, .w, .m, .m, .m, .m]
     /// Z-23.1: indices appended for shop "mode"/"brille" items (`shopTeile` below) — hidden from the
@@ -277,6 +291,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         ("Braun", FigurFarbe(0x7A5234)), ("Denim", FigurFarbe(0x4B6C98)),
         // Fix round 3: Ahmed's pink and deep black.
         ("Pink", FigurFarbe(0xF2A9BA)), ("Tiefschwarz", FigurFarbe(0x161617)),
+        ("Bordeaux", FigurFarbe(0x4A1F24)), // Fix round 4: Ahmed's trucker cap
     ]
 }
 
@@ -345,6 +360,8 @@ extension FigurAussehen {
         try lies(.armband, &armband)
         try lies(.uhrAlltag, &uhrAlltag)
         try lies(.kinnbart, &kinnbart)
+        try lies(.muttermale, &muttermale)
+        try lies(.airpods, &airpods)
     }
 }
 

@@ -106,7 +106,7 @@ final class FigurenTests: XCTestCase {
 
     func testOptionenAnzahl() {
         typealias A = FigurAussehen
-        XCTAssertEqual(A.gesichtsformen.count, 6)
+        XCTAssertEqual(A.gesichtsformen.count, 7)
         XCTAssertGreaterThanOrEqual(A.hautToene.count, 12)
         XCTAssertGreaterThanOrEqual(A.augenformen.count, 8)
         XCTAssertGreaterThanOrEqual(A.augenfarben.count, 8)
@@ -129,23 +129,25 @@ final class FigurenTests: XCTestCase {
     }
 
     func testStandardFiguren() {
+        // Fix round 4: Ahmed's real everyday look (photos + ChatGPT stickers).
         let ahmed = FigurAussehen.standard(for: .ahmed)
-        XCTAssertGreaterThan(ahmed.bart, 0)
-        XCTAssertTrue(ahmed.traegt(outfit: FigurAussehen.outfits.first { $0.name == "Pink & Black" }!))
-        XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Weite Jeans")
-        let annika = FigurAussehen.standard(for: .annika)
-        XCTAssertEqual(FigurAussehen.frisuren[annika.frisur], "Lang glatt Mittelscheitel")
+        XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "Schwarzes Rundhals-Tee")
+        XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Hellgraue Baggy-Jeans")
+        XCTAssertEqual(FigurAussehen.schuhArten[ahmed.schuhe], "Weiße Low-Top-Sneaker")
         XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Mushroom Taper")
-        // Fix round 3 (Ahmed's photos): fair skin, long face, thick straight brows, sharp eyes,
-        // thin medium-brown mustache plus a light goatee.
-        XCTAssertEqual(FigurAussehen.hautToene[ahmed.haut].name, "Hell")
-        XCTAssertEqual(FigurAussehen.gesichtsformen[ahmed.gesichtsform], "Länglich")
+        XCTAssertEqual(FigurAussehen.haarfarben[ahmed.haarfarbe].name, "Fast schwarz")
+        XCTAssertEqual(FigurAussehen.hautToene[ahmed.haut].name, "Hell warm")
+        XCTAssertEqual(FigurAussehen.gesichtsformen[ahmed.gesichtsform], "Kantig lang")
         XCTAssertEqual(FigurAussehen.augenbrauen[ahmed.brauen], "Dick gerade")
-        XCTAssertEqual(FigurAussehen.augenformen[ahmed.augenform], "Scharf")
         XCTAssertEqual(FigurAussehen.baerte[ahmed.bart], "Oberlippenbart hellbraun")
         XCTAssertEqual(FigurAussehen.kinnbaerte[ahmed.kinnbart], "Leichter Kinnbart")
+        XCTAssertTrue(ahmed.muttermale)
+        XCTAssertTrue(ahmed.airpods)
+        let annika = FigurAussehen.standard(for: .annika)
+        XCTAssertEqual(FigurAussehen.frisuren[annika.frisur], "Lang glatt Mittelscheitel")
         XCTAssertEqual(FigurAussehen.jacken[annika.jacke], "Lederjacke")
         XCTAssertTrue(FigurAussehen.hosen[annika.hose].contains("Jeans"))
+        XCTAssertFalse(annika.airpods)
     }
 
     // MARK: Aussehen v3 (Z-24.1/Z-24.2)
@@ -350,7 +352,7 @@ final class FigurenTests: XCTestCase {
             XCTAssertEqual(a.bart, basis.bart)
         }
         let namen = A.outfits(fuer: .ahmed).map(\.name)
-        for n in ["Pink Knit", "All Black", "Pink & Black", "Gym Black", "Oben ohne Gym", "Grey Denim"] { XCTAssertTrue(namen.contains(n), n) }
+        for n in ["Pink Knit", "All Black", "Pink & Black", "Gym Black", "Oben ohne Gym", "Grey Denim", "Gymshark Black", "Gymshark White", "Cap Look"] { XCTAssertTrue(namen.contains(n), n) }
         XCTAssertFalse(A.outfits(fuer: .annika).contains { $0.name == "Oben ohne Gym" })
     }
 

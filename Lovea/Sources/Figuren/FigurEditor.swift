@@ -71,6 +71,7 @@ struct FigurEditor: View {
                     .optionen("Mund", \.mund, A.muender, .gesicht, erlaubte: nil),
                     .schalter("Sommersprossen", \.sommersprossen),
                     .schalter("Muttermal", \.muttermal),
+                    .schalter("Mehrere Muttermale", \.muttermale),
                     .schalter("Rouge", \.rouge),
                 ]
             case .haare:
@@ -118,6 +119,7 @@ struct FigurEditor: View {
                     .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht, erlaubte: A.erlaubt(A.ohrringArten, geschlecht: A.ohrringeGeschlecht, fuer: person)),
                     .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf, erlaubte: nil),
                     .farben("Farbe der Kopfbedeckung", \.muetzenfarbe, kleidung, hexPfad: nil),
+                    .schalter("AirPods", \.airpods),
                 ]
             case .schmuck:
                 // Z-39.3: free everyday jewelry; luxury pieces come from the shop.

@@ -40,6 +40,9 @@ struct FigurOutfit: Sendable, Identifiable {
     var hoseHex: String?
     let schuhe: Int
     var schuhHex: String?
+    /// Fix round 4: headwear belongs to the outfit (0 = none); `muetzenfarbe` nil keeps the color.
+    var kopfbedeckung = 0
+    var muetzenfarbe: Int?
 
     var id: String { name }
 }
@@ -55,6 +58,10 @@ extension FigurAussehen {
         FigurOutfit(name: "Oben ohne Gym", geschlecht: .m, oberteil: 33, hose: 16, schuhe: 2, schuhHex: "F4F1EE"),
         FigurOutfit(name: "Grey Denim", geschlecht: .m, oberteil: 32, hose: 18, schuhe: 15),
         FigurOutfit(name: "Brasilien", geschlecht: .m, oberteil: 20, oberteilHex: "F5CE5A", hose: 2, hoseHex: "8E8C93", schuhe: 10, schuhHex: "F4F1EE"),
+        // Fix round 4: Gymshark and the burgundy trucker cap.
+        FigurOutfit(name: "Gymshark Black", geschlecht: .m, oberteil: 34, oberteilHex: "161617", hose: 16, schuhe: 2, schuhHex: "F4F1EE"),
+        FigurOutfit(name: "Gymshark White", geschlecht: .m, oberteil: 35, oberteilHex: "F2F2F0", hose: 16, schuhe: 2, schuhHex: "F4F1EE"),
+        FigurOutfit(name: "Cap Look", geschlecht: .m, oberteil: 34, oberteilHex: "161617", hose: 18, schuhe: 15, kopfbedeckung: 8, muetzenfarbe: 18),
         FigurOutfit(name: "Date Look", geschlecht: .w, oberteil: 4, oberteilHex: "F7B6C8", jacke: 1, jackeHex: "2B2830", hose: 1, schuhe: 1, schuhHex: "2B2830"),
         FigurOutfit(name: "Gym Girl", geschlecht: .w, oberteil: 30, hose: 9, hoseHex: "2B2830", schuhe: 2, schuhHex: "F4F1EE"),
     ]
@@ -72,11 +79,14 @@ extension FigurAussehen {
         hosenfarbeHex = o.hoseHex
         schuhe = o.schuhe
         schuhfarbeHex = o.schuhHex
+        kopfbedeckung = o.kopfbedeckung
+        if let f = o.muetzenfarbe { muetzenfarbe = f }
     }
 
     /// The editor marks the preset that is worn right now.
     func traegt(outfit o: FigurOutfit) -> Bool {
         oberteil == o.oberteil && oberteilfarbeHex == o.oberteilHex && jacke == o.jacke && jackenfarbeHex == o.jackeHex
             && hose == o.hose && hosenfarbeHex == o.hoseHex && schuhe == o.schuhe && schuhfarbeHex == o.schuhHex
+            && kopfbedeckung == o.kopfbedeckung
     }
 }
