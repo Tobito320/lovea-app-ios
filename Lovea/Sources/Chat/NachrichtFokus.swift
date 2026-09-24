@@ -182,7 +182,7 @@ struct NachrichtFokusEbene: View {
                 schliessen()
             })
         }
-        if eigene, !text.isEmpty, nachricht.brief == nil,
+        if eigene, !text.isEmpty,
            ChatZeitfenster.darfBearbeiten(gesendet: nachricht.zeit, bearbeitungen: nachricht.fassungen.count, jetzt: jetzt) {
             liste.append(MenuePunkt(id: "bearbeiten", titel: "Bearbeiten", symbol: "pencil") { tun(.bearbeiten) })
         }

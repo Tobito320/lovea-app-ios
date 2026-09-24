@@ -36,8 +36,6 @@ final class ChatModell {
         var snapGespeichert = false
         /// Local chat line for a `zeichnung.einladung` (no own op, so no second push).
         var einladung: EinladungInfo?
-        // Optional and at the end, so every existing labeled `Nachricht(...)` call still compiles.
-        var brief: BriefInfo?
         /// Z-33.3: every earlier text, oldest first, folded from all `nachricht.bearbeitet`.
         var fassungen: [String] = []
         /// Z-33.2: full-screen effect sent with the message (unknown raw values are dropped).
@@ -45,6 +43,7 @@ final class ChatModell {
     }
 
     struct EinladungInfo: Sendable, Equatable { let zeichnungId: String; let name: String }
+    /// Letters are gone (Brief G fix 1); old ones still decode and show as a plain text bubble.
     struct BriefInfo: Codable, Sendable, Equatable { let titel: String }
 
     // Blocks 5/6 extend these; fields already match the op payloads in schnittstellen.md.
@@ -111,11 +110,13 @@ final class ChatModell {
                 byID[p.id] = vorhanden
             } else {
                 // A Runde-2 `kapsel` field is simply not decoded any more: the message shows like any other.
+                // An old letter becomes an ordinary text: its title, a blank line, its text.
+                let text = p.brief.map { brief in [brief.titel, p.text ?? ""].filter { !$0.isEmpty }.joined(separator: "\n\n") } ?? p.text
                 byID[p.id] = Nachricht(
-                    id: p.id, von: op.von, zeit: op.zeit, seq: op.seq, text: p.text,
+                    id: p.id, von: op.von, zeit: op.zeit, seq: op.seq, text: text,
                     medien: p.medien ?? [], antwortAuf: p.antwortAuf, snap: p.snap,
                     gif: p.gif, sticker: p.sticker, spiel: p.spiel, system: p.system,
-                    brief: p.brief, effekt: p.effekt.flatMap(ChatEffekt.init(rawValue:))
+                    effekt: p.effekt.flatMap(ChatEffekt.init(rawValue:))
                 )
             }
         case "nachricht.bearbeitet":
@@ -246,17 +247,6 @@ final class ChatModell {
         Raum.shared.senden(
             "nachricht.neu",
             NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, antwortAuf: antwortAuf, effekt: gewaehlt?.rawValue)
-        )
-    }
-
-    /// Z-27.2: Liebesbrief — Siegel + Öffnen-Animation (`BriefBlase`).
-    func briefSenden(titel: String, text: String) {
-        let titelGetrimmt = titel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let textGetrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !titelGetrimmt.isEmpty, !textGetrimmt.isEmpty else { return }
-        Raum.shared.senden(
-            "nachricht.neu",
-            NachrichtNeuPayload(id: UUID().uuidString, text: textGetrimmt, brief: BriefInfo(titel: titelGetrimmt))
         )
     }
 

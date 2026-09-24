@@ -14,7 +14,7 @@ enum ChatStapel {
 
     static func istBild(_ n: ChatModell.Nachricht) -> Bool {
         !n.geloescht && n.snap == nil && (n.text ?? "").isEmpty && n.gif == nil && n.sticker == nil
-            && n.spiel == nil && n.system == nil && n.einladung == nil && n.brief == nil
+            && n.spiel == nil && n.system == nil && n.einladung == nil
             && !n.medien.isEmpty && n.medien.allSatisfy { $0.typ == "foto" || $0.typ == "video" }
     }
 
@@ -36,8 +36,6 @@ enum ChatStapel {
 /// One-line preview of a message (quote bar, pinned bar, "Heute vor …").
 enum ChatVorschau {
     static func inhalt(_ n: ChatModell.Nachricht) -> String {
-        // Z-27.2: a letter's text only shows once it's opened — checked before `n.text`.
-        if let brief = n.brief { return "💌 Brief „\(brief.titel)“" }
         if let text = n.text, !text.isEmpty { return text }
         if n.snap != nil { return "Snap" }
         if let einladung = n.einladung { return "Zeichnung „\(einladung.name)“" }

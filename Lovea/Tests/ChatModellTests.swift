@@ -238,6 +238,15 @@ final class ChatModellTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// Letters are gone: an old one still decodes and reads as a plain text (title, blank line, text).
+    func testAlterBriefWirdNormalerText() {
+        let modell = ChatModell(registrieren: false)
+        let json = #"{"id":"b1","text":"Ich liebe dich","brief":{"titel":"Für dich"}}"#
+        modell.anwenden([Op(id: UUID().uuidString, seq: 1, art: "nachricht.neu", von: .annika, zeit: Date(), d: Data(json.utf8))])
+        XCTAssertEqual(modell.nachrichten.count, 1)
+        XCTAssertEqual(modell.nachrichten.first?.text, "Für dich\n\nIch liebe dich")
+    }
+
     private func neuOp(_ id: String, text: String, seq: Int?, von: Person = .ahmed) -> Op {
         op("nachricht.neu", ["id": .string(id), "text": .string(text)], von: von, seq: seq)
     }

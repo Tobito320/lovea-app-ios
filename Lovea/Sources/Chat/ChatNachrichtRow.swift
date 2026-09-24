@@ -282,9 +282,7 @@ struct NachrichtBlase: View {
     private var text: String { nachricht.text ?? "" }
 
     var body: some View {
-        if let brief = nachricht.brief {
-            BriefBlase(titel: brief.titel, text: text, von: nachricht.von)
-        } else if ChatStapel.istBild(nachricht) && alleMedien.count > 1 {
+        if ChatStapel.istBild(nachricht) && alleMedien.count > 1 {
             FotoStapel(medien: alleMedien, eigene: eigene)
         } else {
             VStack(alignment: eigene ? .trailing : .leading, spacing: 4) {

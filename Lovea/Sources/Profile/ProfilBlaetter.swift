@@ -179,49 +179,7 @@ struct ZeichnungKachel: View {
     }
 }
 
-// MARK: - Unser Chat: Briefe und Sterne (Z-34.2, the old Briefbox moved here)
-
-/// Every letter, newest first, each as B1's `BriefBlase` (tap opens it in place).
-struct BriefeBlatt: View {
-    let ich: Person
-    @Environment(\.dismiss) private var dismiss
-
-    private var briefe: [ChatModell.Nachricht] {
-        ChatModell.shared.nachrichten.filter { $0.brief != nil && !$0.geloescht }.sorted { $0.zeit > $1.zeit }
-    }
-
-    var body: some View {
-        let liste = briefe
-        NavigationStack {
-            Group {
-                if liste.isEmpty {
-                    ContentUnavailableView("Noch keine Briefe", systemImage: "envelope", description: Text("Schreib einen über Plus im Chat."))
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 18) {
-                            ForEach(liste) { brief in zeile(brief) }
-                        }
-                        .padding(16)
-                    }
-                }
-            }
-            .navigationTitle("Briefe")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
-        }
-    }
-
-    private func zeile(_ n: ChatModell.Nachricht) -> some View {
-        let eigen = n.von == ich
-        return VStack(alignment: eigen ? .trailing : .leading, spacing: 4) {
-            BriefBlase(titel: n.brief?.titel ?? "", text: n.text ?? "", von: n.von)
-            Text("\(eigen ? "Von dir" : "Von \(n.von.name)") · \(n.zeit.formatted(date: .abbreviated, time: .omitted))")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .frame(maxWidth: .infinity, alignment: eigen ? .trailing : .leading)
-    }
-}
+// MARK: - Unser Chat: Sterne (Z-34.2)
 
 /// The own stars, newest first. Tap jumps to the message in the chat.
 struct SterneBlatt: View {

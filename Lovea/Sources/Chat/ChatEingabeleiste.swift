@@ -42,7 +42,7 @@ struct ChatAnhang: Identifiable {
 
 /// Input bar (Z-32.3): [Kamera] [Feld] [Plus] as glass controls, every button 44 × 44 pt. The field
 /// (≥ 44 pt, 17 pt Dynamic Type, up to 6 lines) holds GIF/sticker and the mic; Return sends. Plus
-/// opens a glass drawer: Fotos, GIFs, Spiele, Brief, Effekte. Picked photos wait as thumbnails
+/// opens a glass drawer: Fotos, GIFs, Spiele, Effekte. Picked photos wait as thumbnails
 /// above; tap one to edit it. Throttles the own "tippt" signal and the figure state (Z-4.5).
 struct ChatEingabeleiste: View {
     let ich: Person
@@ -60,7 +60,6 @@ struct ChatEingabeleiste: View {
     @State private var gifBlattOffen = false
     @State private var kameraOffen = false
     @State private var spieleOffen = false
-    @State private var briefOffen = false
     /// Z-33.2: chosen by hand for the next text message.
     @State private var effekt: ChatEffekt?
     @State private var sprachBelegt = false
@@ -116,7 +115,7 @@ struct ChatEingabeleiste: View {
         .modifier(Blaetter(
             ich: ich, antwortAuf: $antwortAuf, eingabeAttr: $eingabeAttr, bearbeiten: $bearbeiten,
             kameraOffen: $kameraOffen, gifBlattOffen: $gifBlattOffen, spieleOffen: $spieleOffen,
-            briefOffen: $briefOffen, vollansichtOffen: $vollansichtOffen, onErsetzen: ersetzen
+            vollansichtOffen: $vollansichtOffen, onErsetzen: ersetzen
         ))
         .modifier(Lebenszyklus(scenePhase: scenePhase, onFlush: entwurfFlush, onWiederherstellen: entwurfWiederherstellen))
     }
@@ -150,7 +149,7 @@ struct ChatEingabeleiste: View {
                         .contentShape(.circle)
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
-                .accessibilityLabel(plusOffen ? "Mehr schließen" : "Mehr: Fotos, GIFs, Spiele, Brief, Effekte")
+                .accessibilityLabel(plusOffen ? "Mehr schließen" : "Mehr: Fotos, GIFs, Spiele, Effekte")
             }
             .buttonStyle(.plain)
             .foregroundStyle(.primary)
@@ -183,7 +182,6 @@ struct ChatEingabeleiste: View {
         case .fotos: fotosOffen = true
         case .gifs: gifBlattOffen = true
         case .spiele: spieleOffen = true
-        case .brief: briefOffen = true
         }
     }
 
@@ -200,7 +198,6 @@ struct ChatEingabeleiste: View {
         @Binding var kameraOffen: Bool
         @Binding var gifBlattOffen: Bool
         @Binding var spieleOffen: Bool
-        @Binding var briefOffen: Bool
         @Binding var vollansichtOffen: Bool
         let onErsetzen: (UUID, Data) -> Void
 
@@ -228,7 +225,6 @@ struct ChatEingabeleiste: View {
                     }
                 }
                 .sheet(isPresented: $spieleOffen) { SpieleStarter() }
-                .sheet(isPresented: $briefOffen) { BriefBlatt() }
                 // Z-26.1: "Vollansicht" — same text, large editor, closes via the button or the
                 // sheet's own swipe-down.
                 .sheet(isPresented: $vollansichtOffen) { VollansichtEditor(text: $eingabeAttr) }
@@ -826,7 +822,7 @@ private struct ZitatLeiste: View {
 
 /// Z-32.3: the plus drawer, a glass bar over the input. Springs in, closes on a choice or a swipe down.
 struct PlusLeiste: View {
-    enum Wahl { case fotos, gifs, spiele, brief }
+    enum Wahl { case fotos, gifs, spiele }
 
     @Binding var effekt: ChatEffekt?
     let onWahl: (Wahl) -> Void
@@ -837,7 +833,6 @@ struct PlusLeiste: View {
             eintrag("Fotos", "photo.on.rectangle.angled", .fotos)
             eintrag("GIFs", "face.smiling", .gifs)
             eintrag("Spiele", "gamecontroller.fill", .spiele)
-            eintrag("Brief", "envelope.fill", .brief)
             effekteMenue
         }
         .padding(.vertical, 6)

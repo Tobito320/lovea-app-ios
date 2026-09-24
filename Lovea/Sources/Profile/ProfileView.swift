@@ -49,7 +49,7 @@ struct PartnerProfilView: View {
 }
 
 private enum ProfilBlatt: String, Identifiable {
-    case wallpaper, medien, orte, zimmer, briefe, sterne
+    case wallpaper, medien, orte, zimmer, sterne
     var id: String { rawValue }
 }
 
@@ -155,7 +155,6 @@ private struct ProfilInhalt: View {
         case .medien: MedienUebersicht(ich: ich)
         case .orte: OrteListeView()
         case .zimmer: NavigationStack { ZimmerEditor(person: person) }
-        case .briefe: BriefeBlatt(ich: ich)
         case .sterne: SterneBlatt(ich: ich) { zurNachricht($0) }
         }
     }
@@ -475,7 +474,7 @@ private struct ProfilInhalt: View {
 
     private var trenner: some View { Divider().padding(.leading, 58) }
 
-    /// Z-34.2: Backdrop (full-screen picker, for both), then Medien, Briefe and Sterne.
+    /// Z-34.2: Backdrop (full-screen picker, for both), then Medien and Sterne.
     @ViewBuilder
     private var unserChat: some View {
         zeile("photo.artframe", "Backdrop", backdropUntertitel) { backdropOffen = true }
@@ -484,8 +483,6 @@ private struct ProfilInhalt: View {
         zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { blatt = .wallpaper }
         trenner
         zeile("photo.stack", "Medien") { blatt = .medien }
-        trenner
-        zeile("envelope", "Briefe") { blatt = .briefe }
         trenner
         zeile("star", "Sterne") { blatt = .sterne }
         trenner
