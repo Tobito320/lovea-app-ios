@@ -456,9 +456,10 @@ private struct Zeichner {
     func kopfGruppe(_ g: GraphicsContext) {
         kopf(g)
         gesicht(g)
+        // Before the hair: hair that covers the ears also covers the buds.
+        if airpods { airpodsZeichnen(g) }
         haareVorn(haarKontext(g))
         ohrringeZeichnen(g)
-        if airpods { airpodsZeichnen(g) }
         muetzeZeichnen(g)
         kopfschmuck(g)
         brillen(g)
@@ -2322,13 +2323,22 @@ private struct Zeichner {
         linie(g, strich(P(138, 95), P(156, 92)), rahmen, dicke)
     }
 
-    /// Fix round 4: white AirPods in both ears (bud in the ear, stem pointing down).
+    /// AirPods Pro, small and subtle: a glossy white bud tucked into the ear opening, a short thin
+    /// stem pointing down and slightly toward the face (about 35 % of the ear height), soft gray
+    /// shading on one side, a tiny highlight, only a very light #D8D8D8 rim. Head space, so it
+    /// scales with the head.
     func airpodsZeichnen(_ g: GraphicsContext) {
-        for (x, seite) in [(CGFloat(44), CGFloat(1)), (156, -1)] {
-            let stiel = strich(P(x + seite, 104), P(x + seite * 2, 118))
-            linie(g, stiel, Pal.silber.kontur, 5)
-            linie(g, stiel, .white, 3.2)
-            teil(g, oval(P(x + seite * 2, 101), 4.2, 4.6), Pal.weiss, 1.4)
+        let rand = FigurFarbe(0xD8D8D8).farbe
+        for (ohr, seite) in [(CGFloat(42), CGFloat(-1)), (158, 1)] {
+            let x: CGFloat = ohr + seite * 4
+            let stiel = strich(P(x, 103.5), P(x - seite * 1.5, 111))
+            linie(g, stiel, rand, 3.4)
+            linie(g, stiel, .white, 2.4)
+            let knopf = oval(P(x, 101), 3.2, 2.8)
+            g.fill(knopf, with: .color(.white))
+            linie(g, knopf, rand, 0.8)
+            g.fill(oval(P(x + seite * 1.1, 102), 1.8, 1.4), with: .color(FigurFarbe(0xE6E6E8).farbe))
+            g.fill(kreis(P(x - seite * 1.1, 100.2), 0.7), with: .color(.white))
         }
     }
 
