@@ -313,7 +313,9 @@ private struct ProfilInhalt: View {
     /// from 22:00 an awake figure is tired and yawns now and then.
     @ViewBuilder
     private func figur(_ p: Person, szene: ProfilSzene? = nil) -> some View {
-        let live = FigurenModell.shared.anzeige(p).haupt
+        // Their own shared state even while their app is closed (it arrives in the background too),
+        // so both phones show the same; grey "offline" only when nothing was ever shared.
+        let live = ProfilSzene.geteilterZustand(p) ?? .offline
         let schlaf = ProfilSzene.schlafGerade(p)
         let schlaeft = schlaf != .wach
         let zustand: FigurZustand = schlaf == .schlaeft ? .schlaeft : (schlaf == .sitzt ? .sitztImBett : (szene?.figur(live) ?? live))

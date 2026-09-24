@@ -99,8 +99,19 @@ extension ProfilSzene {
 
     static func unterwegsGerade(_ p: Person) -> Bool {
         let fix = Standort.shared.positionen[p]
-        return istUnterwegs(anzeige: FigurenModell.shared.anzeige(p).haupt, bewegung: fix?.bewegung, tempo: fix?.tempo, fixAlter: fix?.sekundenAlt)
+        return istUnterwegs(anzeige: geteilterZustand(p) ?? .ruhig, bewegung: fix?.bewegung, tempo: fix?.tempo, fixAlter: fix?.sekundenAlt)
     }
+
+    /// The state `p`'s own phone decided and shared: live while online, else the last one (the
+    /// server replays it on connect). It knows its place and trip at once; our copy of its
+    /// position can be minutes old, so the scene asks this first.
+    static func geteilterZustand(_ p: Person) -> FigurZustand? {
+        let modell = FigurenModell.shared
+        let live = modell.anzeige(p).haupt
+        return live == .offline ? modell.zustand[p]?.haupt : live
+    }
+
+    private static let ortZustaende: Set<FigurZustand> = [.zuhause, .gym, .schule, .arbeit, .supermarkt, .fahrschule]
 
     /// Night for the room's window and lamp (and the sky outside): real daylight where known.
     static func nacht(person: Person, jetzt: Date = Date()) -> Bool {
@@ -112,11 +123,11 @@ extension ProfilSzene {
         let modell = FigurenModell.shared
         return schlaf(anzeige: modell.anzeige(p).haupt, zuletzt: modell.zustand[p]?.haupt)
     }
-    /// Saved place at the last position (like `KartenFigur`), else the place state they sent.
+    /// The place state they shared, else the saved place at their last known position.
     private static func ortKategorie(_ p: Person) -> String? {
+        if let z = geteilterZustand(p), ortZustaende.contains(z) { return z.rawValue }
         if let pos = Standort.shared.positionen[p], let ort = OrteModell.shared.ortBei(lat: pos.lat, lon: pos.lon) { return ort.kategorie }
-        let z = FigurenModell.shared.anzeige(p).haupt
-        return z == .zuhause || z == .gym ? z.rawValue : nil
+        return nil
     }
 }
 
