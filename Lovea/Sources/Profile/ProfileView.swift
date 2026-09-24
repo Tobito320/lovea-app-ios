@@ -86,6 +86,8 @@ private struct ProfilInhalt: View {
     // Z-25.1: eigenes Profil (Figur bearbeiten, Shop).
     @State private var figurBearbeitenOffen = false
     @State private var shopOffen = false
+    /// Brief G: the place whose editor opens (where the person is right now, else home).
+    @State private var zimmerOrt = RaumOrt.zuhause
     // Z-24.3: Kuss-Animation im Partner-Profil. `kussBasislinie` liest den Ausgangswert beim
     // Erstellen dieser View — spätere Erhöhungen sind dann eindeutig "neu seit dem Öffnen".
     @State private var kussBasislinie = FigurenModell.shared.kussEreignis
@@ -156,7 +158,7 @@ private struct ProfilInhalt: View {
         case .wallpaper: WallpaperAuswahl(partner: gegenueber)
         case .medien: MedienUebersicht(ich: ich)
         case .orte: OrteListeView()
-        case .zimmer: NavigationStack { ZimmerEditor(person: person) }
+        case .zimmer: NavigationStack { ZimmerEditor(person: person, ort: zimmerOrt) }
         case .sterne: SterneBlatt(ich: ich) { zurNachricht($0) }
         }
     }
@@ -219,7 +221,7 @@ private struct ProfilInhalt: View {
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
         .background(alignment: .bottom) { szenenHintergrund(szene, mitBett: b.imBett.isEmpty) }
-        .onTapGesture { blatt = .zimmer }
+        .onTapGesture { zimmerGestalten() }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Gestaltet dein Zimmer")
     }
@@ -227,7 +229,7 @@ private struct ProfilInhalt: View {
     /// Brief G: the scene follows real life (room, bed, gym, outside) and replaces the plain
     /// wallpaper; like before it grows upward while pulling down.
     private func szenenHintergrund(_ szene: ProfilSzene, mitBett: Bool) -> some View {
-        ProfilSzeneHintergrund(szene: szene, zimmer: Zimmer.von(person), nacht: ProfilSzene.nacht(person: person), mitBett: mitBett)
+        ProfilSzeneHintergrund(szene: szene, zimmer: Zimmer.von(person, ort: szene.raumOrt ?? .zuhause), nacht: ProfilSzene.nacht(person: person), mitBett: mitBett)
             .frame(height: Self.kopfHoehe + dehnung)
             .overlay { kopfSchatten }
     }
@@ -267,6 +269,13 @@ private struct ProfilInhalt: View {
             }
         }
         .brightness(dunkel ? -0.1 : 0)
+    }
+
+    /// Brief G: the editor for the place the person is at right now (home, office, classroom),
+    /// home from anywhere else.
+    private func zimmerGestalten() {
+        zimmerOrt = ProfilSzene.fuer(person: person).raumOrt ?? .zuhause
+        blatt = .zimmer
     }
 
     /// Same night as the drawing: the bed scene is always night, the room follows the clock.
@@ -329,7 +338,8 @@ private struct ProfilInhalt: View {
         let extras = spaet ? szenenExtras.union([.schlaefrig]) : szenenExtras
         // A bought pose would replace the curls or the desk, so gym, school and work keep their own.
         let pose = szene.map { $0 != .gym && $0 != .schule && $0 != .arbeit } ?? true
-        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose, extras: extras)
+        let tisch = szene?.raumOrt.map { Zimmer.von(person, ort: $0).tisch } ?? 0
+        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose, extras: extras, tisch: tisch)
             .rotationEffect(.degrees(kuesst ? Double(richtung) * 7 : 0), anchor: .bottom)
             .offset(x: kuesst ? richtung * 38 : 0)
             .scaleEffect(kuesst ? 1.05 : 1, anchor: .bottom)
@@ -414,7 +424,7 @@ private struct ProfilInhalt: View {
     private var eigeneAktionen: some View {
         HStack(spacing: 10) {
             aktion("person.crop.square", "Figur bearbeiten") { figurBearbeitenOffen = true }
-            aktion("bed.double.fill", "Zimmer gestalten") { blatt = .zimmer }
+            aktion("bed.double.fill", "Zimmer gestalten") { zimmerGestalten() }
             aktion("bag.fill", "Shop") { shopOffen = true }
         }
     }

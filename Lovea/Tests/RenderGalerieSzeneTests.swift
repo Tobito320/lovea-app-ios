@@ -14,7 +14,7 @@ final class RenderGalerieSzeneTests: XCTestCase {
         rahmen: [.init(slot: 0, medienId: "a"), .init(slot: 1, medienId: "b"), .init(slot: 2, medienId: "c")]
     )
 
-    private func kopf(_ szene: ProfilSzene, _ p: Person = .annika, zimmer: Zimmer = Zimmer(), nacht: Bool = false, code: Int? = nil, temperatur: Double? = nil, live: FigurZustand = .ruhig) -> AnyView {
+    private func kopf(_ szene: ProfilSzene, _ p: Person = .annika, zimmer: Zimmer = Zimmer(), nacht: Bool = false, code: Int? = nil, temperatur: Double? = nil, live: FigurZustand = .ruhig, tisch: Int = 0) -> AnyView {
         let figuren: AnyView
         if case .schlafen(let zusammen) = szene {
             let schlaefer = zusammen ? [p, p.partner] : [p]
@@ -22,7 +22,7 @@ final class RenderGalerieSzeneTests: XCTestCase {
         } else {
             let zustand = szene.figur(live)
             let extras = szene.extras(zustand, wetterCode: code, temperatur: temperatur)
-            figuren = AnyView(FigurView(.standard(for: p), zustand: zustand, groesse: 340, animiert: false, ganzkoerper: true, extras: extras))
+            figuren = AnyView(FigurView(.standard(for: p), zustand: zustand, groesse: 340, animiert: false, ganzkoerper: true, extras: extras, tisch: tisch))
         }
         return AnyView(
             ZStack(alignment: .bottom) {
@@ -108,5 +108,47 @@ final class RenderGalerieSzeneTests: XCTestCase {
             return (titel: Zimmer.betten[i], ansicht: AnyView(SchlafendeFiguren(zimmer: z, schlaefer: schlaefer, animiert: false).background(Color(white: 0.93))))
         }
         RenderTafel.speichern("profil-betten", spalten: 5, zellen: zellen)
+    }
+
+    /// Brief G: every place furnished, each with its desk or bed, poster, lights and deco.
+    func testOrteEingerichtet() {
+        let zuhause = Zimmer(bett: 2, wand: 4, boden: 4, deko: ["fenster", "lampe", "teppichRund", "monstera", "ledStreifen", "neonHerz", "spiegel", "sneakerRegal", "plattenspieler", "kerze", "sitzsack"], poster: 2)
+        let buero = Zimmer(wand: 5, boden: 1, deko: ["buecherregal", "stehlampe", "kaffeemaschine", "kaktus", "kopfhoerer", "wanduhr", "lautsprecher", "teppich"], poster: 8, tisch: 3)
+        let schule = Zimmer(wand: 3, boden: 3, deko: ["globus", "pinnwand", "wanduhr", "blumen", "lichterkette", "yogamatte"], poster: 4, tisch: 1)
+        var zellen: [Zelle] = []
+        for p in [Person.annika, .ahmed] {
+            zellen.append((titel: "\(p.name) Zuhause", ansicht: kopf(.zimmer, p, zimmer: zuhause)))
+            zellen.append((titel: "\(p.name) Büro", ansicht: kopf(.arbeit, p, zimmer: buero, tisch: buero.tisch)))
+            zellen.append((titel: "\(p.name) Klassenzimmer", ansicht: kopf(.schule, p, zimmer: schule, tisch: schule.tisch)))
+        }
+        zellen.append((titel: "Zuhause bei Nacht", ansicht: kopf(.zimmer, .annika, zimmer: zuhause, nacht: true)))
+        RenderTafel.speichern("profil-orte", spalten: 3, zellen: zellen)
+    }
+
+    /// Every deco piece alone in a plain room, half size.
+    func testDekoBogen() {
+        let zellen: [Zelle] = Zimmer.dekoArten.map { d in
+            let z = Zimmer(deko: [d.id])
+            let ansicht = ProfilSzeneHintergrund(szene: .zimmer, zimmer: z, nacht: false, animiert: false)
+                .frame(width: 195, height: 215)
+                .clipped()
+            return (titel: d.name, ansicht: AnyView(ansicht))
+        }
+        RenderTafel.speichern("profil-deko", spalten: 6, zellen: zellen)
+    }
+
+    /// Every poster, large.
+    func testPosterBogen() {
+        let zellen: [Zelle] = Zimmer.posterArten.indices.dropFirst().map { i in
+            let ansicht = Canvas { g, size in
+                var p = g
+                p.translateBy(x: size.width / 2, y: size.height / 2)
+                p.scaleBy(x: 2.4, y: 2.4)
+                SzenenZeichnung.posterZeichnen(p, i)
+            }
+            .frame(width: 140, height: 180)
+            return (titel: Zimmer.posterArten[i], ansicht: AnyView(ansicht))
+        }
+        RenderTafel.speichern("profil-poster", spalten: 5, zellen: zellen)
     }
 }

@@ -1,28 +1,30 @@
 import PhotosUI
 import SwiftUI
 
-/// Brief G: "Zimmer gestalten" in the own profile, in the Figuren-Editor's style: live preview on
-/// top, tabs Bett / Wand / Boden / Deko / Bilder, tiles drawn with the room itself. A frame photo
-/// goes up like the chat's own-photo backdrop before `profil.zimmer` is saved, so the partner's
-/// phone can fetch it.
+/// Brief G: one editor per place (home, office, classroom) in the own profile, in the Figuren-Editor's
+/// style: live preview on top, tabs Bett or Tisch / Wand / Boden / Deko / Poster / Bilder, tiles drawn
+/// with the place itself. A frame photo goes up like the chat's own-photo backdrop before
+/// `profil.raeume` is saved, so the partner's phone can fetch it.
 struct ZimmerEditor: View {
     let person: Person
+    let ort: RaumOrt
     @Environment(\.dismiss) private var dismiss
     @State private var zimmer: Zimmer
-    @State private var tab = Tab.bett
+    @State private var tab = Tab.moebel
     @State private var nachtVorschau = false
     @State private var fotoAuswahl: PhotosPickerItem?
     @State private var fotoSlot = 0
     @State private var hochladenSlot: Int?
     @State private var fehler: String?
 
-    init(person: Person) {
+    init(person: Person, ort: RaumOrt = .zuhause) {
         self.person = person
-        _zimmer = State(initialValue: Zimmer.von(person))
+        self.ort = ort
+        _zimmer = State(initialValue: Zimmer.von(person, ort: ort))
     }
 
     private enum Tab: String, CaseIterable, Identifiable {
-        case bett = "Bett", wand = "Wand", boden = "Boden", deko = "Deko", bilder = "Bilder"
+        case moebel = "Möbel", wand = "Wand", boden = "Boden", deko = "Deko", poster = "Poster", bilder = "Bilder"
         var id: String { rawValue }
     }
 
@@ -36,7 +38,7 @@ struct ZimmerEditor: View {
             }
             .id(tab)
             Button(action: sichern) {
-                Text("Zimmer sichern")
+                Text("Sichern")
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
@@ -45,7 +47,7 @@ struct ZimmerEditor: View {
             .disabled(hochladenSlot != nil)
             .padding()
         }
-        .navigationTitle("Zimmer gestalten")
+        .navigationTitle(ort.titel)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
@@ -59,14 +61,14 @@ struct ZimmerEditor: View {
         let hoehe: CGFloat = 280
         let s = hoehe / SzenenZeichnung.hoehe
         return ZStack(alignment: .bottom) {
-            ProfilSzeneHintergrund(szene: .zimmer, zimmer: zimmer, nacht: nachtVorschau)
-            FigurView(FigurenModell.shared.aussehen(person), zustand: .ruhig, groesse: 340 * s, ganzkoerper: true, poseImmer: true)
+            ProfilSzeneHintergrund(szene: szene, zimmer: zimmer, nacht: nachtVorschau && ort == .zuhause)
+            FigurView(FigurenModell.shared.aussehen(person), zustand: szene.figur(.ruhig), groesse: 340 * s, ganzkoerper: true, poseImmer: ort == .zuhause, tisch: zimmer.tisch)
         }
         .frame(width: SzenenZeichnung.breite * s, height: hoehe)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Vorschau deines Zimmers")
-        .overlay(alignment: .topTrailing) { nachtKnopf }
+        .overlay(alignment: .topTrailing) { if ort == .zuhause { nachtKnopf } }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .background(LinearGradient(colors: [Color.loveaRose.opacity(0.16), Color.loveaRose.opacity(0.02)], startPoint: .top, endPoint: .bottom))
@@ -92,7 +94,7 @@ struct ZimmerEditor: View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 ForEach(Tab.allCases) { t in
-                    Button(t.rawValue) {
+                    Button(titel(t)) {
                         withAnimation(Feder.schnell) { tab = t }
                         Haptik.auswahl()
                     }
@@ -113,10 +115,12 @@ struct ZimmerEditor: View {
     @ViewBuilder
     private var inhalt: some View {
         switch tab {
-        case .bett: kacheln(Zimmer.betten, \.bett, bett: true)
-        case .wand: kacheln(Zimmer.waende, \.wand, bett: false)
-        case .boden: kacheln(Zimmer.boeden, \.boden, bett: false)
+        case .moebel:
+            if ort == .zuhause { kacheln(Zimmer.betten, \.bett, art: .bett) } else { kacheln(Zimmer.tische, \.tisch, art: .tisch) }
+        case .wand: kacheln(Zimmer.waende, \.wand, art: .raum)
+        case .boden: kacheln(Zimmer.boeden, \.boden, art: .raum)
         case .deko: deko
+        case .poster: kacheln(Zimmer.posterArten, \.poster, art: .poster)
         case .bilder: bilder
         }
     }
@@ -129,7 +133,7 @@ struct ZimmerEditor: View {
         return z
     }
 
-    private func kacheln(_ namen: [String], _ pfad: WritableKeyPath<Zimmer, Int>, bett: Bool) -> some View {
+    private func kacheln(_ namen: [String], _ pfad: WritableKeyPath<Zimmer, Int>, art: ZimmerKachel.Art) -> some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
             ForEach(namen.indices, id: \.self) { i in
                 let gewaehlt = zimmer[keyPath: pfad] == i
@@ -138,7 +142,7 @@ struct ZimmerEditor: View {
                     Haptik.auswahl()
                 } label: {
                     VStack(spacing: 4) {
-                        ZimmerKachel(zimmer: probe(pfad, i), nurBett: bett)
+                        ZimmerKachel(zimmer: probe(pfad, i), ort: ort, art: art, aussehen: FigurenModell.shared.aussehen(person))
                             .frame(height: 84)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         Text(namen[i]).font(.caption.weight(.semibold)).foregroundStyle(Color.primary)
@@ -158,8 +162,9 @@ struct ZimmerEditor: View {
 
     private var deko: some View {
         VStack(spacing: 4) {
-            ForEach(Zimmer.dekoArten.indices, id: \.self) { i in
-                let d = Zimmer.dekoArten[i]
+            let arten = Zimmer.dekoArten(fuer: ort)
+            ForEach(arten.indices, id: \.self) { i in
+                let d = arten[i]
                 Toggle(d.name, isOn: Binding(
                     get: { zimmer.hat(d.id) },
                     set: { an in
@@ -271,30 +276,72 @@ struct ZimmerEditor: View {
     }
 
     private func sichern() {
-        if zimmer != Zimmer.von(person) { zimmer.sichern() }
+        if zimmer != Zimmer.von(person, ort: ort) { zimmer.sichern(ort: ort) }
         Haptik.erfolg()
         dismiss()
     }
+
+    private var szene: ProfilSzene {
+        switch ort {
+        case .zuhause: .zimmer
+        case .arbeit: .arbeit
+        case .schule: .schule
+        }
+    }
+
+    private func titel(_ t: Tab) -> String {
+        t == .moebel ? (ort == .zuhause ? "Bett" : "Tisch") : t.rawValue
+    }
 }
 
-/// A picker tile drawn with the room itself: the whole room with that wall or floor, or just the bed.
-private struct ZimmerKachel: View {
+/// A picker tile drawn with the place itself: the whole place with that wall or floor, the bed,
+/// the figure at that desk, or the poster.
+struct ZimmerKachel: View {
+    enum Art { case bett, tisch, raum, poster }
+
     let zimmer: Zimmer
-    let nurBett: Bool
+    let ort: RaumOrt
+    let art: Art
+    let aussehen: FigurAussehen
 
     var body: some View {
+        switch art {
+        case .tisch:
+            FigurView(aussehen, zustand: ort == .schule ? .schule : .arbeit, groesse: 150, animiert: false, ganzkoerper: true, tisch: zimmer.tisch)
+                .frame(height: 84, alignment: .bottom)
+                .clipped()
+                .accessibilityHidden(true)
+        case .bett, .raum, .poster:
+            leinwand
+        }
+    }
+
+    private var leinwand: some View {
         let zimmer = zimmer
-        let nurBett = nurBett
-        Canvas { g, size in
-            if nurBett {
+        let ort = ort
+        let art = art
+        return Canvas { g, size in
+            switch art {
+            case .bett:
                 var b = g
                 let s = min(size.width / 300, size.height / 220)
                 b.translateBy(x: (size.width - 300 * s) / 2, y: (size.height - 220 * s) / 2)
                 b.scaleBy(x: s, y: s)
                 SzenenZeichnung.bettHinten(b, zimmer.bett, kissen: [88, 212], bild: nil)
                 SzenenZeichnung.bettVorn(b, zimmer.bett, herz: false)
-            } else {
-                SzenenZeichnung.zimmer(SzenenZeichnung.raum(g, size), zimmer, nacht: false, mitBett: true, bett: nil, t: 0.4)
+            case .poster:
+                var p = g
+                let s = min(size.width / 60, size.height / 78)
+                p.translateBy(x: size.width / 2, y: size.height / 2)
+                p.scaleBy(x: s, y: s)
+                SzenenZeichnung.posterZeichnen(p, zimmer.poster)
+            case .raum, .tisch:
+                let r = SzenenZeichnung.raum(g, size)
+                switch ort {
+                case .zuhause: SzenenZeichnung.zimmer(r, zimmer, nacht: false, mitBett: true, bett: nil, t: 0.4)
+                case .arbeit: SzenenZeichnung.buero(r, zimmer, t: 0.4)
+                case .schule: SzenenZeichnung.klassenzimmer(r, zimmer, t: 0.4)
+                }
             }
         }
         .accessibilityHidden(true)
