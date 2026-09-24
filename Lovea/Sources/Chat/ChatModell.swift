@@ -67,6 +67,8 @@ final class ChatModell {
     private var byID: [String: Nachricht] = [:]
     /// Op ids of applied edits: the optimistic op and its echo share one id and must add one version.
     private var bearbeitungen: Set<String> = []
+    /// Replay count per notice line (`wiederholt-<snapId>-<person>`), highest seen wins.
+    private var wiederholungen: [String: Int] = [:]
     private let registrieren: Bool
 
     /// Z-26.2: per-person draft fold — only ever read back for `Raum.shared.ich`'s own person
@@ -79,7 +81,7 @@ final class ChatModell {
     static let arten: Set<String> = [
         "nachricht.neu", "nachricht.bearbeitet", "nachricht.geloescht", "nachricht.reaktion",
         "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern", "nachricht.gemerkt",
-        "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme", "zeichnung.einladung",
+        "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme", "snap.wiederholt", "zeichnung.einladung",
         "entwurf.setzen",
     ]
 
@@ -168,6 +170,14 @@ final class ChatModell {
         case "snap.gespeichert":
             guard let p = op.daten(IDPayload.self) else { return }
             byID[p.id]?.snapGespeichert = true
+        case "snap.wiederholt":
+            // One grey line per snap and viewer, updated to the newest count (not one line per replay).
+            guard let p = op.daten(SnapWiederholtPayload.self) else { return }
+            // The newest replay also moves the line down to where it happened; an older one is ignored.
+            let id = "wiederholt-\(p.id)-\(op.von.rawValue)"
+            guard p.anzahl >= (wiederholungen[id] ?? 0) else { return }
+            wiederholungen[id] = p.anzahl
+            byID[id] = Nachricht(id: id, von: op.von, zeit: op.zeit, seq: op.seq, system: ChatHinweis.wiederholtText(von: op.von.name, anzahl: p.anzahl))
         case "snap.aufnahme":
             // Not folded onto the snap message itself (that `id` is someone else's to own) — this
             // becomes its own system-style row, keyed by `op.id` so the optimistic send and its
@@ -407,8 +417,17 @@ final class ChatModell {
         Raum.shared.senden("snap.gespeichert", IDPayload(id: id))
     }
 
+    /// The receiver reopened an already viewed snap (unlimited replays). `anzahl` = this person's
+    /// replays of it so far, so the fold keeps one line and a lost op can't lower the count.
+    func snapWiederholtSenden(_ id: String) {
+        guard let ich = Raum.shared.ich else { return }
+        let anzahl = (wiederholungen["wiederholt-\(id)-\(ich.rawValue)"] ?? 0) + 1
+        Raum.shared.senden("snap.wiederholt", SnapWiederholtPayload(id: id, anzahl: anzahl))
+    }
+
     /// `art` is `"screenshot"` or `"bildschirmaufnahme"` (Z-6.4); `von` (i.e. `Raum.shared.ich`) is
     /// whoever is looking right now, not the snap's original sender.
+
     func snapAufnahmeSenden(_ id: String, art: String) {
         Raum.shared.senden("snap.aufnahme", SnapAufnahmePayload(id: id, art: art))
     }
@@ -494,4 +513,5 @@ private struct SternPayload: Codable { let id: String; let an: Bool }
 private struct AbschriftPayload: Codable { let id: String; let text: String }
 private struct SnapAngesehenPayload: Codable { let id: String; let lange: Bool }
 private struct SnapAufnahmePayload: Codable { let id: String; let art: String }
+private struct SnapWiederholtPayload: Codable { let id: String; let anzahl: Int }
 private struct EinladungPayload: Codable { let zeichnungId: String; let name: String }
