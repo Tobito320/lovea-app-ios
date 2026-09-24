@@ -112,7 +112,7 @@ final class RenderGalerieSzeneTests: XCTestCase {
 
     /// Brief G: every place furnished, each with its desk or bed, poster, lights and deco.
     func testOrteEingerichtet() {
-        let zuhause = Zimmer(bett: 2, wand: 4, boden: 4, deko: ["fenster", "lampe", "teppichRund", "monstera", "ledStreifen", "neonHerz", "spiegel", "sneakerRegal", "plattenspieler", "kerze", "sitzsack"], poster: 2)
+        let zuhause = Zimmer(bett: 2, wand: 4, boden: 4, deko: ["fenster", "lampe", "teppichRund", "monstera", "ledStreifen", "sneakerRegal", "plattenspieler", "kerze", "sitzsack"], poster: 2)
         let buero = Zimmer(wand: 5, boden: 1, deko: ["buecherregal", "stehlampe", "kaffeemaschine", "kaktus", "tresor", "wanduhr", "lautsprecher", "teppich"], poster: 8, tisch: 3)
         let schule = Zimmer(wand: 3, boden: 3, deko: ["globus", "pinnwand", "wanduhr", "blumen", "ledWeiss", "teppichRund"], poster: 4, tisch: 1)
         var zellen: [Zelle] = []
@@ -124,7 +124,7 @@ final class RenderGalerieSzeneTests: XCTestCase {
         }
         zellen.append((titel: "Zuhause bei Nacht", ansicht: kopf(.zimmer, .annika, zimmer: zuhause, nacht: true)))
         zellen.append((titel: "Ahmed Zuhause bei Nacht", ansicht: kopf(.zimmer, .ahmed, zimmer: Zimmer(ort: .zuhause, person: .ahmed), nacht: true)))
-        let geld = Zimmer(bett: 5, wand: 7, boden: 1, deko: ["ledRot", "goldkette", "regal", "tresor", "bargeld", "sneakerRegal", "jordanBox", "stehlampe", "teppichSchwarz"], poster: 17, posterLinks: 3, posterBett: 12)
+        let geld = Zimmer(bett: 5, wand: 7, boden: 1, deko: ["ledRot", "tresor", "bargeld", "sneakerRegal", "jordanBox", "stehlampe", "teppichSchwarz", "hanteln"], poster: 17, posterLinks: 3, posterBett: 12)
         zellen.append((titel: "Ahmed Zuhause, Geld und Jordan", ansicht: kopf(.zimmer, .ahmed, zimmer: geld)))
         RenderTafel.speichern("profil-orte", spalten: 3, zellen: zellen)
     }

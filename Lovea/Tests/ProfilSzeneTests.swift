@@ -250,4 +250,29 @@ final class ProfilSzeneTests: XCTestCase {
         XCTAssertEqual(SzenenZeichnung.posterGroesse(11).width, SzenenZeichnung.posterGroesse(11).height, "album covers are square")
         XCTAssertGreaterThan(SzenenZeichnung.posterGroesse(13).width, SzenenZeichnung.posterGroesse(13).height, "cars are landscape")
     }
+
+    func testGrossePosterNehmenNachbarnAb() {
+        var z = Zimmer(deko: ["fenster", "regal", "neonHerz", "kaktus", "teppich"])
+        z.posterSetzen(\.poster, 13)
+        XCTAssertFalse(z.hat("regal"))
+        XCTAssertFalse(z.hat("neonHerz"))
+        z.posterSetzen(\.posterLinks, 11)
+        XCTAssertFalse(z.hat("fenster"), "a left poster takes the window down")
+        XCTAssertFalse(z.hat("kaktus"))
+        XCTAssertEqual(z.konflikte, [])
+        // And the other way round: putting the shelf back takes the right poster down.
+        z.dekoAn("regal")
+        XCTAssertEqual(z.poster, 0)
+        z.dekoAn("fenster")
+        XCTAssertEqual(z.posterLinks, 0)
+        XCTAssertEqual(z.konflikte, [])
+        // Taking a poster down leaves the deco alone.
+        z.posterSetzen(\.poster, 0)
+        XCTAssertTrue(z.hat("regal"))
+    }
+
+    func testPosterGroesseUndPlatz() {
+        XCTAssertEqual(SzenenZeichnung.posterGroesse(11).width / SzenenZeichnung.breite, 0.22, accuracy: 0.01, "album cover ~22 % wide")
+        XCTAssertEqual(SzenenZeichnung.posterGroesse(13).width / SzenenZeichnung.breite, 0.33, accuracy: 0.02, "car ~34 % wide")
+    }
 }

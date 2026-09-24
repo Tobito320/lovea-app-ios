@@ -109,11 +109,32 @@ struct Zimmer: Equatable, Sendable {
         let weg = Set(Self.ausschliessend.filter { $0.contains(id) }.flatMap { $0 })
         deko.removeAll { weg.contains($0) }
         deko.append(id)
+        if Self.posterRechtsNachbarn.contains(id) { poster = 0 }
+        if Self.posterLinksNachbarn.contains(id) {
+            posterLinks = 0
+            posterBett = 0
+        }
+    }
+
+    /// Deco on the big posters' wall spots: the right poster hangs where shelf, neon heart, mirror
+    /// and chain would be; the two left ones where the window, the sill and the pinboard are.
+    static let posterRechtsNachbarn = ["regal", "neonHerz", "spiegel", "goldkette"]
+    static let posterLinksNachbarn = ["fenster", "kaktus", "kerze", "blumen", "pinnwand", "lichtervorhang"]
+
+    /// Hangs poster `i` in a spot and takes down the deco that shares it.
+    mutating func posterSetzen(_ pfad: WritableKeyPath<Zimmer, Int>, _ i: Int) {
+        self[keyPath: pfad] = i
+        guard i > 0 else { return }
+        let nachbarn = pfad == \Zimmer.poster ? Self.posterRechtsNachbarn : Self.posterLinksNachbarn
+        deko.removeAll { nachbarn.contains($0) }
     }
 
     /// Pieces switched on together although they share a spot (should never happen).
     var konflikte: [[String]] {
-        Self.ausschliessend.filter { gruppe in gruppe.filter { deko.contains($0) }.count > 1 }
+        var liste = Self.ausschliessend.filter { gruppe in gruppe.filter { deko.contains($0) }.count > 1 }
+        if poster > 0 { liste += Self.posterRechtsNachbarn.filter { deko.contains($0) }.map { ["poster", $0] } }
+        if posterLinks > 0 || posterBett > 0 { liste += Self.posterLinksNachbarn.filter { deko.contains($0) }.map { ["posterLinks", $0] } }
+        return liste
     }
     func hat(_ id: String) -> Bool { deko.contains(id) }
 
@@ -377,11 +398,8 @@ enum SzenenZeichnung {
         if z.hat("goldkette") { goldkette(g, aufRegal: z.hat("regal")) }
         // Up to three posters: the right wall everywhere, left wall and above the bed only where no
         // window hangs (home without the window).
-        posterAufhaengen(g, z.poster, P(318, 226))
-        if !z.hat("fenster") {
-            posterAufhaengen(g, z.posterLinks, P(48, 114))
-            posterAufhaengen(g, z.posterBett, P(112, 114))
-        }
+        posterAufhaengen(g, z.poster, P(320, 150))
+        if !z.hat("fenster") { linkePoster(g, links: z.posterLinks, bett: z.posterBett) }
         for r in z.rahmen where rahmenRects.indices.contains(r.slot) { rahmen(g, rahmenRects[r.slot]) }
         // On the window sill; without a window a small wall shelf takes its place.
         if !z.hat("fenster") && (z.hat("kaktus") || z.hat("kerze") || z.hat("blumen")) { teil(g, box(14, 192, 128, 9, 3), Pal.holz, 2) }
@@ -414,11 +432,26 @@ enum SzenenZeichnung {
 
     /// Hangs poster `i` centred on `c`: a slight tilt (between -2° and 2°, fixed per poster and
     /// spot), a soft drop shadow and a strip of tape.
-    private static func posterAufhaengen(_ g: GraphicsContext, _ i: Int, _ c: CGPoint) {
+    /// The two left posters side by side between the wall's edge and x 200, above the headboard
+    /// (top 222); two wide ones shrink together to fit, a single one sits over the bed.
+    private static func linkePoster(_ g: GraphicsContext, links: Int, bett: Int) {
+        let wl = links > 0 ? posterGroesse(links).width : 0
+        let wb = bett > 0 ? posterGroesse(bett).width : 0
+        let k = min(1, 182 / max(wl + wb, 1))
+        let y: CGFloat = 128
+        if links > 0 { posterAufhaengen(g, links, P(8 + wl * k / 2, y), skala: k) }
+        if bett > 0 {
+            let x = links > 0 ? 18 + wl * k + wb * k / 2 : max(75, 8 + wb * k / 2)
+            posterAufhaengen(g, bett, P(x, y), skala: k)
+        }
+    }
+
+    private static func posterAufhaengen(_ g: GraphicsContext, _ i: Int, _ c: CGPoint, skala: CGFloat = 1) {
         guard i > 0 else { return }
         let s = posterGroesse(i)
         var h = g
         h.translateBy(x: c.x, y: c.y)
+        h.scaleBy(x: skala, y: skala)
         h.rotate(by: .degrees(Double((i * 7 + Int(c.x)) % 5) - 2))
         h.fill(box(-s.width / 2 + 2, -s.height / 2 + 3, s.width, s.height, 2), with: .color(.black.opacity(0.22)))
         posterZeichnen(h, i)
@@ -704,16 +737,19 @@ enum SzenenZeichnung {
     /// money, portrait paper for logos and the drawn ones.
     static func posterGroesse(_ i: Int) -> CGSize {
         switch i {
-        case 11, 12, 18, 19: CGSize(width: 56, height: 56)
-        case 8, 9, 13, 17: CGSize(width: 60, height: 42)
-        default: CGSize(width: 52, height: 70)
+        case 11, 12, 18, 19: CGSize(width: 86, height: 86)
+        case 8, 9, 13, 17: CGSize(width: 128, height: 88)
+        default: CGSize(width: 72, height: 96)
         }
     }
 
     /// One wall poster centred on the origin. `i` indexes `Zimmer.posterArten` (0 = none).
     static func posterZeichnen(_ g: GraphicsContext, _ i: Int) {
         guard let eintrag = posterBilder[i], let bild = UIImage(named: eintrag.name), bild.size.width > 0, bild.size.height > 0 else {
-            posterGemalt(g, i)
+            // The drawn poster is 52 x 70; scaled up to the paper size.
+            var h = g
+            h.scaleBy(x: 72 / 52, y: 96 / 70)
+            posterGemalt(h, i)
             return
         }
         let s = posterGroesse(i)

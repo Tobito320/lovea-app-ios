@@ -141,7 +141,9 @@ struct ZimmerEditor: View {
             ForEach(werte ?? Array(namen.indices), id: \.self) { i in
                 let gewaehlt = zimmer[keyPath: pfad] == i
                 Button {
-                    withAnimation(Feder.schnell) { zimmer[keyPath: pfad] = i }
+                    withAnimation(Feder.schnell) {
+                        if art == .poster { zimmer.posterSetzen(pfad, i) } else { zimmer[keyPath: pfad] = i }
+                    }
                     Haptik.auswahl()
                 } label: {
                     VStack(spacing: 4) {
@@ -295,7 +297,7 @@ struct ZimmerEditor: View {
                 .pickerStyle(.segmented)
                 .onChange(of: posterPlatz) { _, _ in Haptik.auswahl() }
                 if posterPlatz < 2 && zimmer.hat("fenster") {
-                    Text("Links und über dem Bett hängen Poster nur ohne Fenster.")
+                    Text("Ein Poster hier nimmt das Fenster ab.")
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
