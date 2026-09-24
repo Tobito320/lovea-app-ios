@@ -206,7 +206,8 @@ final class RenderGalerieFigurenTests: XCTestCase {
         var zellen: [Zelle] = []
         let a = A.standard(for: .ahmed)
         zellen.append((titel: "Standard halb", ansicht: figur(a, groesse: 240)))
-        zellen.append((titel: "Standard ganz", ansicht: figur(a, groesse: 300, ganz: true)))
+        // Fix round 5: full body large enough that its head matches the half figure's head.
+        zellen.append((titel: "Standard ganz", ansicht: figur(a, groesse: 480, ganz: true)))
         for i in 78...82 {
             var b = a
             b.frisur = i
