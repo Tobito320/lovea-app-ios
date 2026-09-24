@@ -208,7 +208,7 @@ final class ProfilSzeneTests: XCTestCase {
         XCTAssertEqual(z.boden, 5, "concrete floor")
         for rosa in ["neonHerz", "ledStreifen", "sitzsack", "teppichRund", "blumen", "kerze"] { XCTAssertFalse(z.hat(rosa), rosa) }
         for teil in ["sneakerRegal", "gaming", "lautsprecher", "teppichSchwarz", "bargeld", "jordanBox", "ledWeiss"] { XCTAssertTrue(z.hat(teil), teil) }
-        XCTAssertEqual([z.posterLinks, z.posterBett, z.poster].map { Zimmer.posterArten[$0] }, ["ICEMAN", "Meet the Woo 2", "SVJ"])
+        XCTAssertEqual([z.posterLinks, z.posterBett, z.poster].map { Zimmer.posterArten[$0] }, ["ICEMAN", "Meet the Woo 2", "Lamborghini SVJ"])
         XCTAssertFalse(z.hat("fenster"), "the left posters need the wall")
         // Annika's default stays as it was.
         XCTAssertEqual(Zimmer(ort: .zuhause, person: .annika), Zimmer())
@@ -234,8 +234,20 @@ final class ProfilSzeneTests: XCTestCase {
     }
 
     func testDreiPosterRundreise() {
-        let z = Zimmer(deko: ["ledRot", "goldkette", "tresor"], poster: 17, posterLinks: 14, posterBett: 15)
+        let z = Zimmer(deko: ["ledRot", "goldkette", "tresor"], poster: 17, posterLinks: 18, posterBett: 19)
         XCTAssertEqual(Zimmer.lesen(z.json), z)
-        XCTAssertEqual(Zimmer.posterArten.count, 18)
+        XCTAssertEqual(Zimmer.posterArten.count, 20)
+        // An old pick of a poster no longer offered still loads.
+        XCTAssertEqual(Zimmer.lesen(.object(["poster": .number(16)])).poster, 16)
+    }
+
+    func testPosterAuswahlNurEchteBilder() {
+        let angeboten = Set(Zimmer.posterAuswahl)
+        XCTAssertTrue(angeboten.isSuperset(of: [0, 1, 11, 12, 13, 18, 19, 8, 9, 17, 2, 3, 6, 4, 10]))
+        XCTAssertTrue(angeboten.isDisjoint(with: [5, 7, 14, 15, 16]), "the drawn ones without a picture are gone, except Amore")
+        XCTAssertEqual(Zimmer.posterArten[18], "Take Care")
+        XCTAssertEqual(Zimmer.posterArten[19], "Scorpion")
+        XCTAssertEqual(SzenenZeichnung.posterGroesse(11).width, SzenenZeichnung.posterGroesse(11).height, "album covers are square")
+        XCTAssertGreaterThan(SzenenZeichnung.posterGroesse(13).width, SzenenZeichnung.posterGroesse(13).height, "cars are landscape")
     }
 }
