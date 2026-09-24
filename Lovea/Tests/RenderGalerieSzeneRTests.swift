@@ -32,6 +32,28 @@ final class RenderGalerieSzeneRTests: XCTestCase {
         RenderTafel.speichern("profil-nacht-raeume", spalten: 3, zellen: zellen)
     }
 
+    /// The moving scene is four stacked canvases, the still one a single canvas with the same four
+    /// layers. Left the still picture, right the live stack (its clock is "now", so rain, clouds
+    /// and twinkle differ; everything else must match).
+    func testEbenenGleichEinerLeinwand() {
+        let zimmer = Zimmer(bett: 2, wand: 1, boden: 3, deko: Zimmer.dekoArten.map { $0.id },
+                            rahmen: [.init(slot: 0, medienId: "a"), .init(slot: 1, medienId: "b"), .init(slot: 2, medienId: "c")])
+        let faelle: [(String, ProfilSzene, Zimmer, Bool)] = [
+            ("Zimmer Nacht", .zimmer, zimmer, true),
+            ("Klassenzimmer Nacht", .schule, Zimmer(ort: .schule), true),
+            ("Draußen Regen Nacht", .draussen(wetter: .regen, nacht: true), Zimmer(), false),
+            ("Unterwegs Schnee", .unterwegs(wetter: .schnee, nacht: false), Zimmer(), false),
+        ]
+        var zellen: [(titel: String, ansicht: AnyView)] = []
+        for (titel, szene, z, nacht) in faelle {
+            for animiert in [false, true] {
+                let ansicht = ProfilSzeneHintergrund(szene: szene, zimmer: z, nacht: nacht, animiert: animiert).frame(width: 390, height: 430).clipped()
+                zellen.append((titel: "\(titel), \(animiert ? "vier Ebenen" : "eine Leinwand")", ansicht: AnyView(ansicht)))
+            }
+        }
+        RenderTafel.speichern("profil-ebenen", spalten: 4, zellen: zellen)
+    }
+
     /// Posters and photo frames on one wall (before Brief R big posters covered frames 1 and 2,
     /// and two wide left posters frame 0). The last cell has no frames: posters stay where they were.
     func testPosterUndRahmen() {
