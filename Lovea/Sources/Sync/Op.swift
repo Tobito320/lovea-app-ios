@@ -21,13 +21,19 @@ struct Op: Codable, Identifiable, Sendable {
 
     /// Creates a new, unconfirmed op (`seq == nil`) ready for `Raum.senden`.
     static func neu<T: Encodable>(_ art: String, _ d: T, von: Person) -> Op {
-        let daten = (try? JSONEncoder().encode(d)) ?? Data("{}".utf8)
+        let daten = (try? encoder.encode(d)) ?? Data("{}".utf8)
         return Op(id: UUID().uuidString, seq: nil, art: art, von: von, zeit: Date(), d: daten)
     }
 
     func daten<T: Decodable>(_ type: T.Type) -> T? {
-        try? JSONDecoder().decode(T.self, from: d)
+        try? Op.decoder.decode(T.self, from: d)
     }
+
+    // ponytail: one shared coder pair instead of one per op (audit #5), same reasoning as the ISO
+    // formatters below. Never mutated after creation; encode/decode on an unmutated coder is
+    // thread-safe, `nonisolated(unsafe)` only covers a missing Sendable mark.
+    private nonisolated(unsafe) static let encoder = JSONEncoder()
+    private nonisolated(unsafe) static let decoder = JSONDecoder()
 
     private enum CodingKeys: String, CodingKey { case id, seq, art, von, zeit, d }
 
@@ -39,7 +45,7 @@ struct Op: Codable, Identifiable, Sendable {
         von = try c.decode(Person.self, forKey: .von)
         zeit = Op.datum(von: try c.decode(String.self, forKey: .zeit))
         let wert = try c.decode(JSONValue.self, forKey: .d)
-        d = (try? JSONEncoder().encode(wert)) ?? Data("{}".utf8)
+        d = (try? Op.encoder.encode(wert)) ?? Data("{}".utf8)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -49,7 +55,7 @@ struct Op: Codable, Identifiable, Sendable {
         try c.encode(art, forKey: .art)
         try c.encode(von, forKey: .von)
         try c.encode(Op.datumString(zeit), forKey: .zeit)
-        let wert = (try? JSONDecoder().decode(JSONValue.self, from: d)) ?? .object([:])
+        let wert = (try? Op.decoder.decode(JSONValue.self, from: d)) ?? .object([:])
         try c.encode(wert, forKey: .d)
     }
 
