@@ -34,6 +34,9 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
     /// Where each medium not currently loaded was left, so switching messages keeps positions.
     private var positionen: [String: TimeInterval] = [:]
     private var fortschrittTask: Task<Void, Never>?
+    /// Bumped by every play and park (also a no-op park from the recorder): an autoplay that
+    /// awaited a download only goes on, or releases the session, if nothing happened meanwhile.
+    private var generation = 0
 
     private override init() {
         super.init()
@@ -74,6 +77,7 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
     /// Plays `id` from where it was left. Only one message plays: the previous one pauses and keeps
     /// its position. `quelle` is the chat message (nil for the recorder's review).
     func spielen(id: String, url: URL, quelle: SprachQuelle? = nil) {
+        generation += 1
         if spielendeID == id, player != nil {
             fortsetzen()
             return
@@ -139,6 +143,7 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
     /// The loaded message steps aside (its position kept) for another one, for recording, or
     /// because the mini player's X was tapped.
     func parken() {
+        generation += 1
         guard let alt = spielendeID, let player else { return }
         player.pause()
         positionen[alt] = player.currentTime
@@ -189,17 +194,19 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
             self.quelle = nil
             self.laeuft = false
             self.fortschritt = 0
-            if beendet != nil, await self.naechsteAbspielen(nach: beendeteID) { return }
+            let generation = self.generation
+            if beendet != nil, await self.naechsteAbspielen(nach: beendeteID, generation: generation) { return }
+            guard self.generation == generation else { return } // new playback or a recording took over
             self.sperrbildschirm()
             // Let music from other apps come back.
             try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
 
-    private func naechsteAbspielen(nach id: String) async -> Bool {
+    private func naechsteAbspielen(nach id: String, generation: Int) async -> Bool {
         guard let naechste = SprachFolge.naechste(nach: id, in: ChatModell.shared.nachrichten, ich: Raum.shared.ich),
               let url = try? await Medien.holen(naechste.medium.id), // stop rather than skip a not-yet-local one
-              spielendeID == nil // something else was started meanwhile
+              self.generation == generation // something else started meanwhile (playback or recording)
         else { return false }
         spielen(id: naechste.medium.id, url: url, quelle: SprachQuelle(nachrichtID: naechste.nachricht.id, von: naechste.nachricht.von))
         autoWeiterNachricht = naechste.nachricht.id
