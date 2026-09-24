@@ -24,9 +24,18 @@ struct MedienUebersicht: View {
         .sorted { $0.zeit > $1.zeit }
     }
 
+    /// Audit chat #5: the link check (an `NSDataDetector` run per text) was the costly part of the
+    /// history pass each render; now each text is checked once per launch.
+    // ponytail: grows with every distinct text (keys share the messages' string storage); clear on memory warning if it ever matters.
+    @MainActor private static var hatLink: [String: Bool] = [:]
+
     private func istRelevant(_ nachricht: ChatModell.Nachricht) -> Bool {
         if nachricht.medien.contains(where: { ["foto", "video", "sprache"].contains($0.typ) }) { return true }
-        return ersterLink(in: nachricht.text ?? "") != nil
+        guard let text = nachricht.text else { return false }
+        if let bekannt = Self.hatLink[text] { return bekannt }
+        let gefunden = ersterLink(in: text) != nil
+        Self.hatLink[text] = gefunden
+        return gefunden
     }
 
     var body: some View {
