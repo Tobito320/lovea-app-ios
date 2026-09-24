@@ -65,6 +65,8 @@ final class ChatModell {
     private(set) var abschriften: [String: String] = [:]
 
     private var byID: [String: Nachricht] = [:]
+    /// Index of each id in `nachrichten`, kept in step by `einordnen`.
+    @ObservationIgnored private var position: [String: Int] = [:]
     /// Op ids of applied edits: the optimistic op and its echo share one id and must add one version.
     private var bearbeitungen: Set<String> = []
     /// Replay count per notice line (`wiederholt-<snapId>-<person>`), highest seen wins.
@@ -99,16 +101,62 @@ final class ChatModell {
     /// an optimistic send and its server echo share one op id, but only `nachricht.neu`'s own
     /// `id` field is what edits/reactions/deletes reference).
     func anwenden(_ ops: [Op]) {
-        for op in ops { anwendenEins(op) }
-        nachrichten = byID.values.sorted { ($0.seq ?? Int.max, $0.zeit) < ($1.seq ?? Int.max, $1.zeit) }
+        var beruehrt: Set<String> = []
+        for op in ops { if let id = anwendenEins(op) { beruehrt.insert(id) } }
+        if !beruehrt.isEmpty { einordnen(beruehrt) }
         if registrieren { badgeAktualisieren() }
     }
 
-    private func anwendenEins(_ op: Op) {
+    private static func vorher(_ a: Nachricht, _ b: Nachricht) -> Bool {
+        (a.seq ?? Int.max, a.zeit) < (b.seq ?? Int.max, b.zeit)
+    }
+
+    /// Audit #4: patches the touched rows in place and appends new ones at the end (the usual
+    /// case: a new message, a reaction, an echo's `seq`). Only a row that vanished, moved past a
+    /// neighbour or landed mid-list re-sorts the whole history.
+    private func einordnen(_ beruehrt: Set<String>) {
+        var neue: [Nachricht] = []
+        var geaendert: [Int] = []
+        var neuSortieren = false
+        for id in beruehrt {
+            switch (byID[id], position[id]) {
+            case let (n?, i?):
+                nachrichten[i] = n
+                geaendert.append(i)
+            case let (n?, nil):
+                neue.append(n)
+            case (nil, .some):
+                neuSortieren = true
+            case (nil, nil):
+                break
+            }
+        }
+        if !neuSortieren {
+            neuSortieren = geaendert.contains { i in
+                (i > 0 && Self.vorher(nachrichten[i], nachrichten[i - 1]))
+                    || (i + 1 < nachrichten.count && Self.vorher(nachrichten[i + 1], nachrichten[i]))
+            }
+        }
+        neue.sort(by: Self.vorher)
+        if !neuSortieren, let erste = neue.first, let letzte = nachrichten.last, Self.vorher(erste, letzte) {
+            neuSortieren = true
+        }
+        if neuSortieren {
+            nachrichten = byID.values.sorted(by: Self.vorher)
+            position = Dictionary(uniqueKeysWithValues: nachrichten.enumerated().map { ($1.id, $0) })
+        } else {
+            for n in neue {
+                position[n.id] = nachrichten.count
+                nachrichten.append(n)
+            }
+        }
+    }
+
+    private func anwendenEins(_ op: Op) -> String? {
         letzteAktivitaet[op.von] = max(letzteAktivitaet[op.von] ?? .distantPast, op.zeit)
         switch op.art {
         case "nachricht.neu":
-            guard let p = op.daten(NachrichtNeuPayload.self) else { return }
+            guard let p = op.daten(NachrichtNeuPayload.self) else { return nil }
             if var vorhanden = byID[p.id] {
                 if let seq = op.seq { vorhanden.seq = seq }
                 byID[p.id] = vorhanden
@@ -123,15 +171,17 @@ final class ChatModell {
                     effekt: p.effekt.flatMap(ChatEffekt.init(rawValue:))
                 )
             }
+            return p.id
         case "nachricht.bearbeitet":
             // Time limits (Z-33.3) are UI-only; the fold still accepts every edit, old ones included.
-            guard let p = op.daten(BearbeitetPayload.self), var n = byID[p.id], bearbeitungen.insert(op.id).inserted else { return }
+            guard let p = op.daten(BearbeitetPayload.self), var n = byID[p.id], bearbeitungen.insert(op.id).inserted else { return nil }
             if let alt = n.text { n.fassungen.append(alt) }
             n.text = p.text
             n.bearbeitet = true
             byID[p.id] = n
+            return p.id
         case "nachricht.geloescht":
-            guard let p = op.daten(IDPayload.self) else { return }
+            guard let p = op.daten(IDPayload.self) else { return nil }
             // Retracted within 5 s: no "zurückgezogen" line either.
             if p.id.hasPrefix("umzug:zeichnung/") || byID[p.id].map({ op.zeit.timeIntervalSince($0.zeit) < 5 }) == true {
                 // Z-26.4: "aus dem Chat gelöscht" — vanishes outright, no "Nachricht gelöscht" spur.
@@ -139,62 +189,72 @@ final class ChatModell {
             } else {
                 byID[p.id]?.geloescht = true
             }
+            return p.id
         case "nachricht.reaktion":
-            guard let p = op.daten(ReaktionPayload.self) else { return }
+            guard let p = op.daten(ReaktionPayload.self) else { return nil }
             byID[p.id]?.reaktionen[op.von] = p.emoji
+            return p.id
         case "nachricht.gelesen":
-            guard let p = op.daten(GelesenPayload.self), let bis = Self.datum(p.bis) else { return }
+            guard let p = op.daten(GelesenPayload.self), let bis = Self.datum(p.bis) else { return nil }
             gelesenBis[op.von] = max(gelesenBis[op.von] ?? .distantPast, bis)
         case "nachricht.angeheftet":
-            guard let p = op.daten(AngeheftetPayload.self) else { return }
+            guard let p = op.daten(AngeheftetPayload.self) else { return nil }
             byID[p.id]?.angeheftet = true
             byID[p.id]?.angeheftetBis = p.bis.flatMap(Self.datum)
+            return p.id
         case "nachricht.losgeloest":
-            guard let p = op.daten(IDPayload.self) else { return }
+            guard let p = op.daten(IDPayload.self) else { return nil }
             byID[p.id]?.angeheftet = false
             byID[p.id]?.angeheftetBis = nil
+            return p.id
         case "stern":
             // "nur für von sichtbar" (schnittstellen.md): folded for whoever sent it, the UI
             // only ever shows a person their own stars (see `meineSterne`).
-            guard let p = op.daten(SternPayload.self) else { return }
+            guard let p = op.daten(SternPayload.self) else { return nil }
             if p.an { byID[p.id]?.gesternt.insert(op.von) } else { byID[p.id]?.gesternt.remove(op.von) }
+            return p.id
         case "nachricht.gemerkt":
-            guard let p = op.daten(SternPayload.self) else { return }
+            guard let p = op.daten(SternPayload.self) else { return nil }
             if p.an { byID[p.id]?.gemerkt.insert(op.von) } else { byID[p.id]?.gemerkt.remove(op.von) }
+            return p.id
         case "medium.abschrift":
-            guard let p = op.daten(AbschriftPayload.self) else { return }
+            guard let p = op.daten(AbschriftPayload.self) else { return nil }
             abschriften[p.id] = p.text
         case "snap.angesehen":
-            guard let p = op.daten(SnapAngesehenPayload.self) else { return }
+            guard let p = op.daten(SnapAngesehenPayload.self) else { return nil }
             byID[p.id]?.snapAngesehen = true
             if p.lange { byID[p.id]?.snapLange = true }
+            return p.id
         case "snap.gespeichert":
-            guard let p = op.daten(IDPayload.self) else { return }
+            guard let p = op.daten(IDPayload.self) else { return nil }
             byID[p.id]?.snapGespeichert = true
+            return p.id
         case "snap.wiederholt":
             // One grey line per snap and viewer, updated to the newest count (not one line per replay).
-            guard let p = op.daten(SnapWiederholtPayload.self) else { return }
+            guard let p = op.daten(SnapWiederholtPayload.self) else { return nil }
             // The newest replay also moves the line down to where it happened; an older one is ignored.
             let id = "wiederholt-\(p.id)-\(op.von.rawValue)"
-            guard p.anzahl >= (wiederholungen[id] ?? 0) else { return }
+            guard p.anzahl >= (wiederholungen[id] ?? 0) else { return nil }
             wiederholungen[id] = p.anzahl
             byID[id] = Nachricht(id: id, von: op.von, zeit: op.zeit, seq: op.seq, system: ChatHinweis.wiederholtText(von: op.von.name, anzahl: p.anzahl))
+            return id
         case "snap.aufnahme":
             // Not folded onto the snap message itself (that `id` is someone else's to own) — this
             // becomes its own system-style row, keyed by `op.id` so the optimistic send and its
             // echo share one row (same dedupe contract as every other op here).
-            guard let p = op.daten(SnapAufnahmePayload.self) else { return }
+            guard let p = op.daten(SnapAufnahmePayload.self) else { return nil }
             if var vorhanden = byID[op.id] {
                 if let seq = op.seq { vorhanden.seq = seq }
                 byID[op.id] = vorhanden
             } else {
                 byID[op.id] = Nachricht(id: op.id, von: op.von, zeit: op.zeit, seq: op.seq, system: ChatHinweis.text(von: op.von.name, art: p.art))
             }
+            return op.id
         case "entwurf.setzen":
             entwuerfe[op.von, default: EntwurfFaltung()].anwenden(op)
         case "zeichnung.einladung":
             // Keyed by the op id: the optimistic op and its echo share it.
-            guard let p = op.daten(EinladungPayload.self) else { return }
+            guard let p = op.daten(EinladungPayload.self) else { return nil }
             let id = "einladung-\(op.id)"
             if var vorhanden = byID[id] {
                 if let seq = op.seq { vorhanden.seq = seq }
@@ -204,9 +264,11 @@ final class ChatModell {
                 zeile.einladung = EinladungInfo(zeichnungId: p.zeichnungId, name: p.name)
                 byID[id] = zeile
             }
+            return id
         default:
             break
         }
+        return nil
     }
 
     // MARK: - Derived state
