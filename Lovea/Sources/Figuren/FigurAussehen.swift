@@ -58,7 +58,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             a.haut = 1           // Hell
             a.gesichtsform = 4   // Länglich
             a.frisur = 79        // Mushroom Taper
-            a.haarfarbe = 1      // Dunkelbraun (fast schwarz)
+            a.haarfarbe = 0      // Schwarz (wie auf seinen Fotos)
             a.augen = 0          // Dunkelbraun
             a.augenform = 8      // Scharf (klare Iris, definiertes Oberlid, entspannt)
             a.brauen = 8         // Dick gerade
@@ -67,13 +67,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             a.bart = 14          // Oberlippenbart hellbraun (natürlich)
             a.kinnbart = 1       // Leichter Kinnbart
             a.koerperform = 3    // Athletisch
-            a.oberteil = 20      // Nike Trikot
-            a.oberteilfarbe = 9  // Gelb (Brasilien-Trikot)
-            a.hose = 2           // Weite Jeans
-            a.hosenfarbe = 4     // Grau
-            a.hosenfarbeHex = "8E8C93" // hose 2 ist ein Denim-Wash und ignoriert den Index sonst (siehe FigurView.hosenFarbe)
-            a.schuhe = 10        // Nike Air Force 1
-            a.schuhfarbe = 2     // Weiß
+            if let o = outfits.first(where: { $0.name == "Pink & Black" }) { a.anziehen(outfit: o) } // seine Lieblingsfarben
         case .annika:
             a.haut = 1
             a.frisur = 56        // Lang glatt Mittelscheitel
