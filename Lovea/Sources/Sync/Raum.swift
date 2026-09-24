@@ -183,7 +183,9 @@ final class Raum {
     /// again before anything was actually fetched.
     func nachholenBisFertig(timeout: Duration = .seconds(20)) async {
         guard eingerichtet, ich != nil else { return }
-        if verbunden { return } // already caught up / actively connected, nothing to wait for
+        // Already caught up / actively connected, nothing to wait for. `leer()` still puts just-queued
+        // ops on disk (audit #7): a HealthKit background launch never passes through `aktiv(false)`.
+        if verbunden { await leer(); return }
         start()
         let zaehlerVorher = catchUpZaehler
         let deadline = ContinuousClock.now + timeout
@@ -199,6 +201,7 @@ final class Raum {
             aktivZustand = false
             trennen()
         }
+        await leer()
     }
 
     /// Waits for the `arbeit` chain to fully settle — not just for whatever the tail was at the
