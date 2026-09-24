@@ -201,7 +201,7 @@ struct ChatNachrichtRow: View {
         DragGesture(minimumDistance: 20, coordinateSpace: .global)
             .onChanged { wert in
                 // The left 32 pt belong to the leave-chat swipe (`Unterhaltung.randGeste`).
-                guard wert.startLocation.x > 32, abs(wert.translation.width) > abs(wert.translation.height) else { return }
+                guard wert.startLocation.x > 32, !ScrubSperre.aktiv, abs(wert.translation.width) > abs(wert.translation.height) else { return }
                 let breite = wert.translation.width
                 let neu = breite > 0 ? min(breite * 0.8, 84) : max(breite * 0.8, -64)
                 if wischOffset < Self.antwortSchwelle, neu >= Self.antwortSchwelle { Haptik.mittel() }
