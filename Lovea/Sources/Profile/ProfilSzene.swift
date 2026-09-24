@@ -12,12 +12,18 @@ enum ProfilSzene: Equatable, Sendable {
     case unterwegs(wetter: Wetter, nacht: Bool)
     /// At the saved places `schule` and `arbeit`: a classroom or an office, at a desk.
     case schule, arbeit
+    /// Brief Z: in the drawing studio, in the own room; both drawing at once draw one heart.
+    case zeichnen(zusammen: Bool)
 
     enum Wetter: Equatable, Sendable { case sonne, wolken, regen, schnee }
 
-    /// Pure core, tested in `ProfilSzeneTests`. Priority: sleep > travelling > gym > home > outside.
-    /// `tag` is Open-Meteo's `is_day` (real sunrise/sunset); unknown -> night is 20-6 Uhr.
-    static func fuer(schlaeft: Bool, partnerSchlaeft: Bool, ort: String?, wetterCode: Int?, tag: Bool?, stunde: Int, unterwegs: Bool = false) -> ProfilSzene {
+    /// Pure core, tested in `ProfilSzeneTests`. Priority: drawing > sleep > travelling > gym > home >
+    /// outside. Drawing is an app state, which the drawer's own phone already ranks above sleep and
+    /// place (`FigurZustand.bestimmen`). `tag` is Open-Meteo's `is_day` (real sunrise/sunset);
+    /// unknown -> night is 20-6 Uhr.
+    static func fuer(schlaeft: Bool, partnerSchlaeft: Bool, ort: String?, wetterCode: Int?, tag: Bool?, stunde: Int, unterwegs: Bool = false,
+                     zeichnet: Bool = false, partnerZeichnet: Bool = false) -> ProfilSzene {
+        if zeichnet { return .zeichnen(zusammen: partnerZeichnet) }
         if schlaeft { return .schlafen(zusammen: partnerSchlaeft) }
         if unterwegs { return .unterwegs(wetter: wetter(code: wetterCode), nacht: istNacht(tag: tag, stunde: stunde)) }
         switch ort {
@@ -60,6 +66,7 @@ enum ProfilSzene: Equatable, Sendable {
         case .zimmer: return z == .zuhause ? .ruhig : z
         case .schlafen: return .schlaeft
         case .draussen: return z
+        case .zeichnen: return Self.geste(z) ? z : .zeichnet
         }
     }
 
@@ -69,6 +76,7 @@ enum ProfilSzene: Equatable, Sendable {
         switch self {
         case .gym: return z == .gym ? [.hanteln] : []
         case .draussen(_, let nacht): return KarteLogik.extras(wetterCode: wetterCode, temperatur: temperatur, tag: !nacht, laedt: z == .laedt)
+        case .zeichnen(let zusammen): return zusammen && z == .zeichnet ? [.mitzeichnen] : []
         case .zimmer, .schlafen, .unterwegs, .schule, .arbeit: return []
         }
     }
@@ -78,7 +86,7 @@ enum ProfilSzene: Equatable, Sendable {
     func dunkel(nacht: Bool) -> Bool {
         switch self {
         case .schlafen: true
-        case .zimmer, .schule, .arbeit: nacht
+        case .zimmer, .schule, .arbeit, .zeichnen: nacht
         case .gym, .draussen, .unterwegs: false
         }
     }
@@ -86,7 +94,7 @@ enum ProfilSzene: Equatable, Sendable {
     /// The furnishable place this scene shows (its own saved `Zimmer`), `nil` outside.
     var raumOrt: RaumOrt? {
         switch self {
-        case .zimmer, .schlafen: .zuhause
+        case .zimmer, .schlafen, .zeichnen: .zuhause
         case .arbeit: .arbeit
         case .schule: .schule
         case .gym: .gym
@@ -114,8 +122,16 @@ extension ProfilSzene {
         return fuer(
             schlaeft: schlafGerade(person) != .wach, partnerSchlaeft: schlafGerade(person.partner) != .wach,
             ort: ortKategorie(person), wetterCode: wetter?.code, tag: wetter?.tag, stunde: stunde,
-            unterwegs: unterwegsGerade(person)
+            unterwegs: unterwegsGerade(person), zeichnet: zeichnetGerade(person), partnerZeichnet: zeichnetGerade(person.partner)
         )
+    }
+
+    /// In the drawing studio right now: the state they shared, but only while they are here (a
+    /// stale one from a closed app never counts) and not replaced by a 4 s gesture, which plays
+    /// inside the drawing scene instead.
+    static func zeichnetGerade(_ p: Person) -> Bool {
+        guard p == Raum.shared.ich || Raum.shared.partnerDa else { return false }
+        return FigurenModell.shared.zustand[p]?.haupt == .zeichnet
     }
 
     static func unterwegsGerade(_ p: Person) -> Bool {
@@ -197,14 +213,14 @@ struct ProfilSzeneHintergrund: View {
 
     private var imZimmer: Bool {
         switch szene {
-        case .zimmer, .schlafen, .schule, .arbeit: true
+        case .zimmer, .schlafen, .schule, .arbeit, .zeichnen: true
         case .gym, .draussen, .unterwegs: false
         }
     }
 
     private var asset: UIImage? {
         switch szene {
-        case .zimmer, .schlafen: UIImage(named: "szene-zimmer-hintergrund")
+        case .zimmer, .schlafen, .zeichnen: UIImage(named: "szene-zimmer-hintergrund")
         case .gym: UIImage(named: "szene-gym")
         case .draussen(_, let n): UIImage(named: n ? "szene-draussen-nacht" : "szene-draussen-tag")
         case .unterwegs: UIImage(named: "szene-unterwegs")
@@ -215,7 +231,7 @@ struct ProfilSzeneHintergrund: View {
 
     private var bewegt: Bool {
         switch szene {
-        case .zimmer: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang") || (nacht && zimmer.hat("fenster"))
+        case .zimmer, .zeichnen: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang") || (nacht && zimmer.hat("fenster"))
         case .schlafen: zimmer.hat("lichterkette") || zimmer.hat("fenster")
         case .schule: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang") || nacht
         case .arbeit: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang")
