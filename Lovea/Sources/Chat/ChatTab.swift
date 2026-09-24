@@ -580,6 +580,23 @@ private struct NachrichtenListe: View {
                     proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom)
                 }
             }
+            // Voice autoplay moved on: bring that bubble into view.
+            .onChange(of: SprachSpieler.shared.autoWeiterNachricht) { _, id in
+                guard let id else { return }
+                withAnimation(Feder.weich) { proxy.scrollTo(gruppeID(fuer: id), anchor: .center) }
+            }
+            // Voice round: the bar below grew or shrank (reply bar, lines, recording panel, "ist im
+            // Chat", keyboard). The inset alone keeps the offset, so the newest messages slid under
+            // the bar; if the list was at the bottom before, it stays there.
+            .onScrollGeometryChange(for: ListenLage.self) { geo in
+                ListenLage(
+                    sichtbar: geo.containerSize.height - geo.contentInsets.top - geo.contentInsets.bottom,
+                    amEnde: geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24
+                )
+            } action: { alt, neu in
+                guard alt.sichtbar != neu.sichtbar, alt.amEnde, zielID == nil, let letzte = modell.nachrichten.last?.id else { return }
+                withAnimation(Feder.schnell) { proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom) }
+            }
             // Own send: jump to the bottom like Snapchat, even when scrolled up.
             .onChange(of: modell.nachrichten.last?.id) { _, id in
                 guard let id, modell.nachrichten.last?.von == ich else { return }
@@ -647,6 +664,12 @@ private struct NachrichtenListe: View {
     private func gruppeID(fuer id: String) -> String {
         ChatStapel.gruppieren(Array(modell.nachrichten.suffix(fenster.anzahl))).first { gruppe in gruppe.nachrichten.contains { $0.id == id } }?.id ?? id
     }
+}
+
+/// Visible height between the bars, and whether the list sits at its bottom.
+private struct ListenLage: Equatable {
+    let sichtbar: CGFloat
+    let amEnde: Bool
 }
 
 /// How many of the newest messages the list builds; grows by one page per pull at the top.
