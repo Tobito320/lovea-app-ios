@@ -19,7 +19,7 @@ final class RenderGalerieZeichnenTests: XCTestCase {
             ZStack(alignment: .bottom) {
                 ProfilSzeneHintergrund(szene: szene, zimmer: Zimmer(ort: .zuhause, person: personen[0]), nacht: nacht, animiert: false)
                 HStack(alignment: .bottom, spacing: -64) {
-                    ForEach(personen, id: \.self) { figur($0, szene) }
+                    ForEach(personen, id: \.self) { self.figur($0, szene) }
                 }
                 .brightness(szene.dunkel(nacht: nacht) ? -0.1 : 0)
             }
@@ -32,7 +32,7 @@ final class RenderGalerieZeichnenTests: XCTestCase {
     private func nah(_ p: Person, _ szene: ProfilSzene) -> AnyView {
         AnyView(
             figur(p, szene, groesse: 800)
-                .offset(y: -44)
+                .offset(y: -160)
                 .frame(width: 390, height: 430)
                 .clipped()
                 .background(Color(white: 0.93))

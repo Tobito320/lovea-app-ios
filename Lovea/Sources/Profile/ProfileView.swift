@@ -239,7 +239,8 @@ private struct ProfilInhalt: View {
     /// Only a sleeper is in bed, and a bed only exists in the room. The own profile shows the own
     /// figure alone, or both when both sleep.
     private func belegung(_ szene: ProfilSzene, paar: Bool) -> Belegung {
-        let personen: [Person] = paar || szene == .schlafen(zusammen: true) || szene == .zeichnen(zusammen: true) ? [.annika, .ahmed] : [person]
+        let beide = szene == .schlafen(zusammen: true) || szene == .zeichnen(zusammen: true)
+        let personen: [Person] = paar || beide ? [.annika, .ahmed] : [person]
         switch szene {
         case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlafGerade($0) != .wach })
         case .gym, .draussen, .unterwegs, .schule, .arbeit, .zeichnen: return (personen, [])
