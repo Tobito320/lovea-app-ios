@@ -31,11 +31,9 @@ final class FigurenModell {
     private(set) var partnerZuletztGesehen: [Person: Date] = [:]
     /// Set by `BannerZentrale` (Z-7.3): called for a fresh, live `anstupsen`/`kuss`/`herz` from the partner.
     var aufFrischeGeste: ((Person, FigurZustand) -> Void)?
-    /// Z-27.1: manual "Gute Nacht"/"Guten Morgen" override, per person -- the value is when it
-    /// expires (12h after "nacht", or immediately cleared by a later "morgen"). Read in `anzeige(_:)`
-    /// before the live `zustand`, so it wins on every screen (Home, Chat, Karte, Widget) without
-    /// each of them touching `Anwesenheit`'s own Focus-derived `fokus` at all.
-    private(set) var grussSchlaeft: [Person: Date] = [:]
+    /// Z-27.1 / Brief G fix: newest "Gute Nacht" and "Guten Morgen" per person, for the one sleep
+    /// rule (`FigurZustand.schlaeft`): `Anwesenheit` for the own state, `ProfilSzene` for the partner.
+    private(set) var gruss: [Person: (nacht: Date?, morgen: Date?)] = [:]
 
     private init() {
         let raum = Raum.shared
@@ -58,8 +56,10 @@ final class FigurenModell {
         }
         raum.beobachten(["gruss"]) { [weak self] op in
             guard let self, let art = op.daten(GrussPayload.self)?.art else { return }
-            if art == "nacht" { grussSchlaeft[op.von] = op.zeit.addingTimeInterval(12 * 3600) }
-            else { grussSchlaeft.removeValue(forKey: op.von) }
+            var g = gruss[op.von] ?? (nacht: nil, morgen: nil)
+            if art == "nacht" { g.nacht = max(g.nacht ?? .distantPast, op.zeit) }
+            if art == "morgen" { g.morgen = max(g.morgen ?? .distantPast, op.zeit) }
+            gruss[op.von] = g
         }
         raum.fluechtigBeobachten("zustand") { [weak self] person, data in
             if let z = try? JSONDecoder().decode(Zustand.self, from: data) { self?.zustand[person] = z }

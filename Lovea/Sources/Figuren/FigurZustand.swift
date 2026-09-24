@@ -114,9 +114,10 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         // ponytail: offline sits above App and Ort (brief test "Offline schlägt Ort"); the spec lists Gerät below Ort.
         if !e.online { return .offline }
         if let app = e.app { return app }
-        // Schlafen nur automatisch: Schlaf-Fokus/-Fenster UND zu Hause UND keine Bewegung. Schlägt
-        // "zu Hause"; unterwegs oder woanders nie schlafend, dann nur "nicht stören".
-        if e.fokus == "schlafen", e.ort == .zuhause, e.bewegung == nil { return .schlaeft }
+        // Schlägt "zu Hause"; unterwegs oder an einem anderen Ort nie schlafend, dann nur "nicht stören".
+        let zuhause: Bool? = e.zuhauseBekannt ? e.ort == .zuhause : nil
+        if schlaeft(fokusSchlafen: e.fokus == "schlafen", guteNacht: e.guteNacht, gutenMorgen: e.gutenMorgen,
+                    aktiv: e.aktiv, bewegt: e.bewegung != nil, zuhause: zuhause, jetzt: e.jetzt) { return .schlaeft }
         if let ort = e.ort { return ort }
         if let bewegung = e.bewegung { return bewegung }
         if e.fokus != nil { return .nichtStoeren }
@@ -127,6 +128,31 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         if let brauche = e.brauche, let z = FigurZustand(rawValue: brauche) { return z }
         if let stimmung = e.stimmung, let z = FigurZustand(rawValue: stimmung) { return z }
         return .ruhig
+    }
+
+    /// The one sleep rule (used here for the own state and by `ProfilSzene` for the partner):
+    /// (sleep focus, OR a "Gute Nacht" since the last 20:00 not undone by "Guten Morgen" or by being
+    /// active after 09:00) AND not moving AND (at the Home place, OR no Home place known: `nil`).
+    static func schlaeft(fokusSchlafen: Bool, guteNacht: Date?, gutenMorgen: Date?, aktiv: Date?, bewegt: Bool, zuhause: Bool?, jetzt: Date) -> Bool {
+        guard !bewegt, zuhause != false else { return false }
+        return fokusSchlafen || guteNachtGilt(nacht: guteNacht, morgen: gutenMorgen, aktiv: aktiv, jetzt: jetzt)
+    }
+
+    static func guteNachtGilt(nacht: Date?, morgen: Date?, aktiv: Date?, jetzt: Date) -> Bool {
+        guard let nacht, nacht >= letzte20Uhr(jetzt) else { return false }
+        if let morgen, morgen > nacht { return false }
+        if let aktiv, aktiv >= neunUhr(nach: nacht) { return false }
+        return true
+    }
+
+    private static func letzte20Uhr(_ jetzt: Date) -> Date {
+        let heute = berlin.date(bySettingHour: 20, minute: 0, second: 0, of: jetzt) ?? jetzt
+        return heute <= jetzt ? heute : berlin.date(byAdding: .day, value: -1, to: heute) ?? heute
+    }
+
+    private static func neunUhr(nach d: Date) -> Date {
+        let neun = berlin.date(bySettingHour: 9, minute: 0, second: 0, of: d) ?? d
+        return neun > d ? neun : berlin.date(byAdding: .day, value: 1, to: neun) ?? neun
     }
 }
 
@@ -149,4 +175,9 @@ struct FigurEingabe: Sendable {
     var dateHeute = false
     var puenktlich: String?         // "uhrwerk" | "charmant" | "troedel" | "weg"
     var monatsKrone = false
+    // Brief G fix: the "Gute Nacht" half of the sleep rule.
+    var guteNacht: Date?            // newest "Gute Nacht" gruss
+    var gutenMorgen: Date?          // newest "Guten Morgen" gruss
+    var aktiv: Date?                // last time the app was in the foreground
+    var zuhauseBekannt = true       // a Home place is saved; `false` lets sleep count anywhere
 }

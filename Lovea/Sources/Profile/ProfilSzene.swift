@@ -1,3 +1,4 @@
+import CoreLocation
 import SwiftUI
 
 /// Brief G: the scene behind the figure in the profile header, following real life. Asleep at
@@ -34,11 +35,19 @@ enum ProfilSzene: Equatable, Sendable {
         return .wolken
     }
 
-    /// Live "schläft", or - the partner's app is mostly closed at night, so `anzeige` says offline -
-    /// the last state they sent, but only in the night hours so a stale one never shows by day.
-    static func schlaeft(anzeige: FigurZustand, zuletzt: FigurZustand?, stunde: Int) -> Bool {
-        anzeige == .schlaeft || (anzeige == .offline && zuletzt == .schlaeft && AnwesenheitEingabe.istNachtstunde(stunde))
+    /// Viewer side of the one sleep rule (`FigurZustand.schlaeft`). Online, the sleeper's own phone
+    /// decided (only it knows the focus). Offline - apps are closed at night - its last "schläft"
+    /// counts in the night hours, and a "Gute Nacht" counts on its own even if that never arrived.
+    static func schlaeft(anzeige: FigurZustand, zuletzt: FigurZustand?, guteNacht: Date?, gutenMorgen: Date?,
+                         aktiv: Date?, bewegt: Bool, zuhause: Bool?, jetzt: Date) -> Bool {
+        guard anzeige == .offline else { return anzeige == .schlaeft }
+        let fokus = zuletzt == .schlaeft && AnwesenheitEingabe.istNachtstunde(Calendar.berlin.component(.hour, from: jetzt))
+        return FigurZustand.schlaeft(fokusSchlafen: fokus, guteNacht: guteNacht, gutenMorgen: gutenMorgen,
+                                     aktiv: aktiv, bewegt: bewegt, zuhause: zuhause, jetzt: jetzt)
     }
+
+    /// From 22:00 an awake figure is tired (`FigurExtra.schlaefrig`) until the morning.
+    static func spaet(stunde: Int) -> Bool { stunde >= 22 || stunde < 6 }
 
     /// What the profile person's figure does here. In the gym only a live gesture or expression
     /// interrupts the curls; in the room "zu Hause" stands instead of sitting on its own sofa.
@@ -70,7 +79,7 @@ extension ProfilSzene {
         let stunde = Calendar.berlin.component(.hour, from: jetzt)
         let wetter = WetterModell.shared.staende[person]
         return fuer(
-            schlaeft: schlaeftGerade(person, stunde: stunde), partnerSchlaeft: schlaeftGerade(person.partner, stunde: stunde),
+            schlaeft: schlaeftGerade(person, jetzt: jetzt), partnerSchlaeft: schlaeftGerade(person.partner, jetzt: jetzt),
             ort: ortKategorie(person), wetterCode: wetter?.code, tag: wetter?.tag, stunde: stunde
         )
     }
@@ -80,9 +89,27 @@ extension ProfilSzene {
         istNacht(tag: WetterModell.shared.staende[person]?.tag, stunde: Calendar.berlin.component(.hour, from: jetzt))
     }
 
-    private static func schlaeftGerade(_ p: Person, stunde: Int) -> Bool {
+    /// Whether `p` lies in bed right now; the header asks this per figure.
+    static func schlaeftGerade(_ p: Person, jetzt: Date = Date()) -> Bool {
         let modell = FigurenModell.shared
-        return schlaeft(anzeige: modell.anzeige(p).haupt, zuletzt: modell.zustand[p]?.haupt, stunde: stunde)
+        let pos = Standort.shared.positionen[p]
+        var bewegt = false
+        if let pos, (pos.sekundenAlt ?? .infinity) < 300, let b = pos.bewegung.flatMap(FigurZustand.init(rawValue:)) {
+            bewegt = [FigurZustand.laeuft, .rennt, .rad, .faehrt].contains(b)
+        }
+        // No Home saved, or no position known: the place doesn't rule sleep out.
+        var zuhause: Bool?
+        let heime = OrteModell.shared.orte.filter { $0.person == p && $0.kategorie == "zuhause" }
+        if let pos, !heime.isEmpty {
+            let hier = CLLocation(latitude: pos.lat, longitude: pos.lon)
+            zuhause = heime.contains { CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: hier) <= $0.radius }
+        }
+        let gruss = modell.gruss[p]
+        return schlaeft(
+            anzeige: modell.anzeige(p).haupt, zuletzt: modell.zustand[p]?.haupt,
+            guteNacht: gruss?.nacht, gutenMorgen: gruss?.morgen, aktiv: modell.partnerZuletztGesehen[p],
+            bewegt: bewegt, zuhause: zuhause, jetzt: jetzt
+        )
     }
 
     /// Saved place at the last position (like `KartenFigur`), else the place state they sent.

@@ -3,7 +3,8 @@ import SwiftUI
 /// Z-39.4: small extras on the figure, drawn in half and full body. The map derives them from the
 /// weather (rain, sun, cold, snow) and from charging. `hanteln` (Brief G): a dumbbell in each hand,
 /// curled in turn - the profile's gym scene.
-enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, muetzeSchal, handyKabel, schneeflocken, hanteln }
+/// `schlaefrig` (Brief G fix): late at night, tired eyes and now and then a yawn.
+enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, muetzeSchal, handyKabel, schneeflocken, hanteln, schlaefrig }
 
 /// Bitmoji-style figure. `groesse` is the height. Half figure (chat, stickers): width is 5/6 of the height.
 /// `ganzkoerper` (map, profile): head, body, legs and shoes with standing/walking/sitting poses; width is 1/2 of the height.
@@ -1206,8 +1207,15 @@ private struct Zeichner {
 
     // MARK: Face
 
+    /// Tired only while nothing more telling is going on (not asleep, no gesture or expression).
+    var schlaefrig: Bool { extras.contains(.schlaefrig) && !Self.keinePoseUeberschreibung.contains(z) }
+
+    /// A short yawn about every half minute; never on a still frame (Reduce Motion, stickers).
+    var gaehnt: Bool { schlaefrig && !statisch && zyklus(29) < 0.08 }
+
     var augenAusdruck: Auge {
-        switch z {
+        if schlaefrig { return gaehnt ? .zu : .muede }
+        return switch z {
         case .schlaeft, .morgen: .zu
         case .lacht, .kuss, .gut, .naehe: .froh
         case .akkuLeer, .abend, .ruhe: .muede
@@ -1222,7 +1230,8 @@ private struct Zeichner {
     }
 
     var mundForm: Mund {
-        switch z {
+        if gaehnt { return .offen(7 + 7 * CGFloat(sin(Double(zyklus(29)) / 0.08 * Double.pi))) }
+        return switch z {
         case .gut, .lacht, .pokal, .anstossen, .imChat: .grinsen
         case .schautBild, .schautVideo, .rennt: .offen(6)
         case .morgen: .offen(9)

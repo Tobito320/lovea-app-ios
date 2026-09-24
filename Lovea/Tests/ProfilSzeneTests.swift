@@ -44,13 +44,78 @@ final class ProfilSzeneTests: XCTestCase {
         XCTAssertEqual(szene(code: 0, tag: true, stunde: 21), .draussen(wetter: .sonne, nacht: false))
     }
 
-    func testSchlaeft() {
-        XCTAssertTrue(ProfilSzene.schlaeft(anzeige: .schlaeft, zuletzt: nil, stunde: 14))
-        XCTAssertTrue(ProfilSzene.schlaeft(anzeige: .offline, zuletzt: .schlaeft, stunde: 23))
-        XCTAssertTrue(ProfilSzene.schlaeft(anzeige: .offline, zuletzt: .schlaeft, stunde: 6))
-        XCTAssertFalse(ProfilSzene.schlaeft(anzeige: .offline, zuletzt: .schlaeft, stunde: 15))
-        XCTAssertFalse(ProfilSzene.schlaeft(anzeige: .offline, zuletzt: .zuhause, stunde: 23))
-        XCTAssertFalse(ProfilSzene.schlaeft(anzeige: .imChat, zuletzt: .schlaeft, stunde: 23))
+    // MARK: - The one sleep rule (Brief G fix 1)
+
+    private func berlin(_ tag: Int, _ stunde: Int, _ minute: Int = 0) -> Date {
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(identifier: "Europe/Berlin")!
+        return cal.date(from: DateComponents(year: 2026, month: 9, day: tag, hour: stunde, minute: minute))!
+    }
+
+    func testGuteNachtGilt() {
+        let nacht = berlin(24, 23, 30)
+        XCTAssertTrue(FigurZustand.guteNachtGilt(nacht: nacht, morgen: nil, aktiv: nil, jetzt: berlin(25, 2, 35)))
+        // Still valid in the morning until active after 09:00 or "Guten Morgen".
+        XCTAssertTrue(FigurZustand.guteNachtGilt(nacht: nacht, morgen: nil, aktiv: berlin(25, 3), jetzt: berlin(25, 8)))
+        XCTAssertFalse(FigurZustand.guteNachtGilt(nacht: nacht, morgen: nil, aktiv: berlin(25, 9, 5), jetzt: berlin(25, 9, 5)))
+        XCTAssertFalse(FigurZustand.guteNachtGilt(nacht: nacht, morgen: berlin(25, 7), aktiv: nil, jetzt: berlin(25, 7, 1)))
+        // An older "Guten Morgen" doesn't undo tonight's "Gute Nacht".
+        XCTAssertTrue(FigurZustand.guteNachtGilt(nacht: nacht, morgen: berlin(24, 8), aktiv: nil, jetzt: berlin(25, 1)))
+        // Said before the last 20:00: yesterday's, no longer valid.
+        XCTAssertFalse(FigurZustand.guteNachtGilt(nacht: berlin(23, 23), morgen: nil, aktiv: nil, jetzt: berlin(24, 21)))
+        XCTAssertFalse(FigurZustand.guteNachtGilt(nacht: berlin(24, 19), morgen: nil, aktiv: nil, jetzt: berlin(24, 22)))
+        XCTAssertFalse(FigurZustand.guteNachtGilt(nacht: nil, morgen: nil, aktiv: nil, jetzt: berlin(25, 1)))
+    }
+
+    func testSchlafRegel() {
+        let nacht = berlin(25, 0, 10)
+        func regel(fokus: Bool = false, nacht: Date? = nil, bewegt: Bool = false, zuhause: Bool? = true) -> Bool {
+            FigurZustand.schlaeft(fokusSchlafen: fokus, guteNacht: nacht, gutenMorgen: nil, aktiv: nil,
+                                  bewegt: bewegt, zuhause: zuhause, jetzt: berlin(25, 2, 35))
+        }
+        XCTAssertTrue(regel(fokus: true))
+        XCTAssertTrue(regel(nacht: nacht))
+        XCTAssertTrue(regel(nacht: nacht, zuhause: nil), "no Home place known")
+        XCTAssertFalse(regel(nacht: nacht, zuhause: false))
+        XCTAssertFalse(regel(fokus: true, bewegt: true))
+        XCTAssertFalse(regel())
+    }
+
+    func testGuteNachtImZustand() {
+        var e = FigurEingabe(person: .annika, jetzt: berlin(25, 2, 35))
+        e.guteNacht = berlin(25, 0, 10)
+        e.zuhauseBekannt = false
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .schlaeft)
+        e.zuhauseBekannt = true
+        e.ort = .zuhause
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .schlaeft)
+        e.ort = .arbeit
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .arbeit)
+        e.ort = .zuhause
+        e.app = .imChat
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .imChat)
+    }
+
+    func testSchlaeftAusSichtDesPartners() {
+        func sicht(_ anzeige: FigurZustand, zuletzt: FigurZustand? = nil, nacht: Date? = nil, jetzt: Date? = nil) -> Bool {
+            ProfilSzene.schlaeft(anzeige: anzeige, zuletzt: zuletzt, guteNacht: nacht, gutenMorgen: nil, aktiv: nil,
+                                 bewegt: false, zuhause: nil, jetzt: jetzt ?? berlin(25, 2, 35))
+        }
+        // Online: the sleeper's own phone decided.
+        XCTAssertTrue(sicht(.schlaeft))
+        XCTAssertFalse(sicht(.imChat, nacht: berlin(25, 0, 10)))
+        // Offline: last "schläft" at night, or a "Gute Nacht" on its own.
+        XCTAssertTrue(sicht(.offline, zuletzt: .schlaeft))
+        XCTAssertFalse(sicht(.offline, zuletzt: .schlaeft, jetzt: berlin(25, 15)))
+        XCTAssertTrue(sicht(.offline, zuletzt: .ruhig, nacht: berlin(25, 0, 10)))
+        XCTAssertFalse(sicht(.offline, zuletzt: .ruhig))
+    }
+
+    func testSpaet() {
+        XCTAssertFalse(ProfilSzene.spaet(stunde: 21))
+        XCTAssertTrue(ProfilSzene.spaet(stunde: 22))
+        XCTAssertTrue(ProfilSzene.spaet(stunde: 2))
+        XCTAssertFalse(ProfilSzene.spaet(stunde: 6))
     }
 
     func testFigurInDerSzene() {

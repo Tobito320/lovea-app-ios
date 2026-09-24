@@ -22,6 +22,7 @@ final class Anwesenheit {
     private var bewegung: FigurZustand?
     private var morgenGeoeffnet = false
     private var supermarktName: String?
+    private var zuletztAktiv: Date?
 
     private var letzterZustand: FigurenModell.Zustand?
     private var letzterVersand = Date.distantPast
@@ -195,12 +196,18 @@ final class Anwesenheit {
             jahrestag: kalender.jahrestag.map(Datum.datum),
             dateHeute: kalender.daten.treffen.contains { $0.datum == heute },
             puenktlich: kalender.puenktlich[gestern]?[ich.partner],
-            monatsKrone: Puenktlich.monatsKrone(ops: KalenderModell.shared.alleOps, monat: monat) == ich
+            monatsKrone: Puenktlich.monatsKrone(ops: KalenderModell.shared.alleOps, monat: monat) == ich,
+            guteNacht: FigurenModell.shared.gruss[ich]?.nacht,
+            gutenMorgen: FigurenModell.shared.gruss[ich]?.morgen,
+            aktiv: zuletztAktiv,
+            zuhauseBekannt: OrteModell.shared.orte.contains { $0.person == ich && $0.kategorie == "zuhause" }
         )
     }
 
     private func aktualisieren() {
         guard let ich = Raum.shared.ich else { return }
+        // Background location wakes also run this: only the foreground counts as "active".
+        if UIApplication.shared.applicationState == .active { zuletztAktiv = Date() }
         let (haupt, abzeichen) = FigurZustand.bestimmen(eingabe(ich))
         let neu = FigurenModell.Zustand(haupt: haupt, abzeichen: abzeichen)
         guard neu != letzterZustand else { return }
