@@ -123,6 +123,8 @@ final class Raum {
             start()
             return
         }
+        // Audit #7: the queue writes are coalesced; flush after everything queued so far.
+        reiheOhneWarten { [weak self] in await self?.warteschlange.sichern() }
         if aktivZustand {
             aktivZustand = false
             beendeHintergrundAufgabe() // defensive: never overwrite a still-valid identifier
@@ -201,13 +203,15 @@ final class Raum {
 
     /// Waits for the `arbeit` chain to fully settle — not just for whatever the tail was at the
     /// moment of the call, but for any further work a running link chains onto it meanwhile.
+    /// Then the queue is on disk (its writes are coalesced, audit #7).
     func leer() async {
         while true {
             let versionVorher = arbeitVersion
-            guard let letzte = arbeit else { return }
+            guard let letzte = arbeit else { break }
             await letzte.value
-            if arbeitVersion == versionVorher { return }
+            if arbeitVersion == versionVorher { break }
         }
+        await warteschlange.sichern()
     }
 
     func httpKonfiguration() -> HttpKonfiguration? {
