@@ -22,15 +22,19 @@ final class HealthModell {
     private(set) var zielWasserAenderungen: [Person: [ZielAenderung]] = [:]
     private(set) var zielGemeinsamWocheAenderungen: [ZielAenderung] = []
 
-    /// km and floors of the same `schritte.setzen` op as `schritte` (same `seq`/`id`, so the same
-    /// winner per day).
+    /// km, floors, kcal and active minutes of the same `schritte.setzen` op as `schritte` (same
+    /// `seq`/`id`, so the same winner per day).
     private var schritteExtras: [Person: [String: TagesEintrag<SchritteExtra>]] = [:]
     private var habitFaltung = HabitFaltung()
+    /// When each person's steps last came in (live ops only, not the backfill) — "vor 3 Std.".
+    private(set) var schritteZuletzt: [Person: Date] = [:]
 
     private let store = HKHealthStore()
     private let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
     private let distanzType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!
     private let etagenType = HKQuantityType.quantityType(forIdentifier: .flightsClimbed)!
+    private let energieType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!
+    private let bewegungType = HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!
     private let sleepType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)!
 
     private var angewendeteOps: Set<String> = []
@@ -39,10 +43,10 @@ final class HealthModell {
     private var zuletztGesendetSchritte: (datum: String, anzahl: Int)?
     private var zuletztGesendetUm = Date.distantPast
 
-    /// Z-36.1: new key, so the prompt appears once more for distance and floors (the Runde-2 flag
-    /// `altSchluessel` would block it). Background observers still start on the old flag.
-    private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt.v3"
-    private static let altSchluessel = "lovea.health.berechtigungAngefragt"
+    /// A new key per new set of types, so the prompt appears once more (v3: distance and floors,
+    /// v4: active energy and exercise time). Background observers still start on any older flag.
+    private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt.v4"
+    private static let alteSchluessel = ["lovea.health.berechtigungAngefragt", "lovea.health.berechtigungAngefragt.v3"]
     private static let nachgetragenSchluessel = "lovea.health.schritteNachgetragen.v1"
 
     /// Für den "Health nicht erlaubt"-Hinweis (Z-21.1/Z-21.3, Review-Fokus 4): unterscheidet "noch
@@ -69,6 +73,7 @@ final class HealthModell {
     func schritteAm(_ person: Person, _ tag: String) -> Int? { schritte[person]?[tag]?.wert }
     func kmAm(_ person: Person, _ tag: String) -> Double? { schritteExtras[person]?[tag]?.wert.km }
     func etagenAm(_ person: Person, _ tag: String) -> Int? { schritteExtras[person]?[tag]?.wert.etagen }
+    func extrasAm(_ person: Person, _ tag: String) -> SchritteExtra? { schritteExtras[person]?[tag]?.wert }
     func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date)? { schlaf[person]?[tag] }
 
     /// Every habit incl. Gym and Wasser; `ausgeblendet` = hidden by this device's person.
@@ -139,7 +144,9 @@ final class HealthModell {
         guard let d = op.daten(SchritteD.self) else { return }
         let gesendet = Datum.text(op.zeit)
         HealthFaltung.aufnehmen(&schritte, TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: gesendet, wert: d.anzahl, id: op.id, nachgetragen: d.nachgetragen ?? false))
-        HealthFaltung.aufnehmen(&schritteExtras, TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: gesendet, wert: SchritteExtra(km: d.km, etagen: d.etagen), id: op.id))
+        let extra = SchritteExtra(km: d.km, etagen: d.etagen, kcal: d.kcal, aktivMinuten: d.aktivMinuten)
+        HealthFaltung.aufnehmen(&schritteExtras, TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: gesendet, wert: extra, id: op.id))
+        if d.nachgetragen != true { schritteZuletzt[op.von] = max(schritteZuletzt[op.von] ?? .distantPast, op.zeit) }
     }
 
     private func schlafOpAnwenden(_ op: Op) {
@@ -186,7 +193,7 @@ final class HealthModell {
     /// App-Start laufen (auch einem Hintergrund-Start), sonst bleibt Background Delivery nach
     /// einem Neustart aus. No-op, solange nie gefragt wurde (weder Runde 2 noch jetzt).
     func beobachtenStartenFallsErlaubt() {
-        let jemalsGefragt = berechtigungAngefragt || UserDefaults.standard.bool(forKey: Self.altSchluessel)
+        let jemalsGefragt = berechtigungAngefragt || Self.alteSchluessel.contains { UserDefaults.standard.bool(forKey: $0) }
         guard HKHealthStore.isHealthDataAvailable(), jemalsGefragt, !beobachterGestartet else { return }
         beobachterGestartet = true
         beobachteAenderungen()
@@ -196,7 +203,7 @@ final class HealthModell {
     /// wurde (Apples Privacy-Design für Lesezugriffe) — deshalb wird trotzdem versucht zu lesen.
     private func berechtigungAnfragen() async -> Bool {
         await withCheckedContinuation { fortsetzung in
-            store.requestAuthorization(toShare: [], read: [stepType, distanzType, etagenType, sleepType]) { erfolg, _ in
+            store.requestAuthorization(toShare: [], read: [stepType, distanzType, etagenType, energieType, bewegungType, sleepType]) { erfolg, _ in
                 fortsetzung.resume(returning: erfolg)
             }
         }
@@ -238,21 +245,20 @@ final class HealthModell {
 
     private func letzteAchtTage() -> [String] { (0..<8).map { Datum.addTage(heute, -$0) } }
 
-    /// Heute + letzte 7 Tage, nur bei Änderung (Z-20.1); km und Etagen reisen mit (Z-36.1).
-    // ponytail: only the step observer triggers — distance and floors are written with the steps.
+    /// Heute + letzte 7 Tage, nur bei Änderung (Z-20.1); km, Etagen, kcal und Aktivzeit reisen mit.
+    // ponytail: only the step observer triggers — the other values are written while walking too.
     private func schritteAktualisierenUndSenden() async {
         guard let ich = Raum.shared.ich else { return }
         for tag in letzteAchtTage() {
             guard let neu = await tageswerte(tag) else { continue }
-            let extra = schritteExtras[ich]?[tag]?.wert
-            guard schritte[ich]?[tag]?.wert != neu.anzahl || extra?.km != neu.km || extra?.etagen != neu.etagen else { continue }
+            guard schritte[ich]?[tag]?.wert != neu.anzahl || schritteExtras[ich]?[tag]?.wert != neu.extra else { continue }
             if tag == heute {
                 let vergangen = Date().timeIntervalSince(zuletztGesendetUm)
                 guard HealthLogik.sollSchritteSenden(anzahl: neu.anzahl, zuletzt: zuletztGesendetSchritte, heutigerTag: heute, vergangen: vergangen) else { continue }
                 zuletztGesendetSchritte = (heute, neu.anzahl)
                 zuletztGesendetUm = Date()
             }
-            Raum.shared.senden("schritte.setzen", SchritteD(datum: tag, anzahl: neu.anzahl, km: neu.km, etagen: neu.etagen))
+            Raum.shared.senden("schritte.setzen", SchritteD(neu.anzahl, neu.extra, datum: tag))
         }
         // Not awaited: the observer's completion handler must not wait for 82 days of queries
         // (HealthKit throttles late background deliveries). A suspended run retries, the flag comes last.
@@ -272,28 +278,46 @@ final class HealthModell {
         defer { nachtragLaeuft = false }
         for tag in HealthLogik.nachtragTage(heute: heute, vorhanden: Set((schritte[ich] ?? [:]).keys)) {
             guard let werte = await tageswerte(tag), schritte[ich]?[tag] == nil else { continue }
-            Raum.shared.senden("schritte.setzen", SchritteD(datum: tag, anzahl: werte.anzahl, km: werte.km, etagen: werte.etagen, nachgetragen: true))
+            var d = SchritteD(werte.anzahl, werte.extra, datum: tag)
+            d.nachgetragen = true
+            Raum.shared.senden("schritte.setzen", d)
         }
         UserDefaults.standard.set(true, forKey: Self.nachgetragenSchluessel)
     }
 
-    /// Steps, km (2 decimals) and floors of one Berlin day; `nil` without any step data.
-    private func tageswerte(_ tag: String) async -> (anzahl: Int, km: Double?, etagen: Int?)? {
-        guard let anzahl = await summe(stepType, tag, inMetern: false) else { return nil }
-        let meter = await summe(distanzType, tag, inMetern: true)
-        let etagen = await summe(etagenType, tag, inMetern: false)
-        return (Int(anzahl), meter.map { ($0 / 10).rounded() / 100 }, etagen.map { Int($0) })
+    /// Steps plus km (2 decimals), floors, active kcal and exercise minutes of one Berlin day;
+    /// `nil` without any step data.
+    private func tageswerte(_ tag: String) async -> (anzahl: Int, extra: SchritteExtra)? {
+        guard let anzahl = await summe(stepType, tag, .anzahl) else { return nil }
+        let meter = await summe(distanzType, tag, .meter)
+        let etagen = await summe(etagenType, tag, .anzahl)
+        let kcal = await summe(energieType, tag, .kcal)
+        let minuten = await summe(bewegungType, tag, .minuten)
+        let extra = SchritteExtra(
+            km: meter.map { ($0 / 10).rounded() / 100 }, etagen: etagen.map { Int($0) },
+            kcal: kcal.map { Int($0.rounded()) }, aktivMinuten: minuten.map { Int($0.rounded()) }
+        )
+        return (Int(anzahl), extra)
     }
 
+    private enum Einheit: Sendable { case anzahl, meter, kcal, minuten }
+
     /// Sum over the Berlin day, the same boundaries for live sends and the backfill. The unit is
-    /// built inside the (possibly `@Sendable`) handler from a `Bool`, so nothing non-Sendable is captured.
-    private func summe(_ typ: HKQuantityType, _ tag: String, inMetern: Bool) async -> Double? {
+    /// built inside the (possibly `@Sendable`) handler from a Sendable enum, so nothing else is captured.
+    private func summe(_ typ: HKQuantityType, _ tag: String, _ einheit: Einheit) async -> Double? {
         let start = Calendar.berlin.startOfDay(for: Datum.datum(tag))
         let ende = Calendar.berlin.date(byAdding: .day, value: 1, to: start) ?? start
         let praedikat = HKQuery.predicateForSamples(withStart: start, end: ende, options: .strictStartDate)
         return await withCheckedContinuation { fortsetzung in
             let abfrage = HKStatisticsQuery(quantityType: typ, quantitySamplePredicate: praedikat, options: .cumulativeSum) { _, ergebnis, _ in
-                fortsetzung.resume(returning: ergebnis?.sumQuantity()?.doubleValue(for: inMetern ? .meter() : .count()))
+                let unit: HKUnit
+                switch einheit {
+                case .anzahl: unit = HKUnit.count()
+                case .meter: unit = HKUnit.meter()
+                case .kcal: unit = HKUnit.kilocalorie()
+                case .minuten: unit = HKUnit.minute()
+                }
+                fortsetzung.resume(returning: ergebnis?.sumQuantity()?.doubleValue(for: unit))
             }
             store.execute(abfrage)
         }
@@ -353,16 +377,29 @@ final class HealthModell {
     }
 }
 
-struct SchritteExtra: Sendable, Equatable { var km: Double?; var etagen: Int? }
+struct SchritteExtra: Sendable, Equatable {
+    var km: Double? = nil
+    var etagen: Int? = nil
+    var kcal: Int? = nil
+    var aktivMinuten: Int? = nil
+}
 
-/// `schritte.setzen {datum, anzahl, km?, etagen?, nachgetragen?}` — optional fields are left out
-/// when `nil`, older builds ignore them.
+/// `schritte.setzen {datum, anzahl, km?, etagen?, kcal?, aktivMinuten?, nachgetragen?}` — optional
+/// fields are left out when `nil`, older builds ignore them.
 private struct SchritteD: Codable {
     var datum: String
     var anzahl: Int
     var km: Double? = nil
     var etagen: Int? = nil
+    var kcal: Int? = nil
+    var aktivMinuten: Int? = nil
     var nachgetragen: Bool? = nil
+}
+
+private extension SchritteD {
+    init(_ anzahl: Int, _ extra: SchritteExtra, datum: String) {
+        self.init(datum: datum, anzahl: anzahl, km: extra.km, etagen: extra.etagen, kcal: extra.kcal, aktivMinuten: extra.aktivMinuten)
+    }
 }
 private struct SchlafD: Codable { var datum: String; var minuten: Int; var von: String; var bis: String }
 private struct EinstellungD: Codable { var schluessel: String; var wert: JSONValue }
