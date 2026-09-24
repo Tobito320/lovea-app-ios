@@ -59,13 +59,17 @@ struct FigurView: View {
     }
 
     var body: some View {
+        // Built once per look/state here, outside the clock: each tick only sets `t` on a copy
+        // (the colours, lookups and derived flags cost more than the copy).
+        let laeuft = animiert && !reduceMotion
+        let basis = zeichner(statisch: !laeuft)
         Group {
-            if animiert && !reduceMotion {
+            if laeuft {
                 TimelineView(.animation(minimumInterval: 1.0 / bildrate, paused: !sichtbar || scenePhase != .active)) { kontext in
-                    leinwand(kontext.date.timeIntervalSinceReferenceDate, statisch: false)
+                    leinwand(basis, kontext.date.timeIntervalSinceReferenceDate)
                 }
             } else {
-                leinwand(0.4, statisch: true)
+                leinwand(basis, 0.4)
             }
         }
         .frame(width: ganzkoerper ? groesse / 2 : groesse * 5 / 6, height: groesse)
@@ -80,12 +84,16 @@ struct FigurView: View {
         .accessibilityValue(zustand.titel)
     }
 
-    private func leinwand(_ t: Double, statisch: Bool) -> some View {
+    private func zeichner(statisch: Bool) -> Zeichner {
         // `.ruhig` already falls to the `default:` branch in both `pose()` and `poseGanz()`, so
         // this reuses that existing "idle" path — with none of `zustand`'s props/scene/pajamas —
         // instead of teaching `Zeichner` a second pose-priority system.
         let posiert = poseImmer && aussehen.pose != nil && !Zeichner.keinePoseUeberschreibung.contains(zustand)
-        let zeichner = Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung)
+        return Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung)
+    }
+
+    private func leinwand(_ basis: Zeichner, _ t: Double) -> some View {
+        let zeichner = basis.bei(t)
         return Canvas { g, size in zeichner.zeichne(g, size) }
     }
 }
@@ -254,7 +262,8 @@ fileprivate struct Masse {
 private struct Zeichner {
     let z: FigurZustand
     let abz: Set<String>
-    let t: Double
+    /// The only field that changes per frame (`FigurView.leinwand`).
+    var t: Double
     let statisch: Bool
     let ganz: Bool
     let haut, haar, iris, top, jackeF, hoseF, schuhF, muetzeF: FigurFarbe
@@ -360,6 +369,12 @@ private struct Zeichner {
     }
 
     // MARK: Time
+
+    func bei(_ t: Double) -> Zeichner {
+        var z = self
+        z.t = t
+        return z
+    }
 
     func w(_ tempo: Double, _ versatz: Double = 0) -> CGFloat { CGFloat(sin(t * tempo + versatz)) }
 
