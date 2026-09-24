@@ -182,7 +182,7 @@ struct ProfilSzeneHintergrund: View {
                     ZStack {
                         ForEach(SzenenEbene.allCases, id: \.self) { e in
                             if e.bewegt {
-                                TimelineView(.animation(minimumInterval: 1.0 / 15, paused: !sichtbar || scenePhase != .active)) { k in
+                                TimelineView(.animation(minimumInterval: 1 / bildrate, paused: !sichtbar || scenePhase != .active)) { k in
                                     leinwand([e], k.date.timeIntervalSinceReferenceDate, bett: nil)
                                 }
                             } else {
@@ -231,6 +231,15 @@ struct ProfilSzeneHintergrund: View {
         case .arbeit: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang")
         case .gym: false
         case .draussen, .unterwegs: true
+        }
+    }
+
+    /// What the moving layer needs: rain, snow and travel streaks cover several points a frame and
+    /// keep 15 fps; twinkling lights and stars, drifting clouds and the slow sun get by with 10.
+    private var bildrate: Double {
+        switch szene {
+        case .draussen(.regen, _), .draussen(.schnee, _), .unterwegs: 15
+        default: 10
         }
     }
 
