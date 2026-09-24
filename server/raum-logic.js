@@ -380,6 +380,25 @@ export function letzterStandort(sql, person) {
   return { d: JSON.parse(rows[0].d), zeit: rows[0].zeit };
 }
 
+// --- Letzter Zustand (Brief G: Partner-Szene ohne Verzögerung) --------------
+// Ein `zustand`-fl ging bisher nur live an einen gerade verbundenen Partner und war
+// sonst verloren. Der jeweils letzte wird gemerkt und beim Verbinden mitgeschickt,
+// wie der letzte Standort. Nur der letzte, keine Historie.
+
+export function zustandMerken(sql, person, d) {
+  merkerSchreiben(sql, `zustand:${person}`, JSON.stringify(d));
+}
+
+export function letzterZustand(sql, person) {
+  const wert = merkerLesen(sql, `zustand:${person}`);
+  if (wert === null) return null;
+  try {
+    return JSON.parse(wert);
+  } catch {
+    return null;
+  }
+}
+
 // --- Geräte (Push-Token) ---------------------------------------------------
 
 export function geraetSpeichern(sql, person, token) {

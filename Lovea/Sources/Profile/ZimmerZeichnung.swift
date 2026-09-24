@@ -481,6 +481,46 @@ enum SzenenZeichnung {
         teil(g, kreis(P(356, 296), 5), Pal.silber, 1.5)
     }
 
+    // MARK: School and work (the desk comes with the sitting figure, `FigurView.schreibtisch`)
+
+    static func klassenzimmer(_ g: GraphicsContext) {
+        wand(g, 0)
+        boden(g, 0)
+        fenster(g, nacht: false, t: 0.4)
+        teil(g, box(156, 76, 186, 108, 6), Pal.silber, 3)
+        g.fill(box(162, 82, 174, 96), with: .color(.white))
+        g.draw(Text("a² + b² = c²").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(farbe(0x3F74B5)), at: P(230, 108))
+        linie(g, bogen(P(176, 150), P(250, 146), P(212, 132)), Pal.rose.farbe, 3)
+        linie(g, strich(P(270, 140), P(320, 140)), farbe(0x3A2630).opacity(0.6), 2.5)
+        linie(g, strich(P(270, 156), P(306, 156)), farbe(0x3A2630).opacity(0.6), 2.5)
+        teil(g, box(196, 184, 110, 6, 2), Pal.silber, 2)
+        uhr(g, P(364, 60))
+    }
+
+    static func buero(_ g: GraphicsContext) {
+        wand(g, 2)
+        boden(g, 1)
+        let rahmen = CGRect(x: 22, y: 72, width: 118, height: 120)
+        teil(g, Path(roundedRect: rahmen, cornerRadius: 6), Pal.weiss, 3)
+        let glas = rahmen.insetBy(dx: 7, dy: 7)
+        var innen = g
+        innen.clip(to: Path(glas))
+        innen.fill(Path(glas), with: .linearGradient(Gradient(colors: [farbe(0x8CCBF2), farbe(0xDDF1FB)]), startPoint: P(0, glas.minY), endPoint: P(0, glas.maxY)))
+        for (x, h) in [(CGFloat(28), CGFloat(52)), (48, 76), (70, 40), (88, 64), (108, 88), (126, 50)] {
+            innen.fill(box(x, glas.maxY - h, 18, h), with: .color(farbe(0x8E9BB0)))
+        }
+        linie(g, strich(P(rahmen.midX, glas.minY), P(rahmen.midX, glas.maxY)), Pal.weiss.farbe, 5)
+        regal(g)
+        pflanze(g)
+        uhr(g, P(250, 70))
+    }
+
+    private static func uhr(_ g: GraphicsContext, _ c: CGPoint) {
+        teil(g, kreis(c, 17), Pal.weiss, 3)
+        linie(g, strich(c, P(c.x, c.y - 11)), farbe(0x3A2630), 2.5)
+        linie(g, strich(c, P(c.x + 8, c.y + 3)), farbe(0x3A2630), 2.5)
+    }
+
     // MARK: Outside
 
     static func draussen(_ g: GraphicsContext, wetter: ProfilSzene.Wetter, nacht: Bool, t: Double) {

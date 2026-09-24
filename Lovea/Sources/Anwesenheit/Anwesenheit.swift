@@ -78,7 +78,11 @@ final class Anwesenheit {
                 Task { @MainActor in
                     // Walking, running or cycling (starting or just ending) wakes the sleep rule.
                     if walking || running || cycling || self?.bewegung != nil { self?.letzteBewegung = Date() }
-                    self?.bewegung = AnwesenheitEingabe.bewegung(automotive: automotive, cycling: cycling, running: running, walking: walking)
+                    let neu = AnwesenheitEingabe.bewegung(automotive: automotive, cycling: cycling, running: running, walking: walking)
+                    // Starting or stopping a walk or a trip likely means arriving or leaving: ask for a
+                    // fix now instead of waiting up to 3 min for the next one (one-shot, cheap).
+                    if neu != self?.bewegung { Standort.shared.fixAnfordern() }
+                    self?.bewegung = neu
                     self?.aktualisieren()
                 }
             }
@@ -200,6 +204,9 @@ final class Anwesenheit {
     }
 
     /// Called by `Standort` on every own fix, so a place ends with the fix that leaves it.
+    /// Re-decide the own state right away (e.g. after a "Gute Nacht" / "Guten Morgen").
+    func anstossen() { aktualisieren() }
+
     func standortNeu() {
         Task { @MainActor [weak self] in
             await self?.ortAktualisieren()
@@ -251,7 +258,8 @@ final class Anwesenheit {
         let (haupt, abzeichen) = FigurZustand.bestimmen(eingabe(ich))
         let neu = FigurenModell.Zustand(haupt: haupt, abzeichen: abzeichen)
         guard neu != letzterZustand else { return }
-        let wartezeit = 1 - Date().timeIntervalSince(letzterVersand)
+        // Sent as soon as it changes, at most every 3 s (a burst of changes goes out as one).
+        let wartezeit = 3 - Date().timeIntervalSince(letzterVersand)
         guard wartezeit > 0 else { senden(neu); return }
         guard anstehend == nil else { return }
         anstehend = Task { @MainActor [weak self] in

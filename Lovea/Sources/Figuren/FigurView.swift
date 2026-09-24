@@ -4005,18 +4005,39 @@ extension Zeichner {
         case .supermarkt:
             einkaufswagen(g, griffY: sY + 70)
         case .arbeit:
-            teil(g, box(66, sitz - 60, 68, 48, 6), Pal.silber)
-            g.fill(herzPfad(P(100, sitz - 36), 6), with: .color(Pal.rose.farbe))
-            teil(g, box(60, sitz - 14, 80, 8, 3), Pal.silber.mal(0.85), 2.5)
+            // Brief G: at a desk, laptop open, a mug and a small plant beside it.
+            schreibtisch(g, platte: sitz - 14)
+            teil(g, box(66, sitz - 62, 68, 48, 6), Pal.silber)
+            g.fill(herzPfad(P(100, sitz - 38), 6), with: .color(Pal.rose.farbe))
+            teil(g, box(58, sitz - 17, 84, 5, 2), Pal.silber.mal(0.85), 2)
+            teil(g, box(148, sitz - 34, 16, 20, 4), Pal.weiss, 2)
+            linie(g, bogen(P(164, sitz - 29), P(164, sitz - 19), P(172, sitz - 24)), Pal.weiss.kontur, 3)
+            for (dx, a) in [(CGFloat(-5), -28.0), (0, 0), (5, 28)] {
+                var b = g
+                b.translateBy(x: 30 + dx, y: sitz - 30)
+                b.rotate(by: .degrees(a))
+                teil(b, oval(P(0, -9), 4, 9), Pal.gruen, 1.8)
+            }
+            teil(g, box(22, sitz - 30, 16, 16, 3), FigurFarbe(0xD9825B), 2)
         case .schule:
-            teil(g, box(72, sitz - 22, 56, 16, 3), Pal.rose, 2.5)
-            teil(g, box(75, sitz - 25, 25, 14, 2), Pal.weiss, 1.5)
-            teil(g, box(100, sitz - 25, 25, 14, 2), Pal.weiss, 1.5)
+            // Brief G: a classroom desk with an open laptop (plain lid, no logo) and a notebook.
+            schreibtisch(g, platte: sitz - 14)
+            teil(g, box(64, sitz - 60, 72, 46, 6), FigurFarbe(0xD5D8DE))
+            teil(g, box(56, sitz - 17, 88, 5, 2), FigurFarbe(0xC2C6CD), 2)
+            teil(g, box(146, sitz - 20, 32, 6, 1.5), Pal.rose, 1.5)
+            linie(g, strich(P(150, sitz - 24), P(176, sitz - 28)), Pal.gelb.kontur, 3)
         case .ruhe:
             teil(g, box(34, sitz - 34, 132, 72, 24), Pal.decke)
         default:
             break
         }
+    }
+
+    /// A desk in front of the sitting figure (school and work): top at `platte`, a front panel down
+    /// to the floor that hides the legs and the stool.
+    func schreibtisch(_ g: GraphicsContext, platte: CGFloat) {
+        teil(g, box(14, platte + 8, 172, Masse.fussY - platte - 4, 6), Pal.holz.mal(0.85))
+        teil(g, box(4, platte, 192, 12, 4), Pal.holz)
     }
 
     func einkaufswagen(_ g: GraphicsContext, griffY: CGFloat) {

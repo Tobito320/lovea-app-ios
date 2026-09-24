@@ -70,6 +70,13 @@ final class Standort: NSObject {
         }
     }
 
+    /// One extra fix now, e.g. when a walk or a trip starts or ends (`Anwesenheit`), so arriving
+    /// and leaving show without waiting for the next spar fix.
+    func fixAnfordern() {
+        guard manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else { return }
+        manager.requestLocation()
+    }
+
     /// Sparbetrieb: alle paar Minuten ein Fix, dazu deutliche Bewegung (signifikante Ortsänderung)
     /// und Besuche (siehe `didVisit`). Läuft nur, so lange der Prozess lebt.
     // ponytail: plain sleeping Task, not a background refresh task — in the background it only
