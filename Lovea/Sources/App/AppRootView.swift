@@ -75,15 +75,7 @@ struct AppRootView: View {
         // audit-chat #2: voice round (app-wide voice playback outside the conversation) and the
         // Z-7.3 in-app banner (partner online / drawing invite / Anstupsen & Kuss) both dock to the
         // top — stacked in one overlay so a banner pushes the player down instead of covering it.
-        .overlay(alignment: .top) {
-            VStack(spacing: 0) {
-                SprachMiniPlayer()
-                InAppBannerView(aufZeichnungGetippt: { id in
-                    AppNavigation.shared.geteilteZeichnung = id
-                    selectedTab = .drawing
-                })
-            }
-        }
+        .overlay(alignment: .top) { topOverlay }
     }
 }
 
@@ -93,6 +85,16 @@ private extension AppRootView {
         SpielArt.allCases.compactMap { art in
             guard let p = SpieleModell.shared.bilanz[art] else { return nil }
             return (art.titel, p.ahmed, p.annika)
+        }
+    }
+
+    var topOverlay: some View {
+        VStack(spacing: 0) {
+            SprachMiniPlayer()
+            InAppBannerView(aufZeichnungGetippt: { id in
+                AppNavigation.shared.geteilteZeichnung = id
+                selectedTab = .drawing
+            })
         }
     }
 }
