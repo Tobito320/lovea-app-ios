@@ -1,6 +1,6 @@
 # Erzeugt die Kopf-Entwuerfe (SVG je Option) und das Vergleichsboard.
 # Raum = Halbfigur der App: 200 x 240, Augenlinie ~y101, Torso = rumpf(0) aus FigurView.swift.
-# python bau.py  ->  ahmed-A..E.svg, annika-1..3.svg, gesichter.html
+# python bau.py  ->  ahmed-A/B/D/E.svg, annika-1..3.svg, gesichter.html (C wurde verworfen)
 import math, os
 
 HIER = os.path.dirname(os.path.abspath(__file__))
@@ -222,67 +222,6 @@ def ahmed_B(p=""):
     s.g("hair-front", teil(front, haar, 3.5) + locken)
     return s
 
-# ---------- Ahmed C: semi-realistisch flach ----------
-
-def ahmed_C(p=""):
-    s = Svg(p); c = AH; haut, haar = c["haut"], c["haar"]
-    rh = mal(haut, 0.7)
-    gesicht = "M100,26 C127,26 146,44 146,78 C146,98 145,113 141,125 C138,135 128,144 114,149 Q100,153 86,149 C72,144 62,135 59,125 C55,113 54,98 54,78 C54,44 73,26 100,26 Z"
-    n = len(AH_AUSSEN)
-    s.g("hair-back", fill(wolke(AH_AUSSEN + [(150, 94), (50, 94)], (100, 60), beulen(n + 2, 3.4)), mal(haar, 0.8)))
-    hals_und_rumpf(s, haut, c["top"], rh, None, 2)
-    s.g("ears", ohren(haut, rh, 2))
-    s.g("face-shape", teil(gesicht, haut, 2, rh))
-    cl = s.clip("gesichtClip", gesicht)
-    seite = s.lin("seiteC", 118, 0, 146, 0, [(0, mal(haut, 0.8), 0), (1, mal(haut, 0.8), 0.45)])
-    s.g("shading", pony_schatten(s, mal(haut, 0.86), cl, 0.55, 4) + f'<g {cl}>'
-        + fill("M100,20 L160,20 L160,170 L100,170 Z", seite)                                                     # Licht von links
-        + f'<ellipse cx="81" cy="98" rx="12" ry="6" fill="{s.rad("hoeleL", 81, 98, 12, [(0, mal(haut, 0.85), 0.5), (1, mal(haut, 0.85), 0)])}"/>'
-        + f'<ellipse cx="119" cy="98" rx="12" ry="6" fill="{s.rad("hoeleR", 119, 98, 12, [(0, mal(haut, 0.85), 0.5), (1, mal(haut, 0.85), 0)])}"/>'
-        + fill("M62,114 Q70,126 82,130 Q70,131 61,122 Z", mal(haut, 0.88), ' fill-opacity="0.6"')              # Wangenhoehle
-        + fill(f"M{M(62)},114 Q{M(70)},126 {M(82)},130 Q{M(70)},131 {M(61)},122 Z", mal(haut, 0.84), ' fill-opacity="0.7"')
-        + fill("M94,145 Q100,143.5 106,145 Q100,147 94,145 Z", mal(haut, 0.8), ' fill-opacity="0.6"')          # unter der Unterlippe
-        + '</g>')
-    s.g("jaw", f'<g {cl}>' + linie("M61,126 C67,138 77,145 89,149", rh, 1.3, 0.45) + linie(f"M{M(61)},126 C{M(67)},138 {M(77)},145 {M(89)},149", rh, 1.3, 0.3) + '</g>')
-    s.g("taper", taper(s, haar, haut, "taperC"))
-    s.g("goatee", f'<g {cl}>' + fill("M96,145.5 Q100,144.5 104,145.5 L102.5,150 Q100,151 97.5,150 Z", c["bart"], ' fill-opacity="0.45"')
-        + fill("M72,136 Q100,158 128,136 L128,160 L72,160 Z", c["bart"], ' fill-opacity="0.08"') + '</g>')
-    augen, smile = "", ""
-    for sd in (-1, 1):
-        cx, cy = 100 + sd * 19, 102
-        weiss, i, o = auge_mandel(cx, cy, sd, 9, 10, 10.5, 7.5, 1.5)
-        ecl = s.clip(f"augeC{sd}", weiss)
-        augen += fill(weiss, "F6F0EA") + f'<g {ecl}>' + kreis(cx, cy + 0.3, 4.7, mix(c["iris"], "8A5A35", 0.45)) + kreis(cx, cy + 0.3, 2.1, "1A1010") + kreis(cx - 1.5, cy - 1.3, 1.1, "FFFFFF", 0.95)
-        augen += fill(f"M{f(i-2)},{cy-9} L{f(o+2)},{cy-9} L{f(o+2)},{cy-1.8} Q{f(cx)},{cy-6} {f(i-2)},{cy+0.3} Z", mal(haut, 0.92)) + '</g>'   # schweres Oberlid
-        augen += linie(f"M{f(i)},{cy+0.6} Q{f(cx)},{cy-6.2} {f(o+sd*0.5)},{cy-1.6}", "2A1A18", 2.4)
-        augen += linie(f"M{f(i+sd*1)},{cy-4.8} Q{f(cx)},{cy-10} {f(o-sd*0.5)},{cy-4.6}", mal(haut, 0.62), 1.3)              # Lidfalte
-        augen += linie(f"M{f(i+sd*3)},{cy+3.2} Q{f(cx+sd*1)},{cy+4.8} {f(o-sd*1.5)},{cy+1.2}", mal(haut, 0.66), 1, 0.6)     # Unterlid
-        smile += smile_lid(cx, cy, sd, 9, haut, mal(haut, 0.6), 4.5, s.clip(f"augeCs{sd}", weiss))
-    s.g("eyes", augen)
-    s.g("eyes-smile", smile, 'display="none"')
-    s.g("brows", "".join(fill(f"M{f(100+sd*6)},91 C{f(100+sd*10)},86.5 {f(100+sd*22)},85.5 {f(100+sd*31)},88 C{f(100+sd*22)},88 {f(100+sd*12)},89.5 {f(100+sd*7)},93.5 Z", mal(haar, 1.35)) for sd in (-1, 1)))
-    s.g("nose", fill("M102.5,98 C103.5,106 105,114 107.5,121 C104,120 102,110 101,98 Z", mal(haut, 0.82))
-        + linie("M95,121.5 Q96.5,125.5 100,125 Q103.5,125.5 105,121.5", mal(haut, 0.6), 1.6)
-        + linie("M95.5,118.5 Q92.5,121.5 95.5,124", mal(haut, 0.6), 1.4) + linie("M104.5,118.5 Q107.5,121.5 104.5,124", mal(haut, 0.6), 1.4)
-        + f'<ellipse cx="100.5" cy="118.5" rx="2.2" ry="1.6" fill="#FFFFFF" fill-opacity="0.4"/>')
-    bart = c["bart"]
-    s.g("mustache", fill("M100,129 C94,127 87,128 83.5,134 C88,131 94,131.5 100,132 C106,131.5 112,131 116.5,134 C113,128 106,127 100,129 Z", bart)
-        + "".join(linie(d, mal(bart, 0.65), 0.8, 0.7) for d in ["M88,130.3 L86.3,133", "M93,129.2 L92,131.5", "M107,129.2 L108,131.5", "M112,130.3 L113.7,133"]))
-    lip = c["lippe"]
-    lo = "M89,137 Q94,134.5 100,135.8 Q106,134.5 111,137 Q100,138 89,137 Z"
-    lu = "M89,137 Q100,138 111,137 Q107,143 100,143 Q93,143 89,137 Z"
-    s.g("mouth-neutral", fill(lo, mal(lip, 0.82)) + fill(lu, lip) + linie("M89,137 Q100,138.4 111,137", mal(lip, 0.5), 1.3) + f'<ellipse cx="101" cy="140" rx="4" ry="1.1" fill="#FFFFFF" fill-opacity="0.35"/>')
-    s.g("mouth-smile", fill("M88,136 Q100,139 112,135.5 Q108,144 100,144.5 Q92,144 88,136 Z", "5A2230") + fill("M90,136.5 Q100,139 110,136.2 L109,138.8 Q100,141 91,138.8 Z", "F4EEE8")
-        + linie("M88,136 Q100,139 112,135.5", mal(lip, 0.5), 1.4) + linie("M85,133 Q87,136 88.5,137.5", mal(haut, 0.66), 1.2) + linie("M115,133 Q113,136 111.5,137.5", mal(haut, 0.66), 1.2), 'display="none"')
-    s.g("moles", kreis(70, 118, 1.2, mal(haut, 0.45), 0.8) + kreis(131, 126, 1, mal(haut, 0.45), 0.8) + kreis(78, 131, 0.9, mal(haut, 0.45), 0.7))
-    front = wolke(AH_AUSSEN + AH_PONY, (100, 58), beulen(n + len(AH_PONY), 3.6, 1.3))
-    hell, tief = mix(haar, "9A7A66", 0.45), "0C0707"
-    # Locken als einzelne Schwuenge: helle Oberkante, dunkle Unterkante
-    locken = [(62, 44), (78, 32), (96, 26), (114, 27), (132, 34), (144, 48), (70, 58), (88, 50), (106, 48), (124, 52), (140, 64), (80, 66), (116, 66)]
-    tex = "".join(linie(f"M{x-6},{y+2} Q{x},{y-5} {x+6},{y+1}", hell, 2, 0.75) + linie(f"M{x+6},{y+1} Q{x+4},{y+7} {x-1},{y+7}", tief, 1.4, 0.7) for x, y in locken)
-    s.g("hair-front", teil(front, haar, 2, mal(haar, 0.6)) + tex)
-    return s
-
 # ---------- Ahmed D: Sticker-Stil (wie design/ki/sticker) ----------
 
 STK = "2A1C18"
@@ -374,105 +313,192 @@ def ahmed_E(p=""):
         + "".join(linie(d, "0A0606", 1.5, 0.8) for d in ["M78,54 L82,64 L76,72", "M102,52 L106,64 L100,76", "M126,52 L130,64 L124,76"]))
     return s
 
-# ---------- Annika ----------
+# ---------- Annika (Runde 2: nach ihren Stickern, kleine Stirn, Haar rahmt das Gesicht) ----------
 
-AN_GES = "M100,30 C126,30 146,47 146,80 C146,102 141,118 132,130 C123,141 111,147 100,147 C89,147 77,141 68,130 C59,118 54,102 54,80 C54,47 74,30 100,30 Z"
-AN_GES_V = "M100,30 C126,30 146,47 146,80 C146,102 142,118 135,128 L110,145 Q100,150 90,145 L65,128 C58,118 54,102 54,80 C54,47 74,30 100,30 Z"
-AN_BACK = "M100,20 C66,20 46,42 46,86 L42,196 C42,214 46,228 54,238 L146,238 C154,228 158,214 158,196 L154,86 C154,42 134,20 100,20 Z"
+# Schlankes weiches Oval, kleines Kinn. Schaedel oben y 34 (vom Haar verdeckt), Kinn y 146.
+AN_GES = "M100,34 C123,34 141,50 141,82 C141,104 137,120 128,131 C119,141 109,146 100,146 C91,146 81,141 72,131 C63,120 59,104 59,82 C59,50 77,34 100,34 Z"
+# Schmalere Schultern und Hals fuer Annika: rumpf(0) um x=100 mit 0,88 skaliert.
+AN_RUMPF = "M38.4,240 L41,200 C42.8,178 56,166 75.4,164 L87.7,161 Q100,176 112.3,161 L124.6,164 C144,166 157.2,178 159,200 L161.6,240 Z"
+AN_HALS = "M90.5,126 L89.5,176 L110.5,176 L109.5,126 Z"
+AN_BACK = ("M100,31 C76,31 56,40 54,62 C52,90 51,120 50,150 C48,180 40,205 36,232 "
+           "L46,225 L53,236 L62,228 L74,234 L100,230 L126,234 L138,228 L147,236 L154,225 L164,232 "
+           "C160,205 152,180 150,150 C149,120 148,90 146,62 C144,40 124,31 100,31 Z")
 
-def an_vorhang(sd):
-    """Mittelscheitel: Vorhang links (sd=-1) bzw. rechts (+1). Deckt den Oberkopf, rahmt das Gesicht,
-    faellt ueber die Schulter. Stirn-Haaransatz in der Mitte bei y~48."""
+def an_vorhang(sd, px=100.0, tief=0.0):
+    """Eine Haarseite: Oberkopf ab dem Scheitel `px`, Pony-Strang ueber Schlaefe und Wange,
+    lange Straehne vor der Schulter mit spitzen Enden. `tief` schiebt den Pony tiefer ins Gesicht."""
     x = lambda dx: f(100 + sd * dx)
-    return (f"M{x(0.8)},22 C{x(22)},21 {x(42)},32 {x(47)},58 C{x(51)},78 {x(50)},100 {x(49)},124 "
-            f"C{x(48)},152 {x(44)},186 {x(40)},226 L{x(58)},228 C{x(63)},196 {x(63)},160 {x(61)},134 "
-            f"C{x(58)},112 {x(49)},92 {x(45)},84 C{x(41)},66 {x(30)},53 {x(14)},50 C{x(6)},48.5 {x(2)},46 {x(0.8)},40 Z")
+    p = lambda dx: f(px + sd * dx)
+    return (f"M{p(0.8)},30 C{x(28)},27 {x(46)},38 {x(48)},60 "
+            f"C{x(50)},84 {x(47)},112 {x(49)},140 C{x(52)},168 {x(60)},198 {x(62)},230 "
+            f"L{x(57)},222 L{x(53)},234 L{x(48)},222 L{x(42)},231 "
+            f"C{x(41)},200 {x(39)},170 {x(36)},142 "
+            f"C{x(34)},128 {x(37)},114 {x(36)},{f(102+tief)} "
+            f"C{x(35)},{f(86+tief)} {x(25)},{f(71+tief*0.8)} {p(14)},{f(63+tief*0.6)} "
+            f"C{p(8)},{f(60.5+tief*0.3)} {p(3)},59.5 {p(0.8)},59.5 Z")
+
+def an_hinters_ohr(sd, px=100.0):
+    """Seite, die hinters Ohr gesteckt ist: Pony vorne, dann hinter dem Ohr nach hinten (Rest liegt im hair-back)."""
+    x = lambda dx: f(100 + sd * dx)
+    p = lambda dx: f(px + sd * dx)
+    return (f"M{p(0.8)},30 C{x(28)},27 {x(46)},38 {x(48)},60 C{x(50)},86 {x(51)},122 {x(53)},152 "
+            f"L{x(50)},154 C{x(49)},134 {x(49)},120 {x(48)},108 "
+            f"C{x(46)},90 {x(28)},70 {p(14)},63 C{p(8)},60.5 {p(3)},59.5 {p(0.8)},59.5 Z")
+
+def an_straehne(sd, y0=70, y1=142, dx0=37, dx1=33, b=4.5):
+    """Duenne Straehne, die von der Schlaefe ueber die Wangenkante faellt und spitz endet."""
+    x = lambda dx: f(100 + sd * dx)
+    return (f"M{x(dx0+b)},{y0} C{x(dx0+b+1)},{y0+26} {x(dx1+b)},{y1-24} {x(dx1+2)},{y1} "
+            f"C{x(dx1-1)},{y1-26} {x(dx0-2)},{y0+30} {x(dx0-1)},{y0+6} Z")
+
+def anime_glanz(px):
+    """Glanzband quer ueber den Oberkopf, Unterkante gezackt."""
+    oben, unten = [], []
+    for i, xx in enumerate(range(62, 139, 6)):
+        if abs(xx - px) < 5: continue
+        y = 39 + 24 * ((xx - 100) / 48) ** 2
+        oben.append((xx, y))
+        unten.append((xx, y + (7 if i % 2 else 4)))
+    teile = []
+    for seite in ([q for q in zip(oben, unten) if q[0][0] < px], [q for q in zip(oben, unten) if q[0][0] > px]):
+        o = [a for a, b in seite]; u = [b for a, b in seite][::-1]
+        teile.append("M" + " L".join(pt(q) for q in o + u) + " Z")
+    return teile
+
+def an_haar_linien(sd, farbe, px=100.0):
+    x = lambda dx: f(100 + sd * dx)
+    p = lambda dx: f(px + sd * dx)
+    return "".join(linie(d, farbe, 1.2, 0.7) for d in [
+        f"M{p(6)},35 C{x(28)},37 {x(44)},56 {x(46)},92 C{x(48)},130 {x(47)},170 {x(44)},214",
+        f"M{p(14)},35 C{x(34)},37 {x(48)},52 {x(50)},80",
+        f"M{x(40)},120 C{x(41)},150 {x(43)},180 {x(40)},222",
+        f"M{p(4)},40 C{x(18)},44 {x(28)},58 {x(33)},78"])
+
+def an_auge(s, name, cx, cy, sd, haut, iris, stil, lid_rand):
+    """Mandelauge wie in den Stickern: grosse dunkle Iris, dicker Lidstrich mit kleinem Fluegel."""
+    i, o = cx - sd * 8, cx + sd * 10
+    hoch = 7.5 if stil != 2 else 9
+    # Oberlid als Kurve mit dem hoechsten Punkt im aeusseren Drittel, wie in den Stickern
+    oberlid = f"M{f(i)},{f(cy+1)} C{f(i+sd*3)},{f(cy-6)} {f(cx+sd*4)},{f(cy-hoch)} {f(o)},{f(cy-3.4)}"
+    weiss = oberlid + f" Q{f(cx+sd*2)},{f(cy+7.5)} {f(i)},{f(cy+1)} Z"
+    ecl = s.clip(name, weiss)
+    hell = "A8D0F4" if iris == AN_BLAU else ("E0A868" if stil == 2 else "C8925A")
+    ir = s.lin(name + "i", 0, cy - 6, 0, cy + 6, [(0, mal(iris, 0.45), 1), (1, mix(iris, hell, 0.6 if stil == 2 else 0.5), 1)])
+    t = "2A1712" if stil != 3 else TINTE
+    d = fill(weiss, "FFFFFF") + f'<g {ecl}><ellipse cx="{f(cx+sd*0.3)}" cy="{f(cy+0.3)}" rx="{5.2 if stil != 2 else 5}" ry="{6 if stil != 2 else 6.6}" fill="{ir}"/>'
+    d += kreis(cx + sd * 0.3, cy + 0.6, 2.4, "140C0A") + kreis(cx - 1.8 + sd * 0.3, cy - 1.8, 1.7, "FFFFFF") + kreis(cx + 1.9 + sd * 0.3, cy + 2.4, 0.8, "FFFFFF", 0.85) + '</g>'
+    d += linie(oberlid + f" L{f(o+sd*3.6)},{f(cy-6.2)}", t, 3.4 if stil != 3 else 3)
+    if stil == 1:
+        d += linie(f"M{f(o-sd*2.5)},{f(cy-4.6)} L{f(o+sd*0.2)},{f(cy-7.6)}", t, 1.4) + linie(f"M{f(o-sd*5.5)},{f(cy-5.4)} L{f(o-sd*3.8)},{f(cy-8.6)}", t, 1.2)
+        d += linie(f"M{f(cx+sd*4)},{f(cy+4.4)} Q{f(cx+sd*7.5)},{f(cy+3.6)} {f(o-sd*1)},{f(cy+0.6)}", lid_rand, 0.9, 0.45)
+    elif stil == 2:
+        d += linie(f"M{f(o-sd*1)},{f(cy-3.8)} Q{f(o+sd*2.5)},{f(cy-6)} {f(o+sd*4.5)},{f(cy-8.5)}", t, 1.3)
+    else:
+        d += linie(f"M{f(o-sd*2.5)},{f(cy-4.6)} L{f(o+sd*0.2)},{f(cy-7.4)}", t, 1.5)
+    return d, weiss
+
+AN_BLAU = "3F74B5"
 
 def annika(stil, p=""):
-    s = Svg(p); c = AN; haut, haar = c["haut"], c["haar"]
-    stk = STK if stil == 2 else None
-    rh = stk or kontur(haut)
-    rr = stk or mal(haar, 0.6)
-    hb = 3.8 if stk else 3
-    ges = AN_GES_V if stil == 3 else AN_GES
-    if stil == 2:
-        s.g("sticker-border", "".join(f'<path d="{d}" fill="#FFFFFF" stroke="#FFFFFF" stroke-width="12" stroke-linejoin="round"/>' for d in [AN_BACK, RUMPF, an_vorhang(-1), an_vorhang(1)]))
-    lang = s.lin("haarLang", 0, 60, 0, 238, [(0, haar, 1), (1, mal(haar, 0.78), 1)])
-    s.g("hair-back", teil(AN_BACK, mal(haar, 0.72), hb, rr))
-    hals_und_rumpf(s, haut, c["top"], stk, stk, hb)
-    s.g("ears", ohren(haut, rh, 3, 6))   # unter Gesicht/Haar versteckt, nur Anker fuer Ohrringe
-    if stil == 2:
-        warm = s.rad("hautAn", 100, 96, 68, [(0.5, haut, 1), (1, mix(haut, "E0A090", 0.35), 1)])
-        s.g("face-shape", f'<path d="{ges}" fill="{warm}" stroke="#{STK}" stroke-width="3.8" stroke-linejoin="round"/>')
+    """1 = sticker-treu, 2 = soft Anime, 3 = modernes Bitmoji (App-Stil)."""
+    s = Svg(p); c = AN
+    haut = {1: "EFC09B", 2: "F6CDB0", 3: "F9D3B8"}[stil]     # 1 = Preset "Pfirsich" (warm wie die Sticker), 3 = Preset "Hell"
+    haar = c["haar"]
+    iris = AN_BLAU if stil == 3 else "3A2418"
+    linie_haut = {1: "6A4232", 2: mal(haut, 0.72), 3: kontur(haut)}[stil]
+    bh = {1: 2.2, 2: 1.6, 3: 3.2}[stil]
+    haar_rand = {1: "22140F", 2: mal(haar, 0.55), 3: mal(haar, 0.55)}[stil]
+    hb = {1: 2.2, 2: 1.8, 3: 3}[stil]
+    px, tief_l, tief_r = (92, 0, 7) if stil == 2 else (100, 0, 0)
+    haar_verlauf = s.lin("haarLang", 0, 30, 0, 236, [(0, mix(haar, "6A4632", 0.45), 1), (0.35, haar, 1), (1, mal(haar, 0.85), 1)])
+    s.g("hair-back", teil(AN_BACK, mal(haar, 0.7), hb, haar_rand))
+    hals = teil(AN_HALS, haut, bh, linie_haut)
+    hcl = s.clip("halsClip", AN_HALS)
+    hals += f'<g {hcl}>' + fill("M84,126 L116,126 L116,140 Q100,158 84,140 Z", s.lin("halsS", 0, 132, 0, 156, [(0, mal(haut, 0.78), 0.8), (1, mal(haut, 0.78), 0)])) + '</g>'
+    s.g("neck", hals)
+    top = c["top"]
+    s.g("torso-hint", teil(AN_RUMPF, top, bh if stil != 2 else 2, kontur(top)))
+    if stil == 3:
+        ohr = "M140,97 C147,93 151,103 149,111 C148,118 144,121 140,118 Z"
+        s.g("ears", teil(ohr, haut, bh, linie_haut) + linie("M142,101 C146,103 146,110 142,113", linie_haut, 1.4, 0.6) + kreis(143.5, 120.5, 2, "F5C542") + kreis(143, 120, 0.7, "FFFFFF", 0.8))
     else:
-        weich = s.rad("hautAn", 98, 90, 70, [(0.6, haut, 1), (1, mal(haut, 0.93), 1)])
-        s.g("face-shape", f'<path d="{ges}" fill="{weich}" stroke="#{rh}" stroke-width="{3 if stil == 3 else 3.5}" stroke-linejoin="round"/>')
-    cl = s.clip("gesichtClip", ges)
-    rot = "F27A8A"
-    op = 0.32 if stil != 2 else 0.4
-    ansatz = s.lin("ansatz", 0, 44, 0, 64, [(0, mal(haut, 0.82), 0.6), (1, mal(haut, 0.82), 0)])
-    s.g("shading", f'<g {cl}>' + fill("M40,30 L160,30 L160,70 L40,70 Z", ansatz)
-        + f'<ellipse cx="71" cy="121" rx="10" ry="6" fill="{s.rad("wl", 71, 121, 10, [(0, rot, op), (1, rot, 0)])}"/>'
-        + f'<ellipse cx="129" cy="121" rx="10" ry="6" fill="{s.rad("wr", 129, 121, 10, [(0, rot, op), (1, rot, 0)])}"/>' + '</g>')
+        s.g("ears", ohren(haut, linie_haut, 2, 11))   # unter Gesicht und Haar, nur Anker fuer Ohrringe
+    weich = s.rad("hautAn", 98, 92, 64, [(0.62, haut, 1), (1, mal(haut, 0.93), 1)])
+    s.g("face-shape", f'<path d="{AN_GES}" fill="{weich}" stroke="#{linie_haut}" stroke-width="{bh}" stroke-linejoin="round"/>')
+    cl = s.clip("gesichtClip", AN_GES)
+    rot = "F07C86"
+    op = {1: 0.36, 2: 0.28, 3: 0.24}[stil]
+    wange = "".join(f'<ellipse cx="{f(100+sd*27)}" cy="119" rx="11" ry="7" fill="{s.rad("w" + str(sd), 100 + sd * 27, 119, 11, [(0, rot, op), (1, rot, 0)])}"/>' for sd in (-1, 1))
+    if stil == 1:
+        wange += f'<ellipse cx="100" cy="114" rx="9" ry="4" fill="{s.rad("wn", 100, 114, 9, [(0, rot, 0.18), (1, rot, 0)])}"/>'
+    s.g("shading", f'<g {cl}>' + wange + '</g>')
     s.g("jaw", "")
     augen, smile = "", ""
+    lid_rand = mal(haut, 0.66)
     for sd in (-1, 1):
-        cx, cy = 100 + sd * 19, 102
-        if stil == 3:
-            weiss, i, o = auge_mandel(cx, cy, sd, 9, 11, 14, 8.5, 3)
-        elif stil == 2:
-            weiss, i, o = auge_mandel(cx, cy, sd, 9, 11, 14, 9, 2)
+        cx, cy = 100 + sd * 18.5, 102
+        d, weiss = an_auge(s, f"augeAn{sd}", cx, cy, sd, haut, iris, stil, lid_rand)
+        augen += d
+        if stil == 1:
+            # wie im Kicher-Sticker: geschlossene Bogen-Augen mit Wimpern
+            smile += linie(f"M{f(cx-9)},{f(cy+2)} Q{f(cx)},{f(cy-6)} {f(cx+9)},{f(cy+2)}", "2A1712", 3)
+            smile += linie(f"M{f(cx+sd*8.5)},{f(cy+1)} L{f(cx+sd*11.5)},{f(cy-1.5)}", "2A1712", 1.4) + linie(f"M{f(cx+sd*6)},{f(cy-1.5)} L{f(cx+sd*8)},{f(cy-4.5)}", "2A1712", 1.2)
         else:
-            weiss, i, o = auge_mandel(cx, cy, sd, 9, 11, 12.5, 8.5, 2.5)
-        ecl = s.clip(f"augeAn{sd}", weiss)
-        ir = s.lin(f"irisAn{sd}", 0, cy - 7, 0, cy + 7, [(0, mal(c["iris"], 0.55), 1), (1, mix(c["iris"], "9CC8F0", 0.45), 1)])
-        ry = 7.4 if stil == 3 else 6.6
-        augen += fill(weiss, "FFFFFF") + f'<g {ecl}><ellipse cx="{f(cx+sd*0.5)}" cy="{cy+0.5}" rx="{5.6 if stil == 3 else 6}" ry="{ry}" fill="{ir}"/>' + kreis(cx + sd * 0.5, cy + 1, 2.8, "1A1420")
-        augen += kreis(cx - 2 + sd * 0.5, cy - 2.2, 2, "FFFFFF") + kreis(cx + 2 + sd * 0.5, cy + 3.2, 1, "FFFFFF", 0.85) + '</g>'
-        ob = {1: 12.5, 2: 14, 3: 14}[stil]
-        kp = {1: 2.5, 2: 2, 3: 3}[stil]
-        augen += linie(f"M{f(i-sd*0.5)},{cy+0.6} Q{f(cx)},{f(cy-ob-0.5)} {f(o)},{f(cy-kp-0.5)} L{f(o+sd*3)},{f(cy-kp-2.5)}", stk or TINTE, 3.4 if stil != 1 else 3.1)
-        if stil != 1:
-            augen += linie(f"M{f(o-sd*3)},{f(cy-kp-3.5)} L{f(o)},{f(cy-kp-6.5)}", stk or TINTE, 1.8)    # eine Wimper
-        smile += smile_lid(cx, cy, sd, 10, haut, rh, 6, s.clip(f"augeAns{sd}", weiss))
+            smile += smile_lid(cx, cy, sd, 9.5, haut, lid_rand, 5.5, s.clip(f"augeAns{sd}", weiss))
     s.g("eyes", augen)
+    s.g("eyes-smile", smile, 'display="none"' + (' data-replaces="eyes"' if stil == 1 else ""))
+    braue = mal(haar, 1.15) if stil != 3 else mal(haar, 1.05)
+    bd = 0 if stil == 3 else 0.8
+    s.g("brows", "".join(fill(f"M{f(100+sd*8.5)},90 Q{f(100+sd*19)},{f(83.2-bd)} {f(100+sd*28.5)},87.2 Q{f(100+sd*19)},{f(86+bd*0.3)} {f(100+sd*9)},{f(92.4+bd)} Z", braue) for sd in (-1, 1)))
+    if stil == 3:
+        s.g("nose", linie("M101.5,112 Q104,118 100.5,119.5", linie_haut, 1.8))
+    else:
+        s.g("nose", f'<ellipse cx="102.4" cy="117.4" rx="1.6" ry="2.6" fill="#{mal(haut, 0.86)}" fill-opacity="0.6"/>'
+            + linie("M97.6,119.6 Q99.2,120.8 100.8,120.2", mal(haut, 0.6), 1.3) + f'<ellipse cx="100" cy="117" rx="1.5" ry="1" fill="#FFFFFF" fill-opacity="0.6"/>')
+    lip = {1: "D9867E", 2: "E58E96", 3: mal(mix(haut, ROSE, 0.4), 0.9)}[stil]
+    rl = mal(lip, 0.62)
+    lo = "M92.5,130.6 Q96,127.8 100,129.2 Q104,127.8 107.5,130.6 Q100,131.6 92.5,130.6 Z"
+    lu = "M92.5,130.6 Q100,131.6 107.5,130.6 Q105,135.8 100,135.8 Q95,135.8 92.5,130.6 Z"
+    s.g("mouth-neutral", fill(lo, mal(lip, 0.88)) + fill(lu, lip) + linie("M93,130.6 Q100,131.8 107,130.6", rl, 0.9)
+        + f'<ellipse cx="101.2" cy="133.4" rx="3" ry="0.9" fill="#FFFFFF" fill-opacity="0.45"/>')
+    if stil == 3:
+        s.g("mouth-smile", fill("M92,129.5 Q96,127.4 100,128.6 Q104,127.4 108,129.5 Q100,132.8 92,129.5 Z", mal(lip, 0.88)) + fill("M92,129.5 Q100,132.8 108,129.5 Q105.5,135.6 100,135.6 Q94.5,135.6 92,129.5 Z", lip)
+            + linie("M91.5,129.3 Q100,133.4 108.5,129.3", rl, 1.3) + linie("M90.5,128 Q91,129.5 92.2,129.8", rl, 1) + linie("M109.5,128 Q109,129.5 107.8,129.8", rl, 1), 'display="none"')
+    else:
+        breit = 10 if stil == 1 else 8.5
+        s.g("mouth-smile", teil(f"M{f(100-breit)},129 Q100,132.6 {f(100+breit)},129 Q{f(100+breit*0.72)},138.6 100,138.6 Q{f(100-breit*0.72)},138.6 {f(100-breit)},129 Z", "7A2A36", 1.4, rl)
+            + fill(f"M{f(100-breit+1.8)},129.9 Q100,133.4 {f(100+breit-1.8)},129.9 L{f(100+breit-2.4)},132.2 Q100,134.8 {f(100-breit+2.4)},132.2 Z", "FFFFFF")
+            + fill("M95,136.4 Q100,133.8 105,136.4 Q100,138.6 95,136.4 Z", "F0707E"), 'display="none"')
+    # Haar vorn: Straehnen unter den Vorhaengen, dann zwei Seiten ab dem Scheitel
+    unter = ""
+    if stil != 3:
+        for sd in (-1, 1):
+            unter += f'<path d="{an_straehne(sd)}" fill="#{mix(haar, "6A4632", 0.2)}" stroke="#{haar_rand}" stroke-width="{hb*0.5:.1f}" stroke-linejoin="round"/>'
+    else:
+        unter += f'<path d="{an_straehne(-1)}" fill="#{haar}" stroke="#{haar_rand}" stroke-width="{hb}" stroke-linejoin="round"/>'
+    vorne = unter
+    for sd, tief in ((-1, tief_l), (1, tief_r)):
+        pfad = an_hinters_ohr(sd, px) if (stil == 3 and sd == 1) else an_vorhang(sd, px, tief)
+        vorne += f'<path d="{pfad}" fill="{haar_verlauf}" stroke="#{haar_rand}" stroke-width="{hb}" stroke-linejoin="round"/>'
+    for sd in ((-1,) if stil == 3 else (-1, 1)):
+        vorne += an_haar_linien(sd, mal(haar, 0.55), px)
+    glanz = mix(haar, "C9A080", 0.45)
     if stil == 2:
-        s.g("eyes-smile", "".join(linie(f"M{f(100+sd*19-9)},104 Q{f(100+sd*19)},95 {f(100+sd*19+9)},104", STK, 3.4) + linie(f"M{f(100+sd*28)},101 L{f(100+sd*31)},98.5", STK, 2) for sd in (-1, 1)), 'display="none" data-replaces="eyes"')
+        # Anime-Glanzband quer ueber den Oberkopf
+        vorne += "".join(fill(d, glanz, ' fill-opacity="0.5"') for d in anime_glanz(px))
     else:
-        s.g("eyes-smile", smile, 'display="none"')
-    bf = stk or mal(haar, 1.05)
-    s.g("brows", "".join(fill(f"M{f(100+sd*9)},89.5 Q{f(100+sd*20)},83 {f(100+sd*30)},86.5 Q{f(100+sd*20)},85.5 {f(100+sd*9)},91.5 Z", bf) + linie(f"M{f(100+sd*9)},90.5 Q{f(100+sd*20)},84 {f(100+sd*30)},86.5", bf, 1.2) for sd in (-1, 1)))
-    if stil == 3:
-        s.g("nose", linie("M101.5,117.5 L99.5,119.5", mal(haut, 0.6), 1.8))
-    elif stil == 2:
-        s.g("nose", linie("M101,113 Q104,118.5 100,120", STK, 2) + kreis(99, 116.5, 1.2, "FFFFFF", 0.7))
-    else:
-        s.g("nose", fill("M102,108 Q105,116 103,120 Q101,114 101,108 Z", mal(haut, 0.86)) + linie("M97,120 Q100,122 103,120", mal(haut, 0.62), 1.6))
-    lip = c["lippe"]
-    if stil == 3:
-        s.g("mouth-neutral", linie("M95,131 Q100,132.8 105,131", mal(lip, 0.5), 1.8) + fill("M96,132.6 Q100,135.6 104,132.6 Q100,133.8 96,132.6 Z", lip))
-        s.g("mouth-smile", teil("M93,130 Q100,132.5 107,130 Q105,137.5 100,137.5 Q95,137.5 93,130 Z", "7A2A36", 1.4, mal(lip, 0.5)) + fill("M95.5,135 Q100,133 104.5,135 Q100,137.5 95.5,135 Z", "F0707E"), 'display="none"')
-    else:
-        rl = stk or mal(lip, 0.6)
-        lo = "M91,132 Q95.5,128.5 100,130.2 Q104.5,128.5 109,132 Q100,133.2 91,132 Z"
-        lu = "M91,132 Q100,133.2 109,132 Q105.5,138.5 100,138.5 Q94.5,138.5 91,132 Z"
-        s.g("mouth-neutral", lippenmund(lo, lu, lip, rl, 1.6 if not stk else 2) + f'<ellipse cx="101.5" cy="135.2" rx="3.4" ry="1" fill="#FFFFFF" fill-opacity="0.5"/>')
-        s.g("mouth-smile", teil("M89,130 Q100,134 111,130 Q108.5,141.5 100,141.5 Q91.5,141.5 89,130 Z", "7A2A36", 2 if stk else 1.6, rl) + fill("M91,131 Q100,134.5 109,131 L108.3,133.5 Q100,136 91.7,133.5 Z", "FFFFFF") + fill("M94,138.5 Q100,135.5 106,138.5 Q100,141.5 94,138.5 Z", "F0707E"), 'display="none"')
-    glanz = mix(haar, "FFFFFF", 0.32)
-    strich = "".join(linie(d, glanz, 2.2, 0.6) for d in ["M84,26 Q64,32 56,54", "M116,26 Q136,32 144,54"])
-    strich += "".join(linie(d, mal(haar, 0.62), 1.2, 0.8) for d in ["M140,60 Q148,100 146,140 Q144,180 146,222", f"M{M(140)},60 Q{M(148)},100 {M(146)},140 Q{M(144)},180 {M(146)},222", "M104,28 Q128,34 136,64", f"M{M(104)},28 Q{M(128)},34 {M(136)},64"])
-    s.g("hair-front", "".join(f'<path d="{an_vorhang(sd)}" fill="{lang}" stroke="#{rr}" stroke-width="{hb}" stroke-linejoin="round"/>' for sd in (-1, 1)) + strich)
+        vorne += "".join(linie(d, glanz, 2.2, 0.55) for d in [f"M{f(px-6)},38 Q{f(px-26)},39 {f(px-37)},56", f"M{f(px+6)},38 Q{f(px+26)},39 {f(px+37)},56", "M56,150 Q58,175 62,205"] + ([] if stil == 3 else ["M144,150 Q142,175 138,205"]))
+    s.g("hair-front", vorne)
     return s
 
 OPTIONEN = {
     "ahmed-A": ("Ahmed A", "Clean Anime", ahmed_A),
     "ahmed-B": ("Ahmed B", "Bitmoji modern schlank", ahmed_B),
-    "ahmed-C": ("Ahmed C", "Halb-realistisch flach", ahmed_C),
     "ahmed-D": ("Ahmed D", "Sticker-Stil", ahmed_D),
     "ahmed-E": ("Ahmed E", "Scharf / cool", ahmed_E),
-    "annika-1": ("Annika 1", "App-Stil verfeinert", lambda p="": annika(1, p)),
-    "annika-2": ("Annika 2", "Sticker-Stil", lambda p="": annika(2, p)),
-    "annika-3": ("Annika 3", "Soft Anime", lambda p="": annika(3, p)),
+    "annika-1": ("Annika 1", "Sticker-treu", lambda p="": annika(1, p)),
+    "annika-2": ("Annika 2", "Soft Anime, Seitenscheitel", lambda p="": annika(2, p)),
+    "annika-3": ("Annika 3", "Modernes Bitmoji", lambda p="": annika(3, p)),
 }
 
 def als_ausdruck(txt, laecheln):
@@ -494,11 +520,12 @@ def main():
         svg = fn(f"{k}-{suffix}-").text(titel)
         svg = als_ausdruck(svg, laecheln).replace('width="200" height="240"', f'width="{gross}" height="{int(gross*1.2)}"')
         return svg
-    def reihe(keys, heute):
+    def reihe(keys, heute, vergleich=()):
         z = f'<div class="spalte heute"><img src="{heute}" alt="Heute"><div class="lab">Heute</div></div>'
-        for k in keys:
+        for k in list(keys) + list(vergleich):
             titel, stil, _ = OPTIONEN[k]
-            z += (f'<div class="spalte"><div class="kopf">{karte(k, 250, False, "n")}</div><div class="kopf klein2">{karte(k, 150, True, "s")}</div>'
+            if k in vergleich: stil = "zum Groessenvergleich"
+            z += (f'<div class="spalte{" vergleich" if k in vergleich else ""}"><div class="kopf">{karte(k, 250, False, "n")}</div><div class="kopf klein2">{karte(k, 150, True, "s")}</div>'
                   f'<div class="lab">{titel}<span>{stil}</span></div></div>')
         return f'<div class="reihe">{z}</div>'
     ah = [k for k in OPTIONEN if k.startswith("ahmed")]
@@ -512,7 +539,7 @@ h1{{font-size:26px;margin:0 0 4px}} p.sub{{margin:0 0 22px;color:var(--muted)}}
 h2{{font-size:18px;margin:26px 0 8px;border-bottom:1px solid var(--line);padding-bottom:6px}}
 .reihe{{display:flex;gap:18px;align-items:flex-start}}
 .spalte{{display:flex;flex-direction:column;align-items:center;background:#fff;border-radius:18px;padding:10px 8px 12px;box-shadow:0 1px 0 var(--line)}}
-.spalte.heute{{background:#F1ECE8;opacity:.9}} .spalte.heute img{{width:150px;height:auto;margin-top:40px}}
+.spalte.vergleich{{background:#F4F0ED}} .spalte.heute{{background:#F1ECE8;opacity:.9}} .spalte.heute img{{width:150px;height:auto;margin-top:40px}}
 .kopf svg{{display:block}} .klein2{{margin-top:-6px}}
 .lab{{font-weight:700;font-size:17px;margin-top:4px;text-align:center}} .lab span{{display:block;font-weight:400;font-size:13px;color:var(--muted)}}
 .minis{{display:flex;gap:14px;flex-wrap:wrap}} .mini{{display:flex;gap:2px;align-items:center;background:#fff;border-radius:12px;padding:6px 10px}} .mini div{{font-weight:700;margin-left:6px}}
@@ -520,7 +547,7 @@ h2{{font-size:18px;margin:26px 0 8px;border-bottom:1px solid var(--line);padding
 <h1>Gesichter-Redesign, Schritt 1: nur Kopf</h1>
 <p class="sub">Oben neutral, darunter laechelnd. Gleicher 200x240-Raum wie die Halbfigur der App, Torso = heutiger rumpf(0).</p>
 <h2>Ahmed</h2>{reihe(ah, "heute-ahmed.png")}
-<h2>Annika</h2>{reihe(an, "heute-annika.png")}
+<h2>Annika</h2>{reihe(an, "heute-annika.png", ("ahmed-B", "ahmed-D"))}
 <h2>Avatar-Groesse (48 px, neutral + laechelnd)</h2><div class="minis">{mini}</div>
 </body></html>"""
     with open(os.path.join(HIER, "gesichter.html"), "w", encoding="utf-8") as fh:
