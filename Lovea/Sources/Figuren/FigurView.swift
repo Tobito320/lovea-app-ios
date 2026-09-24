@@ -3959,7 +3959,8 @@ extension Zeichner {
             glas.fill(box(18, sitz - 140, 164, 36), with: .color(Pal.gruen.farbe.opacity(0.8)))
             for i in 0..<5 {
                 let x: CGFloat = 200 - zyklus(0.9, Double(i) * 0.19) * 220
-                linie(glas, strich(P(x, sitz - 190 + CGFloat(i) * 17), P(x + 34, sitz - 190 + CGFloat(i) * 17)), .white.opacity(0.7), 3)
+                let y: CGFloat = sitz - 190 + CGFloat(i) * 17
+                linie(glas, strich(P(x, y), P(x + 34, y)), .white.opacity(0.7), 3)
             }
             teil(g, box(24, sitz - 104, 152, 110, 22), Pal.band)
             teil(g, box(14, sitz - 6, 172, 36, 12), Pal.band.mal(0.85))
