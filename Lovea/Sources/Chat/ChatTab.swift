@@ -11,8 +11,8 @@ struct ChatTab: View {
         NavigationStack {
             if let ich = Raum.shared.ich {
                 ChatListe(ich: ich) { offen = true }
-                    // Explicit, so the tab bar comes back during the pop, not ~1 s after it.
-                    .toolbar(.visible, for: .tabBar)
+                    // Follows `offen`: hidden in the conversation, back at once on the pop.
+                    .toolbar(offen ? .hidden : .visible, for: .tabBar)
                     .navigationDestination(isPresented: $offen) {
                         Unterhaltung(ich: ich) { offen = false }
                     }
