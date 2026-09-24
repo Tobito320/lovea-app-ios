@@ -179,4 +179,12 @@ final class KalenderLogikTests: XCTestCase {
 
         XCTAssertTrue(vorschlaege.contains("2026-09-24"))
     }
+
+    func testArbeitNettoZiehtImmerDreissigMinutenPauseAb() {
+        func b(_ s: String?, _ e: String?, typ: String = "arbeit") -> Block { Block(titel: "", typ: typ, start: s, ende: e, status: "normal", quelle: "muster") }
+        XCTAssertEqual(b("08:00", "16:00").arbeitNetto, 450)
+        XCTAssertEqual(b("08:00", "08:20").arbeitNetto, 0)
+        XCTAssertNil(b(nil, nil).arbeitNetto)
+        XCTAssertNil(b("08:00", "16:00", typ: "schule").arbeitNetto)
+    }
 }

@@ -155,3 +155,59 @@ struct AusnahmeEditor: View {
         dismiss()
     }
 }
+
+/// Arbeitszeit für einen Tag: von–bis, darunter die Netto-Zeit (30 min Pause gehen immer ab).
+/// Speichert als Ausnahme „verschoben" auf genau diesen Arbeits-Block.
+struct ArbeitszeitBlatt: View {
+    let datum: String
+    let block: Block
+    @Environment(\.dismiss) private var dismiss
+    @State private var von: Date
+    @State private var bis: Date
+
+    init(datum: String, block: Block) {
+        self.datum = datum
+        self.block = block
+        let tag = Datum.datum(datum)
+        func zeit(_ hhmm: String?, _ standard: Int) -> Date { tag.addingTimeInterval(Double((Datum.minuten(hhmm) ?? standard) * 60)) }
+        _von = State(initialValue: zeit(block.start, 8 * 60))
+        _bis = State(initialValue: zeit(block.ende, 16 * 60 + 30))
+    }
+
+    private var probe: Block { Block(titel: "", typ: "arbeit", start: Datum.uhrzeit(von), ende: Datum.uhrzeit(bis), status: "normal", quelle: "muster") }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                DatePicker("Von", selection: $von, displayedComponents: .hourAndMinute)
+                DatePicker("Bis", selection: $bis, displayedComponents: .hourAndMinute)
+                if let netto = probe.arbeitNetto {
+                    LabeledContent("Arbeitszeit", value: "\(netto / 60):\(String(format: "%02d", netto % 60)) h")
+                        .font(.headline)
+                    LabeledContent("Pause", value: "30 min")
+                } else {
+                    Text("Ende muss nach dem Beginn liegen").foregroundStyle(.secondary)
+                }
+            }
+            .navigationTitle("Arbeitszeit")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Sichern") { sichern() }.disabled(probe.arbeitNetto == nil)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    private func sichern() {
+        guard let ich = Raum.shared.ich else { return }
+        Raum.shared.senden("ausnahme.setzen", Ausnahme(
+            person: ich.rawValue, datum: datum, musterId: block.musterId, status: "verschoben",
+            bisDatum: nil, start: Datum.uhrzeit(von), ende: Datum.uhrzeit(bis)
+        ))
+        Haptik.erfolg()
+        dismiss()
+    }
+}

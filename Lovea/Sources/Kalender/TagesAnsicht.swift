@@ -81,6 +81,7 @@ struct TagesAnsicht: View {
         switch blatt {
         case .termin(let termin): TerminEditor(datum: tag, termin: termin)
         case .ausnahme(let ausnahme): AusnahmeEditor(datum: tag, ausnahme: ausnahme)
+        case .arbeitszeit(let block): ArbeitszeitBlatt(datum: tag, block: block)
         case .zumIPhone(let termin): IPhoneKalenderExportBlatt(termin: termin)
         case .ausIPhone: IPhoneKalenderImport()
         }
@@ -214,6 +215,10 @@ struct TagesAnsicht: View {
             }
             .buttonStyle(.plain)
             .accessibilityHint("Bearbeiten, zum iPhone-Kalender oder löschen")
+        } else if block.typ == "arbeit", block.quelle == "muster", person == Raum.shared.ich {
+            Button { blatt = .arbeitszeit(block) } label: { karte }
+                .buttonStyle(.plain)
+                .accessibilityHint("Arbeitszeit für diesen Tag ändern")
         } else if let ausnahme = block.ausnahme {
             Menu {
                 Button("Ausnahme ändern", systemImage: "pencil") { blatt = .ausnahme(ausnahme) }
@@ -269,6 +274,7 @@ struct TagesAnsicht: View {
         if let start = block.start, let ende = block.ende { text = "\(start)–\(ende)" }
         else if let start = block.start { text = "ab \(start)" }
         else { text = "ganztägig" }
+        if let netto = block.arbeitNetto { return text + " · \(netto / 60):\(String(format: "%02d", netto % 60)) h" }
         if block.status != "normal" { text += " · \(statusText(block.status))" }
         return text
     }
@@ -286,6 +292,7 @@ struct TagesAnsicht: View {
     /// Personenfarbe (Spec 3), Treffen in Rosé; Ausnahmen in ihrer Statusfarbe, der Status steht
     /// zusätzlich als Text im Block.
     private func farbe(_ block: Block, person: Person) -> Color {
+        if block.arbeitNetto != nil, block.status == "verschoben" { return Color.person(person) }
         switch block.status {
         case "krank": return .orange
         case "urlaub": return .blue
@@ -328,6 +335,7 @@ private enum Blatt: Identifiable {
     case ausnahme(Ausnahme?)
     case zumIPhone(Termin)
     case ausIPhone
+    case arbeitszeit(Block)
 
     var id: String {
         switch self {
@@ -335,6 +343,7 @@ private enum Blatt: Identifiable {
         case .ausnahme(let ausnahme): "ausnahme-\(ausnahme?.id ?? "neu")"
         case .zumIPhone(let termin): "export-\(termin.id)"
         case .ausIPhone: "import"
+        case .arbeitszeit(let block): "arbeit-\(block.musterId ?? "")"
         }
     }
 }

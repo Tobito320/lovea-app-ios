@@ -100,4 +100,12 @@ struct Block: Equatable {
     /// Nur bei `quelle == "muster"`: die Ausnahme, die auf den Block wirkt (Z-42.2: ändern oder
     /// zurücknehmen).
     var ausnahme: Ausnahme? = nil
+    /// Nur bei `quelle == "muster"`: für die Arbeitszeit pro Tag.
+    var musterId: String? = nil
+
+    /// Arbeit: Netto-Minuten, 30 min Pause gehen immer ab (Ahmed: auch ohne Pause).
+    var arbeitNetto: Int? {
+        guard typ == "arbeit", let von = Datum.minuten(start), let bis = Datum.minuten(ende), bis > von else { return nil }
+        return max(0, bis - von - 30)
+    }
 }

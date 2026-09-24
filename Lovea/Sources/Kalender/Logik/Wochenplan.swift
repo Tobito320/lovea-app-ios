@@ -19,7 +19,7 @@ enum Wochenplan {
                     && ($0.wochen == "alle" || $0.wochen == woche)
             }
             .map { muster in
-                (muster: muster, block: Block(titel: muster.titel, typ: muster.typ, start: muster.start, ende: muster.ende, status: "normal", quelle: "muster"))
+                (muster: muster, block: Block(titel: muster.titel, typ: muster.typ, start: muster.start, ende: muster.ende, status: "normal", quelle: "muster", musterId: muster.id))
             }
 
         if istFeiertag {
