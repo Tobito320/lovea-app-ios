@@ -24,6 +24,9 @@ final class Anwesenheit {
     private var supermarktName: String?
     /// Brief G fix 2: last real movement (steps or walking/running/cycling), for `SchlafLogik`.
     private var letzteBewegung: Date?
+    /// Brief G bugfix: on a train rather than in a car (`AnwesenheitEingabe.zug`).
+    private var imZug = false
+    private var schnellSeit: Date?
 
     private var letzterZustand: FigurenModell.Zustand?
     private var letzterVersand = Date.distantPast
@@ -184,8 +187,24 @@ final class Anwesenheit {
         }.flatMap { FigurZustand(rawValue: $0.kategorie) }
     }
 
+    /// A place only while really there (no region exit events: `OrteModell.monitorAn` stays off).
+    /// The last fix decides the place, so a fast or driving fix, or walking well after it, ends it.
     private func ortZustand(_ ich: Person) -> FigurZustand? {
-        ortAusGespeichertenPlaetzen(ich) ?? (supermarktName != nil ? .supermarkt : nil)
+        guard let ort = ortAusGespeichertenPlaetzen(ich) ?? (supermarktName != nil ? .supermarkt : nil) else { return nil }
+        let fix = Standort.shared.positionen[ich]
+        let gilt = AnwesenheitEingabe.ortGilt(
+            ort, tempo: fix?.tempo, bewegung: bewegung, fixZeit: fix.flatMap { ISO8601DateFormatter().date(from: $0.zeit) },
+            letzteBewegung: letzteBewegung
+        )
+        return gilt ? ort : nil
+    }
+
+    /// Called by `Standort` on every own fix, so a place ends with the fix that leaves it.
+    func standortNeu() {
+        Task { @MainActor [weak self] in
+            await self?.ortAktualisieren()
+            self?.aktualisieren()
+        }
     }
 
     // MARK: - Fold and send (Z-7.1/Z-7.2)
@@ -200,7 +219,7 @@ final class Anwesenheit {
             person: ich,
             app: appAktivitaet,
             ort: ortZustand(ich),
-            bewegung: bewegung,
+            bewegung: imZug ? .zug : AnwesenheitEingabe.reise(bewegung, tempo: Standort.shared.positionen[ich]?.tempo, fixAlter: Standort.shared.positionen[ich]?.sekundenAlt),
             akku: akku,
             laedt: laedt,
             // ponytail: own connectivity is irrelevant here — `Raum.fluechtig` drops `fl` silently
@@ -223,6 +242,12 @@ final class Anwesenheit {
 
     private func aktualisieren() {
         guard let ich = Raum.shared.ich else { return }
+        let fix = Standort.shared.positionen[ich]
+        let frisch = (fix?.sekundenAlt ?? .infinity) < 180
+        (imZug, schnellSeit) = AnwesenheitEingabe.zug(
+            bisher: imZug, reist: AnwesenheitEingabe.reise(bewegung, tempo: fix?.tempo, fixAlter: fix?.sekundenAlt) == .faehrt,
+            schnell: frisch && (fix?.tempo ?? 0) > AnwesenheitEingabe.zugTempo, schnellSeit: schnellSeit, jetzt: Date()
+        )
         let (haupt, abzeichen) = FigurZustand.bestimmen(eingabe(ich))
         let neu = FigurenModell.Zustand(haupt: haupt, abzeichen: abzeichen)
         guard neu != letzterZustand else { return }
@@ -264,4 +289,37 @@ enum AnwesenheitEingabe {
     }
 
     static func istMorgenFenster(_ stunde: Int) -> Bool { (5..<11).contains(stunde) }
+
+    /// Faster than this (m/s, ~22 km/h) is a vehicle, whatever CoreMotion says.
+    static let reiseTempo: Double = 6
+
+    /// A fresh fix (under 3 min) at vehicle speed counts as `faehrt` (train, bus, car).
+    static func reise(_ bewegung: FigurZustand?, tempo: Double?, fixAlter: TimeInterval?) -> FigurZustand? {
+        if let tempo, tempo > reiseTempo, (fixAlter ?? .infinity) < 180 { return .faehrt }
+        return bewegung
+    }
+
+    /// Faster than this (m/s, ~80 km/h) for a minute is a train.
+    static let zugTempo: Double = 22
+
+    /// CoreMotion's "automotive" can't tell a car from a train. Fast (`schnell`: a fresh fix above
+    /// `zugTempo`) for a minute or more makes it a train, and it stays one through stations until
+    /// the trip ends (`reist` false).
+    static func zug(bisher: Bool, reist: Bool, schnell: Bool, schnellSeit: Date?, jetzt: Date) -> (zug: Bool, schnellSeit: Date?) {
+        guard reist else { return (false, nil) }
+        let seit = schnell ? (schnellSeit ?? jetzt) : schnellSeit
+        let lange = schnell && jetzt.timeIntervalSince(seit ?? jetzt) >= 60
+        return (bisher || lange, seit)
+    }
+
+    /// Whether the place `ort` the last fix sits in still holds: not at vehicle speed, not driving
+    /// or cycling now, and no walking more than 3 min after that fix (then they left and no newer
+    /// fix has come in yet). Home is exempt from the walking rule: people walk around at home
+    /// and fixes there are rare, and sleep needs it.
+    static func ortGilt(_ ort: FigurZustand, tempo: Double?, bewegung: FigurZustand?, fixZeit: Date?, letzteBewegung: Date?) -> Bool {
+        if let tempo, tempo > reiseTempo { return false }
+        if bewegung == .faehrt || bewegung == .rad { return false }
+        if ort != .zuhause, let fixZeit, let letzteBewegung, letzteBewegung.timeIntervalSince(fixZeit) > 180 { return false }
+        return true
+    }
 }

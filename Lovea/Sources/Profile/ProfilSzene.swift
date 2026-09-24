@@ -8,13 +8,16 @@ enum ProfilSzene: Equatable, Sendable {
     case schlafen(zusammen: Bool)
     case gym
     case draussen(wetter: Wetter, nacht: Bool)
+    /// On a train, bus or in a car: outside flying past (Brief G bugfix).
+    case unterwegs(wetter: Wetter, nacht: Bool)
 
     enum Wetter: Equatable, Sendable { case sonne, wolken, regen, schnee }
 
-    /// Pure core, tested in `ProfilSzeneTests`. Priority: sleep > gym > home > outside.
+    /// Pure core, tested in `ProfilSzeneTests`. Priority: sleep > travelling > gym > home > outside.
     /// `tag` is Open-Meteo's `is_day` (real sunrise/sunset); unknown -> night is 20-6 Uhr.
-    static func fuer(schlaeft: Bool, partnerSchlaeft: Bool, ort: String?, wetterCode: Int?, tag: Bool?, stunde: Int) -> ProfilSzene {
+    static func fuer(schlaeft: Bool, partnerSchlaeft: Bool, ort: String?, wetterCode: Int?, tag: Bool?, stunde: Int, unterwegs: Bool = false) -> ProfilSzene {
         if schlaeft { return .schlafen(zusammen: partnerSchlaeft) }
+        if unterwegs { return .unterwegs(wetter: wetter(code: wetterCode), nacht: istNacht(tag: tag, stunde: stunde)) }
         switch ort {
         case "gym": return .gym
         case "zuhause": return .zimmer
@@ -46,9 +49,8 @@ enum ProfilSzene: Equatable, Sendable {
     /// interrupts the curls; in the room "zu Hause" stands instead of sitting on its own sofa.
     func figur(_ z: FigurZustand) -> FigurZustand {
         switch self {
-        case .gym:
-            let geste = z == .kuss || z == .herz || z == .anstupsen || z == .lacht || z == .anstossen || z == .pokal
-            return geste || FigurZustand.mimik.contains(z) ? z : .gym
+        case .gym: return Self.geste(z) ? z : .gym
+        case .unterwegs: return Self.geste(z) || z == .zug ? z : .faehrt
         case .zimmer: return z == .zuhause ? .ruhig : z
         case .schlafen: return .schlaeft
         case .draussen: return z
@@ -61,8 +63,19 @@ enum ProfilSzene: Equatable, Sendable {
         switch self {
         case .gym: return z == .gym ? [.hanteln] : []
         case .draussen(_, let nacht): return KarteLogik.extras(wetterCode: wetterCode, temperatur: temperatur, tag: !nacht, laedt: z == .laedt)
-        case .zimmer, .schlafen: return []
+        case .zimmer, .schlafen, .unterwegs: return []
         }
+    }
+
+    private static func geste(_ z: FigurZustand) -> Bool {
+        z == .kuss || z == .herz || z == .anstupsen || z == .lacht || z == .anstossen || z == .pokal || FigurZustand.mimik.contains(z)
+    }
+
+    /// Travelling: the shared state says so, or a fresh fix (under 5 min) is in a vehicle or fast.
+    static func istUnterwegs(anzeige: FigurZustand, bewegung: String?, tempo: Double?, fixAlter: TimeInterval?) -> Bool {
+        if anzeige == .faehrt || anzeige == .zug { return true }
+        guard (fixAlter ?? .infinity) < 300 else { return false }
+        return bewegung == "faehrt" || (tempo ?? 0) > AnwesenheitEingabe.reiseTempo
     }
 }
 
@@ -73,8 +86,14 @@ extension ProfilSzene {
         let wetter = WetterModell.shared.staende[person]
         return fuer(
             schlaeft: schlafGerade(person) != .wach, partnerSchlaeft: schlafGerade(person.partner) != .wach,
-            ort: ortKategorie(person), wetterCode: wetter?.code, tag: wetter?.tag, stunde: stunde
+            ort: ortKategorie(person), wetterCode: wetter?.code, tag: wetter?.tag, stunde: stunde,
+            unterwegs: unterwegsGerade(person)
         )
+    }
+
+    static func unterwegsGerade(_ p: Person) -> Bool {
+        let fix = Standort.shared.positionen[p]
+        return istUnterwegs(anzeige: FigurenModell.shared.anzeige(p).haupt, bewegung: fix?.bewegung, tempo: fix?.tempo, fixAlter: fix?.sekundenAlt)
     }
 
     /// Night for the room's window and lamp (and the sky outside): real daylight where known.
@@ -141,7 +160,7 @@ struct ProfilSzeneHintergrund: View {
     private var imZimmer: Bool {
         switch szene {
         case .zimmer, .schlafen: true
-        case .gym, .draussen: false
+        case .gym, .draussen, .unterwegs: false
         }
     }
 
@@ -150,6 +169,7 @@ struct ProfilSzeneHintergrund: View {
         case .zimmer, .schlafen: UIImage(named: "szene-zimmer-hintergrund")
         case .gym: UIImage(named: "szene-gym")
         case .draussen(_, let n): UIImage(named: n ? "szene-draussen-nacht" : "szene-draussen-tag")
+        case .unterwegs: UIImage(named: "szene-unterwegs")
         }
     }
 
@@ -158,7 +178,7 @@ struct ProfilSzeneHintergrund: View {
         case .zimmer: zimmer.hat("lichterkette") || (nacht && zimmer.hat("fenster"))
         case .schlafen: zimmer.hat("lichterkette") || zimmer.hat("fenster")
         case .gym: false
-        case .draussen: true
+        case .draussen, .unterwegs: true
         }
     }
 
@@ -174,6 +194,9 @@ struct ProfilSzeneHintergrund: View {
             case .schlafen: SzenenZeichnung.zimmer(r, zimmer, nacht: true, mitBett: false, bett: nil, t: t)
             case .gym: SzenenZeichnung.gym(r)
             case .draussen(let wetter, let n): SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)
+            case .unterwegs(let wetter, let n):
+                SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)
+                SzenenZeichnung.fahrtStreifen(r, t: t)
             }
         }
     }

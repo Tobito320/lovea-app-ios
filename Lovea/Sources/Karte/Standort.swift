@@ -129,6 +129,8 @@ final class Standort: NSObject {
         )
         if let ich = Raum.shared.ich { positionen[ich] = d }
         Raum.shared.fluechtig("standort", d)
+        // Place states end with the fix that leaves the place, not on the next 30 s tick.
+        Anwesenheit.shared.standortNeu()
     }
 
     private func bewegungsart() async -> String? {

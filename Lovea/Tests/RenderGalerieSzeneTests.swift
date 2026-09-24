@@ -14,13 +14,13 @@ final class RenderGalerieSzeneTests: XCTestCase {
         rahmen: [.init(slot: 0, medienId: "a"), .init(slot: 1, medienId: "b"), .init(slot: 2, medienId: "c")]
     )
 
-    private func kopf(_ szene: ProfilSzene, _ p: Person = .annika, zimmer: Zimmer = Zimmer(), nacht: Bool = false, code: Int? = nil, temperatur: Double? = nil) -> AnyView {
+    private func kopf(_ szene: ProfilSzene, _ p: Person = .annika, zimmer: Zimmer = Zimmer(), nacht: Bool = false, code: Int? = nil, temperatur: Double? = nil, live: FigurZustand = .ruhig) -> AnyView {
         let figuren: AnyView
         if case .schlafen(let zusammen) = szene {
             let schlaefer = zusammen ? [p, p.partner] : [p]
             figuren = AnyView(SchlafendeFiguren(zimmer: zimmer, schlaefer: schlaefer.map { FigurAussehen.standard(for: $0) }, animiert: false))
         } else {
-            let zustand = szene.figur(.ruhig)
+            let zustand = szene.figur(live)
             let extras = szene.extras(zustand, wetterCode: code, temperatur: temperatur)
             figuren = AnyView(FigurView(.standard(for: p), zustand: zustand, groesse: 340, animiert: false, ganzkoerper: true, extras: extras))
         }
@@ -35,7 +35,7 @@ final class RenderGalerieSzeneTests: XCTestCase {
     }
 
     func testSzenen() {
-        let zellen: [Zelle] = [
+        var zellen: [Zelle] = [
             (titel: "Zimmer (Standard)", ansicht: kopf(.zimmer)),
             (titel: "Zimmer eingerichtet", ansicht: kopf(.zimmer, .ahmed, zimmer: eingerichtet)),
             (titel: "Zimmer bei Nacht", ansicht: kopf(.zimmer, .ahmed, zimmer: eingerichtet, nacht: true)),
@@ -49,6 +49,9 @@ final class RenderGalerieSzeneTests: XCTestCase {
             (titel: "Draußen Wolken", ansicht: kopf(.draussen(wetter: .wolken, nacht: false), .ahmed, code: 3, temperatur: 16)),
             (titel: "Draußen Schnee", ansicht: kopf(.draussen(wetter: .schnee, nacht: false), code: 73, temperatur: -2)),
         ]
+        let unterwegs = ProfilSzene.unterwegs(wetter: .wolken, nacht: false)
+        zellen.append((titel: "Unterwegs (Auto)", ansicht: kopf(unterwegs, .ahmed)))
+        zellen.append((titel: "Unterwegs (Zug)", ansicht: kopf(unterwegs, .ahmed, live: .zug)))
         RenderTafel.speichern("profil-szenen", spalten: 4, zellen: zellen)
     }
 

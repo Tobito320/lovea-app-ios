@@ -21,6 +21,8 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
     case zwinkert, verliebt, sauer, schmollt, verlegen, muede, ueberrascht, lachtTraenen, weint, denkt, feiert, schockiert, daumen, tanzt
     // Schlaf (Brief G fix 2): after "Gute Nacht" and 3 quiet minutes, sits up in bed yawning
     case sitztImBett
+    // Unterwegs (Brief G bugfix): automotive and fast for a minute or more is a train, not a car
+    case zug
 
     /// The Runde-3 expressions, in picker order.
     static let mimik: [FigurZustand] = [
@@ -85,6 +87,7 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         case .daumen: "Daumen hoch"
         case .tanzt: "tanzt"
         case .sitztImBett: "wird müde"
+        case .zug: "fährt Zug"
         }
     }
 
@@ -94,7 +97,7 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         return c
     }()
 
-    /// Priority: Geste > offline > App > Ort > Bewegung > Gerät > Tageszeit > Brauche > Stimmung > ruhig.
+    /// Priority: Geste > offline > Fahren/Zug > App > Schlaf > Ort > Bewegung > Gerät > Tageszeit > Brauche > Stimmung > ruhig.
     /// Abzeichen: "partyhut", "herzaugen", "outfit", "uhrwerk", "schnecke", "krone".
     static func bestimmen(_ e: FigurEingabe) -> (haupt: FigurZustand, abzeichen: [String]) {
         let heute = berlin.dateComponents([.month, .day, .hour], from: e.jetzt)
@@ -116,6 +119,9 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         if let geste = e.geste { return geste }
         // ponytail: offline sits above App and Ort (brief test "Offline schlägt Ort"); the spec lists Gerät below Ort.
         if !e.online { return .offline }
+        // Unterwegs ist der echte Zustand, auch mit offenem Chat und auch im Laden, aus dem man gerade
+        // hinausfährt (Brief G bugfix). Die Fahrschule bleibt Fahrschule.
+        if e.bewegung == .faehrt || e.bewegung == .zug, e.ort != .fahrschule, let reise = e.bewegung { return reise }
         if let app = e.app { return app }
         // Schlägt "zu Hause"; unterwegs oder an einem anderen Ort nie schlafend, dann nur "nicht stören".
         // Ohne gespeichertes Zuhause gilt man als zu Hause. Gerade in Bewegung zählt als Bewegung jetzt.
@@ -197,7 +203,7 @@ struct FigurEingabe: Sendable {
     var geste: FigurZustand?        // anstupsen, kuss, herz, lacht, anstossen, pokal
     var app: FigurZustand?          // imChat … spielt
     var ort: FigurZustand?          // zuhause … supermarkt
-    var bewegung: FigurZustand?     // laeuft, rennt, rad, faehrt
+    var bewegung: FigurZustand?     // laeuft, rennt, rad, faehrt, zug
     var akku: Double?               // 0…1
     var laedt = false
     var online = true

@@ -3302,10 +3302,12 @@ extension Zeichner {
         let m = masse()
         let hal = haltung
         let bew = bewegung()
-        // Scenes with furniture or vehicles only bob; standing figures may also sway.
-        let winkel: Double = [.stehen, .gehen, .rennen].contains(hal) ? bew.winkel : 0
+        // Scenes with furniture only bob; standing figures may also sway. Driving (Brief G bugfix):
+        // the car drifts and tilts gently, in step with the steering wheel (`lenkWinkel`).
+        let winkel: Double = [.stehen, .gehen, .rennen, .fahren].contains(hal) ? bew.winkel : 0
+        let drift: CGFloat = hal == .fahren ? w(1.8) * 3 : 0
         let atem: CGFloat = z == .offline ? 1 : 1.005 + 0.005 * w(2 * Double.pi / 3.6)
-        g.translateBy(x: 100, y: 392)
+        g.translateBy(x: 100 + drift, y: 392)
         g.rotate(by: .degrees(winkel))
         g.scaleBy(x: atem, y: atem)
         g.translateBy(x: -100, y: bew.hoch - 392)
@@ -3374,7 +3376,7 @@ extension Zeichner {
         case .rennt: .rennen
         case .rad: .rad
         case .faehrt, .fahrschule: .fahren
-        case .zuhause, .schule, .arbeit, .schautVideo, .ruhe: .sitzen
+        case .zuhause, .schule, .arbeit, .schautVideo, .ruhe, .zug: .sitzen
         default: .stehen
         }
     }
@@ -3847,7 +3849,7 @@ extension Zeichner {
         case .arbeit:
             let tipp: CGFloat = w(16) * 1.5
             return (Arm(P(lx - 6, y + 48), P(90, y + 78 + tipp)), Arm(P(rx + 6, y + 48), P(110, y + 78 - tipp)))
-        case .zuhause, .schule, .schautVideo, .ruhe:
+        case .zuhause, .schule, .schautVideo, .ruhe, .zug:
             return (Arm(P(lx - 6, y + 48), P(86, y + 84)), Arm(P(rx + 6, y + 48), P(114, y + 84)))
         // Mimik (Runde 3); the head space maps to y + (hy - 133.6) * 0.8 here.
         case .zwinkert:
@@ -3947,6 +3949,20 @@ extension Zeichner {
             teil(g, box(0, sitz - 6, 200, 48, 16), Pal.sofa.mal(0.92))
             teil(g, box(-10, sitz - 54, 36, 92, 14), Pal.sofa.mal(0.85))
             teil(g, box(174, sitz - 54, 36, 92, 14), Pal.sofa.mal(0.85))
+        case .zug:
+            // Brief G bugfix: a train seat by the window, the landscape rushing past behind the glass.
+            let fenster = box(10, sitz - 214, 180, 118, 16)
+            teil(g, fenster, Pal.silber, 3)
+            var glas = g
+            glas.clip(to: box(18, sitz - 206, 164, 102, 10))
+            glas.fill(box(18, sitz - 206, 164, 102), with: .linearGradient(Gradient(colors: [Pal.himmel.farbe, Pal.weiss.farbe]), startPoint: P(0, sitz - 206), endPoint: P(0, sitz - 104)))
+            glas.fill(box(18, sitz - 140, 164, 36), with: .color(Pal.gruen.farbe.opacity(0.8)))
+            for i in 0..<5 {
+                let x: CGFloat = 200 - zyklus(0.9, Double(i) * 0.19) * 220
+                linie(glas, strich(P(x, sitz - 190 + CGFloat(i) * 17), P(x + 34, sitz - 190 + CGFloat(i) * 17)), .white.opacity(0.7), 3)
+            }
+            teil(g, box(24, sitz - 104, 152, 110, 22), Pal.band)
+            teil(g, box(14, sitz - 6, 172, 36, 12), Pal.band.mal(0.85))
         case .schule, .arbeit:
             for x in [CGFloat(74), 126] {
                 let fuss: CGFloat = x < 100 ? x - 6 : x + 6
@@ -4748,7 +4764,7 @@ extension Zeichner {
 extension Zeichner {
     /// No umbrella in a vehicle, in bed or on the sofa: the arms are busy there.
     var schirmAktiv: Bool {
-        extras.contains(.schirm) && ![.faehrt, .fahrschule, .rad, .schlaeft, .zuhause, .ruhe].contains(z)
+        extras.contains(.schirm) && ![.faehrt, .fahrschule, .rad, .schlaeft, .zuhause, .ruhe, .zug].contains(z)
     }
 
     /// Dumbbells only while both hands are free of phone and umbrella.

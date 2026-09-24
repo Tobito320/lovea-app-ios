@@ -571,6 +571,18 @@ enum SzenenZeichnung {
         }
     }
 
+    /// Travelling: light streaks rushing past, over the outdoor scene.
+    static func fahrtStreifen(_ g: GraphicsContext, t: Double) {
+        for k in 0..<14 {
+            let y = 110 + zufall(k + 500) * 300
+            let laenge = 40 + zufall(k + 600) * 90
+            let weg = Double(breite + 260)
+            let p = (t * (320 + Double(zufall(k + 700)) * 240) + Double(zufall(k + 800)) * weg).truncatingRemainder(dividingBy: weg)
+            let x = breite + 130 - CGFloat(p)
+            linie(g, strich(P(x, y), P(x + laenge, y)), .white.opacity(0.4 + 0.3 * Double(zufall(k + 900))), 2.5)
+        }
+    }
+
     private static func baum(_ g: GraphicsContext, _ fuss: CGPoint, _ s: CGFloat, _ krone: FigurFarbe, _ stamm: FigurFarbe) {
         teil(g, box(fuss.x - 5 * s, fuss.y - 40 * s, 10 * s, 40 * s, 3 * s), stamm, 2.5)
         verbunden(g, [
