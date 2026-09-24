@@ -256,6 +256,8 @@ private struct VorschauLeiste: View {
             Button { onSenden() } label: { Image(systemName: "arrow.up.circle.fill").font(.title2).frame(width: 44, height: 44) }
                 .accessibilityLabel("Sprachnachricht senden")
         }
+        .buttonStyle(.borderless) // own hit areas; the default style inside the glass field ate taps
+        .contentShape(.rect)
         .frame(minHeight: 44)
         .padding(.horizontal, 4)
     }
