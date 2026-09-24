@@ -16,6 +16,9 @@ final class Anwesenheit {
     ]
 
     private var appAktivitaet: FigurZustand?
+    /// Brief Z: the background pauses the app slot instead of dropping it, so the screen still open
+    /// on return (studio, chat, map) counts again without having to re-announce itself.
+    private var imHintergrund = false
     private var akku: Double?
     private var laedt = false
     private var fokus: String?
@@ -56,12 +59,17 @@ final class Anwesenheit {
             Task { @MainActor in self?.akkuAktualisieren() }
         }
         center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.app(nil) }
+            Task { @MainActor in
+                self?.imHintergrund = true
+                self?.aktualisieren()
+            }
         }
         center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in
+                self?.imHintergrund = false
                 self?.morgenPruefen()
                 self?.fokusAktualisieren()
+                self?.aktualisieren()
             }
         }
 
@@ -122,6 +130,12 @@ final class Anwesenheit {
             return
         }
         aktualisieren()
+    }
+
+    /// Clears the app slot only while it still holds `z`, so a screen whose `onDisappear` lands after
+    /// the next screen's `onAppear` doesn't wipe that one.
+    func appEnde(_ z: FigurZustand) {
+        if appAktivitaet == z { app(nil) }
     }
 
     // MARK: - Battery (Z-7.1)
@@ -224,7 +238,7 @@ final class Anwesenheit {
         let monat = String(heute.prefix(7))
         return FigurEingabe(
             person: ich,
-            app: appAktivitaet,
+            app: imHintergrund ? nil : appAktivitaet,
             ort: ortZustand(ich),
             bewegung: imZug ? .zug : AnwesenheitEingabe.reise(bewegung, tempo: Standort.shared.positionen[ich]?.tempo, fixAlter: Standort.shared.positionen[ich]?.sekundenAlt),
             akku: akku,
