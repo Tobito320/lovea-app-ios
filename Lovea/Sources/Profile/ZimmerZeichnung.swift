@@ -481,10 +481,7 @@ enum SzenenZeichnung {
         if z.hat("buecherregal") { buecherregal(g) }
         if z.hat("regal") { regal(g, mitTopf: !z.hat("goldkette")) }
         if z.hat("goldkette") { goldkette(g, aufRegal: z.hat("regal")) }
-        // Up to three posters: the right wall everywhere, left wall and above the bed only where no
-        // window hangs (home without the window).
-        posterAufhaengen(g, z.poster, P(320, 150))
-        if !z.hat("fenster") { linkePoster(g, links: z.posterLinks, bett: z.posterBett) }
+        for p in posterPlaetze(z) { posterAufhaengen(g, p.i, p.mitte, skala: p.skala) }
         for r in z.rahmen where rahmenRects.indices.contains(r.slot) { rahmen(g, rahmenRects[r.slot]) }
         // On the window sill; without a window a small wall shelf takes its place.
         if !z.hat("fenster") && (z.hat("kaktus") || z.hat("kerze") || z.hat("blumen")) { teil(g, box(14, 192, 128, 9, 3), Pal.holz, 2) }
@@ -515,22 +512,37 @@ enum SzenenZeichnung {
         if z.hat("hanteln") { hantelnAmBoden(g) }
     }
 
-    /// Hangs poster `i` centred on `c`: a slight tilt (between -2° and 2°, fixed per poster and
-    /// spot), a soft drop shadow and a strip of tape.
-    /// The two left posters side by side between the wall's edge and x 200, above the headboard
-    /// (top 222); two wide ones shrink together to fit, a single one sits over the bed.
-    private static func linkePoster(_ g: GraphicsContext, links: Int, bett: Int) {
+    /// Up to three posters (index, centre, scale): the right wall everywhere, the left wall and
+    /// above the bed only where no window hangs (home without the window). The two left ones sit
+    /// side by side from the wall's edge, above the headboard (top 222); two wide ones shrink
+    /// together to fit, a single one sits over the bed. Photo frames stay clear (Brief R): with a
+    /// frame in slot 1 or 2 the right poster hangs lower, its paper starting at y 150 under the
+    /// frames; with one in slot 0 the left pair ends at x 148 instead of 200.
+    static func posterPlaetze(_ z: Zimmer) -> [(i: Int, mitte: CGPoint, skala: CGFloat)] {
+        let belegt = Set(z.rahmen.map(\.slot))
+        var plaetze: [(i: Int, mitte: CGPoint, skala: CGFloat)] = []
+        if z.poster > 0 {
+            let tiefer = belegt.contains(1) || belegt.contains(2)
+            plaetze.append((z.poster, P(320, tiefer ? 150 + posterGroesse(z.poster).height / 2 : 150), 1))
+        }
+        guard !z.hat("fenster") else { return plaetze }
+        let links = z.posterLinks
+        let bett = z.posterBett
         let wl = links > 0 ? posterGroesse(links).width : 0
         let wb = bett > 0 ? posterGroesse(bett).width : 0
-        let k = min(1, 182 / max(wl + wb, 1))
+        let rand: CGFloat = belegt.contains(0) ? 148 : 200
+        let k = min(1, (rand - 18) / max(wl + wb, 1))
         let y: CGFloat = 128
-        if links > 0 { posterAufhaengen(g, links, P(8 + wl * k / 2, y), skala: k) }
+        if links > 0 { plaetze.append((links, P(8 + wl * k / 2, y), k)) }
         if bett > 0 {
             let x = links > 0 ? 18 + wl * k + wb * k / 2 : max(75, 8 + wb * k / 2)
-            posterAufhaengen(g, bett, P(x, y), skala: k)
+            plaetze.append((bett, P(x, y), k))
         }
+        return plaetze
     }
 
+    /// Hangs poster `i` centred on `c`: a slight tilt (between -2° and 2°, fixed per poster and
+    /// spot), a soft drop shadow and a strip of tape.
     private static func posterAufhaengen(_ g: GraphicsContext, _ i: Int, _ c: CGPoint, skala: CGFloat = 1) {
         guard i > 0 else { return }
         let s = posterGroesse(i)

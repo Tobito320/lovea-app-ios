@@ -3,7 +3,7 @@ import XCTest
 @testable import Lovea
 
 /// Brief R render boards: office and classroom by day and by night (before Brief R they never
-/// darkened, compare with the day cells).
+/// darkened, compare with the day cells), posters next to photo frames.
 @MainActor
 final class RenderGalerieSzeneRTests: XCTestCase {
     private func kopf(_ szene: ProfilSzene, zimmer: Zimmer, nacht: Bool) -> AnyView {
@@ -30,5 +30,25 @@ final class RenderGalerieSzeneRTests: XCTestCase {
             (titel: "Klassenzimmer eingerichtet Nacht", ansicht: kopf(.schule, zimmer: schule, nacht: true)),
         ]
         RenderTafel.speichern("profil-nacht-raeume", spalten: 3, zellen: zellen)
+    }
+
+    /// Posters and photo frames on one wall (before Brief R big posters covered frames 1 and 2,
+    /// and two wide left posters frame 0). The last cell has no frames: posters stay where they were.
+    func testPosterUndRahmen() {
+        let rahmen = (0..<Zimmer.rahmenPlaetze).map { Zimmer.Rahmen(slot: $0, medienId: "r\($0)") }
+        func wand(_ titel: String, rechts: Int, links: Int = 0, bett: Int = 0, mitRahmen: Bool = true) -> (titel: String, ansicht: AnyView) {
+            let z = Zimmer(bett: 5, wand: 6, boden: 5, deko: ["ledWeiss", "teppichSchwarz"], rahmen: mitRahmen ? rahmen : [],
+                           poster: rechts, posterLinks: links, posterBett: bett)
+            return (titel: titel, ansicht: AnyView(ProfilSzeneHintergrund(szene: .zimmer, zimmer: z, nacht: false, animiert: false).frame(width: 390, height: 430)))
+        }
+        let zellen = [
+            wand("Rahmen + SVJ (breit)", rechts: 13),
+            wand("Rahmen + Iceman (quadratisch)", rechts: 11),
+            wand("Rahmen + Jordan (hoch)", rechts: 3),
+            wand("Rahmen + zwei Poster links", rechts: 0, links: 18, bett: 19),
+            wand("Rahmen + drei Poster", rechts: 13, links: 18, bett: 19),
+            wand("Drei Poster ohne Rahmen", rechts: 13, links: 18, bett: 19, mitRahmen: false),
+        ]
+        RenderTafel.speichern("profil-poster-rahmen", spalten: 3, zellen: zellen)
     }
 }
