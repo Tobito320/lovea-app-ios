@@ -18,6 +18,15 @@ final class ProfilSzeneTests: XCTestCase {
         XCTAssertEqual(szene(schlaeft: true, ort: "gym"), .schlafen(zusammen: false))
     }
 
+    func testSchuleUndArbeit() {
+        XCTAssertEqual(szene(ort: "schule", code: 0, tag: true), .schule)
+        XCTAssertEqual(szene(ort: "arbeit", code: 61, tag: false), .arbeit)
+        XCTAssertEqual(ProfilSzene.schule.figur(.imChat), .schule)
+        XCTAssertEqual(ProfilSzene.arbeit.figur(.tippt), .arbeit)
+        XCTAssertEqual(ProfilSzene.arbeit.figur(.kuss), .kuss)
+        XCTAssertEqual(ProfilSzene.schule.extras(.schule, wetterCode: 61, temperatur: 2), [])
+    }
+
     func testGymUndZimmer() {
         XCTAssertEqual(szene(ort: "gym", code: 61), .gym)
         XCTAssertEqual(szene(ort: "zuhause", code: 61, tag: false), .zimmer)

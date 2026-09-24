@@ -10,6 +10,8 @@ enum ProfilSzene: Equatable, Sendable {
     case draussen(wetter: Wetter, nacht: Bool)
     /// On a train, bus or in a car: outside flying past (Brief G bugfix).
     case unterwegs(wetter: Wetter, nacht: Bool)
+    /// At the saved places `schule` and `arbeit`: a classroom or an office, at a desk.
+    case schule, arbeit
 
     enum Wetter: Equatable, Sendable { case sonne, wolken, regen, schnee }
 
@@ -21,6 +23,8 @@ enum ProfilSzene: Equatable, Sendable {
         switch ort {
         case "gym": return .gym
         case "zuhause": return .zimmer
+        case "schule": return .schule
+        case "arbeit": return .arbeit
         default: return .draussen(wetter: wetter(code: wetterCode), nacht: istNacht(tag: tag, stunde: stunde))
         }
     }
@@ -51,6 +55,8 @@ enum ProfilSzene: Equatable, Sendable {
         switch self {
         case .gym: return Self.geste(z) ? z : .gym
         case .unterwegs: return Self.geste(z) || z == .zug ? z : .faehrt
+        case .schule: return Self.geste(z) ? z : .schule
+        case .arbeit: return Self.geste(z) ? z : .arbeit
         case .zimmer: return z == .zuhause ? .ruhig : z
         case .schlafen: return .schlaeft
         case .draussen: return z
@@ -63,7 +69,7 @@ enum ProfilSzene: Equatable, Sendable {
         switch self {
         case .gym: return z == .gym ? [.hanteln] : []
         case .draussen(_, let nacht): return KarteLogik.extras(wetterCode: wetterCode, temperatur: temperatur, tag: !nacht, laedt: z == .laedt)
-        case .zimmer, .schlafen, .unterwegs: return []
+        case .zimmer, .schlafen, .unterwegs, .schule, .arbeit: return []
         }
     }
 
@@ -160,7 +166,7 @@ struct ProfilSzeneHintergrund: View {
     private var imZimmer: Bool {
         switch szene {
         case .zimmer, .schlafen: true
-        case .gym, .draussen, .unterwegs: false
+        case .gym, .draussen, .unterwegs, .schule, .arbeit: false
         }
     }
 
@@ -170,6 +176,8 @@ struct ProfilSzeneHintergrund: View {
         case .gym: UIImage(named: "szene-gym")
         case .draussen(_, let n): UIImage(named: n ? "szene-draussen-nacht" : "szene-draussen-tag")
         case .unterwegs: UIImage(named: "szene-unterwegs")
+        case .schule: UIImage(named: "szene-schule")
+        case .arbeit: UIImage(named: "szene-arbeit")
         }
     }
 
@@ -177,7 +185,7 @@ struct ProfilSzeneHintergrund: View {
         switch szene {
         case .zimmer: zimmer.hat("lichterkette") || (nacht && zimmer.hat("fenster"))
         case .schlafen: zimmer.hat("lichterkette") || zimmer.hat("fenster")
-        case .gym: false
+        case .gym, .schule, .arbeit: false
         case .draussen, .unterwegs: true
         }
     }
@@ -193,6 +201,8 @@ struct ProfilSzeneHintergrund: View {
             case .zimmer: SzenenZeichnung.zimmer(r, zimmer, nacht: nacht, mitBett: mitBett, bett: bett, t: t)
             case .schlafen: SzenenZeichnung.zimmer(r, zimmer, nacht: true, mitBett: false, bett: nil, t: t)
             case .gym: SzenenZeichnung.gym(r)
+            case .schule: SzenenZeichnung.klassenzimmer(r)
+            case .arbeit: SzenenZeichnung.buero(r)
             case .draussen(let wetter, let n): SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)
             case .unterwegs(let wetter, let n):
                 SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)
