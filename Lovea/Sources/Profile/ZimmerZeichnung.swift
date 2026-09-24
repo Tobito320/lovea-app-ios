@@ -835,6 +835,24 @@ enum SzenenZeichnung {
         18: ("poster-take-care", .foto, 0xFFFFFF), 19: ("poster-scorpion", .foto, 0xFFFFFF),
     ]
 
+    private static let posterCache = PosterCache()
+
+    /// The poster pictures, looked up once per name instead of on every draw. The drawing functions
+    /// are nonisolated (called from Canvas closures), so a lock guards the dictionary.
+    private final class PosterCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private var bilder: [String: UIImage] = [:]
+
+        func bild(_ name: String) -> UIImage? {
+            lock.lock()
+            defer { lock.unlock() }
+            if let bild = bilder[name] { return bild }
+            let bild = UIImage(named: name)
+            bilder[name] = bild
+            return bild
+        }
+    }
+
     /// The print's size, following the picture: square for album covers, landscape for cars and
     /// money, portrait paper for logos and the drawn ones.
     static func posterGroesse(_ i: Int) -> CGSize {
@@ -847,7 +865,7 @@ enum SzenenZeichnung {
 
     /// One wall poster centred on the origin. `i` indexes `Zimmer.posterArten` (0 = none).
     static func posterZeichnen(_ g: GraphicsContext, _ i: Int) {
-        guard let eintrag = posterBilder[i], let bild = UIImage(named: eintrag.name), bild.size.width > 0, bild.size.height > 0 else {
+        guard let eintrag = posterBilder[i], let bild = posterCache.bild(eintrag.name), bild.size.width > 0, bild.size.height > 0 else {
             // The drawn poster is 52 x 70; scaled up to the paper size.
             var h = g
             h.scaleBy(x: 72 / 52, y: 96 / 70)
