@@ -4,7 +4,7 @@ import SwiftUI
 struct EinstellungenView: View {
     let person: Person
     @ObservedObject var session: PersonSession
-    @AppStorage("profile.performanceHUD") private var showsHUD = false
+    @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
     @State private var zeigtOrte = false
     @State private var zeigtEntwickler = false
