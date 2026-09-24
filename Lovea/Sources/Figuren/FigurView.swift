@@ -1310,7 +1310,7 @@ private struct Zeichner {
         }
         if muttermal { g.fill(kreis(P(122, 127), 1.9), with: .color(Pal.tinte.farbe.opacity(0.8))) }
         if muttermale {
-            for c in [P(66, 118), P(132, 121), P(125, 131), P(74, 128)] { g.fill(kreis(c, 1.5), with: .color(haut.mal(0.45).farbe.opacity(0.8))) }
+            for c in [P(66, 118), P(130, 124)] { g.fill(kreis(c, 1.1), with: .color(haut.mal(0.5).farbe.opacity(0.75))) }
         }
         bartZeichnen(g)
         kinnbartZeichnen(g)
@@ -1318,6 +1318,7 @@ private struct Zeichner {
         augen(g)
         nase(g)
         mund(g)
+        schnurrbartVorn(g)
     }
 
     func brauen(_ g: GraphicsContext) {
@@ -1524,7 +1525,7 @@ private struct Zeichner {
         case 3: haut.mix(Pal.rose, 0.4).mal(0.9)
         case 6: FigurFarbe(0xE56B8A)
         case 7: FigurFarbe(0xC8283F)
-        case 8: FigurFarbe(0xE9A7AC) // Lippen hellrosa (Ahmed)
+        case 8: FigurFarbe(0xF0B8BA) // Lippen hellrosa (Ahmed), pale
         default: nil
         }
     }
@@ -1555,7 +1556,16 @@ private struct Zeichner {
         switch mundForm {
         case .laecheln:
             if let l = lippe {
-                volleLippen(g, l)
+                if mundStil == 8 {
+                    // Fix round 5: Ahmed's lips smaller and less prominent.
+                    var k = g
+                    k.translateBy(x: 100, y: 131)
+                    k.scaleBy(x: 0.78, y: 0.78)
+                    k.translateBy(x: -100, y: -131)
+                    volleLippen(k, l)
+                } else {
+                    volleLippen(g, l)
+                }
                 return
             }
             switch mundStil {
@@ -1646,15 +1656,44 @@ private struct Zeichner {
     /// Ahmed's mustache. 1 = light, sparse goatee; 2 = fuller chin patch.
     func kinnbartZeichnen(_ g: GraphicsContext) {
         guard kinnbart > 0 else { return }
-        let braun = FigurFarbe(0x6E4B35).farbe
-        let voll = kinnbart == 2
+        // Fix round 5: only faint stubble, a few tiny soft dots, no shape, no outline.
+        let deckung: Double = kinnbart == 2 ? 0.4 : 0.22
+        let punkte: [CGPoint] = [P(95, 145), P(100, 148), P(105, 145), P(98, 152), P(103, 151), P(92, 149), P(108, 149)]
+        for c in punkte.prefix(kinnbart == 2 ? 7 : 5) {
+            g.fill(kreis(c, 0.75), with: .color(FigurFarbe(0x6B4A36).farbe.opacity(deckung)))
+        }
+    }
+
+    /// Fix round 5: the mustaches 14/15 sit on top of the lips, so they are drawn after the mouth.
+    /// 14: two soft lobes meeting under the nose, reaching the mouth corners; 15: trimmed, curled ends.
+    func schnurrbartVorn(_ g: GraphicsContext) {
+        guard bart == 14 || bart == 15 else { return }
+        let braun = FigurFarbe(0x5C3E2C)
         var h = g
         h.clip(to: kopfPfad)
-        h.fill(oval(P(100, 146), voll ? 11 : 8, voll ? 7 : 5), with: .color(braun.opacity(voll ? 0.7 : 0.38)))
-        h.fill(oval(P(100, 139.5), 3, 2), with: .color(braun.opacity(voll ? 0.7 : 0.45)))
-        for (x, y) in [(CGFloat(94), CGFloat(144)), (99, 148), (105, 145), (102, 151), (96, 150)] {
-            h.fill(kreis(P(x, y), 0.9), with: .color(braun.opacity(0.7)))
+        if bart == 14 {
+            for seite in [CGFloat(-1), 1] {
+                let lappen = Path { p in
+                    p.move(to: P(100, 119))
+                    p.addQuadCurve(to: P(100 + seite * 15, 126), control: P(100 + seite * 9, 117))
+                    p.addQuadCurve(to: P(100, 123), control: P(100 + seite * 8, 126))
+                    p.closeSubpath()
+                }
+                h.fill(lappen, with: .color(braun.farbe))
+            }
+            return
         }
+        let form = Path { p in
+            p.move(to: P(100, 120.5))
+            p.addQuadCurve(to: P(84, 126.5), control: P(90, 119))
+            p.addQuadCurve(to: P(81, 123.5), control: P(81.5, 126.5))
+            p.addQuadCurve(to: P(100, 124.5), control: P(88, 127))
+            p.addQuadCurve(to: P(119, 123.5), control: P(112, 127))
+            p.addQuadCurve(to: P(116, 126.5), control: P(118.5, 126.5))
+            p.addQuadCurve(to: P(100, 120.5), control: P(110, 119))
+            p.closeSubpath()
+        }
+        teil(h, form, braun, 1.2)
     }
 
     /// Beard area: the head minus the face above `innen` (works for every face shape).
@@ -1749,27 +1788,8 @@ private struct Zeichner {
                 linie(h, oberlippe, haar.farbe.opacity(0.85), 2)
                 linie(h, spitze, haar.farbe.opacity(0.85), 1.4)
             }
-        case 14:
-            // Oberlippenbart hellbraun (Ahmed's photos): a thin, slightly curved line in medium brown,
-            // lighter than his hair and independent of the hair color; a touch fuller in the middle.
-            // Fix round 4: #6B4A36, narrow to medium, reaching the mouth corners.
-            let braun = FigurFarbe(0x6B4A36).farbe
-            linie(h, bogen(P(86, 127), P(114, 127), P(100, 119)), braun, 3)
-            linie(h, bogen(P(91, 124), P(109, 124), P(100, 120)), braun, 3.8)
-        case 15:
-            // Schnurrbart frisiert (photo 5): neatly trimmed, ends slightly curled up, medium brown.
-            let braun = FigurFarbe(0x6E4B35)
-            let form = Path { p in
-                p.move(to: P(100, 120.5))
-                p.addQuadCurve(to: P(84, 126.5), control: P(90, 119))
-                p.addQuadCurve(to: P(81, 123.5), control: P(81.5, 126.5))
-                p.addQuadCurve(to: P(100, 124.5), control: P(88, 127))
-                p.addQuadCurve(to: P(119, 123.5), control: P(112, 127))
-                p.addQuadCurve(to: P(116, 126.5), control: P(118.5, 126.5))
-                p.addQuadCurve(to: P(100, 120.5), control: P(110, 119))
-                p.closeSubpath()
-            }
-            teil(h, form, braun, 1.2)
+        case 14, 15:
+            break // drawn after the mouth, see `schnurrbartVorn`
         default:
             for x in [CGFloat(42), 146] { h.fill(box(x, 80, 12, 40, 4), with: .color(haar.farbe)) }
         }
@@ -2417,7 +2437,17 @@ private struct Zeichner {
             for x in stride(from: CGFloat(34), to: 62, by: 5) { linie(netz, strich(P(x, 20), P(x, 70)), f.kontur.opacity(0.45), 1) }
             for x in stride(from: CGFloat(140), to: 168, by: 5) { linie(netz, strich(P(x, 20), P(x, 70)), f.kontur.opacity(0.45), 1) }
             teil(g, kreis(P(100, 4), 4), f.mal(0.85), 2)
-            teil(g, oval(P(100, 66), 60, 10), f.mal(0.85))
+            // Fix round 5: a real curved front brim, lit on top, shaded along its front edge;
+            // the fringe peeks out underneath.
+            let schirm = Path { p in
+                p.move(to: P(42, 64))
+                p.addQuadCurve(to: P(158, 64), control: P(100, 50))
+                p.addQuadCurve(to: P(42, 64), control: P(100, 96))
+                p.closeSubpath()
+            }
+            teil(g, schirm, f.mal(0.82))
+            linie(g, bogen(P(54, 69), P(146, 69), P(100, 88)), f.mal(0.55).farbe, 3)
+            linie(g, bogen(P(62, 61), P(138, 61), P(100, 53)), Color.white.opacity(0.14), 3)
             g.draw(Text("\u{1D504}").font(.system(size: 26, weight: .bold)).foregroundStyle(f.mix(Pal.weiss, 0.16).farbe), at: P(100, 34))
         case 4:
             let krone = Path { p in
@@ -4215,114 +4245,69 @@ extension Zeichner {
     func ahmedFrisur(_ g: GraphicsContext) {
         switch frisur {
         case 78: lockenWolke(g, fransen: 88, neigung: -4, auge: true)
-        case 79: lockenWolke(g, fransen: 94)
+        case 79: lockenWolke(g, fransen: 92)
         case 80: lockenWolke(g, fransen: 86, neigung: 10)
-        case 81: lockenWolke(g, fransen: 82, wolke: 1.18)
-        default: lockenWolke(g, fransen: 104, nass: true)
+        case 81: lockenWolke(g, fransen: 84, wolke: 1.12)
+        default: lockenWolke(g, fransen: 100, nass: true)
         }
     }
 
-    /// Fix round 4: curls like the ChatGPT stickers (`design/ki/sticker/wir-ich.png`): a dark base
-    /// cloud of overlapping circles wider than the head, curly tufts on the outline, a heavy pointed
-    /// fringe into the eyes, mid-tone S-wave curl strands with hooks, shine arcs and loose hairs,
-    /// over a low taper with free ears. `fransen`: where the fringe ends (y), `neigung` leans it,
-    /// `wolke` scales the volume, `auge` adds a long lock over the right eye, `nass` = flatter,
-    /// stringy wet strands without tufts.
+    /// Fix round 5: curls like the ChatGPT stickers (`design/ki/sticker/wir-ich.png`): one solid
+    /// near-black mass with a soft cloud silhouette only slightly wider than the head, built from big
+    /// soft wave clumps with pointed tips, a messy fringe of thick pointed strands curving across the
+    /// forehead, a few broad subtle highlight arcs, over a low taper with free ears. No thin squiggles.
+    /// `fransen`: where the fringe ends (y), `neigung` leans it, `wolke` > 1 adds volume and clumps,
+    /// `auge` dips one strand toward the right eye, `nass` = flatter mass with longer, thinner strands.
     func lockenWolke(_ g: GraphicsContext, fransen: CGFloat, neigung: CGFloat = 0, wolke: CGFloat = 1, auge: Bool = false, nass: Bool = false) {
         seitenFade(g, 0.6, ansatz: 64, unten: 98)
         var h = g
-        h.translateBy(x: 0, y: 5)
-        let senken: CGFloat = nass ? 6 : 0
-        let kreise: [(CGFloat, CGFloat, CGFloat)] = [
-            (40, 64, 15), (42, 44, 16), (54, 28, 17), (72, 16, 17), (94, 10, 17),
-            (116, 10, 17), (136, 16, 17), (152, 30, 16), (160, 48, 15), (160, 66, 13),
+        h.translateBy(x: 0, y: 6)
+        let senken: CGFloat = nass ? 8 : 0
+        let r0: CGFloat = 18 * wolke * (nass ? 0.85 : 1)
+        let mittelpunkte: [CGPoint] = [
+            P(46, 60), P(54, 38), P(72, 22), P(96, 14 + senken), P(120, 16 + senken), P(142, 26), P(154, 46), P(156, 64),
         ]
         let dom = Path { p in
-            p.move(to: P(36, 72))
-            p.addCurve(to: P(100, 12), control1: P(34, 30), control2: P(60, 12))
-            p.addCurve(to: P(164, 72), control1: P(140, 12), control2: P(166, 30))
-            p.addQuadCurve(to: P(36, 72), control: P(100, 56))
+            p.move(to: P(38, 80))
+            p.addCurve(to: P(100, 14 + senken), control1: P(34, 32), control2: P(62, 14 + senken))
+            p.addCurve(to: P(162, 80), control1: P(138, 14 + senken), control2: P(166, 32))
+            p.addQuadCurve(to: P(38, 80), control: P(100, 62))
             p.closeSubpath()
         }
         var teile: [Path] = [dom]
-        for k in kreise {
-            let r: CGFloat = k.2 * wolke * (nass ? 0.85 : 1)
-            teile.append(kreis(P(k.0, k.1 + senken), r))
+        for c in mittelpunkte { teile.append(kreis(c, r0)) }
+        // Big soft wave clumps with pointed tips around the outline.
+        var klumpen: [(CGPoint, CGPoint, CGFloat, CGFloat)] = [
+            (P(50, 56), P(30, 84), 26, -0.5), (P(58, 34), P(32, 42), 24, 0.45), (P(80, 20), P(64, 6 + senken), 22, -0.4),
+            (P(110, 16), P(124, 4 + senken), 22, 0.4), (P(140, 30), P(166, 36), 24, -0.45), (P(152, 56), P(172, 84), 26, 0.5),
+        ]
+        if wolke > 1.05 {
+            klumpen += [(P(96, 14), P(90, 0), 20, 0.3), (P(126, 18), P(146, 12), 20, -0.3)]
         }
-        if !nass {
-            let tufts: [(CGPoint, CGPoint, CGFloat)] = [
-                (P(30, 52), P(18, 46), -0.6), (P(36, 30), P(24, 18), 0.5), (P(58, 12), P(50, 0), -0.5), (P(90, 2), P(84, -2), 0.4),
-                (P(120, 2), P(130, -2), -0.4), (P(146, 12), P(158, 2), 0.5), (P(166, 32), P(178, 22), -0.5), (P(170, 54), P(182, 56), 0.6),
-            ]
-            for t in tufts { teile.append(locke(t.0, t.1, 10, t.2)) }
-        }
-        // Heavy fringe: pointed curly strands, slightly asymmetric.
-        let fransenX: [CGFloat] = [52, 68, 84, 100, 116, 132, 148]
-        let laengen: [CGFloat] = [-8, 0, -2, 2, -4, -8, -14]
-        let biegungen: [CGFloat] = [-0.5, 0.4, -0.4, 0.5, -0.3, 0.5, -0.4]
-        for i in fransenX.indices {
-            let versatz: CGFloat = i % 2 == 0 ? -4 : 4
-            let spitze = P(fransenX[i] + neigung + versatz, fransen + laengen[i])
-            teile.append(locke(P(fransenX[i], 56), spitze, i == 6 ? 14 : 18, biegungen[i]))
-        }
-        if auge { teile.append(locke(P(118, 50), P(130, fransen + 18), 26, 0.35)) }
+        // Thick pointed fringe strands curving across the forehead.
+        klumpen += [
+            (P(62, 54), P(54, fransen - 8), 24, -0.55), (P(82, 52), P(84 + neigung, fransen), 24, 0.5),
+            (P(102, 52), P(110 + neigung, fransen + 2), 24, -0.5), (P(122, 54), P(132 + neigung, fransen - 4), 22, 0.5),
+            (P(140, 58), P(150 + neigung, fransen - 14), 18, -0.4),
+        ]
+        if auge { klumpen.append((P(114, 52), P(126, fransen + 16), 26, 0.45)) }
+        if nass { klumpen.append((P(92, 54), P(94, fransen + 6), 16, 0.2)) }
+        for k in klumpen { teile.append(locke(k.0, k.1, k.2, k.3)) }
         verbunden(h, teile, haar)
         if let s = straehne { for p in teile { streifen(h, p, s) } }
-
-        // Mid-tone curl strands: S-waves falling outward from the crown, each ending in a hook.
-        let mitte = haar.mix(Pal.weiss, 0.12).farbe
-        let wellen: [(CGFloat, CGFloat, CGFloat)] = [
-            (100, 18, -1), (86, 20, -1), (72, 26, -1), (58, 36, -1), (48, 50, -1), (114, 18, 1), (128, 24, 1),
-            (142, 34, 1), (152, 48, 1), (94, 36, -1), (116, 36, 1), (78, 42, -1), (132, 44, 1),
+        // Subtle clump separations: a few broad soft curves.
+        let trennungen: Striche = [
+            (P(60, 40), P(46, 70), P(46, 52)), (P(84, 26), P(70, 48), P(72, 34)),
+            (P(118, 24), P(132, 46), P(130, 32)), (P(144, 40), P(156, 70), P(156, 52)),
         ]
-        for wv in wellen {
-            let x: CGFloat = wv.0
-            let y: CGFloat = wv.1 + senken
-            let sx: CGFloat = nass ? 0.4 * wv.2 : wv.2
-            let welle = Path { p in
-                p.move(to: P(x, y))
-                p.addQuadCurve(to: P(x + sx * 6, y + 7), control: P(x + sx * 7, y + 1))
-                p.addQuadCurve(to: P(x + sx * 4, y + 14), control: P(x + sx * 2, y + 11))
-            }
-            linie(h, welle, mitte, 3.2)
-            if !nass {
-                let start: Double = sx < 0 ? 180 : -90
-                let haken = Path { p in
-                    p.addArc(center: P(x + sx * 6, y + 15), radius: 3, startAngle: .degrees(start), endAngle: .degrees(start + 180), clockwise: false)
-                }
-                linie(h, haken, mitte, 2.4)
-            }
+        linie(h, buendel(trennungen), haar.mix(Pal.weiss, 0.12).farbe, 2.4)
+        // Broad, subtle highlight arcs.
+        let glanz = Path { p in
+            p.addArc(center: P(78, 40), radius: 22, startAngle: .degrees(215), endAngle: .degrees(285), clockwise: false)
+            p.move(to: P(112 + 20 * CGFloat(cos(235 * Double.pi / 180)), 34 + 20 * CGFloat(sin(235 * Double.pi / 180))))
+            p.addArc(center: P(112, 34), radius: 20, startAngle: .degrees(235), endAngle: .degrees(305), clockwise: false)
         }
-
-        // Strand lines inside the fringe.
-        var fransenLinien: Striche = []
-        for i in 1..<6 {
-            let x: CGFloat = fransenX[i] + 2
-            let ende: CGFloat = fransen - 6 + laengen[i]
-            fransenLinien.append((P(x, 62), P(x + neigung * 0.7, ende), P(x + neigung * 0.3, (62 + ende) / 2)))
-        }
-        linie(h, buendel(fransenLinien), haar.mix(Pal.weiss, 0.32).farbe, 1.5)
-
-        // Shine: soft arcs, then a brighter short glint on two of them.
-        let glanzBoegen: [(CGFloat, CGFloat, CGFloat, Double, Double)] = [
-            (72, 26, 8, 200, 290), (104, 18, 9, 190, 290), (136, 28, 7, 220, 310), (88, 44, 6, 200, 290),
-        ]
-        for (i, b) in glanzBoegen.enumerated() {
-            let weich = Path { p in
-                p.addArc(center: P(b.0, b.1 + senken), radius: b.2, startAngle: .degrees(b.3), endAngle: .degrees(b.4), clockwise: false)
-            }
-            linie(h, weich, haar.mix(Pal.weiss, nass ? 0.3 : 0.16).farbe, 3)
-            if i < 2 {
-                let hell = Path { p in
-                    p.addArc(center: P(b.0, b.1 + senken), radius: b.2, startAngle: .degrees(b.3 + 15), endAngle: .degrees(b.3 + 55), clockwise: false)
-                }
-                linie(h, hell, haar.mix(Pal.weiss, 0.38).farbe, 2)
-            }
-        }
-
-        // A few loose hairs.
-        let lose: Striche = [(P(40, 36), P(26, 30), P(30, 38)), (P(150, 18), P(166, 10), P(160, 18)), (P(112, 6), P(118, -2), P(112, 0))]
-        linie(h, buendel(lose), haar.farbe, 1.4)
+        linie(h, glanz, haar.mix(Pal.weiss, nass ? 0.3 : 0.2).farbe, 5)
     }
 
     /// Standard highlight on the left of the crown.
