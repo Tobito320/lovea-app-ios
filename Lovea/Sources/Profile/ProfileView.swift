@@ -280,13 +280,9 @@ private struct ProfilInhalt: View {
         blatt = .zimmer
     }
 
-    /// Same night as the drawing: the bed scene is always night, the room follows the clock.
+    /// Same night as the drawing: the bed scene is always night, the rooms follow the clock.
     private func nachtImZimmer(_ szene: ProfilSzene) -> Bool {
-        switch szene {
-        case .schlafen: return true
-        case .zimmer: return ProfilSzene.nacht(person: person)
-        case .gym, .draussen, .unterwegs, .schule, .arbeit: return false
-        }
+        szene.dunkel(nacht: ProfilSzene.nacht(person: person))
     }
 
     /// Sitting up (3 quiet minutes after "Gute Nacht") or lying down, per sleeper.

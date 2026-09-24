@@ -297,13 +297,14 @@ enum SzenenZeichnung {
     /// what still callers want. `bett`: the optional `szene-bett-<n>` picture for the headboard.
     static func szene(_ g: GraphicsContext, _ szene: ProfilSzene, _ z: Zimmer, nacht: Bool, mitBett: Bool = true, bett: UIImage? = nil,
                       ebenen: [SzenenEbene] = SzenenEbene.allCases, t: Double) {
+        let dunkel = szene.dunkel(nacht: nacht)
         for e in ebenen {
             switch szene {
-            case .zimmer: zimmer(g, z, nacht: nacht, mitBett: mitBett, bett: bett, e, t: t)
-            case .schlafen: zimmer(g, z, nacht: true, mitBett: false, bett: nil, e, t: t)
+            case .zimmer: zimmer(g, z, nacht: dunkel, mitBett: mitBett, bett: bett, e, t: t)
+            case .schlafen: zimmer(g, z, nacht: dunkel, mitBett: false, bett: nil, e, t: t)
             case .gym: if e == .hinten { gym(g, z) }
-            case .schule: klassenzimmer(g, z, e, t: t)
-            case .arbeit: buero(g, z, e, t: t)
+            case .schule: klassenzimmer(g, z, nacht: dunkel, e, t: t)
+            case .arbeit: buero(g, z, nacht: dunkel, e, t: t)
             case .draussen(let wetter, let n): draussen(g, wetter: wetter, nacht: n, e, t: t)
             case .unterwegs(let wetter, let n):
                 draussen(g, wetter: wetter, nacht: n, e, t: t)
@@ -331,11 +332,8 @@ enum SzenenZeichnung {
                 bettVorn(b, z.bett, herz: false)
             }
             if nacht {
-                // The room goes dark except the window glass, so the moon stays bright; the lamp is
-                // drawn after the dimming, lit, in a warm pool of light.
-                var d = g
-                if z.hat("fenster") { d.clip(to: Path(fensterGlas), options: .inverse) }
-                d.fill(alles, with: .color(farbe(0x141833).opacity(0.45)))
+                // The lamp is drawn after the dimming, lit, in a warm pool of light.
+                abdunkeln(g, ausser: z.hat("fenster") ? fensterGlas : nil)
                 if z.hat("lampe") {
                     let c = P(172, 252)
                     g.fill(kreis(c, 130), with: .radialGradient(Gradient(colors: [farbe(0xFFC96B).opacity(0.5), farbe(0xFFB347).opacity(0.15), .clear]), center: c, startRadius: 6, endRadius: 130))
@@ -346,6 +344,13 @@ enum SzenenZeichnung {
         case .oben:
             lichter(g, z, t: t)
         }
+    }
+
+    /// Night: the room goes dark except the window glass, so the moon and the sky stay bright.
+    private static func abdunkeln(_ g: GraphicsContext, ausser glas: CGRect?) {
+        var d = g
+        if let glas { d.clip(to: Path(glas), options: .inverse) }
+        d.fill(alles, with: .color(farbe(0x141833).opacity(0.45)))
     }
 
     private static func wand(_ g: GraphicsContext, _ i: Int) {
@@ -1302,16 +1307,16 @@ enum SzenenZeichnung {
 
     // MARK: School and work (the desk comes with the sitting figure, `FigurView.schreibtisch`)
 
-    private static func klassenzimmer(_ g: GraphicsContext, _ z: Zimmer, _ e: SzenenEbene, t: Double) {
+    private static func klassenzimmer(_ g: GraphicsContext, _ z: Zimmer, nacht: Bool, _ e: SzenenEbene, t: Double) {
         switch e {
         case .hinten:
             wand(g, z.wand)
             boden(g, z.boden)
-            fensterHinten(g, nacht: false)
+            fensterHinten(g, nacht: nacht)
         case .mitte:
-            break
+            if nacht { fensterSterne(g, t: t) }
         case .vorn:
-            fensterVorn(g, nacht: false)
+            fensterVorn(g, nacht: nacht)
             // Whiteboard kept above the pinboard's spot (y 150).
             teil(g, box(156, 62, 186, 78, 6), Pal.silber, 3)
             g.fill(box(162, 68, 174, 66), with: .color(.white))
@@ -1321,13 +1326,15 @@ enum SzenenZeichnung {
             linie(g, strich(P(270, 122), P(306, 122)), farbe(0x3A2630).opacity(0.6), 2.5)
             teil(g, box(196, 140, 110, 6, 2), Pal.silber, 2)
             einrichtung(g, z)
-            leuchten(g, z, nacht: false)
+            if nacht { abdunkeln(g, ausser: fensterGlas) }
+            leuchten(g, z, nacht: nacht)
         case .oben:
             lichter(g, z, t: t)
         }
     }
 
-    private static func buero(_ g: GraphicsContext, _ z: Zimmer, _ e: SzenenEbene, t: Double) {
+    /// Skyline out of the office window; at night dark towers with a few lit windows.
+    private static func buero(_ g: GraphicsContext, _ z: Zimmer, nacht: Bool, _ e: SzenenEbene, t: Double) {
         switch e {
         case .hinten:
             wand(g, z.wand)
@@ -1337,14 +1344,20 @@ enum SzenenZeichnung {
             let glas = rahmen.insetBy(dx: 7, dy: 7)
             var innen = g
             innen.clip(to: Path(glas))
-            innen.fill(Path(glas), with: .linearGradient(Gradient(colors: [farbe(0x8CCBF2), farbe(0xDDF1FB)]), startPoint: P(0, glas.minY), endPoint: P(0, glas.maxY)))
-            for (x, h) in [(CGFloat(28), CGFloat(52)), (48, 76), (70, 40), (88, 64), (108, 88), (126, 50)] {
-                innen.fill(box(x, glas.maxY - h, 18, h), with: .color(farbe(0x8E9BB0)))
+            let himmel = nacht ? [farbe(0x1E2A55), farbe(0x3A3F78)] : [farbe(0x8CCBF2), farbe(0xDDF1FB)]
+            innen.fill(Path(glas), with: .linearGradient(Gradient(colors: himmel), startPoint: P(0, glas.minY), endPoint: P(0, glas.maxY)))
+            for (n, (x, h)) in [(CGFloat(28), CGFloat(52)), (48, 76), (70, 40), (88, 64), (108, 88), (126, 50)].enumerated() {
+                innen.fill(box(x, glas.maxY - h, 18, h), with: .color(farbe(nacht ? 0x2B3350 : 0x8E9BB0)))
+                guard nacht else { continue }
+                for (k, y) in stride(from: glas.maxY - h + 6, to: glas.maxY - 4, by: 10).enumerated() where zufall(n * 13 + k) > 0.55 {
+                    innen.fill(box(x + 4 + CGFloat(k % 2) * 6, y, 4, 4), with: .color(farbe(0xFFD98A)))
+                }
             }
             linie(g, strich(P(rahmen.midX, glas.minY), P(rahmen.midX, glas.maxY)), Pal.weiss.farbe, 5)
             teil(g, box(14, 192, 128, 9, 3), Pal.weiss, 2)
             einrichtung(g, z)
-            leuchten(g, z, nacht: false)
+            if nacht { abdunkeln(g, ausser: glas) }
+            leuchten(g, z, nacht: nacht)
         case .mitte, .vorn:
             break
         case .oben:

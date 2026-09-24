@@ -73,6 +73,16 @@ enum ProfilSzene: Equatable, Sendable {
         }
     }
 
+    /// Whether the room goes dark (drawing, framed photos and figures): home, office and classroom
+    /// at night, the bed always. The gym and outside bring their own light.
+    func dunkel(nacht: Bool) -> Bool {
+        switch self {
+        case .schlafen: true
+        case .zimmer, .schule, .arbeit: nacht
+        case .gym, .draussen, .unterwegs: false
+        }
+    }
+
     /// The furnishable place this scene shows (its own saved `Zimmer`), `nil` outside.
     var raumOrt: RaumOrt? {
         switch self {
@@ -185,7 +195,7 @@ struct ProfilSzeneHintergrund: View {
                 }
             }
             .overlay {
-                if imZimmer { FotoRahmen(zimmer: zimmer, nacht: szene == .schlafen(zusammen: true) || szene == .schlafen(zusammen: false) || (szene == .zimmer && nacht)) }
+                if imZimmer { FotoRahmen(zimmer: zimmer, nacht: szene.dunkel(nacht: nacht)) }
             }
             .clipped()
             .onAppear { sichtbar = true }
@@ -217,7 +227,8 @@ struct ProfilSzeneHintergrund: View {
         switch szene {
         case .zimmer: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang") || (nacht && zimmer.hat("fenster"))
         case .schlafen: zimmer.hat("lichterkette") || zimmer.hat("fenster")
-        case .schule, .arbeit: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang")
+        case .schule: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang") || nacht
+        case .arbeit: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang")
         case .gym: false
         case .draussen, .unterwegs: true
         }
