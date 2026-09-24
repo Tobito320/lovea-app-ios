@@ -135,7 +135,13 @@ export class Raum {
     const letzter = letzterStandort(this.sql, partnerVon(person));
     if (letzter) server.send(JSON.stringify({ t: "standort", person: partnerVon(person), d: letzter.d }));
     const zustand = letzterZustand(this.sql, partnerVon(person));
-    if (zustand) server.send(JSON.stringify({ t: "fl", von: partnerVon(person), art: "zustand", d: zustand }));
+    // audit-szene #4: `seit` reitet mit, wie beim Live-Broadcast oben -- der Client erkennt daran
+    // einen unveraenderten Replay (z. B. eine seit Tagen eingefrorene "schlaeft") statt ihn als
+    // frisch zu behandeln, nur weil UNSER Reconnect ihn erneut ausgeliefert hat.
+    if (zustand) {
+      const d = zustand.zeit ? { ...zustand.d, seit: zustand.zeit } : zustand.d;
+      server.send(JSON.stringify({ t: "fl", von: partnerVon(person), art: "zustand", d }));
+    }
 
     this.#sendePraesenz();
     return new Response(null, { status: 101, webSocket: client });
@@ -260,8 +266,15 @@ export class Raum {
     if (art === "standort") {
       await this.#standort(person, d);
     } else {
-      if (art === "zustand") zustandMerken(this.sql, person, d);
-      this.#sendeAnPartner(person, { t: "fl", von: person, art, d });
+      let ausgehend = d;
+      if (art === "zustand") {
+        // audit-szene #4: `seit` reitet auf `d` mit, damit der Client (auch beim Live-Empfang,
+        // nicht nur beim Reconnect-Replay unten) weiss, wann DIESER Wert wirklich verschickt wurde.
+        const zeitIso = new Date().toISOString();
+        zustandMerken(this.sql, person, d, zeitIso);
+        ausgehend = { ...d, seit: zeitIso };
+      }
+      this.#sendeAnPartner(person, { t: "fl", von: person, art, d: ausgehend });
     }
   }
 

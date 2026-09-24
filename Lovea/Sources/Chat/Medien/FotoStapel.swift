@@ -111,7 +111,8 @@ struct MedienGalerie: View {
         .presentationBackground(.clear)
         .statusBarHidden()
         .screenshotKontext(.medium(video: false, eigen: eigene))
-        .sensoryFeedback(.selection, trigger: auswahl)
+        // Haptik.auswahl(), not `.sensoryFeedback`: the latter ignores the "Haptik" settings switch.
+        .onChange(of: auswahl) { _, _ in Haptik.auswahl() }
         .task { FigurenModell.shared.zustandSenden(.init(haupt: .schautBild)) }
         .onDisappear { FigurenModell.shared.zustandSenden(.init(haupt: .imChat)) }
     }

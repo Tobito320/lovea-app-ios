@@ -93,4 +93,20 @@ final class SchlafLogikTests: XCTestCase {
         XCTAssertEqual(SchlafZustand(.schlaeft), .schlaeft)
         XCTAssertEqual(SchlafZustand(nil), .wach)
     }
+
+    /// audit-szene #4: a frozen "schläft" the partner shared right before going silently offline
+    /// must expire — but not while it's still plausibly true (real night hours).
+    func testPartnerZustandAbgelaufen() {
+        let start = berlin(24, 23) // 23:00
+        // Well under the limit: never expires this fast, whatever the hour.
+        XCTAssertFalse(SchlafLogik.partnerZustandAbgelaufen(seit: start, jetzt: start.addingTimeInterval(30 * 60)))
+        // Over an hour later, but still a plausible sleeping hour (03:00): not stale yet.
+        XCTAssertFalse(SchlafLogik.partnerZustandAbgelaufen(seit: start, jetzt: berlin(25, 3)))
+        // Over an hour later, morning has clearly passed (09:00): expires.
+        XCTAssertTrue(SchlafLogik.partnerZustandAbgelaufen(seit: start, jetzt: berlin(25, 9)))
+        // Stuck for days: still expires once it's day, not just the first morning.
+        XCTAssertTrue(SchlafLogik.partnerZustandAbgelaufen(seit: start, jetzt: berlin(27, 14)))
+        // Never confirmed unchanged (e.g. just decoded for the first time): don't guess.
+        XCTAssertFalse(SchlafLogik.partnerZustandAbgelaufen(seit: nil, jetzt: berlin(25, 9)))
+    }
 }

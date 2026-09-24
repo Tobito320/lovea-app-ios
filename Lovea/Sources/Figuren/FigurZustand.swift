@@ -195,6 +195,20 @@ enum SchlafLogik {
         let heute = Calendar.berlin.date(bySettingHour: 20, minute: 0, second: 0, of: jetzt) ?? jetzt
         return heute <= jetzt ? heute : Calendar.berlin.date(byAdding: .day, value: -1, to: heute) ?? heute
     }
+
+    /// audit-szene #4: how long a shared "schläft"/"sitzt im Bett" may sit unchanged before it's
+    /// treated as stale rather than trusted (`FigurenModell.partnerZustandVerfallenLassen`).
+    static let unveraendertGrenze: TimeInterval = 3600
+
+    /// `seit` is the server-recorded time the CURRENT value was truly sent (rides along as `seit` in
+    /// the `zustand` payload, `raum.js`), not when we happened to receive or re-receive it — so a
+    /// reconnect replaying the same old state can't look fresh. Stale past `unveraendertGrenze`, but
+    /// only once it's no longer a plausible sleeping hour — during real night hours the same state is
+    /// still likely true even without a fresh update.
+    static func partnerZustandAbgelaufen(seit: Date?, jetzt: Date) -> Bool {
+        guard let seit, jetzt.timeIntervalSince(seit) > unveraendertGrenze else { return false }
+        return !AnwesenheitEingabe.istNachtstunde(Calendar.berlin.component(.hour, from: jetzt))
+    }
 }
 /// Everything `bestimmen` looks at. States are passed as the matching `FigurZustand`.
 struct FigurEingabe: Sendable {

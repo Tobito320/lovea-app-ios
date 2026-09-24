@@ -370,7 +370,11 @@ struct ReaktionenBlatt: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .sensoryFeedback(.selection, trigger: reiter)
+        // audit-chat haptics pass: dropped the explicit `.sensoryFeedback(.selection, trigger: reiter)`
+        // that used to sit here instead of re-adding it as `Haptik.auswahl()` — a `.pickerStyle(.segmented)`
+        // already plays a system selection haptic on its own (HIG "Playing haptics": "toggles, sliders,
+        // and pickers... play Apple-designed system haptics by default"), so an app-level one on top of
+        // it would double up, and the removed one ignored the "Haptik" switch besides.
     }
 
     @ViewBuilder private var inhalt: some View {
