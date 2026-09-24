@@ -72,8 +72,14 @@ final class RenderGalerieSzeneTests: XCTestCase {
             (titel: "Nur Ahmed schläft", ansicht: nacht(nurAhmed, zimmer: eingerichtet)),
             (titel: "Nur Annika schläft", ansicht: nacht(nurAnnika, zimmer: Zimmer())),
             (titel: "Müde ab 22 Uhr", ansicht: nacht(muede, zimmer: Zimmer(), mitBett: true)),
+            (titel: "Annika sitzt auf, Ahmed schläft", ansicht: nacht(AnyView(SchlafendeFiguren(
+                zimmer: eingerichtet, schlaefer: [.standard(for: .annika), .standard(for: .ahmed)], animiert: false, sitzend: [0]
+            )), zimmer: eingerichtet)),
+            (titel: "Ahmed sitzt auf (allein)", ansicht: nacht(AnyView(SchlafendeFiguren(
+                zimmer: Zimmer(), schlaefer: [.standard(for: .ahmed)], animiert: false, sitzend: [0]
+            )), zimmer: Zimmer())),
         ]
-        RenderTafel.speichern("profil-nacht", spalten: 3, zellen: zellen)
+        RenderTafel.speichern("profil-nacht", spalten: 5, zellen: zellen)
     }
 
     private func nacht(_ figuren: AnyView, zimmer: Zimmer, mitBett: Bool = false) -> AnyView {
