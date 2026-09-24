@@ -93,8 +93,7 @@ struct SchritteSpalte: View {
     }
 }
 
-/// Z-36.2: the step duel on the Health tab. Own ring → month of mini rings, partner ring → week
-/// comparison (both zoom out of the ring).
+/// Z-36.2: the step duel on the Health tab. Each ring zooms into the steps detail of that person.
 struct SchritteKarte: View {
     let zoom: Namespace.ID
     let oeffnen: (HealthZiel) -> Void
@@ -115,7 +114,7 @@ struct SchritteKarte: View {
 
     private func spalte(_ person: Person) -> some View {
         let heute = Datum.text(Date())
-        let ziel: HealthZiel = person == ich ? .schritteMonat : .schritteVergleich
+        let ziel = HealthZiel.schritte(person)
         return Button { oeffnen(ziel) } label: {
             SchritteSpalte(
                 person: person, anzahl: health.heuteSchritte(person), ziel: health.zielSchritte(person),
@@ -125,7 +124,7 @@ struct SchritteKarte: View {
         }
         .buttonStyle(.federnd)
         .matchedTransitionSource(id: ziel, in: zoom)
-        .accessibilityHint(person == ich ? "Öffnet deinen Monat" : "Vergleicht eure Woche")
+        .accessibilityHint("Öffnet die Schritte von \(person == ich ? "dir" : person.name)")
     }
 }
 

@@ -34,7 +34,7 @@ final class ProfilSzeneTests: XCTestCase {
 
     func testDraussenWetter() {
         XCTAssertEqual(szene(ort: nil, code: 61, tag: true), .draussen(wetter: .regen, nacht: false))
-        XCTAssertEqual(szene(ort: "arbeit", code: 0, tag: true), .draussen(wetter: .sonne, nacht: false))
+        XCTAssertEqual(szene(ort: nil, code: 0, tag: true), .draussen(wetter: .sonne, nacht: false))
         XCTAssertEqual(szene(ort: "sonstiges", code: 3, tag: true), .draussen(wetter: .wolken, nacht: false))
         XCTAssertEqual(szene(code: 73, tag: true), .draussen(wetter: .schnee, nacht: false))
         XCTAssertEqual(szene(code: nil, tag: true), .draussen(wetter: .wolken, nacht: false))

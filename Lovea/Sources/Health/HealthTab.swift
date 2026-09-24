@@ -2,7 +2,7 @@ import SwiftUI
 
 /// Where the Health tab navigates; also the zoom source id of the tile or ring it came from.
 enum HealthZiel: Hashable {
-    case habit(String), schritteMonat, schritteVergleich, punkte
+    case habit(String), schritte(Person), schritteVergleich, punkte
 }
 
 /// Spec 3.1, HabitLink style: date eyebrow and "Health", the points chip with the Lovea coin, step
@@ -73,7 +73,7 @@ struct HealthTab: View {
     private func ansicht(_ ziel: HealthZiel) -> some View {
         switch ziel {
         case .habit(let id): HabitDetailView(habitId: id)
-        case .schritteMonat: SchritteMonatView()
+        case .schritte(let person): SchritteDetailView(person: person)
         case .schritteVergleich: SchritteVergleichView()
         case .punkte: PunkteVerlaufView()
         }
