@@ -74,6 +74,8 @@ final class HealthModell {
     func kmAm(_ person: Person, _ tag: String) -> Double? { schritteExtras[person]?[tag]?.wert.km }
     func etagenAm(_ person: Person, _ tag: String) -> Int? { schritteExtras[person]?[tag]?.wert.etagen }
     func extrasAm(_ person: Person, _ tag: String) -> SchritteExtra? { schritteExtras[person]?[tag]?.wert }
+    /// All days with steps (backfilled ones too — display only).
+    func schritteWerte(_ person: Person) -> [String: Int] { (schritte[person] ?? [:]).mapValues(\.wert) }
     func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date)? { schlaf[person]?[tag] }
 
     /// Every habit incl. Gym and Wasser; `ausgeblendet` = hidden by this device's person.

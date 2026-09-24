@@ -37,6 +37,31 @@ final class RenderGalerieHealthTests: XCTestCase {
         HabitKachel(habit: habit, ziel: ziel, werte: werte, heute: heute, partner: partner).frame(width: 172, height: 172)
     }
 
+    /// Steps detail after Ahmed's reference: big ring, stat chips, smooth 7-day line, light and dark.
+    func testSchritteDetail() {
+        let tage = SchritteLogik.fensterTage(anker: heute, heute: heute)
+        let werte = Dictionary(uniqueKeysWithValues: zip(tage, [7200, 11_955, 9100, 6400, 8300, 8800, 5200]))
+        let punkte = SchritteLogik.linienPunkte(tage: tage, werte: werte, heute: heute)
+        let extra = SchritteExtra(km: 8.8, etagen: 8, kcal: 639, aktivMinuten: 128)
+        func detail(_ person: Person, gewaehlt: String, schritte: Int) -> some View {
+            VStack(spacing: 20) {
+                SchritteGrossRing(person: person, titel: "19. Sept. 2026", anzahl: schritte, ziel: 10_000)
+                SchritteStatChips(werte: extra, scrollbar: false)
+                SchritteLinie(punkte: punkte, ziel: 10_000, gewaehlt: gewaehlt, farbe: Color.person(person))
+            }
+            .frame(width: 360)
+        }
+        RenderTafel.speichern("health-schritte-detail", spalten: 2, zellen: [
+            zelle("Ahmed, Ziel erreicht, hell", detail(.ahmed, gewaehlt: tage[1], schritte: 11_955)),
+            zelle("Annika, offen, dunkel", detail(.annika, gewaehlt: tage[3], schritte: 6400), .dark),
+            zelle("Ahmed, dunkel", detail(.ahmed, gewaehlt: tage[1], schritte: 11_955), .dark),
+            zelle("Ohne Daten, hell", VStack(spacing: 20) {
+                SchritteGrossRing(person: .annika, titel: "Heute", anzahl: nil, ziel: 10_000)
+                SchritteStatChips(werte: SchritteExtra(), scrollbar: false)
+            }.frame(width: 360)),
+        ])
+    }
+
     func testRingeUndPunkte() {
         RenderTafel.speichern("health-ringe", spalten: 4, zellen: [
             zelle("Ahmed 8.596", SchritteSpalte(person: .ahmed, anzahl: 8596, ziel: 10_000, km: 6.12, etagen: 7)),

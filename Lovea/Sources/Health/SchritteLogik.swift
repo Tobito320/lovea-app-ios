@@ -1,5 +1,12 @@
 import Foundation
 
+/// One day of the steps line chart.
+struct SchrittPunkt: Identifiable, Equatable, Sendable {
+    let tag: String
+    let schritte: Int
+    var id: String { tag }
+}
+
 /// Tag / Woche / Monat of the steps detail.
 enum SchritteZeitraum: String, CaseIterable, Sendable {
     case tag, woche, monat
@@ -51,8 +58,8 @@ enum SchritteLogik {
 
     /// Chart points: future days left out, a past day without data counts 0 so the smooth line
     /// stays continuous.
-    static func linienPunkte(tage: [String], werte: [String: Int], heute: String) -> [(tag: String, schritte: Int)] {
-        tage.filter { $0 <= heute }.map { ($0, werte[$0] ?? 0) }
+    static func linienPunkte(tage: [String], werte: [String: Int], heute: String) -> [SchrittPunkt] {
+        tage.filter { $0 <= heute }.map { SchrittPunkt(tag: $0, schritte: werte[$0] ?? 0) }
     }
 
     struct Platz: Equatable, Sendable {

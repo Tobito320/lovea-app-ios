@@ -73,63 +73,6 @@ struct SchritteWocheChart: View {
     }
 }
 
-/// Z-36.2, Spec 3.2 "Eigenen Ring antippen": each day a mini ring (goal reached: full, else its
-/// share), months swipeable, never the future.
-struct SchritteMonatView: View {
-    private var health: HealthModell { HealthModell.shared }
-    private var ich: Person { Raum.shared.ich ?? .ahmed }
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 12) {
-                MonatsPager { zurueck in monat(zurueck).padding(.horizontal, 16) }
-                Text("Voller Ring: Tagesziel geschafft.").font(.footnote).foregroundStyle(.secondary).padding(.horizontal, 16)
-            }
-            .padding(.vertical, 16)
-        }
-        .navigationTitle("Deine Schritte")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private func monat(_ zurueck: Int) -> some View {
-        let heute = Datum.text(Date())
-        let gitter = HealthLogik.monatsGitter(heute: heute, monateZurueck: zurueck)
-        let zellen = gitter + [String?](repeating: nil, count: max(0, 42 - gitter.count)) // immer 6 Zeilen, gleiche Höhe
-        return VStack(alignment: .leading, spacing: 12) {
-            Text(HealthText.monat(gitter)).font(.title3.weight(.semibold))
-            Text(summe(gitter, heute: heute)).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
-            WochentagsKopf()
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 4), count: 7), spacing: 8) {
-                ForEach(Array(zellen.enumerated()), id: \.offset) { _, tag in zelle(tag, heute: heute) }
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func zelle(_ tag: String?, heute: String) -> some View {
-        if let tag, tag <= heute {
-            let anzahl = health.schritteAm(ich, tag)
-            let ziel = HealthLogik.zielAmTag(tag, health.zielSchritteAenderungen[ich] ?? [], standard: 10_000)
-            MiniRing(anteil: anzahl.map { Double($0) / Double(max(1, ziel)) }, farbe: Color.person(ich), tag: tag)
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(Datum.anzeige(tag)): \(anzahl.map { "\(HealthText.zahl($0)) Schritte" } ?? "keine Daten")")
-        } else if let tag {
-            Text(HealthText.tagesnummer(tag)).font(.caption2).foregroundStyle(.quaternary).frame(maxWidth: .infinity, minHeight: 36)
-                .accessibilityHidden(true)
-        } else {
-            Color.clear.frame(height: 36)
-        }
-    }
-
-    private func summe(_ gitter: [String?], heute: String) -> String {
-        let werte = gitter.compactMap { $0 }.filter { $0 <= heute }.compactMap { health.schritteAm(ich, $0) }
-        guard !werte.isEmpty else { return "Noch keine Schritte" }
-        let gesamt = werte.reduce(0, +)
-        return "\(HealthText.zahl(gesamt)) Schritte · Ø \(HealthText.zahl(gesamt / werte.count)) am Tag"
-    }
-}
-
 /// Z-36.2, Spec 3.2 "Partner-Ring antippen": the partner's week against yours, bars side by side,
 /// difference per day and in total (from your side: + means you are ahead).
 struct SchritteVergleichView: View {
