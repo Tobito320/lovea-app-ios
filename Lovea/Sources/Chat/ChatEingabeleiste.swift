@@ -521,9 +521,10 @@ struct ChatEingabeleiste: View {
     private func entwurfSpracheLaden(_ medienId: String) async -> SprachEntwurf? {
         guard let url = try? await Medien.holen(medienId) else { return nil }
         let dauer = (try? await AVURLAsset(url: url).load(.duration))?.seconds ?? 0
-        // ponytail: the waveform isn't persisted (Z-26.2 payload has no field for it) — a restored
-        // preview shows a flat bar until sent; upgrade only if that turns out to bother anyone.
-        return SprachEntwurf(medienId: medienId, url: url, dauer: dauer, pegel: [])
+        // audit-chat #3: the waveform isn't persisted (Z-26.2 payload has no field for it) — computed
+        // locally from the m4a instead of a flat placeholder (`Wellenform.ausDatei`).
+        let pegel = await Task.detached(priority: .utility) { Wellenform.ausDatei(url) }.value
+        return SprachEntwurf(medienId: medienId, url: url, dauer: dauer, pegel: pegel)
     }
 }
 
@@ -591,7 +592,10 @@ private struct AnhangLeiste: View {
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        .offset(x: 16, y: -16)
+                        // audit-chat #6: the 44pt hit area used to reach past the 10pt gap into the
+                        // next thumbnail (offset 16 > spacing 10) — matching the offset to the
+                        // spacing keeps every button's hit area inside its own thumbnail's column.
+                        .offset(x: 10, y: -10)
                         .accessibilityLabel("Anhang entfernen")
                     }
                     .transition(.scale.combined(with: .opacity))
