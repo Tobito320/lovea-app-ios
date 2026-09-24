@@ -87,6 +87,8 @@ final class ChatEffektSpieler {
 
     private(set) var laeuft: (effekt: ChatEffekt, start: Date)?
     @ObservationIgnored private var gesehen: [String] = UserDefaults.standard.stringArray(forKey: "lovea.chat.effekteGesehen") ?? []
+    @ObservationIgnored private var wartend: ChatModell.Nachricht?
+    @ObservationIgnored private var beobachter: NSObjectProtocol?
 
     func spielen(_ effekt: ChatEffekt) {
         guard !UIAccessibility.isReduceMotionEnabled else { return }
@@ -101,6 +103,21 @@ final class ChatEffektSpieler {
     /// Row appeared. Only messages younger than a day play, so a reinstall doesn't replay history.
     func erstesSehen(_ nachricht: ChatModell.Nachricht) {
         guard let effekt = nachricht.effekt, !gesehen.contains(nachricht.id) else { return }
+        // Arrived while the app is in the background with the chat open: wait until she actually looks.
+        guard UIApplication.shared.applicationState == .active else {
+            wartend = nachricht
+            if beobachter == nil {
+                beobachter = NotificationCenter.default.addObserver(
+                    forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main
+                ) { _ in
+                    MainActor.assumeIsolated {
+                        let s = ChatEffektSpieler.shared
+                        if let n = s.wartend { s.wartend = nil; s.erstesSehen(n) }
+                    }
+                }
+            }
+            return
+        }
         // ponytail: newest 200 ids in UserDefaults; older ones are past the one-day window anyway.
         gesehen = Array((gesehen + [nachricht.id]).suffix(200))
         UserDefaults.standard.set(gesehen, forKey: "lovea.chat.effekteGesehen")
