@@ -172,7 +172,6 @@ private struct ProfilInhalt: View {
         let b = belegung(szene, paar: true)
         return ZStack(alignment: .bottomLeading) {
             kopfFiguren(szene, b)
-                .overlay { KussSzene(person: person) }
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.trailing, -6)
 
@@ -256,6 +255,9 @@ private struct ProfilInhalt: View {
         Group {
             if wach.isEmpty {
                 bett(b.imBett, skala: 1)
+            } else if wach.count == 2 {
+                // Brief K: both awake, so a kiss becomes a hug and a kiss of the two figures.
+                KussPaar(vorn: person) { p, stand in figur(p, szene: p == person ? szene : nil, paar: stand) }
             } else if b.imBett.isEmpty {
                 HStack(alignment: .bottom, spacing: -64) {
                     ForEach(wach, id: \.self) { p in figur(p, szene: p == person ? szene : nil).zIndex(p == person ? 1 : 0) }
@@ -320,8 +322,9 @@ private struct ProfilInhalt: View {
     /// `szene` (Brief G, profile person only): the scene's state and extras (dumbbells in the gym,
     /// umbrella or sunglasses outside). A sleeper outside the room (no bed there) stands asleep;
     /// from 22:00 an awake figure is tired and yawns now and then.
+    /// `paar` (Brief K): the pair's hug-and-kiss frame while a kiss plays; it replaces the lean.
     @ViewBuilder
-    private func figur(_ p: Person, szene: ProfilSzene? = nil) -> some View {
+    private func figur(_ p: Person, szene: ProfilSzene? = nil, paar: KussAblauf.Stand? = nil) -> some View {
         // Their own shared state even while their app is closed (it arrives in the background too),
         // so both phones show the same; grey "offline" only when nothing was ever shared.
         let live = ProfilSzene.geteilterZustand(p) ?? .offline
@@ -339,11 +342,15 @@ private struct ProfilInhalt: View {
         // A bought pose would replace the curls or the desk, so gym, school and work keep their own.
         let pose = szene.map { $0 != .gym && $0 != .schule && $0 != .arbeit } ?? true
         let tisch = szene?.raumOrt.map { Zimmer.von(person, ort: $0).tisch } ?? 0
-        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose, extras: extras, tisch: tisch)
-            .rotationEffect(.degrees(kuesst ? Double(richtung) * 7 : 0), anchor: .bottom)
-            .offset(x: kuesst ? richtung * 38 : 0)
-            .scaleEffect(kuesst ? 1.05 : 1, anchor: .bottom)
-            .animation(.spring(response: 0.45, dampingFraction: 0.62), value: kuesst)
+        // Alone (own profile, next to a bed) the kiss is still the lean; the pair hugs instead.
+        let lehnt = kuesst && paar == nil
+        let gezeigt: FigurZustand = paar?.zustand(p) ?? (kuesst ? .kuss : zustand)
+        let paarExtras: Set<FigurExtra> = paar == nil ? extras : []
+        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: gezeigt, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose && paar == nil, extras: paarExtras, tisch: tisch, umarmung: paar?.umarmung(p))
+            .rotationEffect(.degrees(lehnt ? Double(richtung) * 7 : 0), anchor: .bottom)
+            .offset(x: lehnt ? richtung * 38 : 0)
+            .scaleEffect(lehnt ? 1.05 : 1, anchor: .bottom)
+            .animation(.spring(response: 0.45, dampingFraction: 0.62), value: lehnt)
         if p == ich {
             v.accessibilityLabel("Deine Figur")
         } else {
