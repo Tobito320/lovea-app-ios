@@ -8,6 +8,18 @@ const AUFNAHME_TEXT = {
   chatAufnahme: "nimmt den Chat auf",
   gespeichertFoto: "hat ein Bild in Aufnahmen gespeichert",
   gespeichertVideo: "hat ein Video in Aufnahmen gespeichert",
+  profilScreenshot: "hat einen Screenshot von deinem Profil gemacht",
+  profilAufnahme: "nimmt dein Profil auf",
+  stickerScreenshot: "hat einen Screenshot von einem Sticker gemacht",
+  stickerAufnahme: "nimmt einen Sticker auf",
+  fotoScreenshot: "hat einen Screenshot von deinem Foto gemacht",
+  fotoAufnahme: "nimmt dein Foto auf",
+  videoScreenshot: "hat einen Screenshot von deinem Video gemacht",
+  videoAufnahme: "nimmt dein Video auf",
+  chatFotoScreenshot: "hat einen Screenshot von einem Foto im Chat gemacht",
+  chatFotoAufnahme: "nimmt ein Foto im Chat auf",
+  chatVideoScreenshot: "hat einen Screenshot von einem Video im Chat gemacht",
+  chatVideoAufnahme: "nimmt ein Video im Chat auf",
 };
 
 const NAME = { ahmed: "Ahmed", annika: "Annika" };
