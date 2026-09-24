@@ -244,6 +244,8 @@ struct SprachAufnahmeButton: View {
     /// Hold-to-talk: when the finger went down, and whether it slid left to cancel.
     @State private var halteBeginn: Date?
     @State private var halteAbbruch = false
+    /// False again when the touch ends or is cancelled (a system alert, e.g. the mic permission).
+    @GestureState private var gedrueckt = false
     @State private var loeschenFragen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -298,6 +300,14 @@ struct SprachAufnahmeButton: View {
             }
             .contentShape(.rect)
             .gesture(halteGeste)
+            .onChange(of: gedrueckt) { _, jetzt in
+                guard !jetzt else { return }
+                // A cancelled touch never reaches `onEnded`: it counts as a tap (keeps recording).
+                Task {
+                    try? await Task.sleep(for: .milliseconds(150))
+                    halteBeginn = nil
+                }
+            }
             .accessibilityElement(children: .ignore)
             .accessibilityLabel("Sprachnachricht aufnehmen")
             .accessibilityAddTraits(.isButton)
@@ -308,6 +318,7 @@ struct SprachAufnahmeButton: View {
     /// can never turn a tap into a "hold → send".
     private var halteGeste: some Gesture {
         DragGesture(minimumDistance: 0)
+            .updating($gedrueckt) { _, gedrueckt, _ in gedrueckt = true }
             .onChanged { wert in
                 if halteBeginn == nil, phase == .bereit {
                     halteBeginn = wert.time
@@ -350,8 +361,9 @@ struct SprachAufnahmeButton: View {
                     knopf("trash", "Aufnahme löschen", groesse: 44, farbe: .red.opacity(0.15), vordergrund: .red) { loeschenFragen = true }
                     Spacer()
                     knopf("pause.fill", "Aufnahme pausieren", groesse: 56, farbe: .red, vordergrund: .white) { pausieren() }
+                        .disabled(!steuerung.laeuft)
                     Spacer()
-                    sendenKnopf
+                    sendenKnopf.disabled(!steuerung.laeuft)
                 }
             }
         }
@@ -452,8 +464,8 @@ struct SprachAufnahmeButton: View {
                 }
                 return
             }
-            // Let go (or cancelled) while the session was still starting.
-            if phase != .nimmtAuf { steuerung.pausieren() }
+            // Let go, paused or cancelled while the session was still starting: nothing worth keeping.
+            if phase != .nimmtAuf { steuerung.verwerfen() }
         }
     }
 
@@ -474,7 +486,10 @@ struct SprachAufnahmeButton: View {
 
     private func zurPruefung() {
         Task {
-            guard let entwurf = await steuerung.zusammenfuegen() else { return }
+            guard let entwurf = await steuerung.zusammenfuegen() else {
+                if vorschau == nil, phase == .pruefen { ereignis(.verwerfen) }
+                return
+            }
             vorschau = entwurf
             onEntwurfAendern()
             hochladenFuerEntwurf(entwurf)
