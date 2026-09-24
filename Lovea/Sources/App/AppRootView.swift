@@ -23,6 +23,8 @@ final class AppNavigation {
     /// Z-32.1: message the chat tab scrolls to and highlights (notification tap, "Heute vor …").
     /// Stays set until that message has arrived; the conversation clears it.
     var chatZiel: String?
+    /// Contexts on screen right now, for screenshot/recording notices (`ScreenshotKontext`).
+    var bildschirm: [ScreenshotKontext] = []
     private init() {}
 
     /// Notification tap: chat pushes carry `art` (op kind) and `nachrichtId` (Z-32.1).
@@ -63,6 +65,8 @@ struct AppRootView: View {
         .tabBarMinimizeBehavior(.onScrollDown)
         .tint(Color.loveaRose)
         .spieleBuehne()
+        // Screenshot/recording notices for whatever chat context is on screen (`ScreenshotKontext`).
+        .modifier(ChatAufnahmeHinweise())
         .onChange(of: AppNavigation.shared.tabWunsch) { _, wunsch in
             guard let wunsch, let tab = AppTab(rawValue: wunsch) else { return }
             selectedTab = tab

@@ -90,6 +90,8 @@ struct NachrichtFokusEbene: View {
             }
         }
         .ignoresSafeArea()
+        // A sticker or GIF held in focus is what a screenshot shows now ("… von einem Sticker").
+        .screenshotKontext(nachricht.sticker != nil || nachricht.gif != nil ? .sticker : .chat)
         .onAppear {
             withAnimation(reduceMotion ? .easeOut(duration: 0.2) : Feder.federnd) { offen = true }
         }

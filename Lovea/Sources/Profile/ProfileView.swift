@@ -38,6 +38,8 @@ struct PartnerProfilView: View {
                 }
         }
         .presentationDragIndicator(.visible)
+        // Screenshot notice "… von deinem Profil" (the own profile tab registers nothing).
+        .screenshotKontext(.partnerProfil)
     }
 
     private var bilanz: [(spiel: String, ahmed: Int, annika: Int)] {

@@ -200,7 +200,7 @@ private struct Unterhaltung: View {
             .navigationBarBackButtonHidden()
             .modifier(UnterhaltungBlaetter(ich: ich, blatt: $blatt))
             .modifier(Lesebestaetigung(ich: ich, modell: modell))
-            .modifier(ChatAufnahmeHinweise())
+            .screenshotKontext(.chat)
             .modifier(Spruenge(modell: modell, zielID: $zielID, sucheAktiv: $sucheAktiv, blatt: $blatt))
             .task { ReaktionsBilder.shared.vorwaermen(ich) }
     }
