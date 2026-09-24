@@ -213,6 +213,9 @@ final class RenderGalerieFigurenTests: XCTestCase {
             b.frisur = i
             zellen.append((titel: A.frisuren[i], ansicht: figur(b, groesse: 240)))
         }
+        // AirPods check: header size close-up and the small chat avatar size.
+        zellen.append((titel: "AirPods groß", ansicht: figur(a, groesse: 360)))
+        zellen.append((titel: "Avatar-Größe", ansicht: figur(a, groesse: 44)))
         if let cap = A.outfits.first(where: { $0.name == "Cap Look" }) {
             var b = a
             b.anziehen(outfit: cap)
