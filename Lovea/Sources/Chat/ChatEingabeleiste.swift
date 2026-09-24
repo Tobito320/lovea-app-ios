@@ -286,21 +286,7 @@ struct ChatEingabeleiste: View {
                             onSenden: senden, onAendert: { tippen.tastenanschlag(); beruehrt = true; entwurfAktualisieren() }
                         )
                     }
-                    .padding(.trailing, mehrzeilig ? 36 : 0)
 
-                    if mehrzeilig {
-                        Button { Haptik.leicht(); vollansichtOffen = true } label: {
-                            Image(systemName: "arrow.up.left.and.arrow.down.right")
-                                .font(.system(size: 12, weight: .semibold))
-                                .foregroundStyle(.secondary)
-                                .frame(width: 30, height: 30)
-                                .background(Color(uiColor: .systemBackground).opacity(0.7), in: Circle())
-                                .frame(width: 44, height: 44, alignment: .topTrailing)
-                                .contentShape(.rect)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("Vollansicht")
-                    }
                 }
                 .frame(maxWidth: .infinity, minHeight: Self.hoehe)
 
@@ -325,6 +311,20 @@ struct ChatEingabeleiste: View {
         // Fills the row even while recording, so the mic never moves under the holding finger.
         .frame(maxWidth: .infinity, minHeight: Self.hoehe, alignment: .trailing)
         .glassEffect(.regular, in: .rect(cornerRadius: Self.hoehe / 2))
+        // Vollansicht: top-right corner of the whole field, see-through so the backdrop shows.
+        .overlay(alignment: .topTrailing) {
+            if mehrzeilig && !sprachBelegt {
+                Button { Haptik.leicht(); vollansichtOffen = true } label: {
+                    Image(systemName: "arrow.up.left.and.arrow.down.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Vollansicht")
+            }
+        }
     }
 
     private func uebernehmen(_ items: [PhotosPickerItem]) {
@@ -637,7 +637,8 @@ private struct GenmojiEingabefeld: UIViewRepresentable {
         view.adjustsFontForContentSizeCategory = true // Dynamic Type changes apply live (Z-16.3)
         view.accessibilityLabel = "Nachricht"
         view.backgroundColor = .clear
-        view.isScrollEnabled = false
+        // Always on: the height is capped in `sizeThatFits`; toggling it there left long text unscrollable.
+        view.isScrollEnabled = true
         view.textContainerInset = UIEdgeInsets(top: 12, left: 0, bottom: 12, right: 0)
         view.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
         view.supportsAdaptiveImageGlyph = true
@@ -672,8 +673,6 @@ private struct GenmojiEingabefeld: UIViewRepresentable {
         let rand = uiView.textContainerInset.top + uiView.textContainerInset.bottom
         let maxHoehe = zeile * Self.maxZeilen + rand
         let passend = uiView.sizeThatFits(CGSize(width: breite, height: .greatestFiniteMagnitude)).height
-        let zuHoch = passend > maxHoehe
-        if uiView.isScrollEnabled != zuHoch { uiView.isScrollEnabled = zuHoch }
         return CGSize(width: breite, height: min(max(passend, zeile + rand), maxHoehe))
     }
 
