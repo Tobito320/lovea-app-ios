@@ -79,7 +79,8 @@ enum ProfilSzene: Equatable, Sendable {
         case .zimmer, .schlafen: .zuhause
         case .arbeit: .arbeit
         case .schule: .schule
-        case .gym, .draussen, .unterwegs: nil
+        case .gym: .gym
+        case .draussen, .unterwegs: nil
         }
     }
 
@@ -222,7 +223,7 @@ struct ProfilSzeneHintergrund: View {
             switch szene {
             case .zimmer: SzenenZeichnung.zimmer(r, zimmer, nacht: nacht, mitBett: mitBett, bett: bett, t: t)
             case .schlafen: SzenenZeichnung.zimmer(r, zimmer, nacht: true, mitBett: false, bett: nil, t: t)
-            case .gym: SzenenZeichnung.gym(r)
+            case .gym: SzenenZeichnung.gym(r, zimmer)
             case .schule: SzenenZeichnung.klassenzimmer(r, zimmer, t: t)
             case .arbeit: SzenenZeichnung.buero(r, zimmer, t: t)
             case .draussen(let wetter, let n): SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)

@@ -23,6 +23,8 @@ struct ZimmerEditor: View {
         self.person = person
         self.ort = ort
         _zimmer = State(initialValue: Zimmer.von(person, ort: ort))
+        // Brief S: the gym has no bed or desk and a fixed wall/floor, so it skips straight to Deko.
+        _tab = State(initialValue: ort == .gym ? .deko : .moebel)
     }
 
     private enum Tab: String, CaseIterable, Identifiable {
@@ -64,7 +66,7 @@ struct ZimmerEditor: View {
         let s = hoehe / SzenenZeichnung.hoehe
         return ZStack(alignment: .bottom) {
             ProfilSzeneHintergrund(szene: szene, zimmer: zimmer, nacht: nachtVorschau && ort == .zuhause)
-            FigurView(FigurenModell.shared.aussehen(person), zustand: szene.figur(.ruhig), groesse: 340 * s, ganzkoerper: true, poseImmer: ort == .zuhause, tisch: zimmer.tisch)
+            FigurView(FigurenModell.shared.aussehen(person), zustand: szene.figur(.ruhig), groesse: 340 * s, ganzkoerper: true, poseImmer: ort == .zuhause, extras: ort == .gym ? [.hanteln] : [], tisch: zimmer.tisch)
         }
         .frame(width: SzenenZeichnung.breite * s, height: hoehe)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
@@ -92,10 +94,13 @@ struct ZimmerEditor: View {
         .accessibilityLabel(nachtVorschau ? "Bei Tag zeigen" : "Bei Nacht zeigen")
     }
 
+    /// Brief S: the gym has no Möbel, Wand or Boden to pick (fixed backdrop) and no wall frames.
+    private var tabs: [Tab] { ort == .gym ? [.deko, .poster] : Tab.allCases }
+
     private var tabLeiste: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Tab.allCases) { t in
+                ForEach(tabs) { t in
                     Button(titel(t)) {
                         withAnimation(Feder.schnell) { tab = t }
                         Haptik.auswahl()
@@ -316,6 +321,7 @@ struct ZimmerEditor: View {
         case .zuhause: .zimmer
         case .arbeit: .arbeit
         case .schule: .schule
+        case .gym: .gym
         }
     }
 
@@ -371,6 +377,7 @@ struct ZimmerKachel: View {
                 case .zuhause: SzenenZeichnung.zimmer(r, zimmer, nacht: false, mitBett: true, bett: nil, t: 0.4)
                 case .arbeit: SzenenZeichnung.buero(r, zimmer, t: 0.4)
                 case .schule: SzenenZeichnung.klassenzimmer(r, zimmer, t: 0.4)
+                case .gym: SzenenZeichnung.gym(r, zimmer)
                 }
             }
         }

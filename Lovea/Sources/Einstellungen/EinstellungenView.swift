@@ -8,6 +8,7 @@ struct EinstellungenView: View {
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
     @State private var zeigtOrte = false
     @State private var zeigtEntwickler = false
+    @State private var szenenOrt: RaumOrt?
 
     var body: some View {
         List {
@@ -19,6 +20,20 @@ struct EinstellungenView: View {
             }
             Section("Figur") {
                 NavigationLink("Figuren-Editor") { FigurEditorSeite(person: person) }
+            }
+            Section("Szenen") {
+                ForEach(RaumOrt.allCases) { ort in
+                    Button { szenenOrt = ort } label: {
+                        HStack(spacing: 12) {
+                            Label(ort.titel, systemImage: ort.symbol)
+                            Spacer()
+                            ZimmerKachel(zimmer: Zimmer.von(person, ort: ort), ort: ort, art: .raum, aussehen: FigurenModell.shared.aussehen(person))
+                                .frame(width: 40, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                }
             }
             Section("Chat") {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
@@ -56,6 +71,7 @@ struct EinstellungenView: View {
         .navigationTitle("Einstellungen")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $zeigtOrte) { OrteListeView() }
+        .sheet(item: $szenenOrt) { ort in NavigationStack { ZimmerEditor(person: person, ort: ort) } }
     }
 }
 
