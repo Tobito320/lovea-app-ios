@@ -49,13 +49,15 @@ struct EinstellungenView: View {
             }
             Section {
                 Toggle("Haptik", isOn: $haptik)
-                Toggle("Leistungsanzeige", isOn: $showsHUD)
             }
             Section {
                 Text("Version \(Bundle.main.appVersion)")
                     .foregroundStyle(.secondary)
                     .onTapGesture(count: 7) { zeigtEntwickler = true }
+                // audit-app #8: a debug tool, gated behind the same 7-tap reveal as the rest of this
+                // section instead of sitting permanently in the production settings list.
                 if zeigtEntwickler {
+                    Toggle("Leistungsanzeige", isOn: $showsHUD)
                     Menu {
                         ForEach(Person.allCases, id: \.self) { kandidat in
                             Button(kandidat.name) { session.waehlen(kandidat) }
