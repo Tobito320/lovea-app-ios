@@ -48,6 +48,22 @@ final class ChatMedienTests: XCTestCase {
         XCTAssertEqual(Int(ergebnis.height) % 2, 0)
     }
 
+    // MARK: - Videobild.abspielbar (received videos are cached without extension)
+
+    func testAbspielbarGivesExtensionlessFileAMovLink() throws {
+        let ordner = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: ordner, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: ordner) }
+        let ohneEndung = ordner.appendingPathComponent("medium")
+        try Data([1, 2, 3]).write(to: ohneEndung)
+
+        let link = Videobild.abspielbar(ohneEndung)
+        XCTAssertEqual(link.pathExtension, "mov")
+        XCTAssertEqual(try Data(contentsOf: link), Data([1, 2, 3]))
+        XCTAssertEqual(Videobild.abspielbar(ohneEndung), link, "second call reuses the link")
+        XCTAssertEqual(Videobild.abspielbar(link), link, "a file with an extension stays as it is")
+    }
+
     // MARK: - MedienNachrichtView.bildGroesse (Z-33.4: 240 pt tall, 70 % wide, 3:4 window)
 
     func testBildGroesseFitsNormalAspectWithinBounds() {

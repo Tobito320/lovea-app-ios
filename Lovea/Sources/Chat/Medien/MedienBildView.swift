@@ -216,7 +216,7 @@ private struct MedienVollbild: View {
         .statusBarHidden()
         .screenshotKontext(.medium(video: istVideo, eigen: eigene))
         .task {
-            if istVideo { spieler = AVPlayer(url: url) } else { bild = await Bilddatei.laden(url) }
+            if istVideo { spieler = AVPlayer(url: Videobild.abspielbar(url)) } else { bild = await Bilddatei.laden(url) }
             FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild))
         }
         .onDisappear {
@@ -280,9 +280,19 @@ private struct MedienVollbild: View {
 
 /// First-frame thumbnail for a local video file, off the main actor.
 enum Videobild {
+    /// AVFoundation picks the container parser from the file extension, and cached media have none
+    /// (`Medien.cacheURL`), so a received video loaded as nothing: black poster, black player.
+    /// Returns a `.mov` hard link next to such a file (instant, no copy); anything else unchanged.
+    static func abspielbar(_ url: URL) -> URL {
+        guard url.pathExtension.isEmpty else { return url }
+        let link = url.appendingPathExtension("mov")
+        if !FileManager.default.fileExists(atPath: link.path) { try? FileManager.default.linkItem(at: url, to: link) }
+        return FileManager.default.fileExists(atPath: link.path) ? link : url
+    }
+
     static func erstesBild(_ url: URL) async -> UIImage? {
         await Task.detached(priority: .userInitiated) {
-            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+            let generator = AVAssetImageGenerator(asset: AVURLAsset(url: Videobild.abspielbar(url)))
             generator.appliesPreferredTrackTransform = true
             generator.maximumSize = CGSize(width: 700, height: 700)
             guard let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) else { return nil }

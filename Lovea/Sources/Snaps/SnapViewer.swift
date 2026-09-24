@@ -73,7 +73,7 @@ struct SnapViewer: View {
 
     private func anzeigen(_ url: URL) async {
         if istVideo {
-            let player = AVPlayer(url: url)
+            let player = AVPlayer(url: Videobild.abspielbar(url))
             spieler = player
             player.play()
         } else {

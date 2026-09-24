@@ -152,7 +152,7 @@ private struct GalerieSeite: View {
             guard let geladen = await MedienDatei.url(medium, eigene: eigene) else { return }
             url = geladen
             if medium.typ == "video" {
-                spieler = AVPlayer(url: geladen)
+                spieler = AVPlayer(url: Videobild.abspielbar(geladen))
             } else {
                 bild = await Bilddatei.laden(geladen)
             }
