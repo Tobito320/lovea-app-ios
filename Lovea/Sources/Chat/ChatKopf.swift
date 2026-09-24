@@ -42,7 +42,44 @@ enum KurzAdresse {
     }
 }
 
-/// Z-32.2 (fix round 2): the conversation header is ONE glass capsule — back chevron (→ Home), the
+/// Where the partner is, for the header and the chat list: saved place (short label) → live street
+/// address (loaded by the caller into `adresse`) → the figure's place state as last resort.
+@MainActor
+enum PartnerOrt {
+    private static let figurOrte: Set<FigurZustand> = [.schule, .arbeit, .gym, .zuhause, .fahrschule, .supermarkt]
+
+    static func text(_ partner: Person, adresse: String?) -> String? {
+        if let position = Standort.shared.positionen[partner] {
+            if let ort = gespeichert(partner, position) { return ChatKopfLogik.ortLabel(name: ort.name, kategorie: ort.kategorie) }
+            if let adresse { return adresse }
+        }
+        let figurOrt = FigurenModell.shared.zustand[partner]?.haupt
+        return figurOrt.flatMap { figurOrte.contains($0) ? $0.titel : nil }
+    }
+
+    /// Changes whenever the address would need a new lookup (~100 m cell).
+    static func adressSchluessel(_ partner: Person) -> String {
+        guard let position = Standort.shared.positionen[partner] else { return "" }
+        return KurzAdresse.schluessel(position.lat, position.lon)
+    }
+
+    /// Only outside every saved place; cached per cell.
+    static func adresseLaden(_ partner: Person) async -> String? {
+        guard let position = Standort.shared.positionen[partner], gespeichert(partner, position) == nil else { return nil }
+        return await KurzAdresse.laden(lat: position.lat, lon: position.lon)
+    }
+
+    /// The partner's own saved places first, then any (e.g. a shared "Home").
+    private static func gespeichert(_ partner: Person, _ position: StandortDaten) -> Ort? {
+        let hier = CLLocation(latitude: position.lat, longitude: position.lon)
+        let treffer = OrteModell.shared.orte.filter {
+            CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: hier) <= $0.radius
+        }
+        return treffer.first { $0.person == partner } ?? treffer.first
+    }
+}
+
+/// Z-32.2 (fix round 2): the conversation header is ONE glass capsule — back chevron (→ chat list), the
 /// partner's live figure head, name and status "zuletzt … · Home" (tap → partner profile), and
 /// FaceTime audio/video as compact icon buttons inside the capsule on the right.
 struct ChatKopf: View {
@@ -52,9 +89,6 @@ struct ChatKopf: View {
     let onProfil: () -> Void
     @State private var hinweis: String?
     @State private var adresse: String?
-
-    /// Place states worth naming when no live position is known ("online · im Gym").
-    private static let orte: Set<FigurZustand> = [.schule, .arbeit, .gym, .zuhause, .fahrschule, .supermarkt]
 
     var body: some View {
         VStack(spacing: 6) {
@@ -86,9 +120,8 @@ struct ChatKopf: View {
             withAnimation(Feder.weich) { hinweis = nil }
         }
         // Street address only when the partner is outside every saved place; cached per ~100 m.
-        .task(id: adressSchluessel) {
-            guard let position = Standort.shared.positionen[partner], gespeicherterOrt(position) == nil else { return }
-            adresse = await KurzAdresse.laden(lat: position.lat, lon: position.lon)
+        .task(id: PartnerOrt.adressSchluessel(partner)) {
+            if let neu = await PartnerOrt.adresseLaden(partner) { adresse = neu }
         }
     }
 
@@ -103,7 +136,7 @@ struct ChatKopf: View {
                 .contentShape(.rect)
         }
         .buttonStyle(.federnd)
-        .accessibilityLabel("Zurück zu Home")
+        .accessibilityLabel("Zurück zu den Chats")
     }
 
     private var profilKnopf: some View {
@@ -156,31 +189,7 @@ struct ChatKopf: View {
     /// "tippt …" wins; otherwise "online"/"zuletzt …" plus where the partner is right now.
     private var status: String {
         if tippt { return "tippt …" }
-        return [anwesenheit, ortText].compactMap { $0 }.joined(separator: " · ")
-    }
-
-    /// Saved place (short label) → live street address → the figure's place state as last resort.
-    private var ortText: String? {
-        if let position = Standort.shared.positionen[partner] {
-            if let ort = gespeicherterOrt(position) { return ChatKopfLogik.ortLabel(name: ort.name, kategorie: ort.kategorie) }
-            if let adresse { return adresse }
-        }
-        let figurOrt = FigurenModell.shared.zustand[partner]?.haupt
-        return figurOrt.flatMap { Self.orte.contains($0) ? $0.titel : nil }
-    }
-
-    /// The partner's own saved places first, then any (e.g. a shared "Home").
-    private func gespeicherterOrt(_ position: StandortDaten) -> Ort? {
-        let hier = CLLocation(latitude: position.lat, longitude: position.lon)
-        let treffer = OrteModell.shared.orte.filter {
-            CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: hier) <= $0.radius
-        }
-        return treffer.first { $0.person == partner } ?? treffer.first
-    }
-
-    private var adressSchluessel: String {
-        guard let position = Standort.shared.positionen[partner] else { return "" }
-        return KurzAdresse.schluessel(position.lat, position.lon)
+        return [anwesenheit, PartnerOrt.text(partner, adresse: adresse)].compactMap { $0 }.joined(separator: " · ")
     }
 
     private var anwesenheit: String {

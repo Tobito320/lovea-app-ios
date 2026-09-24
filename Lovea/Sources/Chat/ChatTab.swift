@@ -1,18 +1,144 @@
 import Observation
 import SwiftUI
 
-/// Chat tab (Z-32.1): the tab IS the conversation, no start screen, no list. Jumps arrive through
-/// `AppNavigation`: `chatZiel` scrolls to a message, `chatSuche` opens search, `kameraOeffnen`
-/// opens the snap camera.
+/// Chat tab: a one-row inbox (Ahmed's wish, like Snapchat/iMessage) that pushes the full-screen
+/// conversation. Jumps from `AppNavigation` (`chatZiel`, `chatSuche`, `kameraOeffnen`) open the
+/// conversation straight away; it handles them itself, and back returns to this list.
 struct ChatTab: View {
+    @State private var offen = false
+
     var body: some View {
         NavigationStack {
             if let ich = Raum.shared.ich {
-                Unterhaltung(ich: ich)
+                ChatListe(ich: ich) { offen = true }
+                    .navigationDestination(isPresented: $offen) {
+                        Unterhaltung(ich: ich) { offen = false }
+                    }
             } else {
                 ContentUnavailableView("Chat", systemImage: "bubble.left.and.bubble.right")
             }
         }
+        .onChange(of: AppNavigation.shared.chatZiel, initial: true) { _, ziel in if ziel != nil { offen = true } }
+        .onChange(of: AppNavigation.shared.chatSuche, initial: true) { _, an in if an { offen = true } }
+        .onChange(of: AppNavigation.shared.kameraOeffnen, initial: true) { _, an in if an { offen = true } }
+    }
+}
+
+/// The inbox: large title "Chat" and one big row for the partner. Keeps the camera warm like the
+/// conversation does, so a snap from here is instant too.
+private struct ChatListe: View {
+    let ich: Person
+    let onOeffnen: () -> Void
+    private let modell = ChatModell.shared
+    @State private var adresse: String?
+
+    var body: some View {
+        let partner = ich.partner
+        ScrollView {
+            Button {
+                Haptik.leicht()
+                onOeffnen()
+            } label: {
+                TimelineView(.everyMinute) { _ in
+                    let letzte = modell.nachrichten.last { !$0.geloescht && ChatModell.sichtbar($0) }
+                    ChatListenZeile(
+                        partner: partner,
+                        vorschau: ChatListenZeile.vorschau(letzte, ich: ich, tippt: FigurenModell.shared.anzeige(partner).haupt == .tippt),
+                        zeit: letzte.map { ZeitText.relativ($0.zeit) },
+                        ungelesen: modell.ungelesen(fuer: ich),
+                        ort: PartnerOrt.text(partner, adresse: adresse),
+                        online: Raum.shared.partnerDa
+                    )
+                }
+            }
+            .buttonStyle(.federnd)
+            .padding(.horizontal, 16)
+            .padding(.top, 8)
+        }
+        .background(Color(uiColor: .systemGroupedBackground))
+        .navigationTitle("Chat")
+        .navigationBarTitleDisplayMode(.large)
+        .safeAreaInset(edge: .top, spacing: 0) { SyncStatusZeile() }
+        .task(id: PartnerOrt.adressSchluessel(partner)) {
+            if let neu = await PartnerOrt.adresseLaden(partner) { adresse = neu }
+        }
+        .onAppear {
+            SnapKameraSteuerung.geteilt.halten()
+            Task { await SnapKameraSteuerung.geteilt.vorwaermen() }
+        }
+        .onDisappear { SnapKameraSteuerung.geteilt.loslassen() }
+    }
+}
+
+/// The partner's row: live figure with online ring, name, time, last message (or "Tippt …"),
+/// unread badge, and where the partner is as a quiet second line.
+struct ChatListenZeile: View {
+    let partner: Person
+    let vorschau: String
+    let zeit: String?
+    let ungelesen: Int
+    let ort: String?
+    let online: Bool
+    var animiert = true
+
+    var body: some View {
+        HStack(spacing: 14) {
+            KopfFigur(person: partner, groesse: 58, animiert: animiert)
+                .padding(4)
+                .overlay(Circle().strokeBorder(online ? Color.green : Color.clear, lineWidth: 2.5))
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .firstTextBaseline) {
+                    Text(partner.name).font(.title3.weight(.semibold)).foregroundStyle(.primary)
+                    Spacer(minLength: 8)
+                    if let zeit {
+                        Text(zeit).font(.caption).foregroundStyle(ungelesen > 0 ? Color.loveaRose : Color.secondary)
+                    }
+                }
+                HStack(spacing: 8) {
+                    Text(vorschau)
+                        .font(.subheadline.weight(ungelesen > 0 ? .semibold : .regular))
+                        .foregroundStyle(ungelesen > 0 ? Color.primary : Color.secondary)
+                        .lineLimit(1)
+                    Spacer(minLength: 0)
+                    if ungelesen > 0 {
+                        Text("\(ungelesen)")
+                            .font(.caption.weight(.bold))
+                            .monospacedDigit()
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 7)
+                            .frame(minWidth: 22, minHeight: 22)
+                            .background(Color.loveaRose, in: .capsule)
+                    }
+                }
+                if let ort {
+                    Label(ort, systemImage: "location.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+            }
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 22))
+        .contentShape(.rect(cornerRadius: 22))
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(beschreibung)
+        .accessibilityHint("Chat öffnen")
+        .accessibilityAddTraits(.isButton)
+    }
+
+    private var beschreibung: String {
+        var teile = [partner.name, online ? "online" : nil, vorschau, zeit, ort].compactMap { $0 }
+        if ungelesen > 0 { teile.append("\(ungelesen) ungelesen") }
+        return teile.joined(separator: ", ")
+    }
+
+    /// Preview text: "Tippt …" live, else the last message (own ones start with "Du: ").
+    static func vorschau(_ letzte: ChatModell.Nachricht?, ich: Person, tippt: Bool) -> String {
+        if tippt { return "Tippt …" }
+        guard let letzte else { return "Noch keine Nachrichten" }
+        return (letzte.von == ich && letzte.system == nil ? "Du: " : "") + ChatVorschau.inhalt(letzte)
     }
 }
 
@@ -29,6 +155,8 @@ struct ChatBlaetter {
 
 private struct Unterhaltung: View {
     let ich: Person
+    /// Back to the chat list (header chevron, left-edge swipe).
+    let onZurueck: () -> Void
     private let modell = ChatModell.shared
 
     @State private var zielID: String?
@@ -37,7 +165,7 @@ private struct Unterhaltung: View {
     @State private var blatt = ChatBlaetter()
     @State private var sucheAktiv = false
     @State private var flaeche = CGSize(width: 390, height: 900)
-    /// Left-edge swipe back to Home: the finger's rightward distance and height (local).
+    /// Left-edge swipe back to the list: the finger's rightward distance and height (local).
     @State private var randWeg: CGFloat = 0
     @State private var randY: CGFloat = 0
     @State private var ursprung: CGPoint = .zero
@@ -66,8 +194,9 @@ private struct Unterhaltung: View {
             // only a rightward drag that starts in the left 32 pt counts.
             .simultaneousGesture(randGeste)
             .toolbar(.hidden, for: .navigationBar)
-            // Fix round 2: the open conversation is full screen; the tab bar returns on Home.
+            // The open conversation is full screen; the tab bar returns on the chat list.
             .toolbar(.hidden, for: .tabBar)
+            .navigationBarBackButtonHidden()
             .modifier(UnterhaltungBlaetter(ich: ich, blatt: $blatt))
             .modifier(Lesebestaetigung(ich: ich, modell: modell))
             .modifier(ChatAufnahmeHinweise())
@@ -88,11 +217,11 @@ private struct Unterhaltung: View {
         )
     }
 
-    /// Back to Home (header chevron and left-edge swipe), so leaving the chat never gets lost.
-    private func zuHome() {
+    /// Back to the chat list (header chevron and left-edge swipe), so leaving never gets lost.
+    private func zurueck() {
         Haptik.leicht()
         ChatTastatur.schliessen()
-        AppNavigation.shared.tabWunsch = "home"
+        onZurueck()
     }
 
     /// Swipe right from the left 32 pt to leave the chat. Rows ignore drags starting there (their
@@ -112,7 +241,7 @@ private struct Unterhaltung: View {
                 guard randWeg > 0 else { return }
                 if randWeg >= Self.randSchwelle || wert.predictedEndTranslation.width > 220 {
                     randWeg = 0
-                    zuHome()
+                    zurueck()
                 } else {
                     withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Feder.schnell) { randWeg = 0 }
                 }
@@ -139,7 +268,7 @@ private struct Unterhaltung: View {
 
     private var oben: some View {
         VStack(spacing: 6) {
-            ChatKopf(partner: ich.partner, modell: modell, onZurueck: zuHome) { blatt.profil = true }
+            ChatKopf(partner: ich.partner, modell: modell, onZurueck: zurueck) { blatt.profil = true }
             if let toast {
                 Text(toast)
                     .font(.footnote.weight(.medium))

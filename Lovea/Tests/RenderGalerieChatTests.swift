@@ -28,6 +28,23 @@ final class RenderGalerieChatTests: XCTestCase {
         RenderTafel.speichern("chat-blasen", spalten: 3, zellen: Array(zellen))
     }
 
+    func testChatListenZeile() {
+        let zeilen: [(titel: String, ansicht: AnyView)] = [ColorScheme.light, .dark].map { schema in
+            let zeile = ChatListenZeile(
+                partner: .annika, vorschau: "Bis später, hdl", zeit: "vor 5 Minuten",
+                ungelesen: 2, ort: "Schule", online: true, animiert: false
+            )
+            return (titel: schema == .dark ? "dunkel" : "hell", ansicht: AnyView(
+                zeile
+                    .padding(16)
+                    .frame(width: 390)
+                    .background(Color(uiColor: .systemGroupedBackground))
+                    .environment(\.colorScheme, schema)
+            ))
+        }
+        RenderTafel.speichern("chat-liste", spalten: 2, zellen: zeilen)
+    }
+
     func testFigurReaktionen() {
         let zellen = FigurReaktionen.alle.map { reaktion in
             (titel: reaktion.titel, ansicht: AnyView(
