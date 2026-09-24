@@ -37,6 +37,9 @@ targets:
           - CFBundleURLName: com.onlyus.lovea
             CFBundleURLSchemes:
               - lovea
+        NSUserActivityTypes:
+          - INSendMessageIntent
+          - INStartCallIntent
         UIBackgroundModes:
           - location
           - remote-notification
