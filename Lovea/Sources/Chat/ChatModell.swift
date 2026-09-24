@@ -239,6 +239,13 @@ final class ChatModell {
         guard let ich = Raum.shared.ich else { return }
         let anzahl = ungelesen(fuer: ich)
         Task { @MainActor in try? await UNUserNotificationCenter.current().setBadgeCount(anzahl) }
+        // All read: pull the chat pushes out of Notification Center too (server tags them with `art`).
+        guard anzahl == 0 else { return }
+        let zentrum = UNUserNotificationCenter.current()
+        zentrum.getDeliveredNotifications { liste in
+            let ids = liste.filter { ($0.request.content.userInfo["art"] as? String)?.hasPrefix("nachricht.") == true }.map(\.request.identifier)
+            if !ids.isEmpty { zentrum.removeDeliveredNotifications(withIdentifiers: ids) }
+        }
     }
 
     // MARK: - Sending
