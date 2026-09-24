@@ -571,6 +571,15 @@ private struct NachrichtenListe: View {
                 zielID = nil
                 springen(zu: id, proxy: proxy)
             }
+            // Open at the very bottom. `defaultScrollAnchor` alone lands mid-chat in a LazyVStack while
+            // photos still grow; re-pin a few times as they lay out, unless a jump target is pending.
+            .task {
+                for warte in [0, 150, 500] {
+                    try? await Task.sleep(for: .milliseconds(warte))
+                    guard zielID == nil, AppNavigation.shared.chatZiel == nil, let letzte = modell.nachrichten.last?.id else { return }
+                    proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom)
+                }
+            }
             // Own send: jump to the bottom like Snapchat, even when scrolled up.
             .onChange(of: modell.nachrichten.last?.id) { _, id in
                 guard let id, modell.nachrichten.last?.von == ich else { return }
