@@ -78,7 +78,7 @@ final class WidgetStandSchreiber {
         // audit-app #6: off the main actor (Z-16.2/common.md "Main Thread frei") — same detached
         // pattern the PNG write below already uses.
         if let url = WidgetGruppe.standURL() {
-            await Task.detached(priority: .utility) { try? daten.write(to: url, options: .atomic) }.value
+            _ = await Task.detached(priority: .utility) { try? daten.write(to: url, options: .atomic) }.value
         }
         WidgetCenter.shared.reloadAllTimelines()
     }
@@ -195,7 +195,7 @@ final class WidgetStandSchreiber {
             guard letzteFotoQuelle != nil else { return false }
             letzteFotoQuelle = nil
             // audit-app #6: off the main actor, like the write below.
-            await Task.detached(priority: .utility) { try? FileManager.default.removeItem(at: url) }.value
+            _ = await Task.detached(priority: .utility) { try? FileManager.default.removeItem(at: url) }.value
             return true
         }
         guard quelle.lastPathComponent != letzteFotoQuelle else { return false }
