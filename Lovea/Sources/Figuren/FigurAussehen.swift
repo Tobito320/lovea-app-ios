@@ -178,6 +178,9 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w,
         .m, .m, .m, .m, .m,
     ]
+    /// Ahmed: no half-bald looks. Styles drawn with `seitenFade` (skin-mixed sides) are hidden in the
+    /// editor; a figure already wearing one keeps rendering it.
+    static let halbglatze: Set<Int> = [13, 14, 30, 35, 37, 38, 40, 41, 43, 48, 49, 50, 52, 54]
     static let baerteGeschlecht: [FigurGeschlecht] = [.n, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m]
     static let ohrringArten = ["Keine", "Stecker", "Kreolen", "Hänger", "Perlen", "Diamant-Stecker", "Große Kreolen", "Herz-Hänger"]
     static let ohrringeGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .w]

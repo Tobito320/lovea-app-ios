@@ -76,7 +76,7 @@ struct FigurEditor: View {
                 ]
             case .haare:
                 return [
-                    .optionen("Frisur", \.frisur, A.frisuren, .kopf, erlaubte: A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person)),
+                    .optionen("Frisur", \.frisur, A.frisuren, .kopf, erlaubte: A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person).filter { !A.halbglatze.contains($0) }),
                     .farben("Haarfarbe", \.haarfarbe, A.haarfarben.map { Farbwahl(name: $0.name, farbe: $0.farbe, straehne: $0.straehne) }, hexPfad: \.haarfarbeHex),
                 ]
             case .augen:
@@ -408,7 +408,7 @@ struct FigurEditor: View {
         func eins(_ erlaubte: [Int]) -> Int { erlaubte.randomElement() ?? 0 }
         func oftKeins(_ erlaubte: [Int]) -> Int { Bool.random() ? 0 : eins(erlaubte) }
         var a = aussehen
-        a.frisur = eins(A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person))
+        a.frisur = eins(A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person).filter { !A.halbglatze.contains($0) })
         a.haarfarbe = eins(Array(A.haarfarben.indices))
         a.haarfarbeHex = nil
         a.oberteil = eins(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person))
