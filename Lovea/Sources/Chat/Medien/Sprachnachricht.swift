@@ -252,7 +252,8 @@ struct SprachAufnahmeButton: View {
     private static let abbruchWeg: CGFloat = -80
 
     var body: some View {
-        VStack(spacing: 8) {
+        // Trailing: the mic stays under the holding finger while the panel appears.
+        VStack(alignment: .trailing, spacing: 8) {
             switch phase {
             case .nimmtAuf: aufnahmePanel
             case .pruefen: pruefPanel
@@ -289,7 +290,7 @@ struct SprachAufnahmeButton: View {
             .foregroundStyle(haelt ? Color.white : Color.secondary)
             .frame(width: haelt ? 56 : 44, height: haelt ? 56 : 44)
             .background(haelt ? Color.red : Color.clear, in: .circle)
-            .overlay(alignment: .bottom) {
+            .overlay(alignment: .bottomTrailing) {
                 if haelt {
                     Text(halteAbbruch ? "Loslassen zum Löschen" : "← Wischen zum Löschen")
                         .font(.caption2)
