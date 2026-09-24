@@ -239,10 +239,11 @@ private struct ProfilInhalt: View {
     /// Only a sleeper is in bed, and a bed only exists in the room. The own profile shows the own
     /// figure alone, or both when both sleep.
     private func belegung(_ szene: ProfilSzene, paar: Bool) -> Belegung {
-        let personen: [Person] = paar || szene == .schlafen(zusammen: true) ? [.annika, .ahmed] : [person]
+        let beide = szene == .schlafen(zusammen: true) || szene == .zeichnen(zusammen: true)
+        let personen: [Person] = paar || beide ? [.annika, .ahmed] : [person]
         switch szene {
         case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlafGerade($0) != .wach })
-        case .gym, .draussen, .unterwegs, .schule, .arbeit: return (personen, [])
+        case .gym, .draussen, .unterwegs, .schule, .arbeit, .zeichnen: return (personen, [])
         }
     }
 
@@ -257,20 +258,25 @@ private struct ProfilInhalt: View {
                 bett(b.imBett, skala: 1)
             } else if wach.count == 2 {
                 // Brief K: both awake, so a kiss becomes a hug and a kiss of the two figures.
-                KussPaar(vorn: person) { p, stand in figur(p, szene: p == person ? szene : nil, paar: stand) }
+                KussPaar(vorn: person) { p, stand in figur(p, szene: figurSzene(szene, p), paar: stand) }
             } else if b.imBett.isEmpty {
                 HStack(alignment: .bottom, spacing: -64) {
-                    ForEach(wach, id: \.self) { p in figur(p, szene: p == person ? szene : nil).zIndex(p == person ? 1 : 0) }
+                    ForEach(wach, id: \.self) { p in figur(p, szene: figurSzene(szene, p)).zIndex(p == person ? 1 : 0) }
                 }
             } else {
                 HStack(alignment: .bottom, spacing: -30) {
                     ForEach(b.personen, id: \.self) { p in
-                        if b.imBett.contains(p) { bett([p], skala: 0.75) } else { figur(p, szene: p == person ? szene : nil) }
+                        if b.imBett.contains(p) { bett([p], skala: 0.75) } else { figur(p, szene: figurSzene(szene, p)) }
                     }
                 }
             }
         }
         .brightness(dunkel ? -0.1 : 0)
+    }
+
+    /// The scene dresses the profile person only; drawing together (Brief Z) dresses both.
+    private func figurSzene(_ szene: ProfilSzene, _ p: Person) -> ProfilSzene? {
+        p == person || szene == .zeichnen(zusammen: true) ? szene : nil
     }
 
     /// Brief G: the editor for the place the person is at right now (home, office, classroom),
@@ -335,14 +341,16 @@ private struct ProfilInhalt: View {
         // The kiss needs its arm: no umbrella or dumbbells for those 4 s.
         let szenenExtras: Set<FigurExtra> = kuesst ? [] : szene?.extras(zustand, wetterCode: wetter?.code, temperatur: wetter?.temperatur) ?? []
         let extras = spaet ? szenenExtras.union([.schlaefrig]) : szenenExtras
-        // A bought pose would replace the curls or the desk, so gym, school and work keep their own.
-        let pose = szene.map { $0 != .gym && $0 != .schule && $0 != .arbeit } ?? true
+        // A bought pose would replace the curls, the desk or the tablet, so these keep their own.
+        let pose = (szene.map { $0 != .gym && $0 != .schule && $0 != .arbeit } ?? true) && zustand != .zeichnet
         let tisch = szene?.raumOrt.map { Zimmer.von(person, ort: $0).tisch } ?? 0
         // Alone (own profile, next to a bed) the kiss is still the lean; the pair hugs instead.
         let lehnt = kuesst && paar == nil
         let gezeigt: FigurZustand = paar?.zustand(p) ?? (kuesst ? .kuss : zustand)
         let paarExtras: Set<FigurExtra> = paar == nil ? extras : []
-        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: gezeigt, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose && paar == nil, extras: paarExtras, tisch: tisch, umarmung: paar?.umarmung(p))
+        // Brief Z: the pencil and its strokes live in the figure; 15 fps like the scene's lights.
+        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: gezeigt, abzeichen: abzeichen(p), groesse: 340, bildrate: gezeigt == .zeichnet ? 15 : 30,
+                          ganzkoerper: true, poseImmer: pose && paar == nil, extras: paarExtras, tisch: tisch, umarmung: paar?.umarmung(p))
             .rotationEffect(.degrees(lehnt ? Double(richtung) * 7 : 0), anchor: .bottom)
             .offset(x: lehnt ? richtung * 38 : 0)
             .scaleEffect(lehnt ? 1.05 : 1, anchor: .bottom)

@@ -300,7 +300,7 @@ enum SzenenZeichnung {
         let dunkel = szene.dunkel(nacht: nacht)
         for e in ebenen {
             switch szene {
-            case .zimmer: zimmer(g, z, nacht: dunkel, mitBett: mitBett, bett: bett, e, t: t)
+            case .zimmer, .zeichnen: zimmer(g, z, nacht: dunkel, mitBett: mitBett, bett: bett, e, t: t)
             case .schlafen: zimmer(g, z, nacht: dunkel, mitBett: false, bett: nil, e, t: t)
             case .gym: if e == .hinten { gym(g, z) }
             case .schule: klassenzimmer(g, z, nacht: dunkel, e, t: t)

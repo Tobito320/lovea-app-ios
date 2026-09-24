@@ -4,7 +4,8 @@ import SwiftUI
 /// weather (rain, sun, cold, snow) and from charging. `hanteln` (Brief G): a dumbbell in each hand,
 /// curled in turn - the profile's gym scene.
 /// `schlaefrig` (Brief G fix): late at night, tired eyes and now and then a yawn.
-enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, muetzeSchal, handyKabel, schneeflocken, hanteln, schlaefrig }
+/// `mitzeichnen` (Brief Z): drawing together, both tablets show one shared doodle (`ZeichenStriche`).
+enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, muetzeSchal, handyKabel, schneeflocken, hanteln, schlaefrig, mitzeichnen }
 
 /// Brief K: the profile's hug and kiss, full body only. `seite` -1 = the partner stands left,
 /// +1 = right; `abstand` is the distance between the two figure centres in canvas units. `arme`
@@ -285,6 +286,8 @@ private struct Zeichner {
     /// Desk variant at school and work (`Zimmer.tische`).
     let tisch: Int
     let umarmung: Umarmung?
+    /// Whose figure: picks the own strokes when drawing together (Brief Z).
+    let person: Person?
     /// Gym look (Brief D addendum): Ahmed trains shirtless, Annika in a sleeveless sports top.
     let oberkoerperFrei, sportTop: Bool
 
@@ -298,6 +301,7 @@ private struct Zeichner {
         self.ganz = ganz
         self.extras = extras
         self.tisch = tisch
+        person = a.person
         kette = grenze(a.kette, A.ketten.count)
         ring = grenze(a.ring, A.ringe.count)
         armband = grenze(a.armband, A.armbaender.count)
@@ -3467,7 +3471,7 @@ extension Zeichner {
         case .rennt: .rennen
         case .rad: .rad
         case .faehrt, .fahrschule: .fahren
-        case .zuhause, .schule, .arbeit, .schautVideo, .ruhe, .zug: .sitzen
+        case .zuhause, .schule, .arbeit, .schautVideo, .ruhe, .zug, .zeichnet: .sitzen
         default: .stehen
         }
     }
@@ -3902,7 +3906,7 @@ extension Zeichner {
         case .imChat:
             let welle: CGFloat = zyklus(5) < 0.45 ? w(9) * 7 : 0
             return (restL, Arm(P(rx + 18, y + 2), P(rx + 22 + welle, y - 36)))
-        case .tippt, .liest, .spielt, .karte, .schautBild, .zeichnet, .laedt:
+        case .tippt, .liest, .spielt, .karte, .schautBild, .laedt:
             let tipp: CGFloat = z == .tippt ? w(16) * 1.5 : 0
             return (Arm(P(lx - 4, y + 48), P(94, y + 50 + tipp)), Arm(P(rx + 4, y + 48), P(106, y + 50 - tipp)))
         case .kamera:
@@ -3942,6 +3946,11 @@ extension Zeichner {
             return (Arm(P(lx - 6, y + 48), P(90, y + 78 + tipp)), Arm(P(rx + 6, y + 48), P(110, y + 78 - tipp)))
         case .zuhause, .schule, .schautVideo, .ruhe, .zug:
             return (Arm(P(lx - 6, y + 48), P(86, y + 84)), Arm(P(rx + 6, y + 48), P(114, y + 84)))
+        case .zeichnet:
+            // Brief Z: the left hand holds the tablet's edge, the right one follows the pencil tip.
+            let griff = P(-31, 10).applying(tablett(m))
+            let spitze = stiftSpitze(m)
+            return (Arm(P(lx - 8, y + 54), griff), Arm(P(rx + 10, y + 52), P(spitze.x + 9, spitze.y + 11)))
         // Mimik (Runde 3); the head space maps to y + (hy - 133.6) * 0.8 here.
         case .zwinkert:
             return (Arm(P(lx - 16, y + 50), P(lx + 4, y + 88)), Arm(P(rx + 24, y + 26), P(rx + 20, y - 8)))
@@ -3997,8 +4006,10 @@ extension Zeichner {
     func handRequisite(_ g: GraphicsContext, _ arme: (l: Arm, r: Arm), _ m: Masse) {
         let y = m.schulterY
         switch z {
-        case .tippt, .liest, .spielt, .karte, .schautBild, .zeichnet, .laedt:
+        case .tippt, .liest, .spielt, .karte, .schautBild, .laedt:
             kleinesHandy(g, P(100, y + 40))
+        case .zeichnet:
+            zeichenStift(g, m)
         case .kamera:
             kleinesHandy(g, P(arme.r.hand.x, arme.r.hand.y - 12))
         case .sprache:
@@ -4055,6 +4066,12 @@ extension Zeichner {
             }
             teil(g, box(24, sitz - 104, 152, 110, 22), Pal.band)
             teil(g, box(14, sitz - 6, 172, 36, 12), Pal.band.mal(0.85))
+        case .zeichnet:
+            // Brief Z: a round knitted pouf to sit on while drawing.
+            let pouf = FigurFarbe(0xF2B8A2)
+            teil(g, box(38, sitz - 10, 124, Masse.fussY - sitz + 4, 30), pouf)
+            for x in stride(from: CGFloat(54), through: 146, by: 15) { linie(g, strich(P(x, sitz + 4), P(x, Masse.fussY - 10)), pouf.mal(0.9).farbe, 2.5) }
+            teil(g, oval(P(100, sitz - 8), 60, 11), pouf.mix(Pal.weiss, 0.25), 3)
         case .schule, .arbeit:
             for x in [CGFloat(74), 126] {
                 let fuss: CGFloat = x < 100 ? x - 6 : x + 6
@@ -4119,8 +4136,66 @@ extension Zeichner {
             linie(g, strich(P(150, sitz - 24), P(176, sitz - 28)), Pal.gelb.kontur, 3)
         case .ruhe:
             teil(g, box(34, sitz - 34, 132, 72, 24), Pal.decke)
+        case .zeichnet:
+            tablettZeichnen(u, m)
         default:
             break
+        }
+    }
+
+    // MARK: Drawing on the tablet (Brief Z)
+
+    /// The tablet on the lap, tilted a little; its screen coordinates are centred (`ZeichenStriche`).
+    func tablett(_ m: Masse) -> CGAffineTransform {
+        CGAffineTransform(translationX: 100, y: m.schulterY + 70).rotated(by: -0.1)
+    }
+
+    /// Still frames stop mid-doodle, the live figure runs through it.
+    var zeichenZeit: Double { statisch ? ZeichenStriche.stillZeit : t }
+
+    var zeichenStriche: [ZeichenStriche.Strich] { ZeichenStriche.striche(zusammen: extras.contains(.mitzeichnen)) }
+
+    func stiftSpitze(_ m: Masse) -> CGPoint {
+        let s = zeichenStriche
+        let eigene = ZeichenStriche.eigene(person: person ?? .annika, zusammen: extras.contains(.mitzeichnen), anzahl: s.count)
+        return ZeichenStriche.spitze(zeit: zeichenZeit, striche: s, eigene: eigene).applying(tablett(m))
+    }
+
+    /// Dark frame, a bright screen with the doodle growing stroke by stroke, colour swatches on the right.
+    func tablettZeichnen(_ g: GraphicsContext, _ m: Masse) {
+        var h = g
+        h.concatenate(tablett(m))
+        teil(h, box(-32, -22, 64, 44, 7), Pal.dunkel, 2.5)
+        let schirm = box(-28, -18, 56, 36, 4)
+        h.fill(schirm, with: .color(Color(white: 0.985)))
+        for (i, f) in [UInt32(0xFF3B5C), 0xF5C542, 0x7FB6E8, 0x5DBB7A].enumerated() {
+            h.fill(kreis(P(24, -12 + CGFloat(i) * 8), 2.3), with: .color(FigurFarbe(f).farbe))
+        }
+        let s = zeichenStriche
+        let f = ZeichenStriche.fortschritt(zeit: zeichenZeit, anzahl: s.count)
+        var b = h
+        b.clip(to: schirm)
+        b.opacity = ZeichenStriche.deckkraft(zeit: zeichenZeit)
+        for i in s.indices where f[i] > 0 {
+            let pfad = Path { p in
+                p.move(to: s[i].a)
+                p.addCurve(to: s[i].b, control1: s[i].c1, control2: s[i].c2)
+            }
+            linie(b, pfad.trimmedPath(from: 0, to: f[i]), FigurFarbe(s[i].farbe).farbe, 2.6)
+        }
+    }
+
+    /// A white pencil from the tip up into the right hand, and a sparkle where a stroke just ended.
+    func zeichenStift(_ g: GraphicsContext, _ m: Masse) {
+        let spitze = stiftSpitze(m)
+        let schaft = strich(P(spitze.x + 3, spitze.y + 3.5), P(spitze.x + 16, spitze.y + 19))
+        linie(g, schaft, Pal.weiss.kontur, 6.5)
+        linie(g, schaft, Pal.weiss.farbe, 4)
+        linie(g, strich(spitze, P(spitze.x + 3, spitze.y + 3.5)), Pal.dunkel.farbe, 2.5)
+        var h = g
+        h.concatenate(tablett(m))
+        for f in ZeichenStriche.funken(zeit: zeichenZeit, striche: zeichenStriche) {
+            h.fill(funkel(f.punkt, 2 + 4 * f.staerke), with: .color(FigurFarbe(f.farbe).farbe.opacity(Double(f.staerke))))
         }
     }
 

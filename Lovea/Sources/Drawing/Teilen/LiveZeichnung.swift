@@ -461,7 +461,7 @@ final class ZeichnungLive {
         ansichtTask?.cancel()
         if LiveZeichnung.shared.offen === self { LiveZeichnung.shared.offen = nil }
         Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: nil))
-        FigurenModell.shared.zustandSenden(.init(haupt: .ruhig))
+        Anwesenheit.shared.appEnde(.zeichnet)
     }
 
     /// "Zum Mitzeichnen einladen": push (server side) and chat line (`ChatModell` folds the op), shares this drawing to edit.
