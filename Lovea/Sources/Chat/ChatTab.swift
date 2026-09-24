@@ -191,8 +191,10 @@ private struct Unterhaltung: View {
 
     var body: some View {
         NachrichtenListe(modell: modell, ich: ich, zielID: $zielID, aktionen: aktionen)
-            .safeAreaInset(edge: .top, spacing: 0) { oben }
-            .safeAreaInset(edge: .bottom, spacing: 0) { unten }
+            // Bars, not insets: iOS 26 blurs messages scrolling under the glass header and input
+            // (scroll edge effect), so bubbles and reactions no longer shine through the header.
+            .safeAreaBar(edge: .top, spacing: 0) { oben }
+            .safeAreaBar(edge: .bottom, spacing: 0) { unten }
             .background { ChatHintergrundAnsicht(ich: ich) }
             .overlay { ChatEffektEbene() }
             .overlay { fokusEbene }
