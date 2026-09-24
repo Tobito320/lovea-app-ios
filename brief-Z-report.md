@@ -12,6 +12,7 @@ Branch: `worktree-agent-a42d1928babab0b56`, reset onto local `runde-3` (001b798)
 | `23d514e` | Figure: full-body drawing pose with tablet, pencil and growing doodle; `FigurExtra.mitzeichnen` |
 | `40e0a2c` | Scene: `ProfilSzene.zeichnen(zusammen:)`, priority, header wiring, tests |
 | `3d8f77c` | Render board `profil-zeichnen` |
+| `aea42a9` | Board fix: explicit `self` in the escaping `ForEach` closure, close-up centred |
 
 ## 1. Does "zeichnet" reach the partner?
 
