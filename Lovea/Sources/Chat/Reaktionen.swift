@@ -370,7 +370,8 @@ struct ReaktionenBlatt: View {
             }
         }
         .presentationDetents([.medium, .large])
-        .sensoryFeedback(.selection, trigger: reiter)
+        // Haptik.auswahl(), not `.sensoryFeedback`: the latter ignores the "Haptik" settings switch.
+        .onChange(of: reiter) { _, _ in Haptik.auswahl() }
     }
 
     @ViewBuilder private var inhalt: some View {
