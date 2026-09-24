@@ -321,7 +321,7 @@ final class FigurenTests: XCTestCase {
     func testMimikUndExtrasNamen() {
         XCTAssertEqual(FigurZustand.mimik.map(\.rawValue).sorted(), ["daumen", "denkt", "feiert", "lachtTraenen", "muede", "sauer", "schmollt", "schockiert", "tanzt", "ueberrascht", "verlegen", "verliebt", "weint", "zwinkert"])
         XCTAssertEqual(Set(FigurZustand.mimik).count, 14)
-        XCTAssertEqual(FigurExtra.allCases.map(\.rawValue), ["schirm", "sonnenbrille", "muetzeSchal", "handyKabel", "schneeflocken", "hanteln", "schlaefrig"])
+        XCTAssertEqual(FigurExtra.allCases.map(\.rawValue), ["schirm", "sonnenbrille", "muetzeSchal", "handyKabel", "schneeflocken", "hanteln", "schlaefrig", "mitzeichnen"])
     }
 
     /// Photo pieces: keys are real list indices, the drawn basis is an older index.
