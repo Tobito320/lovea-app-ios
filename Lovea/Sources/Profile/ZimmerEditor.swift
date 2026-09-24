@@ -316,14 +316,7 @@ struct ZimmerEditor: View {
         return pfade[ort == .zuhause ? posterPlatz : 2]
     }
 
-    private var szene: ProfilSzene {
-        switch ort {
-        case .zuhause: .zimmer
-        case .arbeit: .arbeit
-        case .schule: .schule
-        case .gym: .gym
-        }
-    }
+    private var szene: ProfilSzene { ort.szene }
 
     private func titel(_ t: Tab) -> String {
         t == .moebel ? (ort == .zuhause ? "Bett" : "Tisch") : t.rawValue
@@ -372,13 +365,7 @@ struct ZimmerKachel: View {
                 p.scaleBy(x: s, y: s)
                 SzenenZeichnung.posterZeichnen(p, zimmer.poster)
             case .raum, .tisch:
-                let r = SzenenZeichnung.raum(g, size)
-                switch ort {
-                case .zuhause: SzenenZeichnung.zimmer(r, zimmer, nacht: false, mitBett: true, bett: nil, t: 0.4)
-                case .arbeit: SzenenZeichnung.buero(r, zimmer, t: 0.4)
-                case .schule: SzenenZeichnung.klassenzimmer(r, zimmer, t: 0.4)
-                case .gym: SzenenZeichnung.gym(r, zimmer)
-                }
+                SzenenZeichnung.szene(SzenenZeichnung.raum(g, size), ort.szene, zimmer, nacht: false, t: 0.4)
             }
         }
         .accessibilityHidden(true)

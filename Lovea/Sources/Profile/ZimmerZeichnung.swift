@@ -236,6 +236,27 @@ extension Zimmer {
 }
 // MARK: - Drawing
 
+/// The scene split back to front so the view redraws only what moves: `mitte` and `oben` hold the
+/// bits that change with `t` (stars, sun, clouds, fairy lights, rain, snow, streaks), `hinten` and
+/// `vorn` are still. Drawn one after another they give exactly the one-piece picture.
+enum SzenenEbene: CaseIterable, Sendable {
+    case hinten, mitte, vorn, oben
+
+    var bewegt: Bool { self == .mitte || self == .oben }
+}
+
+extension RaumOrt {
+    /// The scene this furnishable place draws.
+    var szene: ProfilSzene {
+        switch self {
+        case .zuhause: .zimmer
+        case .arbeit: .arbeit
+        case .schule: .schule
+        case .gym: .gym
+        }
+    }
+}
+
 /// Brief G: the scenes, drawn in code in the figures' sticker style (soft fills with the thick soft
 /// outline of `teil`), so nothing needs an asset. Design space 390 x 430, scaled to the full width and
 /// anchored at the bottom: a taller canvas (the stretchy header) only shows more wall or sky above.
@@ -272,32 +293,59 @@ enum SzenenZeichnung {
     private static let wandFarben: [UInt32] = [0xF6EBDD, 0xF9DCE3, 0xCFDCC8, 0xD6E8F5, 0xE3D9F2, 0x2E3A5C, 0x2B2D31, 0x1E2A44]
     private static let bodenFarben: [UInt32] = [0xE2C29A, 0x8A5E3F, 0xEFE6DA, 0xE9ECEF, 0xF4C9D4, 0x8C8F95]
 
-    /// `bett`: the optional `szene-bett-<n>` picture for the headboard.
-    static func zimmer(_ g: GraphicsContext, _ z: Zimmer, nacht: Bool, mitBett: Bool, bett: UIImage?, t: Double) {
-        wand(g, z.wand)
-        boden(g, z.boden)
-        if z.hat("fenster") { fenster(g, nacht: nacht, t: t) }
-        einrichtung(g, z)
-        if mitBett {
-            var b = g
-            b.translateBy(x: 2, y: 222)
-            b.scaleBy(x: 0.49, y: 0.49)
-            bettHinten(b, z.bett, kissen: [88, 212], bild: bett)
-            bettVorn(b, z.bett, herz: false)
-        }
-        if nacht {
-            // The room goes dark except the window glass, so the moon stays bright; the lamp is
-            // drawn after the dimming, lit, in a warm pool of light.
-            var d = g
-            if z.hat("fenster") { d.clip(to: Path(fensterGlas), options: .inverse) }
-            d.fill(alles, with: .color(farbe(0x141833).opacity(0.45)))
-            if z.hat("lampe") {
-                let c = P(172, 252)
-                g.fill(kreis(c, 130), with: .radialGradient(Gradient(colors: [farbe(0xFFC96B).opacity(0.5), farbe(0xFFB347).opacity(0.15), .clear]), center: c, startRadius: 6, endRadius: 130))
+    /// Draws `ebenen` of `szene` in order; all four (the default) are the whole picture, which is
+    /// what still callers want. `bett`: the optional `szene-bett-<n>` picture for the headboard.
+    static func szene(_ g: GraphicsContext, _ szene: ProfilSzene, _ z: Zimmer, nacht: Bool, mitBett: Bool = true, bett: UIImage? = nil,
+                      ebenen: [SzenenEbene] = SzenenEbene.allCases, t: Double) {
+        for e in ebenen {
+            switch szene {
+            case .zimmer: zimmer(g, z, nacht: nacht, mitBett: mitBett, bett: bett, e, t: t)
+            case .schlafen: zimmer(g, z, nacht: true, mitBett: false, bett: nil, e, t: t)
+            case .gym: if e == .hinten { gym(g, z) }
+            case .schule: klassenzimmer(g, z, e, t: t)
+            case .arbeit: buero(g, z, e, t: t)
+            case .draussen(let wetter, let n): draussen(g, wetter: wetter, nacht: n, e, t: t)
+            case .unterwegs(let wetter, let n):
+                draussen(g, wetter: wetter, nacht: n, e, t: t)
+                if e == .oben { fahrtStreifen(g, t: t) }
             }
         }
-        if z.hat("lampe") { lampe(g) }
-        leuchten(g, z, nacht: nacht, t: t)
+    }
+
+    private static func zimmer(_ g: GraphicsContext, _ z: Zimmer, nacht: Bool, mitBett: Bool, bett: UIImage?, _ e: SzenenEbene, t: Double) {
+        switch e {
+        case .hinten:
+            wand(g, z.wand)
+            boden(g, z.boden)
+            if z.hat("fenster") { fensterHinten(g, nacht: nacht) }
+        case .mitte:
+            if z.hat("fenster") && nacht { fensterSterne(g, t: t) }
+        case .vorn:
+            if z.hat("fenster") { fensterVorn(g, nacht: nacht) }
+            einrichtung(g, z)
+            if mitBett {
+                var b = g
+                b.translateBy(x: 2, y: 222)
+                b.scaleBy(x: 0.49, y: 0.49)
+                bettHinten(b, z.bett, kissen: [88, 212], bild: bett)
+                bettVorn(b, z.bett, herz: false)
+            }
+            if nacht {
+                // The room goes dark except the window glass, so the moon stays bright; the lamp is
+                // drawn after the dimming, lit, in a warm pool of light.
+                var d = g
+                if z.hat("fenster") { d.clip(to: Path(fensterGlas), options: .inverse) }
+                d.fill(alles, with: .color(farbe(0x141833).opacity(0.45)))
+                if z.hat("lampe") {
+                    let c = P(172, 252)
+                    g.fill(kreis(c, 130), with: .radialGradient(Gradient(colors: [farbe(0xFFC96B).opacity(0.5), farbe(0xFFB347).opacity(0.15), .clear]), center: c, startRadius: 6, endRadius: 130))
+                }
+            }
+            if z.hat("lampe") { lampe(g) }
+            leuchten(g, z, nacht: nacht)
+        case .oben:
+            lichter(g, z, t: t)
+        }
     }
 
     private static func wand(_ g: GraphicsContext, _ i: Int) {
@@ -370,16 +418,27 @@ enum SzenenZeichnung {
     private static let fensterRahmen = CGRect(x: 22, y: 72, width: 112, height: 124)
     private static var fensterGlas: CGRect { fensterRahmen.insetBy(dx: 7, dy: 7) }
 
-    private static func fenster(_ g: GraphicsContext, nacht: Bool, t: Double) {
-        let rahmen = fensterRahmen
+    /// The window in three steps: frame and sky, the twinkling stars (night), then moon or clouds,
+    /// bars, sill and curtains in front of them.
+    private static func fensterHinten(_ g: GraphicsContext, nacht: Bool) {
         let glas = fensterGlas
-        teil(g, Path(roundedRect: rahmen, cornerRadius: 6), Pal.weiss, 3)
+        teil(g, Path(roundedRect: fensterRahmen, cornerRadius: 6), Pal.weiss, 3)
         let himmel = nacht ? [farbe(0x1E2A55), farbe(0x3A3F78)] : [farbe(0x8CCBF2), farbe(0xDDF1FB)]
         g.fill(Path(glas), with: .linearGradient(Gradient(colors: himmel), startPoint: P(glas.midX, glas.minY), endPoint: P(glas.midX, glas.maxY)))
+    }
+
+    private static func fensterSterne(_ g: GraphicsContext, t: Double) {
+        var innen = g
+        innen.clip(to: Path(fensterGlas))
+        sterne(innen, in: fensterGlas, anzahl: 7, t: t)
+    }
+
+    private static func fensterVorn(_ g: GraphicsContext, nacht: Bool) {
+        let rahmen = fensterRahmen
+        let glas = fensterGlas
         var innen = g
         innen.clip(to: Path(glas))
         if nacht {
-            sterne(innen, in: glas, anzahl: 7, t: t)
             mond(innen, P(104, 104), 11)
         } else {
             wolke(innen, P(62, 156), 0.45, Pal.weiss)
@@ -479,14 +538,14 @@ enum SzenenZeichnung {
         h.fill(box(-8, -s.height / 2 - 4, 16, 7, 1), with: .color(.white.opacity(0.75)))
     }
 
-    /// Everything that glows, drawn after the night dimming so it stays bright.
-    private static func leuchten(_ g: GraphicsContext, _ z: Zimmer, nacht: Bool, t: Double) {
+    /// Everything that glows, drawn after the night dimming so it stays bright. The twinkling
+    /// strings come last (`lichter`, layer `oben`); no glow here overlaps them, so the order of
+    /// the two never shows.
+    private static func leuchten(_ g: GraphicsContext, _ z: Zimmer, nacht: Bool) {
         for (id, hex) in [("ledStreifen", UInt32(0xFF4FA3)), ("ledWeiss", 0xCFE8FF), ("ledRot", 0xFF2A2A)] where z.hat(id) {
             g.fill(box(0, 0, breite, 26), with: .linearGradient(Gradient(colors: [farbe(hex).opacity(nacht ? 0.55 : 0.3), .clear]), startPoint: P(0, 6), endPoint: P(0, 26)))
             g.fill(box(0, 4, breite, 5, 2), with: .color(farbe(hex).opacity(0.95)))
         }
-        if z.hat("lichterkette") { lichterkette(g, t: t) }
-        if z.hat("lichtervorhang") { lichtervorhang(g, t: t) }
         if z.hat("neonHerz") {
             let c = P(348, 104)
             g.fill(kreis(c, 30), with: .radialGradient(Gradient(colors: [farbe(0xFF3B8A).opacity(nacht ? 0.5 : 0.25), .clear]), center: c, startRadius: 4, endRadius: 30))
@@ -502,6 +561,11 @@ enum SzenenZeichnung {
         if z.hat("gaming") {
             g.fill(box(232, 226, 52, 32, 3), with: .linearGradient(Gradient(colors: [farbe(0x7C4DFF), farbe(0x00C2FF)]), startPoint: P(232, 226), endPoint: P(284, 258)))
         }
+    }
+
+    private static func lichter(_ g: GraphicsContext, _ z: Zimmer, t: Double) {
+        if z.hat("lichterkette") { lichterkette(g, t: t) }
+        if z.hat("lichtervorhang") { lichtervorhang(g, t: t) }
     }
     private static func pinnwand(_ g: GraphicsContext) {
         teil(g, box(148, 150, 64, 52, 4), FigurFarbe(0xC8A27A), 2.5)
@@ -1175,7 +1239,7 @@ enum SzenenZeichnung {
 
     // MARK: Gym
 
-    static func gym(_ g: GraphicsContext, _ z: Zimmer) {
+    private static func gym(_ g: GraphicsContext, _ z: Zimmer) {
         g.fill(alles, with: .linearGradient(Gradient(colors: [farbe(0x3C4048), farbe(0x5A5F68)]), startPoint: P(0, -60), endPoint: P(0, 300)))
         for x in [CGFloat(70), 195, 320] {
             g.fill(kreis(P(x, 30), 60), with: .radialGradient(Gradient(colors: [.white.opacity(0.12), .clear]), center: P(x, 30), startRadius: 4, endRadius: 60))
@@ -1238,38 +1302,54 @@ enum SzenenZeichnung {
 
     // MARK: School and work (the desk comes with the sitting figure, `FigurView.schreibtisch`)
 
-    static func klassenzimmer(_ g: GraphicsContext, _ z: Zimmer, t: Double) {
-        wand(g, z.wand)
-        boden(g, z.boden)
-        fenster(g, nacht: false, t: t)
-        // Whiteboard kept above the pinboard's spot (y 150).
-        teil(g, box(156, 62, 186, 78, 6), Pal.silber, 3)
-        g.fill(box(162, 68, 174, 66), with: .color(.white))
-        g.draw(Text("a² + b² = c²").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(farbe(0x3F74B5)), at: P(230, 88))
-        linie(g, bogen(P(176, 122), P(250, 118), P(212, 106)), Pal.rose.farbe, 3)
-        linie(g, strich(P(270, 108), P(320, 108)), farbe(0x3A2630).opacity(0.6), 2.5)
-        linie(g, strich(P(270, 122), P(306, 122)), farbe(0x3A2630).opacity(0.6), 2.5)
-        teil(g, box(196, 140, 110, 6, 2), Pal.silber, 2)
-        einrichtung(g, z)
-        leuchten(g, z, nacht: false, t: t)
+    private static func klassenzimmer(_ g: GraphicsContext, _ z: Zimmer, _ e: SzenenEbene, t: Double) {
+        switch e {
+        case .hinten:
+            wand(g, z.wand)
+            boden(g, z.boden)
+            fensterHinten(g, nacht: false)
+        case .mitte:
+            break
+        case .vorn:
+            fensterVorn(g, nacht: false)
+            // Whiteboard kept above the pinboard's spot (y 150).
+            teil(g, box(156, 62, 186, 78, 6), Pal.silber, 3)
+            g.fill(box(162, 68, 174, 66), with: .color(.white))
+            g.draw(Text("a² + b² = c²").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(farbe(0x3F74B5)), at: P(230, 88))
+            linie(g, bogen(P(176, 122), P(250, 118), P(212, 106)), Pal.rose.farbe, 3)
+            linie(g, strich(P(270, 108), P(320, 108)), farbe(0x3A2630).opacity(0.6), 2.5)
+            linie(g, strich(P(270, 122), P(306, 122)), farbe(0x3A2630).opacity(0.6), 2.5)
+            teil(g, box(196, 140, 110, 6, 2), Pal.silber, 2)
+            einrichtung(g, z)
+            leuchten(g, z, nacht: false)
+        case .oben:
+            lichter(g, z, t: t)
+        }
     }
 
-    static func buero(_ g: GraphicsContext, _ z: Zimmer, t: Double) {
-        wand(g, z.wand)
-        boden(g, z.boden)
-        let rahmen = CGRect(x: 22, y: 72, width: 118, height: 120)
-        teil(g, Path(roundedRect: rahmen, cornerRadius: 6), Pal.weiss, 3)
-        let glas = rahmen.insetBy(dx: 7, dy: 7)
-        var innen = g
-        innen.clip(to: Path(glas))
-        innen.fill(Path(glas), with: .linearGradient(Gradient(colors: [farbe(0x8CCBF2), farbe(0xDDF1FB)]), startPoint: P(0, glas.minY), endPoint: P(0, glas.maxY)))
-        for (x, h) in [(CGFloat(28), CGFloat(52)), (48, 76), (70, 40), (88, 64), (108, 88), (126, 50)] {
-            innen.fill(box(x, glas.maxY - h, 18, h), with: .color(farbe(0x8E9BB0)))
+    private static func buero(_ g: GraphicsContext, _ z: Zimmer, _ e: SzenenEbene, t: Double) {
+        switch e {
+        case .hinten:
+            wand(g, z.wand)
+            boden(g, z.boden)
+            let rahmen = CGRect(x: 22, y: 72, width: 118, height: 120)
+            teil(g, Path(roundedRect: rahmen, cornerRadius: 6), Pal.weiss, 3)
+            let glas = rahmen.insetBy(dx: 7, dy: 7)
+            var innen = g
+            innen.clip(to: Path(glas))
+            innen.fill(Path(glas), with: .linearGradient(Gradient(colors: [farbe(0x8CCBF2), farbe(0xDDF1FB)]), startPoint: P(0, glas.minY), endPoint: P(0, glas.maxY)))
+            for (x, h) in [(CGFloat(28), CGFloat(52)), (48, 76), (70, 40), (88, 64), (108, 88), (126, 50)] {
+                innen.fill(box(x, glas.maxY - h, 18, h), with: .color(farbe(0x8E9BB0)))
+            }
+            linie(g, strich(P(rahmen.midX, glas.minY), P(rahmen.midX, glas.maxY)), Pal.weiss.farbe, 5)
+            teil(g, box(14, 192, 128, 9, 3), Pal.weiss, 2)
+            einrichtung(g, z)
+            leuchten(g, z, nacht: false)
+        case .mitte, .vorn:
+            break
+        case .oben:
+            lichter(g, z, t: t)
         }
-        linie(g, strich(P(rahmen.midX, glas.minY), P(rahmen.midX, glas.maxY)), Pal.weiss.farbe, 5)
-        teil(g, box(14, 192, 128, 9, 3), Pal.weiss, 2)
-        einrichtung(g, z)
-        leuchten(g, z, nacht: false, t: t)
     }
 
     private static func uhr(_ g: GraphicsContext, _ c: CGPoint) {
@@ -1280,31 +1360,36 @@ enum SzenenZeichnung {
 
     // MARK: Outside
 
-    static func draussen(_ g: GraphicsContext, wetter: ProfilSzene.Wetter, nacht: Bool, t: Double) {
-        let himmel: (oben: UInt32, unten: UInt32)
-        switch (wetter, nacht) {
-        case (.sonne, false): himmel = (0x5FB7EE, 0xCFEBFA)
-        case (.wolken, false): himmel = (0x8FB2CE, 0xDCE7EF)
-        case (.regen, false): himmel = (0x6A7888, 0xA9B4BF)
-        case (.schnee, false): himmel = (0xAEBCCB, 0xEDF1F5)
-        case (.sonne, true): himmel = (0x0B1230, 0x2A3468)
-        case (_, true): himmel = (0x161D2E, 0x3A4458)
+    private static func draussen(_ g: GraphicsContext, wetter: ProfilSzene.Wetter, nacht: Bool, _ e: SzenenEbene, t: Double) {
+        switch e {
+        case .hinten:
+            let himmel: (oben: UInt32, unten: UInt32)
+            switch (wetter, nacht) {
+            case (.sonne, false): himmel = (0x5FB7EE, 0xCFEBFA)
+            case (.wolken, false): himmel = (0x8FB2CE, 0xDCE7EF)
+            case (.regen, false): himmel = (0x6A7888, 0xA9B4BF)
+            case (.schnee, false): himmel = (0xAEBCCB, 0xEDF1F5)
+            case (.sonne, true): himmel = (0x0B1230, 0x2A3468)
+            case (_, true): himmel = (0x161D2E, 0x3A4458)
+            }
+            g.fill(alles, with: .linearGradient(Gradient(colors: [farbe(himmel.oben), farbe(himmel.unten)]), startPoint: P(0, -100), endPoint: P(0, 290)))
+        case .mitte:
+            // The clouds drift over the moon, so it moves with them.
+            if nacht {
+                if wetter == .sonne || wetter == .wolken { sterne(g, in: CGRect(x: 0, y: -80, width: breite, height: 300), anzahl: 30, t: t) }
+                mond(g, P(316, 92), 24)
+            } else if wetter == .sonne {
+                sonne(g, P(316, 92), t: t)
+            }
+            wolken(g, wetter: wetter, nacht: nacht, t: t)
+        case .vorn:
+            landschaft(g, wetter: wetter, nacht: nacht)
+            laterne(g, P(40, 334), nacht: nacht)
+            if wetter == .regen { g.fill(oval(P(232, 392), 34, 6), with: .color(farbe(0xBFD9EE).opacity(0.55))) }
+        case .oben:
+            if wetter == .regen { regen(g, t: t) }
+            if wetter == .schnee { schnee(g, t: t) }
         }
-        g.fill(alles, with: .linearGradient(Gradient(colors: [farbe(himmel.oben), farbe(himmel.unten)]), startPoint: P(0, -100), endPoint: P(0, 290)))
-        if nacht {
-            if wetter == .sonne || wetter == .wolken { sterne(g, in: CGRect(x: 0, y: -80, width: breite, height: 300), anzahl: 30, t: t) }
-            mond(g, P(316, 92), 24)
-        } else if wetter == .sonne {
-            sonne(g, P(316, 92), t: t)
-        }
-        wolken(g, wetter: wetter, nacht: nacht, t: t)
-        landschaft(g, wetter: wetter, nacht: nacht)
-        laterne(g, P(40, 334), nacht: nacht)
-        if wetter == .regen {
-            g.fill(oval(P(232, 392), 34, 6), with: .color(farbe(0xBFD9EE).opacity(0.55)))
-            regen(g, t: t)
-        }
-        if wetter == .schnee { schnee(g, t: t) }
     }
 
     /// Clouds drift slowly to the right and wrap around.
@@ -1369,7 +1454,7 @@ enum SzenenZeichnung {
     }
 
     /// Travelling: light streaks rushing past, over the outdoor scene.
-    static func fahrtStreifen(_ g: GraphicsContext, t: Double) {
+    private static func fahrtStreifen(_ g: GraphicsContext, t: Double) {
         for k in 0..<14 {
             let y = 110 + zufall(k + 500) * 300
             let laenge = 40 + zufall(k + 600) * 90

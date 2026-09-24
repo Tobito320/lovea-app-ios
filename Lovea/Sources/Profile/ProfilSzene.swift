@@ -147,8 +147,10 @@ extension ProfilSzene {
 /// The drawn scene behind the header figures, from plain inputs so the render board can show every
 /// case. Asset hooks: an image set `szene-zimmer-hintergrund`, `szene-gym`, `szene-draussen-tag` or
 /// `szene-draussen-nacht` in the catalog replaces the drawing, `szene-bett-<n>` the headboard.
-/// Moves only where something lives (rain, snow, clouds, stars, fairy lights), at 15 fps; still
-/// under Reduce Motion.
+/// Moves only where something lives (rain, snow, clouds, stars, fairy lights); still under Reduce
+/// Motion. While it moves, the scene is four stacked canvases (`SzenenEbene`): the two still ones
+/// sit outside the clock and are drawn only when the inputs or the size change, the clock
+/// redraws just the thin moving layers. A still scene is one canvas with all four.
 struct ProfilSzeneHintergrund: View {
     let szene: ProfilSzene
     let zimmer: Zimmer
@@ -167,11 +169,19 @@ struct ProfilSzeneHintergrund: View {
                 if let bild = asset {
                     Image(uiImage: bild).resizable().scaledToFill()
                 } else if animiert && bewegt && !reduceMotion {
-                    TimelineView(.animation(minimumInterval: 1.0 / 15, paused: !sichtbar || scenePhase != .active)) { k in
-                        leinwand(k.date.timeIntervalSinceReferenceDate, bett: bett)
+                    ZStack {
+                        ForEach(SzenenEbene.allCases, id: \.self) { e in
+                            if e.bewegt {
+                                TimelineView(.animation(minimumInterval: 1.0 / 15, paused: !sichtbar || scenePhase != .active)) { k in
+                                    leinwand([e], k.date.timeIntervalSinceReferenceDate, bett: nil)
+                                }
+                            } else {
+                                leinwand([e], 0.4, bett: bett)
+                            }
+                        }
                     }
                 } else {
-                    leinwand(0.4, bett: bett)
+                    leinwand(SzenenEbene.allCases, 0.4, bett: bett)
                 }
             }
             .overlay {
@@ -213,24 +223,13 @@ struct ProfilSzeneHintergrund: View {
         }
     }
 
-    private func leinwand(_ t: Double, bett: UIImage?) -> some View {
+    private func leinwand(_ ebenen: [SzenenEbene], _ t: Double, bett: UIImage?) -> some View {
         let szene = szene
         let zimmer = zimmer
         let nacht = nacht
         let mitBett = mitBett
         return Canvas { g, size in
-            let r = SzenenZeichnung.raum(g, size)
-            switch szene {
-            case .zimmer: SzenenZeichnung.zimmer(r, zimmer, nacht: nacht, mitBett: mitBett, bett: bett, t: t)
-            case .schlafen: SzenenZeichnung.zimmer(r, zimmer, nacht: true, mitBett: false, bett: nil, t: t)
-            case .gym: SzenenZeichnung.gym(r, zimmer)
-            case .schule: SzenenZeichnung.klassenzimmer(r, zimmer, t: t)
-            case .arbeit: SzenenZeichnung.buero(r, zimmer, t: t)
-            case .draussen(let wetter, let n): SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)
-            case .unterwegs(let wetter, let n):
-                SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)
-                SzenenZeichnung.fahrtStreifen(r, t: t)
-            }
+            SzenenZeichnung.szene(SzenenZeichnung.raum(g, size), szene, zimmer, nacht: nacht, mitBett: mitBett, bett: bett, ebenen: ebenen, t: t)
         }
     }
 }
