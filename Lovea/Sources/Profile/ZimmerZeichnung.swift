@@ -131,14 +131,18 @@ enum SzenenZeichnung {
             bettHinten(b, z.bett, kissen: [88, 212], bild: bett)
             bettVorn(b, z.bett, herz: false)
         }
-        if z.hat("lampe") { lampe(g) }
         if nacht {
-            g.fill(alles, with: .color(farbe(0x1B1F3A).opacity(0.3)))
+            // The room goes dark except the window glass, so the moon stays bright; the lamp is
+            // drawn after the dimming, lit, in a warm pool of light.
+            var d = g
+            if z.hat("fenster") { d.clip(to: Path(fensterGlas), options: .inverse) }
+            d.fill(alles, with: .color(farbe(0x141833).opacity(0.45)))
             if z.hat("lampe") {
-                let c = P(172, 250)
-                g.fill(kreis(c, 70), with: .radialGradient(Gradient(colors: [farbe(0xFFD27A).opacity(0.5), .clear]), center: c, startRadius: 4, endRadius: 70))
+                let c = P(172, 252)
+                g.fill(kreis(c, 130), with: .radialGradient(Gradient(colors: [farbe(0xFFC96B).opacity(0.5), farbe(0xFFB347).opacity(0.15), .clear]), center: c, startRadius: 6, endRadius: 130))
             }
         }
+        if z.hat("lampe") { lampe(g) }
         if z.hat("lichterkette") { lichterkette(g, t: t) }
     }
 
@@ -200,9 +204,12 @@ enum SzenenZeichnung {
         teil(g, box(-4, 292, breite + 8, 10, 2), Pal.weiss, 2)
     }
 
+    private static let fensterRahmen = CGRect(x: 22, y: 72, width: 112, height: 124)
+    private static var fensterGlas: CGRect { fensterRahmen.insetBy(dx: 7, dy: 7) }
+
     private static func fenster(_ g: GraphicsContext, nacht: Bool, t: Double) {
-        let rahmen = CGRect(x: 22, y: 72, width: 112, height: 124)
-        let glas = rahmen.insetBy(dx: 7, dy: 7)
+        let rahmen = fensterRahmen
+        let glas = fensterGlas
         teil(g, Path(roundedRect: rahmen, cornerRadius: 6), Pal.weiss, 3)
         let himmel = nacht ? [farbe(0x1E2A55), farbe(0x3A3F78)] : [farbe(0x8CCBF2), farbe(0xDDF1FB)]
         g.fill(Path(glas), with: .linearGradient(Gradient(colors: himmel), startPoint: P(glas.midX, glas.minY), endPoint: P(glas.midX, glas.maxY)))

@@ -52,6 +52,41 @@ final class RenderGalerieSzeneTests: XCTestCase {
         RenderTafel.speichern("profil-szenen", spalten: 4, zellen: zellen)
     }
 
+    /// Brief G fix: only the sleeper in bed (Annika left, Ahmed right), the dark room with the lit
+    /// lamp, and the tired look from 22:00.
+    func testNacht() {
+        let muede = AnyView(FigurView(.standard(for: .annika), zustand: .ruhig, groesse: 340, animiert: false, ganzkoerper: true, extras: [.schlaefrig]))
+        let nurAhmed = AnyView(
+            HStack(alignment: .bottom, spacing: -30) {
+                FigurView(.standard(for: .annika), zustand: .ruhig, groesse: 340, animiert: false, ganzkoerper: true, extras: [.schlaefrig])
+                SchlafendeFiguren(zimmer: eingerichtet, schlaefer: [.standard(for: .ahmed)], animiert: false, skala: 0.75)
+            }
+        )
+        let nurAnnika = AnyView(
+            HStack(alignment: .bottom, spacing: -30) {
+                SchlafendeFiguren(zimmer: Zimmer(), schlaefer: [.standard(for: .annika)], animiert: false, skala: 0.75)
+                FigurView(.standard(for: .ahmed), zustand: .ruhig, groesse: 340, animiert: false, ganzkoerper: true, extras: [.schlaefrig])
+            }
+        )
+        let zellen: [Zelle] = [
+            (titel: "Nur Ahmed schläft", ansicht: nacht(nurAhmed, zimmer: eingerichtet)),
+            (titel: "Nur Annika schläft", ansicht: nacht(nurAnnika, zimmer: Zimmer())),
+            (titel: "Müde ab 22 Uhr", ansicht: nacht(muede, zimmer: Zimmer(), mitBett: true)),
+        ]
+        RenderTafel.speichern("profil-nacht", spalten: 3, zellen: zellen)
+    }
+
+    private func nacht(_ figuren: AnyView, zimmer: Zimmer, mitBett: Bool = false) -> AnyView {
+        AnyView(
+            ZStack(alignment: .bottom) {
+                ProfilSzeneHintergrund(szene: .zimmer, zimmer: zimmer, nacht: true, animiert: false, mitBett: mitBett)
+                figuren.brightness(-0.1)
+            }
+            .frame(width: 390, height: 430)
+            .clipped()
+        )
+    }
+
     func testBetten() {
         let zellen: [Zelle] = Zimmer.betten.indices.map { i in
             var z = Zimmer()

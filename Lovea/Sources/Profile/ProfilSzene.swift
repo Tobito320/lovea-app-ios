@@ -132,6 +132,8 @@ struct ProfilSzeneHintergrund: View {
     let zimmer: Zimmer
     let nacht: Bool
     var animiert = true
+    /// `false` while someone lies in the big bed in front (`SchlafendeFiguren`).
+    var mitBett = true
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
@@ -189,10 +191,11 @@ struct ProfilSzeneHintergrund: View {
         let szene = szene
         let zimmer = zimmer
         let nacht = nacht
+        let mitBett = mitBett
         return Canvas { g, size in
             let r = SzenenZeichnung.raum(g, size)
             switch szene {
-            case .zimmer: SzenenZeichnung.zimmer(r, zimmer, nacht: nacht, mitBett: true, bett: bett, t: t)
+            case .zimmer: SzenenZeichnung.zimmer(r, zimmer, nacht: nacht, mitBett: mitBett, bett: bett, t: t)
             case .schlafen: SzenenZeichnung.zimmer(r, zimmer, nacht: true, mitBett: false, bett: nil, t: t)
             case .gym: SzenenZeichnung.gym(r)
             case .draussen(let wetter, let n): SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)
@@ -214,7 +217,7 @@ private struct FotoRahmen: View {
             ForEach(zimmer.rahmen, id: \.slot) { r in
                 if let rect = SzenenZeichnung.fotoRect(r.slot) {
                     ProfilFoto(medienId: r.medienId)
-                        .overlay(Color(red: 0.1, green: 0.12, blue: 0.23).opacity(nacht ? 0.3 : 0))
+                        .overlay(Color(red: 0.1, green: 0.12, blue: 0.23).opacity(nacht ? 0.45 : 0))
                         .frame(width: rect.width * s, height: rect.height * s)
                         .position(x: rect.midX * s, y: oben + rect.midY * s)
                 }
@@ -232,32 +235,33 @@ struct SchlafendeFiguren: View {
     /// One or two sleepers, left to right.
     let schlaefer: [FigurAussehen]
     var animiert = true
-
-    private static let k: CGFloat = 1.1
+    /// Smaller next to a standing, awake partner.
+    var skala: CGFloat = 1
 
     var body: some View {
+        let k = 1.1 * skala
         let zusammen = schlaefer.count > 1
         let bett = zimmer.bett
         let bild = UIImage(named: "szene-bett-\(bett)")
         ZStack {
             Canvas { g, _ in
                 var b = g
-                b.scaleBy(x: Self.k, y: Self.k)
+                b.scaleBy(x: k, y: k)
                 SzenenZeichnung.bettHinten(b, bett, kissen: zusammen ? [] : [212], bild: bild)
             }
             ForEach(schlaefer.indices, id: \.self) { i in
                 // Pillow at bed (x, 104): the figure's own pillow sits 37 % down its frame.
                 let x: CGFloat = zusammen ? (i == 0 ? 112 : 188) : 92
-                FigurView(schlaefer[i], zustand: .schlaeft, groesse: 154, animiert: animiert, bildrate: 15)
-                    .position(x: x * Self.k, y: 104 * Self.k - 56 + 77)
+                FigurView(schlaefer[i], zustand: .schlaeft, groesse: 154 * skala, animiert: animiert, bildrate: 15)
+                    .position(x: x * k, y: (104 * 1.1 + 21) * skala)
             }
             Canvas { g, _ in
                 var b = g
-                b.scaleBy(x: Self.k, y: Self.k)
+                b.scaleBy(x: k, y: k)
                 SzenenZeichnung.bettVorn(b, bett, herz: zusammen)
             }
         }
-        .frame(width: 300 * Self.k, height: 220 * Self.k)
+        .frame(width: 300 * k, height: 220 * k)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(zusammen ? "Ihr schlaft zusammen" : "Schläft")
     }

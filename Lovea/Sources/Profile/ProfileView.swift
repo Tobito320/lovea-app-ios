@@ -165,8 +165,9 @@ private struct ProfilInhalt: View {
     /// down, so nothing below shifts and feeds back into the scroll offset.
     private var kopf: some View {
         let szene = ProfilSzene.fuer(person: person)
+        let b = belegung(szene, paar: true)
         return ZStack(alignment: .bottomLeading) {
-            kopfFiguren(szene, paar: true)
+            kopfFiguren(szene, b)
                 .overlay { KussSzene(person: person) }
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.trailing, -6)
@@ -187,15 +188,16 @@ private struct ProfilInhalt: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) { szenenHintergrund(szene) }
+        .background(alignment: .bottom) { szenenHintergrund(szene, mitBett: b.imBett.isEmpty) }
     }
 
     /// Z-25.1: own profile only — a single full-body figure in the person's scene, name and a
     /// "Zimmer gestalten" tap target (no partner figure, no "Unser Chat", no steps).
     private var eigenerKopf: some View {
         let szene = ProfilSzene.fuer(person: person)
+        let b = belegung(szene, paar: false)
         return ZStack(alignment: .bottomLeading) {
-            kopfFiguren(szene, paar: false)
+            kopfFiguren(szene, b)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 20)
             HStack(spacing: 12) {
@@ -214,7 +216,7 @@ private struct ProfilInhalt: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) { szenenHintergrund(szene) }
+        .background(alignment: .bottom) { szenenHintergrund(szene, mitBett: b.imBett.isEmpty) }
         .onTapGesture { blatt = .zimmer }
         .accessibilityAddTraits(.isButton)
         .accessibilityHint("Gestaltet dein Zimmer")
@@ -222,27 +224,60 @@ private struct ProfilInhalt: View {
 
     /// Brief G: the scene follows real life (room, bed, gym, outside) and replaces the plain
     /// wallpaper; like before it grows upward while pulling down.
-    private func szenenHintergrund(_ szene: ProfilSzene) -> some View {
-        ProfilSzeneHintergrund(szene: szene, zimmer: Zimmer.von(person), nacht: ProfilSzene.nacht(person: person))
+    private func szenenHintergrund(_ szene: ProfilSzene, mitBett: Bool) -> some View {
+        ProfilSzeneHintergrund(szene: szene, zimmer: Zimmer.von(person), nacht: ProfilSzene.nacht(person: person), mitBett: mitBett)
             .frame(height: Self.kopfHoehe + dehnung)
             .overlay { kopfSchatten }
     }
 
-    /// Asleep: the bed takes the figures' place (both in it when both sleep). Otherwise the
-    /// standing figure(s), the profile person dressed for the scene.
-    @ViewBuilder
-    private func kopfFiguren(_ szene: ProfilSzene, paar: Bool) -> some View {
-        if case .schlafen(let zusammen) = szene {
-            let schlaefer = zusammen ? [person, person.partner] : [person]
-            SchlafendeFiguren(zimmer: Zimmer.von(person), schlaefer: schlaefer.map { FigurenModell.shared.aussehen($0) })
-        } else if paar {
-            HStack(alignment: .bottom, spacing: -64) {
-                figur(person, szene: szene).zIndex(1)
-                figur(person.partner)
-            }
-        } else {
-            figur(person, szene: szene)
+    private typealias Belegung = (personen: [Person], imBett: [Person])
+
+    /// Brief G fix: who is shown, always Annika left and Ahmed right, and who of them lies in bed.
+    /// Only a sleeper is in bed, and a bed only exists in the room. The own profile shows the own
+    /// figure alone, or both when both sleep.
+    private func belegung(_ szene: ProfilSzene, paar: Bool) -> Belegung {
+        let personen: [Person] = paar || szene == .schlafen(zusammen: true) ? [.annika, .ahmed] : [person]
+        switch szene {
+        case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlaeftGerade($0) })
+        case .gym, .draussen: return (personen, [])
         }
+    }
+
+    /// Everyone asleep: one bed. Mixed: a smaller bed beside the one standing. At night the room
+    /// dims its figures along with the drawing.
+    @ViewBuilder
+    private func kopfFiguren(_ szene: ProfilSzene, _ b: Belegung) -> some View {
+        let wach = b.personen.filter { !b.imBett.contains($0) }
+        let dunkel = nachtImZimmer(szene)
+        Group {
+            if wach.isEmpty {
+                bett(b.imBett, skala: 1)
+            } else if b.imBett.isEmpty {
+                HStack(alignment: .bottom, spacing: -64) {
+                    ForEach(wach, id: \.self) { p in figur(p, szene: p == person ? szene : nil).zIndex(p == person ? 1 : 0) }
+                }
+            } else {
+                HStack(alignment: .bottom, spacing: -30) {
+                    ForEach(b.personen, id: \.self) { p in
+                        if b.imBett.contains(p) { bett([p], skala: 0.75) } else { figur(p, szene: p == person ? szene : nil) }
+                    }
+                }
+            }
+        }
+        .brightness(dunkel ? -0.1 : 0)
+    }
+
+    /// Same night as the drawing: the bed scene is always night, the room follows the clock.
+    private func nachtImZimmer(_ szene: ProfilSzene) -> Bool {
+        switch szene {
+        case .schlafen: return true
+        case .zimmer: return ProfilSzene.nacht(person: person)
+        case .gym, .draussen: return false
+        }
+    }
+
+    private func bett(_ schlaefer: [Person], skala: CGFloat) -> some View {
+        SchlafendeFiguren(zimmer: Zimmer.von(person), schlaefer: schlaefer.map { FigurenModell.shared.aussehen($0) }, skala: skala)
     }
 
     private var kopfSchatten: some View {
@@ -268,19 +303,23 @@ private struct ProfilInhalt: View {
 
     /// Z-24.3: while a `kuss` is live (fresh receive, own optimistic send, or a missed-kiss replay
     /// — all three go through `FigurenModell.anzeige`/`geste`), the figure leans toward the other
-    /// one. `person` sits left/front of the pair (see `kopf`'s HStack order), `person.partner`
-    /// right/behind, so they lean opposite directions. `szene` (Brief G, profile person only): the
-    /// scene's state and extras (dumbbells in the gym, umbrella or sunglasses outside).
+    /// one. Annika stands left, Ahmed right (Brief G fix), so they lean opposite directions.
+    /// `szene` (Brief G, profile person only): the scene's state and extras (dumbbells in the gym,
+    /// umbrella or sunglasses outside). A sleeper outside the room (no bed there) stands asleep;
+    /// from 22:00 an awake figure is tired and yawns now and then.
     @ViewBuilder
     private func figur(_ p: Person, szene: ProfilSzene? = nil) -> some View {
         let live = FigurenModell.shared.anzeige(p).haupt
-        let zustand = szene?.figur(live) ?? live
+        let schlaeft = ProfilSzene.schlaeftGerade(p)
+        let zustand: FigurZustand = schlaeft ? .schlaeft : (szene?.figur(live) ?? live)
         // Ein Kuss gehört beiden: küsst einer, gleiten beide zueinander, neigen sich und spitzen die Lippen.
         let kuesst = live == .kuss || FigurenModell.shared.anzeige(p.partner).haupt == .kuss
-        let richtung: CGFloat = p == person ? 1 : -1
+        let richtung: CGFloat = p == .annika ? 1 : -1
         let wetter = WetterModell.shared.staende[p]
+        let spaet = !schlaeft && ProfilSzene.spaet(stunde: Calendar.berlin.component(.hour, from: Date()))
         // The kiss needs its arm: no umbrella or dumbbells for those 4 s.
-        let extras: Set<FigurExtra> = kuesst ? [] : szene?.extras(zustand, wetterCode: wetter?.code, temperatur: wetter?.temperatur) ?? []
+        let szenenExtras: Set<FigurExtra> = kuesst ? [] : szene?.extras(zustand, wetterCode: wetter?.code, temperatur: wetter?.temperatur) ?? []
+        let extras = spaet ? szenenExtras.union([.schlaefrig]) : szenenExtras
         // A bought pose would replace the curls, so the gym keeps its own arms.
         let pose = szene.map { $0 != .gym } ?? true
         let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose, extras: extras)
