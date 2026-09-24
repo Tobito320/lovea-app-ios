@@ -81,7 +81,7 @@ final class Anwesenheit {
                     let neu = AnwesenheitEingabe.bewegung(automotive: automotive, cycling: cycling, running: running, walking: walking)
                     // Starting or stopping a walk or a trip likely means arriving or leaving: ask for a
                     // fix now instead of waiting up to 3 min for the next one (one-shot, cheap).
-                    if neu != self?.bewegung { Standort.shared.fixAnfordern() }
+                    if neu != self?.bewegung { Standort.shared.fixAnfordern(dringend: neu == .faehrt) }
                     self?.bewegung = neu
                     self?.aktualisieren()
                 }
@@ -197,7 +197,7 @@ final class Anwesenheit {
         guard let ort = ortAusGespeichertenPlaetzen(ich) ?? (supermarktName != nil ? .supermarkt : nil) else { return nil }
         let fix = Standort.shared.positionen[ich]
         let gilt = AnwesenheitEingabe.ortGilt(
-            ort, tempo: fix?.tempo, bewegung: bewegung, fixZeit: fix.flatMap { ISO8601DateFormatter().date(from: $0.zeit) },
+            ort, tempo: fix?.tempo, bewegung: bewegung, fixZeit: fix.flatMap { Standort.isoFormat.date(from: $0.zeit) },
             letzteBewegung: letzteBewegung
         )
         return gilt ? ort : nil

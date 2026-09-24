@@ -130,7 +130,7 @@ struct SpielKonfetti: View {
     var body: some View {
         Group {
             if !reduceMotion && !vorbei {
-                TimelineView(.animation) { kontext in
+                TimelineView(.animation(minimumInterval: 1.0 / 60)) { kontext in
                     Canvas { g, size in
                         let t = kontext.date.timeIntervalSince(start)
                         for p in teile {

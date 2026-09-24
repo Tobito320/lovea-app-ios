@@ -435,10 +435,18 @@ final class ChatModell {
 
     // MARK: - ISO dates for `bis` fields (Op itself formats `zeit` the same way, but keeps that formatter private)
 
-    private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
+    // ponytail: two shared formatters instead of one per call. ISO8601DateFormatter is thread-safe
+    // (Apple docs, iOS 7+), so `nonisolated(unsafe)` only silences the missing Sendable mark; building
+    // one per op made every launch and fold pay for it thousands of times.
+    private nonisolated(unsafe) static let isoFraktional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
-        f.formatOptions = fraktional ? [.withInternetDateTime, .withFractionalSeconds] : [.withInternetDateTime]
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
+    }()
+    private nonisolated(unsafe) static let isoGanz = ISO8601DateFormatter()
+
+    private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
+        fraktional ? isoFraktional : isoGanz
     }
 
     private static func datumString(_ datum: Date) -> String { isoFormatierer(fraktional: true).string(from: datum) }

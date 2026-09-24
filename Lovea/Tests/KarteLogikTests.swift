@@ -119,4 +119,13 @@ final class KarteLogikTests: XCTestCase {
         XCTAssertEqual(KarteLogik.unsereOrte([alt, woanders, neu]).map(\.id), ["neu", "woanders"])
         XCTAssertEqual(KarteLogik.unsereOrte([]).count, 0)
     }
+
+    /// Akku: motion flicker asks for at most one extra GPS fix per 45 s; driving starts always get one.
+    func testExtraFixThrottle() {
+        let t = Date(timeIntervalSince1970: 1_000_000)
+        XCTAssertTrue(Standort.extraFixErlaubt(letzter: .distantPast, jetzt: t, dringend: false))
+        XCTAssertFalse(Standort.extraFixErlaubt(letzter: t.addingTimeInterval(-10), jetzt: t, dringend: false))
+        XCTAssertTrue(Standort.extraFixErlaubt(letzter: t.addingTimeInterval(-10), jetzt: t, dringend: true))
+        XCTAssertTrue(Standort.extraFixErlaubt(letzter: t.addingTimeInterval(-45), jetzt: t, dringend: false))
+    }
 }

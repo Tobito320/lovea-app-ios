@@ -53,12 +53,18 @@ struct Op: Codable, Identifiable, Sendable {
         try c.encode(wert, forKey: .d)
     }
 
-    // Fresh formatter per call: ISO8601DateFormatter is a class and not Sendable,
-    // so a shared `static let` would trip Swift 6 strict concurrency.
-    private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
+    // ponytail: two shared formatters instead of one per call. ISO8601DateFormatter is thread-safe
+    // (Apple docs, iOS 7+), so `nonisolated(unsafe)` only silences the missing Sendable mark; building
+    // one per op made every launch and fold pay for it thousands of times.
+    private nonisolated(unsafe) static let isoFraktional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
-        f.formatOptions = fraktional ? [.withInternetDateTime, .withFractionalSeconds] : [.withInternetDateTime]
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
+    }()
+    private nonisolated(unsafe) static let isoGanz = ISO8601DateFormatter()
+
+    private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
+        fraktional ? isoFraktional : isoGanz
     }
 
     private static func datumString(_ datum: Date) -> String {

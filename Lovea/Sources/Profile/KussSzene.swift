@@ -37,7 +37,7 @@ private struct SteigendeHerzen: View {
     @State private var start = Date()
 
     var body: some View {
-        TimelineView(.animation) { kontext in
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { kontext in
             let t = kontext.date.timeIntervalSince(start)
             Canvas { g, groesse in
                 for k in 0..<12 {

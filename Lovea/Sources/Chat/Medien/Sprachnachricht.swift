@@ -55,6 +55,7 @@ final class AufnahmeSteuerung {
     @ObservationIgnored private var dauerBisher: TimeInterval = 0
     @ObservationIgnored private var pegelRoh: [Float] = []
     @ObservationIgnored private var recorder: AVAudioRecorder?
+    @ObservationIgnored private var starts = 0
     @ObservationIgnored private var aktuellesSegment: URL?
     @ObservationIgnored private var messTask: Task<Void, Never>?
     @ObservationIgnored private var beobachtet = false
@@ -68,6 +69,7 @@ final class AufnahmeSteuerung {
     /// waits until the session is active before the recorder starts. `basis` continues a restored
     /// draft or review file.
     func start(basis: SprachEntwurf? = nil) async -> Bool {
+        starts += 1
         SprachSpieler.shared.parken()
         guard await AVAudioApplication.requestRecordPermission() else { return false }
         guard await Self.sitzungAktivieren() else { return false }
@@ -146,6 +148,21 @@ final class AufnahmeSteuerung {
         dauer = 0
         pegelRoh = []
         pegelLive = []
+        sitzungFreigeben()
+    }
+
+    /// Recording is over (sent or deleted): hand the mic session back, so it doesn't keep the app
+    /// and the audio hardware awake in the background. Skipped while a voice message plays.
+    /// Waits a second first, so a new recording started right after sending isn't cut off.
+    private func sitzungFreigeben() {
+        let stand = starts
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard let self, self.starts == stand, !self.laeuft, !SprachSpieler.shared.laeuft else { return }
+            Task.detached(priority: .utility) {
+                try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+            }
+        }
     }
 
     private func unterbrochen() {

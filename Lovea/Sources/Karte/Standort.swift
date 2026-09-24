@@ -33,8 +33,12 @@ final class Standort: NSObject {
     private let bewegungsManager = CMMotionActivityManager()
     private var sparTask: Task<Void, Never>?
     private var liveTask: Task<Void, Never>?
+    private var liveEnde: Task<Void, Never>?
     private var live = false
     private var letzteMeldung = Date.distantPast
+    private var letzterExtraFix = Date.distantPast
+    /// One formatter for every fix: building an ISO8601DateFormatter per call is costly.
+    nonisolated(unsafe) static let isoFormat = ISO8601DateFormatter()
 
     private override init() {
         super.init()
@@ -72,8 +76,12 @@ final class Standort: NSObject {
 
     /// One extra fix now, e.g. when a walk or a trip starts or ends (`Anwesenheit`), so arriving
     /// and leaving show without waiting for the next spar fix.
-    func fixAnfordern() {
+    /// Motion flips walking/stationary often (traffic lights), so at most one extra GPS fix per 45 s,
+    /// except when driving starts (`dringend`): the train check needs that fix's speed.
+    func fixAnfordern(dringend: Bool = false) {
         guard manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else { return }
+        guard Self.extraFixErlaubt(letzter: letzterExtraFix, jetzt: Date(), dringend: dringend) else { return }
+        letzterExtraFix = Date()
         manager.requestLocation()
     }
 
@@ -92,16 +100,30 @@ final class Standort: NSObject {
         }
     }
 
+    nonisolated static func extraFixErlaubt(letzter: Date, jetzt: Date, dringend: Bool) -> Bool {
+        dringend || jetzt.timeIntervalSince(letzter) >= 45
+    }
+
     private func liveSetzen(_ an: Bool) {
         guard an != live else { return }
         live = an
         liveTask?.cancel()
-        guard an else { liveTask = nil; return }
+        liveEnde?.cancel()
+        guard an else { liveTask = nil; liveEnde = nil; return }
+        // The stream can go quiet (standing still) and never reach its own end check; without this a
+        // lost `an: false` kept GPS on for good.
+        liveEnde = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(600))
+            guard !Task.isCancelled else { return }
+            self?.liveSetzen(false)
+        }
         liveTask = Task { @MainActor [weak self] in
             // ponytail: unsure of the exact throwing/async shape of `CLLocationUpdate.liveUpdates()`
             // on iOS 26 (no local compiler to check) - see block-8-report.md. `.default` accuracy
             // is used instead of a named high-accuracy configuration for the same reason.
             let ende = Date().addingTimeInterval(600)
+            // The stream can go quiet (standing still) and never reach the check below; without this
+            // a lost `an: false` kept GPS on forever.
             do {
                 for try await update in CLLocationUpdate.liveUpdates() {
                     guard let self, !Task.isCancelled, self.live, Date() < ende else { break }
@@ -132,7 +154,7 @@ final class Standort: NSObject {
             akku: UIDevice.current.batteryLevel >= 0 ? Double(UIDevice.current.batteryLevel) : nil,
             laedt: UIDevice.current.batteryState == .charging || UIDevice.current.batteryState == .full,
             bewegung: bewegung,
-            zeit: ISO8601DateFormatter().string(from: zeit)
+            zeit: Self.isoFormat.string(from: zeit)
         )
         if let ich = Raum.shared.ich { positionen[ich] = d }
         Raum.shared.fluechtig("standort", d)
@@ -200,7 +222,7 @@ extension StandortDaten {
 
     /// Age of the fix; `nil` if `zeit` doesn't parse. Texts come from `KarteLogik.alterText`.
     var sekundenAlt: TimeInterval? {
-        ISO8601DateFormatter().date(from: zeit).map { Date().timeIntervalSince($0) }
+        Standort.isoFormat.date(from: zeit).map { Date().timeIntervalSince($0) }
     }
 
     func meter(bis andere: StandortDaten) -> CLLocationDistance {
