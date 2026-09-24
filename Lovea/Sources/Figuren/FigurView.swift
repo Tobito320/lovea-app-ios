@@ -478,7 +478,7 @@ private struct Zeichner {
         ohrringeZeichnen(g)
         muetzeZeichnen(g)
         kopfschmuck(g)
-        brillen(g)
+        brillen(gedreht(g))
     }
 
     /// Under a covering hat the hair stops at the hat line, so tall styles never poke through.
@@ -1308,20 +1308,23 @@ private struct Zeichner {
         }
     }
 
+    /// Brief K: a 2D three-quarter turn toward the hugged partner. The features (and glasses)
+    /// slide toward them and narrow, clipped to the head; `mund` moves the lips a bit further so
+    /// the kiss meets near the edge of the head. Unchanged while there is no turn.
+    func gedreht(_ g: GraphicsContext, mund: Bool = false) -> GraphicsContext {
+        guard let um = umarmung, um.arme + um.kuss > 0 else { return g }
+        let dreh = um.seite * (10 * um.arme + 18 * um.kuss)
+        var h = g
+        h.clip(to: kopfPfad)
+        h.translateBy(x: 100 + dreh, y: 0)
+        h.scaleBy(x: 1 - abs(dreh) / 150, y: 1)
+        h.translateBy(x: -100 + (mund ? um.seite * 12 * um.kuss : 0), y: 0)
+        return h
+    }
+
     func gesicht(_ basis: GraphicsContext) {
-        var g = basis
-        var mundKontext = basis
-        if let um = umarmung {
-            // Brief K: a 2D three-quarter turn. The features slide toward the partner and narrow,
-            // the lips a bit further, so the kiss meets near the edge of the head.
-            let dreh = um.seite * (10 * um.arme + 18 * um.kuss)
-            g.clip(to: kopfPfad)
-            g.translateBy(x: 100 + dreh, y: 0)
-            g.scaleBy(x: 1 - abs(dreh) / 150, y: 1)
-            g.translateBy(x: -100, y: 0)
-            mundKontext = g
-            mundKontext.translateBy(x: um.seite * 12 * um.kuss, y: 0)
-        }
+        let g = gedreht(basis)
+        let mundKontext = gedreht(basis, mund: true)
         let staerke = [.verliebt, .verlegen, .schmollt].contains(z) ? 0.7 : ((z == .kuss || z == .herz || z == .naehe || rouge) ? 0.5 : 0.28)
         let wange = Pal.rose.farbe.opacity(staerke)
         // Pouting puffs the cheeks.
