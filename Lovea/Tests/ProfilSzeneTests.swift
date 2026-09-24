@@ -198,4 +198,44 @@ final class ProfilSzeneTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(Zimmer.dekoArten.count, 25)
         XCTAssertEqual(Set(Zimmer.dekoArten.map { $0.id }).count, Zimmer.dekoArten.count, "ids are unique")
     }
+
+    // MARK: - Per-person defaults and clean spots
+
+    func testAhmedsZuhauseOhneRosa() {
+        let z = Zimmer(ort: .zuhause, person: .ahmed)
+        XCTAssertEqual(z.bett, 5, "black bed")
+        XCTAssertEqual(z.wand, 6, "charcoal wall")
+        XCTAssertEqual(z.boden, 5, "concrete floor")
+        for rosa in ["neonHerz", "ledStreifen", "sitzsack", "teppichRund", "blumen", "kerze"] { XCTAssertFalse(z.hat(rosa), rosa) }
+        for teil in ["sneakerRegal", "gaming", "lautsprecher", "teppichSchwarz", "bargeld", "jordanBox", "ledWeiss"] { XCTAssertTrue(z.hat(teil), teil) }
+        XCTAssertEqual([z.posterLinks, z.posterBett, z.poster].map { Zimmer.posterArten[$0] }, ["ICEMAN", "Meet the Woo 2", "SVJ"])
+        XCTAssertFalse(z.hat("fenster"), "the left posters need the wall")
+        // Annika's default stays as it was.
+        XCTAssertEqual(Zimmer(ort: .zuhause, person: .annika), Zimmer())
+        // Nothing saved yet: Ahmed gets his default, from either key.
+        XCTAssertEqual(Zimmer.lesen(raeume: nil, altesZimmer: nil, ort: .zuhause, person: .ahmed), z)
+    }
+
+    func testStandardsOhneUeberschneidung() {
+        for p in [Person.ahmed, .annika] {
+            for ort in RaumOrt.allCases {
+                XCTAssertEqual(Zimmer(ort: ort, person: p).konflikte, [], "\(p.name) \(ort.rawValue)")
+            }
+        }
+    }
+
+    func testDekoAnSchaltetNachbarnAus() {
+        var z = Zimmer(deko: ["teppich", "pflanze", "gaming"])
+        z.dekoAn("teppichSchwarz")
+        z.dekoAn("monstera")
+        z.dekoAn("buecherregal")
+        XCTAssertEqual(Set(z.deko), ["teppichSchwarz", "monstera", "buecherregal"])
+        XCTAssertEqual(z.konflikte, [])
+    }
+
+    func testDreiPosterRundreise() {
+        let z = Zimmer(deko: ["ledRot", "goldkette", "tresor"], poster: 17, posterLinks: 14, posterBett: 15)
+        XCTAssertEqual(Zimmer.lesen(z.json), z)
+        XCTAssertEqual(Zimmer.posterArten.count, 18)
+    }
 }

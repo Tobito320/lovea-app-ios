@@ -14,9 +14,11 @@ enum RaumOrt: String, CaseIterable, Sendable {
 }
 
 /// Brief G: one furnished place, `{bett, wand, boden, deko: [String], rahmen: [{slot, medienId}],
-/// poster, tisch}`. A fixed, designed room: one variant per slot, deco toggled on or off, one wall
-/// poster, up to 3 photo frames. `bett` only matters at home, `tisch` (the desk) at work and school.
-/// Reading is tolerant: anything unknown, missing or out of range falls back to the defaults.
+/// poster, posterLinks, posterBett, tisch}`. A fixed, designed room: one variant per slot, deco
+/// toggled on or off, up to 3 wall posters (right wall everywhere; at home also the left wall and
+/// above the bed, where the window would be), up to 3 photo frames. `bett` only matters at home,
+/// `tisch` (the desk) at work and school. Reading is tolerant: anything unknown, missing or out of
+/// range falls back to the defaults.
 struct Zimmer: Equatable, Sendable {
     struct Rahmen: Equatable, Sendable {
         var slot: Int
@@ -30,8 +32,11 @@ struct Zimmer: Equatable, Sendable {
     var rahmen: [Rahmen] = []
     var poster = 0
     var tisch = 0
+    var posterLinks = 0
+    var posterBett = 0
 
-    init(bett: Int = 0, wand: Int = 0, boden: Int = 0, deko: [String] = Zimmer.standardDeko, rahmen: [Rahmen] = [], poster: Int = 0, tisch: Int = 0) {
+    init(bett: Int = 0, wand: Int = 0, boden: Int = 0, deko: [String] = Zimmer.standardDeko, rahmen: [Rahmen] = [],
+         poster: Int = 0, tisch: Int = 0, posterLinks: Int = 0, posterBett: Int = 0) {
         self.bett = bett
         self.wand = wand
         self.boden = boden
@@ -39,60 +44,89 @@ struct Zimmer: Equatable, Sendable {
         self.rahmen = rahmen
         self.poster = poster
         self.tisch = tisch
+        self.posterLinks = posterLinks
+        self.posterBett = posterBett
     }
 
-    /// A fresh place with its own default look.
-    init(ort: RaumOrt) {
+    /// A fresh place with its own default look. Ahmed's home is dark and streetwear (no pink, no
+    /// hearts); Annika's stays the soft default.
+    init(ort: RaumOrt, person: Person? = nil) {
         switch ort {
+        case .zuhause where person == .ahmed:
+            self.init(bett: 5, wand: 6, boden: 5,
+                      deko: ["ledWeiss", "sneakerRegal", "gaming", "lautsprecher", "teppichSchwarz", "bargeld", "jordanBox"],
+                      poster: 13, posterLinks: 11, posterBett: 12)
         case .zuhause: self.init()
         case .arbeit: self.init(wand: 2, boden: 1, deko: ["regal", "pflanze", "kaffeemaschine", "wanduhr"], tisch: 2)
         case .schule: self.init(wand: 0, boden: 0, deko: ["globus", "pinnwand", "wanduhr"], tisch: 0)
         }
     }
 
-    static let betten = ["Holz hell", "Holz dunkel", "Samt rosa", "Metall weiß", "Boxspring grau"]
+    static let betten = ["Holz hell", "Holz dunkel", "Samt rosa", "Metall weiß", "Boxspring grau", "Schwarz"]
     static let tische = ["Holz hell", "Weiß", "Eiche dunkel", "Schwarz"]
-    static let waende = ["Creme", "Rosa Streifen", "Salbei", "Himmelblau", "Lavendel", "Nachtblau"]
-    static let boeden = ["Holz hell", "Holz dunkel", "Teppich creme", "Fliesen", "Teppich rosa"]
-    /// `nurZuhause`: the window and the bedside lamp belong to the bedroom; office and classroom
-    /// bring their own window.
-    static let dekoArten: [(id: String, name: String, nurZuhause: Bool)] = [
-        ("fenster", "Fenster", true), ("lampe", "Nachttisch-Lampe", true),
-        ("teppich", "Teppich", false), ("teppichRund", "Runder Teppich", false), ("pflanze", "Pflanze", false),
-        ("monstera", "Monstera", false), ("kaktus", "Kaktus", false), ("blumen", "Blumenvase", false),
-        ("regal", "Regal", false), ("buecherregal", "Bücherregal", false), ("lichterkette", "Lichterkette", false),
-        ("lichtervorhang", "Lichtervorhang", false), ("ledStreifen", "LED-Streifen", false), ("neonHerz", "Neon-Herz", false),
-        ("spiegel", "Spiegel", false), ("kleiderstange", "Kleiderstange", false), ("sneakerRegal", "Sneaker-Regal", false),
-        ("gaming", "Gaming-Ecke", false), ("lautsprecher", "Lautsprecher", false), ("plattenspieler", "Plattenspieler", false),
-        ("kerze", "Kerzen", false), ("sitzsack", "Sitzsack", false), ("hanteln", "Hanteln", false),
-        ("yogamatte", "Yogamatte", false), ("pinnwand", "Pinnwand mit Polaroids", false), ("globus", "Globus", false),
-        ("stehlampe", "Stehlampe", false), ("kopfhoerer", "Kopfhörer", false), ("kaffeemaschine", "Kaffeemaschine", false),
-        ("wanduhr", "Wanduhr", false),
+    static let waende = ["Creme", "Rosa Streifen", "Salbei", "Himmelblau", "Lavendel", "Nachtblau", "Anthrazit", "Marine"]
+    static let boeden = ["Holz hell", "Holz dunkel", "Teppich creme", "Fliesen", "Teppich rosa", "Beton"]
+    /// `wo`: the places a piece is offered in (z home, a office, s classroom). The window and the
+    /// bedside lamp belong to the bedroom; office and classroom bring their own window.
+    static let dekoArten: [(id: String, name: String, wo: String)] = [
+        ("fenster", "Fenster", "z"), ("lampe", "Nachttisch-Lampe", "z"),
+        ("teppich", "Teppich", "zas"), ("teppichRund", "Runder Teppich", "zas"), ("teppichSchwarz", "Schwarzer Teppich", "zas"),
+        ("pflanze", "Pflanze", "zas"), ("monstera", "Monstera", "zas"), ("kaktus", "Kaktus", "zas"), ("blumen", "Blumenvase", "zas"),
+        ("regal", "Regal", "zas"), ("buecherregal", "Bücherregal", "zas"), ("lichterkette", "Lichterkette", "zas"),
+        ("lichtervorhang", "Lichtervorhang", "za"), ("ledStreifen", "LED rosa", "zas"), ("ledWeiss", "LED kaltweiß", "zas"),
+        ("ledRot", "LED rot", "zas"), ("neonHerz", "Neon-Herz", "za"), ("spiegel", "Spiegel", "za"),
+        ("kleiderstange", "Kleiderstange", "z"), ("sneakerRegal", "Sneaker-Regal", "za"), ("jordanBox", "Sneaker-Kartons", "za"),
+        ("gaming", "Gaming-Ecke", "za"), ("lautsprecher", "Lautsprecher", "za"), ("plattenspieler", "Plattenspieler", "za"),
+        ("kerze", "Kerzen", "za"), ("sitzsack", "Sitzsack", "za"), ("hanteln", "Hanteln", "za"), ("yogamatte", "Yogamatte", "za"),
+        ("pinnwand", "Pinnwand mit Polaroids", "zas"), ("globus", "Globus", "as"), ("stehlampe", "Stehlampe", "zas"),
+        ("kopfhoerer", "Kopfhörer", "za"), ("kaffeemaschine", "Kaffeemaschine", "a"), ("wanduhr", "Wanduhr", "zas"),
+        ("bargeld", "Bargeld-Stapel", "za"), ("tresor", "Tresor", "za"), ("goldkette", "Goldkette am Ständer", "za"),
     ]
-    static let posterArten = ["Kein Poster", "Amore", "Just Do It", "Jumpman", "Drei Streifen", "Gym Shark", "Box Logo", "Script", "Porsche", "BMW", "Real Madrid"]
+    /// Pieces that share a spot: switching one on switches the others off, so nothing collides.
+    static let ausschliessend: [[String]] = [
+        ["teppich", "teppichRund", "teppichSchwarz"], ["ledStreifen", "ledWeiss", "ledRot"],
+        ["pflanze", "monstera", "stehlampe", "kleiderstange"], ["buecherregal", "gaming"], ["buecherregal", "spiegel"],
+        ["buecherregal", "kopfhoerer"], ["wanduhr", "lichterkette"], ["wanduhr", "lichtervorhang"],
+    ]
+    static let posterArten = ["Kein Poster", "Amore", "Just Do It", "Jumpman", "Drei Streifen", "Gym Shark", "Box Logo", "Script",
+                              "Porsche", "BMW", "Real Madrid", "ICEMAN", "Meet the Woo 2", "SVJ", "Jordan", "23", "Air", "Money"]
     static let standardDeko = ["fenster", "teppich", "lampe", "pflanze"]
     static let rahmenPlaetze = 3
 
-    static func dekoArten(fuer ort: RaumOrt) -> [(id: String, name: String, nurZuhause: Bool)] {
-        ort == .zuhause ? dekoArten : dekoArten.filter { !$0.nurZuhause }
+    static func dekoArten(fuer ort: RaumOrt) -> [(id: String, name: String, wo: String)] {
+        let buchstabe = String(ort.rawValue.prefix(1))
+        return dekoArten.filter { $0.wo.contains(buchstabe) }
     }
 
+    /// Switches `id` on and every piece that shares its spot off.
+    mutating func dekoAn(_ id: String) {
+        let weg = Set(Self.ausschliessend.filter { $0.contains(id) }.flatMap { $0 })
+        deko.removeAll { weg.contains($0) }
+        deko.append(id)
+    }
+
+    /// Pieces switched on together although they share a spot (should never happen).
+    var konflikte: [[String]] {
+        Self.ausschliessend.filter { gruppe in gruppe.filter { deko.contains($0) }.count > 1 }
+    }
     func hat(_ id: String) -> Bool { deko.contains(id) }
 
     func medien(_ slot: Int) -> String? { rahmen.first { $0.slot == slot }?.medienId }
 
-    static func lesen(_ wert: JSONValue?, ort: RaumOrt = .zuhause) -> Zimmer {
-        var z = Zimmer(ort: ort)
+    static func lesen(_ wert: JSONValue?, ort: RaumOrt = .zuhause, person: Person? = nil) -> Zimmer {
+        var z = Zimmer(ort: ort, person: person)
         guard case .object(let o)? = wert else { return z }
         func index(_ schluessel: String, _ anzahl: Int) -> Int? {
             guard case .number(let d)? = o[schluessel], d >= 0, d < Double(anzahl) else { return nil }
             return Int(d)
         }
-        z.bett = index("bett", betten.count) ?? 0
+        z.bett = index("bett", betten.count) ?? z.bett
         z.wand = index("wand", waende.count) ?? z.wand
         z.boden = index("boden", boeden.count) ?? z.boden
         z.tisch = index("tisch", tische.count) ?? z.tisch
-        z.poster = index("poster", posterArten.count) ?? 0
+        z.poster = index("poster", posterArten.count) ?? z.poster
+        z.posterLinks = index("posterLinks", posterArten.count) ?? z.posterLinks
+        z.posterBett = index("posterBett", posterArten.count) ?? z.posterBett
         if case .array(let liste)? = o["deko"] {
             let bekannt = Set(dekoArten(fuer: ort).map { $0.id })
             var gesehen = Set<String>()
@@ -123,14 +157,15 @@ struct Zimmer: Equatable, Sendable {
             "deko": .array(deko.map { .string($0) }),
             "rahmen": .array(rahmen.map { .object(["slot": .number(Double($0.slot)), "medienId": .string($0.medienId)]) }),
             "poster": .number(Double(poster)), "tisch": .number(Double(tisch)),
+            "posterLinks": .number(Double(posterLinks)), "posterBett": .number(Double(posterBett)),
         ])
     }
 
     /// `profil.raeume` `{zuhause, arbeit, schule}`; a place missing there falls back to the old
     /// `profil.zimmer` (home only), else to its defaults.
-    static func lesen(raeume: JSONValue?, altesZimmer: JSONValue?, ort: RaumOrt) -> Zimmer {
-        if case .object(let o)? = raeume, let wert = o[ort.rawValue] { return lesen(wert, ort: ort) }
-        return ort == .zuhause ? lesen(altesZimmer, ort: .zuhause) : Zimmer(ort: ort)
+    static func lesen(raeume: JSONValue?, altesZimmer: JSONValue?, ort: RaumOrt, person: Person? = nil) -> Zimmer {
+        if case .object(let o)? = raeume, let wert = o[ort.rawValue] { return lesen(wert, ort: ort, person: person) }
+        return ort == .zuhause && altesZimmer != nil ? lesen(altesZimmer, ort: .zuhause, person: person) : Zimmer(ort: ort, person: person)
     }
 }
 
@@ -140,7 +175,7 @@ extension Zimmer {
     // is last-wins across both, so one person's room would overwrite the other's.
     static func von(_ person: Person, ort: RaumOrt = .zuhause) -> Zimmer {
         let werte = EinstellungenModell.shared.werte[person]
-        return lesen(raeume: werte?["profil.raeume"], altesZimmer: werte?["profil.zimmer"], ort: ort)
+        return lesen(raeume: werte?["profil.raeume"], altesZimmer: werte?["profil.zimmer"], ort: ort, person: person)
     }
 
     /// Writes the whole map (own person), with this place replaced.
@@ -186,8 +221,8 @@ enum SzenenZeichnung {
 
     // MARK: Room
 
-    private static let wandFarben: [UInt32] = [0xF6EBDD, 0xF9DCE3, 0xCFDCC8, 0xD6E8F5, 0xE3D9F2, 0x2E3A5C]
-    private static let bodenFarben: [UInt32] = [0xE2C29A, 0x8A5E3F, 0xEFE6DA, 0xE9ECEF, 0xF4C9D4]
+    private static let wandFarben: [UInt32] = [0xF6EBDD, 0xF9DCE3, 0xCFDCC8, 0xD6E8F5, 0xE3D9F2, 0x2E3A5C, 0x2B2D31, 0x1E2A44]
+    private static let bodenFarben: [UInt32] = [0xE2C29A, 0x8A5E3F, 0xEFE6DA, 0xE9ECEF, 0xF4C9D4, 0x8C8F95]
 
     /// `bett`: the optional `szene-bett-<n>` picture for the headboard.
     static func zimmer(_ g: GraphicsContext, _ z: Zimmer, nacht: Bool, mitBett: Bool, bett: UIImage?, t: Double) {
@@ -239,6 +274,9 @@ enum SzenenZeichnung {
                 let p = P(zufall(k * 2) * breite, -380 + zufall(k * 2 + 1) * 660)
                 g.fill(stern(p, 2.5 + zufall(k) * 2), with: .color(farbe(0xF5C542).opacity(0.55)))
             }
+        case 6:
+            // Charcoal with dark acoustic slats.
+            for x in stride(from: CGFloat(4), to: breite, by: 14) { g.fill(box(x, -400, 8, 690), with: .color(f.mal(1.18).farbe.opacity(0.5))) }
         default:
             break
         }
@@ -272,7 +310,13 @@ enum SzenenZeichnung {
                 linie(g, strich(P(195 + x * 150 / 280, 300), P(195 + x, 430)), fuge, 1.5)
             }
         }
-        teil(g, box(-4, 292, breite + 8, 10, 2), Pal.weiss, 2)
+        if i == 5 {
+            // Concrete: a few large slabs and a faint mottle.
+            for y in [CGFloat(330), 380] { linie(g, strich(P(0, y), P(breite, y)), fuge, 1.2) }
+            for x in [CGFloat(130), 260] { linie(g, strich(P(x, 300), P(x + (x - 195) * 0.4, 430)), fuge, 1.2) }
+            for k in 0..<30 { g.fill(kreis(P(zufall(k + 40) * breite, 304 + zufall(k + 80) * 120), 2.5), with: .color(.white.opacity(0.06))) }
+        }
+        teil(g, box(-4, 292, breite + 8, 10, 2), i == 5 || i == 1 ? Pal.dunkel : Pal.weiss, 2)
     }
 
     private static let fensterRahmen = CGRect(x: 22, y: 72, width: 112, height: 124)
@@ -316,50 +360,67 @@ enum SzenenZeichnung {
     /// Everything toggled in the deco tab, the poster and the photo frames, back to front. Lights
     /// come later in `leuchten`, after the night dimming.
     private static func einrichtung(_ g: GraphicsContext, _ z: Zimmer) {
-        // On the wall
+        // On the wall. Every piece has its own spot; pieces that would share one exclude each other
+        // (`Zimmer.ausschliessend`).
         if z.hat("pinnwand") { pinnwand(g) }
         if z.hat("wanduhr") { uhr(g, P(205, 40)) }
         if z.hat("spiegel") { spiegel(g) }
         if z.hat("kopfhoerer") { kopfhoerer(g) }
         if z.hat("buecherregal") { buecherregal(g) }
-        if z.hat("regal") { regal(g) }
-        if z.poster > 0 {
-            var h = g
-            h.translateBy(x: 318, y: 238)
-            h.rotate(by: .degrees(-3))
-            h.fill(box(-24, -33, 52, 70, 3), with: .color(.black.opacity(0.12)))
-            posterZeichnen(h, z.poster)
-            h.fill(box(-8, -40, 16, 7, 1), with: .color(.white.opacity(0.7)))
+        if z.hat("regal") { regal(g, mitTopf: !z.hat("goldkette")) }
+        if z.hat("goldkette") { goldkette(g, aufRegal: z.hat("regal")) }
+        // Up to three posters: the right wall everywhere, left wall and above the bed only where no
+        // window hangs (home without the window).
+        posterAufhaengen(g, z.poster, P(318, 226))
+        if !z.hat("fenster") {
+            posterAufhaengen(g, z.posterLinks, P(48, 114))
+            posterAufhaengen(g, z.posterBett, P(112, 114))
         }
         for r in z.rahmen where rahmenRects.indices.contains(r.slot) { rahmen(g, rahmenRects[r.slot]) }
-        // On the window sill (home, office and classroom all have one)
+        // On the window sill; without a window a small wall shelf takes its place.
+        if !z.hat("fenster") && (z.hat("kaktus") || z.hat("kerze") || z.hat("blumen")) { teil(g, box(14, 192, 128, 9, 3), Pal.holz, 2) }
         if z.hat("kaktus") { kaktus(g) }
         if z.hat("kerze") { kerzen(g) }
         if z.hat("blumen") { blumen(g) }
-        // Along the back wall
-        if z.hat("kleiderstange") { kleiderstange(g) }
+        // Along the back wall, left to right
         if z.hat("kaffeemaschine") { kaffeemaschine(g) }
         if z.hat("globus") { globus(g) }
+        if z.hat("bargeld") { bargeld(g, nachttisch: !z.hat("lampe")) }
         if z.hat("lautsprecher") { lautsprecher(g) }
-        if z.hat("plattenspieler") { plattenspieler(g) }
         if z.hat("gaming") { gaming(g) }
+        if z.hat("sneakerRegal") { sneakerRegal(g) }
+        // The right corner: one of plant, monstera, floor lamp, clothes rack
         if z.hat("stehlampe") { stehlampe(g) }
+        if z.hat("kleiderstange") { kleiderstange(g) }
+        if z.hat("monstera") { monstera(g) }
+        if z.hat("pflanze") { pflanze(g) }
         // On the floor, front
         if z.hat("teppich") { teppich(g) }
         if z.hat("teppichRund") { teppichRund(g) }
-        if z.hat("yogamatte") { yogamatte(g) }
-        if z.hat("sneakerRegal") { sneakerRegal(g) }
-        if z.hat("hanteln") { hantelnAmBoden(g) }
+        if z.hat("teppichSchwarz") { teppichSchwarz(g) }
+        if z.hat("plattenspieler") { plattenspieler(g) }
+        if z.hat("jordanBox") { jordanBox(g) }
+        if z.hat("tresor") { tresor(g) }
         if z.hat("sitzsack") { sitzsack(g) }
-        if z.hat("monstera") { monstera(g) }
-        if z.hat("pflanze") { pflanze(g) }
+        if z.hat("yogamatte") { yogamatte(g) }
+        if z.hat("hanteln") { hantelnAmBoden(g) }
+    }
+
+    private static func posterAufhaengen(_ g: GraphicsContext, _ i: Int, _ c: CGPoint) {
+        guard i > 0 else { return }
+        var h = g
+        h.translateBy(x: c.x, y: c.y)
+        h.rotate(by: .degrees(c.x > 200 ? -3 : 2))
+        h.fill(box(-24, -33, 52, 70, 3), with: .color(.black.opacity(0.12)))
+        posterZeichnen(h, i)
+        h.fill(box(-8, -40, 16, 7, 1), with: .color(.white.opacity(0.7)))
     }
 
     /// Everything that glows, drawn after the night dimming so it stays bright.
     private static func leuchten(_ g: GraphicsContext, _ z: Zimmer, nacht: Bool, t: Double) {
-        if z.hat("ledStreifen") {
-            g.fill(box(0, 0, breite, 26), with: .linearGradient(Gradient(colors: [farbe(0xFF4FA3).opacity(nacht ? 0.55 : 0.3), .clear]), startPoint: P(0, 6), endPoint: P(0, 26)))
-            g.fill(box(0, 4, breite, 5, 2), with: .color(farbe(0xFF7AC0)))
+        for (id, hex) in [("ledStreifen", UInt32(0xFF4FA3)), ("ledWeiss", 0xCFE8FF), ("ledRot", 0xFF2A2A)] where z.hat(id) {
+            g.fill(box(0, 0, breite, 26), with: .linearGradient(Gradient(colors: [farbe(hex).opacity(nacht ? 0.55 : 0.3), .clear]), startPoint: P(0, 6), endPoint: P(0, 26)))
+            g.fill(box(0, 4, breite, 5, 2), with: .color(farbe(hex).opacity(0.95)))
         }
         if z.hat("lichterkette") { lichterkette(g, t: t) }
         if z.hat("lichtervorhang") { lichtervorhang(g, t: t) }
@@ -376,13 +437,12 @@ enum SzenenZeichnung {
             g.fill(kreis(P(372, 158), 70), with: .radialGradient(Gradient(colors: [farbe(0xFFD27A).opacity(0.45), .clear]), center: P(372, 158), startRadius: 4, endRadius: 70))
         }
         if z.hat("gaming") {
-            g.fill(box(276, 224, 60, 34, 3), with: .linearGradient(Gradient(colors: [farbe(0x7C4DFF), farbe(0x00C2FF)]), startPoint: P(276, 224), endPoint: P(336, 258)))
+            g.fill(box(232, 226, 52, 32, 3), with: .linearGradient(Gradient(colors: [farbe(0x7C4DFF), farbe(0x00C2FF)]), startPoint: P(232, 226), endPoint: P(284, 258)))
         }
     }
-
     private static func pinnwand(_ g: GraphicsContext) {
-        teil(g, box(148, 150, 72, 52, 4), FigurFarbe(0xC8A27A), 2.5)
-        for (i, x) in [CGFloat(154), 176, 198].enumerated() {
+        teil(g, box(148, 150, 64, 52, 4), FigurFarbe(0xC8A27A), 2.5)
+        for (i, x) in [CGFloat(154), 174, 194].enumerated() {
             var h = g
             h.translateBy(x: x + 8, y: 174)
             h.rotate(by: .degrees(Double(i - 1) * 6))
@@ -393,16 +453,16 @@ enum SzenenZeichnung {
     }
 
     private static func spiegel(_ g: GraphicsContext) {
-        teil(g, oval(P(170, 236), 16, 24), Pal.gold, 3)
-        g.fill(oval(P(170, 236), 12, 20), with: .linearGradient(Gradient(colors: [farbe(0xE4EEF6), farbe(0xB8C8D6)]), startPoint: P(160, 216), endPoint: P(180, 256)))
-        linie(g, strich(P(164, 228), P(172, 220)), .white.opacity(0.8), 2)
+        teil(g, oval(P(262, 190), 16, 24), Pal.gold, 3)
+        g.fill(oval(P(262, 190), 12, 20), with: .linearGradient(Gradient(colors: [farbe(0xE4EEF6), farbe(0xB8C8D6)]), startPoint: P(252, 170), endPoint: P(272, 210)))
+        linie(g, strich(P(256, 182), P(264, 174)), .white.opacity(0.8), 2)
     }
 
     private static func kopfhoerer(_ g: GraphicsContext) {
-        g.fill(kreis(P(140, 206), 2), with: .color(Pal.dunkel.farbe))
-        linie(g, bogen(P(130, 226), P(150, 226), P(140, 200)), Pal.dunkel.farbe, 3.5)
-        teil(g, box(126, 222, 8, 13, 3), Pal.dunkel, 2)
-        teil(g, box(146, 222, 8, 13, 3), Pal.dunkel, 2)
+        g.fill(kreis(P(230, 166), 2), with: .color(Pal.dunkel.farbe))
+        linie(g, bogen(P(220, 186), P(240, 186), P(230, 160)), Pal.dunkel.farbe, 3.5)
+        teil(g, box(216, 182, 8, 13, 3), Pal.dunkel, 2)
+        teil(g, box(236, 182, 8, 13, 3), Pal.dunkel, 2)
     }
 
     private static func buecherregal(_ g: GraphicsContext) {
@@ -440,51 +500,53 @@ enum SzenenZeichnung {
         }
     }
 
+    /// A narrow rack in the right corner.
     private static func kleiderstange(_ g: GraphicsContext) {
-        linie(g, strich(P(14, 214), P(120, 214)), Pal.silber.kontur, 4)
-        for x in [CGFloat(16), 118] { linie(g, strich(P(x, 214), P(x, 300)), Pal.silber.kontur, 4) }
-        let farben: [UInt32] = [0xFF8FA3, 0x3B3A44, 0xF6EBDD, 0x6C91C2]
-        for (i, x) in [CGFloat(34), 56, 78, 100].enumerated() {
-            linie(g, bogen(P(x - 8, 222), P(x + 8, 222), P(x, 212)), Pal.silber.kontur, 1.5)
-            teil(g, box(x - 11, 222, 22, 42 + CGFloat(i % 2) * 10, 4), FigurFarbe(farben[i]), 2)
+        linie(g, strich(P(344, 214), P(390, 214)), Pal.silber.kontur, 4)
+        for x in [CGFloat(346), 388] { linie(g, strich(P(x, 214), P(x, 300)), Pal.silber.kontur, 4) }
+        let farben: [UInt32] = [0x3B3A44, 0xF6EBDD]
+        for (i, x) in [CGFloat(360), 376].enumerated() {
+            linie(g, bogen(P(x - 7, 222), P(x + 7, 222), P(x, 212)), Pal.silber.kontur, 1.5)
+            teil(g, box(x - 9, 222, 18, 46 + CGFloat(i) * 8, 4), FigurFarbe(farben[i]), 2)
         }
     }
 
     private static func kaffeemaschine(_ g: GraphicsContext) {
-        teil(g, box(150, 262, 28, 38, 4), Pal.dunkel, 2.5)
-        teil(g, box(154, 284, 20, 6, 1), Pal.silber, 1.5)
-        teil(g, box(158, 274, 12, 10, 2), Pal.weiss, 1.5)
-        g.fill(kreis(P(170, 268), 2), with: .color(Pal.rose.farbe))
+        teil(g, box(20, 262, 28, 38, 4), Pal.dunkel, 2.5)
+        teil(g, box(24, 284, 20, 6, 1), Pal.silber, 1.5)
+        teil(g, box(28, 274, 12, 10, 2), Pal.weiss, 1.5)
+        g.fill(kreis(P(40, 268), 2), with: .color(Pal.rose.farbe))
     }
 
     private static func globus(_ g: GraphicsContext) {
-        linie(g, strich(P(196, 300), P(196, 290)), Pal.holz.kontur, 3)
-        teil(g, box(186, 296, 20, 5, 2), Pal.holz, 1.8)
-        teil(g, kreis(P(196, 276), 14), FigurFarbe(0x7FB6E8), 2)
-        teil(g, oval(P(191, 272), 6, 4), Pal.gruen, 1)
-        teil(g, oval(P(201, 282), 5, 3), Pal.gruen, 1)
-        linie(g, bogen(P(180, 268), P(206, 290), P(182, 290)), Pal.gold.farbe, 1.8)
+        linie(g, strich(P(76, 300), P(76, 290)), Pal.holz.kontur, 3)
+        teil(g, box(66, 296, 20, 5, 2), Pal.holz, 1.8)
+        teil(g, kreis(P(76, 276), 14), FigurFarbe(0x7FB6E8), 2)
+        teil(g, oval(P(71, 272), 6, 4), Pal.gruen, 1)
+        teil(g, oval(P(81, 282), 5, 3), Pal.gruen, 1)
+        linie(g, bogen(P(60, 268), P(86, 290), P(62, 290)), Pal.gold.farbe, 1.8)
     }
 
     private static func lautsprecher(_ g: GraphicsContext) {
-        teil(g, box(214, 246, 20, 54, 3), Pal.dunkel, 2.5)
-        teil(g, kreis(P(224, 262), 6), Pal.silber, 1.5)
-        teil(g, kreis(P(224, 284), 8), Pal.silber, 1.5)
+        teil(g, box(198, 246, 22, 54, 3), Pal.dunkel, 2.5)
+        teil(g, kreis(P(209, 262), 6), Pal.silber, 1.5)
+        teil(g, kreis(P(209, 284), 8), Pal.silber, 1.5)
     }
 
+    /// On a low cabinet at the front left, in front of the bed's foot.
     private static func plattenspieler(_ g: GraphicsContext) {
-        teil(g, box(238, 272, 50, 28, 3), Pal.holz, 2.5)
-        teil(g, box(240, 264, 46, 9, 2), Pal.weiss, 1.8)
-        g.fill(oval(P(258, 266), 13, 3.5), with: .color(Pal.dunkel.farbe))
-        g.fill(oval(P(258, 266), 3, 1), with: .color(Pal.rose.farbe))
-        linie(g, strich(P(280, 262), P(268, 267)), Pal.silber.kontur, 1.5)
+        teil(g, box(120, 342, 50, 22, 3), Pal.holz, 2.5)
+        teil(g, box(122, 334, 46, 9, 2), Pal.weiss, 1.8)
+        g.fill(oval(P(140, 336), 13, 3.5), with: .color(Pal.dunkel.farbe))
+        g.fill(oval(P(140, 336), 3, 1), with: .color(Pal.rose.farbe))
+        linie(g, strich(P(162, 332), P(150, 337)), Pal.silber.kontur, 1.5)
     }
 
     private static func gaming(_ g: GraphicsContext) {
-        teil(g, box(270, 262, 72, 8, 2), Pal.dunkel, 2.5)
-        for x in [CGFloat(276), 334] { linie(g, strich(P(x, 270), P(x, 300)), Pal.dunkel.kontur, 3) }
-        teil(g, box(272, 220, 68, 42, 4), Pal.dunkel, 2.5)
-        linie(g, strich(P(306, 262), P(306, 256)), Pal.dunkel.farbe, 5)
+        teil(g, box(224, 262, 64, 8, 2), Pal.dunkel, 2.5)
+        for x in [CGFloat(228), 284] { linie(g, strich(P(x, 270), P(x, 300)), Pal.dunkel.kontur, 3) }
+        teil(g, box(228, 222, 60, 40, 4), Pal.dunkel, 2.5)
+        linie(g, strich(P(258, 262), P(258, 256)), Pal.dunkel.farbe, 5)
     }
 
     private static func stehlampe(_ g: GraphicsContext) {
@@ -510,14 +572,16 @@ enum SzenenZeichnung {
         teil(g, oval(P(378, 408), 7, 8), FigurFarbe(0x6FC3A6), 2)
     }
 
+    /// Two rows of Jordans in a white shelf against the wall, below the right poster.
     private static func sneakerRegal(_ g: GraphicsContext) {
-        teil(g, box(296, 312, 52, 32, 3), Pal.weiss, 2)
-        g.fill(box(298, 327, 48, 2), with: .color(Pal.silber.kontur))
-        let farben: [UInt32] = [0xFFFFFF, 0xE56B6F, 0x3B3A44, 0xF2C46D]
-        for (i, x) in [CGFloat(300), 322, 300, 322].enumerated() {
-            let y: CGFloat = i < 2 ? 318 : 333
-            teil(g, box(x, y, 20, 8, 3.5), FigurFarbe(farben[i]), 1.5)
-            g.fill(box(x, y + 6, 20, 2), with: .color(.white))
+        teil(g, box(290, 266, 44, 34, 3), Pal.weiss, 2)
+        g.fill(box(292, 283, 40, 2), with: .color(Pal.silber.kontur))
+        let farben: [(UInt32, UInt32)] = [(0xC8102E, 0x111111), (0xFFFFFF, 0xC8102E), (0x111111, 0xFFFFFF), (0xFFFFFF, 0x111111)]
+        for (i, x) in [CGFloat(293), 312, 293, 312].enumerated() {
+            let y: CGFloat = i < 2 ? 272 : 289
+            teil(g, box(x, y, 18, 8, 3.5), FigurFarbe(farben[i].0), 1.5)
+            g.fill(box(x + 6, y + 1, 7, 4, 1), with: .color(farbe(farben[i].1)))
+            g.fill(box(x, y + 6, 18, 2), with: .color(.white))
         }
     }
 
@@ -540,16 +604,63 @@ enum SzenenZeichnung {
         linie(g, bogen(P(330, 360), P(372, 362), P(352, 350)), FigurFarbe(0xF3A5B8).mal(0.85).farbe, 2)
     }
 
+    /// A big monstera in the right corner.
     private static func monstera(_ g: GraphicsContext) {
-        for (a, l) in [(-70.0, CGFloat(44)), (-38, 58), (-8, 64), (22, 56), (50, 44)] {
+        for (a, l) in [(-25.0, CGFloat(52)), (-5, 64), (15, 58), (32, 44)] {
             var b = g
-            b.translateBy(x: 44, y: 330)
+            b.translateBy(x: 372, y: 318)
             b.rotate(by: .degrees(a))
-            teil(b, oval(P(0, -l / 2), 15, l / 2), FigurFarbe(0x3E9B5A), 2.5)
-            linie(b, strich(P(-15, -l * 0.55), P(-6, -l * 0.55)), FigurFarbe(0xF6EBDD).farbe, 2.5)
+            teil(b, oval(P(0, -l / 2), 12, l / 2), FigurFarbe(0x3E9B5A), 2.5)
+            linie(b, strich(P(-12, -l * 0.55), P(-5, -l * 0.55)), FigurFarbe(0xF6EBDD).farbe, 2.5)
             linie(b, strich(P(0, -4), P(0, -l + 8)), FigurFarbe(0x2E7A45).farbe.opacity(0.9), 1.5)
         }
-        teil(g, box(28, 326, 32, 30, 5), FigurFarbe(0xF6EBDD), 2.5)
+        teil(g, box(356, 314, 32, 30, 5), FigurFarbe(0xF6EBDD), 2.5)
+    }
+
+    private static func teppichSchwarz(_ g: GraphicsContext) {
+        teil(g, oval(P(250, 386), 128, 30), FigurFarbe(0x1C1C1F), 2.5)
+        linie(g, oval(P(250, 386), 114, 24), .white.opacity(0.35), 1.5)
+    }
+
+    /// Cash stacks on the nightstand (its own dark one when the lamp's isn't there).
+    private static func bargeld(_ g: GraphicsContext, nachttisch: Bool) {
+        if nachttisch {
+            for x in [CGFloat(158), 186] { linie(g, strich(P(x, 312), P(x, 324)), Pal.dunkel.kontur, 4) }
+            teil(g, box(154, 282, 36, 32, 3), Pal.dunkel, 2.5)
+            teil(g, box(150, 276, 44, 8, 3), Pal.dunkel.mal(1.2), 2.5)
+        }
+        for (i, y) in [CGFloat(270), 263, 256].enumerated() {
+            teil(g, box(151 + CGFloat(i % 2) * 2, y, 16, 7, 1.5), FigurFarbe(0x7DBE7A), 1.5)
+            g.fill(box(157 + CGFloat(i % 2) * 2, y, 4, 7), with: .color(farbe(0xF2E8C9)))
+        }
+    }
+
+    /// Stacked sneaker boxes, front left of centre.
+    private static func jordanBox(_ g: GraphicsContext) {
+        let farben: [(UInt32, UInt32)] = [(0xC8102E, 0x111111), (0xF36F21, 0xFFFFFF), (0x111111, 0xC8102E)]
+        for (i, f) in farben.enumerated() {
+            let y: CGFloat = 358 - CGFloat(i) * 13
+            let x: CGFloat = 178 + CGFloat(i % 2) * 3
+            teil(g, box(x, y, 46, 13, 1.5), FigurFarbe(f.0), 1.5)
+            g.fill(box(x, y, 46, 3), with: .color(farbe(f.1)))
+        }
+    }
+
+    /// A small safe with a dial, front centre-right.
+    private static func tresor(_ g: GraphicsContext) {
+        teil(g, box(240, 336, 40, 36, 4), FigurFarbe(0x4A4C52), 2.5)
+        teil(g, kreis(P(256, 354), 7), Pal.silber, 1.5)
+        linie(g, strich(P(256, 354), P(256, 349)), Pal.dunkel.farbe, 1.5)
+        linie(g, strich(P(270, 348), P(270, 360)), Pal.silber.farbe, 3)
+    }
+
+    /// A gold chain on a small bust, on the shelf's right end (or its own little shelf).
+    private static func goldkette(_ g: GraphicsContext, aufRegal: Bool) {
+        if !aufRegal { teil(g, box(354, 170, 34, 6, 2), Pal.holz, 2) }
+        teil(g, box(366, 150, 12, 20, 3), Pal.dunkel, 2)
+        teil(g, kreis(P(372, 146), 6), Pal.dunkel, 2)
+        linie(g, bogen(P(363, 152), P(381, 152), P(372, 170)), Pal.gold.kontur, 3.5)
+        linie(g, bogen(P(363, 152), P(381, 152), P(372, 170)), Pal.gold.farbe, 2)
     }
 
     private static func lichtervorhang(_ g: GraphicsContext, t: Double) {
@@ -588,13 +699,7 @@ enum SzenenZeichnung {
             h.fill(swoosh, with: .color(.white))
             schrift(h, "JUST DO IT.", P(0, 20), 7.5, .white)
         case 3:
-            let schwarz = farbe(0x111111)
-            h.fill(kreis(P(3, -20), 4), with: .color(schwarz))
-            linie(h, strich(P(2, -15), P(-2, 2)), schwarz, 5)
-            linie(h, strich(P(1, -11), P(14, -22)), schwarz, 3.5)
-            linie(h, strich(P(0, -10), P(-12, -2)), schwarz, 3.5)
-            linie(h, strich(P(-2, 2), P(-14, 14)), schwarz, 4)
-            linie(h, strich(P(-2, 2), P(8, 12)), schwarz, 4)
+            springer(h, farbe(0x111111))
             schrift(h, "23", P(0, 25), 12, .white)
         case 4:
             for k in 0..<3 {
@@ -641,14 +746,89 @@ enum SzenenZeichnung {
             teil(h, trikot, Pal.weiss, 1.5)
             schrift(h, "7", P(0, -2), 13, farbe(0xC9A227), gewicht: .black)
             schrift(h, "MADRID", P(0, 24), 7, farbe(0xC9A227))
+        case 11:
+            // ICEMAN: icy shards and cold type on near-black.
+            for (k, x) in [CGFloat(-16), -4, 8, 18].enumerated() {
+                let spitze = Path { p in
+                    p.move(to: P(x - 6, -2))
+                    p.addLine(to: P(x, -28 + CGFloat(k % 2) * 8))
+                    p.addLine(to: P(x + 6, -2))
+                    p.closeSubpath()
+                }
+                h.fill(spitze, with: .linearGradient(Gradient(colors: [farbe(0xE8F7FF), farbe(0x6FC8F2)]), startPoint: P(x, -28), endPoint: P(x, -2)))
+            }
+            schrift(h, "ICEMAN", P(0, 14), 11, farbe(0xCFEFFF), gewicht: .black)
+            h.fill(stern(P(-14, 26), 3), with: .color(.white))
+            h.fill(stern(P(15, 24), 2.2), with: .color(.white))
+        case 12:
+            // MEET THE WOO 2: a red-orange block, a simple head-and-shoulders silhouette, bold title.
+            h.fill(box(-26, 6, 52, 29), with: .color(farbe(0x141414)))
+            h.fill(kreis(P(0, -14), 8), with: .color(farbe(0x141414)))
+            h.fill(Path(roundedRect: CGRect(x: -15, y: -6, width: 30, height: 16), cornerRadius: 7), with: .color(farbe(0x141414)))
+            schrift(h, "MEET THE", P(0, 14), 6, .white, gewicht: .heavy)
+            schrift(h, "WOO 2", P(0, 25), 12, .white, gewicht: .black)
+        case 13:
+            // SVJ: a low, angular supercar in lime.
+            let wagen = Path { p in
+                p.move(to: P(-23, 4))
+                p.addLine(to: P(-21, -2))
+                p.addLine(to: P(-6, -8))
+                p.addLine(to: P(8, -8))
+                p.addLine(to: P(22, -1))
+                p.addLine(to: P(23, 4))
+                p.closeSubpath()
+            }
+            h.fill(wagen, with: .color(farbe(0xB8E62E)))
+            h.fill(Path { p in
+                p.move(to: P(-5, -7))
+                p.addLine(to: P(7, -7))
+                p.addLine(to: P(12, -3))
+                p.addLine(to: P(-9, -3))
+                p.closeSubpath()
+            }, with: .color(farbe(0x2A2B30)))
+            for x in [CGFloat(-13), 13] { h.fill(kreis(P(x, 5), 4), with: .color(farbe(0x2A2B30))) }
+            schrift(h, "SVJ", P(0, 22), 15, .white, gewicht: .black, kursiv: true)
+        case 14:
+            springer(h, farbe(0xC8102E))
+            schrift(h, "JORDAN", P(0, 25), 8.5, .white, gewicht: .black)
+        case 15:
+            schrift(h, "23", P(0, 0), 30, farbe(0xC8102E), gewicht: .black)
+        case 16:
+            let swoosh = Path { p in
+                p.move(to: P(-18, -6))
+                p.addQuadCurve(to: P(20, -18), control: P(-10, 12))
+                p.addQuadCurve(to: P(-18, -6), control: P(-8, 2))
+                p.closeSubpath()
+            }
+            h.fill(swoosh, with: .color(farbe(0x111111)))
+            schrift(h, "AIR", P(0, 18), 16, farbe(0x111111), gewicht: .black, kursiv: true)
+        case 17:
+            // Money: stacks of green bills and a big dollar sign.
+            for (k, y) in [CGFloat(18), 10, 2].enumerated() {
+                let x: CGFloat = -18 + CGFloat(k % 2) * 3
+                h.fill(box(x, y, 36, 7, 1), with: .color(farbe(0x7DBE7A)))
+                h.fill(box(x + 14, y, 6, 7), with: .color(farbe(0xF2E8C9)))
+            }
+            schrift(h, "$", P(0, -16), 24, farbe(0x7DBE7A), gewicht: .black)
         default:
             break
         }
     }
 
+    /// A jumping basketball player silhouette (no logo).
+    private static func springer(_ g: GraphicsContext, _ f: Color) {
+        g.fill(kreis(P(3, -20), 4), with: .color(f))
+        linie(g, strich(P(2, -15), P(-2, 2)), f, 5)
+        linie(g, strich(P(1, -11), P(14, -22)), f, 3.5)
+        linie(g, strich(P(0, -10), P(-12, -2)), f, 3.5)
+        linie(g, strich(P(-2, 2), P(-14, 14)), f, 4)
+        linie(g, strich(P(-2, 2), P(8, 12)), f, 4)
+    }
+
     /// Background colour of each poster.
     private static func posterGrund(_ i: Int) -> UInt32 {
-        let grund: [UInt32] = [0xFFFFFF, 0xFF8FA3, 0x111111, 0xC8102E, 0xF4F4F4, 0x2A2B30, 0xFFFFFF, 0xF3EBDC, 0x1C1B1F, 0x1C69D4, 0xF4F1E8]
+        let grund: [UInt32] = [0xFFFFFF, 0xFF8FA3, 0x111111, 0xC8102E, 0xF4F4F4, 0x2A2B30, 0xFFFFFF, 0xF3EBDC, 0x1C1B1F, 0x1C69D4, 0xF4F1E8,
+                               0x0B1A2E, 0xE0501E, 0x111111, 0x111111, 0x111111, 0xF4F4F4, 0x111111]
         return grund[min(max(i, 0), grund.count - 1)]
     }
 
@@ -675,18 +855,21 @@ enum SzenenZeichnung {
         g.draw(text.foregroundStyle(f), at: p)
     }
 
-    private static func regal(_ g: GraphicsContext) {
+    /// Wall shelf with books; the little plant pot gives way to the gold chain.
+    private static func regal(_ g: GraphicsContext, mitTopf: Bool) {
         let buecher: [(x: CGFloat, h: CGFloat, f: UInt32)] = [(306, 24, 0xE56B6F), (318, 30, 0x6C91C2), (330, 26, 0xF2C46D), (342, 21, 0x8FB8A8)]
-        for b in buecher { teil(g, box(b.x, 176 - b.h, 11, b.h, 2), FigurFarbe(b.f), 2) }
-        teil(g, box(364, 162, 16, 14, 3), FigurFarbe(0xE8906A), 2)
-        for (dx, a) in [(CGFloat(-4), -30.0), (0, 0), (4, 30)] {
-            var b = g
-            b.translateBy(x: 372 + dx, y: 162)
-            b.rotate(by: .degrees(a))
-            teil(b, oval(P(0, -9), 4, 9), Pal.gruen, 1.8)
+        for b in buecher { teil(g, box(b.x, 170 - b.h, 11, b.h, 2), FigurFarbe(b.f), 2) }
+        if mitTopf {
+            teil(g, box(364, 156, 16, 14, 3), FigurFarbe(0xE8906A), 2)
+            for (dx, a) in [(CGFloat(-4), -30.0), (0, 0), (4, 30)] {
+                var b = g
+                b.translateBy(x: 372 + dx, y: 156)
+                b.rotate(by: .degrees(a))
+                teil(b, oval(P(0, -9), 4, 9), Pal.gruen, 1.8)
+            }
         }
-        teil(g, box(300, 176, 84, 7, 2), Pal.holz, 2.5)
-        for x in [CGFloat(314), 370] { linie(g, strich(P(x, 183), P(x, 193)), Pal.holz.kontur, 3) }
+        teil(g, box(300, 170, 84, 7, 2), Pal.holz, 2.5)
+        for x in [CGFloat(314), 370] { linie(g, strich(P(x, 177), P(x, 187)), Pal.holz.kontur, 3) }
     }
 
     /// Frame with a mat and a drawn stand-in; the real photo is laid over it (`ProfilSzeneHintergrund`).
@@ -710,7 +893,7 @@ enum SzenenZeichnung {
     }
 
     private static func pflanze(_ g: GraphicsContext) {
-        for (a, l) in [(-58.0, CGFloat(34)), (-30, 44), (-4, 50), (24, 44), (52, 36)] {
+        for (a, l) in [(-40.0, CGFloat(34)), (-22, 44), (-4, 50), (24, 44), (52, 36)] {
             var b = g
             b.translateBy(x: 366, y: 288)
             b.rotate(by: .degrees(a))
@@ -770,7 +953,7 @@ enum SzenenZeichnung {
 
     private static let bettStile: [(kopfteil: UInt32, decke: UInt32, gestell: UInt32)] = [
         (0xD9B48A, 0xB9A7E0, 0xC69C6D), (0x7A4E33, 0x8FB8A8, 0x6A432C), (0xE8A0B4, 0xFFD1DC, 0xD98BA0),
-        (0xF4F4F4, 0x9CC7E8, 0xE6E6E6), (0x9DA3AE, 0xF1EDE6, 0x8A909B),
+        (0xF4F4F4, 0x9CC7E8, 0xE6E6E6), (0x9DA3AE, 0xF1EDE6, 0x8A909B), (0x2B2B30, 0x3B3A44, 0x1F1F24),
     ]
 
     private static func stil(_ i: Int) -> (kopfteil: UInt32, decke: UInt32, gestell: UInt32) {
@@ -823,7 +1006,7 @@ enum SzenenZeichnung {
                 teil(g, box(x, 0, 12, 132, 6), k)
                 teil(g, kreis(P(x + 6, 0), 8), Pal.gold, 2.5)
             }
-        case 4:
+        case 4, 5:
             teil(g, box(14, 0, 272, 130, 14), k)
             for x in stride(from: CGFloat(48), to: 270, by: 34) { linie(g, strich(P(x, 10), P(x, 124)), k.mal(0.88).farbe, 2.5) }
         default:
@@ -912,13 +1095,14 @@ enum SzenenZeichnung {
         wand(g, z.wand)
         boden(g, z.boden)
         fenster(g, nacht: false, t: t)
-        teil(g, box(156, 76, 186, 108, 6), Pal.silber, 3)
-        g.fill(box(162, 82, 174, 96), with: .color(.white))
-        g.draw(Text("a² + b² = c²").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(farbe(0x3F74B5)), at: P(230, 108))
-        linie(g, bogen(P(176, 150), P(250, 146), P(212, 132)), Pal.rose.farbe, 3)
-        linie(g, strich(P(270, 140), P(320, 140)), farbe(0x3A2630).opacity(0.6), 2.5)
-        linie(g, strich(P(270, 156), P(306, 156)), farbe(0x3A2630).opacity(0.6), 2.5)
-        teil(g, box(196, 184, 110, 6, 2), Pal.silber, 2)
+        // Whiteboard kept above the pinboard's spot (y 150).
+        teil(g, box(156, 62, 186, 78, 6), Pal.silber, 3)
+        g.fill(box(162, 68, 174, 66), with: .color(.white))
+        g.draw(Text("a² + b² = c²").font(.system(size: 15, weight: .semibold, design: .rounded)).foregroundStyle(farbe(0x3F74B5)), at: P(230, 88))
+        linie(g, bogen(P(176, 122), P(250, 118), P(212, 106)), Pal.rose.farbe, 3)
+        linie(g, strich(P(270, 108), P(320, 108)), farbe(0x3A2630).opacity(0.6), 2.5)
+        linie(g, strich(P(270, 122), P(306, 122)), farbe(0x3A2630).opacity(0.6), 2.5)
+        teil(g, box(196, 140, 110, 6, 2), Pal.silber, 2)
         einrichtung(g, z)
         leuchten(g, z, nacht: false, t: t)
     }
