@@ -88,8 +88,14 @@ struct Zimmer: Equatable, Sendable {
         ["pflanze", "monstera", "stehlampe", "kleiderstange"], ["buecherregal", "gaming"], ["buecherregal", "spiegel"],
         ["buecherregal", "kopfhoerer"], ["wanduhr", "lichterkette"], ["wanduhr", "lichtervorhang"],
     ]
-    static let posterArten = ["Kein Poster", "Amore", "Just Do It", "Jumpman", "Drei Streifen", "Gym Shark", "Box Logo", "Script",
-                              "Porsche", "BMW", "Real Madrid", "ICEMAN", "Meet the Woo 2", "SVJ", "Jordan", "23", "Air", "Money"]
+    /// Stored by index, so the list only grows. Most show a real picture from the asset catalog
+    /// (`poster-…`); the few drawn ones without a picture are hidden from the picker (`posterAuswahl`)
+    /// but still render for anyone who picked them before.
+    static let posterArten = ["Kein Poster", "Amore", "Nike", "Jordan", "adidas", "Gym Shark", "Supreme", "Script",
+                              "Porsche 911", "BMW M4", "Real Madrid", "ICEMAN", "Meet the Woo 2", "Lamborghini SVJ", "Jordan (gezeichnet)", "23", "Air", "Money",
+                              "Take Care", "Scorpion"]
+    /// What the poster tab offers, in this order.
+    static let posterAuswahl = [0, 11, 12, 18, 19, 13, 8, 9, 17, 2, 3, 6, 4, 10, 1]
     static let standardDeko = ["fenster", "teppich", "lampe", "pflanze"]
     static let rahmenPlaetze = 3
 
@@ -406,14 +412,17 @@ enum SzenenZeichnung {
         if z.hat("hanteln") { hantelnAmBoden(g) }
     }
 
+    /// Hangs poster `i` centred on `c`: a slight tilt (between -2° and 2°, fixed per poster and
+    /// spot), a soft drop shadow and a strip of tape.
     private static func posterAufhaengen(_ g: GraphicsContext, _ i: Int, _ c: CGPoint) {
         guard i > 0 else { return }
+        let s = posterGroesse(i)
         var h = g
         h.translateBy(x: c.x, y: c.y)
-        h.rotate(by: .degrees(c.x > 200 ? -3 : 2))
-        h.fill(box(-24, -33, 52, 70, 3), with: .color(.black.opacity(0.12)))
+        h.rotate(by: .degrees(Double((i * 7 + Int(c.x)) % 5) - 2))
+        h.fill(box(-s.width / 2 + 2, -s.height / 2 + 3, s.width, s.height, 2), with: .color(.black.opacity(0.22)))
         posterZeichnen(h, i)
-        h.fill(box(-8, -40, 16, 7, 1), with: .color(.white.opacity(0.7)))
+        h.fill(box(-8, -s.height / 2 - 4, 16, 7, 1), with: .color(.white.opacity(0.75)))
     }
 
     /// Everything that glows, drawn after the night dimming so it stays bright.
@@ -676,10 +685,67 @@ enum SzenenZeichnung {
         }
     }
 
-    // MARK: Posters (simple shapes and type, in the spirit of the brands Ahmed loves)
+    // MARK: Posters (the real pictures from the asset catalog; drawn only as a fallback)
 
-    /// One wall poster, 52 x 70 around the origin. `i` indexes `Zimmer.posterArten` (0 = none).
+    private enum PosterArt: Sendable { case foto, logoWeiss, logo }
+
+    /// Poster index -> image set and how it hangs: `foto` fills a white-bordered print (album
+    /// covers, cars, money); `logoWeiss` is a dark logo tinted white on black paper; `logo` keeps
+    /// its colours on `papier`.
+    private static let posterBilder: [Int: (name: String, art: PosterArt, papier: UInt32)] = [
+        2: ("poster-nike", .logoWeiss, 0x111111), 3: ("poster-jordan", .logoWeiss, 0x111111), 4: ("poster-adidas", .logo, 0xFFFFFF),
+        6: ("poster-supreme", .logo, 0x111111), 8: ("poster-porsche", .foto, 0xFFFFFF), 9: ("poster-bmw", .foto, 0xFFFFFF),
+        10: ("poster-madrid", .logo, 0xFFFFFF), 11: ("poster-iceman", .foto, 0xFFFFFF), 12: ("poster-meet-the-woo-2", .foto, 0xFFFFFF),
+        13: ("poster-svj", .foto, 0xFFFFFF), 14: ("poster-jordan", .logoWeiss, 0x111111), 17: ("poster-money", .foto, 0xFFFFFF),
+        18: ("poster-take-care", .foto, 0xFFFFFF), 19: ("poster-scorpion", .foto, 0xFFFFFF),
+    ]
+
+    /// The print's size, following the picture: square for album covers, landscape for cars and
+    /// money, portrait paper for logos and the drawn ones.
+    static func posterGroesse(_ i: Int) -> CGSize {
+        switch i {
+        case 11, 12, 18, 19: CGSize(width: 56, height: 56)
+        case 8, 9, 13, 17: CGSize(width: 60, height: 42)
+        default: CGSize(width: 52, height: 70)
+        }
+    }
+
+    /// One wall poster centred on the origin. `i` indexes `Zimmer.posterArten` (0 = none).
     static func posterZeichnen(_ g: GraphicsContext, _ i: Int) {
+        guard let eintrag = posterBilder[i], let bild = UIImage(named: eintrag.name), bild.size.width > 0, bild.size.height > 0 else {
+            posterGemalt(g, i)
+            return
+        }
+        let s = posterGroesse(i)
+        let blatt = CGRect(x: -s.width / 2, y: -s.height / 2, width: s.width, height: s.height)
+        g.fill(Path(blatt), with: .color(farbe(eintrag.papier)))
+        switch eintrag.art {
+        case .foto:
+            // Fills the print inside a thin white border, cropped to the print's shape.
+            let innen = blatt.insetBy(dx: 2.5, dy: 2.5)
+            let f = max(innen.width / bild.size.width, innen.height / bild.size.height)
+            let ziel = CGRect(x: -bild.size.width * f / 2, y: -bild.size.height * f / 2, width: bild.size.width * f, height: bild.size.height * f)
+            var h = g
+            h.clip(to: Path(innen))
+            h.draw(Image(uiImage: bild), in: ziel)
+        case .logoWeiss, .logo:
+            // Centred with generous padding, never cropped.
+            let platz = blatt.insetBy(dx: s.width * 0.16, dy: s.height * 0.2)
+            let f = min(platz.width / bild.size.width, platz.height / bild.size.height)
+            let ziel = CGRect(x: -bild.size.width * f / 2, y: -bild.size.height * f / 2, width: bild.size.width * f, height: bild.size.height * f)
+            if eintrag.art == .logoWeiss {
+                var aufgeloest = g.resolve(Image(uiImage: bild).renderingMode(.template))
+                aufgeloest.shading = .color(.white)
+                g.draw(aufgeloest, in: ziel)
+            } else {
+                g.draw(Image(uiImage: bild), in: ziel)
+            }
+        }
+        linie(g, Path(blatt), .black.opacity(0.18), 0.8)
+    }
+
+    /// The drawn poster (52 x 70), for posters without a picture or a missing asset.
+    private static func posterGemalt(_ g: GraphicsContext, _ i: Int) {
         let flaeche = box(-26, -35, 52, 70, 2)
         let grund = posterGrund(i)
         teil(g, flaeche, FigurFarbe(grund), 2)

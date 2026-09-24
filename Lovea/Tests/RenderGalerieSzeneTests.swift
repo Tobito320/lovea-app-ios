@@ -124,7 +124,7 @@ final class RenderGalerieSzeneTests: XCTestCase {
         }
         zellen.append((titel: "Zuhause bei Nacht", ansicht: kopf(.zimmer, .annika, zimmer: zuhause, nacht: true)))
         zellen.append((titel: "Ahmed Zuhause bei Nacht", ansicht: kopf(.zimmer, .ahmed, zimmer: Zimmer(ort: .zuhause, person: .ahmed), nacht: true)))
-        let geld = Zimmer(bett: 5, wand: 7, boden: 1, deko: ["ledRot", "goldkette", "regal", "tresor", "bargeld", "sneakerRegal", "jordanBox", "stehlampe", "teppichSchwarz"], poster: 17, posterLinks: 14, posterBett: 15)
+        let geld = Zimmer(bett: 5, wand: 7, boden: 1, deko: ["ledRot", "goldkette", "regal", "tresor", "bargeld", "sneakerRegal", "jordanBox", "stehlampe", "teppichSchwarz"], poster: 17, posterLinks: 3, posterBett: 12)
         zellen.append((titel: "Ahmed Zuhause, Geld und Jordan", ansicht: kopf(.zimmer, .ahmed, zimmer: geld)))
         RenderTafel.speichern("profil-orte", spalten: 3, zellen: zellen)
     }
@@ -143,16 +143,20 @@ final class RenderGalerieSzeneTests: XCTestCase {
 
     /// Every poster, large.
     func testPosterBogen() {
-        let zellen: [Zelle] = Zimmer.posterArten.indices.dropFirst().map { i in
+        let zellen: [Zelle] = Zimmer.posterAuswahl.filter { $0 > 0 }.map { i in
             let ansicht = Canvas { g, size in
                 var p = g
                 p.translateBy(x: size.width / 2, y: size.height / 2)
-                p.scaleBy(x: 2.4, y: 2.4)
+                p.scaleBy(x: 2.2, y: 2.2)
                 SzenenZeichnung.posterZeichnen(p, i)
             }
             .frame(width: 140, height: 180)
             return (titel: Zimmer.posterArten[i], ansicht: AnyView(ansicht))
         }
         RenderTafel.speichern("profil-poster", spalten: 5, zellen: zellen)
+        // All three spots of a home at once, with real pictures of each shape.
+        let wand = Zimmer(bett: 5, wand: 6, boden: 5, deko: ["ledWeiss", "teppichSchwarz"], poster: 13, posterLinks: 18, posterBett: 19)
+        let dreiPlaetze = ProfilSzeneHintergrund(szene: .zimmer, zimmer: wand, nacht: false, animiert: false).frame(width: 390, height: 430)
+        RenderTafel.speichern("profil-poster-wand", spalten: 1, zellen: [(titel: "Take Care, Scorpion, SVJ", ansicht: AnyView(dreiPlaetze))])
     }
 }

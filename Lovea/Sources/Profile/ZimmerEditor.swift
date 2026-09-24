@@ -135,9 +135,10 @@ struct ZimmerEditor: View {
         return z
     }
 
-    private func kacheln(_ namen: [String], _ pfad: WritableKeyPath<Zimmer, Int>, art: ZimmerKachel.Art) -> some View {
+    /// `werte`: which indices to offer, in this order (all by default).
+    private func kacheln(_ namen: [String], _ pfad: WritableKeyPath<Zimmer, Int>, art: ZimmerKachel.Art, werte: [Int]? = nil) -> some View {
         LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
-            ForEach(namen.indices, id: \.self) { i in
+            ForEach(werte ?? Array(namen.indices), id: \.self) { i in
                 let gewaehlt = zimmer[keyPath: pfad] == i
                 Button {
                     withAnimation(Feder.schnell) { zimmer[keyPath: pfad] = i }
@@ -299,7 +300,7 @@ struct ZimmerEditor: View {
                         .foregroundStyle(.secondary)
                 }
             }
-            kacheln(Zimmer.posterArten, posterPfad, art: .poster)
+            kacheln(Zimmer.posterArten, posterPfad, art: .poster, werte: Zimmer.posterAuswahl)
         }
     }
 
