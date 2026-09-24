@@ -86,7 +86,7 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(modell.nachricht("e2")?.text, "hi")
     }
 
-    func testGemerktFuerBeideUndSperreFuenfSekunden() {
+    func testGemerktFuerBeideUndSperreHalbeSekunde() {
         let modell = ChatModell(registrieren: false)
         modell.anwenden([op("nachricht.neu", ["id": "m1", "text": "hi"], von: .ahmed, seq: 1)])
         modell.anwenden([op("nachricht.gemerkt", ["id": "m1", "an": true], von: .annika, seq: 2)])
@@ -96,8 +96,8 @@ final class ChatModellTests: XCTestCase {
 
         let t = Date()
         XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t))
-        XCTAssertFalse(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(4)))
-        XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(6)))
+        XCTAssertFalse(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(0.3)))
+        XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(0.6)))
     }
 
     func testZurueckziehenUnterFuenfSekundenOhneSpur() {

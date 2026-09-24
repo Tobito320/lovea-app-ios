@@ -233,7 +233,7 @@ struct ChatNachrichtRow: View {
         return .clear
     }
 
-    /// Single tap keeps/unkeeps the message for both. 5 s lock per message so it can't be spammed.
+    /// Single tap keeps/unkeeps the message for both. 0.5 s lock per message so it can't be spammed.
     private func merkenTippen() {
         guard MerkSperre.frei(nachricht.id) else { return }
         ChatModell.shared.merkenSetzen(nachricht.id, an: !nachricht.gemerkt.contains(ich))
@@ -523,7 +523,7 @@ private struct LinkVorschau: UIViewRepresentable {
 enum MerkSperre {
     private static var zuletzt: [String: Date] = [:]
     static func frei(_ id: String, jetzt: Date = Date()) -> Bool {
-        if let t = zuletzt[id], jetzt.timeIntervalSince(t) < 5 { return false }
+        if let t = zuletzt[id], jetzt.timeIntervalSince(t) < 0.5 { return false }
         zuletzt[id] = jetzt
         return true
     }
