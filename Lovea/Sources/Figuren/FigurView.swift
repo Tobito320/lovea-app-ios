@@ -19,6 +19,7 @@ struct FigurView: View {
     private let ganzkoerper: Bool
     private let poseImmer: Bool
     private let extras: Set<FigurExtra>
+    private let tisch: Int
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
@@ -30,7 +31,7 @@ struct FigurView: View {
     /// `.ruhig` for `zustand` in `leinwand` rather than only swapping the arms, so props/scenery/
     /// pajamas tied to the real `zustand` (barbell, sofa, phone, …) don't linger under the pose.
     /// `extras` (Z-39.4): umbrella, sunglasses, hat and scarf, phone with a white cable, snowflakes.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false, extras: Set<FigurExtra> = []) {
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0) {
         self.aussehen = aussehen
         self.zustand = zustand
         self.abzeichen = abzeichen
@@ -40,6 +41,7 @@ struct FigurView: View {
         self.ganzkoerper = ganzkoerper
         self.poseImmer = poseImmer
         self.extras = extras
+        self.tisch = tisch
     }
 
     var body: some View {
@@ -69,7 +71,7 @@ struct FigurView: View {
         // this reuses that existing "idle" path — with none of `zustand`'s props/scene/pajamas —
         // instead of teaching `Zeichner` a second pose-priority system.
         let posiert = poseImmer && aussehen.pose != nil && !Zeichner.keinePoseUeberschreibung.contains(zustand)
-        let zeichner = Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper, extras: extras)
+        let zeichner = Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch)
         return Canvas { g, size in zeichner.zeichne(g, size) }
     }
 }
@@ -257,10 +259,12 @@ private struct Zeichner {
     /// v6 (fix round 4): moles on the cheeks, AirPods in both ears.
     let muttermale, airpods: Bool
     let extras: Set<FigurExtra>
+    /// Desk variant at school and work (`Zimmer.tische`).
+    let tisch: Int
     /// Gym look (Brief D addendum): Ahmed trains shirtless, Annika in a sleeveless sports top.
     let oberkoerperFrei, sportTop: Bool
 
-    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>) {
+    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0) {
         typealias A = FigurAussehen
         self.z = z
         self.abz = Set(abz)
@@ -268,6 +272,7 @@ private struct Zeichner {
         self.statisch = statisch
         self.ganz = ganz
         self.extras = extras
+        self.tisch = tisch
         kette = grenze(a.kette, A.ketten.count)
         ring = grenze(a.ring, A.ringe.count)
         armband = grenze(a.armband, A.armbaender.count)
@@ -4036,8 +4041,10 @@ extension Zeichner {
     /// A desk in front of the sitting figure (school and work): top at `platte`, a front panel down
     /// to the floor that hides the legs and the stool.
     func schreibtisch(_ g: GraphicsContext, platte: CGFloat) {
-        teil(g, box(14, platte + 8, 172, Masse.fussY - platte - 4, 6), Pal.holz.mal(0.85))
-        teil(g, box(4, platte, 192, 12, 4), Pal.holz)
+        let farben: [UInt32] = [0xC69C6D, 0xF2F2F0, 0x6A432C, 0x2F3136]
+        let holz = FigurFarbe(farben[min(max(tisch, 0), farben.count - 1)])
+        teil(g, box(14, platte + 8, 172, Masse.fussY - platte - 4, 6), holz.mal(0.85))
+        teil(g, box(4, platte, 192, 12, 4), holz)
     }
 
     func einkaufswagen(_ g: GraphicsContext, griffY: CGFloat) {

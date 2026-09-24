@@ -73,6 +73,16 @@ enum ProfilSzene: Equatable, Sendable {
         }
     }
 
+    /// The furnishable place this scene shows (its own saved `Zimmer`), `nil` outside.
+    var raumOrt: RaumOrt? {
+        switch self {
+        case .zimmer, .schlafen: .zuhause
+        case .arbeit: .arbeit
+        case .schule: .schule
+        case .gym, .draussen, .unterwegs: nil
+        }
+    }
+
     private static func geste(_ z: FigurZustand) -> Bool {
         z == .kuss || z == .herz || z == .anstupsen || z == .lacht || z == .anstossen || z == .pokal || FigurZustand.mimik.contains(z)
     }
@@ -164,7 +174,7 @@ struct ProfilSzeneHintergrund: View {
                 }
             }
             .overlay {
-                if imZimmer { FotoRahmen(zimmer: zimmer, nacht: nacht || szene != .zimmer) }
+                if imZimmer { FotoRahmen(zimmer: zimmer, nacht: szene == .schlafen(zusammen: true) || szene == .schlafen(zusammen: false) || (szene == .zimmer && nacht)) }
             }
             .clipped()
             .onAppear { sichtbar = true }
@@ -176,8 +186,8 @@ struct ProfilSzeneHintergrund: View {
 
     private var imZimmer: Bool {
         switch szene {
-        case .zimmer, .schlafen: true
-        case .gym, .draussen, .unterwegs, .schule, .arbeit: false
+        case .zimmer, .schlafen, .schule, .arbeit: true
+        case .gym, .draussen, .unterwegs: false
         }
     }
 
@@ -194,9 +204,10 @@ struct ProfilSzeneHintergrund: View {
 
     private var bewegt: Bool {
         switch szene {
-        case .zimmer: zimmer.hat("lichterkette") || (nacht && zimmer.hat("fenster"))
+        case .zimmer: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang") || (nacht && zimmer.hat("fenster"))
         case .schlafen: zimmer.hat("lichterkette") || zimmer.hat("fenster")
-        case .gym, .schule, .arbeit: false
+        case .schule, .arbeit: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang")
+        case .gym: false
         case .draussen, .unterwegs: true
         }
     }
@@ -212,8 +223,8 @@ struct ProfilSzeneHintergrund: View {
             case .zimmer: SzenenZeichnung.zimmer(r, zimmer, nacht: nacht, mitBett: mitBett, bett: bett, t: t)
             case .schlafen: SzenenZeichnung.zimmer(r, zimmer, nacht: true, mitBett: false, bett: nil, t: t)
             case .gym: SzenenZeichnung.gym(r)
-            case .schule: SzenenZeichnung.klassenzimmer(r)
-            case .arbeit: SzenenZeichnung.buero(r)
+            case .schule: SzenenZeichnung.klassenzimmer(r, zimmer, t: t)
+            case .arbeit: SzenenZeichnung.buero(r, zimmer, t: t)
             case .draussen(let wetter, let n): SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)
             case .unterwegs(let wetter, let n):
                 SzenenZeichnung.draussen(r, wetter: wetter, nacht: n, t: t)

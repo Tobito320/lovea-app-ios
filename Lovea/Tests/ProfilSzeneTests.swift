@@ -124,7 +124,7 @@ final class ProfilSzeneTests: XCTestCase {
     }
 
     func testZimmerRundreise() {
-        let z = Zimmer(bett: 2, wand: 5, boden: 1, deko: ["lichterkette", "poster"], rahmen: [.init(slot: 2, medienId: "m1"), .init(slot: 0, medienId: "m2")])
+        let z = Zimmer(bett: 2, wand: 5, boden: 1, deko: ["lichterkette", "neonHerz"], rahmen: [.init(slot: 2, medienId: "m1"), .init(slot: 0, medienId: "m2")], poster: 3, tisch: 1)
         XCTAssertEqual(Zimmer.lesen(z.json), z)
     }
 
@@ -161,5 +161,41 @@ final class ProfilSzeneTests: XCTestCase {
 
     func testZimmerLeereDekoBleibtLeer() {
         XCTAssertEqual(Zimmer.lesen(.object(["deko": .array([])])).deko, [])
+    }
+
+    // MARK: - profil.raeume (one room per place)
+
+    func testRaeumeProOrt() {
+        let buero = Zimmer(wand: 4, deko: ["gaming", "kaffeemaschine"], poster: 6, tisch: 3)
+        let karte: JSONValue = .object(["arbeit": buero.json, "quatsch": .string("x")])
+        XCTAssertEqual(Zimmer.lesen(raeume: karte, altesZimmer: nil, ort: .arbeit), buero)
+        // Missing places get their own defaults.
+        XCTAssertEqual(Zimmer.lesen(raeume: karte, altesZimmer: nil, ort: .schule), Zimmer(ort: .schule))
+        XCTAssertEqual(Zimmer.lesen(raeume: karte, altesZimmer: nil, ort: .zuhause), Zimmer())
+        XCTAssertEqual(Zimmer.lesen(raeume: .string("kaputt"), altesZimmer: nil, ort: .arbeit), Zimmer(ort: .arbeit))
+    }
+
+    func testAltesZimmerWirdZuhause() {
+        let alt = Zimmer(bett: 3, wand: 1, deko: ["fenster", "regal"])
+        XCTAssertEqual(Zimmer.lesen(raeume: nil, altesZimmer: alt.json, ort: .zuhause), alt)
+        // The old room never leaks into office or classroom.
+        XCTAssertEqual(Zimmer.lesen(raeume: nil, altesZimmer: alt.json, ort: .arbeit), Zimmer(ort: .arbeit))
+        // Once the map has home, the old key no longer counts.
+        let neu = Zimmer(bett: 1)
+        XCTAssertEqual(Zimmer.lesen(raeume: .object(["zuhause": neu.json]), altesZimmer: alt.json, ort: .zuhause), neu)
+    }
+
+    func testAltesPosterWirdPosterTab() {
+        let z = Zimmer.lesen(.object(["deko": .array([.string("poster"), .string("teppich")])]))
+        XCTAssertEqual(z.poster, 1)
+        XCTAssertEqual(z.deko, ["teppich"])
+        XCTAssertEqual(Zimmer.lesen(.object(["poster": .number(99), "tisch": .number(-2)])).poster, 0)
+    }
+
+    func testBueroOhneBettzimmerDeko() {
+        let z = Zimmer.lesen(.object(["deko": .array([.string("fenster"), .string("lampe"), .string("globus")])]), ort: .schule)
+        XCTAssertEqual(z.deko, ["globus"])
+        XCTAssertGreaterThanOrEqual(Zimmer.dekoArten.count, 25)
+        XCTAssertEqual(Set(Zimmer.dekoArten.map { $0.id }).count, Zimmer.dekoArten.count, "ids are unique")
     }
 }
