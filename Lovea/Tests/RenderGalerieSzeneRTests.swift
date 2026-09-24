@@ -63,7 +63,11 @@ final class RenderGalerieSzeneRTests: XCTestCase {
                            poster: rechts, posterLinks: links, posterBett: bett)
             return (titel: titel, ansicht: AnyView(ProfilSzeneHintergrund(szene: .zimmer, zimmer: z, nacht: false, animiert: false).frame(width: 390, height: 430)))
         }
+        let buero = Zimmer(wand: 5, boden: 1, deko: ["buecherregal", "stehlampe", "kaffeemaschine"], rahmen: rahmen, poster: 8, tisch: 3)
+        let bueroZelle = (titel: "Büro, Rahmen + Porsche über dem Regal",
+                          ansicht: AnyView(ProfilSzeneHintergrund(szene: .arbeit, zimmer: buero, nacht: false, animiert: false).frame(width: 390, height: 430)))
         let zellen = [
+            bueroZelle,
             wand("Rahmen + SVJ (breit)", rechts: 13),
             wand("Rahmen + Iceman (quadratisch)", rechts: 11),
             wand("Rahmen + Jordan (hoch)", rechts: 3),

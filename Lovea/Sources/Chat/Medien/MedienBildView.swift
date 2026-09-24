@@ -305,7 +305,7 @@ enum Videobild {
 /// edge (never upscales), so a chat bubble never decodes a 12 MP camera original on the main thread.
 /// Small previews are cached, so scrolling back up doesn't flash placeholders.
 enum Bilddatei {
-    // ponytail: `NSCache` is documented thread-safe, just not `Sendable`.
+    // ponytail: same reasoning as `AnimiertesGifCache`, `NSCache` is documented thread-safe, just not `Sendable`.
     nonisolated(unsafe) private static let vorschauen: NSCache<NSString, UIImage> = {
         let cache = NSCache<NSString, UIImage>()
         cache.countLimit = 150

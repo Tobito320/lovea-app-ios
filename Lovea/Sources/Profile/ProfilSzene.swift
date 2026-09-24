@@ -179,17 +179,7 @@ struct ProfilSzeneHintergrund: View {
                 if let bild = asset {
                     Image(uiImage: bild).resizable().scaledToFill()
                 } else if animiert && bewegt && !reduceMotion {
-                    ZStack {
-                        ForEach(SzenenEbene.allCases, id: \.self) { e in
-                            if e.bewegt {
-                                TimelineView(.animation(minimumInterval: 1 / bildrate, paused: !sichtbar || scenePhase != .active)) { k in
-                                    leinwand([e], k.date.timeIntervalSinceReferenceDate, bett: nil)
-                                }
-                            } else {
-                                leinwand([e], 0.4, bett: bett)
-                            }
-                        }
-                    }
+                    ebenen(bett: bett)
                 } else {
                     leinwand(SzenenEbene.allCases, 0.4, bett: bett)
                 }
@@ -240,6 +230,21 @@ struct ProfilSzeneHintergrund: View {
         switch szene {
         case .draussen(.regen, _), .draussen(.schnee, _), .unterwegs: 15
         default: 10
+        }
+    }
+
+    /// The four stacked canvases; only the moving ones hang on the clock.
+    private func ebenen(bett: UIImage?) -> some View {
+        ZStack {
+            ForEach(SzenenEbene.allCases, id: \.self) { e in
+                if e.bewegt {
+                    TimelineView(.animation(minimumInterval: 1 / bildrate, paused: !sichtbar || scenePhase != .active)) { k in
+                        leinwand([e], k.date.timeIntervalSinceReferenceDate, bett: nil)
+                    }
+                } else {
+                    leinwand([e], 0.4, bett: bett)
+                }
+            }
         }
     }
 
