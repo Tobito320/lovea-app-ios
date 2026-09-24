@@ -113,15 +113,19 @@ final class RenderGalerieSzeneTests: XCTestCase {
     /// Brief G: every place furnished, each with its desk or bed, poster, lights and deco.
     func testOrteEingerichtet() {
         let zuhause = Zimmer(bett: 2, wand: 4, boden: 4, deko: ["fenster", "lampe", "teppichRund", "monstera", "ledStreifen", "neonHerz", "spiegel", "sneakerRegal", "plattenspieler", "kerze", "sitzsack"], poster: 2)
-        let buero = Zimmer(wand: 5, boden: 1, deko: ["buecherregal", "stehlampe", "kaffeemaschine", "kaktus", "kopfhoerer", "wanduhr", "lautsprecher", "teppich"], poster: 8, tisch: 3)
-        let schule = Zimmer(wand: 3, boden: 3, deko: ["globus", "pinnwand", "wanduhr", "blumen", "lichterkette", "yogamatte"], poster: 4, tisch: 1)
+        let buero = Zimmer(wand: 5, boden: 1, deko: ["buecherregal", "stehlampe", "kaffeemaschine", "kaktus", "tresor", "wanduhr", "lautsprecher", "teppich"], poster: 8, tisch: 3)
+        let schule = Zimmer(wand: 3, boden: 3, deko: ["globus", "pinnwand", "wanduhr", "blumen", "ledWeiss", "teppichRund"], poster: 4, tisch: 1)
         var zellen: [Zelle] = []
         for p in [Person.annika, .ahmed] {
-            zellen.append((titel: "\(p.name) Zuhause", ansicht: kopf(.zimmer, p, zimmer: zuhause)))
+            zellen.append((titel: "\(p.name) Zuhause (Standard)", ansicht: kopf(.zimmer, p, zimmer: Zimmer(ort: .zuhause, person: p))))
+            if p == .annika { zellen.append((titel: "Annika Zuhause eingerichtet", ansicht: kopf(.zimmer, p, zimmer: zuhause))) }
             zellen.append((titel: "\(p.name) Büro", ansicht: kopf(.arbeit, p, zimmer: buero, tisch: buero.tisch)))
             zellen.append((titel: "\(p.name) Klassenzimmer", ansicht: kopf(.schule, p, zimmer: schule, tisch: schule.tisch)))
         }
         zellen.append((titel: "Zuhause bei Nacht", ansicht: kopf(.zimmer, .annika, zimmer: zuhause, nacht: true)))
+        zellen.append((titel: "Ahmed Zuhause bei Nacht", ansicht: kopf(.zimmer, .ahmed, zimmer: Zimmer(ort: .zuhause, person: .ahmed), nacht: true)))
+        let geld = Zimmer(bett: 5, wand: 7, boden: 1, deko: ["ledRot", "goldkette", "regal", "tresor", "bargeld", "sneakerRegal", "jordanBox", "stehlampe", "teppichSchwarz"], poster: 17, posterLinks: 14, posterBett: 15)
+        zellen.append((titel: "Ahmed Zuhause, Geld und Jordan", ansicht: kopf(.zimmer, .ahmed, zimmer: geld)))
         RenderTafel.speichern("profil-orte", spalten: 3, zellen: zellen)
     }
 

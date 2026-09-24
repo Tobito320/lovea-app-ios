@@ -16,6 +16,8 @@ struct ZimmerEditor: View {
     @State private var fotoSlot = 0
     @State private var hochladenSlot: Int?
     @State private var fehler: String?
+    /// Poster tab at home: 0 left wall, 1 above the bed, 2 right wall.
+    @State private var posterPlatz = 2
 
     init(person: Person, ort: RaumOrt = .zuhause) {
         self.person = person
@@ -120,7 +122,7 @@ struct ZimmerEditor: View {
         case .wand: kacheln(Zimmer.waende, \.wand, art: .raum)
         case .boden: kacheln(Zimmer.boeden, \.boden, art: .raum)
         case .deko: deko
-        case .poster: kacheln(Zimmer.posterArten, \.poster, art: .poster)
+        case .poster: posterTab
         case .bilder: bilder
         }
     }
@@ -142,7 +144,7 @@ struct ZimmerEditor: View {
                     Haptik.auswahl()
                 } label: {
                     VStack(spacing: 4) {
-                        ZimmerKachel(zimmer: probe(pfad, i), ort: ort, art: art, aussehen: FigurenModell.shared.aussehen(person))
+                        ZimmerKachel(zimmer: art == .poster ? probe(\.poster, i) : probe(pfad, i), ort: ort, art: art, aussehen: FigurenModell.shared.aussehen(person))
                             .frame(height: 84)
                             .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
                         Text(namen[i]).font(.caption.weight(.semibold)).foregroundStyle(Color.primary)
@@ -169,7 +171,7 @@ struct ZimmerEditor: View {
                     get: { zimmer.hat(d.id) },
                     set: { an in
                         withAnimation(Feder.schnell) {
-                            if an { zimmer.deko.append(d.id) } else { zimmer.deko.removeAll { $0 == d.id } }
+                            if an { zimmer.dekoAn(d.id) } else { zimmer.deko.removeAll { $0 == d.id } }
                         }
                         Haptik.auswahl()
                     }
@@ -279,6 +281,31 @@ struct ZimmerEditor: View {
         if zimmer != Zimmer.von(person, ort: ort) { zimmer.sichern(ort: ort) }
         Haptik.erfolg()
         dismiss()
+    }
+
+    private var posterTab: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if ort == .zuhause {
+                Picker("Platz", selection: $posterPlatz) {
+                    Text("Links").tag(0)
+                    Text("Über dem Bett").tag(1)
+                    Text("Rechts").tag(2)
+                }
+                .pickerStyle(.segmented)
+                .onChange(of: posterPlatz) { _, _ in Haptik.auswahl() }
+                if posterPlatz < 2 && zimmer.hat("fenster") {
+                    Text("Links und über dem Bett hängen Poster nur ohne Fenster.")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            kacheln(Zimmer.posterArten, posterPfad, art: .poster)
+        }
+    }
+
+    private var posterPfad: WritableKeyPath<Zimmer, Int> {
+        let pfade: [WritableKeyPath<Zimmer, Int>] = [\.posterLinks, \.posterBett, \.poster]
+        return pfade[ort == .zuhause ? posterPlatz : 2]
     }
 
     private var szene: ProfilSzene {
