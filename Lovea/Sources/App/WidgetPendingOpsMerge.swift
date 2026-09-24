@@ -39,7 +39,7 @@ enum WidgetPendingOpsMerge {
     private static func op(aus pending: WidgetPendingOp) -> Op? {
         guard let von = Person(rawValue: pending.von) else { return nil }
         struct HabitD: Codable { var art: String; var datum: String; var wert: Int }
-        guard let d = try? JSONEncoder().encode(HabitD(art: "gym", datum: pending.datum, wert: pending.wert)) else { return nil }
+        guard let d = try? JSONEncoder().encode(HabitD(art: pending.habit ?? "gym", datum: pending.datum, wert: pending.wert)) else { return nil }
         let zeit = Self.isoDatum(pending.zeit) ?? Date()
         return Op(id: pending.id, seq: nil, art: "habit.setzen", von: von, zeit: zeit, d: d)
     }

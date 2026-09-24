@@ -116,6 +116,22 @@ final class WidgetStandSchreiber {
             }
             stand.punkte[person.rawValue] = verfuegbar[person]
         }
+        if let ich = Raum.shared.ich {
+            let woche = HabitLogik.wochenTage(heute: heute)
+            stand.habits = health.sichtbareHabits(fuer: ich).map { h in
+                let ziel = health.habitZiel(h.id, ich)
+                let werte = health.habitWerte(h.id, ich)
+                let wert = werte[heute] ?? 0
+                let zielWert = max(1, ziel ?? h.tagesziel ?? 1)
+                return WidgetStand.HabitKachel(
+                    id: h.id, name: h.name, symbol: h.symbol,
+                    untertitel: (h.zaehlen ? "\(wert)/\(zielWert) · " : "") + HabitLogik.haeufigkeitText(h, ziel: ziel),
+                    zaehlen: h.zaehlen, ziel: zielWert, heute: wert,
+                    woche: woche.map { HabitLogik.anteil(h, wert: werte[$0] ?? 0, ziel: ziel) },
+                    serie: HabitLogik.serie(h, werte: werte, ziel: ziel, heute: heute)
+                )
+            }
+        }
     }
 
     private func challengeEintragen(_ stand: inout WidgetStand) {

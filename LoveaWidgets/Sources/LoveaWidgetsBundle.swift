@@ -4,7 +4,7 @@ import WidgetKit
 @main
 struct LoveaWidgetsBundle: WidgetBundle {
     var body: some Widget {
-        GymWocheWidget()
+        HabitWidget()
         GymDuellWidget()
         SchritteDuellWidget()
         PartnerWidget()

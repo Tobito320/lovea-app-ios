@@ -46,4 +46,19 @@ struct WidgetStand: Codable, Sendable, Equatable {
     var partnerWetterSymbol: String?
 
     var frageDesTages: String?
+
+    /// Own visible habits for the configurable Habit widget. Optional so older files still decode.
+    struct HabitKachel: Codable, Sendable, Equatable, Identifiable {
+        var id: String
+        var name: String
+        var symbol: String
+        var untertitel: String
+        var zaehlen: Bool
+        var ziel: Int
+        var heute: Int
+        /// Mo–So, 0...1 filled.
+        var woche: [Double]
+        var serie: Int
+    }
+    var habits: [HabitKachel]?
 }

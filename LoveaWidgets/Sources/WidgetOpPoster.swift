@@ -9,8 +9,8 @@ enum WidgetOpPoster {
     /// Schreibt die Pending-Datei sofort (übersteht Absturz/Timeout der Erweiterung), versucht
     /// danach den direkten `POST /ops` und löscht die Datei nur bei einer 2xx-Antwort — alles
     /// andere holt die App beim nächsten `.active` ab (`WidgetPendingOpsMerge`, App-Target).
-    static func gymHeuteSenden(von person: String, datum: String, wert: Int) async {
-        let pending = WidgetPendingOp(id: UUID().uuidString, von: person, zeit: isoJetzt(), datum: datum, wert: wert)
+    static func gymHeuteSenden(von person: String, datum: String, wert: Int, habit: String = "gym") async {
+        let pending = WidgetPendingOp(id: UUID().uuidString, von: person, zeit: isoJetzt(), datum: datum, wert: wert, habit: habit)
         guard let ordner = WidgetGruppe.pendingOrdner() else { return }
         let datei = ordner.appendingPathComponent("\(pending.id).json")
         guard let daten = try? JSONEncoder().encode(pending) else { return }
@@ -55,7 +55,7 @@ private struct WireOp: Encodable {
     var id: String; var art = "habit.setzen"; var von: String; var zeit: String; var d: WireHabitD
     init(_ pending: WidgetPendingOp) {
         id = pending.id; von = pending.von; zeit = pending.zeit
-        d = WireHabitD(datum: pending.datum, wert: pending.wert)
+        d = WireHabitD(art: pending.habit ?? "gym", datum: pending.datum, wert: pending.wert)
     }
 }
 private struct WireBody: Encodable { var ops: [WireOp] }
