@@ -147,9 +147,15 @@ struct ChatKopf: View {
             HStack(spacing: 10) {
                 KopfFigur(person: partner, groesse: 40)
                 VStack(alignment: .leading, spacing: 1) {
-                    Text(partner.name).font(.headline).lineLimit(1)
+                    // Name with "online"/"zuletzt …" beside it; the line below is only "tippt …" or the place.
                     TimelineView(.everyMinute) { _ in
-                        Text(status)
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(partner.name).font(.headline).lineLimit(1).layoutPriority(1)
+                            Text(anwesenheit).font(.caption2).foregroundStyle(.secondary).lineLimit(1)
+                        }
+                    }
+                    if let zweite = tippt ? "tippt …" : PartnerOrt.text(partner, adresse: adresse) {
+                        Text(zweite)
                             .font(.caption)
                             .foregroundStyle(tippt ? Color.person(partner) : Color.secondary)
                             .lineLimit(1)
