@@ -75,7 +75,11 @@ final class WidgetStandSchreiber {
 
         letzteDaten = daten
         letzterSchreibZeitpunkt = Date()
-        if let url = WidgetGruppe.standURL() { try? daten.write(to: url, options: .atomic) }
+        // audit-app #6: off the main actor (Z-16.2/common.md "Main Thread frei") — same detached
+        // pattern the PNG write below already uses.
+        if let url = WidgetGruppe.standURL() {
+            await Task.detached(priority: .utility) { try? daten.write(to: url, options: .atomic) }.value
+        }
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -176,9 +180,12 @@ final class WidgetStandSchreiber {
         let renderer = ImageRenderer(content: ansicht)
         renderer.scale = 2
         guard let bild = renderer.uiImage else { return false }
-        guard let daten = await Task.detached(priority: .utility, operation: { bild.pngData() }).value else { return false }
-        try? daten.write(to: url, options: .atomic)
-        return true
+        // audit-app #6: encode AND write off the main actor in the same detached hop.
+        return await Task.detached(priority: .utility) {
+            guard let daten = bild.pngData() else { return false }
+            try? daten.write(to: url, options: .atomic)
+            return true
+        }.value
     }
 
     @discardableResult
@@ -186,8 +193,9 @@ final class WidgetStandSchreiber {
         guard let url = WidgetGruppe.partnerFotoURL() else { return false }
         guard let quelle = letztesFotoDesPartners(partner) else {
             guard letzteFotoQuelle != nil else { return false }
-            try? FileManager.default.removeItem(at: url)
             letzteFotoQuelle = nil
+            // audit-app #6: off the main actor, like the write below.
+            await Task.detached(priority: .utility) { try? FileManager.default.removeItem(at: url) }.value
             return true
         }
         guard quelle.lastPathComponent != letzteFotoQuelle else { return false }
