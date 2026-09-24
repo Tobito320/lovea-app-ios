@@ -15,6 +15,10 @@ final class FigurenModell {
 
     private(set) var aussehen: [Person: FigurAussehen] = [:]
     private(set) var zustand: [Person: Zustand] = [:]
+    /// audit-szene #4: when the CURRENT `zustand[p]` value was first seen (unchanged replays, e.g.
+    /// the server resending the last known state to every reconnect, don't reset this) — lets
+    /// `partnerZustandVerfallenLassen` tell a genuinely frozen state from one still being confirmed.
+    private var zustandSeit: [Person: Date] = [:]
     private(set) var geste: [Person: (art: FigurZustand, bis: Date)] = [:]
     /// Counts "herz" gestures per sender for the current Berlin day, for the profile.
     private(set) var herzHeute: [Person: Int] = [:]
@@ -62,16 +66,35 @@ final class FigurenModell {
             gruss[op.von] = g
         }
         raum.fluechtigBeobachten("zustand") { [weak self] person, data in
-            if let z = try? JSONDecoder().decode(Zustand.self, from: data) { self?.zustand[person] = z }
+            guard let self, let z = try? JSONDecoder().decode(Zustand.self, from: data) else { return }
+            // audit-szene #4: the server resends the partner's last `zustand` to every reconnect of
+            // OUR OWN device (Brief G, `raum.js` `webSocketOpen`) — an unchanged replay must not look
+            // like a fresh update, or a frozen "schläft" would never actually go stale.
+            if self.zustand[person] != z { self.zustandSeit[person] = Date() }
+            self.zustand[person] = z
         }
         // ponytail: polling instead of reacting to a `da` edge — `Raum` exposes `partnerDa` as a
         // plain property, not an event stream. 10s granularity is plenty for a "vor X Minuten" label.
         Task { @MainActor [weak self] in
             while let self {
                 if raum.partnerDa, let partner = raum.ich?.partner { self.partnerZuletztGesehen[partner] = Date() }
+                self.partnerZustandVerfallenLassen()
                 try? await Task.sleep(for: .seconds(10))
             }
         }
+    }
+
+    /// audit-szene #4: "schläft"/"sitzt im Bett" stuck forever once the partner's phone goes
+    /// silently offline (no clean disconnect, so `partnerDa` above never flips false either) — the
+    /// sleeper's own phone would eventually re-decide and resend, but it's the one that's offline.
+    /// Falls back to `.offline` once the SAME state has sat unchanged past a sensible limit and it's
+    /// no longer plausible night. Only the partner, never `ich` (whose own device is right here).
+    private func partnerZustandVerfallenLassen() {
+        guard let partner = Raum.shared.ich?.partner, let z = zustand[partner],
+              z.haupt == .schlaeft || z.haupt == .sitztImBett,
+              SchlafLogik.partnerZustandAbgelaufen(seit: zustandSeit[partner], jetzt: Date())
+        else { return }
+        zustand[partner] = Zustand(haupt: .offline, abzeichen: z.abzeichen, detail: z.detail)
     }
 
     /// Z-7.2: "zuletzt online vor …" for the offline figure, `nil` before the partner was ever seen.
