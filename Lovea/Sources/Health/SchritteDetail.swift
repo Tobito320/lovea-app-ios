@@ -23,6 +23,7 @@ struct SchritteDetailView: View {
                 ringZeile
                 SchritteStatChips(werte: statWerte)
                 verlauf
+                if zeitraum == .tag { CardioSektion(person: person, tag: anker) }
                 SchritteChallengeKarte()
             }
             .padding(16)
