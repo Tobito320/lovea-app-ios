@@ -98,6 +98,7 @@ struct SprachAufnahmeButton: View {
     @State private var steuerung = AufnahmeSteuerung()
     @State private var modus: Modus = .ruhe
     @State private var druckBeginn: Date?
+    @State private var gedrueckt = false
 
     var body: some View {
         Group {
@@ -105,7 +106,12 @@ struct SprachAufnahmeButton: View {
                 VorschauLeiste(
                     aufnahme: vorschau,
                     onSenden: { senden(vorschau); self.vorschau = nil; onEntwurfAendern() },
-                    onVerwerfen: { try? FileManager.default.removeItem(at: vorschau.url); self.vorschau = nil; onEntwurfAendern() }
+                    onVerwerfen: {
+                        SprachSpieler.shared.pausieren()
+                        try? FileManager.default.removeItem(at: vorschau.url)
+                        self.vorschau = nil
+                        onEntwurfAendern()
+                    }
                 )
             } else {
                 aufnahmeKnopf
@@ -130,9 +136,13 @@ struct SprachAufnahmeButton: View {
         }
         .frame(minWidth: 44, minHeight: 44) // Z-32.3: every input bar button 44 × 44 pt
         .contentShape(Rectangle())
-        .onLongPressGesture(minimumDuration: 0.3, maximumDistance: 40) {} onPressingChanged: { druecken in
-            handlePress(druecken)
-        }
+        // Real finger down/up. `onLongPressGesture`'s onPressingChanged(false) fires as soon as the
+        // 0.3 s press is recognised, not on release, so a slightly long tap sent right away.
+        .gesture(
+            DragGesture(minimumDistance: 0)
+                .onChanged { _ in if !gedrueckt { gedrueckt = true; handlePress(true) } }
+                .onEnded { _ in gedrueckt = false; handlePress(false) }
+        )
         // VoiceOver (Z-16.3): a double tap is one short press, so the first activation starts
         // tap+tap mode and the second stops into the preview bar.
         .accessibilityElement(children: .ignore)
@@ -161,7 +171,7 @@ struct SprachAufnahmeButton: View {
         }
         switch modus {
         case .haltend:
-            if Date().timeIntervalSince(druckBeginn ?? Date()) > 0.3 {
+            if Date().timeIntervalSince(druckBeginn ?? Date()) > 0.5 {
                 if let ergebnis = steuerung.stop() {
                     senden(SprachEntwurf(medienId: nil, url: ergebnis.url, dauer: ergebnis.dauer, pegel: ergebnis.pegel))
                 }
@@ -227,7 +237,8 @@ private struct VorschauLeiste: View {
 
     var body: some View {
         HStack(spacing: 2) {
-            Button(role: .destructive) { onVerwerfen() } label: { Image(systemName: "trash").frame(width: 44, height: 44) }
+            Button { onVerwerfen() } label: { Image(systemName: "trash").frame(width: 44, height: 44) }
+                .foregroundStyle(.red)
                 .accessibilityLabel("Aufnahme verwerfen")
             Button {
                 if spielt { SprachSpieler.shared.pausieren() } else { SprachSpieler.shared.spielen(id: vorschauID, url: aufnahme.url) }

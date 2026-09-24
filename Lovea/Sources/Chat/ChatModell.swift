@@ -130,7 +130,8 @@ final class ChatModell {
             byID[p.id] = n
         case "nachricht.geloescht":
             guard let p = op.daten(IDPayload.self) else { return }
-            if p.id.hasPrefix("umzug:zeichnung/") {
+            // Retracted within 5 s: no "zurückgezogen" line either.
+            if p.id.hasPrefix("umzug:zeichnung/") || byID[p.id].map({ op.zeit.timeIntervalSince($0.zeit) < 5 }) == true {
                 // Z-26.4: "aus dem Chat gelöscht" — vanishes outright, no "Nachricht gelöscht" spur.
                 byID.removeValue(forKey: p.id)
             } else {

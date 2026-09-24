@@ -100,6 +100,17 @@ final class ChatModellTests: XCTestCase {
         XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(6)))
     }
 
+    func testZurueckziehenUnterFuenfSekundenOhneSpur() {
+        let modell = ChatModell(registrieren: false)
+        let t = Date()
+        modell.anwenden([op("nachricht.neu", ["id": "s1", "text": "a"], von: .ahmed, zeit: t, seq: 1)])
+        modell.anwenden([op("nachricht.neu", ["id": "s2", "text": "b"], von: .ahmed, zeit: t, seq: 2)])
+        modell.anwenden([op("nachricht.geloescht", ["id": "s1"], von: .ahmed, zeit: t.addingTimeInterval(3), seq: 3)])
+        modell.anwenden([op("nachricht.geloescht", ["id": "s2"], von: .ahmed, zeit: t.addingTimeInterval(8), seq: 4)])
+        XCTAssertNil(modell.nachricht("s1"))
+        XCTAssertEqual(modell.nachricht("s2")?.geloescht, true)
+    }
+
     // Block 18 search, now a pure model function.
     func testSucheFindetTextOhneGeloeschte() {
         let modell = ChatModell(registrieren: false)
@@ -115,7 +126,7 @@ final class ChatModellTests: XCTestCase {
     func testLoeschenEntferntFuerBeide() {
         let modell = ChatModell(registrieren: false)
         modell.anwenden([neuOp("m1", text: "weg damit", seq: 1)])
-        modell.anwenden([op("nachricht.geloescht", ["id": "m1"], von: .annika)])
+        modell.anwenden([op("nachricht.geloescht", ["id": "m1"], von: .annika, zeit: Date().addingTimeInterval(10))])
 
         XCTAssertEqual(modell.nachrichten.first { $0.id == "m1" }?.geloescht, true)
     }
