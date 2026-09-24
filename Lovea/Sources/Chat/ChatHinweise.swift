@@ -34,6 +34,11 @@ enum ChatHinweis {
         "chatVideoAufnahme": "nimmt ein Video im Chat auf",
     ]
 
+    /// `snap.wiederholt`: "Annika hat den Snap wiederholt" / "… 2-mal wiederholt".
+    static func wiederholtText(von name: String, anzahl: Int) -> String {
+        anzahl > 1 ? "\(name) hat den Snap \(anzahl)-mal wiederholt" : "\(name) hat den Snap wiederholt"
+    }
+
     static func text(von name: String, art: String) -> String {
         "\(name) \(texte[art] ?? "hat einen Screenshot gemacht")"
     }

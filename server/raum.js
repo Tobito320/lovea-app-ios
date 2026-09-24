@@ -19,6 +19,8 @@ import {
   medienNachFertigAufraeumen,
   standortSchreiben,
   letzterStandort,
+  zustandMerken,
+  letzterZustand,
   zufaelligNah,
   einstellung,
   geraetSpeichern,
@@ -132,6 +134,8 @@ export class Raum {
 
     const letzter = letzterStandort(this.sql, partnerVon(person));
     if (letzter) server.send(JSON.stringify({ t: "standort", person: partnerVon(person), d: letzter.d }));
+    const zustand = letzterZustand(this.sql, partnerVon(person));
+    if (zustand) server.send(JSON.stringify({ t: "fl", von: partnerVon(person), art: "zustand", d: zustand }));
 
     this.#sendePraesenz();
     return new Response(null, { status: 101, webSocket: client });
@@ -256,6 +260,7 @@ export class Raum {
     if (art === "standort") {
       await this.#standort(person, d);
     } else {
+      if (art === "zustand") zustandMerken(this.sql, person, d);
       this.#sendeAnPartner(person, { t: "fl", von: person, art, d });
     }
   }

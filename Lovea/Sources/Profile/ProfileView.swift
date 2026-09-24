@@ -241,7 +241,7 @@ private struct ProfilInhalt: View {
         let personen: [Person] = paar || szene == .schlafen(zusammen: true) ? [.annika, .ahmed] : [person]
         switch szene {
         case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlafGerade($0) != .wach })
-        case .gym, .draussen, .unterwegs: return (personen, [])
+        case .gym, .draussen, .unterwegs, .schule, .arbeit: return (personen, [])
         }
     }
 
@@ -274,7 +274,7 @@ private struct ProfilInhalt: View {
         switch szene {
         case .schlafen: return true
         case .zimmer: return ProfilSzene.nacht(person: person)
-        case .gym, .draussen, .unterwegs: return false
+        case .gym, .draussen, .unterwegs, .schule, .arbeit: return false
         }
     }
 
@@ -313,7 +313,9 @@ private struct ProfilInhalt: View {
     /// from 22:00 an awake figure is tired and yawns now and then.
     @ViewBuilder
     private func figur(_ p: Person, szene: ProfilSzene? = nil) -> some View {
-        let live = FigurenModell.shared.anzeige(p).haupt
+        // Their own shared state even while their app is closed (it arrives in the background too),
+        // so both phones show the same; grey "offline" only when nothing was ever shared.
+        let live = ProfilSzene.geteilterZustand(p) ?? .offline
         let schlaf = ProfilSzene.schlafGerade(p)
         let schlaeft = schlaf != .wach
         let zustand: FigurZustand = schlaf == .schlaeft ? .schlaeft : (schlaf == .sitzt ? .sitztImBett : (szene?.figur(live) ?? live))
@@ -325,8 +327,8 @@ private struct ProfilInhalt: View {
         // The kiss needs its arm: no umbrella or dumbbells for those 4 s.
         let szenenExtras: Set<FigurExtra> = kuesst ? [] : szene?.extras(zustand, wetterCode: wetter?.code, temperatur: wetter?.temperatur) ?? []
         let extras = spaet ? szenenExtras.union([.schlaefrig]) : szenenExtras
-        // A bought pose would replace the curls, so the gym keeps its own arms.
-        let pose = szene.map { $0 != .gym } ?? true
+        // A bought pose would replace the curls or the desk, so gym, school and work keep their own.
+        let pose = szene.map { $0 != .gym && $0 != .schule && $0 != .arbeit } ?? true
         let v = FigurView(FigurenModell.shared.aussehen(p), zustand: kuesst ? .kuss : zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: pose, extras: extras)
             .rotationEffect(.degrees(kuesst ? Double(richtung) * 7 : 0), anchor: .bottom)
             .offset(x: kuesst ? richtung * 38 : 0)

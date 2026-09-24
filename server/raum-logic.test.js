@@ -12,6 +12,8 @@ import {
   medienLesen,
   standortSchreiben,
   letzterStandort,
+  zustandMerken,
+  letzterZustand,
   zufaelligNah,
   einstellung,
   offeneTreffen,
@@ -244,6 +246,16 @@ test("Standort wird höchstens einmal pro Minute geschrieben", () => {
   const t1 = t0 + 61_000;
   assert.equal(standortSchreiben(sql, "ahmed", { lat: 2, lon: 2 }, new Date(t1).toISOString(), t1), true);
   assert.equal(letzterStandort(sql, "ahmed").d.lat, 2);
+});
+
+test("Letzter Zustand wird gemerkt, pro Person, der neueste gilt", () => {
+  const sql = raum();
+  assert.equal(letzterZustand(sql, "annika"), null);
+  zustandMerken(sql, "annika", { haupt: "schule", abzeichen: [] });
+  zustandMerken(sql, "annika", { haupt: "faehrt", abzeichen: [] });
+  zustandMerken(sql, "ahmed", { haupt: "arbeit", abzeichen: [] });
+  assert.equal(letzterZustand(sql, "annika").haupt, "faehrt");
+  assert.equal(letzterZustand(sql, "ahmed").haupt, "arbeit");
 });
 
 test("Zufällig nah: beide frisch, unter 100 m, kein Treffen", () => {

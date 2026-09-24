@@ -124,7 +124,11 @@ final class FigurenModell {
 
     /// Z-27.1: "Gute Nacht"/"Guten Morgen" (`gruss {art}`, schnittstellen.md) — own figure state,
     /// sweet push for the partner (server: `regeln.js` `grussRegel`).
-    func grussSenden(_ art: String) { Raum.shared.senden("gruss", GrussPayload(art: art)) }
+    func grussSenden(_ art: String) {
+        Raum.shared.senden("gruss", GrussPayload(art: art))
+        // The op folds locally right away; re-decide sleep now, not on the next 30 s tick.
+        Anwesenheit.shared.anstossen()
+    }
 
     /// Block 7 (Z-7.1) reinterpretation: screens still call this with their own activity as
     /// `haupt` (`.imChat`, `.tippt`, `.zeichnet`, … or `.ruhig`/`nil` when they leave) — it's now

@@ -80,6 +80,8 @@ struct SnapViewer: View {
             bild = await Bilddatei.laden(url) // decoded off the main actor (Z-16.2)
         }
         begonnen = Date() // only once it's actually on screen
+        // Snaps replay without limit; each reopening of an already viewed one tells the sender.
+        if binEmpfaenger, nachricht.snapAngesehen { ChatModell.shared.snapWiederholtSenden(nachricht.id) }
     }
 
     private func schliessen() {

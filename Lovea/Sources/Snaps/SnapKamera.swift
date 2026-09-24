@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreMedia
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -362,6 +363,8 @@ struct SnapKameraView: View {
     @State private var modus: Modus = .ruhe
     @State private var zoomStart: CGFloat = 1
     @State private var haltTask: Task<Void, Never>?
+    @State private var galerieAuswahl: PhotosPickerItem?
+    @State private var galerieLaedt = false
 
     private enum Modus { case ruhe, haltend }
 
@@ -407,7 +410,61 @@ struct SnapKameraView: View {
         .padding()
     }
 
+    /// Gallery button left of the shutter, nothing on the right so the shutter stays centred.
     private var untereLeiste: some View {
+        HStack {
+            galerieKnopf.frame(maxWidth: .infinity)
+            ausloeser
+            Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+        }
+        .padding(.bottom, 40)
+    }
+
+    /// A photo or video from the gallery goes through the same editor and snap path as a capture.
+    private var galerieKnopf: some View {
+        PhotosPicker(selection: $galerieAuswahl, matching: .any(of: [.images, .videos])) {
+            Group {
+                if galerieLaedt {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "photo.on.rectangle")
+                }
+            }
+            .font(.title2)
+            .foregroundStyle(.white)
+            .frame(width: 52, height: 52)
+            .background(.black.opacity(0.35), in: .rect(cornerRadius: 14))
+        }
+        .disabled(galerieLaedt || steuerung.nimmtVideoAuf)
+        .accessibilityLabel("Foto oder Video aus der Galerie")
+        .onChange(of: galerieAuswahl) { _, item in galerieLaden(item) }
+    }
+
+    private func galerieLaden(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        galerieLaedt = true
+        Task {
+            defer {
+                galerieLaedt = false
+                galerieAuswahl = nil
+            }
+            let video = try? await item.loadTransferable(type: VideoDatei.self)
+            var daten: Data?
+            if video == nil { daten = try? await item.loadTransferable(type: Data.self) }
+            switch SnapGalerie.inhalt(videoURL: video?.url, bildDaten: daten) {
+            case .foto(let bild)?:
+                Haptik.leicht()
+                onFoto(bild)
+            case .video(let url)?:
+                Haptik.leicht()
+                onVideo(url)
+            case nil:
+                Haptik.warnung()
+            }
+        }
+    }
+
+    private var ausloeser: some View {
         ZStack {
             Circle().stroke(.white.opacity(0.4), lineWidth: 4).frame(width: 76, height: 76)
             Circle()
@@ -434,7 +491,6 @@ struct SnapKameraView: View {
         // `onLongPressGesture`'s `maximumDistance` cancels the whole press once the same finger
         // drags past it, which is exactly what dragging up to zoom while holding does.
         .gesture(shutterGeste)
-        .padding(.bottom, 40)
     }
 
     private var shutterGeste: some Gesture {
@@ -467,6 +523,15 @@ struct SnapKameraView: View {
                     if let bild = await steuerung.fotoAufnehmen() { onFoto(bild) }
                 }
             }
+    }
+}
+
+/// Gallery pick → the same editor input as a camera capture: a video wins, else a decodable photo.
+enum SnapGalerie {
+    static func inhalt(videoURL: URL?, bildDaten: Data?) -> SnapInhalt? {
+        if let videoURL { return .video(videoURL) }
+        if let bildDaten, let bild = UIImage(data: bildDaten) { return .foto(bild) }
+        return nil
     }
 }
 

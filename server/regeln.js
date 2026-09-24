@@ -85,6 +85,7 @@ const TABELLE = {
   }),
   "termin.setzen": (von) => ({ stufe: "leise", kategorie: "kalender", titel: "Lovea", text: `${NAME[von]} hat einen Termin eingetragen oder geändert` }),
   "frage.antwort": (von) => ({ stufe: "leise", kategorie: "frage", titel: "Lovea", text: `${NAME[von]} hat die Frage des Tages beantwortet` }),
+  "snap.wiederholt": (von, d) => ({ stufe: "leise", kategorie: "chat", titel: "Lovea", text: d.anzahl > 1 ? `${NAME[von]} hat den Snap ${d.anzahl}-mal wiederholt` : `${NAME[von]} hat den Snap wiederholt` }),
   "snap.aufnahme": (von, d) => ({
     stufe: "leise",
     kategorie: "chat",

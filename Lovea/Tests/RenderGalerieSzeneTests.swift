@@ -52,6 +52,10 @@ final class RenderGalerieSzeneTests: XCTestCase {
         let unterwegs = ProfilSzene.unterwegs(wetter: .wolken, nacht: false)
         zellen.append((titel: "Unterwegs (Auto)", ansicht: kopf(unterwegs, .ahmed)))
         zellen.append((titel: "Unterwegs (Zug)", ansicht: kopf(unterwegs, .ahmed, live: .zug)))
+        zellen.append((titel: "Schule Annika", ansicht: kopf(.schule, .annika)))
+        zellen.append((titel: "Schule Ahmed", ansicht: kopf(.schule, .ahmed)))
+        zellen.append((titel: "Arbeit Annika", ansicht: kopf(.arbeit, .annika)))
+        zellen.append((titel: "Arbeit Ahmed", ansicht: kopf(.arbeit, .ahmed)))
         RenderTafel.speichern("profil-szenen", spalten: 4, zellen: zellen)
     }
 

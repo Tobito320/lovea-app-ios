@@ -278,7 +278,9 @@ final class Raum {
     /// disconnected, same as before.
     func fluechtig<T: Encodable>(_ art: String, _ d: T) {
         guard verbunden else {
-            if art == "standort" { fluechtigPerHttp(art: art, d: d) }
+            // Background: the socket is closed ~30 s after backgrounding. Position and the own
+            // state still reach the partner (the server keeps the last of each for a reconnect).
+            if art == "standort" || art == "zustand" { fluechtigPerHttp(art: art, d: d) }
             return
         }
         sende(FluechtigNachricht(art: art, d: d))

@@ -461,7 +461,8 @@ private struct SnapZeile: View {
             if alsFoto, let medium = nachricht.medien.first {
                 MedienNachrichtView(medium: medium, eigene: eigene)
             } else if nachricht.snapAngesehen {
-                spur(nachricht.snapLange ? "Snap lange angesehen" : "Snap angesehen")
+                // Snaps replay without limit: the spur stays tappable ("nochmal" for the receiver).
+                spur(nachricht.snapLange ? "Snap lange angesehen" : (eigene ? "Snap angesehen" : "Snap angesehen · nochmal"))
             } else {
                 spur(eigene ? "Snap" : "Snap ansehen")
             }
@@ -472,19 +473,37 @@ private struct SnapZeile: View {
     }
 
     // A tap gesture, not a Button: a Button inside the bubble would swallow the long press.
+    // Snapchat colours: red square for a photo snap, purple for a video snap (camera or gallery).
     private func spur(_ text: String) -> some View {
-        Label(text, systemImage: "bolt.fill")
-            .font(.subheadline.weight(.medium))
-            .blase(eigene: eigene, schwanz: schwanz, backdrop: backdrop)
-            .contentShape(.rect)
-            .onTapGesture {
-                guard !LangDruck.geradeEben else { return }
-                Haptik.leicht()
-                vollbild = true
-            }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityAction { vollbild = true }
+        let farbe = SnapFarbe.farbe(istVideo: nachricht.medien.first?.typ == "video")
+        return HStack(spacing: 6) {
+            // White backing: stays visible on a rose/red own-bubble gradient.
+            Image(systemName: nachricht.snapAngesehen ? "square" : "square.fill")
+                .foregroundStyle(farbe)
+                .padding(3)
+                .background(.white, in: .rect(cornerRadius: 5))
+            Text(text)
+        }
+        .font(.subheadline.weight(.medium))
+        .blase(eigene: eigene, schwanz: schwanz, backdrop: backdrop)
+        .contentShape(.rect)
+        .onTapGesture {
+            guard !LangDruck.geradeEben else { return }
+            Haptik.leicht()
+            vollbild = true
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel((nachricht.medien.first?.typ == "video" ? "Video-Snap, " : "Foto-Snap, ") + text)
+        .accessibilityAddTraits(.isButton)
+        .accessibilityAction { vollbild = true }
     }
+}
+
+/// Snapchat's snap colours, the same for camera and gallery snaps.
+enum SnapFarbe {
+    static let foto = Color(red: 0.95, green: 0.24, blue: 0.34)
+    static let video = Color(red: 0.63, green: 0.36, blue: 0.80)
+    static func farbe(istVideo: Bool) -> Color { istVideo ? video : foto }
 }
 
 /// `LPLinkView` wrapper for `Z-4.2`'s link preview.
