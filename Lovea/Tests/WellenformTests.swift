@@ -26,13 +26,18 @@ final class WellenformTests: XCTestCase {
         let url = FileManager.default.temporaryDirectory.appendingPathComponent("WellenformTest-\(UUID().uuidString).caf")
         defer { try? FileManager.default.removeItem(at: url) }
         let format = try XCTUnwrap(AVAudioFormat(standardFormatWithSampleRate: 8000, channels: 1))
-        let datei = try AVAudioFile(forWriting: url, settings: format.settings)
-        let rahmen: AVAudioFrameCount = 8000 // 1 s
-        let puffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: rahmen))
-        puffer.frameLength = rahmen
-        let kanal = try XCTUnwrap(puffer.floatChannelData?[0])
-        for i in 0..<Int(rahmen) { kanal[i] = sin(Float(i) * 0.2) * 0.8 } // loud, not silent
-        try datei.write(from: puffer)
+        do {
+            // Scoped so the writer is deallocated (finalizing the file header) before `ausDatei`
+            // opens the same URL for reading below — `AVAudioFile` only flushes complete frame
+            // counts to the header on close/dealloc, not on every `write(from:)`.
+            let datei = try AVAudioFile(forWriting: url, settings: format.settings)
+            let rahmen: AVAudioFrameCount = 8000 // 1 s
+            let puffer = try XCTUnwrap(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: rahmen))
+            puffer.frameLength = rahmen
+            let kanal = try XCTUnwrap(puffer.floatChannelData?[0])
+            for i in 0..<Int(rahmen) { kanal[i] = sin(Float(i) * 0.2) * 0.8 } // loud, not silent
+            try datei.write(from: puffer)
+        }
 
         let pegel = Wellenform.ausDatei(url, ziel: 16)
         XCTAssertEqual(pegel.count, 16)
