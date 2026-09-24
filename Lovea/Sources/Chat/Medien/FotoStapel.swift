@@ -110,6 +110,7 @@ struct MedienGalerie: View {
         }
         .presentationBackground(.clear)
         .statusBarHidden()
+        .screenshotKontext(.medium(video: false, eigen: eigene))
         .sensoryFeedback(.selection, trigger: auswahl)
         .task { FigurenModell.shared.zustandSenden(.init(haupt: .schautBild)) }
         .onDisappear { FigurenModell.shared.zustandSenden(.init(haupt: .imChat)) }

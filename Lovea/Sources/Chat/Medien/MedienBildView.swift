@@ -40,7 +40,7 @@ struct MedienNachrichtView: View {
                     .accessibilityAction { vollbild = true }
                     .matchedTransitionSource(id: medium.id, in: zoomRaum)
                     .fullScreenCover(isPresented: $vollbild) {
-                        MedienVollbild(url: localURL, istVideo: istVideo)
+                        MedienVollbild(url: localURL, istVideo: istVideo, eigene: eigene)
                             .navigationTransition(.zoom(sourceID: medium.id, in: zoomRaum))
                     }
             } else {
@@ -181,6 +181,7 @@ private struct MedienVorschau: View {
 private struct MedienVollbild: View {
     let url: URL
     let istVideo: Bool
+    let eigene: Bool
     @Environment(\.dismiss) private var dismiss
     @State private var zoom: CGFloat = 1
     @State private var zoomStart: CGFloat = 1
@@ -213,6 +214,7 @@ private struct MedienVollbild: View {
         }
         .interactiveDismissDisabled(zoom > 1)
         .statusBarHidden()
+        .screenshotKontext(.medium(video: istVideo, eigen: eigene))
         .task {
             if istVideo { spieler = AVPlayer(url: url) } else { bild = await Bilddatei.laden(url) }
             FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild))

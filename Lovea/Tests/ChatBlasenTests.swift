@@ -54,6 +54,37 @@ final class ChatBlasenTests: XCTestCase {
         XCTAssertEqual(ChatHinweis.text(von: "Annika", art: "screenshot"), "Annika hat einen Screenshot gemacht", "snap screenshots unchanged")
     }
 
+    // Screenshot notices follow what is on screen; the most specific visible context wins.
+    func testScreenshotKontextVorrang() {
+        XCTAssertNil(ScreenshotKontext.aktiv([]), "Home, Health, own profile: nothing registered, no notice")
+        XCTAssertEqual(ScreenshotKontext.aktiv([.chat]), .chat)
+        XCTAssertEqual(ScreenshotKontext.aktiv([.chat, .partnerProfil]), .partnerProfil, "profile sheet over the chat")
+        XCTAssertEqual(ScreenshotKontext.aktiv([.partnerProfil, .chat]), .partnerProfil, "order doesn't matter")
+        XCTAssertEqual(ScreenshotKontext.aktiv([.chat, .sticker]), .sticker)
+        XCTAssertEqual(ScreenshotKontext.aktiv([.partnerProfil, .medium(video: false, eigen: false)]), .medium(video: false, eigen: false))
+    }
+
+    func testScreenshotKontextArtUndText() {
+        let faelle: [(ScreenshotKontext, Bool, String, String)] = [
+            (.chat, false, "chatScreenshot", "Ahmed hat einen Screenshot vom Chat gemacht"),
+            (.chat, true, "chatAufnahme", "Ahmed nimmt den Chat auf"),
+            (.partnerProfil, false, "profilScreenshot", "Ahmed hat einen Screenshot von deinem Profil gemacht"),
+            (.partnerProfil, true, "profilAufnahme", "Ahmed nimmt dein Profil auf"),
+            (.sticker, false, "stickerScreenshot", "Ahmed hat einen Screenshot von einem Sticker gemacht"),
+            (.medium(video: false, eigen: false), false, "fotoScreenshot", "Ahmed hat einen Screenshot von deinem Foto gemacht"),
+            (.medium(video: true, eigen: false), true, "videoAufnahme", "Ahmed nimmt dein Video auf"),
+            (.medium(video: false, eigen: true), false, "chatFotoScreenshot", "Ahmed hat einen Screenshot von einem Foto im Chat gemacht"),
+            (.medium(video: true, eigen: true), false, "chatVideoScreenshot", "Ahmed hat einen Screenshot von einem Video im Chat gemacht"),
+        ]
+        for (kontext, aufnahme, art, text) in faelle {
+            XCTAssertEqual(kontext.art(aufnahme: aufnahme), art)
+            XCTAssertEqual(ChatHinweis.text(von: "Ahmed", art: art), text)
+        }
+        for art in ["stickerAufnahme", "fotoAufnahme", "videoScreenshot", "chatFotoAufnahme", "chatVideoAufnahme"] {
+            XCTAssertNotNil(ChatHinweis.texte[art], art)
+        }
+    }
+
     func testNurEmoji() {
         XCTAssertTrue(NachrichtBlase.nurEmoji("😂"))
         XCTAssertTrue(NachrichtBlase.nurEmoji("❤️ 😘"))
