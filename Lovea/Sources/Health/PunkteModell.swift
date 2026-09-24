@@ -6,10 +6,8 @@ import Observation
 /// model layer (see the deviation note on `PunkteLogik`). Reuses `HealthModell`'s already-deduped
 /// steps/gym/water/goal state instead of re-observing `schritte.setzen`/`habit.setzen`/`einstellung.setzen`
 /// a second time.
-// ponytail: `stand`/`verlauf`/`wochen`/... recompute the full fold on the main thread on every
-// access (two people, at most a few thousand ops — measured as fine for Runde 1's equivalents).
-// Zielplan says "Faltungen im Hintergrund": move to a background actor/cache if a profiler ever
-// disagrees, e.g. once the Health tab polls these every frame during a scroll.
+// ponytail: `stand`/`verlauf`/`wochen`/... still fold on the main thread, but only once per input
+// change or day (`gemerkt`, audit #3). Move to a background actor if a profiler ever disagrees.
 @MainActor
 @Observable
 final class PunkteModell {
@@ -51,15 +49,17 @@ final class PunkteModell {
     // MARK: - Punkte
 
     var stand: [Person: Int] {
-        var summe = PunkteLogik.stand(
-            heute: heute, schritte: schritteEintraege, gym: gymEintraege, wasser: wasserEintraege,
-            zielSchritte: HealthModell.shared.zielSchritteAenderungen, zielWasser: HealthModell.shared.zielWasserAenderungen,
-            zielGym: HealthModell.shared.zielGymAenderungen, chatStreakTage: chatStreakTage, spieleSiege: spieleSiege
-        )
-        for (person, punkte) in ChallengeLogik.punkteBonus(wochen: wochen, monate: monate, serien: serien) {
-            summe[person, default: 0] += punkte
+        gemerkt("stand") {
+            var summe = PunkteLogik.stand(
+                heute: heute, schritte: schritteEintraege, gym: gymEintraege, wasser: wasserEintraege,
+                zielSchritte: HealthModell.shared.zielSchritteAenderungen, zielWasser: HealthModell.shared.zielWasserAenderungen,
+                zielGym: HealthModell.shared.zielGymAenderungen, chatStreakTage: chatStreakTage, spieleSiege: spieleSiege
+            )
+            for (person, punkte) in ChallengeLogik.punkteBonus(wochen: wochen, monate: monate, serien: serien) {
+                summe[person, default: 0] += punkte
+            }
+            return summe
         }
-        return summe
     }
 
     /// Z-22.2 "Wofür?": `PunkteLogik.verlauf` allein (Tage + Gym-Wochenziel) erklärt nicht die volle
@@ -68,7 +68,9 @@ final class PunkteModell {
     /// die Historie und der Punktestand-Chip (Z-22.2) auf dieselbe Summe kommen.
     /// Brief I.2: angenommene Käufe (Shop-Kauf und Geschenk) als negative Zeilen, Datum aus `Kauf.zeit`
     /// (`Op.zeit`) — abgelehnte Käufe (Review-Fokus 3) tauchen bewusst nicht auf, sie kosten nichts.
-    var verlauf: [PunkteLogik.Eintrag] {
+    var verlauf: [PunkteLogik.Eintrag] { gemerkt("verlauf") { verlaufBerechnen() } }
+
+    private func verlaufBerechnen() -> [PunkteLogik.Eintrag] {
         var eintraege = PunkteLogik.verlauf(
             heute: heute, schritte: schritteEintraege, gym: gymEintraege, wasser: wasserEintraege,
             zielSchritte: HealthModell.shared.zielSchritteAenderungen, zielWasser: HealthModell.shared.zielWasserAenderungen,
@@ -103,15 +105,51 @@ final class PunkteModell {
     // MARK: - Challenges
 
     private var wochen: [ChallengeLogik.WochenErgebnis] {
-        ChallengeLogik.wochen(heute: heute, schritte: schritteEintraege, zielGemeinsamWocheAenderungen: HealthModell.shared.zielGemeinsamWocheAenderungen)
+        gemerkt("wochen") {
+            ChallengeLogik.wochen(heute: heute, schritte: schritteEintraege, zielGemeinsamWocheAenderungen: HealthModell.shared.zielGemeinsamWocheAenderungen)
+        }
     }
 
     private var monate: [ChallengeLogik.MonatsErgebnis] {
-        ChallengeLogik.monate(heute: heute, schritte: schritteEintraege)
+        gemerkt("monate") { ChallengeLogik.monate(heute: heute, schritte: schritteEintraege) }
     }
 
     private var serien: [ChallengeLogik.SerienBonus] {
-        ChallengeLogik.serienBoni(heute: heute, schritte: schritteEintraege, zielSchritte: HealthModell.shared.zielSchritteAenderungen)
+        gemerkt("serien") {
+            ChallengeLogik.serienBoni(heute: heute, schritte: schritteEintraege, zielSchritte: HealthModell.shared.zielSchritteAenderungen)
+        }
+    }
+
+    // MARK: - Cache (audit #3)
+
+    /// Bumped the moment any input a cached fold read is about to change. Every cached read touches
+    /// it, so SwiftUI, `WidgetStandSchreiber` and any fold built on a cached one still notice.
+    private var version = 0
+    @ObservationIgnored private var cache: [String: Any] = [:]
+    @ObservationIgnored private var cacheTag = ""
+
+    /// Runs `berechnen` once per input change (or new day). Its `@Observable` reads (Health, Chat,
+    /// own ops, `version` of nested cached folds) are tracked; the first change drops only this key,
+    /// so a chat message refolds `stand`/`verlauf` but not the steps-only challenges.
+    private func gemerkt<T>(_ schluessel: String, _ berechnen: () -> T) -> T {
+        _ = version
+        let tag = heute
+        if cacheTag != tag {
+            cache = [:]
+            cacheTag = tag
+        }
+        if let wert = cache[schluessel] as? T { return wert }
+        let wert = withObservationTracking {
+            berechnen()
+        } onChange: { [weak self] in
+            // Fires synchronously in `willSet` of a main-actor model, before the new value lands.
+            MainActor.assumeIsolated {
+                self?.cache[schluessel] = nil
+                self?.version += 1
+            }
+        }
+        cache[schluessel] = wert
+        return wert
     }
 
     /// Für die Health-Tab-Anzeige (Block 21/Z-22.2): laufende Woche/Monat/Serie mit Fortschritt.
