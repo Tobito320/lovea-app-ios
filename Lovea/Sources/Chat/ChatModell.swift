@@ -29,6 +29,8 @@ final class ChatModell {
         var angeheftet = false
         var angeheftetBis: Date?
         var gesternt: Set<Person> = []
+        /// Tap to keep (visible to both, unlike stars).
+        var gemerkt: Set<Person> = []
         // Block 6 (Z-6.3): folded from `snap.angesehen`/`snap.gespeichert`, not part of the
         // `nachricht.neu` payload itself.
         var snapAngesehen = false
@@ -76,7 +78,7 @@ final class ChatModell {
 
     static let arten: Set<String> = [
         "nachricht.neu", "nachricht.bearbeitet", "nachricht.geloescht", "nachricht.reaktion",
-        "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern",
+        "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern", "nachricht.gemerkt",
         "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme", "zeichnung.einladung",
         "entwurf.setzen",
     ]
@@ -153,6 +155,9 @@ final class ChatModell {
             // only ever shows a person their own stars (see `meineSterne`).
             guard let p = op.daten(SternPayload.self) else { return }
             if p.an { byID[p.id]?.gesternt.insert(op.von) } else { byID[p.id]?.gesternt.remove(op.von) }
+        case "nachricht.gemerkt":
+            guard let p = op.daten(SternPayload.self) else { return }
+            if p.an { byID[p.id]?.gemerkt.insert(op.von) } else { byID[p.id]?.gemerkt.remove(op.von) }
         case "medium.abschrift":
             guard let p = op.daten(AbschriftPayload.self) else { return }
             abschriften[p.id] = p.text
@@ -278,6 +283,10 @@ final class ChatModell {
 
     func loesen(_ id: String) {
         Raum.shared.senden("nachricht.losgeloest", IDPayload(id: id))
+    }
+
+    func merkenSetzen(_ id: String, an: Bool) {
+        Raum.shared.senden("nachricht.gemerkt", SternPayload(id: id, an: an))
     }
 
     func sternSetzen(_ id: String, an: Bool) {

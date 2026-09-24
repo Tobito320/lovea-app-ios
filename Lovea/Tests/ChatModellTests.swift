@@ -86,6 +86,20 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(modell.nachricht("e2")?.text, "hi")
     }
 
+    func testGemerktFuerBeideUndSperreFuenfSekunden() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "m1", "text": "hi"], von: .ahmed, seq: 1)])
+        modell.anwenden([op("nachricht.gemerkt", ["id": "m1", "an": true], von: .annika, seq: 2)])
+        XCTAssertEqual(modell.nachricht("m1")?.gemerkt, [.annika])
+        modell.anwenden([op("nachricht.gemerkt", ["id": "m1", "an": false], von: .annika, seq: 3)])
+        XCTAssertEqual(modell.nachricht("m1")?.gemerkt, [])
+
+        let t = Date()
+        XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t))
+        XCTAssertFalse(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(4)))
+        XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(6)))
+    }
+
     // Block 18 search, now a pure model function.
     func testSucheFindetTextOhneGeloeschte() {
         let modell = ChatModell(registrieren: false)

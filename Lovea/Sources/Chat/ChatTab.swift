@@ -48,7 +48,8 @@ private struct ChatListe: View {
                         zeit: letzte.map { ZeitText.relativ($0.zeit) },
                         ungelesen: modell.ungelesen(fuer: ich),
                         ort: PartnerOrt.text(partner, adresse: adresse),
-                        online: Raum.shared.partnerDa
+                        online: Raum.shared.partnerDa,
+                        gesehen: letzte.flatMap { $0.von == ich && $0.system == nil ? ($0.zeit <= (modell.gelesenBis[partner] ?? .distantPast)) : nil }
                     )
                 }
             }
@@ -80,6 +81,8 @@ struct ChatListenZeile: View {
     let ungelesen: Int
     let ort: String?
     let online: Bool
+    /// Own last message: false = "Zugestellt", true = "Gesehen"; nil when the last one is hers.
+    var gesehen: Bool? = nil
     var animiert = true
 
     var body: some View {
@@ -101,6 +104,13 @@ struct ChatListenZeile: View {
                         .foregroundStyle(ungelesen > 0 ? Color.primary : Color.secondary)
                         .lineLimit(1)
                     Spacer(minLength: 0)
+                    if let gesehen {
+                        Label(gesehen ? "Gesehen" : "Zugestellt", systemImage: gesehen ? "eye.fill" : "checkmark")
+                            .font(.caption.weight(gesehen ? .semibold : .regular))
+                            .foregroundStyle(gesehen ? Color.loveaRose : Color.secondary)
+                            .labelStyle(.titleAndIcon)
+                            .fixedSize()
+                    }
                     if ungelesen > 0 {
                         Text("\(ungelesen)")
                             .font(.caption.weight(.bold))
@@ -131,6 +141,7 @@ struct ChatListenZeile: View {
 
     private var beschreibung: String {
         var teile = [partner.name, online ? "online" : nil, vorschau, zeit, ort].compactMap { $0 }
+        if let gesehen { teile.append(gesehen ? "gesehen" : "zugestellt") }
         if ungelesen > 0 { teile.append("\(ungelesen) ungelesen") }
         return teile.joined(separator: ", ")
     }

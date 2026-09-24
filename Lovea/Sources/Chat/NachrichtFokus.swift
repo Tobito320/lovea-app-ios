@@ -206,6 +206,12 @@ struct NachrichtFokusEbene: View {
             })
         }
         liste.append(anheftenPunkt)
+        let gemerkt = nachricht.gemerkt.contains(ich)
+        liste.append(MenuePunkt(id: "merken", titel: gemerkt ? "Nicht mehr merken" : "Merken", symbol: gemerkt ? "bookmark.slash" : "bookmark") {
+            if MerkSperre.frei(nachricht.id) { modell.merkenSetzen(nachricht.id, an: !gemerkt) }
+            Haptik.auswahl()
+            schliessen()
+        })
         let gesternt = nachricht.gesternt.contains(ich)
         liste.append(MenuePunkt(id: "stern", titel: gesternt ? "Stern entfernen" : "Stern", symbol: gesternt ? "star.slash" : "star") {
             modell.sternSetzen(nachricht.id, an: !gesternt)

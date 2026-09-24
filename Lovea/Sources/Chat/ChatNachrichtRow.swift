@@ -123,6 +123,22 @@ struct ChatNachrichtRow: View {
 
     private var blase: some View {
         NachrichtBlase(nachricht: nachricht, ich: ich, stapel: stapel, schwanz: layout.gruppenEnde)
+            // Gemerkt (both see it): soft rose glow. Own star: yellow glow + badge.
+            .shadow(color: hervorhebung.opacity(0.7), radius: hervorhebung == .clear ? 0 : 7)
+            .overlay(alignment: eigene ? .bottomLeading : .bottomTrailing) {
+                if !nachricht.gemerkt.isEmpty || nachricht.gesternt.contains(ich) {
+                    HStack(spacing: 2) {
+                        if !nachricht.gemerkt.isEmpty { Image(systemName: "bookmark.fill").foregroundStyle(Color.loveaRose) }
+                        if nachricht.gesternt.contains(ich) { Image(systemName: "star.fill").foregroundStyle(.yellow) }
+                    }
+                    .font(.caption2.weight(.bold))
+                    .padding(4)
+                    .background(.ultraThinMaterial, in: .capsule)
+                    .offset(x: eigene ? -10 : 10, y: 6)
+                    .accessibilityHidden(true)
+                }
+            }
+            .animation(Feder.weich, value: nachricht.gemerkt)
             .overlay { herzPop }
             .overlay(alignment: eigene ? .topLeading : .topTrailing) {
                 ReaktionsAbzeichen(nachricht: nachricht, ich: ich)
@@ -130,7 +146,7 @@ struct ChatNachrichtRow: View {
             }
             .onGeometryChange(for: CGRect.self) { geo in geo.frame(in: .global) } action: { rahmen.wert = $0 }
             .onTapGesture(count: 2) { herzReaktion() }
-            .onTapGesture { effektNochmal() }
+            .onTapGesture { if !LangDruck.geradeEben { effektNochmal(); merkenTippen() } }
             // Fix round 3: simultaneous, not `.onLongPressGesture`. Photos, videos, snaps and letters
             // carry their own tap gesture; SwiftUI let that child tap win over an exclusive parent
             // long press, so holding a photo often opened nothing. `LangDruck` stops the child tap
@@ -211,8 +227,21 @@ struct ChatNachrichtRow: View {
         }
     }
 
+    private var hervorhebung: Color {
+        if !nachricht.gemerkt.isEmpty { return .loveaRose }
+        if nachricht.gesternt.contains(ich) { return .yellow }
+        return .clear
+    }
+
+    /// Single tap keeps/unkeeps the message for both. 5 s lock per message so it can't be spammed.
+    private func merkenTippen() {
+        guard MerkSperre.frei(nachricht.id) else { return }
+        ChatModell.shared.merkenSetzen(nachricht.id, an: !nachricht.gemerkt.contains(ich))
+        Haptik.leicht()
+    }
+
     private func effektNochmal() {
-        guard let effekt = nachricht.effekt, !LangDruck.geradeEben else { return }
+        guard let effekt = nachricht.effekt else { return }
         ChatEffektSpieler.shared.spielen(effekt)
     }
 
@@ -468,4 +497,15 @@ private struct LinkVorschau: UIViewRepresentable {
 
     func makeUIView(context: Context) -> LPLinkView { LPLinkView(url: url) }
     func updateUIView(_ uiView: LPLinkView, context: Context) {}
+}
+
+/// ponytail: in-memory per-message cooldown; resets on app restart, which is fine for anti-spam.
+@MainActor
+enum MerkSperre {
+    private static var zuletzt: [String: Date] = [:]
+    static func frei(_ id: String, jetzt: Date = Date()) -> Bool {
+        if let t = zuletzt[id], jetzt.timeIntervalSince(t) < 5 { return false }
+        zuletzt[id] = jetzt
+        return true
+    }
 }
