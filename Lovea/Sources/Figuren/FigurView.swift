@@ -6,6 +6,18 @@ import SwiftUI
 /// `schlaefrig` (Brief G fix): late at night, tired eyes and now and then a yawn.
 enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, muetzeSchal, handyKabel, schneeflocken, hanteln, schlaefrig }
 
+/// Brief K: the profile's hug and kiss, full body only. `seite` -1 = the partner stands left,
+/// +1 = right; `abstand` is the distance between the two figure centres in canvas units. `arme`
+/// and `kuss` run 0…1: the arms go around the partner, the head tilts and the face turns to them.
+/// The right figure lays its arm over the partner's shoulders, the left one's goes round the waist
+/// behind them, so the right figure must be drawn in front.
+struct Umarmung: Equatable, Sendable {
+    var seite: CGFloat
+    var abstand: CGFloat
+    var arme: CGFloat
+    var kuss: CGFloat
+}
+
 /// Bitmoji-style figure. `groesse` is the height. Half figure (chat, stickers): width is 5/6 of the height.
 /// `ganzkoerper` (map, profile): head, body, legs and shoes with standing/walking/sitting poses; width is 1/2 of the height.
 /// Abzeichen: "partyhut", "herzaugen", "outfit", "uhrwerk", "schnecke", "krone".
@@ -20,6 +32,7 @@ struct FigurView: View {
     private let poseImmer: Bool
     private let extras: Set<FigurExtra>
     private let tisch: Int
+    private let umarmung: Umarmung?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
@@ -31,7 +44,8 @@ struct FigurView: View {
     /// `.ruhig` for `zustand` in `leinwand` rather than only swapping the arms, so props/scenery/
     /// pajamas tied to the real `zustand` (barbell, sofa, phone, …) don't linger under the pose.
     /// `extras` (Z-39.4): umbrella, sunglasses, hat and scarf, phone with a white cable, snowflakes.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0) {
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil) {
+        self.umarmung = umarmung
         self.aussehen = aussehen
         self.zustand = zustand
         self.abzeichen = abzeichen
@@ -71,7 +85,7 @@ struct FigurView: View {
         // this reuses that existing "idle" path — with none of `zustand`'s props/scene/pajamas —
         // instead of teaching `Zeichner` a second pose-priority system.
         let posiert = poseImmer && aussehen.pose != nil && !Zeichner.keinePoseUeberschreibung.contains(zustand)
-        let zeichner = Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch)
+        let zeichner = Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: t, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung)
         return Canvas { g, size in zeichner.zeichne(g, size) }
     }
 }
@@ -261,11 +275,13 @@ private struct Zeichner {
     let extras: Set<FigurExtra>
     /// Desk variant at school and work (`Zimmer.tische`).
     let tisch: Int
+    let umarmung: Umarmung?
     /// Gym look (Brief D addendum): Ahmed trains shirtless, Annika in a sleeveless sports top.
     let oberkoerperFrei, sportTop: Bool
 
-    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0) {
+    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil) {
         typealias A = FigurAussehen
+        self.umarmung = ganz ? umarmung : nil
         self.z = z
         self.abz = Set(abz)
         self.t = t
@@ -1292,7 +1308,20 @@ private struct Zeichner {
         }
     }
 
-    func gesicht(_ g: GraphicsContext) {
+    func gesicht(_ basis: GraphicsContext) {
+        var g = basis
+        var mundKontext = basis
+        if let um = umarmung {
+            // Brief K: a 2D three-quarter turn. The features slide toward the partner and narrow,
+            // the lips a bit further, so the kiss meets near the edge of the head.
+            let dreh = um.seite * (10 * um.arme + 18 * um.kuss)
+            g.clip(to: kopfPfad)
+            g.translateBy(x: 100 + dreh, y: 0)
+            g.scaleBy(x: 1 - abs(dreh) / 150, y: 1)
+            g.translateBy(x: -100, y: 0)
+            mundKontext = g
+            mundKontext.translateBy(x: um.seite * 12 * um.kuss, y: 0)
+        }
         let staerke = [.verliebt, .verlegen, .schmollt].contains(z) ? 0.7 : ((z == .kuss || z == .herz || z == .naehe || rouge) ? 0.5 : 0.28)
         let wange = Pal.rose.farbe.opacity(staerke)
         // Pouting puffs the cheeks.
@@ -1324,8 +1353,8 @@ private struct Zeichner {
         brauen(g)
         augen(g)
         nase(g)
-        mund(g)
-        schnurrbartVorn(g)
+        mund(mundKontext)
+        schnurrbartVorn(mundKontext)
     }
 
     func brauen(_ g: GraphicsContext) {
@@ -3334,11 +3363,18 @@ extension Zeichner {
         var k = u
         k.translateBy(x: 20, y: m.schulterY - 133.6)
         k.scaleBy(x: 0.8, y: 0.8)
+        if let um = umarmung {
+            // Brief K: the head leans onto the partner in the hug and straightens a little to kiss.
+            let neigung = um.seite * (6 * um.arme * (1 - um.kuss) + 3 * um.kuss)
+            k.translateBy(x: 100, y: 152)
+            k.rotate(by: .degrees(Double(neigung)))
+            k.translateBy(x: -100, y: -152)
+        }
 
         if z == .morgen || z == .abend { hintergrund(k) }
         if extras.contains(.schneeflocken) { schneeflocken(g, CGRect(x: 0, y: 0, width: 200, height: 400)) }
         szeneHinten(g, m, oben)
-        let arme = mitExtrasGanz(poseGanz(m), m)
+        let arme = umarmt(mitExtrasGanz(poseGanz(m), m), m)
         let dach = schirmDachMitte(halb: false, m)
         if let dach { schirmDach(u, dach, radius: 40) }
         haareHinten(haarKontext(k))
@@ -3360,9 +3396,31 @@ extension Zeichner {
         switch z {
         case .laeuft, .rennt, .rad: tempoStriche(g, m.schulterY + oben)
         case .schautVideo: break
-        default: effekte(k)
+        // In the hug the kiss is the lips themselves, no blown kiss flying off.
+        default: if umarmung == nil { effekte(k) }
         }
         abzeichenVorn(k)
+    }
+
+    /// Brief K: blends the arms from the current pose into the hug. The right figure's inner arm
+    /// lies over the partner's shoulders, the left one's reaches round the partner's waist behind
+    /// them; the outer arm hangs at rest (no blown-kiss hand).
+    func umarmt(_ a: (l: Arm, r: Arm), _ m: Masse) -> (l: Arm, r: Arm) {
+        guard let um = umarmung, um.arme > 0 else { return a }
+        let y = m.schulterY
+        let lx: CGFloat = 100 - m.s + 6
+        let rx: CGFloat = 100 + m.s - 6
+        let partner = 100 + um.seite * um.abstand
+        let restL = Arm(P(lx - 6, y + 50), P(lx - 4, y + 92))
+        let restR = Arm(P(rx + 6, y + 50), P(rx + 4, y + 92))
+        let hand = P(max(partner - 22, 10), y + 8)
+        let ueberSchulter = Arm(P((lx + hand.x) / 2, y - 2), hand)
+        let umTaille = Arm(P(partner - 26, y + 48), P(min(partner + 6, 190), y + 58))
+        let ziel = um.seite < 0 ? (l: ueberSchulter, r: restR) : (l: restL, r: umTaille)
+        func mix(_ von: Arm, _ nach: Arm) -> Arm {
+            Arm(zwischen(von.ellbogen, nach.ellbogen, um.arme), zwischen(von.hand, nach.hand, um.arme))
+        }
+        return (mix(a.l, ziel.l), mix(a.r, ziel.r))
     }
 
     /// Z-24.2/Z-39.3: worn shop parts and free jewelry, scaled like `jackeZeichnen`'s `s: 0.66` onto the full-body torso.
