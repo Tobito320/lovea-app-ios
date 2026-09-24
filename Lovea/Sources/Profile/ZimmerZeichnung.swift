@@ -25,6 +25,11 @@ enum RaumOrt: String, CaseIterable, Sendable {
     }
 }
 
+/// Brief S: lets Einstellungen present the editor with `.sheet(item:)`, like `OrteListeView`.
+extension RaumOrt: Identifiable {
+    var id: Self { self }
+}
+
 /// Brief G: one furnished place, `{bett, wand, boden, deko: [String], rahmen: [{slot, medienId}],
 /// poster, posterLinks, posterBett, tisch}`. A fixed, designed room: one variant per slot, deco
 /// toggled on or off, up to 3 wall posters (right wall everywhere; at home also the left wall and
@@ -1182,7 +1187,10 @@ enum SzenenZeichnung {
         glas.clip(to: spiegel)
         for k in 0..<3 { linie(glas, strich(P(200 + CGFloat(k) * 64, 196), P(250 + CGFloat(k) * 64, 64)), .white.opacity(0.25), 10) }
         g.fill(box(0, 206, breite, 10), with: .color(Pal.rose.farbe))
-        g.draw(Text("LOVEA GYM").font(.system(size: 22, weight: .black, design: .rounded)).foregroundStyle(Color.white.opacity(0.2)), at: P(84, 110))
+        // A poster (Brief S) takes the same left-wall spot as the lettering.
+        if z.poster == 0 {
+            g.draw(Text("LOVEA GYM").font(.system(size: 22, weight: .black, design: .rounded)).foregroundStyle(Color.white.opacity(0.2)), at: P(84, 110))
+        }
         g.fill(box(0, 300, breite, 500), with: .color(farbe(0x2A2B30)))
         for k in 0..<70 { g.fill(kreis(P(zufall(k * 2) * breite, 304 + zufall(k * 2 + 1) * 126), 1.2), with: .color(.white.opacity(0.12))) }
         linie(g, strich(P(0, 300), P(breite, 300)), .black.opacity(0.4), 3)
@@ -1209,13 +1217,18 @@ enum SzenenZeichnung {
     }
 
     // ponytail: hand-picked free spots in the fixed gym backdrop (mirror x168-374/y64-196, rack
-    // x8-144/y222-320), not pixel-checked in Xcode; nudge these two positions after a visual pass.
+    // x8-144/y222-320, plate x326-386/y266-326), not pixel-checked in Xcode; nudge after a visual pass.
     /// Brief S: gym decor reuses two pieces from the shared deco set (`Zimmer.dekoArten`, flag "g"),
-    /// shifted (`translateBy`) into the fixed scene's free floor and wall space, plus the ordinary
-    /// right-wall poster spot every non-home place already has.
+    /// shifted (`translateBy`) into the fixed scene's free floor and wall space, plus a poster on the
+    /// left wall (the mirror already owns the right one) that takes the "LOVEA GYM" lettering's spot.
     private static func einrichtungGym(_ g: GraphicsContext, _ z: Zimmer) {
         posterAufhaengen(g, z.poster, P(70, 108))
-        if z.hat("lautsprecher") { lautsprecher(g) }
+        if z.hat("lautsprecher") {
+            // Shifted right, off the centred figure's standing spot.
+            var v = g
+            v.translateBy(x: 100, y: 0)
+            lautsprecher(v)
+        }
         if z.hat("pflanze") {
             var v = g
             v.translateBy(x: -280, y: 76)

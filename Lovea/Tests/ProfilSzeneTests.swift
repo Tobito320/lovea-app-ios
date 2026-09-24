@@ -231,7 +231,7 @@ final class ProfilSzeneTests: XCTestCase {
         let z = Zimmer(ort: .gym)
         XCTAssertEqual(z.deko, ["lautsprecher"])
         XCTAssertEqual(z.poster, 0, "no preset poster: index 5 (Gym Shark) isn't in posterAuswahl")
-        XCTAssertEqual(Zimmer.dekoArten(fuer: .gym).map(\.id), ["pflanze", "lautsprecher"], "only the pieces that fit the gym")
+        XCTAssertEqual(Zimmer.dekoArten(fuer: .gym).map { $0.id }, ["pflanze", "lautsprecher"], "only the pieces that fit the gym")
         // Pieces that don't fit the gym (the bedroom mirror) are dropped on read.
         let gelesen = Zimmer.lesen(.object(["deko": .array([.string("pflanze"), .string("spiegel")])]), ort: .gym)
         XCTAssertEqual(gelesen.deko, ["pflanze"])
