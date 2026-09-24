@@ -19,7 +19,7 @@ struct HabitEntity: AppEntity {
     let id: String
     let name: String
     static var typeDisplayRepresentation: TypeDisplayRepresentation { "Habit" }
-    static var defaultQuery = HabitQuery()
+    static let defaultQuery = HabitQuery()
     var displayRepresentation: DisplayRepresentation { DisplayRepresentation(title: "\(name)") }
 }
 
