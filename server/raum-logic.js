@@ -385,15 +385,21 @@ export function letzterStandort(sql, person) {
 // sonst verloren. Der jeweils letzte wird gemerkt und beim Verbinden mitgeschickt,
 // wie der letzte Standort. Nur der letzte, keine Historie.
 
-export function zustandMerken(sql, person, d) {
-  merkerSchreiben(sql, `zustand:${person}`, JSON.stringify(d));
+// `zeitIso`: wann DIESER Wert empfangen wurde, nicht wann er zuletzt erneut verschickt wurde --
+// beim Verbinden mitgeschickt (unten), damit der Client eine eingefrorene Freizeitangabe (z. B.
+// "schlaeft") erkennen kann, statt sie bei jedem Reconnect als frisch zu behandeln (audit-szene #4).
+export function zustandMerken(sql, person, d, zeitIso) {
+  merkerSchreiben(sql, `zustand:${person}`, JSON.stringify({ d, zeit: zeitIso }));
 }
 
 export function letzterZustand(sql, person) {
   const wert = merkerLesen(sql, `zustand:${person}`);
   if (wert === null) return null;
   try {
-    return JSON.parse(wert);
+    const geparst = JSON.parse(wert);
+    // Zeilen von vor dem `zeit`-Feld speicherten `d` direkt.
+    if (geparst && typeof geparst === "object" && "d" in geparst) return geparst;
+    return { d: geparst, zeit: null };
   } catch {
     return null;
   }

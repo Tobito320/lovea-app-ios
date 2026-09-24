@@ -67,11 +67,19 @@ final class FigurenModell {
         }
         raum.fluechtigBeobachten("zustand") { [weak self] person, data in
             guard let self, let z = try? JSONDecoder().decode(Zustand.self, from: data) else { return }
-            // audit-szene #4: the server resends the partner's last `zustand` to every reconnect of
-            // OUR OWN device (Brief G, `raum.js` `webSocketOpen`) — an unchanged replay must not look
-            // like a fresh update, or a frozen "schläft" would never actually go stale.
-            if self.zustand[person] != z { self.zustandSeit[person] = Date() }
+            // audit-szene #4: the server rides a `seit` timestamp along with `d` (both on a live
+            // broadcast and a reconnect replay, `raum.js` `#flVerarbeiten`/`webSocketOpen`) — when
+            // THIS exact value was truly sent, not when we happened to receive it. Trusting it (over
+            // a local receive-time stamp) is what makes a replay of an old "schläft" on OUR OWN
+            // reconnect not look fresh. `seit` is missing only for a merker row written before this
+            // field existed; the equality check is a one-time bridge for that.
+            if let seit = Self.zustandSeitAusPayload(data) {
+                self.zustandSeit[person] = seit
+            } else if self.zustand[person] != z {
+                self.zustandSeit[person] = Date()
+            }
             self.zustand[person] = z
+            self.partnerZustandVerfallenLassen()
         }
         // ponytail: polling instead of reacting to a `da` edge — `Raum` exposes `partnerDa` as a
         // plain property, not an event stream. 10s granularity is plenty for a "vor X Minuten" label.
@@ -95,6 +103,20 @@ final class FigurenModell {
               SchlafLogik.partnerZustandAbgelaufen(seit: zustandSeit[partner], jetzt: Date())
         else { return }
         zustand[partner] = Zustand(haupt: .offline, abzeichen: z.abzeichen, detail: z.detail)
+    }
+
+    /// audit-szene #4: pulls the server's `seit` (ISO8601 with fractional seconds, `Date().toISOString()`
+    /// on the server) out of the SAME raw `d` payload `Zustand` above decodes — an unknown key
+    /// `Zustand`'s own `Codable` conformance silently ignores.
+    private struct ZustandZeitHuelle: Decodable { let seit: String? }
+    private nonisolated(unsafe) static let isoFraktional: ISO8601DateFormatter = {
+        let f = ISO8601DateFormatter()
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return f
+    }()
+    private static func zustandSeitAusPayload(_ data: Data) -> Date? {
+        guard let seit = try? JSONDecoder().decode(ZustandZeitHuelle.self, from: data).seit else { return nil }
+        return isoFraktional.date(from: seit)
     }
 
     /// Z-7.2: "zuletzt online vor …" for the offline figure, `nil` before the partner was ever seen.

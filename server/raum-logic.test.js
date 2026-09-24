@@ -12,6 +12,7 @@ import {
   medienLesen,
   standortSchreiben,
   letzterStandort,
+  merkerSchreiben,
   zustandMerken,
   letzterZustand,
   zufaelligNah,
@@ -248,14 +249,23 @@ test("Standort wird höchstens einmal pro Minute geschrieben", () => {
   assert.equal(letzterStandort(sql, "ahmed").d.lat, 2);
 });
 
-test("Letzter Zustand wird gemerkt, pro Person, der neueste gilt", () => {
+test("Letzter Zustand wird gemerkt, pro Person, der neueste gilt, mit Zeitstempel", () => {
   const sql = raum();
   assert.equal(letzterZustand(sql, "annika"), null);
-  zustandMerken(sql, "annika", { haupt: "schule", abzeichen: [] });
-  zustandMerken(sql, "annika", { haupt: "faehrt", abzeichen: [] });
-  zustandMerken(sql, "ahmed", { haupt: "arbeit", abzeichen: [] });
-  assert.equal(letzterZustand(sql, "annika").haupt, "faehrt");
-  assert.equal(letzterZustand(sql, "ahmed").haupt, "arbeit");
+  zustandMerken(sql, "annika", { haupt: "schule", abzeichen: [] }, "2026-09-23T10:00:00.000Z");
+  zustandMerken(sql, "annika", { haupt: "faehrt", abzeichen: [] }, "2026-09-23T10:05:00.000Z");
+  zustandMerken(sql, "ahmed", { haupt: "arbeit", abzeichen: [] }, "2026-09-23T10:00:00.000Z");
+  assert.equal(letzterZustand(sql, "annika").d.haupt, "faehrt");
+  assert.equal(letzterZustand(sql, "annika").zeit, "2026-09-23T10:05:00.000Z");
+  assert.equal(letzterZustand(sql, "ahmed").d.haupt, "arbeit");
+});
+
+test("Letzter Zustand: alte Zeilen ohne Zeitstempel bleiben lesbar", () => {
+  const sql = raum();
+  merkerSchreiben(sql, "zustand:annika", JSON.stringify({ haupt: "schule", abzeichen: [] }));
+  const gelesen = letzterZustand(sql, "annika");
+  assert.equal(gelesen.d.haupt, "schule");
+  assert.equal(gelesen.zeit, null);
 });
 
 test("Zufällig nah: beide frisch, unter 100 m, kein Treffen", () => {
