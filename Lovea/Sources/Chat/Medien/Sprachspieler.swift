@@ -1,27 +1,66 @@
 import AVFoundation
 import Foundation
+import MediaPlayer
 import Speech
 import SwiftUI
 
-/// One shared `AVAudioPlayer` (Z-5.2): a per-row player would be re-created every time `LazyVStack`
-/// recycles the row it scrolled off, and dropping/re-fetching the file mid-playback would stutter.
-/// `.playback` session (not `.playAndRecord`) — keeps playing with the app backgrounded.
+/// Which chat message the app-wide player is on (mini player, lock screen, autoplay). Nil for the
+/// recorder's own review playback.
+struct SprachQuelle: Equatable, Sendable {
+    let nachrichtID: String
+    let von: Person
+}
+
+/// The one app-wide voice player (Z-5.2, voice round). Owned by the app, not by a bubble: leaving
+/// the chat or switching tabs keeps it playing; bubbles and the mini player only reflect its state.
+/// `.playback`/`.spokenAudio` session plus the `audio` background mode: it goes on when the phone locks.
 @MainActor
 @Observable
 final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
     static let shared = SprachSpieler()
 
-    /// The message loaded in the player, playing or paused.
+    /// The medium loaded in the player, playing or paused.
     private(set) var spielendeID: String?
     /// Voice round fix: "is playing" is its own state. Before, `spielendeID` alone meant "playing",
     /// so a paused message still showed the pause button and a tap paused it again: no resume.
     private(set) var laeuft = false
     private(set) var fortschritt: TimeInterval = 0
+    private(set) var dauer: TimeInterval = 0
     private(set) var geschwindigkeit: Float = 1
+    private(set) var quelle: SprachQuelle?
+    /// The message autoplay moved on to; the open conversation scrolls it into view.
+    private(set) var autoWeiterNachricht: String?
     private var player: AVAudioPlayer?
-    /// Where each message not currently loaded was left, so switching messages keeps positions.
+    /// Where each medium not currently loaded was left, so switching messages keeps positions.
     private var positionen: [String: TimeInterval] = [:]
     private var fortschrittTask: Task<Void, Never>?
+
+    private override init() {
+        super.init()
+        let zentrale = MPRemoteCommandCenter.shared()
+        zentrale.playCommand.addTarget { @Sendable _ in
+            Task { @MainActor in SprachSpieler.shared.fortsetzen() }
+            return .success
+        }
+        zentrale.pauseCommand.addTarget { @Sendable _ in
+            Task { @MainActor in SprachSpieler.shared.pausieren() }
+            return .success
+        }
+        zentrale.togglePlayPauseCommand.addTarget { @Sendable _ in
+            Task { @MainActor in SprachSpieler.shared.umschalten() }
+            return .success
+        }
+        // A call or unplugged headphones pause (the system stops the audio, the UI must follow).
+        let zentrum = NotificationCenter.default
+        zentrum.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { note in
+            guard (note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt) == AVAudioSession.InterruptionType.began.rawValue else { return }
+            Task { @MainActor in SprachSpieler.shared.pausieren() }
+        }
+        zentrum.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { note in
+            guard (note.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt) == AVAudioSession.RouteChangeReason.oldDeviceUnavailable.rawValue else { return }
+            Task { @MainActor in SprachSpieler.shared.pausieren() }
+        }
+    }
 
     /// 1× → 1,5× → 2× → 1×.
     nonisolated static func naechsteGeschwindigkeit(_ jetzt: Float) -> Float {
@@ -33,16 +72,14 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
     func position(_ id: String) -> TimeInterval { spielendeID == id ? fortschritt : (positionen[id] ?? 0) }
 
     /// Plays `id` from where it was left. Only one message plays: the previous one pauses and keeps
-    /// its position.
-    func spielen(id: String, url: URL) {
-        if spielendeID == id, let player {
-            player.play()
-            laeuft = true
-            fortschrittVerfolgen()
+    /// its position. `quelle` is the chat message (nil for the recorder's review).
+    func spielen(id: String, url: URL, quelle: SprachQuelle? = nil) {
+        if spielendeID == id, player != nil {
+            fortsetzen()
             return
         }
         parken()
-        try? AVAudioSession.sharedInstance().setCategory(.playback)
+        try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .spokenAudio)
         try? AVAudioSession.sharedInstance().setActive(true)
         guard let neuerPlayer = try? AVAudioPlayer(contentsOf: url) else { return }
         neuerPlayer.enableRate = true
@@ -53,17 +90,32 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
         neuerPlayer.play()
         player = neuerPlayer
         spielendeID = id
+        self.quelle = quelle
+        dauer = neuerPlayer.duration
         fortschritt = neuerPlayer.currentTime
+        laeuft = true
+        fortschrittVerfolgen()
+    }
+
+    func fortsetzen() {
+        guard let player, !laeuft else { return }
+        player.play()
         laeuft = true
         fortschrittVerfolgen()
     }
 
     /// Pauses and keeps the position; play resumes from there.
     func pausieren() {
-        player?.pause()
+        guard let player else { return }
+        player.pause()
         laeuft = false
         fortschrittTask?.cancel()
-        if let player { fortschritt = player.currentTime }
+        fortschritt = player.currentTime
+        sperrbildschirm()
+    }
+
+    func umschalten() {
+        if laeuft { pausieren() } else { fortsetzen() }
     }
 
     /// Scrubbing: seeks the loaded message, or remembers the spot for one that isn't loaded.
@@ -72,6 +124,7 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
         if spielendeID == id, let player {
             player.currentTime = min(ziel, player.duration)
             fortschritt = player.currentTime
+            sperrbildschirm()
         } else {
             positionen[id] = ziel
         }
@@ -80,20 +133,25 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
     func geschwindigkeitSchalten() {
         geschwindigkeit = Self.naechsteGeschwindigkeit(geschwindigkeit)
         player?.rate = geschwindigkeit
+        sperrbildschirm()
     }
 
-    /// The loaded message steps aside (its position kept) for another one or for recording.
+    /// The loaded message steps aside (its position kept) for another one, for recording, or
+    /// because the mini player's X was tapped.
     func parken() {
         guard let alt = spielendeID, let player else { return }
         player.pause()
         positionen[alt] = player.currentTime
         self.player = nil
         spielendeID = nil
+        quelle = nil
         laeuft = false
         fortschrittTask?.cancel()
+        sperrbildschirm()
     }
 
     private func fortschrittVerfolgen() {
+        sperrbildschirm()
         fortschrittTask?.cancel()
         fortschrittTask = Task { [weak self] in
             while let self, let player = self.player, player.isPlaying, !Task.isCancelled {
@@ -103,36 +161,151 @@ final class SprachSpieler: NSObject, AVAudioPlayerDelegate {
         }
     }
 
+    /// Lock screen / Control Center: "Sprachnachricht von Annika", only for chat messages.
+    private func sperrbildschirm() {
+        guard let quelle, let player else {
+            MPNowPlayingInfoCenter.default().nowPlayingInfo = nil
+            return
+        }
+        MPNowPlayingInfoCenter.default().nowPlayingInfo = [
+            MPMediaItemPropertyTitle: "Sprachnachricht von \(quelle.von.name)",
+            MPMediaItemPropertyArtist: "Lovea",
+            MPMediaItemPropertyPlaybackDuration: player.duration,
+            MPNowPlayingInfoPropertyElapsedPlaybackTime: player.currentTime,
+            MPNowPlayingInfoPropertyPlaybackRate: laeuft ? Double(geschwindigkeit) : 0.0,
+        ]
+    }
+
     /// `AVAudioPlayerDelegate` callbacks arrive nonisolated; hop back to the main actor before
-    /// touching any state. At the end the message resets to 0, then the next one plays (Z-5.2).
+    /// touching any state. At the end the message resets to 0, then autoplay (`SprachFolge`).
     nonisolated func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
         Task { @MainActor [weak self] in
             guard let self, let beendeteID = self.spielendeID else { return }
+            let beendet = self.quelle
             self.fortschrittTask?.cancel()
             self.positionen[beendeteID] = 0
             self.player = nil
             self.spielendeID = nil
+            self.quelle = nil
             self.laeuft = false
             self.fortschritt = 0
-            await self.naechsteAbspielen(nach: beendeteID)
+            if beendet != nil, await self.naechsteAbspielen(nach: beendeteID) { return }
+            self.sperrbildschirm()
+            // Let music from other apps come back.
+            try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
         }
     }
 
-    private func naechsteAbspielen(nach id: String) async {
-        let nachrichten = ChatModell.shared.nachrichten
-        guard let index = nachrichten.firstIndex(where: { $0.medien.contains { $0.id == id } }) else { return }
-        for nachricht in nachrichten[(index + 1)...] {
-            guard let medium = nachricht.medien.first(where: { $0.typ == "sprache" }) else { continue }
-            guard let url = (try? await Medien.holen(medium.id)) else { return } // stop rather than skip a not-yet-local one
-            spielen(id: medium.id, url: url)
-            return
+    private func naechsteAbspielen(nach id: String) async -> Bool {
+        guard let naechste = SprachFolge.naechste(nach: id, in: ChatModell.shared.nachrichten, ich: Raum.shared.ich),
+              let url = try? await Medien.holen(naechste.medium.id), // stop rather than skip a not-yet-local one
+              spielendeID == nil // something else was started meanwhile
+        else { return false }
+        spielen(id: naechste.medium.id, url: url, quelle: SprachQuelle(nachrichtID: naechste.nachricht.id, von: naechste.nachricht.von))
+        autoWeiterNachricht = naechste.nachricht.id
+        return true
+    }
+}
+
+/// Autoplay rule (voice round): after a voice message ends, only the directly following message
+/// plays, and only if it is a voice message from the same sender. Anything in between (a text, a
+/// snap, the other person's message) ends the chain; one's own voice message never autoplays on.
+enum SprachFolge {
+    static func naechste(nach medienID: String, in nachrichten: [ChatModell.Nachricht], ich: Person?) -> (nachricht: ChatModell.Nachricht, medium: ChatModell.MedienEintrag)? {
+        guard let index = nachrichten.firstIndex(where: { $0.medien.contains { $0.id == medienID } }),
+              nachrichten[index].von != ich,
+              index + 1 < nachrichten.count
+        else { return nil }
+        let folgende = nachrichten[index + 1]
+        guard folgende.von == nachrichten[index].von, !folgende.geloescht, folgende.system == nil,
+              let medium = folgende.medien.first(where: { $0.typ == "sprache" })
+        else { return nil }
+        return (folgende, medium)
+    }
+}
+
+/// Compact glass bar under the status bar while a voice message is loaded and the conversation is
+/// not on screen: play/pause, sender + progress (tap opens the chat at that message), X stops.
+struct SprachMiniPlayer: View {
+    private var spieler: SprachSpieler { .shared }
+
+    private var sichtbar: SprachQuelle? {
+        guard spieler.spielendeID != nil, let quelle = spieler.quelle,
+              !AppNavigation.shared.bildschirm.contains(.chat)
+        else { return nil }
+        return quelle
+    }
+
+    var body: some View {
+        VStack {
+            if let quelle = sichtbar {
+                HStack(spacing: 4) {
+                    Button { spieler.umschalten() } label: {
+                        Image(systemName: spieler.laeuft ? "pause.fill" : "play.fill")
+                            .font(.system(size: 17, weight: .bold))
+                            .contentTransition(.symbolEffect(.replace))
+                            .frame(width: 44, height: 44)
+                            .contentShape(.circle)
+                    }
+                    .buttonStyle(.federnd)
+                    .accessibilityLabel(spieler.laeuft ? "Pausieren" : "Abspielen")
+
+                    Button { oeffnen(quelle) } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            HStack {
+                                Text(quelle.von.name).font(.subheadline.weight(.semibold))
+                                Spacer()
+                                Text(zeit(spieler.fortschritt))
+                                    .font(.caption.monospacedDigit())
+                                    .foregroundStyle(.secondary)
+                            }
+                            ProgressView(value: spieler.dauer > 0 ? min(1, spieler.fortschritt / spieler.dauer) : 0)
+                                .tint(Color.loveaRose)
+                        }
+                        .frame(minHeight: 44)
+                        .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Sprachnachricht von \(quelle.von.name), im Chat öffnen")
+
+                    Button {
+                        Haptik.leicht()
+                        spieler.parken()
+                    } label: {
+                        Image(systemName: "xmark")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(.secondary)
+                            .frame(width: 44, height: 44)
+                            .contentShape(.circle)
+                    }
+                    .buttonStyle(.federnd)
+                    .accessibilityLabel("Wiedergabe beenden")
+                }
+                .padding(.horizontal, 6)
+                .glassEffect(.regular.interactive(), in: .capsule)
+                .padding(.horizontal, 12)
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
+        .animation(Feder.weich, value: sichtbar)
+    }
+
+    private func oeffnen(_ quelle: SprachQuelle) {
+        Haptik.leicht()
+        AppNavigation.shared.chatZiel = quelle.nachrichtID
+        AppNavigation.shared.tabWunsch = "chat"
+    }
+
+    private func zeit(_ sekunden: TimeInterval) -> String {
+        String(format: "%d:%02d", Int(sekunden) / 60, Int(sekunden) % 60)
     }
 }
 
 /// Voice-message bubble (Z-5.2): waveform, play/pause, speed, transcript on demand.
 struct SprachBlase: View {
     let medium: ChatModell.MedienEintrag
+    /// The chat message, for the mini player, lock screen and autoplay.
+    var quelle: SprachQuelle?
     @State private var localURL: URL?
     @State private var zeigeAbschrift = false
     @State private var abschriftLaeuft = false
@@ -215,7 +388,7 @@ struct SprachBlase: View {
 
     private func schalten() {
         guard let localURL else { return }
-        if spielt { SprachSpieler.shared.pausieren() } else { SprachSpieler.shared.spielen(id: medium.id, url: localURL) }
+        if spielt { SprachSpieler.shared.pausieren() } else { SprachSpieler.shared.spielen(id: medium.id, url: localURL, quelle: quelle) }
     }
 
     private func zeit(_ sekunden: TimeInterval) -> String {

@@ -327,7 +327,7 @@ struct NachrichtBlase: View {
             SnapZeile(nachricht: nachricht, snap: snap, ich: ich, eigene: eigene, schwanz: mitSchwanz, backdrop: backdrop)
         } else if let medium = nachricht.medien.first {
             if medium.typ == "sprache" {
-                SprachBlase(medium: medium).blase(eigene: eigene, schwanz: mitSchwanz, backdrop: backdrop)
+                SprachBlase(medium: medium, quelle: SprachQuelle(nachrichtID: nachricht.id, von: nachricht.von)).blase(eigene: eigene, schwanz: mitSchwanz, backdrop: backdrop)
             } else {
                 MedienNachrichtView(medium: medium, eigene: eigene)
             }

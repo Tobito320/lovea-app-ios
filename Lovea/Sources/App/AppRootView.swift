@@ -72,6 +72,9 @@ struct AppRootView: View {
             selectedTab = tab
             AppNavigation.shared.tabWunsch = nil
         }
+        // Voice round: app-wide voice playback outside the conversation. ponytail: shares the top
+        // with in-app banners (a banner briefly covers it), push content down if that bothers.
+        .overlay(alignment: .top) { SprachMiniPlayer() }
         // Z-7.3: partner online / drawing invite / Anstupsen & Kuss, glass capsule on top.
         .overlay(alignment: .top) {
             InAppBannerView(aufZeichnungGetippt: { id in
