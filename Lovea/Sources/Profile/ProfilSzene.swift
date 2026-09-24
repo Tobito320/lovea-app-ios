@@ -1,4 +1,3 @@
-import CoreLocation
 import SwiftUI
 
 /// Brief G: the scene behind the figure in the profile header, following real life. Asleep at
@@ -35,17 +34,11 @@ enum ProfilSzene: Equatable, Sendable {
         return .wolken
     }
 
-    /// Viewer side of the one sleep rule (`FigurZustand.schlaeft`). Online, the sleeper's own phone
-    /// decided (only it knows the focus). Offline - apps are closed at night - its last "schläft"
-    /// counts in the night hours, and a "Gute Nacht" counts on its own even if that never arrived.
-    static func schlaeft(anzeige: FigurZustand, zuletzt: FigurZustand?, guteNacht: Date?, gutenMorgen: Date?,
-                         aktiv: Date?, bewegt: Bool, zuhause: Bool?, jetzt: Date) -> Bool {
-        guard anzeige == .offline else { return anzeige == .schlaeft }
-        let fokus = zuletzt == .schlaeft && AnwesenheitEingabe.istNachtstunde(Calendar.berlin.component(.hour, from: jetzt))
-        return FigurZustand.schlaeft(fokusSchlafen: fokus, guteNacht: guteNacht, gutenMorgen: gutenMorgen,
-                                     aktiv: aktiv, bewegt: bewegt, zuhause: zuhause, jetzt: jetzt)
+    /// The sleeper's own phone decides (`SchlafLogik`) and shares it with its presence; while its
+    /// app is closed (`anzeige` offline), the last shared state stays.
+    static func schlaf(anzeige: FigurZustand, zuletzt: FigurZustand?) -> SchlafZustand {
+        SchlafZustand(anzeige == .offline ? zuletzt : anzeige)
     }
-
     /// From 22:00 an awake figure is tired (`FigurExtra.schlaefrig`) until the morning.
     static func spaet(stunde: Int) -> Bool { stunde >= 22 || stunde < 6 }
 
@@ -79,7 +72,7 @@ extension ProfilSzene {
         let stunde = Calendar.berlin.component(.hour, from: jetzt)
         let wetter = WetterModell.shared.staende[person]
         return fuer(
-            schlaeft: schlaeftGerade(person, jetzt: jetzt), partnerSchlaeft: schlaeftGerade(person.partner, jetzt: jetzt),
+            schlaeft: schlafGerade(person) != .wach, partnerSchlaeft: schlafGerade(person.partner) != .wach,
             ort: ortKategorie(person), wetterCode: wetter?.code, tag: wetter?.tag, stunde: stunde
         )
     }
@@ -89,29 +82,11 @@ extension ProfilSzene {
         istNacht(tag: WetterModell.shared.staende[person]?.tag, stunde: Calendar.berlin.component(.hour, from: jetzt))
     }
 
-    /// Whether `p` lies in bed right now; the header asks this per figure.
-    static func schlaeftGerade(_ p: Person, jetzt: Date = Date()) -> Bool {
+    /// Whether `p` is awake, sitting up in bed or asleep; the header asks this per figure.
+    static func schlafGerade(_ p: Person) -> SchlafZustand {
         let modell = FigurenModell.shared
-        let pos = Standort.shared.positionen[p]
-        var bewegt = false
-        if let pos, (pos.sekundenAlt ?? .infinity) < 300, let b = pos.bewegung.flatMap(FigurZustand.init(rawValue:)) {
-            bewegt = [FigurZustand.laeuft, .rennt, .rad, .faehrt].contains(b)
-        }
-        // No Home saved, or no position known: the place doesn't rule sleep out.
-        var zuhause: Bool?
-        let heime = OrteModell.shared.orte.filter { $0.person == p && $0.kategorie == "zuhause" }
-        if let pos, !heime.isEmpty {
-            let hier = CLLocation(latitude: pos.lat, longitude: pos.lon)
-            zuhause = heime.contains { CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: hier) <= $0.radius }
-        }
-        let gruss = modell.gruss[p]
-        return schlaeft(
-            anzeige: modell.anzeige(p).haupt, zuletzt: modell.zustand[p]?.haupt,
-            guteNacht: gruss?.nacht, gutenMorgen: gruss?.morgen, aktiv: modell.partnerZuletztGesehen[p],
-            bewegt: bewegt, zuhause: zuhause, jetzt: jetzt
-        )
+        return schlaf(anzeige: modell.anzeige(p).haupt, zuletzt: modell.zustand[p]?.haupt)
     }
-
     /// Saved place at the last position (like `KartenFigur`), else the place state they sent.
     private static func ortKategorie(_ p: Person) -> String? {
         if let pos = Standort.shared.positionen[p], let ort = OrteModell.shared.ortBei(lat: pos.lat, lon: pos.lon) { return ort.kategorie }
@@ -237,23 +212,30 @@ struct SchlafendeFiguren: View {
     var animiert = true
     /// Smaller next to a standing, awake partner.
     var skala: CGFloat = 1
+    /// Indices of sleepers still sitting up (Brief G fix 2): upright, blanket at the waist, yawning.
+    var sitzend: Set<Int> = []
+
+    private static func x(_ i: Int, zusammen: Bool) -> CGFloat { zusammen ? (i == 0 ? 112 : 188) : 92 }
 
     var body: some View {
         let k = 1.1 * skala
         let zusammen = schlaefer.count > 1
         let bett = zimmer.bett
         let bild = UIImage(named: "szene-bett-\(bett)")
+        // Empty pillows: the free side of a single bed, and behind everyone sitting up.
+        let kissen = (zusammen ? [] : [CGFloat(212)]) + sitzend.sorted().map { Self.x($0, zusammen: zusammen) }
         ZStack {
             Canvas { g, _ in
                 var b = g
                 b.scaleBy(x: k, y: k)
-                SzenenZeichnung.bettHinten(b, bett, kissen: zusammen ? [] : [212], bild: bild)
+                SzenenZeichnung.bettHinten(b, bett, kissen: kissen, bild: bild)
             }
             ForEach(schlaefer.indices, id: \.self) { i in
-                // Pillow at bed (x, 104): the figure's own pillow sits 37 % down its frame.
-                let x: CGFloat = zusammen ? (i == 0 ? 112 : 188) : 92
-                FigurView(schlaefer[i], zustand: .schlaeft, groesse: 154 * skala, animiert: animiert, bildrate: 15)
-                    .position(x: x * k, y: (104 * 1.1 + 21) * skala)
+                // Lying: the figure's own pillow (37 % down its frame) at bed (x, 104). Sitting: the
+                // waist (94 % down) at the blanket's edge, bed y 150.
+                let sitzt = sitzend.contains(i)
+                FigurView(schlaefer[i], zustand: sitzt ? .sitztImBett : .schlaeft, groesse: 154 * skala, animiert: animiert, bildrate: 15)
+                    .position(x: Self.x(i, zusammen: zusammen) * k, y: (sitzt ? 150 * 1.1 - 67 : 104 * 1.1 + 21) * skala)
             }
             Canvas { g, _ in
                 var b = g

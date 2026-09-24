@@ -1228,7 +1228,8 @@ private struct Zeichner {
     // MARK: Face
 
     /// Tired only while nothing more telling is going on (not asleep, no gesture or expression).
-    var schlaefrig: Bool { extras.contains(.schlaefrig) && !Self.keinePoseUeberschreibung.contains(z) }
+    /// Sitting up in bed after "Gute Nacht" (Brief G fix 2) is always tired.
+    var schlaefrig: Bool { (extras.contains(.schlaefrig) || z == .sitztImBett) && !Self.keinePoseUeberschreibung.contains(z) }
 
     /// A short yawn about every half minute; never on a still frame (Reduce Motion, stickers).
     var gaehnt: Bool { schlaefrig && !statisch && zyklus(29) < 0.08 }

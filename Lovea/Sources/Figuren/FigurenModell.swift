@@ -31,8 +31,8 @@ final class FigurenModell {
     private(set) var partnerZuletztGesehen: [Person: Date] = [:]
     /// Set by `BannerZentrale` (Z-7.3): called for a fresh, live `anstupsen`/`kuss`/`herz` from the partner.
     var aufFrischeGeste: ((Person, FigurZustand) -> Void)?
-    /// Z-27.1 / Brief G fix: newest "Gute Nacht" and "Guten Morgen" per person, for the one sleep
-    /// rule (`FigurZustand.schlaeft`): `Anwesenheit` for the own state, `ProfilSzene` for the partner.
+    /// Z-27.1 / Brief G fix: newest "Gute Nacht" and "Guten Morgen" per person; `Anwesenheit` feeds
+    /// the own ones into the one sleep decision (`SchlafLogik`), the partner shares the result.
     private(set) var gruss: [Person: (nacht: Date?, morgen: Date?)] = [:]
 
     private init() {

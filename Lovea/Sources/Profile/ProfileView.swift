@@ -238,7 +238,7 @@ private struct ProfilInhalt: View {
     private func belegung(_ szene: ProfilSzene, paar: Bool) -> Belegung {
         let personen: [Person] = paar || szene == .schlafen(zusammen: true) ? [.annika, .ahmed] : [person]
         switch szene {
-        case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlaeftGerade($0) })
+        case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlafGerade($0) != .wach })
         case .gym, .draussen: return (personen, [])
         }
     }
@@ -276,8 +276,10 @@ private struct ProfilInhalt: View {
         }
     }
 
+    /// Sitting up (3 quiet minutes after "Gute Nacht") or lying down, per sleeper.
     private func bett(_ schlaefer: [Person], skala: CGFloat) -> some View {
-        SchlafendeFiguren(zimmer: Zimmer.von(person), schlaefer: schlaefer.map { FigurenModell.shared.aussehen($0) }, skala: skala)
+        let sitzend = Set(schlaefer.indices.filter { ProfilSzene.schlafGerade(schlaefer[$0]) == .sitzt })
+        return SchlafendeFiguren(zimmer: Zimmer.von(person), schlaefer: schlaefer.map { FigurenModell.shared.aussehen($0) }, skala: skala, sitzend: sitzend)
     }
 
     private var kopfSchatten: some View {
@@ -310,8 +312,9 @@ private struct ProfilInhalt: View {
     @ViewBuilder
     private func figur(_ p: Person, szene: ProfilSzene? = nil) -> some View {
         let live = FigurenModell.shared.anzeige(p).haupt
-        let schlaeft = ProfilSzene.schlaeftGerade(p)
-        let zustand: FigurZustand = schlaeft ? .schlaeft : (szene?.figur(live) ?? live)
+        let schlaf = ProfilSzene.schlafGerade(p)
+        let schlaeft = schlaf != .wach
+        let zustand: FigurZustand = schlaf == .schlaeft ? .schlaeft : (schlaf == .sitzt ? .sitztImBett : (szene?.figur(live) ?? live))
         // Ein Kuss gehört beiden: küsst einer, gleiten beide zueinander, neigen sich und spitzen die Lippen.
         let kuesst = live == .kuss || FigurenModell.shared.anzeige(p.partner).haupt == .kuss
         let richtung: CGFloat = p == .annika ? 1 : -1

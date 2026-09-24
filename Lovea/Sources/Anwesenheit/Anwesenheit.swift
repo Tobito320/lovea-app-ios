@@ -22,14 +22,24 @@ final class Anwesenheit {
     private var bewegung: FigurZustand?
     private var morgenGeoeffnet = false
     private var supermarktName: String?
-    private var zuletztAktiv: Date?
+    /// Brief G fix 2: last real movement (steps or walking/running/cycling), for `SchlafLogik`.
+    private var letzteBewegung: Date?
 
     private var letzterZustand: FigurenModell.Zustand?
     private var letzterVersand = Date.distantPast
     private var anstehend: Task<Void, Never>?
 
     private let motion = CMMotionActivityManager()
+    private let pedometer = CMPedometer()
     private var fokusAutorisiert = false
+
+    /// Every pedometer update means the step count rose. `nonisolated`, so the handler CoreMotion
+    /// calls on its own queue isn't a main-actor closure; `gelaufen` hops over itself.
+    private nonisolated static func schritteBeobachten(_ pedometer: CMPedometer, gelaufen: @escaping @Sendable () -> Void) {
+        pedometer.startUpdates(from: Date()) { daten, _ in
+            if daten != nil { gelaufen() }
+        }
+    }
 
     private init() {
         UIDevice.current.isBatteryMonitoringEnabled = true
@@ -63,9 +73,16 @@ final class Anwesenheit {
                 let running = activity.running
                 let walking = activity.walking
                 Task { @MainActor in
+                    // Walking, running or cycling (starting or just ending) wakes the sleep rule.
+                    if walking || running || cycling || self?.bewegung != nil { self?.letzteBewegung = Date() }
                     self?.bewegung = AnwesenheitEingabe.bewegung(automotive: automotive, cycling: cycling, running: running, walking: walking)
                     self?.aktualisieren()
                 }
+            }
+        }
+        if CMPedometer.isStepCountingAvailable() {
+            Self.schritteBeobachten(pedometer) { [weak self] in
+                Task { @MainActor in self?.letzteBewegung = Date() }
             }
         }
 
@@ -199,15 +216,13 @@ final class Anwesenheit {
             monatsKrone: Puenktlich.monatsKrone(ops: KalenderModell.shared.alleOps, monat: monat) == ich,
             guteNacht: FigurenModell.shared.gruss[ich]?.nacht,
             gutenMorgen: FigurenModell.shared.gruss[ich]?.morgen,
-            aktiv: zuletztAktiv,
+            letzteBewegung: letzteBewegung,
             zuhauseBekannt: OrteModell.shared.orte.contains { $0.person == ich && $0.kategorie == "zuhause" }
         )
     }
 
     private func aktualisieren() {
         guard let ich = Raum.shared.ich else { return }
-        // Background location wakes also run this: only the foreground counts as "active".
-        if UIApplication.shared.applicationState == .active { zuletztAktiv = Date() }
         let (haupt, abzeichen) = FigurZustand.bestimmen(eingabe(ich))
         let neu = FigurenModell.Zustand(haupt: haupt, abzeichen: abzeichen)
         guard neu != letzterZustand else { return }
