@@ -102,16 +102,19 @@ struct ChatNachrichtRow: View {
                 NachrichtFusszeile(nachricht: nachricht, ich: ich, gelesenAm: gelesenAm, zustellText: zustellText)
             }
             .padding(.top, nachricht.reaktionen.isEmpty ? 0 : 16)
+            // Quick fix: the reply swipe starts only on the bubble plus 12 pt around it, not on the
+            // empty part of the row. `.simultaneousGesture` (not `.gesture`) so it never steals the
+            // ScrollView's vertical pan; the width-vs-height check ignores ordinary scroll touches.
+            .padding(12)
+            .contentShape(.rect)
+            .simultaneousGesture(wischGeste)
+            .padding(-12)
             if !eigene { Spacer(minLength: 48) }
         }
         .padding(.horizontal, 10)
         .offset(x: wischOffset)
         .background(alignment: .leading) { antwortPfeil }
         .background(alignment: .trailing) { wischZeit }
-        .contentShape(Rectangle())
-        // `.simultaneousGesture` (not `.gesture`) so this never steals the ScrollView's vertical
-        // pan; the width-vs-height check keeps it from reacting to an ordinary vertical scroll touch.
-        .simultaneousGesture(wischGeste)
         .modifier(Aufstieg(aktiv: eigene && Date().timeIntervalSince(nachricht.zeit) < 2))
         .accessibilityAction(named: "Antworten") { aktionen.antworten(nachricht) }
         .accessibilityAction(named: "Mit Herz reagieren") { herzReaktion() }
@@ -179,10 +182,10 @@ struct ChatNachrichtRow: View {
     }
 
     private var wischGeste: some Gesture {
-        DragGesture(minimumDistance: 20)
+        DragGesture(minimumDistance: 20, coordinateSpace: .global)
             .onChanged { wert in
-                // Leave the left screen edge to the system back swipe.
-                guard wert.startLocation.x > 30, abs(wert.translation.width) > abs(wert.translation.height) else { return }
+                // The left 32 pt belong to the leave-chat swipe (`Unterhaltung.randGeste`).
+                guard wert.startLocation.x > 32, abs(wert.translation.width) > abs(wert.translation.height) else { return }
                 let breite = wert.translation.width
                 let neu = breite > 0 ? min(breite * 0.8, 84) : max(breite * 0.8, -64)
                 if wischOffset < Self.antwortSchwelle, neu >= Self.antwortSchwelle { Haptik.mittel() }

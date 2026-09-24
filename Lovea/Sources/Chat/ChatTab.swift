@@ -37,8 +37,13 @@ private struct Unterhaltung: View {
     @State private var blatt = ChatBlaetter()
     @State private var sucheAktiv = false
     @State private var flaeche = CGSize(width: 390, height: 900)
-    /// Left-edge swipe back to Home: how far the conversation follows the finger.
-    @State private var randZug: CGFloat = 0
+    /// Left-edge swipe back to Home: the finger's rightward distance and height (local).
+    @State private var randWeg: CGFloat = 0
+    @State private var randY: CGFloat = 0
+    @State private var ursprung: CGPoint = .zero
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    private static let randZone: CGFloat = 32
+    private static let randSchwelle: CGFloat = 80
     /// Short confirmation under the header ("In Aufnahmen gespeichert").
     @State private var toast: String?
 
@@ -51,11 +56,15 @@ private struct Unterhaltung: View {
             .overlay { fokusEbene }
             .environment(\.chatVerlaufHoehe, flaeche.height)
             .environment(\.chatBreite, flaeche.width)
-            .onGeometryChange(for: CGSize.self) { geo in
-                CGSize(width: geo.size.width, height: geo.frame(in: .global).maxY)
-            } action: { flaeche = $0 }
-            .offset(x: randZug)
-            .overlay(alignment: .leading) { randStreifen }
+            .onGeometryChange(for: CGRect.self) { geo in geo.frame(in: .global) } action: { rahmen in
+                flaeche = CGSize(width: rahmen.width, height: rahmen.maxY)
+                ursprung = rahmen.origin
+            }
+            .offset(x: reduceMotion ? 0 : min(randWeg, 120) * 0.35)
+            .overlay(alignment: .topLeading) { if randWeg > 0 { randPfeil } }
+            // Simultaneous: taps (chevron, camera, bubbles) and the list's scrolling pass through;
+            // only a rightward drag that starts in the left 32 pt counts.
+            .simultaneousGesture(randGeste)
             .toolbar(.hidden, for: .navigationBar)
             // Fix round 2: the open conversation is full screen; the tab bar returns on Home.
             .toolbar(.hidden, for: .tabBar)
@@ -86,25 +95,45 @@ private struct Unterhaltung: View {
         AppNavigation.shared.tabWunsch = "home"
     }
 
-    /// A 14 pt strip on the left edge: swiping right from it leaves the chat. Rows ignore touches that
-    /// start within 30 pt of the edge, so reply-swipes never compete with it; the header chevron and
-    /// camera button start right of it.
-    private var randStreifen: some View {
-        Color.clear
-            .frame(width: 14)
-            .contentShape(.rect)
-            .gesture(
-                DragGesture(minimumDistance: 10)
-                    .onChanged { wert in randZug = max(0, wert.translation.width) * 0.6 }
-                    .onEnded { wert in
-                        if wert.translation.width > 80 || wert.predictedEndTranslation.width > 200 {
-                            randZug = 0
-                            zuHome()
-                        } else {
-                            withAnimation(Feder.schnell) { randZug = 0 }
-                        }
-                    }
-            )
+    /// Swipe right from the left 32 pt to leave the chat. Rows ignore drags starting there (their
+    /// reply swipe needs `x > 32`), so the two never compete.
+    private var randGeste: some Gesture {
+        DragGesture(minimumDistance: 12, coordinateSpace: .global)
+            .onChanged { wert in
+                guard wert.startLocation.x - ursprung.x < Self.randZone,
+                      wert.translation.width > abs(wert.translation.height) || randWeg > 0
+                else { return }
+                let weg = max(0, wert.translation.width)
+                if randWeg < Self.randSchwelle, weg >= Self.randSchwelle { Haptik.leicht() }
+                randWeg = weg
+                randY = wert.location.y - ursprung.y
+            }
+            .onEnded { wert in
+                guard randWeg > 0 else { return }
+                if randWeg >= Self.randSchwelle || wert.predictedEndTranslation.width > 220 {
+                    randWeg = 0
+                    zuHome()
+                } else {
+                    withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Feder.schnell) { randWeg = 0 }
+                }
+            }
+    }
+
+    /// Circle with a chevron at the left edge: follows the finger vertically, grows with the drag and
+    /// fills once past the threshold (Reduce Motion: fades only).
+    private var randPfeil: some View {
+        let fortschritt = min(randWeg / Self.randSchwelle, 1)
+        let erreicht = randWeg >= Self.randSchwelle
+        return Image(systemName: "chevron.left")
+            .font(.system(size: 17, weight: .bold))
+            .foregroundStyle(erreicht ? Color.white : Color.primary)
+            .frame(width: 44, height: 44)
+            .background(erreicht ? AnyShapeStyle(Color.loveaRose) : AnyShapeStyle(.regularMaterial), in: .circle)
+            .scaleEffect(reduceMotion ? 1 : 0.6 + 0.4 * fortschritt)
+            .opacity(Double(fortschritt))
+            .offset(x: 10 + (reduceMotion ? 0 : 24 * fortschritt), y: randY - 22)
+            .animation(Feder.schnell, value: erreicht)
+            .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
 
