@@ -459,7 +459,7 @@ private struct ProfilInhalt: View {
 
     private func navigieren(_ tab: String, suche: Bool = false) {
         tipps += 1
-        if suche { AppNavigation.shared.chatSuche = true }
+        if suche { AppNavigation.shared.chatSuche = true } else if tab == "chat" { AppNavigation.shared.gespraechOeffnen = true }
         AppNavigation.shared.tabWunsch = tab
         schliessen()
     }

@@ -21,6 +21,7 @@ struct ChatTab: View {
         .onChange(of: AppNavigation.shared.chatZiel, initial: true) { _, ziel in if ziel != nil { offen = true } }
         .onChange(of: AppNavigation.shared.chatSuche, initial: true) { _, an in if an { offen = true } }
         .onChange(of: AppNavigation.shared.kameraOeffnen, initial: true) { _, an in if an { offen = true } }
+        .onChange(of: AppNavigation.shared.gespraechOeffnen, initial: true) { _, an in if an { offen = true; AppNavigation.shared.gespraechOeffnen = false } }
     }
 }
 

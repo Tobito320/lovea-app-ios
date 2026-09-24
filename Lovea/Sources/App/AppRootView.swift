@@ -18,6 +18,8 @@ final class AppNavigation {
     var tabWunsch: String?
     /// Profile → "Kamera": ChatTab opens the snap camera and clears it.
     var kameraOeffnen = false
+    /// Profile → "Chat": the Chat tab skips its list and opens the conversation.
+    var gespraechOeffnen = false
     /// Z-32.1: message the chat tab scrolls to and highlights (notification tap, "Heute vor …").
     /// Stays set until that message has arrived; the conversation clears it.
     var chatZiel: String?
