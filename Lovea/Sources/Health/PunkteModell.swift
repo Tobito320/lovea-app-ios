@@ -123,19 +123,19 @@ final class PunkteModell {
     // MARK: - Cache (audit #3)
 
     /// Bumped the moment any input a cached fold read is about to change. Every cached read touches
-    /// it, so SwiftUI, `WidgetStandSchreiber` and any fold built on a cached one still notice.
+    /// it, so SwiftUI and `WidgetStandSchreiber` still notice a change on a cache hit.
     private var version = 0
     @ObservationIgnored private var cache: [String: Any] = [:]
+    @ObservationIgnored private var cacheVersion = -1
     @ObservationIgnored private var cacheTag = ""
 
     /// Runs `berechnen` once per input change (or new day). Its `@Observable` reads (Health, Chat,
-    /// own ops, `version` of nested cached folds) are tracked; the first change drops only this key,
-    /// so a chat message refolds `stand`/`verlauf` but not the steps-only challenges.
+    /// own ops) are tracked; the first change to any of them empties the whole cache.
     private func gemerkt<T>(_ schluessel: String, _ berechnen: () -> T) -> T {
-        _ = version
         let tag = heute
-        if cacheTag != tag {
+        if cacheVersion != version || cacheTag != tag {
             cache = [:]
+            cacheVersion = version
             cacheTag = tag
         }
         if let wert = cache[schluessel] as? T { return wert }
@@ -143,10 +143,7 @@ final class PunkteModell {
             berechnen()
         } onChange: { [weak self] in
             // Fires synchronously in `willSet` of a main-actor model, before the new value lands.
-            MainActor.assumeIsolated {
-                self?.cache[schluessel] = nil
-                self?.version += 1
-            }
+            MainActor.assumeIsolated { self?.version += 1 }
         }
         cache[schluessel] = wert
         return wert
