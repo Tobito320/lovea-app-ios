@@ -15,9 +15,9 @@ final class FigurenModell {
 
     private(set) var aussehen: [Person: FigurAussehen] = [:]
     private(set) var zustand: [Person: Zustand] = [:]
-    /// audit-szene #4: when the CURRENT `zustand[p]` value was first seen (unchanged replays, e.g.
-    /// the server resending the last known state to every reconnect, don't reset this) — lets
-    /// `partnerZustandVerfallenLassen` tell a genuinely frozen state from one still being confirmed.
+    /// audit-szene #4: when the CURRENT `zustand[p]` value was truly sent, per the server's `seit`
+    /// (see `zustandSeitAusPayload`) — lets `partnerZustandVerfallenLassen` tell a genuinely frozen
+    /// state from a fresh one, even across our own reconnects/relaunches that just replay it again.
     private var zustandSeit: [Person: Date] = [:]
     private(set) var geste: [Person: (art: FigurZustand, bis: Date)] = [:]
     /// Counts "herz" gestures per sender for the current Berlin day, for the profile.
@@ -109,7 +109,9 @@ final class FigurenModell {
     /// on the server) out of the SAME raw `d` payload `Zustand` above decodes — an unknown key
     /// `Zustand`'s own `Codable` conformance silently ignores.
     private struct ZustandZeitHuelle: Decodable { let seit: String? }
-    private nonisolated(unsafe) static let isoFraktional: ISO8601DateFormatter = {
+    // MainActor-isolated through this @MainActor class, same as every other stored property here —
+    // no nonisolated(unsafe) (common.md).
+    private static let isoFraktional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f

@@ -200,10 +200,11 @@ enum SchlafLogik {
     /// treated as stale rather than trusted (`FigurenModell.partnerZustandVerfallenLassen`).
     static let unveraendertGrenze: TimeInterval = 3600
 
-    /// `seit` is when the CURRENT value was first seen, not when it was last re-delivered (a
-    /// reconnect resending the same old state must not look fresh). Stale past `unveraendertGrenze`,
-    /// but only once it's no longer a plausible sleeping hour — during real night hours the same
-    /// state is still likely true even without a fresh update.
+    /// `seit` is the server-recorded time the CURRENT value was truly sent (rides along as `seit` in
+    /// the `zustand` payload, `raum.js`), not when we happened to receive or re-receive it — so a
+    /// reconnect replaying the same old state can't look fresh. Stale past `unveraendertGrenze`, but
+    /// only once it's no longer a plausible sleeping hour — during real night hours the same state is
+    /// still likely true even without a fresh update.
     static func partnerZustandAbgelaufen(seit: Date?, jetzt: Date) -> Bool {
         guard let seit, jetzt.timeIntervalSince(seit) > unveraendertGrenze else { return false }
         return !AnwesenheitEingabe.istNachtstunde(Calendar.berlin.component(.hour, from: jetzt))
