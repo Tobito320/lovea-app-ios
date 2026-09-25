@@ -387,8 +387,7 @@ private struct Zeichner {
         schmuckId = a.schmuck
         poseId = a.pose
         tierId = a.tier
-        // 25.09. (Ahmed): Annika bindet im Gym die Haare zum hohen Zopf (index 23 "Hoher Zopf").
-        frisur = z == .gym && a.person == .annika ? 23 : grenze(a.frisur, A.frisuren.count)
+        frisur = grenze(a.frisur, A.frisuren.count)
         let eigeneBrille = grenze(a.brille, A.brillen.count)
         // Sun extra: own sunglasses stay, anything else becomes plain sunglasses.
         brille = extras.contains(.sonnenbrille) && !Self.sonnenbrillen.contains(eigeneBrille) ? 3 : eigeneBrille
@@ -589,7 +588,8 @@ private struct Zeichner {
 
     /// Brief F2: the new face draws its own hair only with the person's everyday style; every other
     /// style is drawn narrowed onto the new head (`haarKontext`).
-    var eigeneFrisur: Bool { (neu == .b && (78...82).contains(frisur)) || (neu == .an3 && frisur == 56) }
+    /// 25.09.: in the gym Annika's own hair is tied back to a high ponytail (`GesichtAn3.gym*`).
+    var eigeneFrisur: Bool { (neu == .b && (78...82).contains(frisur)) || (neu == .an3 && (frisur == 56 || z == .gym)) }
 
     /// Brief F3: V5 in the gym, V4 everywhere else (Ahmed, 25.09.).
     var vForm: VForm { z == .gym ? .gym : .alltag }
@@ -5627,7 +5627,12 @@ private extension Zeichner {
     func neueHaareHinten(_ g: GraphicsContext, _ neu: NeuesGesicht) {
         switch neu {
         case .b: teil(g, GesichtB.haarHinten, haar)
-        case .an3: flaeche(g, GesichtAn3.haarHinten, .color(haar.mal(0.7).farbe), rand: haar.mal(0.55).farbe, breite: 3)
+        case .an3:
+            if z == .gym {
+                flaeche(g, GesichtAn3.gymZopf, .color(haar.mal(0.85).farbe), rand: haar.mal(0.55).farbe, breite: 3)
+            } else {
+                flaeche(g, GesichtAn3.haarHinten, .color(haar.mal(0.7).farbe), rand: haar.mal(0.55).farbe, breite: 3)
+            }
         }
     }
 
@@ -5657,6 +5662,15 @@ private extension Zeichner {
     /// tucked behind the ear), strand lines on the left and soft highlights.
     func neueHaareVornAn3(_ g: GraphicsContext) {
         let rand = haar.mal(0.55).farbe
+        if z == .gym {
+            // Tied back: hair cap over the head, pink hair tie at the ponytail (annika_gym.py).
+            flaeche(g, GesichtAn3.gymKappe, .color(haar.farbe), rand: rand, breite: 3)
+            teil(g, GesichtAn3.gymBand, FigurFarbe(0xF07C86), 1.5)
+            let glanz = haar.mix(FigurFarbe(0xC9A080), 0.45).farbe.opacity(0.55)
+            linie(g, bogen(P(100, 34), P(68, 58), P(80, 38)), glanz, 2.2)
+            linie(g, bogen(P(100, 34), P(132, 58), P(120, 38)), glanz, 2.2)
+            return
+        }
         flaeche(g, GesichtAn3.straehne, .color(haar.farbe), rand: rand, breite: 3)
         let verlauf = verlaufY(30, 236, [
             .init(color: haar.mix(FigurFarbe(0x6A4632), 0.45).farbe, location: 0),

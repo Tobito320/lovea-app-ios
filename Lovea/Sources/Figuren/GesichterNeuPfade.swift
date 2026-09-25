@@ -682,6 +682,37 @@ enum GesichtAn3 {
             p.closeSubpath()
         }
     }
+    static var gymKappe: Path {
+        Path { p in
+            p.move(to: P(100, 30))
+            p.addCurve(to: P(55, 72), control1: P(73, 30), control2: P(55, 45))
+            p.addCurve(to: P(61, 99), control1: P(55, 84), control2: P(58, 93))
+            p.addCurve(to: P(100, 64), control1: P(64, 82), control2: P(76, 66))
+            p.addCurve(to: P(139, 99), control1: P(124, 66), control2: P(136, 82))
+            p.addCurve(to: P(145, 72), control1: P(142, 93), control2: P(145, 84))
+            p.addCurve(to: P(100, 30), control1: P(145, 45), control2: P(127, 30))
+            p.closeSubpath()
+        }
+    }
+    static var gymZopf: Path {
+        Path { p in
+            p.move(to: P(117, 37))
+            p.addCurve(to: P(158, 72), control1: P(140, 24), control2: P(160, 40))
+            p.addCurve(to: P(146, 140), control1: P(156, 100), control2: P(151, 124))
+            p.addCurve(to: P(136, 76), control1: P(143, 122), control2: P(141, 98))
+            p.addCurve(to: P(117, 37), control1: P(132, 60), control2: P(125, 47))
+            p.closeSubpath()
+        }
+    }
+    static var gymBand: Path {
+        Path { p in
+            p.move(to: P(113, 33))
+            p.addQuadCurve(to: P(125, 34), control: P(119, 29))
+            p.addLine(to: P(122, 41))
+            p.addQuadCurve(to: P(112, 40), control: P(117, 37))
+            p.closeSubpath()
+        }
+    }
     static var haarLinien: [Path] {
         [
         Path { p in
