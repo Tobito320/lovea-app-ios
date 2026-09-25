@@ -1,6 +1,6 @@
 import Foundation
 
-/// One exercise of the bundled ExerciseDB set (`Lovea/Uebungen/uebungen.json`, built by
+/// One exercise of the bundled ExerciseDB set (`uebungen.json` next to this file, built by
 /// `tools/uebungen-katalog.sh`). `id` is the ExerciseDB id: plans, `gym.uebung` ops and later the
 /// figure use it.
 struct Uebung: Codable, Identifiable, Sendable, Equatable {
@@ -21,9 +21,9 @@ struct Uebung: Codable, Identifiable, Sendable, Equatable {
     var istCardio: Bool { koerper == "Cardio" }
 }
 
-/// The catalog: 1,500 exercises with a 180p GIF each (`Uebungen/<id>.gif`), searchable in German and English.
+/// The catalog: 1,324 exercises, each with a 180p GIF at ExerciseDB (`UebungsMedien`), searchable
+/// in German and English.
 enum UebungsKatalog {
-    static let ordner = "Uebungen"
     static let alle: [Uebung] = laden(.main)
     static let nachId: [String: Uebung] = Dictionary(alle.map { ($0.id, $0) }, uniquingKeysWith: { erste, _ in erste })
     static let koerperteile: [String] = Array(Set(alle.map(\.koerper))).sorted()
@@ -31,14 +31,11 @@ enum UebungsKatalog {
     private static let suchtexte: [String: String] = Dictionary(alle.map { ($0.id, suchtext($0)) }, uniquingKeysWith: { erste, _ in erste })
 
     static func laden(_ bundle: Bundle) -> [Uebung] {
-        guard let url = bundle.url(forResource: "uebungen", withExtension: "json", subdirectory: ordner),
+        guard let url = bundle.url(forResource: "uebungen", withExtension: "json")
+                ?? bundle.url(forResource: "uebungen", withExtension: "json", subdirectory: "Health"),
               let daten = try? Data(contentsOf: url),
               let liste = try? JSONDecoder().decode([Uebung].self, from: daten) else { return [] }
         return liste
-    }
-
-    static func gif(_ id: String, bundle: Bundle = .main) -> URL? {
-        bundle.url(forResource: id, withExtension: "gif", subdirectory: ordner)
     }
 
     /// Lowercased, accents and umlauts folded, "ae/oe/ue" read as "a/o/u", "ß" as "ss", hyphens as
@@ -72,5 +69,34 @@ enum UebungsKatalog {
 
     private static func suchtext(_ u: Uebung) -> String {
         normal("\(u.name) \(u.en) \(u.muskel) \(u.geraet) \(u.koerper)")
+    }
+}
+
+/// The exercise GIFs are not bundled (they belong to ExerciseDB and the repo can be public): each
+/// one is fetched once from ExerciseDB's CDN and kept in Caches. The own plan's exercises are
+/// fetched ahead (`vorladen`, from the Health card) so they play offline in the gym.
+enum UebungsMedien {
+    static let quelle = URL(string: "https://static.exercisedb.dev/media/")!
+    static var ordner: URL { URL.cachesDirectory.appending(path: "Uebungen", directoryHint: .isDirectory) }
+
+    static func lokal(_ id: String) -> URL { ordner.appending(path: "\(id).gif") }
+
+    /// The local GIF, downloaded first if needed; nil offline without a copy (or an unknown id).
+    // ponytail: Caches may be purged by iOS under storage pressure; the next view or `vorladen` fetches again.
+    static func datei(_ id: String) async -> URL? {
+        let ziel = lokal(id)
+        if FileManager.default.fileExists(atPath: ziel.path) { return ziel }
+        guard let (daten, antwort) = try? await URLSession.shared.data(from: quelle.appending(path: "\(id).gif")),
+              (antwort as? HTTPURLResponse)?.statusCode == 200, daten.starts(with: Data("GIF".utf8)) else { return nil }
+        try? FileManager.default.createDirectory(at: ordner, withIntermediateDirectories: true)
+        try? daten.write(to: ziel, options: .atomic)
+        return ziel
+    }
+
+    /// One after another, so a long plan doesn't hit the CDN all at once.
+    static func vorladen(_ ids: [String]) async {
+        for id in ids where id != PlanUebung.eigen {
+            _ = await datei(id)
+        }
     }
 }

@@ -56,6 +56,10 @@ struct TrainingKarte: View {
             Button("Ohne Plan") { starten(nil) }
         }
         .sheet(item: $zeiten) { ZeitenBlatt(session: $0) }
+        // The own plan's GIFs, ahead of time, so they play offline in the gym.
+        .task(id: modell.plan(ich)) {
+            await UebungsMedien.vorladen(modell.plan(ich).tage.flatMap(\.uebungen).map(\.uebung))
+        }
     }
 
     private func stand(_ jetzt: Date) -> TrainingKartenStand {

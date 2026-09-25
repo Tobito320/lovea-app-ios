@@ -4,7 +4,7 @@ import XCTest
 @testable import Lovea
 
 /// Render board "training": Health card states, the gym screen mid-workout, week strip, day rows
-/// and catalog rows with real GIF thumbnails from the bundle. Light and dark.
+/// and catalog rows with real GIF thumbnails (fetched from ExerciseDB; blank if CI is offline). Light and dark.
 @MainActor
 final class RenderGalerieTrainingTests: XCTestCase {
     private let t0 = Datum.datum("2026-09-23").addingTimeInterval(18 * 3600 + 5 * 60)
@@ -73,10 +73,9 @@ final class RenderGalerieTrainingTests: XCTestCase {
         let katalog = UebungsKatalog.laden(bundle)
         let beispiele = ["barbell bench press", "lever leg extension", "cable kickback", "dumbbell standing biceps curl", "walking on incline treadmill"]
             .compactMap { en in katalog.first { $0.en == en } }
+        let bilder = beispiele.map { u in (try? Data(contentsOf: UebungsMedien.quelle.appending(path: "\(u.id).gif"))).flatMap { UIImage(data: $0) } }
         let zeilen = VStack(alignment: .leading, spacing: 10) {
-            ForEach(beispiele) { u in
-                UebungZeile(uebung: u, bild: UebungsKatalog.gif(u.id, bundle: bundle).flatMap { UIImage(contentsOfFile: $0.path) })
-            }
+            ForEach(beispiele.indices, id: \.self) { i in UebungZeile(uebung: beispiele[i], bild: bilder[i]) }
         }
         RenderTafel.speichern("training-plan", spalten: 3, zellen: [
             zelle("Woche, hell", WochenLeiste(plan: plan, heute: 3)),

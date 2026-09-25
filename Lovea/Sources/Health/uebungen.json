@@ -70,18 +70,6 @@
     ]
   },
   {
-    "id": "HZgQPxh",
-    "name": "Abdominal Fallout im Schlingentrainer, schräge Variante",
-    "en": "suspended abdominal fallout - inclined variation",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger",
-      "seitlicher Bauch"
-    ]
-  },
-  {
     "id": "mQ1tBXn",
     "name": "Abduktoren mit gestrecktem Bein",
     "en": "straight leg outer hip abductor",
@@ -121,18 +109,6 @@
     "id": "0xDpB4L",
     "name": "Abduktoren sitzend mit Band",
     "en": "resistance band seated hip abduction",
-    "muskel": "Abduktoren",
-    "koerper": "Beine",
-    "geraet": "Widerstandsband",
-    "neben": [
-      "Beinbeuger",
-      "Po"
-    ]
-  },
-  {
-    "id": "Qj0HRAZ",
-    "name": "Abduktoren sitzend mit Band, schnell",
-    "en": "fast style resistance band seated hip abduction",
     "muskel": "Abduktoren",
     "koerper": "Beine",
     "geraet": "Widerstandsband",
@@ -300,18 +276,6 @@
     ]
   },
   {
-    "id": "Mr8d4KA",
-    "name": "Arnold Press mit Kettlebell, Einsteiger-Variante",
-    "en": "kettlebell arnold press - beginner variation",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Kettlebell",
-    "neben": [
-      "Trizeps",
-      "oberer Rücken"
-    ]
-  },
-  {
     "id": "Xy4jlWA",
     "name": "Arnold Press mit Kurzhanteln",
     "en": "dumbbell arnold press",
@@ -351,18 +315,6 @@
     "id": "vi8EhoE",
     "name": "Around-Pullover mit Kurzhantel",
     "en": "dumbbell around pullover",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Latissimus",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "Xd65M9w",
-    "name": "Around-Pullover mit Kurzhantel, intensive Variante",
-    "en": "dumbbell around pullover - intensive variation",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Kurzhantel",
@@ -447,18 +399,6 @@
     "id": "UDlhcO8",
     "name": "Aufrechtes Rudern mit Langhantel",
     "en": "barbell upright row",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Langhantel",
-    "neben": [
-      "Bizeps",
-      "Trapez"
-    ]
-  },
-  {
-    "id": "1oE78pm",
-    "name": "Aufrechtes Rudern mit Langhantel, Variante 2",
-    "en": "core barbell upright row v. 2",
     "muskel": "Schultern",
     "koerper": "Schultern",
     "geraet": "Langhantel",
@@ -568,38 +508,12 @@
     ]
   },
   {
-    "id": "Uywa4S5",
-    "name": "Ausfallschritt mit Kurzhanteln, fest",
-    "en": "dumbbell lunge with firm",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
     "id": "t8iSghb",
     "name": "Ausfallschritt mit Langhantel",
     "en": "barbell lunge",
     "muskel": "Po",
     "koerper": "Beine",
     "geraet": "Langhantel",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
-    "id": "9vz4JlC",
-    "name": "Ausfallschritt mit Schwung und Drehung, Zusatzgewicht",
-    "en": "weighted lunge with swing twisted",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Zusatzgewicht",
     "neben": [
       "Beinbeuger",
       "Quadrizeps",
@@ -636,18 +550,6 @@
     "id": "x306lCW",
     "name": "Außenrotation der Schulter aufrecht mit Kurzhantel",
     "en": "dumbbell upright shoulder external rotation",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Rotatorenmanschette",
-      "Trapez"
-    ]
-  },
-  {
-    "id": "u1iHcoD",
-    "name": "Außenrotation der Schulter in Bauchlage, aufrecht mit Kurzhantel",
-    "en": "prone dumbbell upright shoulder external rotation",
     "muskel": "Schultern",
     "koerper": "Schultern",
     "geraet": "Kurzhantel",
@@ -779,18 +681,6 @@
     ]
   },
   {
-    "id": "C8Crfa4",
-    "name": "Bankdrücken eng an der Multipresse, gezielt",
-    "en": "targeted style smith close-grip bench press",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Multipresse",
-    "neben": [
-      "Brust",
-      "Schultern"
-    ]
-  },
-  {
     "id": "YqJw82s",
     "name": "Bankdrücken eng im Untergriff mit Langhantel",
     "en": "barbell reverse close-grip bench press",
@@ -866,18 +756,6 @@
     "id": "945zpRg",
     "name": "Bankdrücken im weiten Untergriff mit Langhantel",
     "en": "barbell wide reverse grip bench press",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Langhantel",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "3QgteDK",
-    "name": "Bankdrücken im weiten Untergriff, horizontal",
-    "en": "barbell wide reverse grip bench press horizontal",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Langhantel",
@@ -1043,18 +921,6 @@
     ]
   },
   {
-    "id": "hVzPY5j",
-    "name": "Battle Ropes, athletisch",
-    "en": "athletic style battling ropes",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Seil",
-    "neben": [
-      "Rumpf",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "NKJ8o6x",
     "name": "Beckenkippen",
     "en": "pelvic tilt",
@@ -1089,32 +955,9 @@
     ]
   },
   {
-    "id": "vpleANJ",
-    "name": "Beckenkippen in die Brücke, schräg",
-    "en": "inclined style pelvic tilt into bridge",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Rumpf"
-    ]
-  },
-  {
     "id": "9IxJdtC",
     "name": "Bein- und Hüftheben liegend",
     "en": "lying leg-hip raise",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger"
-    ]
-  },
-  {
-    "id": "mpYUPkA",
-    "name": "Bein- und Hüftheben liegend, kontrahierte Variante",
-    "en": "lying leg-hip raise - contracted variation",
     "muskel": "Bauch",
     "koerper": "Bauch",
     "geraet": "Körpergewicht",
@@ -1201,18 +1044,6 @@
     ]
   },
   {
-    "id": "fF6GKVh",
-    "name": "Beindehnung am Stuhl, modifiziert",
-    "en": "chair leg extended stretch with modified",
-    "muskel": "Quadrizeps",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Waden"
-    ]
-  },
-  {
     "id": "OyoZ3Pu",
     "name": "Beinheben auf der flachen Bank",
     "en": "leg pull in flat bench",
@@ -1222,18 +1053,6 @@
     "neben": [
       "Hüftbeuger",
       "unterer Rücken"
-    ]
-  },
-  {
-    "id": "6Wr0F3W",
-    "name": "Beinheben gedreht, rund",
-    "en": "rounded twisted leg raise (female)",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger",
-      "seitlicher Bauch"
     ]
   },
   {
@@ -1329,18 +1148,6 @@
     ]
   },
   {
-    "id": "ntjtCfu",
-    "name": "Beinheben sitzend wechselseitig mit Langhantel, mittleres Niveau",
-    "en": "barbell sitted alternate leg raise (female) with intermediate",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Langhantel",
-    "neben": [
-      "Hüftbeuger",
-      "Quadrizeps"
-    ]
-  },
-  {
     "id": "PQ2AtC3",
     "name": "Beinheben-Crunch sitzend an der Maschine",
     "en": "lever seated leg raise crunch",
@@ -1404,19 +1211,6 @@
     ]
   },
   {
-    "id": "p0OCXGb",
-    "name": "Beinpresse 45°, weiter Stand, stumpfe Variante",
-    "en": "sled 45в° leg wide press - blunt variation",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Schlitten",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
     "id": "7zdxRTl",
     "name": "Beinpresse an der Multipresse",
     "en": "smith leg press",
@@ -1456,17 +1250,6 @@
     "id": "Y1MsI1l",
     "name": "Beinstrecker mit Band",
     "en": "resistance band leg extension",
-    "muskel": "Quadrizeps",
-    "koerper": "Beine",
-    "geraet": "Widerstandsband",
-    "neben": [
-      "Beinbeuger"
-    ]
-  },
-  {
-    "id": "Ul5OFSV",
-    "name": "Beinstrecker mit Band, negativ",
-    "en": "resistance band leg extension declined",
     "muskel": "Quadrizeps",
     "koerper": "Beine",
     "geraet": "Widerstandsband",
@@ -1867,17 +1650,6 @@
     ]
   },
   {
-    "id": "xmWQIlT",
-    "name": "Bizeps-Curls sitzend wechselseitig auf dem Gymnastikball mit Kurzhanteln, gehalten",
-    "en": "hold style dumbbell alternating seated bicep curl on exercise ball",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
     "id": "KXyoEtA",
     "name": "Bizeps-Curls sitzend, Innenfokus mit Kurzhanteln",
     "en": "dumbbell seated inner biceps curl",
@@ -2083,17 +1855,6 @@
     ]
   },
   {
-    "id": "iDGtjyi",
-    "name": "Brust- und vordere Schulterdehnung, klein",
-    "en": "chest and front of shoulder stretch micro",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
     "id": "XgWyAiA",
     "name": "Brust-Dips am Dip-Klimmzug-Käfig",
     "en": "chest dip (on dip-pull-up cage)",
@@ -2133,18 +1894,6 @@
     "id": "ykA5tU7",
     "name": "Brustdehnung am Gymnastikball",
     "en": "chest stretch with exercise ball",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Gymnastikball",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "W1p7BND",
-    "name": "Brustdehnung am Gymnastikball, teilweise",
-    "en": "chest stretch with exercise ball partial",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Gymnastikball",
@@ -2217,18 +1966,6 @@
     "id": "WbNq5Xu",
     "name": "Brustdrücken stehend an der Maschine",
     "en": "lever standing chest press",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Maschine",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "numr601",
-    "name": "Brustdrücken stehend an der Maschine, leicht",
-    "en": "light lever standing chest press",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Maschine",
@@ -2434,19 +2171,6 @@
     ]
   },
   {
-    "id": "gTGciXz",
-    "name": "Bärengang wechselseitig",
-    "en": "alternating bear crawl",
-    "muskel": "Herz-Kreislauf",
-    "koerper": "Cardio",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Rumpf",
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "j7XMAyn",
     "name": "Cable Crossover für die obere Brust",
     "en": "cable upper chest crossovers",
@@ -2486,18 +2210,6 @@
     "id": "T2mxWqc",
     "name": "Chin-up",
     "en": "chin-up",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "dVeWXf2",
-    "name": "Chin-up diagonal",
-    "en": "chin-up diagonal",
     "muskel": "Latissimus",
     "koerper": "Rücken",
     "geraet": "Körpergewicht",
@@ -2555,33 +2267,9 @@
     ]
   },
   {
-    "id": "N3EirIW",
-    "name": "Chin-up mit Unterstützung an der Maschine, mit Drehung",
-    "en": "lever assisted chin-up with twisted",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Maschine",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "7OeHptV",
     "name": "Chin-up stehend mit Unterstützung",
     "en": "assisted standing chin-up",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Maschine",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "LlSe9IK",
-    "name": "Chin-up stehend mit Unterstützung, fokussiert",
-    "en": "assisted standing chin-up with focused",
     "muskel": "Latissimus",
     "koerper": "Rücken",
     "geraet": "Maschine",
@@ -2654,18 +2342,6 @@
     ]
   },
   {
-    "id": "7i4msxz",
-    "name": "Cocoon-Crunches",
-    "en": "cocoons with mega",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger",
-      "unterer Rücken"
-    ]
-  },
-  {
     "id": "SLKj2pX",
     "name": "Cocoon-Crunches",
     "en": "cocoons",
@@ -2681,17 +2357,6 @@
     "id": "NvfE43H",
     "name": "Concentration Curls am Kabelzug",
     "en": "cable concentration curl",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "8yBgwBS",
-    "name": "Concentration Curls am Kabelzug, Tempo",
-    "en": "cable concentration curl tempo",
     "muskel": "Bizeps",
     "koerper": "Arme",
     "geraet": "Kabelzug",
@@ -2887,17 +2552,6 @@
     ]
   },
   {
-    "id": "CUmLRTA",
-    "name": "Crunches kniend am Kabelzug, sanfte Variante",
-    "en": "cable kneeling crunch - gentle variation",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Kabelzug",
-    "neben": [
-      "seitlicher Bauch"
-    ]
-  },
-  {
     "id": "225x2Vd",
     "name": "Crunches kniend mit Drehung am Band",
     "en": "band kneeling twisting crunch",
@@ -3001,28 +2655,6 @@
     "id": "XU3ePuv",
     "name": "Crunches stehend am Kabelzug, Seil",
     "en": "cable standing crunch (with rope attachment)",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Kabelzug",
-    "neben": [
-      "seitlicher Bauch"
-    ]
-  },
-  {
-    "id": "8gQo5Ss",
-    "name": "Crunches stehend am Kabelzug, einfach, Seil",
-    "en": "single style cable standing crunch (with rope attachment)",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Kabelzug",
-    "neben": [
-      "seitlicher Bauch"
-    ]
-  },
-  {
-    "id": "vN5HB0s",
-    "name": "Crunches stehend am Kabelzug, stumpf",
-    "en": "blunt cable standing crunch",
     "muskel": "Bauch",
     "koerper": "Bauch",
     "geraet": "Kabelzug",
@@ -3265,17 +2897,6 @@
     ]
   },
   {
-    "id": "Um8xUAc",
-    "name": "Curls schräg in Bauchlage mit Langhantel, intensiv",
-    "en": "barbell prone incline curl with intensive",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Langhantel",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
     "id": "ae9UoXQ",
     "name": "Curls schräg mit Kurzhanteln",
     "en": "dumbbell incline curl",
@@ -3323,17 +2944,6 @@
     "id": "LWuA3aZ",
     "name": "Curls stehend im Untergriff mit Langhantel",
     "en": "barbell standing reverse grip curl",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Langhantel",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "AdxxqfF",
-    "name": "Curls stehend im Untergriff mit Langhantel, Widerstand",
-    "en": "barbell standing reverse grip curl resistance",
     "muskel": "Bizeps",
     "koerper": "Arme",
     "geraet": "Langhantel",
@@ -3555,18 +3165,6 @@
     ]
   },
   {
-    "id": "F56Xpw3",
-    "name": "Dips an der geraden Stange mit Zusatzgewicht, intensiv",
-    "en": "fierce weighted straight bar dip",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Zusatzgewicht",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "9WTm7dq",
     "name": "Dips für die Brust",
     "en": "chest dip",
@@ -3594,18 +3192,6 @@
     "id": "O2K9Vb5",
     "name": "Dips im weiten Griff am hohen Barren",
     "en": "wide-grip chest dip on high parallel bars",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "FSF9WOs",
-    "name": "Dips im weiten Griff am hohen Barren, tiefe Variante",
-    "en": "wide-grip chest dip on high parallel bars - low variation",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Körpergewicht",
@@ -3830,18 +3416,6 @@
     ]
   },
   {
-    "id": "jvEXp4N",
-    "name": "Einarmige Dips, Ausdauervariante",
-    "en": "endurance style one arm dip",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Brust",
-      "Schultern"
-    ]
-  },
-  {
     "id": "HjdqmZa",
     "name": "Einarmiger Chin-up",
     "en": "one arm chin-up",
@@ -3854,33 +3428,9 @@
     ]
   },
   {
-    "id": "G1qWW6M",
-    "name": "Einarmiger Klimmzug mit Zusatzgewicht",
-    "en": "macro style weighted one hand pull up",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Zusatzgewicht",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "fXfqg1E",
     "name": "Einarmiger Klimmzug mit Zusatzgewicht",
     "en": "weighted one hand pull up",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Zusatzgewicht",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "J1vH2X0",
-    "name": "Einarmiger Klimmzug mit Zusatzgewicht, schnell",
-    "en": "weighted one hand pull up fast",
     "muskel": "Latissimus",
     "koerper": "Rücken",
     "geraet": "Zusatzgewicht",
@@ -3915,30 +3465,6 @@
     ]
   },
   {
-    "id": "Rsxr3xl",
-    "name": "Einarmiger Wandstütz, komprimiert",
-    "en": "one arm against wall compressed",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "j6uIfep",
-    "name": "Einarmiges Drücken am Boden mit Kettlebell, erweiterter Bewegungsumfang",
-    "en": "contracted kettlebell extended range one arm press on floor",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kettlebell",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "rseLfH3",
     "name": "Einarmiges Drücken am Boden mit Kettlebell, erweiterter Bewegungsumfang",
     "en": "kettlebell extended range one arm press on floor",
@@ -3948,30 +3474,6 @@
     "neben": [
       "Schultern",
       "Trizeps"
-    ]
-  },
-  {
-    "id": "o80Xu9C",
-    "name": "Einarmiges Drücken am Boden mit Kettlebell, erweiterter Bewegungsumfang, intensiviert",
-    "en": "intensified style kettlebell extended range one arm press on floor",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kettlebell",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "VRBGPHB",
-    "name": "Einarmiges Schulterdrücken an der Multipresse",
-    "en": "single smith shoulder press",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Multipresse",
-    "neben": [
-      "Trizeps",
-      "oberer Rücken"
     ]
   },
   {
@@ -3990,19 +3492,6 @@
     "id": "WWD6FzI",
     "name": "Einbeinige Beinpresse 45°",
     "en": "sled 45 degrees one leg press",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Schlitten",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
-    "id": "4H86mXM",
-    "name": "Einbeinige Beinpresse 45°, Zehen zeigend",
-    "en": "sled 45 degrees one leg press pointed",
     "muskel": "Po",
     "koerper": "Beine",
     "geraet": "Schlitten",
@@ -4077,35 +3566,9 @@
     ]
   },
   {
-    "id": "cuC7529",
-    "name": "Einbeinige Kniebeuge, erweiterte Variante",
-    "en": "one leg squat - expanded variation",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
     "id": "M72BExt",
     "name": "Einbeinige Rumpfdrehung in Bauchlage auf dem Gymnastikball",
     "en": "exercise ball one leg prone lower body rotation",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Gymnastikball",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Rumpf"
-    ]
-  },
-  {
-    "id": "kKYTkjJ",
-    "name": "Einbeinige Rumpfdrehung in Bauchlage auf dem Gymnastikball, intensiv",
-    "en": "exercise ball one leg prone lower body rotation fierce",
     "muskel": "Po",
     "koerper": "Beine",
     "geraet": "Gymnastikball",
@@ -4286,18 +3749,6 @@
     ]
   },
   {
-    "id": "Dx2RIva",
-    "name": "Einbeiniges Wadenheben an der Beinpresse, dreifach",
-    "en": "triple style sled one leg calf press on leg press",
-    "muskel": "Waden",
-    "koerper": "Waden",
-    "geraet": "Schlitten",
-    "neben": [
-      "Beinbeuger",
-      "Po"
-    ]
-  },
-  {
     "id": "AxFoqAD",
     "name": "Einbeiniges Wadenheben an der Hackenschmidt-Maschine",
     "en": "hack one leg calf raise",
@@ -4313,18 +3764,6 @@
     "id": "fKZgDEO",
     "name": "Einbeiniges Wadenheben auf der Kurzhantel",
     "en": "single leg calf raise (on a dumbbell)",
-    "muskel": "Waden",
-    "koerper": "Waden",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Füße",
-      "Sprunggelenke"
-    ]
-  },
-  {
-    "id": "DICPHtq",
-    "name": "Einbeiniges Wadenheben auf der Kurzhantel, gezielt",
-    "en": "targeted style single leg calf raise (on a dumbbell)",
     "muskel": "Waden",
     "koerper": "Waden",
     "geraet": "Kurzhantel",
@@ -4395,18 +3834,6 @@
     "id": "FxhcxUW",
     "name": "Einbeiniges Wadenheben sitzend mit Kurzhantel, Hammergriff",
     "en": "dumbbell seated one leg calf raise - hammer grip",
-    "muskel": "Waden",
-    "koerper": "Waden",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Beinbeuger",
-      "Po"
-    ]
-  },
-  {
-    "id": "UoX77uR",
-    "name": "Einbeiniges Wadenheben sitzend, Hammergriff, tief, Kurzhantel",
-    "en": "dumbbell seated one leg calf raise - hammer grip deep",
     "muskel": "Waden",
     "koerper": "Waden",
     "geraet": "Kurzhantel",
@@ -4526,18 +3953,6 @@
     "id": "DgZQ11d",
     "name": "Face Press auf der Negativbank, enger Griff, SZ-Stange",
     "en": "ez barbell decline close grip face press",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "SZ-Stange",
-    "neben": [
-      "Brust",
-      "Schultern"
-    ]
-  },
-  {
-    "id": "TBNaSNs",
-    "name": "Face Press auf der Negativbank, enger Griff, SZ-Stange, Mini-Variante",
-    "en": "ez barbell decline close grip face press - mini variation",
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "SZ-Stange",
@@ -4703,18 +4118,6 @@
     ]
   },
   {
-    "id": "r4RZKpF",
-    "name": "Fliegende einarmig auf dem Gymnastikball mit Kurzhantel, verbessert",
-    "en": "dumbbell one arm fly on exercise ball improved",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "o5Jsk92",
     "name": "Fliegende einarmig auf der Bank mit Kurzhantel",
     "en": "dumbbell one arm bench fly",
@@ -4723,18 +4126,6 @@
     "geraet": "Kurzhantel",
     "neben": [
       "Schultern"
-    ]
-  },
-  {
-    "id": "vocve3e",
-    "name": "Fliegende einbeinig auf dem Gymnastikball mit Kurzhantel, sanft",
-    "en": "gentle style dumbbell one leg fly on exercise ball",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Schultern",
-      "Trizeps"
     ]
   },
   {
@@ -4832,19 +4223,6 @@
     ]
   },
   {
-    "id": "7858za8",
-    "name": "Fließender Step-up-Ausfallschritt mit Kurzhanteln",
-    "en": "fluid dumbbell step-up lunge",
-    "muskel": "Quadrizeps",
-    "koerper": "Beine",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Beinbeuger",
-      "Po",
-      "Waden"
-    ]
-  },
-  {
     "id": "rg59QCH",
     "name": "Floor Press einarmig mit Kettlebell",
     "en": "kettlebell one arm floor press",
@@ -4900,28 +4278,6 @@
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "Kurzhantel",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
-    "id": "W7yh3Yo",
-    "name": "French Press einarmig auf dem Gymnastikball mit Kurzhantel, an der Wand",
-    "en": "wall style dumbbell one arm french press on exercise ball",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
-    "id": "1TVoin7",
-    "name": "French Press liegend mit Langhantel, doppelt",
-    "en": "barbell lying triceps extension double",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Langhantel",
     "neben": [
       "Schultern"
     ]
@@ -5312,20 +4668,6 @@
     ]
   },
   {
-    "id": "pFuK3by",
-    "name": "Gehen auf dem Crosstrainer, erweiterte Variante",
-    "en": "walk elliptical cross trainer - expanded variation",
-    "muskel": "Herz-Kreislauf",
-    "koerper": "Cardio",
-    "geraet": "Crosstrainer",
-    "neben": [
-      "Beinbeuger",
-      "Po",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
     "id": "j9Q5crt",
     "name": "Gehen auf dem Stepper",
     "en": "walking on stepmill",
@@ -5348,20 +4690,6 @@
     "geraet": "Maschine",
     "neben": [
       "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
-    "id": "PCUYOMs",
-    "name": "Gehen mit Puls auf dem Crosstrainer",
-    "en": "pulse style walk elliptical cross trainer",
-    "muskel": "Herz-Kreislauf",
-    "koerper": "Cardio",
-    "geraet": "Crosstrainer",
-    "neben": [
-      "Beinbeuger",
-      "Po",
       "Quadrizeps",
       "Waden"
     ]
@@ -5430,30 +4758,6 @@
     ]
   },
   {
-    "id": "PDHE73u",
-    "name": "Gestrecktes Kreuzheben mit Band, gerader Rücken, kontrolliert",
-    "en": "controlled band straight back stiff leg deadlift",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Band",
-    "neben": [
-      "Beinbeuger",
-      "unterer Rücken"
-    ]
-  },
-  {
-    "id": "lRcrlH8",
-    "name": "Gestrecktes Kreuzheben mit Band, schnell",
-    "en": "fast band straight leg deadlift",
-    "muskel": "Rückenstrecker",
-    "koerper": "Rücken",
-    "geraet": "Band",
-    "neben": [
-      "Beinbeuger",
-      "Po"
-    ]
-  },
-  {
     "id": "5eLRITT",
     "name": "Gestrecktes Kreuzheben mit Kurzhanteln",
     "en": "dumbbell stiff leg deadlift",
@@ -5478,33 +4782,9 @@
     ]
   },
   {
-    "id": "2Ty4idJ",
-    "name": "Gestrecktes Kreuzheben mit Kurzhanteln, fortgeschritten",
-    "en": "advanced dumbbell stiff leg deadlift",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Beinbeuger",
-      "unterer Rücken"
-    ]
-  },
-  {
     "id": "hrVQWvE",
     "name": "Gestrecktes Kreuzheben mit Langhantel",
     "en": "barbell straight leg deadlift",
-    "muskel": "Beinbeuger",
-    "koerper": "Beine",
-    "geraet": "Langhantel",
-    "neben": [
-      "Po",
-      "unterer Rücken"
-    ]
-  },
-  {
-    "id": "oMwyl17",
-    "name": "Gestrecktes Kreuzheben mit Langhantel, intensiv",
-    "en": "intense barbell straight leg deadlift",
     "muskel": "Beinbeuger",
     "koerper": "Beine",
     "geraet": "Langhantel",
@@ -5807,19 +5087,6 @@
     ]
   },
   {
-    "id": "v6EKk0O",
-    "name": "Halbe Kniebeugen, stumpfe Variante",
-    "en": "half knee bends (male) with blunt",
-    "muskel": "Herz-Kreislauf",
-    "koerper": "Cardio",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Po",
-      "Quadrizeps"
-    ]
-  },
-  {
     "id": "6FMU51h",
     "name": "Halbe Sprungkniebeuge",
     "en": "semi squat jump (male)",
@@ -5900,17 +5167,6 @@
     ]
   },
   {
-    "id": "XqYQ9JA",
-    "name": "Hammer-Curls einarmig in Bauchlage mit Kurzhantel, betonte Variante",
-    "en": "dumbbell one arm prone hammer curl - macro variation",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
     "id": "jK2hZ6n",
     "name": "Hammer-Curls einarmig sitzend mit Kurzhantel",
     "en": "dumbbell one arm seated hammer curl",
@@ -5925,17 +5181,6 @@
     "id": "2sQGZ5b",
     "name": "Hammer-Curls einarmig stehend mit Kurzhantel",
     "en": "dumbbell one arm standing hammer curl",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "79AmJsI",
-    "name": "Hammer-Curls klassisch mit Kurzhanteln",
-    "en": "dumbbell hammer curl with traditional",
     "muskel": "Bizeps",
     "koerper": "Arme",
     "geraet": "Kurzhantel",
@@ -6111,18 +5356,6 @@
     ]
   },
   {
-    "id": "fBnPpzd",
-    "name": "Hamstring-Dehnung in Bauchlage mit Unterstützung, flexibel",
-    "en": "flexible assisted prone hamstring",
-    "muskel": "Beinbeuger",
-    "koerper": "Beine",
-    "geraet": "Assistiert",
-    "neben": [
-      "Po",
-      "unterer Rücken"
-    ]
-  },
-  {
     "id": "sU5BrfP",
     "name": "Hamstring-Dehnung mit angehobenem Bein",
     "en": "leg up hamstring stretch",
@@ -6197,18 +5430,6 @@
     "id": "KI1DjNN",
     "name": "Handgelenk-Curls einarmig über der Bank mit Kurzhantel",
     "en": "dumbbell over bench one arm wrist curl",
-    "muskel": "Unterarme",
-    "koerper": "Unterarme",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Bizeps",
-      "Schultern"
-    ]
-  },
-  {
-    "id": "7AnZtSv",
-    "name": "Handgelenk-Curls einarmig über der Bank, Kraftvariante, Kurzhantel",
-    "en": "dumbbell over bench one arm wrist curl - strength variation",
     "muskel": "Unterarme",
     "koerper": "Unterarme",
     "geraet": "Kurzhantel",
@@ -6359,18 +5580,6 @@
     ]
   },
   {
-    "id": "MqNdIbe",
-    "name": "Handgelenkroller, kontrolliert",
-    "en": "controlled wrist rollerer",
-    "muskel": "Unterarme",
-    "koerper": "Unterarme",
-    "geraet": "Zusatzgewicht",
-    "neben": [
-      "Bizeps",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "eYmsEPR",
     "name": "Handgelenkstrecken am Kabelzug",
     "en": "cable reverse wrist curl",
@@ -6432,18 +5641,6 @@
     "id": "LsZkfU6",
     "name": "Handgelenkstrecken mit Langhantel",
     "en": "barbell reverse wrist curl",
-    "muskel": "Unterarme",
-    "koerper": "Unterarme",
-    "geraet": "Langhantel",
-    "neben": [
-      "Bizeps",
-      "Oberarmmuskel"
-    ]
-  },
-  {
-    "id": "YA2HKGz",
-    "name": "Handgelenkstrecken mit Langhantel, Bauchlage-Variante",
-    "en": "barbell reverse wrist curl - prone variation",
     "muskel": "Unterarme",
     "koerper": "Unterarme",
     "geraet": "Langhantel",
@@ -6807,30 +6004,6 @@
     ]
   },
   {
-    "id": "gdPIyyO",
-    "name": "Hängender Pike, intensiv",
-    "en": "hanging pike with intense",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger",
-      "Schultern"
-    ]
-  },
-  {
-    "id": "Sa8mzWc",
-    "name": "Hängender Pike, leicht",
-    "en": "hanging pike weak",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger",
-      "Schultern"
-    ]
-  },
-  {
     "id": "VEcJRo2",
     "name": "Hängendes Bein- und Hüftheben",
     "en": "hanging leg hip raise",
@@ -6846,18 +6019,6 @@
     "id": "Q6bvyen",
     "name": "Hängendes Bein- und Hüftheben mit Drehung, gestreckt",
     "en": "hanging straight twisting leg hip raise",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger",
-      "seitlicher Bauch"
-    ]
-  },
-  {
-    "id": "WFucoe6",
-    "name": "Hängendes Bein- und Hüftheben mit Drehung, kombiniert",
-    "en": "hanging straight twisting leg hip raise with compound",
     "muskel": "Bauch",
     "koerper": "Bauch",
     "geraet": "Körpergewicht",
@@ -6912,17 +6073,6 @@
     ]
   },
   {
-    "id": "6vcvsLS",
-    "name": "Hängendes Beinheben mit gestreckten Beinen, erhöht",
-    "en": "hanging straight leg raise with elevated",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger"
-    ]
-  },
-  {
     "id": "03lzqwk",
     "name": "Hängendes Knieheben mit Unterstützung",
     "en": "assisted hanging knee raise",
@@ -6949,17 +6099,6 @@
     "id": "BaE7O6U",
     "name": "Hängendes Knieheben seitlich (schräge Bauchmuskeln)",
     "en": "hanging oblique knee raise",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "seitlicher Bauch"
-    ]
-  },
-  {
-    "id": "lFBTISi",
-    "name": "Hängendes Knieheben seitlich, fest",
-    "en": "firm style hanging oblique knee raise",
     "muskel": "Bauch",
     "koerper": "Bauch",
     "geraet": "Körpergewicht",
@@ -7004,18 +6143,6 @@
     ]
   },
   {
-    "id": "hjWjJEm",
-    "name": "Hüftbeuger-Dehnung am Gymnastikball, Fußspitze zeigend",
-    "en": "exercise ball hip flexor stretch pointed",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Gymnastikball",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps"
-    ]
-  },
-  {
     "id": "oMypNrz",
     "name": "Hüftdehnung mit der Rolle",
     "en": "roller hip stretch",
@@ -7037,18 +6164,6 @@
     "neben": [
       "Beinbeuger",
       "Po"
-    ]
-  },
-  {
-    "id": "8IbNZwc",
-    "name": "Hüftheben mit Band",
-    "en": "rough band hip lift",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Band",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps"
     ]
   },
   {
@@ -7266,33 +6381,9 @@
     ]
   },
   {
-    "id": "1YUWDNZ",
-    "name": "Inverses Rudern, weite Ausführung",
-    "en": "extended style inverted row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "cALkHHX",
     "name": "Iron Cross mit Kurzhanteln",
     "en": "dumbbell iron cross",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Brust",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "1RIkUHT",
-    "name": "Iron Cross mit Kurzhanteln, verbesserte Variante",
-    "en": "dumbbell iron cross - improved variation",
     "muskel": "Schultern",
     "koerper": "Schultern",
     "geraet": "Kurzhantel",
@@ -7311,30 +6402,6 @@
     "neben": [
       "Beinbeuger",
       "Quadrizeps"
-    ]
-  },
-  {
-    "id": "p5v6rdT",
-    "name": "Iron-Cross-Dehnung, tiefe Variante",
-    "en": "iron cross stretch - deep variation",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps"
-    ]
-  },
-  {
-    "id": "Aj9vWh7",
-    "name": "Isolierte Brustdehnung sitzend am Gymnastikball, mit Unterstützung",
-    "en": "isolation assisted seated pectoralis major stretch with stability ball",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Assistiert",
-    "neben": [
-      "Schultern",
-      "Trizeps"
     ]
   },
   {
@@ -7393,17 +6460,6 @@
     "muskel": "Bauch",
     "koerper": "Bauch",
     "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger"
-    ]
-  },
-  {
-    "id": "58rdhvL",
-    "name": "Jackknife Sit-up eng mit Band",
-    "en": "narrow style band jack knife sit-up",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Band",
     "neben": [
       "Hüftbeuger"
     ]
@@ -7481,30 +6537,6 @@
     ]
   },
   {
-    "id": "IxsFgRT",
-    "name": "Judo Flip am Kabelzug, statisch",
-    "en": "cable judo flip with static",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Schultern",
-      "seitlicher Bauch"
-    ]
-  },
-  {
-    "id": "3nvEbbF",
-    "name": "Kabelzug-Rudern mit Drehung, intensiviert",
-    "en": "cable twisting pull with intensified",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Schultern"
-    ]
-  },
-  {
     "id": "ZgwWBoC",
     "name": "Kayak Row am Kabelzug (Thibaudeau)",
     "en": "cable thibaudeau kayak row",
@@ -7545,18 +6577,6 @@
     "id": "BkxB8LW",
     "name": "Kettlebell-Drücken sitzend",
     "en": "kettlebell seated press",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Kettlebell",
-    "neben": [
-      "Rumpf",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "89HVjEp",
-    "name": "Kettlebell-Drücken sitzend, hoch",
-    "en": "kettlebell seated press with high",
     "muskel": "Schultern",
     "koerper": "Schultern",
     "geraet": "Kettlebell",
@@ -7739,32 +6759,6 @@
     ]
   },
   {
-    "id": "znf7t8E",
-    "name": "Kipping Muscle-up, dreifach",
-    "en": "kipping muscle up with triple",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Bizeps",
-      "Rumpf",
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "IU4QNJ6",
-    "name": "Klassischer Chin-up",
-    "en": "pure chin-up",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "lBDjFxJ",
     "name": "Klimmzug",
     "en": "pull-up",
@@ -7861,33 +6855,9 @@
     ]
   },
   {
-    "id": "5ipN0iE",
-    "name": "Klimmzug schräg mit Unterstützung",
-    "en": "assisted pull-up inclined",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Maschine",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "isAAZWA",
     "name": "Klimmzug seitlich wechselnd",
     "en": "side-to-side chin",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "ninBEOY",
-    "name": "Klimmzug seitlich wechselnd mit Drehung",
-    "en": "twisted side-to-side chin",
     "muskel": "Latissimus",
     "koerper": "Rücken",
     "geraet": "Körpergewicht",
@@ -8032,19 +7002,6 @@
     ]
   },
   {
-    "id": "echClj7",
-    "name": "Kniebeuge auf den Knien mit Langhantel",
-    "en": "barbell squat (on knees) with pure",
-    "muskel": "Quadrizeps",
-    "koerper": "Beine",
-    "geraet": "Langhantel",
-    "neben": [
-      "Beinbeuger",
-      "Po",
-      "Waden"
-    ]
-  },
-  {
     "id": "oR7O9LW",
     "name": "Kniebeuge auf den Knien mit Langhantel",
     "en": "barbell squat (on knees)",
@@ -8100,20 +7057,6 @@
     "id": "Gnfo4FM",
     "name": "Kniebeuge mit Langhantel, hohe Stangenposition",
     "en": "barbell high bar squat",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Langhantel",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Rumpf",
-      "Waden"
-    ]
-  },
-  {
-    "id": "KenZJQV",
-    "name": "Kniebeuge mit Langhantel, hohe Stangenposition, Rumpf",
-    "en": "barbell high bar squat core",
     "muskel": "Po",
     "koerper": "Beine",
     "geraet": "Langhantel",
@@ -8502,18 +7445,6 @@
     ]
   },
   {
-    "id": "xcLntTC",
-    "name": "Langsames Beinheben auf der flachen Bank",
-    "en": "slow leg pull in flat bench",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger",
-      "unterer Rücken"
-    ]
-  },
-  {
     "id": "a8VDgLw",
     "name": "Langsames Fahren auf dem Fahrrad-Ergometer",
     "en": "stationary bike walk",
@@ -8551,18 +7482,6 @@
     ]
   },
   {
-    "id": "0I5fUyn",
-    "name": "Latzug am Band im Untergriff, klassisch",
-    "en": "band underhand pulldown with classic",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Band",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "4LoWllp",
     "name": "Latzug am Band, enger Griff, fixiert",
     "en": "band fixed back close grip pulldown",
@@ -8578,18 +7497,6 @@
     "id": "4c9BhzB",
     "name": "Latzug am Kabel mit V-Griff",
     "en": "cable lateral pulldown with v-bar",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "0MlxeMn",
-    "name": "Latzug am Kabel, sanfte Ausführung (Lat-Stange)",
-    "en": "gentle style cable pulldown (pro lat bar)",
     "muskel": "Latissimus",
     "koerper": "Rücken",
     "geraet": "Kabelzug",
@@ -8648,18 +7555,6 @@
     ]
   },
   {
-    "id": "AwAIlSo",
-    "name": "Latzug an der Maschine im Untergriff, gerade",
-    "en": "squared reverse grip machine lat pulldown",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Maschine",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "U5INZY6",
     "name": "Latzug einarmig am Kabelzug",
     "en": "cable one arm pulldown",
@@ -8669,18 +7564,6 @@
     "neben": [
       "Bizeps",
       "Unterarme"
-    ]
-  },
-  {
-    "id": "JxrY9mC",
-    "name": "Latzug einarmig kniend mit Band",
-    "en": "stability style band kneeling one arm pulldown",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Band",
-    "neben": [
-      "Bizeps",
-      "Rautenmuskel"
     ]
   },
   {
@@ -8822,18 +7705,6 @@
     "id": "CuaWCmC",
     "name": "Latzug seitlich am Kabelzug, Seil",
     "en": "cable lateral pulldown (with rope attachment)",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "nFHk9fU",
-    "name": "Latzug seitlich am Kabelzug, Seil, Rumpf",
-    "en": "cable lateral pulldown (with rope attachment) core",
     "muskel": "Latissimus",
     "koerper": "Rücken",
     "geraet": "Kabelzug",
@@ -9213,30 +8084,6 @@
     ]
   },
   {
-    "id": "qBl14UC",
-    "name": "Liegestütz an der Wand, statisch",
-    "en": "push-up (wall) with static",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "1IFV9h3",
-    "name": "Liegestütz auf Unterarmen, Variante mit Widerstand",
-    "en": "push-up on lower arms - resistance variation",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Brust",
-      "Schultern"
-    ]
-  },
-  {
     "id": "2kr2lWy",
     "name": "Liegestütz auf dem Bosu-Ball",
     "en": "push-up (bosu ball)",
@@ -9253,19 +8100,6 @@
     "id": "wVompEp",
     "name": "Liegestütz auf dem Bosu-Ball",
     "en": "push up on bosu ball",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Bosu-Ball",
-    "neben": [
-      "Rumpf",
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "P7zSvul",
-    "name": "Liegestütz auf dem Bosu-Ball, verbessert",
-    "en": "push up on bosu ball with improved",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Bosu-Ball",
@@ -9305,18 +8139,6 @@
     "id": "4Jt8QsQ",
     "name": "Liegestütz auf den Unterarmen",
     "en": "push-up on lower arms",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Brust",
-      "Schultern"
-    ]
-  },
-  {
-    "id": "VsopqcV",
-    "name": "Liegestütz eng",
-    "en": "macro style close-grip push-up",
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "Körpergewicht",
@@ -9389,18 +8211,6 @@
     "id": "8K7m2SS",
     "name": "Liegestütz eng mit Medizinball",
     "en": "medicine ball close grip push up",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Medizinball",
-    "neben": [
-      "Brust",
-      "Schultern"
-    ]
-  },
-  {
-    "id": "iFsqlCD",
-    "name": "Liegestütz eng mit Medizinball in Bauchlage",
-    "en": "prone medicine ball close grip push up",
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "Medizinball",
@@ -9524,19 +8334,6 @@
     ]
   },
   {
-    "id": "mAYqY4M",
-    "name": "Liegestütz mit Full Planche, gestreckt",
-    "en": "stretched full planche push-up",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Rumpf",
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "wigSg76",
     "name": "Liegestütz mit Klatschen",
     "en": "clap push up",
@@ -9622,18 +8419,6 @@
     ]
   },
   {
-    "id": "woLo1QN",
-    "name": "Liegestütz schräg auf der Box, aktive Variante",
-    "en": "incline push-up (on box) - active variation",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "XaaRnRn",
     "name": "Liegestütz schräg im Untergriff",
     "en": "incline reverse grip push-up",
@@ -9674,19 +8459,6 @@
     "id": "KhHJ338",
     "name": "Liegestütz zum Seitstütz",
     "en": "push-up to side plank",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Brust",
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "kk39rUy",
-    "name": "Liegestütz zum Seitstütz, athletische Variante",
-    "en": "push-up to side plank - athletic variation",
     "muskel": "Bauch",
     "koerper": "Bauch",
     "geraet": "Körpergewicht",
@@ -9738,18 +8510,6 @@
     "id": "CggQhII",
     "name": "Military Press an der Maschine",
     "en": "lever military press",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Maschine",
-    "neben": [
-      "Trizeps",
-      "obere Brust"
-    ]
-  },
-  {
-    "id": "V7rWsT5",
-    "name": "Military Press an der Maschine, kraftvoll",
-    "en": "lever military press with strength",
     "muskel": "Schultern",
     "koerper": "Schultern",
     "geraet": "Maschine",
@@ -10023,18 +8783,6 @@
     "id": "7saC5zz",
     "name": "Negativ-Fliegende am Kabelzug",
     "en": "cable decline fly",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "jCBOdh0",
-    "name": "Negativ-Fliegende am Kabelzug, grob",
-    "en": "rough cable decline fly",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Kabelzug",
@@ -10318,18 +9066,6 @@
     ]
   },
   {
-    "id": "kLiIFdB",
-    "name": "Pallof Press vertikal mit Band, sitzende Variante",
-    "en": "band vertical pallof press - seated variation",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Band",
-    "neben": [
-      "Po",
-      "seitlicher Bauch"
-    ]
-  },
-  {
     "id": "r0z6xzQ",
     "name": "Pendlay Row mit Langhantel",
     "en": "barbell pendlay row",
@@ -10557,17 +9293,6 @@
     ]
   },
   {
-    "id": "M8IolhQ",
-    "name": "Preacher Curls eng mit SZ-Stange, präzise Variante",
-    "en": "ez barbell close grip preacher curl - precision variation",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "SZ-Stange",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
     "id": "OAguZoG",
     "name": "Preacher Curls im Hammergriff an der Maschine",
     "en": "lever hammer grip preacher curl",
@@ -10593,17 +9318,6 @@
     "id": "kj3hy6W",
     "name": "Preacher Curls im Untergriff an der Maschine",
     "en": "lever reverse grip preacher curl",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Maschine",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "7y9JIMj",
-    "name": "Preacher Curls im Untergriff an der Maschine, präzise",
-    "en": "lever reverse grip preacher curl with precision",
     "muskel": "Bizeps",
     "koerper": "Arme",
     "geraet": "Maschine",
@@ -10640,17 +9354,6 @@
     "muskel": "Bizeps",
     "koerper": "Arme",
     "geraet": "SZ-Stange",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "EqHIIjJ",
-    "name": "Preacher Curls im Untergriff, schräg mit Langhantel",
-    "en": "barbell reverse preacher curl inclined",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Langhantel",
     "neben": [
       "Unterarme"
     ]
@@ -10725,17 +9428,6 @@
     "id": "hwygydB",
     "name": "Preacher Curls über dem Gymnastikball mit Kurzhanteln",
     "en": "dumbbell preacher curl over exercise ball",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "QQwxa8g",
-    "name": "Preacher Curls über dem Gymnastikball mit Kurzhanteln, mittleres Niveau",
-    "en": "intermediate style dumbbell preacher curl over exercise ball",
     "muskel": "Bizeps",
     "koerper": "Arme",
     "geraet": "Kurzhantel",
@@ -10928,33 +9620,9 @@
     ]
   },
   {
-    "id": "MDFxU4b",
-    "name": "Quadrizeps-Dehnung, komplex",
-    "en": "quads complex",
-    "muskel": "Quadrizeps",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Po"
-    ]
-  },
-  {
     "id": "mweqJin",
     "name": "Quick Feet, Variante 2",
     "en": "quick feet v. 2",
-    "muskel": "Quadrizeps",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Waden"
-    ]
-  },
-  {
-    "id": "IBj3nsn",
-    "name": "Quick Feet, Variante 2, mit gebeugten Knien",
-    "en": "quick feet v. 2 with bent",
     "muskel": "Quadrizeps",
     "koerper": "Beine",
     "geraet": "Körpergewicht",
@@ -11519,18 +10187,6 @@
     ]
   },
   {
-    "id": "9fCHfSc",
-    "name": "Rudern am Kabelzug mit Handdrehung, Fußspitzen zeigend",
-    "en": "pointed cable palm rotational row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "wf24o8S",
     "name": "Rudern beidarmig mit Kettlebells",
     "en": "kettlebell two arm row",
@@ -11543,33 +10199,9 @@
     ]
   },
   {
-    "id": "u3UuCZu",
-    "name": "Rudern beidarmig mit Kettlebells, intensiv",
-    "en": "intense kettlebell two arm row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Kettlebell",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "Q4DSJPC",
     "name": "Rudern einarmig an der Multipresse",
     "en": "smith one arm row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Multipresse",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "w44vFvP",
-    "name": "Rudern einarmig an der Multipresse, linear",
-    "en": "smith one arm row linear",
     "muskel": "oberer Rücken",
     "koerper": "Rücken",
     "geraet": "Multipresse",
@@ -11703,19 +10335,6 @@
     ]
   },
   {
-    "id": "eZ79rbI",
-    "name": "Rudern für die hintere Schulter kniend am Kabelzug, Seil, erweitert",
-    "en": "cable kneeling rear delt row (with rope) (male) expanded",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Rautenmuskel",
-      "Trapez"
-    ]
-  },
-  {
     "id": "XUUD0Fs",
     "name": "Rudern für die hintere Schulter liegend mit Kurzhanteln",
     "en": "dumbbell lying rear delt row",
@@ -11803,34 +10422,9 @@
     ]
   },
   {
-    "id": "KQfySvS",
-    "name": "Rudern im Untergriff mit Kurzhanteln, gehalten",
-    "en": "dumbbell reverse grip row (female) hold",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "f7fnAIB",
     "name": "Rudern in der Kniebeuge am Kabelzug, Seil",
     "en": "cable squat row (with rope attachment)",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Rautenmuskel",
-      "hintere Schulter"
-    ]
-  },
-  {
-    "id": "Y8dOJlH",
-    "name": "Rudern in der Kniebeuge am Kabelzug, Seil, schwer",
-    "en": "cable squat row (with rope attachment) heavy",
     "muskel": "Latissimus",
     "koerper": "Rücken",
     "geraet": "Kabelzug",
@@ -11892,18 +10486,6 @@
     "id": "yaMIo4D",
     "name": "Rudern schräg auf der Bank am Kabelzug",
     "en": "cable incline bench row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "hintere Schulter"
-    ]
-  },
-  {
-    "id": "dAJscVq",
-    "name": "Rudern schräg auf der Bank am Kabelzug, Elite-Variante",
-    "en": "cable incline bench row - elite variation",
     "muskel": "oberer Rücken",
     "koerper": "Rücken",
     "geraet": "Kabelzug",
@@ -12033,18 +10615,6 @@
     ]
   },
   {
-    "id": "A3P4O0R",
-    "name": "Rudern sitzend am Kabelzug, Untergriff",
-    "en": "cable seated row with reverse",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "Tq6gbK6",
     "name": "Rudern sitzend am Kabelzug, gerader Rücken",
     "en": "cable straight back seated row",
@@ -12094,33 +10664,9 @@
     ]
   },
   {
-    "id": "1u36hhy",
-    "name": "Rudern sitzend an der Maschine, enger Griff",
-    "en": "stability lever narrow grip seated row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Maschine",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "IGjKj1v",
     "name": "Rudern sitzend an der Maschine, enger Griff",
     "en": "lever narrow grip seated row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Maschine",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "iCPqbki",
-    "name": "Rudern sitzend an der Maschine, enger Griff, Kraftvariante",
-    "en": "lever narrow grip seated row - strength variation",
     "muskel": "oberer Rücken",
     "koerper": "Rücken",
     "geraet": "Maschine",
@@ -12250,18 +10796,6 @@
     ]
   },
   {
-    "id": "KWyEjtI",
-    "name": "Rudern vorgebeugt an der Maschine mit V-Griff, präzise",
-    "en": "precision style lever bent-over row with v-bar",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Maschine",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "LuBEORI",
     "name": "Rudern vorgebeugt an der Maschine, V-Griff",
     "en": "lever bent-over row with v-bar",
@@ -12277,18 +10811,6 @@
     "id": "ZX9UZmj",
     "name": "Rudern vorgebeugt an der Multipresse",
     "en": "smith bent over row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Multipresse",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "5lE7XRz",
-    "name": "Rudern vorgebeugt an der Multipresse, negativ geneigt",
-    "en": "smith bent over row with declined",
     "muskel": "oberer Rücken",
     "koerper": "Rücken",
     "geraet": "Multipresse",
@@ -12500,17 +11022,6 @@
     ]
   },
   {
-    "id": "L68dTQj",
-    "name": "Rumpfdrehung sitzend mit Band",
-    "en": "band seated twist pure",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Band",
-    "neben": [
-      "seitlicher Bauch"
-    ]
-  },
-  {
     "id": "S1JXDAG",
     "name": "Rumpfdrehung sitzend mit Band",
     "en": "band seated twist",
@@ -12561,18 +11072,6 @@
     "id": "wQ2c4XD",
     "name": "Rumänisches Kreuzheben mit Langhantel",
     "en": "barbell romanian deadlift",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Langhantel",
-    "neben": [
-      "Beinbeuger",
-      "unterer Rücken"
-    ]
-  },
-  {
-    "id": "o6LqKKP",
-    "name": "Rumänisches Kreuzheben mit Langhantel, klassisch",
-    "en": "traditional barbell romanian deadlift",
     "muskel": "Po",
     "koerper": "Beine",
     "geraet": "Langhantel",
@@ -12828,18 +11327,6 @@
     ]
   },
   {
-    "id": "4QqYaJW",
-    "name": "Sanfte Rumpfdrehung auf dem Gymnastikball, Bauchlage",
-    "en": "gentle prone twist on stability ball",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Gymnastikball",
-    "neben": [
-      "seitlicher Bauch",
-      "unterer Rücken"
-    ]
-  },
-  {
     "id": "Eh2v5Iu",
     "name": "Schersprünge",
     "en": "scissor jumps (male)",
@@ -12917,18 +11404,6 @@
     "id": "5v7KYld",
     "name": "Schrägbankdrücken an der Multipresse",
     "en": "smith incline bench press",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Multipresse",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "afv0ZAS",
-    "name": "Schrägbankdrücken an der Multipresse, aufrecht",
-    "en": "upright smith incline bench press",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Multipresse",
@@ -13058,18 +11533,6 @@
     ]
   },
   {
-    "id": "9Z23cLE",
-    "name": "Schrägbankdrücken sitzend mit Langhantel",
-    "en": "barbell incline bench press seated",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Langhantel",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "TVdivgY",
     "name": "Schrägbankdrücken wechselseitig mit Kurzhanteln",
     "en": "dumbbell incline alternate press",
@@ -13118,45 +11581,9 @@
     ]
   },
   {
-    "id": "QoSZo2Y",
-    "name": "Schrägdrücken einarmig am Kabelzug, starr",
-    "en": "cable one arm incline press with rigid",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "Bg5JKSH",
     "name": "Schrägdrücken einarmig auf dem Gymnastikball mit Kurzhantel",
     "en": "dumbbell incline one arm press on exercise ball",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "qlZUaZ8",
-    "name": "Schrägdrücken einarmig auf dem Gymnastikball mit Kurzhantel, gestreckt",
-    "en": "dumbbell incline one arm press on exercise ball with extended",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "sJElUUI",
-    "name": "Schrägdrücken einarmig auf dem Gymnastikball mit Kurzhantel, modifiziert",
-    "en": "dumbbell incline one arm press on exercise ball modified",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Kurzhantel",
@@ -13250,18 +11677,6 @@
     ]
   },
   {
-    "id": "drfGhTV",
-    "name": "Schräge Fliegende am Kabelzug, im Gleichgewicht",
-    "en": "balance cable incline fly",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "HYe1ZqR",
     "name": "Schräge Fliegende auf dem Gymnastikball mit Kurzhanteln",
     "en": "dumbbell incline fly on exercise ball",
@@ -13334,19 +11749,6 @@
     "id": "CB8WET1",
     "name": "Schräger Liegestütz mit Tiefensprung",
     "en": "incline push up depth jump",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Rumpf",
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "EpKrFiv",
-    "name": "Schräger Liegestütz mit Tiefensprung, komplex",
-    "en": "incline push up depth jump with complex",
     "muskel": "Brust",
     "koerper": "Brust",
     "geraet": "Körpergewicht",
@@ -13433,18 +11835,6 @@
     "id": "GdMa1ET",
     "name": "Schulterblatt-Liegestütz schräg",
     "en": "incline scapula push up",
-    "muskel": "Sägemuskel",
-    "koerper": "Brust",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "gMyx3Qn",
-    "name": "Schulterblatt-Liegestütz, hoch",
-    "en": "high style scapula push-up",
     "muskel": "Sägemuskel",
     "koerper": "Brust",
     "geraet": "Körpergewicht",
@@ -13586,33 +11976,9 @@
     ]
   },
   {
-    "id": "MRaFiZP",
-    "name": "Schulterdrücken sitzend an der Multipresse, invertiert",
-    "en": "inverted style smith seated shoulder press",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Multipresse",
-    "neben": [
-      "Trizeps",
-      "oberer Rücken"
-    ]
-  },
-  {
     "id": "S93zLTG",
     "name": "Schulterdrücken sitzend mit Band",
     "en": "resistance band seated shoulder press",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Widerstandsband",
-    "neben": [
-      "Trizeps",
-      "oberer Rücken"
-    ]
-  },
-  {
-    "id": "hTLtkXL",
-    "name": "Schulterdrücken sitzend mit Band, geneigt",
-    "en": "resistance band seated shoulder press with declined",
     "muskel": "Schultern",
     "koerper": "Schultern",
     "geraet": "Widerstandsband",
@@ -13742,18 +12108,6 @@
     "id": "bRlbdjK",
     "name": "Schulterheben auf der Negativbank mit Kurzhanteln, Variante 2",
     "en": "dumbbell decline shrug v. 2",
-    "muskel": "Trapez",
-    "koerper": "Rücken",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Rautenmuskel",
-      "Schultern"
-    ]
-  },
-  {
-    "id": "IH2kr7n",
-    "name": "Schulterheben auf der Negativbank mit Kurzhanteln, starre Variante",
-    "en": "dumbbell decline shrug - rigid variation",
     "muskel": "Trapez",
     "koerper": "Rücken",
     "geraet": "Kurzhantel",
@@ -13952,17 +12306,6 @@
     ]
   },
   {
-    "id": "UOphC6N",
-    "name": "Seitbeugen am Kabelzug, fließend",
-    "en": "cable side bend smooth",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Kabelzug",
-    "neben": [
-      "seitlicher Bauch"
-    ]
-  },
-  {
     "id": "IpONWYv",
     "name": "Seitbeugen mit Kurzhantel",
     "en": "dumbbell side bend",
@@ -14048,18 +12391,6 @@
     "id": "wEulIzp",
     "name": "Seitheben einarmig am Kabelzug",
     "en": "cable one arm lateral raise",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Trapez",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "myJeTAe",
-    "name": "Seitheben einarmig am Kabelzug, intensiv",
-    "en": "tough cable one arm lateral raise",
     "muskel": "Schultern",
     "koerper": "Schultern",
     "geraet": "Kabelzug",
@@ -14292,18 +12623,6 @@
     ]
   },
   {
-    "id": "BeReYBf",
-    "name": "Seitliche Klimmzüge mit Untergriff",
-    "en": "side-to-side chin with reverse",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
     "id": "rTbyBYV",
     "name": "Seitliche Lat-Dehnung liegend am Gymnastikball",
     "en": "exercise ball lying side lat stretch",
@@ -14440,18 +12759,6 @@
     ]
   },
   {
-    "id": "N6dZN2I",
-    "name": "Seitliches hohes Rudern kniend am Kabelzug",
-    "en": "side cable high row (kneeling)",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Schultern"
-    ]
-  },
-  {
     "id": "VO2qeJg",
     "name": "Seitstütz mit Adduktion",
     "en": "side plank hip adduction",
@@ -14537,18 +12844,6 @@
     ]
   },
   {
-    "id": "DoEYq4s",
-    "name": "Sissy Squat, isoliert",
-    "en": "sissy squat isolation",
-    "muskel": "Quadrizeps",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Po",
-      "Waden"
-    ]
-  },
-  {
     "id": "QLL2gdc",
     "name": "Sit-up auf der Negativbank",
     "en": "decline sit-up",
@@ -14581,29 +12876,6 @@
     "geraet": "Körpergewicht",
     "neben": [
       "Hüftbeuger"
-    ]
-  },
-  {
-    "id": "gSO0KpB",
-    "name": "Sit-up mit Armen auf der Brust, klein",
-    "en": "sit-up with arms on chest with mini",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Hüftbeuger"
-    ]
-  },
-  {
-    "id": "PKlXuJW",
-    "name": "Sit-up mit Druck am Band",
-    "en": "rough band push sit-up",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Band",
-    "neben": [
-      "Brust",
-      "Schultern"
     ]
   },
   {
@@ -14875,19 +13147,6 @@
     ]
   },
   {
-    "id": "qFHvMnv",
-    "name": "Speed Squat mit Langhantel, klein",
-    "en": "micro style barbell speed squat",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Langhantel",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
     "id": "p9cCe2r",
     "name": "Spellcaster",
     "en": "spell caster",
@@ -14903,18 +13162,6 @@
     "id": "DIVyqrU",
     "name": "Sphinx",
     "en": "sphinx",
-    "muskel": "Rückenstrecker",
-    "koerper": "Rücken",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Po"
-    ]
-  },
-  {
-    "id": "O3INw8V",
-    "name": "Sphinx, verbesserte Variante",
-    "en": "improved sphinx",
     "muskel": "Rückenstrecker",
     "koerper": "Rücken",
     "geraet": "Körpergewicht",
@@ -15154,19 +13401,6 @@
     ]
   },
   {
-    "id": "XE93sQZ",
-    "name": "Step-up einbeinig im Gleichgewicht mit Bizeps-Curl, Stuhl-Variante, Kurzhanteln",
-    "en": "dumbbell step up single leg balance with bicep curl - chair variation",
-    "muskel": "Bizeps",
-    "koerper": "Arme",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Beinbeuger",
-      "Po",
-      "Quadrizeps"
-    ]
-  },
-  {
     "id": "d5bTEPV",
     "name": "Step-up mit Band",
     "en": "band step-up",
@@ -15260,19 +13494,6 @@
     "id": "BmrwWzo",
     "name": "Sumo Pull-through mit Kurzhanteln",
     "en": "dumbbell sumo pull through",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Rumpf"
-    ]
-  },
-  {
-    "id": "LFIOery",
-    "name": "Sumo Pull-through mit Kurzhanteln, betont",
-    "en": "sharp style dumbbell sumo pull through",
     "muskel": "Po",
     "koerper": "Beine",
     "geraet": "Kurzhantel",
@@ -15537,18 +13758,6 @@
     ]
   },
   {
-    "id": "Gu2ENkm",
-    "name": "Tiefes Negativbankdrücken an der Multipresse, enger Griff, Untergriff",
-    "en": "deep smith machine reverse decline close grip bench press",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Multipresse",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "km0sQC0",
     "name": "Tiefes Rudern einarmig stehend mit Band",
     "en": "band one arm standing low row",
@@ -15561,33 +13770,9 @@
     ]
   },
   {
-    "id": "pgIdT6i",
-    "name": "Tiefes Rudern einarmig stehend mit Band, seitliche Variante",
-    "en": "band one arm standing low row - lateral variation",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Band",
-    "neben": [
-      "Bizeps",
-      "Schultern"
-    ]
-  },
-  {
     "id": "hvV79Si",
     "name": "Tiefes Rudern sitzend am Kabelzug",
     "en": "cable low seated row",
-    "muskel": "oberer Rücken",
-    "koerper": "Rücken",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Bizeps",
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "WM6TvvW",
-    "name": "Tiefes Rudern sitzend am Kabelzug, kontrolliert",
-    "en": "cable low seated row controlled",
     "muskel": "oberer Rücken",
     "koerper": "Rücken",
     "geraet": "Kabelzug",
@@ -15704,18 +13889,6 @@
     ]
   },
   {
-    "id": "9ZGnq1w",
-    "name": "Trizeps-Dips zwischen zwei Bänken, extreme Variante",
-    "en": "triceps dip (between benches) - extreme variation",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Brust",
-      "Schultern"
-    ]
-  },
-  {
     "id": "3ZflifB",
     "name": "Trizeps-Pushdown am Kabelzug",
     "en": "cable pushdown",
@@ -15752,28 +13925,6 @@
     "id": "OxJk1fg",
     "name": "Trizeps-Pushdown am Kabelzug, V-Griff, mit Arm Blaster",
     "en": "cable triceps pushdown (v-bar) (with arm blaster)",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "w7obpWd",
-    "name": "Trizeps-Pushdown am Kabelzug, aktiv",
-    "en": "active style cable pushdown",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "9tvVVM9",
-    "name": "Trizeps-Pushdown am Kabelzug, flexibel, V-Griff",
-    "en": "flexible cable triceps pushdown (v-bar)",
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "Kabelzug",
@@ -15830,17 +13981,6 @@
     "id": "7ePTw4B",
     "name": "Trizepsdehnung sitzend am Gymnastikball",
     "en": "exercise ball seated triceps stretch",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Gymnastikball",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
-    "id": "pNIKolI",
-    "name": "Trizepsdehnung sitzend am Gymnastikball, weit",
-    "en": "exercise ball seated triceps stretch wide",
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "Gymnastikball",
@@ -15926,17 +14066,6 @@
     ]
   },
   {
-    "id": "qU8bYp7",
-    "name": "Trizepsdrücken einarmig stehend am Kabelzug, grob",
-    "en": "rough cable standing one arm triceps extension",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
     "id": "BCUR88E",
     "name": "Trizepsdrücken einarmig stehend mit Kurzhantel",
     "en": "dumbbell standing one arm extension",
@@ -15962,17 +14091,6 @@
     "id": "bpJL2Qs",
     "name": "Trizepsdrücken im Pronationsgriff mit Kurzhanteln",
     "en": "dumbbell pronate-grip triceps extension",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Unterarme"
-    ]
-  },
-  {
-    "id": "syUwUKY",
-    "name": "Trizepsdrücken im Pronationsgriff mit Kurzhanteln, gedreht",
-    "en": "rotated dumbbell pronate-grip triceps extension",
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "Kurzhantel",
@@ -16081,31 +14199,9 @@
     ]
   },
   {
-    "id": "OJFgZJ0",
-    "name": "Trizepsdrücken liegend hinter dem Kopf mit Langhantel, dynamisch",
-    "en": "dynamic style barbell lying back of the head tricep extension",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Langhantel",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
     "id": "6CKUx7o",
     "name": "Trizepsdrücken liegend hinter dem Kopf, enger Griff, SZ-Stange",
     "en": "ez bar lying close grip triceps extension behind head",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "SZ-Stange",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
-    "id": "I6Ca0a7",
-    "name": "Trizepsdrücken liegend hinter dem Kopf, enger Griff, SZ-Stange, vollständige Ausführung",
-    "en": "complete style ez bar lying close grip triceps extension behind head",
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "SZ-Stange",
@@ -16225,31 +14321,9 @@
     ]
   },
   {
-    "id": "vNPJbDA",
-    "name": "Trizepsdrücken schräg am Kabelzug, Seil, Untergriff-Variante",
-    "en": "cable rope incline tricep extension - reverse variation",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Kabelzug",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
     "id": "o8aOcrz",
     "name": "Trizepsdrücken schräg an der Multipresse",
     "en": "smith machine incline tricep extension",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Multipresse",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
-    "id": "7WcQgkm",
-    "name": "Trizepsdrücken schräg an der Multipresse, gerade Variante",
-    "en": "smith machine incline tricep extension - straight variation",
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "Multipresse",
@@ -16302,17 +14376,6 @@
     ]
   },
   {
-    "id": "omsF3RN",
-    "name": "Trizepsdrücken seitlich mit Band, dynamisch",
-    "en": "dynamic style band side triceps extension",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Band",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
     "id": "JhYSVwT",
     "name": "Trizepsdrücken sitzend auf der Bank mit Kurzhanteln",
     "en": "dumbbell seated bench extension",
@@ -16352,17 +14415,6 @@
     "muskel": "Trizeps",
     "koerper": "Arme",
     "geraet": "SZ-Stange",
-    "neben": [
-      "Schultern"
-    ]
-  },
-  {
-    "id": "7R4NIjL",
-    "name": "Trizepsdrücken stehend horizontal mit Unterstützung, Handtuch",
-    "en": "assisted standing triceps extension (with towel) with horizontal",
-    "muskel": "Trizeps",
-    "koerper": "Arme",
-    "geraet": "Assistiert",
     "neben": [
       "Schultern"
     ]
@@ -16551,19 +14603,6 @@
     ]
   },
   {
-    "id": "xOXZJRZ",
-    "name": "Uhr-Liegestütz, extrem",
-    "en": "clock push-up extreme",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Rumpf",
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "d7z1Y7V",
     "name": "Umarmen des Gymnastikballs",
     "en": "exercise ball hug",
@@ -16612,18 +14651,6 @@
     ]
   },
   {
-    "id": "fjjY3N4",
-    "name": "Umgekehrter Beinbeuger am Klimmzug-Kabelzug, invertiert",
-    "en": "inverted style inverse leg curl (on pull-up cable machine)",
-    "muskel": "Beinbeuger",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Po",
-      "Waden"
-    ]
-  },
-  {
     "id": "ms7tjSG",
     "name": "Umgekehrter Beinbeuger mit Bankstütze",
     "en": "inverse leg curl (bench support)",
@@ -16663,18 +14690,6 @@
     "id": "h1ezqSu",
     "name": "Unterarmstütz kniend mit Schulterberührung",
     "en": "kneeling plank tap shoulder (male)",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "tuIZFDt",
-    "name": "Unterarmstütz kniend mit Schulterberührung, mittleres Niveau",
-    "en": "intermediate style kneeling plank tap shoulder (male)",
     "muskel": "Bauch",
     "koerper": "Bauch",
     "geraet": "Körpergewicht",
@@ -16742,28 +14757,6 @@
     ]
   },
   {
-    "id": "UI81amT",
-    "name": "V-Ups wechselseitig in Rückenlage mit Band",
-    "en": "supine style band alternating v-up",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Band",
-    "neben": [
-      "Hüftbeuger"
-    ]
-  },
-  {
-    "id": "3pqGMQj",
-    "name": "V-Ups wechselseitig mit Band",
-    "en": "band alternating v-up with simple",
-    "muskel": "Bauch",
-    "koerper": "Bauch",
-    "geraet": "Band",
-    "neben": [
-      "Hüftbeuger"
-    ]
-  },
-  {
     "id": "ztAa1RK",
     "name": "V-Ups wechselseitig mit Band",
     "en": "band alternating v-up",
@@ -16801,18 +14794,6 @@
     "id": "qBcKorM",
     "name": "Vierfüßler-Dehnung",
     "en": "all fours squad stretch",
-    "muskel": "Quadrizeps",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Po"
-    ]
-  },
-  {
-    "id": "LzX8YEz",
-    "name": "Vierfüßler-Dehnung, erhöhte Variante",
-    "en": "all fours squad stretch - elevated variation",
     "muskel": "Quadrizeps",
     "koerper": "Beine",
     "geraet": "Körpergewicht",
@@ -16897,19 +14878,6 @@
     ]
   },
   {
-    "id": "Ql4g5s8",
-    "name": "Vorwärts-Ausfallschritt mit Bank",
-    "en": "forward lunge (male) with bench",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
-    ]
-  },
-  {
     "id": "XalXcvM",
     "name": "Vorwärts-Ausfallschritt mit Trizepsdrücken, Kurzhanteln",
     "en": "dumbbell forward lunge triceps extension",
@@ -16919,19 +14887,6 @@
     "neben": [
       "Rumpf",
       "Schultern"
-    ]
-  },
-  {
-    "id": "iqH55N8",
-    "name": "Vorwärts-Ausfallschritt, intensiv",
-    "en": "fierce style forward lunge (male)",
-    "muskel": "Po",
-    "koerper": "Beine",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger",
-      "Quadrizeps",
-      "Waden"
     ]
   },
   {
@@ -16996,17 +14951,6 @@
     "id": "m0tCHqc",
     "name": "Wadendehnung mit Händen an der Wand",
     "en": "calf stretch with hands against wall",
-    "muskel": "Waden",
-    "koerper": "Waden",
-    "geraet": "Körpergewicht",
-    "neben": [
-      "Beinbeuger"
-    ]
-  },
-  {
-    "id": "vobtVkm",
-    "name": "Wadendehnung mit Händen an der Wand, fortgeschritten",
-    "en": "calf push stretch with hands against wall elite",
     "muskel": "Waden",
     "koerper": "Waden",
     "geraet": "Körpergewicht",
@@ -17402,18 +15346,6 @@
     ]
   },
   {
-    "id": "b5uBMv2",
-    "name": "Wechselseitiges Armheben auf dem Gymnastikball, schnell",
-    "en": "exercise ball alternating arm ups with fast",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Gymnastikball",
-    "neben": [
-      "Rumpf",
-      "Schultern"
-    ]
-  },
-  {
     "id": "km2Ljzj",
     "name": "Wheel Run",
     "en": "wheel run",
@@ -17691,18 +15623,6 @@
     ]
   },
   {
-    "id": "gWcZD4q",
-    "name": "Überkopfdrücken wechselseitig stehend mit Kurzhanteln, horizontal",
-    "en": "horizontal dumbbell standing alternate overhead press",
-    "muskel": "Schultern",
-    "koerper": "Schultern",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Rumpf",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "gfk9kD4",
     "name": "Überkopfkniebeuge mit Langhantel",
     "en": "barbell overhead squat",
@@ -17841,19 +15761,6 @@
     ]
   },
   {
-    "id": "ookVu2D",
-    "name": "Überzüge mit Hüftstrecken auf dem Gymnastikball, Kurzhantel, an der Wand",
-    "en": "wall style dumbbell pullover hip extension on exercise ball",
-    "muskel": "Brust",
-    "koerper": "Brust",
-    "geraet": "Kurzhantel",
-    "neben": [
-      "Rumpf",
-      "Schultern",
-      "Trizeps"
-    ]
-  },
-  {
     "id": "9XjtHvS",
     "name": "Überzüge mit Kurzhantel",
     "en": "dumbbell pullover",
@@ -17893,18 +15800,6 @@
     "id": "cA9FuWG",
     "name": "Überzüge mit gebeugten Armen und Langhantel",
     "en": "barbell bent arm pullover",
-    "muskel": "Latissimus",
-    "koerper": "Rücken",
-    "geraet": "Langhantel",
-    "neben": [
-      "Brust",
-      "Trizeps"
-    ]
-  },
-  {
-    "id": "EnPivTL",
-    "name": "Überzüge mit gebeugten Armen, Langhantel, kraftvolle Variante",
-    "en": "barbell bent arm pullover - powerful variation",
     "muskel": "Latissimus",
     "koerper": "Rücken",
     "geraet": "Langhantel",

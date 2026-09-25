@@ -26,6 +26,15 @@ struct TrainingsPlanView: View {
                 }
                 .onDelete(perform: eigener ? loeschenAktion(plan) : nil)
             }
+            if eigener {
+                Section {
+                    NavigationLink {
+                        TrainingsPlanView(person: person.partner)
+                    } label: {
+                        Label("Plan von \(person.partner.name)", systemImage: "person.2")
+                    }
+                }
+            }
         }
         .navigationTitle(eigener ? "Mein Trainingsplan" : "Plan von \(person.name)")
         .toolbar {
@@ -224,12 +233,11 @@ struct SaetzeEditor: View {
 
     var body: some View {
         Form {
-            if let url = UebungsKatalog.gif(uebung.uebung) {
+            if uebung.katalog != nil {
                 Section {
-                    AnimiertesGif(url: url, fuellen: false)
+                    UebungGif(id: uebung.uebung)
                         .frame(height: 200)
                         .frame(maxWidth: .infinity)
-                        .background(Color.white)
                         .listRowInsets(EdgeInsets())
                 }
             }

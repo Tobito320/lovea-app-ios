@@ -1,8 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// Still first frame of an exercise GIF (a list thumbnail). `UIImage(contentsOfFile:)` on a GIF
-/// gives its first frame. `bild` seeds it for the render board.
+/// Still first frame of an exercise GIF (a list thumbnail), loaded via `UebungsMedien`.
+/// `UIImage(contentsOfFile:)` on a GIF gives its first frame. `bild` seeds it for the render board.
 struct UebungVorschau: View {
     let id: String
     @State private var bild: UIImage?
@@ -18,7 +18,7 @@ struct UebungVorschau: View {
             if let bild { Image(uiImage: bild).resizable().scaledToFit() }
         }
         .task(id: id) {
-            guard bild == nil, let url = UebungsKatalog.gif(id) else { return }
+            guard bild == nil, let url = await UebungsMedien.datei(id) else { return }
             bild = await Task.detached(priority: .userInitiated) { UIImage(contentsOfFile: url.path) }.value
         }
         .accessibilityHidden(true)
@@ -180,16 +180,12 @@ struct UebungDetail: View {
         .navigationBarTitleDisplayMode(.inline)
     }
 
-    @ViewBuilder
     private var video: some View {
-        if let url = UebungsKatalog.gif(uebung.id) {
-            AnimiertesGif(url: url, fuellen: false)
-                .aspectRatio(1, contentMode: .fit)
-                .frame(maxWidth: .infinity)
-                .background(Color.white)
-                .clipShape(.rect(cornerRadius: 20, style: .continuous))
-                .accessibilityLabel("Animation: \(uebung.name)")
-        }
+        UebungGif(id: uebung.id)
+            .aspectRatio(1, contentMode: .fit)
+            .frame(maxWidth: .infinity)
+            .clipShape(.rect(cornerRadius: 20, style: .continuous))
+            .accessibilityLabel("Animation: \(uebung.name)")
     }
 
     private var fakten: some View {
@@ -208,5 +204,32 @@ struct UebungDetail: View {
 
     private func fakt(_ titel: String, _ wert: String) -> some View {
         LabeledContent(titel, value: wert).padding(.vertical, 12)
+    }
+}
+
+/// The looping GIF of one exercise on white; loads it on first view (`UebungsMedien`).
+struct UebungGif: View {
+    let id: String
+    @State private var url: URL?
+    @State private var fehlt = false
+
+    var body: some View {
+        ZStack {
+            Color.white
+            if let url {
+                AnimiertesGif(url: url, fuellen: false)
+            } else if fehlt {
+                Label("Video lädt, sobald du Netz hast", systemImage: "wifi.slash")
+                    .font(.footnote)
+                    .foregroundStyle(Color.gray)
+                    .padding()
+            } else {
+                ProgressView().tint(Color.gray)
+            }
+        }
+        .task(id: id) {
+            url = await UebungsMedien.datei(id)
+            fehlt = url == nil
+        }
     }
 }
