@@ -8,24 +8,24 @@ import SwiftUI
 enum GesichtB {
     static var haarHinten: Path {
         Path { p in
-            p.move(to: P(51, 82))
-            p.addQuadCurve(to: P(46, 70), control: P(43.2, 77.7))
-            p.addQuadCurve(to: P(45, 56), control: P(37.9, 63.4))
-            p.addQuadCurve(to: P(50, 42), control: P(38.1, 47))
-            p.addQuadCurve(to: P(59, 31), control: P(49.5, 33.9))
-            p.addQuadCurve(to: P(71, 23), control: P(59.5, 21.8))
-            p.addQuadCurve(to: P(86, 18), control: P(73.9, 12.1))
-            p.addQuadCurve(to: P(102, 16), control: P(93.2, 11.5))
-            p.addQuadCurve(to: P(118, 18), control: P(111.7, 9.6))
-            p.addQuadCurve(to: P(132, 23), control: P(130.1, 12.4))
-            p.addQuadCurve(to: P(144, 32), control: P(142.3, 23.9))
-            p.addQuadCurve(to: P(151, 44), control: P(154.4, 34.8))
-            p.addQuadCurve(to: P(155, 58), control: P(162.5, 49.4))
-            p.addQuadCurve(to: P(154, 71), control: P(160.1, 65))
-            p.addQuadCurve(to: P(149, 82), control: P(158.7, 78.8))
-            p.addQuadCurve(to: P(150, 94), control: P(157.9, 92.7))
-            p.addQuadCurve(to: P(50, 94), control: P(100, 99.6))
-            p.addQuadCurve(to: P(51, 82), control: P(43.9, 91.7))
+            p.move(to: P(51, 86))
+            p.addQuadCurve(to: P(43, 76), control: P(42.9, 82.5))
+            p.addQuadCurve(to: P(40, 62), control: P(35.1, 69.8))
+            p.addQuadCurve(to: P(44, 48), control: P(33.7, 54))
+            p.addQuadCurve(to: P(54, 37), control: P(44.9, 40.9))
+            p.addQuadCurve(to: P(68, 29), control: P(55.9, 29.2))
+            p.addQuadCurve(to: P(85, 24), control: P(71.9, 19.5))
+            p.addQuadCurve(to: P(102, 22), control: P(92.8, 18.7))
+            p.addQuadCurve(to: P(119, 24), control: P(112.2, 16.8))
+            p.addQuadCurve(to: P(134, 29), control: P(131.5, 19.8))
+            p.addQuadCurve(to: P(147, 38), control: P(144.1, 31))
+            p.addQuadCurve(to: P(156, 50), control: P(157.5, 41.9))
+            p.addQuadCurve(to: P(160, 63), control: P(166.4, 55.7))
+            p.addQuadCurve(to: P(158, 76), control: P(163.4, 70.1))
+            p.addQuadCurve(to: P(150, 87), control: P(160, 83.7))
+            p.addQuadCurve(to: P(151, 97), control: P(157.7, 96.3))
+            p.addQuadCurve(to: P(49, 97), control: P(100, 101.4))
+            p.addQuadCurve(to: P(51, 86), control: P(44.5, 94.8))
             p.closeSubpath()
         }
     }
@@ -92,33 +92,34 @@ enum GesichtB {
     }
     static var ponySchatten: Path {
         Path { p in
-            p.move(to: P(51, 82))
-            p.addQuadCurve(to: P(46, 70), control: P(40.9, 78.6))
-            p.addQuadCurve(to: P(45, 56), control: P(37.5, 63.7))
-            p.addQuadCurve(to: P(50, 42), control: P(39.6, 47.6))
-            p.addQuadCurve(to: P(59, 31), control: P(47.3, 33.1))
-            p.addQuadCurve(to: P(71, 23), control: P(59, 21.7))
-            p.addQuadCurve(to: P(86, 18), control: P(74.5, 13.6))
-            p.addQuadCurve(to: P(102, 16), control: P(92.8, 9.1))
-            p.addQuadCurve(to: P(118, 18), control: P(111.9, 9.2))
-            p.addQuadCurve(to: P(132, 23), control: P(129.4, 13.8))
-            p.addQuadCurve(to: P(144, 32), control: P(144.2, 22.5))
-            p.addQuadCurve(to: P(151, 44), control: P(154.9, 34.9))
-            p.addQuadCurve(to: P(155, 58), control: P(160.9, 50))
-            p.addQuadCurve(to: P(154, 71), control: P(162.4, 65.4))
-            p.addQuadCurve(to: P(149, 82), control: P(159, 79.2))
-            p.addQuadCurve(to: P(146, 86), control: P(154.5, 87.8))
-            p.addQuadCurve(to: P(138, 90), control: P(148.5, 92.6))
-            p.addQuadCurve(to: P(128, 84), control: P(139, 92.3))
-            p.addQuadCurve(to: P(119, 87), control: P(128.7, 91.6))
-            p.addQuadCurve(to: P(110, 79), control: P(118.5, 89.9))
-            p.addQuadCurve(to: P(101, 82), control: P(107.4, 88.3))
-            p.addQuadCurve(to: P(92, 75), control: P(95.2, 86.4))
-            p.addQuadCurve(to: P(83, 78), control: P(83, 83.1))
-            p.addQuadCurve(to: P(74, 73), control: P(72.3, 80.6))
-            p.addQuadCurve(to: P(65, 77), control: P(62.5, 78.9))
-            p.addQuadCurve(to: P(57, 79), control: P(53.9, 81.7))
-            p.addQuadCurve(to: P(51, 82), control: P(46.8, 84))
+            p.move(to: P(51, 86))
+            p.addQuadCurve(to: P(43, 76), control: P(39.7, 84.2))
+            p.addQuadCurve(to: P(40, 62), control: P(33.6, 70.5))
+            p.addQuadCurve(to: P(44, 48), control: P(34, 54.6))
+            p.addQuadCurve(to: P(54, 37), control: P(41.3, 40.2))
+            p.addQuadCurve(to: P(68, 29), control: P(54.3, 28.7))
+            p.addQuadCurve(to: P(85, 24), control: P(71.7, 20.1))
+            p.addQuadCurve(to: P(102, 22), control: P(92, 15.1))
+            p.addQuadCurve(to: P(119, 24), control: P(112.8, 15.3))
+            p.addQuadCurve(to: P(134, 29), control: P(131.7, 20.4))
+            p.addQuadCurve(to: P(147, 38), control: P(147.3, 29.4))
+            p.addQuadCurve(to: P(156, 50), control: P(159.2, 41.9))
+            p.addQuadCurve(to: P(160, 63), control: P(166, 56.3))
+            p.addQuadCurve(to: P(158, 76), control: P(166.9, 71))
+            p.addQuadCurve(to: P(150, 87), control: P(161.3, 84.7))
+            p.addQuadCurve(to: P(150, 90), control: P(156.8, 92.7))
+            p.addQuadCurve(to: P(142, 92), control: P(152.5, 95.7))
+            p.addQuadCurve(to: P(133, 87), control: P(143.6, 94.6))
+            p.addQuadCurve(to: P(124, 91), control: P(133.9, 94.9))
+            p.addQuadCurve(to: P(115, 86), control: P(123.8, 95.2))
+            p.addQuadCurve(to: P(106, 91), control: P(113.1, 96.1))
+            p.addQuadCurve(to: P(97, 86), control: P(101.9, 96.5))
+            p.addQuadCurve(to: P(89, 91), control: P(91.2, 96.3))
+            p.addQuadCurve(to: P(82, 95), control: P(82.4, 100.4))
+            p.addQuadCurve(to: P(75, 89), control: P(74.2, 98.8))
+            p.addQuadCurve(to: P(65, 91), control: P(64.5, 95.8))
+            p.addQuadCurve(to: P(57, 89), control: P(54.8, 95.1))
+            p.addQuadCurve(to: P(51, 86), control: P(47.3, 91.8))
             p.closeSubpath()
         }
     }
@@ -176,15 +177,15 @@ enum GesichtB {
         Path { p in
             p.move(to: P(89, 92))
             p.addLine(to: P(72, 92))
-            p.addLine(to: P(72, 99.5))
-            p.addQuadCurve(to: P(89, 101.5), control: P(81, 93))
+            p.addLine(to: P(72, 101))
+            p.addQuadCurve(to: P(89, 102.5), control: P(81, 96.5))
             p.closeSubpath()
         }
     }
     static var lidStrichL: Path {
         Path { p in
-            p.move(to: P(91, 101.5))
-            p.addQuadCurve(to: P(70, 99.5), control: P(81, 93))
+            p.move(to: P(91, 102.5))
+            p.addQuadCurve(to: P(70, 101), control: P(81, 96.5))
         }
     }
     static var lidFalteL: Path {
@@ -205,15 +206,15 @@ enum GesichtB {
         Path { p in
             p.move(to: P(107, 92))
             p.addLine(to: P(132, 92))
-            p.addLine(to: P(132, 99.5))
-            p.addQuadCurve(to: P(107, 101.5), control: P(119, 93))
+            p.addLine(to: P(132, 101))
+            p.addQuadCurve(to: P(107, 102.5), control: P(119, 96.5))
             p.closeSubpath()
         }
     }
     static var lidStrichR: Path {
         Path { p in
-            p.move(to: P(109, 101.5))
-            p.addQuadCurve(to: P(130, 99.5), control: P(119, 93))
+            p.move(to: P(109, 102.5))
+            p.addQuadCurve(to: P(130, 101), control: P(119, 96.5))
         }
     }
     static var lidFalteR: Path {
@@ -254,153 +255,154 @@ enum GesichtB {
     }
     static var braueL: Path {
         Path { p in
-            p.move(to: P(92, 88.5))
-            p.addQuadCurve(to: P(70, 86.5), control: P(81, 85))
+            p.move(to: P(92, 93.5))
+            p.addQuadCurve(to: P(69, 92), control: P(81, 90.5))
         }
     }
     static var braueR: Path {
         Path { p in
-            p.move(to: P(108, 88.5))
-            p.addQuadCurve(to: P(130, 86.5), control: P(119, 85))
+            p.move(to: P(108, 93.5))
+            p.addQuadCurve(to: P(131, 92), control: P(119, 90.5))
         }
     }
     static var nase: Path {
         Path { p in
-            p.move(to: P(102, 103))
-            p.addLine(to: P(104.5, 120))
-            p.addQuadCurve(to: P(98, 123.5), control: P(103, 124.5))
+            p.move(to: P(102, 101))
+            p.addLine(to: P(105, 124.5))
+            p.addQuadCurve(to: P(98, 128), control: P(103.5, 129))
         }
     }
     static var nasenSchatten: Path {
-        oval(P(100, 125), 6, 2)
+        oval(P(100, 129.5), 6.5, 2)
     }
     static var schnurrbart: Path {
         Path { p in
-            p.move(to: P(100, 129.5))
-            p.addCurve(to: P(84, 133.5), control1: P(95, 127.5), control2: P(88, 128))
-            p.addCurve(to: P(100, 132.2), control1: P(89, 131), control2: P(95, 131.5))
-            p.addCurve(to: P(116, 133.5), control1: P(105, 131.5), control2: P(111, 131))
-            p.addCurve(to: P(100, 129.5), control1: P(112, 128), control2: P(105, 127.5))
+            p.move(to: P(100, 133))
+            p.addCurve(to: P(80, 138), control1: P(95, 131), control2: P(87, 131.5))
+            p.addCurve(to: P(100, 135.8), control1: P(87, 135), control2: P(95, 135))
+            p.addCurve(to: P(120, 138), control1: P(105, 135), control2: P(113, 135))
+            p.addCurve(to: P(100, 133), control1: P(113, 131.5), control2: P(105, 131))
             p.closeSubpath()
         }
     }
     static var lippeOben: Path {
         Path { p in
-            p.move(to: P(90, 137.5))
-            p.addQuadCurve(to: P(100, 136), control: P(95, 134.5))
-            p.addQuadCurve(to: P(110, 137.5), control: P(105, 134.5))
-            p.addQuadCurve(to: P(90, 137.5), control: P(100, 139))
+            p.move(to: P(90, 141))
+            p.addQuadCurve(to: P(100, 139.5), control: P(95, 138.5))
+            p.addQuadCurve(to: P(110, 141), control: P(105, 138.5))
+            p.addQuadCurve(to: P(90, 141), control: P(100, 142.2))
             p.closeSubpath()
         }
     }
     static var lippeUnten: Path {
         Path { p in
-            p.move(to: P(90, 137.5))
-            p.addQuadCurve(to: P(110, 137.5), control: P(100, 139))
-            p.addQuadCurve(to: P(100, 143.5), control: P(106, 143.5))
-            p.addQuadCurve(to: P(90, 137.5), control: P(94, 143.5))
+            p.move(to: P(90, 141))
+            p.addQuadCurve(to: P(110, 141), control: P(100, 142.2))
+            p.addQuadCurve(to: P(100, 146), control: P(106, 146))
+            p.addQuadCurve(to: P(90, 141), control: P(94, 146))
             p.closeSubpath()
         }
     }
     static var lachMund: Path {
         Path { p in
-            p.move(to: P(88, 135.5))
-            p.addQuadCurve(to: P(112, 135.5), control: P(100, 139))
-            p.addQuadCurve(to: P(100, 146), control: P(109, 146))
-            p.addQuadCurve(to: P(88, 135.5), control: P(91, 146))
+            p.move(to: P(88, 139))
+            p.addQuadCurve(to: P(112, 139), control: P(100, 142.5))
+            p.addQuadCurve(to: P(100, 149.5), control: P(109, 149.5))
+            p.addQuadCurve(to: P(88, 139), control: P(91, 149.5))
             p.closeSubpath()
         }
     }
     static var lachZaehne: Path {
         Path { p in
-            p.move(to: P(90, 136.5))
-            p.addQuadCurve(to: P(110, 136.5), control: P(100, 139.5))
-            p.addLine(to: P(109, 139))
-            p.addQuadCurve(to: P(91, 139), control: P(100, 141.5))
+            p.move(to: P(90, 140))
+            p.addQuadCurve(to: P(110, 140), control: P(100, 143))
+            p.addLine(to: P(109, 142.5))
+            p.addQuadCurve(to: P(91, 142.5), control: P(100, 145))
             p.closeSubpath()
         }
     }
     static var lachZunge: Path {
         Path { p in
-            p.move(to: P(94, 144))
-            p.addQuadCurve(to: P(106, 144), control: P(100, 141.5))
-            p.addQuadCurve(to: P(94, 144), control: P(100, 146.5))
+            p.move(to: P(94, 147.5))
+            p.addQuadCurve(to: P(106, 147.5), control: P(100, 145))
+            p.addQuadCurve(to: P(94, 147.5), control: P(100, 150))
             p.closeSubpath()
         }
     }
     static var haarVorn: Path {
         Path { p in
-            p.move(to: P(51, 82))
-            p.addQuadCurve(to: P(46, 70), control: P(42.5, 78.1))
-            p.addQuadCurve(to: P(45, 56), control: P(37.1, 63.8))
-            p.addQuadCurve(to: P(50, 42), control: P(37.2, 47.2))
-            p.addQuadCurve(to: P(59, 31), control: P(48.7, 33.8))
-            p.addQuadCurve(to: P(71, 23), control: P(58.7, 21.4))
-            p.addQuadCurve(to: P(86, 18), control: P(73.3, 11.5))
-            p.addQuadCurve(to: P(102, 16), control: P(93.1, 10.7))
-            p.addQuadCurve(to: P(118, 18), control: P(112, 8.8))
-            p.addQuadCurve(to: P(132, 23), control: P(130.8, 11.8))
-            p.addQuadCurve(to: P(144, 32), control: P(143, 23.5))
-            p.addQuadCurve(to: P(151, 44), control: P(155.2, 34.7))
-            p.addQuadCurve(to: P(155, 58), control: P(163.3, 49.6))
-            p.addQuadCurve(to: P(154, 71), control: P(160.9, 65.3))
-            p.addQuadCurve(to: P(149, 82), control: P(159.4, 79.3))
-            p.addQuadCurve(to: P(146, 81), control: P(156.8, 86.1))
-            p.addQuadCurve(to: P(138, 85), control: P(147.5, 86.3))
-            p.addQuadCurve(to: P(128, 79), control: P(139.8, 86.9))
-            p.addQuadCurve(to: P(119, 82), control: P(131, 87.7))
-            p.addQuadCurve(to: P(110, 74), control: P(118.3, 83.2))
-            p.addQuadCurve(to: P(101, 77), control: P(108, 83.5))
-            p.addQuadCurve(to: P(92, 70), control: P(94.2, 83.6))
-            p.addQuadCurve(to: P(83, 73), control: P(83.2, 76.2))
-            p.addQuadCurve(to: P(74, 68), control: P(71.2, 74.7))
-            p.addQuadCurve(to: P(65, 72), control: P(59.8, 73.8))
-            p.addQuadCurve(to: P(57, 74), control: P(55, 75.3))
-            p.addQuadCurve(to: P(51, 82), control: P(46.3, 81.3))
+            p.move(to: P(51, 86))
+            p.addQuadCurve(to: P(43, 76), control: P(42.2, 82.9))
+            p.addQuadCurve(to: P(40, 62), control: P(34.4, 70.1))
+            p.addQuadCurve(to: P(44, 48), control: P(32.8, 54.2))
+            p.addQuadCurve(to: P(54, 37), control: P(44.1, 40.8))
+            p.addQuadCurve(to: P(68, 29), control: P(55.1, 28.9))
+            p.addQuadCurve(to: P(85, 24), control: P(71.2, 19))
+            p.addQuadCurve(to: P(102, 22), control: P(92.6, 17.9))
+            p.addQuadCurve(to: P(119, 24), control: P(112.5, 16.1))
+            p.addQuadCurve(to: P(134, 29), control: P(132.2, 19.3))
+            p.addQuadCurve(to: P(147, 38), control: P(144.9, 30.7))
+            p.addQuadCurve(to: P(156, 50), control: P(158.4, 41.9))
+            p.addQuadCurve(to: P(160, 63), control: P(167.2, 55.9))
+            p.addQuadCurve(to: P(158, 76), control: P(164.1, 70.3))
+            p.addQuadCurve(to: P(150, 87), control: P(160.7, 84.2))
+            p.addQuadCurve(to: P(150, 86), control: P(158.1, 90.8))
+            p.addQuadCurve(to: P(142, 88), control: P(150.5, 89.6))
+            p.addQuadCurve(to: P(133, 83), control: P(143.5, 89.5))
+            p.addQuadCurve(to: P(124, 87), control: P(135.4, 91.1))
+            p.addQuadCurve(to: P(115, 82), control: P(122.7, 88.6))
+            p.addQuadCurve(to: P(106, 87), control: P(113.3, 91.1))
+            p.addQuadCurve(to: P(97, 82), control: P(102.1, 93.7))
+            p.addQuadCurve(to: P(89, 87), control: P(91.6, 89.5))
+            p.addQuadCurve(to: P(82, 91), control: P(82.3, 95.4))
+            p.addQuadCurve(to: P(75, 85), control: P(72.9, 95.3))
+            p.addQuadCurve(to: P(65, 87), control: P(66.1, 89.4))
+            p.addQuadCurve(to: P(57, 85), control: P(55, 90))
+            p.addQuadCurve(to: P(51, 86), control: P(46, 90))
             p.closeSubpath()
         }
     }
     static var lockenGlanz: [Path] {
         [
         Path { p in
-            p.move(to: P(60, 44))
-            p.addQuadCurve(to: P(74, 38), control: P(66, 36))
+            p.move(to: P(56, 50))
+            p.addQuadCurve(to: P(71, 43), control: P(63, 42))
         },
         Path { p in
-            p.move(to: P(84, 28))
-            p.addQuadCurve(to: P(100, 25), control: P(92, 22))
+            p.move(to: P(82, 34))
+            p.addQuadCurve(to: P(98, 31), control: P(90, 28))
         },
         Path { p in
-            p.move(to: P(112, 26))
-            p.addQuadCurve(to: P(127, 30), control: P(121, 24))
+            p.move(to: P(112, 32))
+            p.addQuadCurve(to: P(127, 36), control: P(121, 30))
         },
         Path { p in
-            p.move(to: P(138, 42))
-            p.addQuadCurve(to: P(144, 54), control: P(144, 47))
+            p.move(to: P(140, 46))
+            p.addQuadCurve(to: P(146, 58), control: P(146, 51))
         },
         Path { p in
-            p.move(to: P(70, 58))
-            p.addQuadCurve(to: P(69, 68), control: P(73, 64))
+            p.move(to: P(66, 66))
+            p.addQuadCurve(to: P(65, 78), control: P(70, 73))
         },
         Path { p in
-            p.move(to: P(94, 54))
-            p.addQuadCurve(to: P(95, 66), control: P(99, 60))
+            p.move(to: P(92, 62))
+            p.addQuadCurve(to: P(93, 75), control: P(97, 69))
         },
         Path { p in
-            p.move(to: P(118, 56))
-            p.addQuadCurve(to: P(119, 68), control: P(123, 62))
+            p.move(to: P(118, 64))
+            p.addQuadCurve(to: P(119, 76), control: P(123, 70))
         },
         Path { p in
-            p.move(to: P(140, 62))
-            p.addQuadCurve(to: P(139, 73), control: P(143, 68))
+            p.move(to: P(142, 68))
+            p.addQuadCurve(to: P(141, 79), control: P(145, 74))
         },
         Path { p in
-            p.move(to: P(78, 44))
-            p.addQuadCurve(to: P(89, 41), control: P(83, 39))
+            p.move(to: P(76, 50))
+            p.addQuadCurve(to: P(87, 47), control: P(81, 45))
         },
         Path { p in
-            p.move(to: P(122, 44))
-            p.addQuadCurve(to: P(132, 47), control: P(128, 42))
+            p.move(to: P(124, 50))
+            p.addQuadCurve(to: P(134, 53), control: P(130, 48))
         },
         ]
     }

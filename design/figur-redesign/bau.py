@@ -99,9 +99,9 @@ def beulen(n, b, spiel=1.0):
     """Unterschiedlich grosse Locken, damit die Wolke nicht wie ein Helm aussieht."""
     return [b + spiel * ((i * 7) % 3 - 1) for i in range(n)]
 
-def pony_schatten(s, farbe, clip, op=0.55, dy=5):
+def pony_schatten(s, farbe, clip, op=0.55, dy=5, aussen=None, pony=None):
     """Schatten des Ponys auf der Stirn: gleiche Kante, nach unten versetzt."""
-    d = wolke(AH_AUSSEN + [(x, y + dy) for x, y in AH_PONY], (100, 58), 4)
+    d = wolke((aussen or AH_AUSSEN) + [(x, y + dy) for x, y in (pony or AH_PONY)], (100, 58), 4)
     return f'<g {clip}>' + fill(d, farbe, f' fill-opacity="{op}"') + '</g>'
 
 def taper(s, haar, haut, name):
@@ -179,6 +179,12 @@ def ahmed_A(p=""):
 
 # ---------- Ahmed B: Bitmoji modern slim ----------
 
+# 25.09. nach Ahmeds Fotos: flacher, breiter Wuschel-Mop statt hoher Lockenwolke, Pony tief bis auf
+# die Brauen (kleine Stirn), links eine Straehne ueber dem Auge.
+AH_B_AUSSEN = [(51, 86), (43, 76), (40, 62), (44, 48), (54, 37), (68, 29), (85, 24), (102, 22), (119, 24),
+               (134, 29), (147, 38), (156, 50), (160, 63), (158, 76), (150, 87)]
+AH_B_PONY = [(150, 86), (142, 88), (133, 83), (124, 87), (115, 82), (106, 87), (97, 82), (89, 87), (82, 91), (75, 85), (65, 87), (57, 85)]
+
 def ahmed_B(p=""):
     s = Svg(p); c = AH; haut, haar = c["haut"], c["haar"]
     rh = kontur(haut)
@@ -187,8 +193,8 @@ def ahmed_B(p=""):
     # 25.09. (Ahmed: "Abstand Kinn zu Mund zu gering"): Kinn 5 tiefer, Kieferecke 3 tiefer.
     gesicht = ("M100,26 C127,26 147,44 147,77 C147,95 146,106 144,114 L137,136 L117,153.5 Q100,158 83,153.5 "
                "L63,136 L56,114 C54,106 53,95 53,77 C53,44 73,26 100,26 Z")
-    n = len(AH_AUSSEN)
-    s.g("hair-back", teil(wolke(AH_AUSSEN + [(150, 94), (50, 94)], (100, 60), beulen(n + 2, 3.8)), haar))
+    n = len(AH_B_AUSSEN)
+    s.g("hair-back", teil(wolke(AH_B_AUSSEN + [(151, 97), (49, 97)], (100, 62), beulen(n + 2, 3.2)), haar))
     hals_und_rumpf(s, haut, c["top"])
     s.g("ears", ohren(haut, rh))
     weich = s.rad("hautB", 96, 92, 72, [(0.55, haut, 1), (1, mal(haut, 0.9), 1)])
@@ -196,7 +202,7 @@ def ahmed_B(p=""):
     cl = s.clip("gesichtClip", gesicht)
     wl = s.rad("wlB", 62, 122, 14, [(0, mal(haut, 0.84), 0.7), (1, mal(haut, 0.84), 0)])
     wr = s.rad("wrB", 138, 122, 14, [(0, mal(haut, 0.84), 0.7), (1, mal(haut, 0.84), 0)])
-    s.g("shading", pony_schatten(s, mal(haut, 0.88), cl, 0.6) + f'<g {cl}><ellipse cx="62" cy="122" rx="10" ry="15" fill="{wl}"/><ellipse cx="138" cy="122" rx="10" ry="15" fill="{wr}"/></g>')
+    s.g("shading", pony_schatten(s, mal(haut, 0.88), cl, 0.6, 4, AH_B_AUSSEN, AH_B_PONY) + f'<g {cl}><ellipse cx="62" cy="122" rx="10" ry="15" fill="{wl}"/><ellipse cx="138" cy="122" rx="10" ry="15" fill="{wr}"/></g>')
     s.g("jaw", "")
     s.g("taper", taper(s, haar, haut, "taperB"))
     s.g("goatee", f'<g {cl}>' + fill("M96,147 Q100,146 104,147 Q103.5,152.5 100,153 Q96.5,152.5 96,147 Z", c["bart"], ' fill-opacity="0.45"')
@@ -206,23 +212,27 @@ def ahmed_B(p=""):
         cx, cy = 100 + sd * 19, 101
         weiss, i, o = auge_mandel(cx, cy, sd, 10, 11, 13, 9, 1.5)
         ecl = s.clip(f"augeB{sd}", weiss)
-        lid = f"M{f(i-2)},{cy-9} L{f(o+2)},{cy-9} L{f(o+2)},{cy-1.5} Q{f(cx)},{cy-8} {f(i-2)},{cy+0.5} Z"
-        augen += fill(weiss, "FFFFFF") + f'<g {ecl}>' + kreis(cx + sd * 0.5, cy + 0.8, 5.4, c["iris"]) + kreis(cx + sd * 0.5, cy + 0.8, 2.6, mal(TINTE, 0.7)) + kreis(cx - 1.6, cy - 1.2, 1.6, "FFFFFF") + fill(lid, haut) + '</g>'
-        augen += linie(f"M{f(i)},{cy+0.5} Q{f(cx)},{cy-8} {f(o)},{cy-1.5}", TINTE, 3)
+        # Fotos: schwere, entspannte Lider, das Oberlid liegt tief auf der Iris.
+        lid = f"M{f(i-2)},{cy-9} L{f(o+2)},{cy-9} L{f(o+2)},{cy} Q{f(cx)},{cy-4.5} {f(i-2)},{cy+1.5} Z"
+        augen += fill(weiss, "FFFFFF") + f'<g {ecl}>' + kreis(cx + sd * 0.5, cy + 1.2, 5.4, c["iris"]) + kreis(cx + sd * 0.5, cy + 1.2, 2.6, mal(TINTE, 0.7)) + kreis(cx - 1.6, cy - 0.2, 1.4, "FFFFFF") + fill(lid, haut) + '</g>'
+        augen += linie(f"M{f(i)},{cy+1.5} Q{f(cx)},{cy-4.5} {f(o)},{cy}", TINTE, 3)
         augen += linie(f"M{f(i+sd*2)},{cy-5.5} Q{f(cx)},{cy-12} {f(o-sd*1)},{cy-5}", rh, 1.3, 0.5)
         smile += smile_lid(cx, cy, sd, 10, haut, rh, 6, s.clip(f"augeBs{sd}", weiss))
     s.g("eyes", augen)
     s.g("eyes-smile", smile, 'display="none"')
-    s.g("brows", "".join(linie(f"M{f(100+sd*8)},88.5 Q{f(100+sd*19)},85 {f(100+sd*30)},86.5", mal(haar, 1.2), 4.4) for sd in (-1, 1)))
-    s.g("nose", linie("M102,103 L104.5,120 Q103,124.5 98,123.5", rh, 2.4) + f'<ellipse cx="100" cy="125" rx="6" ry="2" fill="#{mal(haut,0.85)}" fill-opacity="0.6"/>')
-    s.g("mustache", teil("M100,129.5 C95,127.5 88,128 84,133.5 C89,131 95,131.5 100,132.2 C105,131.5 111,131 116,133.5 C112,128 105,127.5 100,129.5 Z", c["bart"], 1.2))
-    lo = "M90,137.5 Q95,134.5 100,136 Q105,134.5 110,137.5 Q100,139 90,137.5 Z"
-    lu = "M90,137.5 Q100,139 110,137.5 Q106,143.5 100,143.5 Q94,143.5 90,137.5 Z"
+    # Fotos: dicke, fast gerade Brauen, tief und dicht ueber den Augen.
+    s.g("brows", "".join(linie(f"M{f(100+sd*8)},93.5 Q{f(100+sd*19)},90.5 {f(100+sd*31)},92", mal(haar, 1.2), 5.2) for sd in (-1, 1)))
+    # Lange, gerade Nase.
+    s.g("nose", linie("M102,101 L105,124.5 Q103.5,129 98,128", rh, 2.4) + f'<ellipse cx="100" cy="129.5" rx="6.5" ry="2" fill="#{mal(haut,0.85)}" fill-opacity="0.6"/>')
+    # Duenner Schnurrbart, breiter als der Mund, Enden haengen leicht.
+    s.g("mustache", teil("M100,133 C95,131 87,131.5 80,138 C87,135 95,135 100,135.8 C105,135 113,135 120,138 C113,131.5 105,131 100,133 Z", c["bart"], 1.2))
+    lo = "M90,141 Q95,138.5 100,139.5 Q105,138.5 110,141 Q100,142.2 90,141 Z"
+    lu = "M90,141 Q100,142.2 110,141 Q106,146 100,146 Q94,146 90,141 Z"
     s.g("mouth-neutral", lippenmund(lo, lu, c["lippe"], mal(c["lippe"], 0.6)))
-    s.g("mouth-smile", teil("M88,135.5 Q100,139 112,135.5 Q109,146 100,146 Q91,146 88,135.5 Z", "6B2335", 1.6, mal(c["lippe"], 0.5)) + fill("M90,136.5 Q100,139.5 110,136.5 L109,139 Q100,141.5 91,139 Z", "FFFFFF") + fill("M94,144 Q100,141.5 106,144 Q100,146.5 94,144 Z", "F07A8A"), 'display="none"')
-    front = wolke(AH_AUSSEN + AH_PONY, (100, 58), beulen(n + len(AH_PONY), 4.2))
+    s.g("mouth-smile", teil("M88,139 Q100,142.5 112,139 Q109,149.5 100,149.5 Q91,149.5 88,139 Z", "6B2335", 1.6, mal(c["lippe"], 0.5)) + fill("M90,140 Q100,143 110,140 L109,142.5 Q100,145 91,142.5 Z", "FFFFFF") + fill("M94,147.5 Q100,145 106,147.5 Q100,150 94,147.5 Z", "F07A8A"), 'display="none"')
+    front = wolke(AH_B_AUSSEN + AH_B_PONY, (100, 60), beulen(n + len(AH_B_PONY), 3.6))
     ton = mix(haar, "FFFFFF", 0.16)
-    locken = "".join(linie(d, ton, 2.2, 0.9) for d in ["M60,44 q6,-8 14,-6", "M84,28 q8,-6 16,-3", "M112,26 q9,-2 15,4", "M138,42 q6,5 6,12", "M70,58 q3,6 -1,10", "M94,54 q5,6 1,12", "M118,56 q5,6 1,12", "M140,62 q3,6 -1,11", "M78,44 q5,-5 11,-3", "M122,44 q6,-2 10,3"])
+    locken = "".join(linie(d, ton, 2.2, 0.9) for d in ["M56,50 q7,-8 15,-7", "M82,34 q8,-6 16,-3", "M112,32 q9,-2 15,4", "M140,46 q6,5 6,12", "M66,66 q4,7 -1,12", "M92,62 q5,7 1,13", "M118,64 q5,6 1,12", "M142,68 q3,6 -1,11", "M76,50 q5,-5 11,-3", "M124,50 q6,-2 10,3", "M84,78 q2,7 -2,12"])
     s.g("hair-front", teil(front, haar, 3.5) + locken)
     return s
 

@@ -273,7 +273,7 @@ fileprivate enum NeuesGesicht: Equatable {
     }
 
     /// Where the old mouth shapes (built around (100|131)) land on this face.
-    var mundMitte: CGFloat { self == .b ? 139.5 : 132.5 }
+    var mundMitte: CGFloat { self == .b ? 142.5 : 132.5 }
 }
 
 /// Brief F3: Ahmed's V-taper upper body for face B (`design/figur-redesign/koerper.py`, V4 and V5).
@@ -5527,10 +5527,10 @@ private extension Zeichner {
             g.fill(weiss, with: .color(.white))
             var h = g
             h.clip(to: weiss)
-            let ic = P(c.x + sd * 0.5 + b.x * 2.5, 101.8 + b.y * 2)
+            let ic = P(c.x + sd * 0.5 + b.x * 2.5, 102.2 + b.y * 2)
             h.fill(kreis(ic, 5.4), with: .color(iris.farbe))
             h.fill(kreis(ic, 2.6), with: .color(Pal.tinte.mal(0.7).farbe))
-            h.fill(kreis(P(ic.x - 1.6 - sd * 0.5, ic.y - 2), 1.6), with: .color(.white))
+            h.fill(kreis(P(ic.x - 1.6 - sd * 0.5, ic.y - 1.4), 1.4), with: .color(.white))
             h.fill(links ? GesichtB.lidL : GesichtB.lidR, with: .color(haut.farbe))
             linie(g, links ? GesichtB.lidStrichL : GesichtB.lidStrichR, Pal.tinte.farbe, 3)
             linie(g, links ? GesichtB.lidFalteL : GesichtB.lidFalteR, haut.kontur.opacity(0.5), 1.3)
@@ -5594,9 +5594,9 @@ private extension Zeichner {
     func lippenB(_ g: GraphicsContext) {
         let l = lippeB
         var k = g
-        k.translateBy(x: 100, y: 137.5)
+        k.translateBy(x: 100, y: 141)
         k.scaleBy(x: 0.84, y: 0.58)
-        k.translateBy(x: -100, y: -139)
+        k.translateBy(x: -100, y: -142.5)
         flaeche(k, GesichtB.lippeOben, .color(l.mal(0.9).farbe), rand: l.mal(0.7).farbe, breite: 1.4)
         flaeche(k, GesichtB.lippeUnten, .color(l.farbe), rand: l.mal(0.7).farbe, breite: 1.4)
     }
@@ -5664,7 +5664,7 @@ private extension Zeichner {
         for (i, sd) in [CGFloat(-1), 1].enumerated() {
             let heben: CGFloat = z == .denkt && sd > 0 ? -6 : staunen
             let aussenX: CGFloat = 100 + sd * 30
-            let aussenY: CGFloat = neu == .b ? 86.5 : 87.2
+            let aussenY: CGFloat = neu == .b ? 92 : 87.2
             // Tilt around the outer end: positive `kipp` lowers the inner end.
             let kipp = atan2(Double(traurig + boese * 1.4), 22) * Double(-sd)
             var k = g
