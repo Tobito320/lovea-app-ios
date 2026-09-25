@@ -51,7 +51,7 @@ struct PartnerProfilView: View {
 }
 
 private enum ProfilBlatt: String, Identifiable {
-    case wallpaper, medien, orte, zimmer, sterne
+    case wallpaper, medien, zimmer, sterne
     var id: String { rawValue }
 }
 
@@ -157,7 +157,6 @@ private struct ProfilInhalt: View {
         switch b {
         case .wallpaper: WallpaperAuswahl(partner: gegenueber)
         case .medien: MedienUebersicht(ich: ich)
-        case .orte: OrteListeView()
         case .zimmer: NavigationStack { ZimmerEditor(person: person, ort: zimmerOrt) }
         case .sterne: SterneBlatt(ich: ich) { zurNachricht($0) }
         }
@@ -575,8 +574,6 @@ private struct ProfilInhalt: View {
     @ViewBuilder
     private var dieKarte: some View {
         ProfilKarte(person: gegenueber) { tipps += 1; karteOffen = true }
-        Divider()
-        zeile("bell.badge", "Ankunftsbenachrichtigungen", "Wenn jemand an einem Ort ankommt oder geht.") { blatt = .orte }
     }
 
     // MARK: - Wir (compact)

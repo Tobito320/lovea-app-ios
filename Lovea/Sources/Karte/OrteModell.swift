@@ -201,8 +201,9 @@ private struct OrtEreignisD: Codable { let ortId: String; let art: String }
 private struct SystemD: Codable { let system: String? }
 private struct GemeinsamD: Codable { let lat: Double; let lon: Double; let datum: String }
 
-/// Z-27.4: one "Unsere Orte" pin — `datum` is the Berlin calendar day it happened, for the same-day
-/// chat photo lookup in `GemeinsamerOrtDetail`.
+/// Z-27.4: one shared stay the server detected (`ort.gemeinsam`) — `datum` is the Berlin calendar
+/// day it happened. No map UI reads this any more (Runde 4: the map's "Unsere Orte" heart was
+/// removed); kept so older ops keep folding without a crash.
 struct GemeinsamerOrt: Identifiable, Sendable, Equatable {
     let id: String
     let lat: Double

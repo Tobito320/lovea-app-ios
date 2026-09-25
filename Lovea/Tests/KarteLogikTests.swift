@@ -110,16 +110,6 @@ final class KarteLogikTests: XCTestCase {
         Calendar.berlin.date(from: DateComponents(year: 2026, month: 10, day: 25, hour: stunde, minute: minute))!
     }
 
-    // MARK: - Unsere Orte
-
-    func testStaysAtTheSamePlaceCollapseToTheNewest() {
-        let alt = GemeinsamerOrt(id: "alt", lat: 50.9400, lon: 6.1000, datum: "2026-09-01")
-        let neu = GemeinsamerOrt(id: "neu", lat: 50.9405, lon: 6.1003, datum: "2026-09-20") // ~60 m away
-        let woanders = GemeinsamerOrt(id: "woanders", lat: 50.9700, lon: 6.1500, datum: "2026-09-10")
-        XCTAssertEqual(KarteLogik.unsereOrte([alt, woanders, neu]).map(\.id), ["neu", "woanders"])
-        XCTAssertEqual(KarteLogik.unsereOrte([]).count, 0)
-    }
-
     /// Akku: motion flicker asks for at most one extra GPS fix per 45 s; driving starts always get one.
     func testExtraFixThrottle() {
         let t = Date(timeIntervalSince1970: 1_000_000)
