@@ -6,8 +6,8 @@ enum HealthZiel: Hashable {
     case trainingsPlan(Person), gymSession(String), gymVerlauf
 }
 
-/// Spec 3.1, HabitLink style: date eyebrow and "Health", the points chip with the Lovea coin, step
-/// duel, week, habits, challenges and sleep. Tiles and rings zoom into their detail.
+/// Tab Training: date eyebrow, points chip, training card. Habits and sleep live in Heute.
+/// ponytail: Energie, Schritte, Woche and Challenges stay until Heute shows them (no route there yet).
 struct HealthTab: View {
     @State private var pfad: [HealthZiel] = []
     @State private var zieleOffen = false
@@ -23,9 +23,7 @@ struct HealthTab: View {
                     TrainingKarte(oeffnen: oeffnen)
                     SchritteKarte(zoom: zoom, oeffnen: oeffnen)
                     SchritteWocheKarte()
-                    HabitsSektion(zoom: zoom, oeffnen: oeffnen)
                     LaufendeChallengesCard()
-                    SchlafCard()
                 }
                 .padding(16)
             }
@@ -75,7 +73,7 @@ struct HealthTab: View {
     @ViewBuilder
     private func ansicht(_ ziel: HealthZiel) -> some View {
         switch ziel {
-        case .habit(let id): HabitDetailView(habitId: id)
+        case .habit: EmptyView() // Habits öffnet Heute selbst (HeuteZiel.habit)
         case .schritte(let person): SchritteDetailView(person: person)
         case .schritteVergleich: SchritteVergleichView()
         case .punkte: PunkteVerlaufView()
