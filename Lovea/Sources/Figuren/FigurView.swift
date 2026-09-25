@@ -3675,7 +3675,7 @@ extension Zeichner {
 
     var haltung: Haltung {
         if let g = gymGeste { return gymHaltung(g) }
-        switch z {
+        return switch z {
         case .laeuft, .tanzt: .gehen
         case .rennt: .rennen
         case .rad: .rad
@@ -3692,7 +3692,7 @@ extension Zeichner {
             if g == .kniebeuge { return wdh * 34 }
             if g == .ausfallschritt { return wdh * 26 }
         }
-        switch hal {
+        return switch hal {
         case .sitzen, .fahren: m.knieY - m.hueftY - 4
         case .rad: 40
         default: 0
