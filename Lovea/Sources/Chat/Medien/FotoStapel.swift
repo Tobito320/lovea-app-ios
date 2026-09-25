@@ -8,6 +8,7 @@ struct FotoStapel: View {
     let medien: [ChatModell.MedienEintrag]
     let eigene: Bool
     @State private var galerieOffen = false
+    @Namespace private var zoomRaum
 
     var body: some View {
         ZStack {
@@ -33,8 +34,17 @@ struct FotoStapel: View {
                 .padding(6)
         }
         .contentShape(Rectangle())
-        .onTapGesture { ChatHaptik.leicht(); galerieOffen = true }
-        .fullScreenCover(isPresented: $galerieOffen) { MedienGalerie(medien: medien, eigene: eigene) }
+        .onTapGesture {
+            guard !LangDruck.geradeEben else { return }
+            Haptik.leicht()
+            galerieOffen = true
+        }
+        // Z-33.4: the gallery zooms out of the stack and back into it.
+        .matchedTransitionSource(id: "stapel", in: zoomRaum)
+        .fullScreenCover(isPresented: $galerieOffen) {
+            MedienGalerie(medien: medien, eigene: eigene)
+                .navigationTransition(.zoom(sourceID: "stapel", in: zoomRaum))
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(medien.count) Fotos")
         .accessibilityHint("Galerie öffnen")
@@ -100,7 +110,9 @@ struct MedienGalerie: View {
         }
         .presentationBackground(.clear)
         .statusBarHidden()
-        .sensoryFeedback(.selection, trigger: auswahl)
+        .screenshotKontext(.medium(video: false, eigen: eigene))
+        // Haptik.auswahl(), not `.sensoryFeedback`: the latter ignores the "Haptik" settings switch.
+        .onChange(of: auswahl) { _, _ in Haptik.auswahl() }
         .task { FigurenModell.shared.zustandSenden(.init(haupt: .schautBild)) }
         .onDisappear { FigurenModell.shared.zustandSenden(.init(haupt: .imChat)) }
     }
@@ -141,7 +153,7 @@ private struct GalerieSeite: View {
             guard let geladen = await MedienDatei.url(medium, eigene: eigene) else { return }
             url = geladen
             if medium.typ == "video" {
-                spieler = AVPlayer(url: geladen)
+                spieler = AVPlayer(url: Videobild.abspielbar(geladen))
             } else {
                 bild = await Bilddatei.laden(geladen)
             }

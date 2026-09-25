@@ -21,5 +21,16 @@ final class SpotifyPKCETests: XCTestCase {
         XCTAssertFalse(SpotifyModell.Song().gueltig)
         XCTAssertFalse(SpotifyModell.Song(titel: "").gueltig)
         XCTAssertTrue(SpotifyModell.Song(titel: "Ein Song").gueltig)
+        XCTAssertTrue(SpotifyModell.Song(musik: true).gueltig) // Freigabe "Nur hört Musik"
+    }
+
+    func testOeffnenURLTitelSonstKuenstlersuche() {
+        XCTAssertEqual(SpotifyModell.Song(titel: "S", url: "https://open.spotify.com/track/abc").oeffnenURL?.absoluteString, "https://open.spotify.com/track/abc")
+        XCTAssertEqual(SpotifyModell.Song(kuenstler: "Die Band", musik: true).oeffnenURL?.absoluteString, "https://open.spotify.com/search/Die%20Band")
+        XCTAssertNil(SpotifyModell.Song(musik: true).oeffnenURL)
+    }
+
+    func testFreigabeRohwerteWieServer() {
+        XCTAssertEqual(SpotifyModell.Freigabe.allCases.map(\.rawValue).sorted(), ["aus", "kuenstler", "musik", "song"])
     }
 }

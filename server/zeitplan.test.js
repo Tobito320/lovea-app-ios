@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import {
   vorabendZeit, stundeVorherZeit, puenktlichZeit, naechsteTageszeit, naechsteFaelligeTageszeit, naechsterAlarm,
   challengeEndspurtWocheZeit, challengeEndeWocheZeit, challengeEndspurtMonatZeit, challengeEndeMonatZeit,
-  kapselOeffnetZeit,
 } from "./zeitplan.js";
 
 // Review-Fokus 4: Tageswechsel in Europe/Berlin über die Zeitumstellung
@@ -30,12 +29,6 @@ test("Pünktlich-Karte am Morgen danach liegt im neuen Kalendertag", () => {
   assert.match(berlin, /^25\.10\.(20)?26, 09:00$/);
 });
 
-// Z-27.2: Zeitkapsel-Push, 09:00 Berlin am Öffnungstag, auch über die Zeitumstellung hinweg.
-test("kapselOeffnetZeit: 09:00 Berlin, vor und nach der Zeitumstellung", () => {
-  assert.equal(new Date(kapselOeffnetZeit("2026-10-24")).toISOString(), "2026-10-24T07:00:00.000Z"); // CEST, UTC+2
-  assert.equal(new Date(kapselOeffnetZeit("2026-10-26")).toISOString(), "2026-10-26T08:00:00.000Z"); // CET, UTC+1
-});
-
 test("naechsteTageszeit: heute, falls noch nicht vorbei, sonst morgen", () => {
   const heute0930 = Date.parse("2026-06-15T07:00:00.000Z"); // 09:00 Berlin (Sommerzeit, UTC+2)
   const heute18 = naechsteTageszeit(heute0930, 18, 0);
@@ -52,8 +45,7 @@ test("naechsterAlarm: findet fällige und nächste Ereignisse, dedupliziert per 
     treffen: [{ datum: "2026-10-25", uhrzeit: "14:00" }],
     angeheftet: [{ id: "p1", bis: "2026-10-25T09:00:00.000Z" }], // schon fällig
     spielEinladungen: [{ id: "s1", bis: "2026-10-25T11:00:00.000Z" }], // noch nicht
-    streakLaeuftHeuteAb: true,
-    erinnerungenHeute: { frage: true, streak: false },
+    erinnerungenHeute: { frage: true },
   };
   const { faellig, naechste } = naechsterAlarm(kontext, jetzt);
   assert.ok(faellig.some((f) => f.art === "nachrichtLoesen" && f.id === "p1"));
@@ -61,11 +53,18 @@ test("naechsterAlarm: findet fällige und nächste Ereignisse, dedupliziert per 
   assert.ok(naechste !== null && naechste > jetzt);
 });
 
+// `uhrzeit: ""` heißt "ohne Uhrzeit" (neuer Client): kein "In einer Stunde", Vorabend und Pünktlich bleiben.
+test("naechsterAlarm: Treffen mit leerer Uhrzeit plant kein stundeVorher", () => {
+  const kontext = { treffen: [{ datum: "2026-10-25", uhrzeit: "" }], erinnerungenHeute: {} };
+  const { faellig } = naechsterAlarm(kontext, Date.parse("2026-10-26T12:00:00.000Z"));
+  const arten = faellig.filter((f) => f.datum === "2026-10-25").map((f) => f.art).sort();
+  assert.deepEqual(arten, ["puenktlichKarte", "vorabend"]);
+});
+
 // Regressionstest: naechsteTageszeit lieferte früher IMMER einen Zeitpunkt in
 // der Zukunft, auch wenn das Ereignis heute noch nicht erledigt war -- die
-// Frage des Tages (18 Uhr) und die Streak-Warnung (21 Uhr) sind dadurch nie
-// ausgelöst worden, ein Alarm um 18:00 hat einfach auf "morgen 18:00"
-// umgeplant. naechsteFaelligeTageszeit muss den heutigen, ggf. schon
+// Frage des Tages (18 Uhr) ist dadurch nie ausgelöst worden, ein Alarm um
+// 18:00 hat einfach auf "morgen 18:00" umgeplant. naechsteFaelligeTageszeit muss den heutigen, ggf. schon
 // vergangenen Zeitpunkt liefern, solange er nicht erledigt ist.
 test("naechsteFaelligeTageszeit: heute (auch rückwirkend), solange nicht erledigt; sonst morgen", () => {
   const nach18 = Date.parse("2026-06-15T17:00:00.000Z"); // 19:00 Berlin, also nach 18:00
@@ -79,7 +78,7 @@ test("naechsteFaelligeTageszeit: heute (auch rückwirkend), solange nicht erledi
 
 test("naechsterAlarm: Frage des Tages wird fällig, wenn 18 Uhr vorbei und noch nicht erledigt", () => {
   const nach18 = Date.parse("2026-06-15T17:30:00.000Z"); // 19:30 Berlin
-  const kontext = { erinnerungenHeute: { frage: false, streak: false }, streakLaeuftHeuteAb: false };
+  const kontext = { erinnerungenHeute: { frage: false } };
   const { faellig } = naechsterAlarm(kontext, nach18);
   assert.ok(faellig.some((f) => f.art === "frageDesTages"));
 });
@@ -89,7 +88,7 @@ test("naechsterAlarm: bleibt nie ohne nächsten Wach-Zeitpunkt (frageDesTages is
   // ein "naechste" für morgen 18 Uhr geplant sein, sonst wacht der DO-Alarm
   // nie wieder von selbst auf.
   const heuteFrueh = Date.parse("2026-06-15T05:00:00.000Z"); // 07:00 Berlin
-  const kontext = { erinnerungenHeute: { frage: true, streak: true }, streakLaeuftHeuteAb: false };
+  const kontext = { erinnerungenHeute: { frage: true } };
   const { faellig, naechste } = naechsterAlarm(kontext, heuteFrueh);
   assert.equal(faellig.length, 0);
   assert.ok(naechste !== null);
@@ -99,8 +98,7 @@ test("naechsterAlarm: Pünktlich-Karte wird am Morgen nach einem (auch gestrigen
   const morgenDanach = Date.parse("2026-10-24T08:00:00.000Z"); // 25.10. ist ein Sonntag danach; hier: Treffen am Vortag
   const kontext = {
     treffen: [{ datum: "2026-10-23" }], // "gestern" relativ zu morgenDanach (24.10.)
-    erinnerungenHeute: { frage: true, streak: true },
-    streakLaeuftHeuteAb: false,
+    erinnerungenHeute: { frage: true },
   };
   const { faellig } = naechsterAlarm(kontext, morgenDanach);
   assert.ok(faellig.some((f) => f.art === "puenktlichKarte" && f.datum === "2026-10-23"));
@@ -182,4 +180,12 @@ test("naechsterAlarm: mitten in Woche und Monat ist nichts 'vorbei' (kein falsch
   const arten = faelligeArten("2026-09-30T10:00:00.000Z"); // Mi 30.09. 12:00, nichts erledigt
   assert.ok(!arten.includes("challengeEndeWoche"));
   assert.ok(!arten.includes("challengeEndeMonat"));
+});
+
+// Z-31.4 und Controller-Entscheid: Zeitkapsel und Streak sind weg (Spec 2.10) -- auch ein alter
+// Kontext plant weder den Kapsel-Alarm noch die 21-Uhr-Streak-Warnung.
+test("naechsterAlarm: keine kapselOeffnet- und streakWarnung-Kandidaten mehr", () => {
+  const kontext = { erinnerungenHeute: {}, streakLaeuftHeuteAb: true, kapseln: [{ id: "msg-1", oeffnetAm: "2026-09-01" }] };
+  const { faellig } = naechsterAlarm(kontext, Date.parse("2026-09-23T19:30:00.000Z")); // 21:30 Berlin
+  assert.ok(!faellig.some((f) => f.art === "kapselOeffnet" || f.art === "streakWarnung"));
 });

@@ -350,6 +350,7 @@ enum SnapBildQuelle {
     }
 
     static func medium(_ id: String) async -> UIImage? {
+        if let name = MitgelieferteSticker.assetName(id) { return UIImage(named: name) }
         // Split, not `A ?? B ?? (try? await C)`: an `await` buried in a `??` chain doesn't
         // type-check ("'async' call in a function that does not support concurrency") — same fix
         // already applied project-wide in `StickerKachel`/`GifStickerBlatt`.

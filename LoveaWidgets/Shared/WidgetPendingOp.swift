@@ -12,6 +12,8 @@ struct WidgetPendingOp: Codable, Sendable, Equatable, Identifiable {
     var zeit: String
     var datum: String
     var wert: Int
+    /// Habit id; nil = "gym" (files written before the Habit widget).
+    var habit: String? = nil
 }
 
 /// Reine Logik ohne Dateizugriff — testbar ohne App Group/Sandbox.

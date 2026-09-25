@@ -18,7 +18,22 @@ final class AppNavigation {
     var tabWunsch: String?
     /// Profile → "Kamera": ChatTab opens the snap camera and clears it.
     var kameraOeffnen = false
+    /// Profile → "Chat": the Chat tab skips its list and opens the conversation.
+    var gespraechOeffnen = false
+    /// Z-32.1: message the chat tab scrolls to and highlights (notification tap, "Heute vor …").
+    /// Stays set until that message has arrived; the conversation clears it.
+    var chatZiel: String?
+    /// Contexts on screen right now, for screenshot/recording notices (`ScreenshotKontext`).
+    var bildschirm: [ScreenshotKontext] = []
     private init() {}
+
+    /// Notification tap: chat pushes carry `art` (op kind) and `nachrichtId` (Z-32.1).
+    func mitteilungGeoeffnet(nachrichtId: String?, art: String?) {
+        let chat = nachrichtId != nil || art.map { $0.hasPrefix("nachricht.") || $0.hasPrefix("snap.") } == true
+        guard chat else { return }
+        chatZiel = nachrichtId
+        tabWunsch = "chat"
+    }
 }
 
 struct AppRootView: View {
@@ -46,20 +61,21 @@ struct AppRootView: View {
             }
         }
         .tabViewStyle(.sidebarAdaptable)
+        // Spec 2.1: the bar stays, and shrinks while scrolling (the chat is a tab, not a pushed screen).
+        .tabBarMinimizeBehavior(.onScrollDown)
         .tint(Color.loveaRose)
         .spieleBuehne()
+        // Screenshot/recording notices for whatever chat context is on screen (`ScreenshotKontext`).
+        .modifier(ChatAufnahmeHinweise())
         .onChange(of: AppNavigation.shared.tabWunsch) { _, wunsch in
             guard let wunsch, let tab = AppTab(rawValue: wunsch) else { return }
             selectedTab = tab
             AppNavigation.shared.tabWunsch = nil
         }
-        // Z-7.3: partner online / drawing invite / Anstupsen & Kuss, glass capsule on top.
-        .overlay(alignment: .top) {
-            InAppBannerView(aufZeichnungGetippt: { id in
-                AppNavigation.shared.geteilteZeichnung = id
-                selectedTab = .drawing
-            })
-        }
+        // audit-chat #2: voice round (app-wide voice playback outside the conversation) and the
+        // Z-7.3 in-app banner (partner online / drawing invite / Anstupsen & Kuss) both dock to the
+        // top — stacked in one overlay so a banner pushes the player down instead of covering it.
+        .overlay(alignment: .top) { topOverlay }
     }
 }
 
@@ -69,6 +85,16 @@ private extension AppRootView {
         SpielArt.allCases.compactMap { art in
             guard let p = SpieleModell.shared.bilanz[art] else { return nil }
             return (art.titel, p.ahmed, p.annika)
+        }
+    }
+
+    var topOverlay: some View {
+        VStack(spacing: 0) {
+            SprachMiniPlayer()
+            InAppBannerView(aufZeichnungGetippt: { id in
+                AppNavigation.shared.geteilteZeichnung = id
+                selectedTab = .drawing
+            })
         }
     }
 }

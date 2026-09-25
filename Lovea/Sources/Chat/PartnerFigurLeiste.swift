@@ -18,7 +18,7 @@ struct PartnerFigurLeiste: View {
         VStack(spacing: 0) {
             if let zustand {
                 HStack(spacing: 8) {
-                    FigurView(FigurenModell.shared.aussehen(partner), zustand: zustand.haupt, abzeichen: zustand.abzeichen, groesse: 44)
+                    FigurView(FigurenModell.shared.aussehen(partner), zustand: zustand.haupt, abzeichen: zustand.abzeichen, groesse: 44, bildrate: 20)
                     Text(zustand.haupt.titel)
                         .font(.footnote)
                         .foregroundStyle(.secondary)

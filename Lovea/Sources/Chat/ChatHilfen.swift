@@ -2,12 +2,13 @@ import SwiftUI
 import UIKit
 
 /// One vocabulary for chat haptics (Block 18), so the same action always feels the same.
+/// Z-31.1: routed through `Haptik`, so the "Haptik" switch silences the chat too.
 @MainActor
 enum ChatHaptik {
-    static func leicht() { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
-    static func mittel() { UIImpactFeedbackGenerator(style: .medium).impactOccurred() }
-    static func weich() { UIImpactFeedbackGenerator(style: .soft).impactOccurred() }
-    static func auswahl() { UISelectionFeedbackGenerator().selectionChanged() }
+    static func leicht() { Haptik.leicht() }
+    static func mittel() { Haptik.mittel() }
+    static func weich() { if Haptik.an { UIImpactFeedbackGenerator(style: .soft).impactOccurred() } }
+    static func auswahl() { Haptik.auswahl() }
 }
 
 @MainActor

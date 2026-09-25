@@ -11,12 +11,54 @@ final class SpotifyModell {
     static let shared = SpotifyModell()
 
     /// Alle Felder optional: der Server antwortet mit `{}`, wenn niemand etwas hört (schnittstellen.md).
+    /// Je nach Freigabe (`spotify.teilen` des Partners) fehlen Titel/Cover: dann nur `musik` oder
+    /// `musik` + `kuenstler`. Ältere Server schicken kein `musik`, dafür immer einen Titel.
     struct Song: Codable, Sendable, Equatable {
         var titel: String?
         var kuenstler: String?
         var cover: String?
         var url: String?
-        var gueltig: Bool { !(titel ?? "").isEmpty }
+        var musik: Bool?
+        var gueltig: Bool { !(titel ?? "").isEmpty || musik == true }
+
+        /// Eigener Titel-Link, sonst Künstlersuche in Spotify. Öffnet in der eigenen Spotify-App.
+        var oeffnenURL: URL? {
+            if let url, !url.isEmpty { return URL(string: url) }
+            guard let kuenstler, !kuenstler.isEmpty,
+                  let suche = kuenstler.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else { return nil }
+            return URL(string: "https://open.spotify.com/search/\(suche)")
+        }
+    }
+
+    /// Freigabe-Stufen, Rohwerte wie `STUFEN` in `server/spotify.js`.
+    enum Freigabe: String, CaseIterable, Identifiable {
+        case song, kuenstler, musik, aus
+        var id: String { rawValue }
+        var titel: String {
+            switch self {
+            case .song: "Song, Künstler und Cover"
+            case .kuenstler: "Nur Künstler"
+            case .musik: "Nur „hört Musik“"
+            case .aus: "Nichts"
+            }
+        }
+    }
+
+    static let freigabeSchluessel = "spotify.teilen"
+    private static let verbundenMerker = "lovea.spotify.verbunden"
+
+    var freigabe: Freigabe {
+        get { Freigabe(rawValue: EinstellungenModell.shared.string(Self.freigabeSchluessel, default: "song")) ?? .song }
+        set { EinstellungenModell.shared.setzen(Self.freigabeSchluessel, .string(newValue.rawValue)) }
+    }
+
+    /// ponytail: lokaler Merker statt Server-Abfrage; nach Neuinstallation zeigt er "nicht verbunden",
+    /// obwohl der Server noch den Token hat. Erneutes Verbinden überschreibt ihn einfach.
+    private(set) var verbunden: Bool = UserDefaults.standard.bool(forKey: "lovea.spotify.verbunden")
+
+    func setzeVerbunden(_ wert: Bool) {
+        verbunden = wert
+        UserDefaults.standard.set(wert, forKey: Self.verbundenMerker)
     }
 
     private(set) var partner: Song?
@@ -158,6 +200,16 @@ final class SpotifyAuth: NSObject, ASWebAuthenticationPresentationContextProvidi
         return (response as? HTTPURLResponse)?.statusCode == 200
     }
 
+    /// `POST /spotify/trennen`: der Server löscht den eigenen Token, der Partner sieht danach nichts mehr.
+    func trennen() async -> Bool {
+        guard let konfig = Raum.shared.httpKonfiguration() else { return false }
+        var request = URLRequest(url: konfig.basis.appendingPathComponent("spotify/trennen"))
+        request.httpMethod = "POST"
+        for (feld, wert) in konfig.headers { request.setValue(wert, forHTTPHeaderField: feld) }
+        guard let (_, response) = try? await URLSession.shared.data(for: request) else { return false }
+        return (response as? HTTPURLResponse)?.statusCode == 200
+    }
+
     // ponytail: nimmt das erste Key Window — reicht für diese Zwei-Personen-App (ein Fenster), kein
     // Multi-Window-iPad-Fall zu unterscheiden.
     nonisolated func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
@@ -175,30 +227,40 @@ private struct VerbindenBody: Encodable { let person: String; let code: String; 
 // MARK: - "Hört gerade" an der Partner-Figur (Spec 9)
 
 /// Empty (`EmptyView`) while nobody's `partner` song is known — the chat header always includes
-/// this, no visibility check needed at the call site.
+/// this, no visibility check needed at the call site. Antippen öffnet den Song (oder bei "Nur
+/// Künstler" die Künstlersuche) in der eigenen Spotify-App. Kein Mithören.
 struct SpotifyHoertGeradeChip: View {
     var body: some View {
-        if let song = SpotifyModell.shared.partner, let titel = song.titel {
+        if let song = SpotifyModell.shared.partner {
             Button {
-                guard let urlText = song.url, let url = URL(string: urlText) else { return }
-                UIApplication.shared.open(url)
+                if let url = song.oeffnenURL { UIApplication.shared.open(url) }
             } label: {
-                inhalt(song, titel: titel)
+                inhalt(song)
                     .font(.caption2.weight(.semibold))
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .glassEffect(.regular, in: .capsule)
             }
             .buttonStyle(.plain)
-            .accessibilityLabel("Hört gerade: \(titel)\(song.kuenstler.map { ", \($0)" } ?? "")")
-            .accessibilityHint("Öffnet Spotify")
+            .disabled(song.oeffnenURL == nil)
+            .accessibilityLabel("Hört gerade: \(text(song))")
+            .accessibilityHint(song.oeffnenURL == nil ? "" : "Öffnet in deinem Spotify")
         }
     }
 
-    /// Minor 9 (Spec 9: "Titel, Künstler, Cover"): the server already sends all three.
-    private func inhalt(_ song: SpotifyModell.Song, titel: String) -> some View {
+    private func text(_ song: SpotifyModell.Song) -> String {
+        let titel = song.titel.flatMap { $0.isEmpty ? nil : $0 }
         let kuenstler = song.kuenstler.flatMap { $0.isEmpty ? nil : $0 }
-        return HStack(spacing: 4) {
+        switch (titel, kuenstler) {
+        case let (t?, k?): return "\(t) · \(k)"
+        case let (t?, nil): return t
+        case let (nil, k?): return k
+        default: return "hört Musik"
+        }
+    }
+
+    private func inhalt(_ song: SpotifyModell.Song) -> some View {
+        HStack(spacing: 4) {
             if let cover = song.cover.flatMap(URL.init(string:)) {
                 AsyncImage(url: cover) { bild in
                     bild.resizable().scaledToFill()
@@ -210,40 +272,67 @@ struct SpotifyHoertGeradeChip: View {
             } else {
                 Image(systemName: "music.note")
             }
-            Text(kuenstler.map { "\(titel) · \($0)" } ?? titel).lineLimit(1)
+            Text(text(song)).lineLimit(1)
         }
     }
 }
 
-// MARK: - Einstellungen-Zeile
+// MARK: - Einstellungen-Zeilen
 
-/// "Spotify verbinden" (Spec 9/13): ohne `SPOTIFY_CLIENT_ID` "nicht eingerichtet" (Ahmed muss die
-/// Spotify-Developer-App noch anlegen, siehe brief-G-report.md).
+/// Abschnitt "Spotify" in den Einstellungen: verbinden/trennen und was der Partner sieht.
+/// Ohne `SPOTIFY_CLIENT_ID` "nicht eingerichtet" (Spotify-Developer-App, V-7).
 struct SpotifyVerbindenRow: View {
-    @State private var verbindetSich = false
+    @State private var arbeitet = false
+    private var modell: SpotifyModell { SpotifyModell.shared }
 
     var body: some View {
         if SpotifyKonfiguration.eingerichtet {
-            Button {
-                verbindetSich = true
-                Task {
-                    _ = await SpotifyAuth.shared.verbinden()
-                    verbindetSich = false
+            verbindenKnopf
+            if modell.verbunden {
+                freigabeAuswahl
+                Button("Spotify trennen", role: .destructive) {
+                    ausfuehren { await SpotifyAuth.shared.trennen() } danach: { if $0 { modell.setzeVerbunden(false) } }
                 }
-            } label: {
-                HStack {
-                    Text("Spotify verbinden")
-                    if verbindetSich { Spacer(); ProgressView() }
-                }
+                .disabled(arbeitet)
             }
-            .foregroundStyle(.primary)
-            .disabled(verbindetSich)
         } else {
             HStack {
                 Text("Spotify verbinden")
                 Spacer()
                 Text("nicht eingerichtet").foregroundStyle(.secondary)
             }
+        }
+    }
+
+    private var verbindenKnopf: some View {
+        Button {
+            ausfuehren { await SpotifyAuth.shared.verbinden() } danach: { if $0 { modell.setzeVerbunden(true) } }
+        } label: {
+            HStack {
+                Text(modell.verbunden ? "Spotify verbunden" : "Spotify verbinden")
+                Spacer()
+                if arbeitet { ProgressView() } else if modell.verbunden { Image(systemName: "checkmark").foregroundStyle(.green) }
+            }
+        }
+        .foregroundStyle(.primary)
+        .disabled(arbeitet)
+    }
+
+    private var freigabeAuswahl: some View {
+        Picker("\(Raum.shared.ich?.partner.name ?? "Partner") sieht", selection: Binding(
+            get: { modell.freigabe },
+            set: { modell.freigabe = $0 }
+        )) {
+            ForEach(SpotifyModell.Freigabe.allCases) { Text($0.titel).tag($0) }
+        }
+    }
+
+    private func ausfuehren(_ aktion: @escaping @MainActor () async -> Bool, danach: @escaping @MainActor (Bool) -> Void) {
+        arbeitet = true
+        Task {
+            let ok = await aktion()
+            danach(ok)
+            arbeitet = false
         }
     }
 }

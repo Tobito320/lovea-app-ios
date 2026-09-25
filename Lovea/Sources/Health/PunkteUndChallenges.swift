@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Z-22.2: Punktestand-Kapsel (Health-Tab und eigenes Profil), laufende Challenges mit Fortschritt
 /// (auch Z-21.1) und die "Wofür?"-Historie. Reine Anzeige — die Zahlen kommen aus `PunkteModell`
@@ -7,20 +8,64 @@ struct PunkteChip: View {
     let person: Person
 
     var body: some View {
-        let verfuegbar = PunkteModell.shared.verfuegbar(person)
-        HStack(spacing: 4) {
-            Text("⭐️")
-            Text(verfuegbar.formatted(.number.locale(Locale(identifier: "de_DE"))))
+        PunkteKapsel(punkte: PunkteModell.shared.verfuegbar(person))
+    }
+}
+
+/// Z-36.3: spendable points with the Lovea coin. Content layer, so a plain capsule instead of glass.
+struct PunkteKapsel: View {
+    let punkte: Int
+
+    var body: some View {
+        HStack(spacing: 6) {
+            LoveaMuenze(groesse: 22)
+            Text(HealthText.zahl(punkte))
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
                 .monospacedDigit()
-                .contentTransition(.numericText(value: Double(verfuegbar)))
-                .animation(.snappy, value: verfuegbar)
+                .foregroundStyle(.primary)
+                .contentTransition(.numericText(value: Double(punkte)))
         }
-        .font(.subheadline.weight(.semibold))
-        .padding(.horizontal, 12)
-        .padding(.vertical, 6)
-        .glassEffect(.regular, in: .capsule)
+        .padding(.leading, 6)
+        .padding(.trailing, 12)
+        .padding(.vertical, 5)
+        .background(Capsule().fill(Color(uiColor: .secondarySystemBackground)))
+        .overlay(Capsule().strokeBorder(LoveaMuenze.gold.opacity(0.45), lineWidth: 1))
+        .animation(Feder.schnell, value: punkte)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(verfuegbar) Punkte")
+        .accessibilityLabel("\(punkte) Punkte")
+    }
+}
+
+/// The Lovea coin: the `LoveaMuenze` asset (from ChatGPT, merged from another branch); until it is
+/// there a drawn gold coin with a heart.
+struct LoveaMuenze: View {
+    var groesse: CGFloat = 22
+
+    static let gold = Color(red: 0.93, green: 0.69, blue: 0.2)
+    private static let hatBild = UIImage(named: "LoveaMuenze") != nil
+
+    var body: some View {
+        Group {
+            if Self.hatBild {
+                Image("LoveaMuenze").resizable().scaledToFit()
+            } else {
+                gezeichnet
+            }
+        }
+        .frame(width: groesse, height: groesse)
+        .accessibilityHidden(true)
+    }
+
+    private var gezeichnet: some View {
+        ZStack {
+            Circle().fill(LinearGradient(colors: [Color(red: 1, green: 0.86, blue: 0.45), Self.gold], startPoint: .topLeading, endPoint: .bottomTrailing))
+            Circle().strokeBorder(Color(red: 0.75, green: 0.5, blue: 0.1), lineWidth: groesse * 0.07)
+            Circle().strokeBorder(Color.white.opacity(0.45), lineWidth: groesse * 0.04).padding(groesse * 0.14)
+            Image(systemName: "heart.fill")
+                .font(.system(size: groesse * 0.42, weight: .bold))
+                .foregroundStyle(Color.loveaRose)
+                .shadow(color: Color(red: 0.6, green: 0.35, blue: 0.05).opacity(0.5), radius: 0.5, y: 0.5)
+        }
     }
 }
 
@@ -51,7 +96,8 @@ struct LaufendeChallengesCard: View {
                 }
             }
             .padding(16)
-            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .healthKarte()
         }
     }
 
@@ -139,7 +185,6 @@ struct PunkteVerlaufView: View {
 
     private func grundText(_ eintrag: PunkteLogik.Eintrag) -> String {
         switch eintrag.grund {
-        case "Tag": return "Punkte des Tages"
         case "Gym-Wochenziel": return "Gym-Wochenziel geschafft"
         default: return eintrag.grund
         }

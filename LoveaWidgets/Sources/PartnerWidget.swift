@@ -20,6 +20,8 @@ private struct PartnerView: View {
     @Environment(\.widgetFamily) private var family
     let entry: WidgetStandEntry
 
+    private var partner: String { entry.stand.eigenePerson == "ahmed" ? "annika" : "ahmed" }
+
     var body: some View {
         Group {
             switch family {
@@ -28,13 +30,13 @@ private struct PartnerView: View {
             case .accessoryRectangular:
                 PartnerRechteck(stand: entry.stand)
             case .systemMedium:
-                PartnerBreit(entry: entry)
+                PartnerBreit(entry: entry, partner: partner)
             default:
-                PartnerSchmal(entry: entry)
+                PartnerSchmal(entry: entry, partner: partner)
             }
         }
         .widgetURL(URL(string: "lovea://home"))
-        .containerBackground(.background, for: .widget)
+        .widgetHintergrund(WidgetStil.farbe(partner))
     }
 }
 
@@ -61,47 +63,47 @@ private struct PartnerBild: View {
     }
 }
 
-/// Spec 9 "kleines Wetter-Symbol an der Partner-Figur … und im Widget" (Brief I.3).
-private struct PartnerWetterLabel: View {
+/// Akku und Wetter (Spec 9 "kleines Wetter-Symbol an der Partner-Figur … und im Widget", Brief I.3).
+private struct PartnerDetails: View {
     let stand: WidgetStand
     var body: some View {
-        if let wetter = stand.partnerWetter {
-            Label(wetter, systemImage: stand.partnerWetterSymbol ?? "cloud.fill")
+        HStack(spacing: 8) {
+            if let akku = stand.partnerAkku {
+                Label("\(Int(akku * 100)) %", systemImage: "battery.50")
+            }
+            if let wetter = stand.partnerWetter {
+                Label(wetter, systemImage: stand.partnerWetterSymbol ?? "cloud.fill")
+            }
         }
+        .widgetEtikett()
     }
 }
 
 private struct PartnerSchmal: View {
     let entry: WidgetStandEntry
+    let partner: String
     var body: some View {
-        VStack(spacing: 4) {
-            PartnerBild(bild: entry.partnerFigur).frame(height: 64)
-            Text(entry.stand.partnerOrtName ?? "Kein Ort bekannt").font(.caption2).lineLimit(1)
-            HStack(spacing: 6) {
-                if let akku = entry.stand.partnerAkku {
-                    Label("\(Int(akku * 100)) %", systemImage: "battery.50").font(.caption2).foregroundStyle(.secondary)
-                }
-                PartnerWetterLabel(stand: entry.stand).font(.caption2).foregroundStyle(.secondary)
-            }
+        VStack(alignment: .leading, spacing: 4) {
+            WidgetKopf(titel: WidgetStil.name(partner), symbol: "heart.fill", farbe: WidgetStil.farbe(partner))
+            PartnerBild(bild: entry.partnerFigur).frame(maxWidth: .infinity).frame(height: 56)
+            Text(entry.stand.partnerOrtName ?? "Kein Ort bekannt").font(.subheadline.weight(.semibold)).fontDesign(.rounded).lineLimit(1)
+            PartnerDetails(stand: entry.stand)
         }
-        .padding(4)
     }
 }
 
 private struct PartnerBreit: View {
     let entry: WidgetStandEntry
+    let partner: String
     var body: some View {
-        HStack(spacing: 12) {
-            PartnerBild(bild: entry.partnerFigur).frame(width: 76)
-            VStack(alignment: .leading, spacing: 4) {
-                Text(entry.stand.partnerOrtName ?? "Kein Ort bekannt").font(.headline)
-                if let akku = entry.stand.partnerAkku {
-                    Label("\(Int(akku * 100)) %", systemImage: "battery.50").font(.caption)
-                }
-                PartnerWetterLabel(stand: entry.stand).font(.caption).foregroundStyle(.secondary)
+        HStack(spacing: 14) {
+            PartnerBild(bild: entry.partnerFigur).frame(width: 84)
+            VStack(alignment: .leading, spacing: 6) {
+                WidgetKopf(titel: WidgetStil.name(partner), symbol: "heart.fill", farbe: WidgetStil.farbe(partner))
+                Text(entry.stand.partnerOrtName ?? "Kein Ort bekannt").font(.title3.weight(.bold)).fontDesign(.rounded).lineLimit(2)
+                PartnerDetails(stand: entry.stand)
             }
             Spacer(minLength: 0)
         }
-        .padding(4)
     }
 }

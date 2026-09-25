@@ -73,13 +73,15 @@ struct SnapViewer: View {
 
     private func anzeigen(_ url: URL) async {
         if istVideo {
-            let player = AVPlayer(url: url)
+            let player = AVPlayer(url: Videobild.abspielbar(url))
             spieler = player
             player.play()
         } else {
             bild = await Bilddatei.laden(url) // decoded off the main actor (Z-16.2)
         }
         begonnen = Date() // only once it's actually on screen
+        // Snaps replay without limit; each reopening of an already viewed one tells the sender.
+        if binEmpfaenger, nachricht.snapAngesehen { ChatModell.shared.snapWiederholtSenden(nachricht.id) }
     }
 
     private func schliessen() {

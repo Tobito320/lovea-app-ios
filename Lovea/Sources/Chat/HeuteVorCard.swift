@@ -1,15 +1,9 @@
 import SwiftUI
 import UIKit
 
-/// Z-27.3: "Heute vor …" card on Home and in the Chat tab. Empty (`EmptyView`) when nothing
-/// matches — the caller doesn't need its own visibility check.
-/// // ponytail: no jump to the exact message, only opens the conversation — that jump target lives
-/// as private `@State` inside `Unterhaltung`.
+/// Z-27.3: "Heute vor …" card on Home. Empty (`EmptyView`) when nothing matches — the caller
+/// doesn't need its own visibility check. Tap jumps to that message in the chat (`chatZiel`).
 struct HeuteVorCard: View {
-    /// Home has no `offen` binding to a conversation, so it falls back to switching tabs; the Chat
-    /// tab passes its own `offen = true` instead.
-    var onOeffnen: (() -> Void)? = nil
-
     private var treffer: (nachricht: ChatModell.Nachricht, zeitraum: HeuteVorLogik.Zeitraum)? {
         HeuteVorLogik.auswahl(ChatModell.shared.nachrichten)
     }
@@ -17,8 +11,9 @@ struct HeuteVorCard: View {
     var body: some View {
         if let treffer {
             Button {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                if let onOeffnen { onOeffnen() } else { AppNavigation.shared.tabWunsch = "chat" }
+                Haptik.leicht()
+                AppNavigation.shared.chatZiel = treffer.nachricht.id
+                AppNavigation.shared.tabWunsch = "chat"
             } label: {
                 HStack(spacing: 12) {
                     vorschau(treffer.nachricht)

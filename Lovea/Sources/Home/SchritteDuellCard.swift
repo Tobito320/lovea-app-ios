@@ -1,33 +1,35 @@
 import SwiftUI
-import UIKit
 
-/// Z-21.3: Schritte-Duell auf Home — nur die zwei Ringe, Antippen wechselt in den Health-Tab
-/// (Spec 3.1: "Home: nur das Duell mit den zwei Ringen").
+/// Z-36.2: the step duel on Home in the new Health look — the two rings with km and floors,
+/// tapping switches to the Health tab (Spec 3.1 Runde 2: "Home: nur das Duell").
 struct SchritteDuellCard: View {
+    private var health: HealthModell { HealthModell.shared }
+
     var body: some View {
-        VStack(spacing: 12) {
+        let heute = Datum.text(Date())
+        VStack(alignment: .leading, spacing: 12) {
             kopfzeile
-            HStack(spacing: 28) {
-                // Der Ring behält seinen eigenen "Erlauben"/"Einstellungen"-Knopf (Z-21.3, Review-
-                // Fokus 4) — `children: .contain` unten lässt ihn einzeln erreichbar, die Karte wird
-                // trotzdem über die Kopfzeile als Ganzes geöffnet (Tap überall, VoiceOver-Aktion dort).
-                SchritteRing(person: .ahmed, groesse: 84)
-                SchritteRing(person: .annika, groesse: 84)
+            HStack(alignment: .top, spacing: 8) {
+                ForEach(Person.allCases, id: \.self) { person in
+                    SchritteSpalte(
+                        person: person, anzahl: health.heuteSchritte(person), ziel: health.zielSchritte(person),
+                        km: health.kmAm(person, heute), etagen: health.etagenAm(person, heute), groesse: 104
+                    )
+                }
             }
-            .frame(maxWidth: .infinity)
         }
         .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
-        .contentShape(RoundedRectangle(cornerRadius: 16))
+        .healthKarte()
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
         .onTapGesture { oeffneHealth() }
         .accessibilityElement(children: .contain)
     }
 
     private var kopfzeile: some View {
         HStack {
-            Text("Schritte-Duell").font(.headline)
+            Text("Schritte").font(.headline)
             Spacer()
-            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+            Image(systemName: "chevron.right").font(.caption.weight(.semibold)).foregroundStyle(.tertiary)
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
@@ -36,7 +38,7 @@ struct SchritteDuellCard: View {
     }
 
     private func oeffneHealth() {
-        UISelectionFeedbackGenerator().selectionChanged()
+        Haptik.auswahl()
         AppNavigation.shared.tabWunsch = "health"
     }
 }

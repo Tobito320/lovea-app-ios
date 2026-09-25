@@ -29,6 +29,8 @@ final class ChatModell {
         var angeheftet = false
         var angeheftetBis: Date?
         var gesternt: Set<Person> = []
+        /// Tap to keep (visible to both, unlike stars).
+        var gemerkt: Set<Person> = []
         // Block 6 (Z-6.3): folded from `snap.angesehen`/`snap.gespeichert`, not part of the
         // `nachricht.neu` payload itself.
         var snapAngesehen = false
@@ -36,15 +38,14 @@ final class ChatModell {
         var snapGespeichert = false
         /// Local chat line for a `zeichnung.einladung` (no own op, so no second push).
         var einladung: EinladungInfo?
-        // Z-27.2: optional, at the end so every existing labeled `Nachricht(...)` call above still
-        // compiles unchanged.
-        var kapsel: KapselInfo?
-        var brief: BriefInfo?
+        /// Z-33.3: every earlier text, oldest first, folded from all `nachricht.bearbeitet`.
+        var fassungen: [String] = []
+        /// Z-33.2: full-screen effect sent with the message (unknown raw values are dropped).
+        var effekt: ChatEffekt?
     }
 
     struct EinladungInfo: Sendable, Equatable { let zeichnungId: String; let name: String }
-    /// `oeffnetAm` is a "yyyy-MM-dd" day (schnittstellen.md), compared in Europe/Berlin — see `verschlossen(_:)`.
-    struct KapselInfo: Codable, Sendable, Equatable { let oeffnetAm: String }
+    /// Letters are gone (Brief G fix 1); old ones still decode and show as a plain text bubble.
     struct BriefInfo: Codable, Sendable, Equatable { let titel: String }
 
     // Blocks 5/6 extend these; fields already match the op payloads in schnittstellen.md.
@@ -64,6 +65,12 @@ final class ChatModell {
     private(set) var abschriften: [String: String] = [:]
 
     private var byID: [String: Nachricht] = [:]
+    /// Index of each id in `nachrichten`, kept in step by `einordnen`.
+    @ObservationIgnored private var position: [String: Int] = [:]
+    /// Op ids of applied edits: the optimistic op and its echo share one id and must add one version.
+    private var bearbeitungen: Set<String> = []
+    /// Replay count per notice line (`wiederholt-<snapId>-<person>`), highest seen wins.
+    private var wiederholungen: [String: Int] = [:]
     private let registrieren: Bool
 
     /// Z-26.2: per-person draft fold — only ever read back for `Raum.shared.ich`'s own person
@@ -75,8 +82,8 @@ final class ChatModell {
 
     static let arten: Set<String> = [
         "nachricht.neu", "nachricht.bearbeitet", "nachricht.geloescht", "nachricht.reaktion",
-        "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern",
-        "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme", "zeichnung.einladung",
+        "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern", "nachricht.gemerkt",
+        "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme", "snap.wiederholt", "zeichnung.einladung",
         "entwurf.setzen",
     ]
 
@@ -94,85 +101,160 @@ final class ChatModell {
     /// an optimistic send and its server echo share one op id, but only `nachricht.neu`'s own
     /// `id` field is what edits/reactions/deletes reference).
     func anwenden(_ ops: [Op]) {
-        for op in ops { anwendenEins(op) }
-        nachrichten = byID.values.sorted { ($0.seq ?? Int.max, $0.zeit) < ($1.seq ?? Int.max, $1.zeit) }
+        var beruehrt: Set<String> = []
+        for op in ops { if let id = anwendenEins(op) { beruehrt.insert(id) } }
+        if !beruehrt.isEmpty { einordnen(beruehrt) }
         if registrieren { badgeAktualisieren() }
     }
 
-    private func anwendenEins(_ op: Op) {
+    private static func vorher(_ a: Nachricht, _ b: Nachricht) -> Bool {
+        (a.seq ?? Int.max, a.zeit) < (b.seq ?? Int.max, b.zeit)
+    }
+
+    /// Audit #4: patches the touched rows in place and appends new ones at the end (the usual
+    /// case: a new message, a reaction, an echo's `seq`). Only a row that vanished, moved past a
+    /// neighbour or landed mid-list re-sorts the whole history.
+    private func einordnen(_ beruehrt: Set<String>) {
+        var neue: [Nachricht] = []
+        var geaendert: [Int] = []
+        var neuSortieren = false
+        for id in beruehrt {
+            switch (byID[id], position[id]) {
+            case let (n?, i?):
+                nachrichten[i] = n
+                geaendert.append(i)
+            case let (n?, nil):
+                neue.append(n)
+            case (nil, .some):
+                neuSortieren = true
+            case (nil, nil):
+                break
+            }
+        }
+        if !neuSortieren {
+            neuSortieren = geaendert.contains { i in
+                (i > 0 && Self.vorher(nachrichten[i], nachrichten[i - 1]))
+                    || (i + 1 < nachrichten.count && Self.vorher(nachrichten[i + 1], nachrichten[i]))
+            }
+        }
+        neue.sort(by: Self.vorher)
+        if !neuSortieren, let erste = neue.first, let letzte = nachrichten.last, Self.vorher(erste, letzte) {
+            neuSortieren = true
+        }
+        if neuSortieren {
+            nachrichten = byID.values.sorted(by: Self.vorher)
+            position = Dictionary(uniqueKeysWithValues: nachrichten.enumerated().map { ($1.id, $0) })
+        } else {
+            for n in neue {
+                position[n.id] = nachrichten.count
+                nachrichten.append(n)
+            }
+        }
+    }
+
+    private func anwendenEins(_ op: Op) -> String? {
         letzteAktivitaet[op.von] = max(letzteAktivitaet[op.von] ?? .distantPast, op.zeit)
         switch op.art {
         case "nachricht.neu":
-            guard let p = op.daten(NachrichtNeuPayload.self) else { return }
+            guard let p = op.daten(NachrichtNeuPayload.self) else { return nil }
             if var vorhanden = byID[p.id] {
                 if let seq = op.seq { vorhanden.seq = seq }
                 byID[p.id] = vorhanden
             } else {
+                // A Runde-2 `kapsel` field is simply not decoded any more: the message shows like any other.
+                // An old letter becomes an ordinary text: its title, a blank line, its text.
+                let text = p.brief.map { brief in [brief.titel, p.text ?? ""].filter { !$0.isEmpty }.joined(separator: "\n\n") } ?? p.text
                 byID[p.id] = Nachricht(
-                    id: p.id, von: op.von, zeit: op.zeit, seq: op.seq, text: p.text,
+                    id: p.id, von: op.von, zeit: op.zeit, seq: op.seq, text: text,
                     medien: p.medien ?? [], antwortAuf: p.antwortAuf, snap: p.snap,
                     gif: p.gif, sticker: p.sticker, spiel: p.spiel, system: p.system,
-                    kapsel: p.kapsel, brief: p.brief
+                    effekt: p.effekt.flatMap(ChatEffekt.init(rawValue:))
                 )
             }
+            return p.id
         case "nachricht.bearbeitet":
-            guard let p = op.daten(BearbeitetPayload.self) else { return }
-            byID[p.id]?.text = p.text
-            byID[p.id]?.bearbeitet = true
+            // Time limits (Z-33.3) are UI-only; the fold still accepts every edit, old ones included.
+            guard let p = op.daten(BearbeitetPayload.self), var n = byID[p.id], bearbeitungen.insert(op.id).inserted else { return nil }
+            if let alt = n.text { n.fassungen.append(alt) }
+            n.text = p.text
+            n.bearbeitet = true
+            byID[p.id] = n
+            return p.id
         case "nachricht.geloescht":
-            guard let p = op.daten(IDPayload.self) else { return }
-            if p.id.hasPrefix("umzug:zeichnung/") {
+            guard let p = op.daten(IDPayload.self) else { return nil }
+            // Retracted within 5 s: no "zurückgezogen" line either.
+            if p.id.hasPrefix("umzug:zeichnung/") || byID[p.id].map({ op.zeit.timeIntervalSince($0.zeit) < 5 }) == true {
                 // Z-26.4: "aus dem Chat gelöscht" — vanishes outright, no "Nachricht gelöscht" spur.
                 byID.removeValue(forKey: p.id)
             } else {
                 byID[p.id]?.geloescht = true
             }
+            return p.id
         case "nachricht.reaktion":
-            guard let p = op.daten(ReaktionPayload.self) else { return }
+            guard let p = op.daten(ReaktionPayload.self) else { return nil }
             byID[p.id]?.reaktionen[op.von] = p.emoji
+            return p.id
         case "nachricht.gelesen":
-            guard let p = op.daten(GelesenPayload.self), let bis = Self.datum(p.bis) else { return }
+            guard let p = op.daten(GelesenPayload.self), let bis = Self.datum(p.bis) else { return nil }
             gelesenBis[op.von] = max(gelesenBis[op.von] ?? .distantPast, bis)
         case "nachricht.angeheftet":
-            guard let p = op.daten(AngeheftetPayload.self) else { return }
+            guard let p = op.daten(AngeheftetPayload.self) else { return nil }
             byID[p.id]?.angeheftet = true
             byID[p.id]?.angeheftetBis = p.bis.flatMap(Self.datum)
+            return p.id
         case "nachricht.losgeloest":
-            guard let p = op.daten(IDPayload.self) else { return }
+            guard let p = op.daten(IDPayload.self) else { return nil }
             byID[p.id]?.angeheftet = false
             byID[p.id]?.angeheftetBis = nil
+            return p.id
         case "stern":
             // "nur für von sichtbar" (schnittstellen.md): folded for whoever sent it, the UI
             // only ever shows a person their own stars (see `meineSterne`).
-            guard let p = op.daten(SternPayload.self) else { return }
+            guard let p = op.daten(SternPayload.self) else { return nil }
             if p.an { byID[p.id]?.gesternt.insert(op.von) } else { byID[p.id]?.gesternt.remove(op.von) }
+            return p.id
+        case "nachricht.gemerkt":
+            guard let p = op.daten(SternPayload.self) else { return nil }
+            if p.an { byID[p.id]?.gemerkt.insert(op.von) } else { byID[p.id]?.gemerkt.remove(op.von) }
+            return p.id
         case "medium.abschrift":
-            guard let p = op.daten(AbschriftPayload.self) else { return }
+            guard let p = op.daten(AbschriftPayload.self) else { return nil }
             abschriften[p.id] = p.text
         case "snap.angesehen":
-            guard let p = op.daten(SnapAngesehenPayload.self) else { return }
+            guard let p = op.daten(SnapAngesehenPayload.self) else { return nil }
             byID[p.id]?.snapAngesehen = true
             if p.lange { byID[p.id]?.snapLange = true }
+            return p.id
         case "snap.gespeichert":
-            guard let p = op.daten(IDPayload.self) else { return }
+            guard let p = op.daten(IDPayload.self) else { return nil }
             byID[p.id]?.snapGespeichert = true
+            return p.id
+        case "snap.wiederholt":
+            // One grey line per snap and viewer, updated to the newest count (not one line per replay).
+            guard let p = op.daten(SnapWiederholtPayload.self) else { return nil }
+            // The newest replay also moves the line down to where it happened; an older one is ignored.
+            let id = "wiederholt-\(p.id)-\(op.von.rawValue)"
+            guard p.anzahl >= (wiederholungen[id] ?? 0) else { return nil }
+            wiederholungen[id] = p.anzahl
+            byID[id] = Nachricht(id: id, von: op.von, zeit: op.zeit, seq: op.seq, system: ChatHinweis.wiederholtText(von: op.von.name, anzahl: p.anzahl))
+            return id
         case "snap.aufnahme":
             // Not folded onto the snap message itself (that `id` is someone else's to own) — this
             // becomes its own system-style row, keyed by `op.id` so the optimistic send and its
             // echo share one row (same dedupe contract as every other op here).
-            guard let p = op.daten(SnapAufnahmePayload.self) else { return }
+            guard let p = op.daten(SnapAufnahmePayload.self) else { return nil }
             if var vorhanden = byID[op.id] {
                 if let seq = op.seq { vorhanden.seq = seq }
                 byID[op.id] = vorhanden
             } else {
-                let text = op.von.name + (p.art == "bildschirmaufnahme" ? " hat den Bildschirm aufgenommen" : " hat einen Screenshot gemacht")
-                byID[op.id] = Nachricht(id: op.id, von: op.von, zeit: op.zeit, seq: op.seq, system: text)
+                byID[op.id] = Nachricht(id: op.id, von: op.von, zeit: op.zeit, seq: op.seq, system: ChatHinweis.text(von: op.von.name, art: p.art))
             }
+            return op.id
         case "entwurf.setzen":
             entwuerfe[op.von, default: EntwurfFaltung()].anwenden(op)
         case "zeichnung.einladung":
             // Keyed by the op id: the optimistic op and its echo share it.
-            guard let p = op.daten(EinladungPayload.self) else { return }
+            guard let p = op.daten(EinladungPayload.self) else { return nil }
             let id = "einladung-\(op.id)"
             if var vorhanden = byID[id] {
                 if let seq = op.seq { vorhanden.seq = seq }
@@ -182,9 +264,11 @@ final class ChatModell {
                 zeile.einladung = EinladungInfo(zeichnungId: p.zeichnungId, name: p.name)
                 byID[id] = zeile
             }
+            return id
         default:
             break
         }
+        return nil
     }
 
     // MARK: - Derived state
@@ -196,6 +280,15 @@ final class ChatModell {
 
     func meineSterne(_ ich: Person) -> [Nachricht] {
         nachrichten.filter { $0.gesternt.contains(ich) && !$0.geloescht }
+    }
+
+    func nachricht(_ id: String) -> Nachricht? { byID[id] }
+
+    /// Chat search (Block 18): ids of every visible message whose text contains `begriff`, oldest first.
+    func suchen(_ begriff: String) -> [String] {
+        let b = begriff.trimmingCharacters(in: .whitespaces)
+        guard !b.isEmpty else { return [] }
+        return nachrichten.filter { !$0.geloescht && ($0.text ?? "").localizedCaseInsensitiveContains(b) }.map(\.id)
     }
 
     func ungelesen(fuer ich: Person) -> Int {
@@ -219,53 +312,27 @@ final class ChatModell {
         guard let ich = Raum.shared.ich else { return }
         let anzahl = ungelesen(fuer: ich)
         Task { @MainActor in try? await UNUserNotificationCenter.current().setBadgeCount(anzahl) }
+        // All read: pull the chat pushes out of Notification Center too (server tags them with `art`).
+        guard anzahl == 0 else { return }
+        let zentrum = UNUserNotificationCenter.current()
+        zentrum.getDeliveredNotifications { liste in
+            let ids = liste.filter { ($0.request.content.userInfo["art"] as? String)?.hasPrefix("nachricht.") == true }.map(\.request.identifier)
+            if !ids.isEmpty { zentrum.removeDeliveredNotifications(withIdentifiers: ids) }
+        }
     }
 
     // MARK: - Sending
 
-    func nachrichtSenden(text: String, antwortAuf: String? = nil) {
+    /// Z-33.2: the effect is decided here, on the sender's side, and travels as `effekt` — so a
+    /// receiver never replays trigger words found in old history.
+    func nachrichtSenden(text: String, antwortAuf: String? = nil, effekt: ChatEffekt? = nil) {
         let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !getrimmt.isEmpty else { return }
-        Raum.shared.senden("nachricht.neu", NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, antwortAuf: antwortAuf))
-    }
-
-    /// Z-27.2: Zeitkapsel — `oeffnetAm` ist der Öffnungstag (Europe/Berlin), verschlossen bis dahin.
-    /// Spec 9 "Nachricht, Foto oder Zeichnung": `medium` ist optional, Text oder Foto reicht.
-    func kapselSenden(text: String, oeffnetAm: Date, medium: MedienEintrag? = nil) {
-        let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !getrimmt.isEmpty || medium != nil else { return }
+        let gewaehlt = effekt ?? ChatEffekt.erkennen(getrimmt)
         Raum.shared.senden(
             "nachricht.neu",
-            NachrichtNeuPayload(
-                id: UUID().uuidString, text: getrimmt.isEmpty ? nil : getrimmt, medien: medium.map { [$0] },
-                kapsel: KapselInfo(oeffnetAm: Datum.text(oeffnetAm))
-            )
+            NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, antwortAuf: antwortAuf, effekt: gewaehlt?.rawValue)
         )
-    }
-
-    /// Z-27.2: Liebesbrief — kein Verschluss-Datum, nur Siegel + Öffnen-Animation (`ChatNachrichtRow`).
-    func briefSenden(titel: String, text: String) {
-        let titelGetrimmt = titel.trimmingCharacters(in: .whitespacesAndNewlines)
-        let textGetrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !titelGetrimmt.isEmpty, !textGetrimmt.isEmpty else { return }
-        Raum.shared.senden(
-            "nachricht.neu",
-            NachrichtNeuPayload(id: UUID().uuidString, text: textGetrimmt, brief: BriefInfo(titel: titelGetrimmt))
-        )
-    }
-
-    /// Z-27.2 "ist sie schon offen": Kalendertag-Vergleich in Europe/Berlin (`Datum`, wie der Server
-    /// bei `kapselOeffnetZeit`), NICHT die genaue Uhrzeit — die Push kommt bewusst erst um 09:00,
-    /// aber die Kapsel selbst öffnet sich schon ab Mitternacht des Tages (Spec 9).
-    // `nonisolated`: pure (no `self`/instance state), called from non-MainActor call sites too —
-    // `HeuteVorLogik` (plain enum) and `ChatVorschau.inhalt` (plain enum) both call this.
-    nonisolated static func verschlossen(oeffnetAm: String, jetzt: Date = Date()) -> Bool {
-        Datum.tageZwischen(oeffnetAm, Datum.text(jetzt)) < 0
-    }
-
-    nonisolated static func verschlossen(_ n: Nachricht, jetzt: Date = Date()) -> Bool {
-        guard let kapsel = n.kapsel else { return false }
-        return verschlossen(oeffnetAm: kapsel.oeffnetAm, jetzt: jetzt)
     }
 
     func bearbeiten(_ id: String, text: String) {
@@ -280,6 +347,11 @@ final class ChatModell {
         Raum.shared.senden("nachricht.reaktion", ReaktionPayload(id: id, emoji: emoji))
     }
 
+    /// Z-33.1: choosing the reaction you already set removes it (iMessage).
+    func reagierenUmschalten(_ nachricht: Nachricht, _ reaktion: Reaktion, ich: Person) {
+        reagieren(nachricht.id, emoji: nachricht.reaktionen[ich] == reaktion.wert ? nil : reaktion.wert)
+    }
+
     /// Called when the chat is visible and there are unread partner messages (Z-4.6).
     func gelesenSenden(bis: Date = Date()) {
         Raum.shared.senden("nachricht.gelesen", GelesenPayload(bis: Self.datumString(bis)))
@@ -291,6 +363,10 @@ final class ChatModell {
 
     func loesen(_ id: String) {
         Raum.shared.senden("nachricht.losgeloest", IDPayload(id: id))
+    }
+
+    func merkenSetzen(_ id: String, an: Bool) {
+        Raum.shared.senden("nachricht.gemerkt", SternPayload(id: id, an: an))
     }
 
     func sternSetzen(_ id: String, an: Bool) {
@@ -404,25 +480,35 @@ final class ChatModell {
         Raum.shared.senden("snap.gespeichert", IDPayload(id: id))
     }
 
+    /// The receiver reopened an already viewed snap (unlimited replays). `anzahl` = this person's
+    /// replays of it so far, so the fold keeps one line and a lost op can't lower the count.
+    func snapWiederholtSenden(_ id: String) {
+        guard let ich = Raum.shared.ich else { return }
+        let anzahl = (wiederholungen["wiederholt-\(id)-\(ich.rawValue)"] ?? 0) + 1
+        Raum.shared.senden("snap.wiederholt", SnapWiederholtPayload(id: id, anzahl: anzahl))
+    }
+
     /// `art` is `"screenshot"` or `"bildschirmaufnahme"` (Z-6.4); `von` (i.e. `Raum.shared.ich`) is
     /// whoever is looking right now, not the snap's original sender.
+
     func snapAufnahmeSenden(_ id: String, art: String) {
         Raum.shared.senden("snap.aufnahme", SnapAufnahmePayload(id: id, art: art))
     }
 
-    /// Z-6.5: every sent snap (not views/saves/screenshots) feeds the streak. Recomputed on demand
-    /// — cheap enough for a two-person chat, no reason to cache it alongside `nachrichten`.
-    var streak: (tage: Int, laeuftAb: Bool) {
-        let snaps = nachrichten.compactMap { nachricht in nachricht.snap != nil ? (von: nachricht.von, zeit: nachricht.zeit) : nil }
-        return Streak.berechnen(snaps: snaps, jetzt: Date())
-    }
-
     // MARK: - ISO dates for `bis` fields (Op itself formats `zeit` the same way, but keeps that formatter private)
 
-    private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
+    // ponytail: two shared formatters instead of one per call. ISO8601DateFormatter is thread-safe
+    // (Apple docs, iOS 7+), so `nonisolated(unsafe)` only silences the missing Sendable mark; building
+    // one per op made every launch and fold pay for it thousands of times.
+    private nonisolated(unsafe) static let isoFraktional: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
-        f.formatOptions = fraktional ? [.withInternetDateTime, .withFractionalSeconds] : [.withInternetDateTime]
+        f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return f
+    }()
+    private nonisolated(unsafe) static let isoGanz = ISO8601DateFormatter()
+
+    private static func isoFormatierer(fraktional: Bool) -> ISO8601DateFormatter {
+        fraktional ? isoFraktional : isoGanz
     }
 
     private static func datumString(_ datum: Date) -> String { isoFormatierer(fraktional: true).string(from: datum) }
@@ -444,8 +530,8 @@ private struct NachrichtNeuPayload: Codable {
     var sticker: ChatModell.StickerInfo?
     var spiel: ChatModell.SpielInfo?
     var system: String?
-    var kapsel: ChatModell.KapselInfo?
     var brief: ChatModell.BriefInfo?
+    var effekt: String?
 }
 
 /// Z-26.2 draft content: text, already-uploaded photo/voice medien ids.
@@ -498,4 +584,5 @@ private struct SternPayload: Codable { let id: String; let an: Bool }
 private struct AbschriftPayload: Codable { let id: String; let text: String }
 private struct SnapAngesehenPayload: Codable { let id: String; let lange: Bool }
 private struct SnapAufnahmePayload: Codable { let id: String; let art: String }
+private struct SnapWiederholtPayload: Codable { let id: String; let anzahl: Int }
 private struct EinladungPayload: Codable { let zeichnungId: String; let name: String }

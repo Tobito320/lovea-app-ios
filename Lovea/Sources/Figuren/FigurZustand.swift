@@ -17,6 +17,18 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
     case anstupsen, kuss, herz, lacht, anstossen, pokal
     // Ruhe
     case ruhig
+    // Mimik (Runde 3): als Geste sendbar (`FigurGesten`), Reaktionen im Chat
+    case zwinkert, verliebt, sauer, schmollt, verlegen, muede, ueberrascht, lachtTraenen, weint, denkt, feiert, schockiert, daumen, tanzt
+    // Schlaf (Brief G fix 2): after "Gute Nacht" and 3 quiet minutes, sits up in bed yawning
+    case sitztImBett
+    // Unterwegs (Brief G bugfix): automotive and fast for a minute or more is a train, not a car
+    case zug
+
+    /// The Runde-3 expressions, in picker order.
+    static let mimik: [FigurZustand] = [
+        .zwinkert, .verliebt, .lachtTraenen, .daumen, .feiert, .tanzt, .denkt,
+        .ueberrascht, .schockiert, .verlegen, .schmollt, .sauer, .weint, .muede,
+    ]
 
     var titel: String {
         switch self {
@@ -60,6 +72,22 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         case .anstossen: "stößt an"
         case .pokal: "hat gewonnen"
         case .ruhig: "entspannt"
+        case .zwinkert: "zwinkert"
+        case .verliebt: "ist verliebt"
+        case .sauer: "ist sauer"
+        case .schmollt: "schmollt"
+        case .verlegen: "ist verlegen"
+        case .muede: "ist müde"
+        case .ueberrascht: "ist überrascht"
+        case .lachtTraenen: "lacht Tränen"
+        case .weint: "weint"
+        case .denkt: "denkt nach"
+        case .feiert: "feiert"
+        case .schockiert: "ist schockiert"
+        case .daumen: "Daumen hoch"
+        case .tanzt: "tanzt"
+        case .sitztImBett: "wird müde"
+        case .zug: "fährt Zug"
         }
     }
 
@@ -69,7 +97,7 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         return c
     }()
 
-    /// Priority: Geste > offline > App > Ort > Bewegung > Gerät > Tageszeit > Brauche > Stimmung > ruhig.
+    /// Priority: Geste > offline > Fahren/Zug > App > Schlaf > Ort > Bewegung > Gerät > Tageszeit > Brauche > Stimmung > ruhig.
     /// Abzeichen: "partyhut", "herzaugen", "outfit", "uhrwerk", "schnecke", "krone".
     static func bestimmen(_ e: FigurEingabe) -> (haupt: FigurZustand, abzeichen: [String]) {
         let heute = berlin.dateComponents([.month, .day, .hour], from: e.jetzt)
@@ -91,10 +119,24 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         if let geste = e.geste { return geste }
         // ponytail: offline sits above App and Ort (brief test "Offline schlägt Ort"); the spec lists Gerät below Ort.
         if !e.online { return .offline }
+        // Unterwegs ist der echte Zustand, auch mit offenem Chat und auch im Laden, aus dem man gerade
+        // hinausfährt (Brief G bugfix). Die Fahrschule bleibt Fahrschule.
+        if e.bewegung == .faehrt || e.bewegung == .zug, e.ort != .fahrschule, let reise = e.bewegung { return reise }
         if let app = e.app { return app }
+        // Schlägt "zu Hause"; unterwegs oder an einem anderen Ort nie schlafend, dann nur "nicht stören".
+        // Ohne gespeichertes Zuhause gilt man als zu Hause. Gerade in Bewegung zählt als Bewegung jetzt.
+        let schlaf = SchlafLogik.zustand(
+            guteNachtSeit: SchlafLogik.guteNachtSeit(nacht: e.guteNacht, morgen: e.gutenMorgen, jetzt: e.jetzt),
+            fokusSchlafen: e.fokus == "schlafen", zuhause: !e.zuhauseBekannt || e.ort == .zuhause,
+            letzteBewegung: e.bewegung != nil ? e.jetzt : e.letzteBewegung, jetzt: e.jetzt
+        )
+        switch schlaf {
+        case .schlaeft: return .schlaeft
+        case .sitzt: return .sitztImBett
+        case .wach: break
+        }
         if let ort = e.ort { return ort }
         if let bewegung = e.bewegung { return bewegung }
-        if e.fokus == "schlafen" { return .schlaeft }
         if e.fokus != nil { return .nichtStoeren }
         if e.laedt { return .laedt }
         if let akku = e.akku, akku < 0.15 { return .akkuLeer }
@@ -106,6 +148,68 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
     }
 }
 
+/// Brief G fix 2: where someone is on the way to sleep. `sitzt` = sits up in bed, yawning.
+enum SchlafZustand: Sendable, Equatable {
+    case wach, sitzt, schlaeft
+
+    /// From a shared figure state (the partner sends `schlaeft` / `sitztImBett` with presence).
+    init(_ z: FigurZustand?) {
+        switch z {
+        case .schlaeft?: self = .schlaeft
+        case .sitztImBett?: self = .sitzt
+        default: self = .wach
+        }
+    }
+}
+
+/// The one sleep decision, on the sleeper's own phone (`FigurZustand.bestimmen`); everyone else
+/// reads the state it shares.
+enum SchlafLogik {
+    static let sitzenNach: TimeInterval = 3 * 60
+    static let schlafenNach: TimeInterval = 5 * 60
+    static let guteNachtHoechstens: TimeInterval = 12 * 3600
+    /// Movement this recent still counts as moving for the sleep focus.
+    static let ruheNoetig: TimeInterval = 60
+
+    /// Not at Home: never asleep. Sleep focus and resting: asleep. After "Gute Nacht" (at most
+    /// 12 h): still for 3 min sits up in bed, still for 5 min asleep; any movement starts over.
+    static func zustand(guteNachtSeit: Date?, fokusSchlafen: Bool, zuhause: Bool, letzteBewegung: Date?, jetzt: Date) -> SchlafZustand {
+        guard zuhause else { return .wach }
+        let ruhe = letzteBewegung.map { jetzt.timeIntervalSince($0) } ?? .infinity
+        if fokusSchlafen && ruhe >= ruheNoetig { return .schlaeft }
+        guard let seit = guteNachtSeit, jetzt.timeIntervalSince(seit) <= guteNachtHoechstens else { return .wach }
+        let still = min(jetzt.timeIntervalSince(seit), ruhe)
+        if still >= schlafenNach { return .schlaeft }
+        if still >= sitzenNach { return .sitzt }
+        return .wach
+    }
+
+    /// The "Gute Nacht" that counts: said since the last 20:00 and not followed by "Guten Morgen".
+    static func guteNachtSeit(nacht: Date?, morgen: Date?, jetzt: Date) -> Date? {
+        guard let nacht, nacht >= letzte20Uhr(jetzt) else { return nil }
+        if let morgen, morgen > nacht { return nil }
+        return nacht
+    }
+
+    private static func letzte20Uhr(_ jetzt: Date) -> Date {
+        let heute = Calendar.berlin.date(bySettingHour: 20, minute: 0, second: 0, of: jetzt) ?? jetzt
+        return heute <= jetzt ? heute : Calendar.berlin.date(byAdding: .day, value: -1, to: heute) ?? heute
+    }
+
+    /// audit-szene #4: how long a shared "schläft"/"sitzt im Bett" may sit unchanged before it's
+    /// treated as stale rather than trusted (`FigurenModell.partnerZustandVerfallenLassen`).
+    static let unveraendertGrenze: TimeInterval = 3600
+
+    /// `seit` is the server-recorded time the CURRENT value was truly sent (rides along as `seit` in
+    /// the `zustand` payload, `raum.js`), not when we happened to receive or re-receive it — so a
+    /// reconnect replaying the same old state can't look fresh. Stale past `unveraendertGrenze`, but
+    /// only once it's no longer a plausible sleeping hour — during real night hours the same state is
+    /// still likely true even without a fresh update.
+    static func partnerZustandAbgelaufen(seit: Date?, jetzt: Date) -> Bool {
+        guard let seit, jetzt.timeIntervalSince(seit) > unveraendertGrenze else { return false }
+        return !AnwesenheitEingabe.istNachtstunde(Calendar.berlin.component(.hour, from: jetzt))
+    }
+}
 /// Everything `bestimmen` looks at. States are passed as the matching `FigurZustand`.
 struct FigurEingabe: Sendable {
     var person: Person
@@ -113,7 +217,7 @@ struct FigurEingabe: Sendable {
     var geste: FigurZustand?        // anstupsen, kuss, herz, lacht, anstossen, pokal
     var app: FigurZustand?          // imChat … spielt
     var ort: FigurZustand?          // zuhause … supermarkt
-    var bewegung: FigurZustand?     // laeuft, rennt, rad, faehrt
+    var bewegung: FigurZustand?     // laeuft, rennt, rad, faehrt, zug
     var akku: Double?               // 0…1
     var laedt = false
     var online = true
@@ -125,4 +229,9 @@ struct FigurEingabe: Sendable {
     var dateHeute = false
     var puenktlich: String?         // "uhrwerk" | "charmant" | "troedel" | "weg"
     var monatsKrone = false
+    // Brief G fix: inputs of `SchlafLogik`.
+    var guteNacht: Date?            // newest "Gute Nacht" gruss
+    var gutenMorgen: Date?          // newest "Guten Morgen" gruss
+    var letzteBewegung: Date?       // last steps or walking/running/cycling
+    var zuhauseBekannt = true       // a Home place is saved; `false` counts as at Home
 }

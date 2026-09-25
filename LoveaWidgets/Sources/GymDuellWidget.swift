@@ -27,9 +27,8 @@ private struct GymDuellView: View {
             Divider()
             GymSpalte(stand: entry.stand, person: partner, eigene: false)
         }
-        .padding(4)
         .widgetURL(URL(string: "lovea://health"))
-        .containerBackground(.background, for: .widget)
+        .widgetHintergrund(WidgetStil.rose)
     }
 }
 
@@ -39,6 +38,7 @@ private struct GymSpalte: View {
     let eigene: Bool
 
     var body: some View {
+        let farbe = WidgetStil.farbe(person)
         let tage = stand.gymLetzte7[person] ?? []
         let heute = WidgetDatum.heute()
         let erledigtAnzahl = tage.filter(\.erledigt).count
@@ -46,20 +46,24 @@ private struct GymSpalte: View {
         let heuteErledigt = tage.first(where: { $0.datum == heute })?.erledigt ?? false
 
         VStack(alignment: .leading, spacing: 6) {
-            Text(person == "ahmed" ? "Ahmed" : "Annika").font(.caption).bold()
-            HStack(spacing: 3) {
-                ForEach(tage, id: \.datum) { tag in
-                    Circle().fill(tag.erledigt ? Color.green : Color.secondary.opacity(0.25)).frame(width: 10, height: 10)
+            HStack {
+                WidgetKopf(titel: WidgetStil.name(person), symbol: "figure.strengthtraining.traditional", farbe: farbe)
+                Spacer(minLength: 0)
+                if eigene {
+                    Button(intent: GymHeuteIntent()) {
+                        Image(systemName: heuteErledigt ? "checkmark.circle.fill" : "circle")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .buttonBorderShape(.circle)
+                    .tint(heuteErledigt ? .green : farbe)
                 }
             }
-            Text("\(erledigtAnzahl)/\(ziel)").font(.caption2).foregroundStyle(.secondary)
-            if eigene {
-                Button(intent: GymHeuteIntent()) {
-                    Image(systemName: heuteErledigt ? "checkmark.circle.fill" : "circle")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(heuteErledigt ? .green : .accentColor)
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text("\(erledigtAnzahl)").widgetZahl(30).widgetAccentable()
+                Text("von \(ziel)").widgetEtikett()
             }
+            Spacer(minLength: 0)
+            GymTageReihe(tage: tage, heute: heute, farbe: farbe, groesse: 14)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

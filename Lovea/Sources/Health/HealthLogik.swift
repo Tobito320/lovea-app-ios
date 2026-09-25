@@ -1,9 +1,9 @@
 import Foundation
 
-/// Pure Health logic (Z-20.3): day-boundary-safe folding of HealthKit/habit ops, Gym/Wasser
-/// levels, and week/month/year grids. No HealthKit, no Raum — `HealthModell` is the only caller
-/// that touches either. Days are always `Datum`'s `yyyy-MM-dd` strings (Europe/Berlin, Monday-first,
-/// DST-safe — shared with the Kalender block, see `Kalender/Logik/Datum.swift`).
+/// Pure Health logic (Z-20.3): day-boundary-safe folding of HealthKit/habit ops, goal history, month
+/// grids, sleep and the one-time step backfill. No HealthKit, no Raum — `HealthModell` is the only
+/// caller that touches either. Days are always `Datum`'s `yyyy-MM-dd` strings (Europe/Berlin,
+/// Monday-first, DST-safe — shared with the Kalender block, see `Kalender/Logik/Datum.swift`).
 
 /// One HealthKit/habit value with just enough of its originating `Op` to resolve "same person+day,
 /// highest `seq` wins" without needing `Raum`/`OpLog` — `Raum` delivers ops in arrival order, not
@@ -19,30 +19,39 @@ struct TagesEintrag<Wert: Sendable>: Sendable {
     /// Gym-backfill rule (Spec 4.1). Irrelevant for steps/water, always set for uniformity.
     var gesendetAm: String
     var wert: Wert
-    /// The originating `Op.id` (I-2). Last with a unique default so plain test entries never look
+    /// The originating `Op.id` (I-2). With a unique default so plain test entries never look
     /// like "the same op".
     var id: String = UUID().uuidString
+    /// Z-36.1: steps from the one-time 90-day backfill — shown, but never worth points or challenge
+    /// progress. A later unflagged op for the same day wins by `seq` and counts normally.
+    var nachgetragen: Bool = false
 }
 
 enum HealthFaltung {
     /// Folds one entry into a per-person-per-day map, keeping the higher-`seq` entry on a clash.
-    /// Final-Review I-2: the confirmed echo of an own op (same `id`) replaces its optimistic copy, so
-    /// it takes part with its real `seq` from then on — otherwise it stays `nil` (= newest) forever
-    /// and a later widget/second-device op could never beat it. A redelivery without `seq` (the widget
-    /// merge re-queues an op the log may already have confirmed) keeps the known `seq`.
     // ponytail: only the winner per day is kept — a confirmed op from elsewhere that lost to a still-
     // unconfirmed own op is gone if that own op later confirms BELOW it (needs a live broadcast to beat
     // a catch-up page); the next launch's seq-ordered replay heals it. Keep all ops per day if it bites.
     static func aufnehmen<Wert: Sendable>(_ bisher: inout [Person: [String: TagesEintrag<Wert>]], _ neu: TagesEintrag<Wert>) {
+        gewinner(&bisher[neu.von, default: [:]][neu.datum], neu)
+    }
+
+    /// The rule for one slot (a day, a habit definition, a hide switch): the higher `seq` wins,
+    /// `nil` (own, unconfirmed) counts as newest. Final-Review I-2: the confirmed echo of an own op
+    /// (same `id`) replaces its optimistic copy, so it takes part with its real `seq` from then on —
+    /// otherwise it stays `nil` (= newest) forever and a later widget/second-device op could never
+    /// beat it. A redelivery without `seq` (the widget merge re-queues an op the log may already have
+    /// confirmed) keeps the known `seq`.
+    static func gewinner<Wert: Sendable>(_ slot: inout TagesEintrag<Wert>?, _ neu: TagesEintrag<Wert>) {
         var neu = neu
-        if let alt = bisher[neu.von]?[neu.datum] {
+        if let alt = slot {
             if alt.id == neu.id {
                 neu.seq = neu.seq ?? alt.seq
             } else if (neu.seq ?? .max) < (alt.seq ?? .max) {
                 return
             }
         }
-        bisher[neu.von, default: [:]][neu.datum] = neu
+        slot = neu
     }
 
     /// Batch version — used by pure-logic tests and anywhere a full recompute is simpler than an
@@ -51,6 +60,13 @@ enum HealthFaltung {
         var ergebnis: [Person: [String: TagesEintrag<Wert>]] = [:]
         for eintrag in eintraege { aufnehmen(&ergebnis, eintrag) }
         return ergebnis
+    }
+
+    /// Z-36.1, Review-Fokus 2: what points and challenges may see. Filtered AFTER folding, so a
+    /// backfilled day that later got a real value counts, and a backfilled winner never lets an
+    /// older value through.
+    static func punktefaehig(_ eintraege: [TagesEintrag<Int>]) -> [Person: [String: TagesEintrag<Int>]] {
+        gefaltet(eintraege).mapValues { tage in tage.filter { !$0.value.nachgetragen } }
     }
 }
 
@@ -87,38 +103,7 @@ enum HealthLogik {
             .element.wert ?? standard
     }
 
-    // MARK: - Stufen (Z-20.3, Spec 3.2) — 0...3 für Gym und Wasser
-
-    /// 0 nichts (auch wenn das Wochenziel über ANDERE Tage schon erreicht ist — jede Zelle im
-    /// Jahres-Raster ist EIN Tag, ein nicht abgehakter Tag bleibt leer), 1 (leicht) heute abgehakt,
-    /// 2 (mittel) Wochenziel diese Woche auf Kurs, 3 (stark) Wochenziel schon geschafft. "Auf Kurs"
-    /// ist eine einfache Pace-Heuristik: mindestens so viele Tage geschafft, wie bei gleichmäßigem
-    /// Tempo bis zum heutigen Wochentag fällig wären.
-    /// // ponytail: lineares Pacing, kein Blick auf die Restwoche. Upgrade, falls das zu streng wirkt.
-    static func gymStufe(heuteAbgehakt: Bool, erledigtInWoche: Int, ziel: Int, wochentag: Int) -> Int {
-        guard heuteAbgehakt else { return 0 }
-        let ziel = max(ziel, 1)
-        if erledigtInWoche >= ziel { return 3 }
-        let faelligPace = Int((Double(ziel) * Double(wochentag) / 7).rounded(.up))
-        return erledigtInWoche >= faelligPace ? 2 : 1
-    }
-
-    /// 0 nichts getrunken, 1 unter 50 %, 2 ab 50 %, 3 Tagesziel erreicht.
-    static func wasserStufe(glaeser: Int, ziel: Int) -> Int {
-        guard glaeser > 0 else { return 0 }
-        let ziel = max(ziel, 1)
-        if glaeser >= ziel { return 3 }
-        if glaeser * 2 >= ziel { return 2 }
-        return 1
-    }
-
-    // MARK: - Ansichten (Z-21.1, hier nur die reine Tage-Erzeugung)
-
-    /// Montag...Sonntag der Woche, die `tag` enthält.
-    static func wocheTage(_ tag: String) -> [String] {
-        let montag = Datum.montagDerWoche(tag)
-        return (0..<7).map { Datum.addTage(montag, $0) }
-    }
+    // MARK: - Ansichten (hier nur die reine Tage-Erzeugung)
 
     /// Kalendergitter für einen Monat, Montag-first, `nil` = Füllzelle außerhalb des Monats.
     /// `monateZurueck` 0 = aktueller Monat; ein negativer Aufruf wird auf 0 geklemmt — es gibt
@@ -137,18 +122,14 @@ enum HealthLogik {
         return zellen
     }
 
-    /// Rollendes Jahr (52 Wochen, Montag-first) bis einschließlich `heute` — endet nie in der
-    /// Zukunft, weil einfach bei `heute` abgeschnitten wird statt bis Sonntag der laufenden Woche.
-    static func jahresGitter(heute: String) -> [String] {
-        let montagDieserWoche = Datum.montagDerWoche(heute)
-        let start = Datum.addTage(montagDieserWoche, -7 * 51)
-        var tag = start
-        var tage: [String] = []
-        while tag <= heute {
-            tage.append(tag)
-            tag = Datum.addTage(tag, 1)
-        }
-        return tage
+    // MARK: - Einmaliges Nachtragen (Z-36.1, Review-Fokus 2)
+
+    /// Days the one-time backfill may send: the last 90 days minus the live window (today and the
+    /// 7 days before, which `HealthModell` keeps sending unflagged and worth points), and never a day
+    /// that already has an own value — a flagged op would otherwise win by `seq` and take its points.
+    /// Newest first. Days are stepped by calendar day, so DST (25.10.2026) never skips or doubles one.
+    static func nachtragTage(heute: String, vorhanden: Set<String>) -> [String] {
+        (8..<90).map { Datum.addTage(heute, -$0) }.filter { !vorhanden.contains($0) }
     }
 
     // MARK: - Schlaf (Z-20.1)

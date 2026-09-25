@@ -75,7 +75,11 @@ final class WidgetStandSchreiber {
 
         letzteDaten = daten
         letzterSchreibZeitpunkt = Date()
-        if let url = WidgetGruppe.standURL() { try? daten.write(to: url, options: .atomic) }
+        // audit-app #6: off the main actor (Z-16.2/common.md "Main Thread frei") — same detached
+        // pattern the PNG write below already uses.
+        if let url = WidgetGruppe.standURL() {
+            _ = await Task.detached(priority: .utility) { try? daten.write(to: url, options: .atomic) }.value
+        }
         WidgetCenter.shared.reloadAllTimelines()
     }
 
@@ -86,7 +90,6 @@ final class WidgetStandSchreiber {
         var stand = WidgetStand(eigenePerson: ich.rawValue)
         healthEintragen(&stand)
         challengeEintragen(&stand)
-        treffenEintragen(&stand)
         partnerEintragen(&stand, partner: ich.partner)
         stand.frageDesTages = FrageDesTages.waehlen(vorrat: FrageDesTages.vorrat, tag: Datum.text(Date()))?.text
         return stand
@@ -102,8 +105,13 @@ final class WidgetStandSchreiber {
         // `verfuegbar` (Kontostand nach Käufen), nicht `stand` (Lebenszeit-verdient) — sonst zeigt
         // das Widget nach dem ersten Kauf eine andere Zahl als die Punktestand-Kapsel in der App.
         let verfuegbar = PunkteModell.shared.einkaufsStand(preis: { ShopKatalog.artikel($0)?.preis }).verfuegbar
+        var km: [String: Double] = [:]
+        var etagen: [String: Int] = [:]
+        defer { stand.kmHeute = km; stand.etagenHeute = etagen }
         for person in Person.allCases {
             stand.schritteHeute[person.rawValue] = health.heuteSchritte(person)
+            km[person.rawValue] = health.kmAm(person, heute)
+            etagen[person.rawValue] = health.etagenAm(person, heute)
             stand.zielSchritte[person.rawValue] = health.zielSchritte(person)
             stand.zielGymWoche[person.rawValue] = health.zielGym(person)
             stand.gymLetzte7[person.rawValue] = (0..<7).map { versatz in
@@ -112,18 +120,28 @@ final class WidgetStandSchreiber {
             }
             stand.punkte[person.rawValue] = verfuegbar[person]
         }
+        if let ich = Raum.shared.ich {
+            let woche = HabitLogik.wochenTage(heute: heute)
+            stand.habits = health.sichtbareHabits(fuer: ich).map { h in
+                let ziel = health.habitZiel(h.id, ich)
+                let werte = health.habitWerte(h.id, ich)
+                let wert = werte[heute] ?? 0
+                let zielWert = max(1, ziel ?? h.tagesziel ?? 1)
+                return WidgetStand.HabitKachel(
+                    id: h.id, name: h.name, symbol: h.symbol,
+                    untertitel: (h.zaehlen ? "\(wert)/\(zielWert) · " : "") + HabitLogik.haeufigkeitText(h, ziel: ziel),
+                    zaehlen: h.zaehlen, ziel: zielWert, heute: wert,
+                    woche: woche.map { HabitLogik.anteil(h, wert: werte[$0] ?? 0, ziel: ziel) },
+                    serie: HabitLogik.serie(h, werte: werte, ziel: ziel, heute: heute)
+                )
+            }
+        }
     }
 
     private func challengeEintragen(_ stand: inout WidgetStand) {
         guard let woche = PunkteModell.shared.aktuelleWoche else { return }
         stand.gemeinsamZielWoche = woche.gemeinsamZiel
         stand.gemeinsamSchritteWoche = woche.schritteGesamt
-    }
-
-    private func treffenEintragen(_ stand: inout WidgetStand) {
-        guard let treffen = KalenderModell.shared.naechstesTreffen else { return }
-        stand.naechstesTreffenDatum = treffen.datum
-        stand.naechstesTreffenText = treffen.wasMachenWir
     }
 
     private func partnerEintragen(_ stand: inout WidgetStand, partner: Person) {
@@ -162,9 +180,12 @@ final class WidgetStandSchreiber {
         let renderer = ImageRenderer(content: ansicht)
         renderer.scale = 2
         guard let bild = renderer.uiImage else { return false }
-        guard let daten = await Task.detached(priority: .utility, operation: { bild.pngData() }).value else { return false }
-        try? daten.write(to: url, options: .atomic)
-        return true
+        // audit-app #6: encode AND write off the main actor in the same detached hop.
+        return await Task.detached(priority: .utility) {
+            guard let daten = bild.pngData() else { return false }
+            try? daten.write(to: url, options: .atomic)
+            return true
+        }.value
     }
 
     @discardableResult
@@ -172,8 +193,9 @@ final class WidgetStandSchreiber {
         guard let url = WidgetGruppe.partnerFotoURL() else { return false }
         guard let quelle = letztesFotoDesPartners(partner) else {
             guard letzteFotoQuelle != nil else { return false }
-            try? FileManager.default.removeItem(at: url)
             letzteFotoQuelle = nil
+            // audit-app #6: off the main actor, like the write below.
+            _ = await Task.detached(priority: .utility) { try? FileManager.default.removeItem(at: url) }.value
             return true
         }
         guard quelle.lastPathComponent != letzteFotoQuelle else { return false }
@@ -192,8 +214,8 @@ final class WidgetStandSchreiber {
     /// erst beim nächsten beobachteten Zustandswechsel auf (Grenze, siehe Bericht).
     private func letztesFotoDesPartners(_ partner: Person) -> URL? {
         for nachricht in ChatModell.shared.nachrichten.reversed() {
-            // Minor 5: nie ein gelöschtes Foto oder eine noch verschlossene Zeitkapsel ins Widget.
-            guard nachricht.von == partner, nachricht.snap == nil, !nachricht.geloescht, !ChatModell.verschlossen(nachricht) else { continue }
+            // Minor 5: nie ein gelöschtes Foto ins Widget.
+            guard nachricht.von == partner, nachricht.snap == nil, !nachricht.geloescht else { continue }
             guard let medium = nachricht.medien.first(where: { $0.typ == "foto" }) else { continue }
             if let lokal = Medien.lokal(medium.id) { return lokal }
         }

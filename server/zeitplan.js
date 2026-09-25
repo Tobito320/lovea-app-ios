@@ -76,15 +76,7 @@ export function puenktlichZeit(treffenDatum) {
   return berlinInstant(t.y, t.mo, t.d, 9, 0, 0);
 }
 
-// Z-27.2: Zeitkapsel öffnet sich für den Client am Kalendertag `oeffnetAm` (Datum.tageZwischen-
-// Vergleich, siehe ChatModell.verschlossen) -- die Push-Mitteilung dazu feuert bewusst erst später
-// am selben Tag (09:00), nicht um Mitternacht.
-export function kapselOeffnetZeit(oeffnetAmDatum) {
-  const [y, mo, d] = oeffnetAmDatum.split("-").map(Number);
-  return berlinInstant(y, mo, d, 9, 0, 0);
-}
-
-// Kalendertag in Europe/Berlin als "YYYY-MM-DD", für Streak & Tages-Dedupe.
+// Kalendertag in Europe/Berlin als "YYYY-MM-DD", für Tages-Dedupe.
 export function berlinDatum(ms) {
   const p = berlinParts(ms);
   return `${p.y}-${String(p.mo).padStart(2, "0")}-${String(p.d).padStart(2, "0")}`;
@@ -101,8 +93,8 @@ export function naechsteTageszeit(jetztMs, hh, mm = 0) {
   return kandidat;
 }
 
-// Nächster fälliger Zeitpunkt für ein tägliches Ereignis (Frage des Tages,
-// Streak-Warnung): wenn es heute noch nicht erledigt ist, ist der Kandidat
+// Nächster fälliger Zeitpunkt für ein tägliches Ereignis (Frage des Tages):
+// wenn es heute noch nicht erledigt ist, ist der Kandidat
 // HEUTE hh:mm -- auch wenn das schon in der Vergangenheit liegt (dann wird es
 // beim nächsten Alarm sofort nachgeholt, statt nie zu feuern). Ist es heute
 // schon erledigt, ist der Kandidat morgen hh:mm, damit dauerhaft ein
@@ -169,8 +161,7 @@ function naechsteMonatlicheChallengeZeit(jetztMs, zeitFn, erledigt) {
 //   treffen: [{datum:"YYYY-MM-DD", uhrzeit?:"HH:mm"}],
 //   angeheftet: [{id, bis}],            // noch nicht losgelöste Nachrichten mit Ablauf
 //   spielEinladungen: [{id, bis}],      // noch offene Einladungen
-//   streakLaeuftHeuteAb: boolean,
-//   erinnerungenHeute: {frage: boolean, streak: boolean},
+//   erinnerungenHeute: {frage: boolean},
 //   challengeErledigt: {endspurtWoche, endeWoche, endspurtMonat, endeMonat: boolean},
 // }
 export function naechsterAlarm(kontext, jetztMs) {
@@ -186,17 +177,11 @@ export function naechsterAlarm(kontext, jetztMs) {
   for (const s of kontext.spielEinladungen ?? []) {
     if (s.bis) kandidaten.push({ art: "spielVerfallen", id: s.id, von: s.von, zeitMs: Date.parse(s.bis) });
   }
-  for (const k of kontext.kapseln ?? []) {
-    kandidaten.push({ art: "kapselOeffnet", id: k.id, zeitMs: kapselOeffnetZeit(k.oeffnetAm) });
-  }
   // Immer einen Kandidaten für die Frage des Tages einplanen: entweder heute
   // (falls noch offen -- kann in der Vergangenheit liegen und wird nachgeholt)
   // oder morgen (falls heute schon erledigt). So bleibt immer ein Wach-
   // Zeitpunkt geplant, auch wenn sonst nichts ansteht.
   kandidaten.push({ art: "frageDesTages", zeitMs: naechsteFaelligeTageszeit(jetztMs, 18, 0, kontext.erinnerungenHeute?.frage) });
-  if (kontext.streakLaeuftHeuteAb) {
-    kandidaten.push({ art: "streakWarnung", zeitMs: naechsteFaelligeTageszeit(jetztMs, 21, 0, kontext.erinnerungenHeute?.streak) });
-  }
   // Duell der Woche + Gemeinsam Woche/Monat laufen immer, kein Op-Kontext nötig.
   const ce = kontext.challengeErledigt ?? {};
   kandidaten.push({ art: "challengeEndspurtWoche", zeitMs: naechsteWoechentlicheChallengeZeit(jetztMs, challengeEndspurtWocheZeit, ce.endspurtWoche) });

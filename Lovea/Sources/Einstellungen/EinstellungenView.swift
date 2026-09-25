@@ -4,12 +4,11 @@ import SwiftUI
 struct EinstellungenView: View {
     let person: Person
     @ObservedObject var session: PersonSession
-    @AppStorage("profile.performanceHUD") private var showsHUD = false
+    @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
+    @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
     @State private var zeigtOrte = false
-    @State private var zeigtHintergrund = false
     @State private var zeigtEntwickler = false
-
-    private var eigeneNummer: String { EinstellungenModell.shared.string("telefon", default: "") }
+    @State private var szenenOrt: RaumOrt?
 
     var body: some View {
         List {
@@ -17,22 +16,26 @@ struct EinstellungenView: View {
                 NavigationLink("Mitteilungen") { MitteilungenListe() }
             }
             Section("FaceTime") {
-                NavigationLink { TelefonEditor() } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Meine Telefonnummer für FaceTime")
-                        Text(eigeneNummer.isEmpty ? "Noch nicht eingetragen" : eigeneNummer)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
+                FaceTimeKontaktZeile()
             }
             Section("Figur") {
                 NavigationLink("Figuren-Editor") { FigurEditorSeite(person: person) }
-                NavigationLink("Flammen-Emoji") { FlammeEditor() }
+            }
+            Section("Szenen") {
+                ForEach(RaumOrt.allCases) { ort in
+                    Button { szenenOrt = ort } label: {
+                        HStack(spacing: 12) {
+                            Label(ort.titel, systemImage: ort.symbol)
+                            Spacer()
+                            ZimmerKachel(zimmer: Zimmer.von(person, ort: ort), ort: ort, art: .raum, aussehen: FigurenModell.shared.aussehen(person))
+                                .frame(width: 40, height: 40)
+                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        }
+                    }
+                    .foregroundStyle(.primary)
+                }
             }
             Section("Chat") {
-                Button("Chat-Hintergrund") { zeigtHintergrund = true }
-                    .foregroundStyle(.primary)
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
             }
             Section("Wir") {
@@ -45,13 +48,16 @@ struct EinstellungenView: View {
                 SpotifyVerbindenRow()
             }
             Section {
-                Toggle("Leistungsanzeige", isOn: $showsHUD)
+                Toggle("Haptik", isOn: $haptik)
             }
             Section {
                 Text("Version \(Bundle.main.appVersion)")
                     .foregroundStyle(.secondary)
                     .onTapGesture(count: 7) { zeigtEntwickler = true }
+                // audit-app #8: a debug tool, gated behind the same 7-tap reveal as the rest of this
+                // section instead of sitting permanently in the production settings list.
                 if zeigtEntwickler {
+                    Toggle("Leistungsanzeige", isOn: $showsHUD)
                     Menu {
                         ForEach(Person.allCases, id: \.self) { kandidat in
                             Button(kandidat.name) { session.waehlen(kandidat) }
@@ -67,7 +73,7 @@ struct EinstellungenView: View {
         .navigationTitle("Einstellungen")
         .navigationBarTitleDisplayMode(.inline)
         .sheet(isPresented: $zeigtOrte) { OrteListeView() }
-        .sheet(isPresented: $zeigtHintergrund) { ChatHintergrundEinstellung(ich: person) }
+        .sheet(item: $szenenOrt) { ort in NavigationStack { ZimmerEditor(person: person, ort: ort) } }
     }
 }
 
@@ -128,74 +134,6 @@ struct FigurEditorSeite: View {
             ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
         }
         .sheet(isPresented: $shopOffen) { ShopView() }
-    }
-}
-
-// MARK: - Flammen-Emoji
-
-private struct FlammeEditor: View {
-    let modell = EinstellungenModell.shared
-    @State private var text = ""
-
-    var body: some View {
-        Form {
-            Section {
-                TextField("Emoji", text: $text)
-                    .font(.system(size: 40))
-                    .multilineTextAlignment(.center)
-                    .onSubmit(sichern)
-            } footer: {
-                Text("Erscheint als Flamme im Chat-Kopf, z. B. bei einer Streak.")
-            }
-        }
-        .navigationTitle("Flammen-Emoji")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) { Button("Sichern", action: sichern) }
-        }
-        .onAppear { text = modell.string("flamme", default: "🔥") }
-    }
-
-    private func sichern() {
-        // ponytail: erstes Grapheme-Cluster statt Emoji-Validierung — reicht für "ein Emoji tippen".
-        guard let erstes = text.first else { return }
-        modell.setzen("flamme", .string(String(erstes)))
-    }
-}
-
-// MARK: - Telefonnummer (Block 18: FaceTime aus dem Profil des Partners)
-
-private struct TelefonEditor: View {
-    let modell = EinstellungenModell.shared
-    @Environment(\.dismiss) private var dismiss
-    @State private var nummer = ""
-
-    private var gueltig: Bool {
-        nummer.trimmingCharacters(in: .whitespaces).isEmpty || FaceTimeLink.url(nummer, audio: false) != nil
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                TextField("+49 151 23456789", text: $nummer)
-                    .keyboardType(.phonePad)
-                    .textContentType(.telephoneNumber)
-            } footer: {
-                Text("\(Raum.shared.ich?.partner.name ?? "Dein Partner") ruft dich damit direkt aus deinem Profil per FaceTime an. Nur ihr zwei seht die Nummer.")
-            }
-        }
-        .navigationTitle("Telefonnummer")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Sichern") {
-                    modell.setzen("telefon", .string(nummer.trimmingCharacters(in: .whitespaces)))
-                    dismiss()
-                }
-                .disabled(!gueltig)
-            }
-        }
-        .onAppear { nummer = modell.string("telefon", default: "") }
     }
 }
 

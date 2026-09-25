@@ -18,26 +18,29 @@ private struct PunkteChallengeView: View {
     let entry: WidgetStandEntry
 
     var body: some View {
-        HStack(spacing: 16) {
-            PunkteSpalte(name: "Ahmed", punkte: entry.stand.punkte["ahmed"])
-            PunkteSpalte(name: "Annika", punkte: entry.stand.punkte["annika"])
-            Divider()
-            ChallengeAnzeige(stand: entry.stand)
+        VStack(alignment: .leading, spacing: 10) {
+            WidgetKopf(titel: "Punkte", symbol: "star.circle.fill", farbe: WidgetStil.rose)
+            HStack(alignment: .top, spacing: 16) {
+                PunkteSpalte(person: "ahmed", punkte: entry.stand.punkte["ahmed"])
+                PunkteSpalte(person: "annika", punkte: entry.stand.punkte["annika"])
+                Divider()
+                ChallengeAnzeige(stand: entry.stand)
+            }
+            Spacer(minLength: 0)
         }
-        .padding(4)
         .widgetURL(URL(string: "lovea://health"))
-        .containerBackground(.background, for: .widget)
+        .widgetHintergrund(WidgetStil.rose)
     }
 }
 
 private struct PunkteSpalte: View {
-    let name: String
+    let person: String
     let punkte: Int?
 
     var body: some View {
-        VStack(spacing: 2) {
-            Text(name).font(.caption2).foregroundStyle(.secondary)
-            Text(punkte.map { "\($0)" } ?? "–").font(.title3).bold()
+        VStack(alignment: .leading, spacing: 2) {
+            Text(punkte.map { $0.formatted() } ?? "–").widgetZahl(26).foregroundStyle(WidgetStil.farbe(person)).widgetAccentable()
+            Text(WidgetStil.name(person)).widgetEtikett()
         }
     }
 }
@@ -47,12 +50,15 @@ private struct ChallengeAnzeige: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            Text("Gemeinsam Woche").font(.caption2).foregroundStyle(.secondary)
+            Text("Gemeinsam Woche").widgetEtikett()
             if let ziel = stand.gemeinsamZielWoche, let schritte = stand.gemeinsamSchritteWoche {
+                Text("\(schritte.formatted())").widgetZahl(20)
                 ProgressView(value: min(1, Double(schritte) / Double(max(ziel, 1))))
-                Text("\(schritte) / \(ziel)").font(.caption2)
+                    .tint(WidgetStil.rose)
+                    .widgetAccentable()
+                Text("von \(ziel.formatted())").widgetEtikett()
             } else {
-                Text("–").font(.caption2)
+                Text("–").widgetZahl(20)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

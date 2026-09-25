@@ -146,6 +146,8 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     private var pencilSeen = false
     private var shapeStart: CGPoint?
     private var tapCandidate = false
+    private var tapStart: CGPoint?
+    private var lastEyedropperSample: CFTimeInterval = 0
 
     init(session: DrawingSession) {
         self.session = session
@@ -276,6 +278,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         case .fill, .eyedropper:
             activeTouch = touch
             tapCandidate = true
+            tapStart = touch.location(in: self)
         case .transform, .text:
             return
         }
@@ -300,7 +303,16 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
                 state.shapePreview = Selection.shapePoints(session.shapeKind, from: shapeStart, to: point, constrained: constrained)
             }
         case .fill, .eyedropper:
-            tapCandidate = false
+            if let tapStart, hypot(touch.location(in: self).x - tapStart.x, touch.location(in: self).y - tapStart.y) > 12 {
+                tapCandidate = false
+            }
+            if session.tool == .eyedropper {
+                let now = CACurrentMediaTime()
+                if now - lastEyedropperSample >= 0.05 {
+                    lastEyedropperSample = now
+                    session.tap(at: point, final: false)
+                }
+            }
         case .transform, .text:
             break
         }
@@ -328,9 +340,15 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
             if !state.shapePreview.isEmpty { session.drawShape(state.shapePreview) }
             state.shapePreview = []
             shapeStart = nil
-        case .fill, .eyedropper:
+        case .fill:
             if tapCandidate { session.tap(at: point) }
             tapCandidate = false
+            tapStart = nil
+        case .eyedropper:
+            // No slop check here: a drag is a live preview (touchesMoved), lifting always commits.
+            session.tap(at: point)
+            tapCandidate = false
+            tapStart = nil
         case .transform, .text:
             break
         }
@@ -346,6 +364,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         activeTouch = nil
         shapeStart = nil
         tapCandidate = false
+        tapStart = nil
         state.lasso = []
         state.shapePreview = []
         session?.engine?.cancelStroke()

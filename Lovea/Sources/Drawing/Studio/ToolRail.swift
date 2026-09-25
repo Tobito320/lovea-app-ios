@@ -55,6 +55,9 @@ struct ToolRail: View {
     let onColor: () -> Void
     let onLayers: () -> Void
     @State private var showsBrushes = false
+    // A PhotosPicker inside a Menu never presents on iOS 26; menu buttons flip these instead.
+    @State private var waehltSchablone = false
+    @State private var waehltEbene = false
 
     static let fullTools: [StudioTool] = [.brush, .eraser, .lasso, .fill, .eyedropper, .shape, .transform, .text]
     static let compactTools: [StudioTool] = [.brush, .eraser, .lasso, .fill]
@@ -98,6 +101,8 @@ struct ToolRail: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .floatingBar(glass: glass)
+        .photosPicker(isPresented: $waehltSchablone, selection: $templateItem, matching: .images)
+        .photosPicker(isPresented: $waehltEbene, selection: $imageItem, matching: .images)
     }
 
     private func select(_ tool: StudioTool) {
@@ -117,10 +122,10 @@ struct ToolRail: View {
 
     private var photoMenu: some View {
         Menu {
-            PhotosPicker(selection: $templateItem, matching: .images) {
+            Button { waehltSchablone = true } label: {
                 Label("Als Schablone", systemImage: "photo.badge.plus")
             }
-            PhotosPicker(selection: $imageItem, matching: .images) {
+            Button { waehltEbene = true } label: {
                 Label("Als Ebene", systemImage: "photo.on.rectangle")
             }
         } label: {
@@ -141,10 +146,10 @@ struct ToolRail: View {
                 }
             }
             Divider()
-            PhotosPicker(selection: $templateItem, matching: .images) {
+            Button { waehltSchablone = true } label: {
                 Label("Als Schablone", systemImage: "photo.badge.plus")
             }
-            PhotosPicker(selection: $imageItem, matching: .images) {
+            Button { waehltEbene = true } label: {
                 Label("Als Ebene", systemImage: "photo.on.rectangle")
             }
             Button {

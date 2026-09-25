@@ -116,6 +116,7 @@ enum Medien {
         let fehlend = await fehlendeTeile(id: id, rolle: rolle, gesamt: gesamt, konfig: konfig)
         guard let handle = FileHandle(forReadingAtPath: datei.path) else { throw MedienFehler.datei }
         defer { try? handle.close() }
+        let typ = inhaltsTyp((try? handle.read(upToCount: 12)) ?? Data())
         for teil in fehlend {
             try handle.seek(toOffset: UInt64(teil * teilGroesse))
             let stueck = (try handle.read(upToCount: teilGroesse)) ?? Data()
@@ -129,7 +130,7 @@ enum Medien {
         fertig.httpMethod = "POST"
         fertig.setValue("application/json", forHTTPHeaderField: "Content-Type")
         headers(konfig, in: &fertig)
-        fertig.httpBody = try JSONEncoder().encode(FertigBody(teile: gesamt, typ: dateiTyp(datei), bytes: groesse))
+        fertig.httpBody = try JSONEncoder().encode(FertigBody(teile: gesamt, typ: typ, bytes: groesse))
         let (_, response) = try await URLSession.shared.data(for: fertig)
         try pruefeErfolg(response)
     }
@@ -190,12 +191,23 @@ enum Medien {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { throw MedienFehler.anfrage }
     }
 
-    private static func dateiTyp(_ url: URL) -> String {
-        switch url.pathExtension.lowercased() {
-        case "mov", "mp4": "video/mp4"
-        case "m4a", "caf", "wav": "audio/m4a"
-        case "png": "image/png"
-        default: "image/jpeg"
+    /// Audit chat #1: the MIME type from the file's first bytes. The upload copy has no extension
+    /// (and `fortsetzen()` never knew the original one), so the content is the only reliable source.
+    static func inhaltsTyp(_ kopf: Data) -> String {
+        let b = [UInt8](kopf.prefix(12))
+        func text(_ bereich: Range<Int>) -> String? {
+            b.count >= bereich.upperBound ? String(decoding: b[bereich], as: UTF8.self) : nil
+        }
+        if b.starts(with: [0xFF, 0xD8, 0xFF]) { return "image/jpeg" }
+        if b.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return "image/png" }
+        if text(0..<4) == "GIF8" { return "image/gif" }
+        // ISO media (`....ftyp<brand>`): QuickTime, M4A audio, HEIC photos, else MP4.
+        guard text(4..<8) == "ftyp", let marke = text(8..<12) else { return "application/octet-stream" }
+        switch marke {
+        case "qt  ": return "video/quicktime"
+        case "M4A ", "M4B ": return "audio/m4a"
+        case "heic", "heix", "mif1": return "image/heic"
+        default: return "video/mp4"
         }
     }
 }

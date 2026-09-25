@@ -123,6 +123,8 @@ final class Raum {
             start()
             return
         }
+        // Audit #7: the queue writes are coalesced; flush after everything queued so far.
+        reiheOhneWarten { [weak self] in await self?.warteschlange.sichern() }
         if aktivZustand {
             aktivZustand = false
             beendeHintergrundAufgabe() // defensive: never overwrite a still-valid identifier
@@ -181,7 +183,9 @@ final class Raum {
     /// again before anything was actually fetched.
     func nachholenBisFertig(timeout: Duration = .seconds(20)) async {
         guard eingerichtet, ich != nil else { return }
-        if verbunden { return } // already caught up / actively connected, nothing to wait for
+        // Already caught up / actively connected, nothing to wait for. `leer()` still puts just-queued
+        // ops on disk (audit #7): a HealthKit background launch never passes through `aktiv(false)`.
+        if verbunden { await leer(); return }
         start()
         let zaehlerVorher = catchUpZaehler
         let deadline = ContinuousClock.now + timeout
@@ -197,17 +201,20 @@ final class Raum {
             aktivZustand = false
             trennen()
         }
+        await leer()
     }
 
     /// Waits for the `arbeit` chain to fully settle — not just for whatever the tail was at the
     /// moment of the call, but for any further work a running link chains onto it meanwhile.
+    /// Then the queue is on disk (its writes are coalesced, audit #7).
     func leer() async {
         while true {
             let versionVorher = arbeitVersion
-            guard let letzte = arbeit else { return }
+            guard let letzte = arbeit else { break }
             await letzte.value
-            if arbeitVersion == versionVorher { return }
+            if arbeitVersion == versionVorher { break }
         }
+        await warteschlange.sichern()
     }
 
     func httpKonfiguration() -> HttpKonfiguration? {
@@ -278,7 +285,9 @@ final class Raum {
     /// disconnected, same as before.
     func fluechtig<T: Encodable>(_ art: String, _ d: T) {
         guard verbunden else {
-            if art == "standort" { fluechtigPerHttp(art: art, d: d) }
+            // Background: the socket is closed ~30 s after backgrounding. Position and the own
+            // state still reach the partner (the server keeps the last of each for a reconnect).
+            if art == "standort" || art == "zustand" { fluechtigPerHttp(art: art, d: d) }
             return
         }
         sende(FluechtigNachricht(art: art, d: d))

@@ -1,7 +1,6 @@
 // Pure Raum (Durable Object "Wir") logic. No cloudflare:workers import here on
 // purpose, so this file loads and runs under plain Node for tests. raum.js
 // wires this up against the real ctx.storage.sql and WebSocket API.
-import { berlinDatum } from "./zeitplan.js";
 
 export const SEITE = 500;
 // C-1: Eine Seite geht als EIN WebSocket-Frame raus. Ein Strich kann 10-30 KB
@@ -53,12 +52,8 @@ export function initSchema(sql) {
   // Jede Kontext-Berechnung für den Zeitplan fragt mehrfach "alle Ops einer
   // Art" ab (Last: Spec 13) -- ohne Index wäre das ein Full-Table-Scan pro Op.
   sql.exec(`CREATE INDEX IF NOT EXISTS ops_art_von_zeit ON ops (art, von, zeit)`);
-  // Final-Review I-8: noch nicht geöffnete Zeitkapseln (Nachrichten-id -> oeffnetAm), gepflegt beim
-  // Einfügen (opEinfuegenMitStatus) statt pro Op den ganzen Chat zu lesen.
-  sql.exec(`CREATE TABLE IF NOT EXISTS kapseln_offen (
-    id TEXT PRIMARY KEY,
-    oeffnetAm TEXT NOT NULL
-  )`);
+  // Runde 3 (Spec 2.10): die Zeitkapsel ist weg. Ältere Räume behalten ihre Tabelle `kapseln_offen`
+  // ungenutzt, neue legen sie nicht mehr an.
 }
 
 // --- Merker (Server-interner Zustand, kein Op) ------------------------------
@@ -131,11 +126,6 @@ export function opEinfuegenMitStatus(sql, op) {
   if (vorher.length) return { seq: vorher[0].seq, neu: false };
   const seq = opEinfuegen(sql, op);
   if (op.art === "zeichnung.stand") standMedienAufraeumen(sql, op.d, seq);
-  const kapselAm = op.d?.kapsel?.oeffnetAm;
-  if (op.art === "nachricht.neu" && typeof op.d?.id === "string" && typeof kapselAm === "string") {
-    sql.exec(`INSERT OR IGNORE INTO kapseln_offen (id, oeffnetAm) VALUES (?, ?)`, op.d.id, kapselAm);
-  }
-  if (op.art === "nachricht.geloescht" && typeof op.d?.id === "string") kapselEntfernen(sql, op.d.id);
   return { seq, neu: true };
 }
 
@@ -171,7 +161,7 @@ export function opsSeit(sql, seit, limit = SEITE, maxBytes = SEITE_BYTES, fuer =
   return { ops, mehr: false };
 }
 
-// Letzte Op einer Art von einer Person (für Einstellungen, Streak, etc.).
+// Letzte Op einer Art von einer Person (für Einstellungen etc.).
 export function letzteOpVon(sql, von, art) {
   const rows = sql
     .exec(`SELECT seq, id, art, von, zeit, d FROM ops WHERE von = ? AND art = ? ORDER BY seq DESC LIMIT 50`, von, art)
@@ -390,6 +380,31 @@ export function letzterStandort(sql, person) {
   return { d: JSON.parse(rows[0].d), zeit: rows[0].zeit };
 }
 
+// --- Letzter Zustand (Brief G: Partner-Szene ohne Verzögerung) --------------
+// Ein `zustand`-fl ging bisher nur live an einen gerade verbundenen Partner und war
+// sonst verloren. Der jeweils letzte wird gemerkt und beim Verbinden mitgeschickt,
+// wie der letzte Standort. Nur der letzte, keine Historie.
+
+// `zeitIso`: wann DIESER Wert empfangen wurde, nicht wann er zuletzt erneut verschickt wurde --
+// beim Verbinden mitgeschickt (unten), damit der Client eine eingefrorene Freizeitangabe (z. B.
+// "schlaeft") erkennen kann, statt sie bei jedem Reconnect als frisch zu behandeln (audit-szene #4).
+export function zustandMerken(sql, person, d, zeitIso) {
+  merkerSchreiben(sql, `zustand:${person}`, JSON.stringify({ d, zeit: zeitIso }));
+}
+
+export function letzterZustand(sql, person) {
+  const wert = merkerLesen(sql, `zustand:${person}`);
+  if (wert === null) return null;
+  try {
+    const geparst = JSON.parse(wert);
+    // Zeilen von vor dem `zeit`-Feld speicherten `d` direkt.
+    if (geparst && typeof geparst === "object" && "d" in geparst) return geparst;
+    return { d: geparst, zeit: null };
+  } catch {
+    return null;
+  }
+}
+
 // --- Geräte (Push-Token) ---------------------------------------------------
 
 export function geraetSpeichern(sql, person, token) {
@@ -486,15 +501,16 @@ export function gemeinsamZuruecksetzen(sql) {
 // zeitplan.naechsterAlarm() braucht. Reine Ableitung, keine Zeitpläne selbst. --
 
 // Offene Treffen ab `heuteDatum` (>=), jüngste Fassung pro Kalendertag gewinnt.
+// Ein Löschen zählt nur bis zum nächsten `setzen` für denselben Tag (abgesagt, später neu geplant).
 export function offeneTreffen(sql, heuteDatum) {
-  const gesetzt = alleOpsArt(sql, "treffen.setzen");
-  const geloescht = new Set(alleOpsArt(sql, "treffen.loeschen").map((o) => o.d.datum));
+  const geloeschtSeq = new Map();
+  for (const op of alleOpsArt(sql, "treffen.loeschen")) geloeschtSeq.set(op.d.datum, op.seq);
   const byDatum = new Map();
-  for (const op of gesetzt) byDatum.set(op.d.datum, op.d); // aufsteigende seq: später überschreibt früher
+  for (const op of alleOpsArt(sql, "treffen.setzen")) byDatum.set(op.d.datum, op); // aufsteigende seq: später überschreibt früher
   const ergebnis = [];
-  for (const [datum, d] of byDatum) {
-    if (geloescht.has(datum) || datum < heuteDatum) continue;
-    ergebnis.push({ datum, uhrzeit: d.uhrzeit });
+  for (const [datum, op] of byDatum) {
+    if (datum < heuteDatum || (geloeschtSeq.get(datum) ?? 0) > op.seq) continue;
+    ergebnis.push({ datum, uhrzeit: op.d.uhrzeit });
   }
   return ergebnis;
 }
@@ -520,71 +536,14 @@ export function offeneSpielEinladungen(sql) {
   return [...byId.values()].filter((x) => !erledigt.has(x.id));
 }
 
-// Noch nicht geöffnete Zeitkapseln (`nachricht.neu` mit `d.kapsel.oeffnetAm`), aus `kapseln_offen`.
-// Final-Review I-8: #alarmAktualisieren läuft nach JEDER Op -- vorher las das jedes Mal alle
-// nachricht.neu-Zeilen (Rows-read-Limit im Free-Plan). Jetzt nur die paar offenen Kapseln.
-// `id` ist die Nachrichten-id aus `d.id` (schnittstellen.md), NICHT die Op-id (Zeile `ops.id`) --
-// dieselbe id, gegen die auch `nachricht.bearbeitet`/`nachricht.geloescht`/... referenzieren.
-export function offeneKapseln(sql) {
-  kapselIndexEinmalFuellen(sql);
-  return sql
-    .exec(`SELECT id, oeffnetAm FROM kapseln_offen`)
-    .toArray()
-    .map((row) => ({ id: row.id, oeffnetAm: row.oeffnetAm }));
-}
-
-// Geöffnet (Push raus) oder Nachricht gelöscht: Kapsel ist nicht mehr offen.
-export function kapselEntfernen(sql, id) {
-  sql.exec(`DELETE FROM kapseln_offen WHERE id = ?`, id);
-}
-
-// Einmalig (Merker-Flag) die Kapseln übernehmen, die schon vor der Tabelle in `ops` lagen -- ohne
-// schon geöffnete (alarm.kapselOeffnet.<id>) und ohne gelöschte Nachrichten.
-function kapselIndexEinmalFuellen(sql) {
-  if (merkerLesen(sql, "kapseln.index") !== null) return;
-  sql.exec(
-    `INSERT OR IGNORE INTO kapseln_offen (id, oeffnetAm)
-     SELECT json_extract(d, '$.id'), json_extract(d, '$.kapsel.oeffnetAm') FROM ops
-     WHERE art = 'nachricht.neu' AND json_extract(d, '$.id') IS NOT NULL AND json_extract(d, '$.kapsel.oeffnetAm') IS NOT NULL
-       AND NOT EXISTS (SELECT 1 FROM merker WHERE schluessel = 'alarm.kapselOeffnet.' || json_extract(ops.d, '$.id'))`
-  );
-  sql.exec(`DELETE FROM kapseln_offen WHERE id IN (SELECT json_extract(d, '$.id') FROM ops WHERE art = 'nachricht.geloescht')`);
-  merkerSchreiben(sql, "kapseln.index", "1");
-}
-
 // Neueste Fassung eines Orts (für Namen/`melden` bei ort.ereignis-Push).
 export function ortInfo(sql, ortId) {
   const treffer = alleOpsArt(sql, "ort.setzen").filter((op) => op.d.id === ortId);
   return treffer.length ? treffer[treffer.length - 1].d : null;
 }
 
-// Streak: beide aktiv (mind. ein Snap, also nachricht.neu mit d.snap) an
-// aufeinanderfolgenden Tagen. "läuft heute ab": gestern waren beide aktiv,
-// heute (bisher) noch nicht beide. Auf die letzten Tage begrenzt (Last, Spec 13).
-function aktiveTage(sql, person, seitIso) {
-  const rows = sql
-    .exec(`SELECT zeit, d FROM ops WHERE art = 'nachricht.neu' AND von = ? AND zeit >= ? ORDER BY seq ASC`, person, seitIso)
-    .toArray();
-  const tage = new Set();
-  for (const row of rows) {
-    const d = JSON.parse(row.d);
-    if (!d.snap) continue; // I-3: nur Snaps zählen, wie in der App (Streak.swift, Spec 6).
-    tage.add(berlinDatum(Date.parse(row.zeit)));
-  }
-  return tage;
-}
-
-export function streakLaeuftHeuteAb(sql, jetztMs) {
-  const heute = berlinDatum(jetztMs);
-  const gestern = berlinDatum(jetztMs - 86_400_000);
-  const seit = new Date(jetztMs - 3 * 86_400_000).toISOString(); // Puffer über Zeitzone/DST
-  const ahmed = aktiveTage(sql, "ahmed", seit);
-  const annika = aktiveTage(sql, "annika", seit);
-  return ahmed.has(gestern) && annika.has(gestern) && !(ahmed.has(heute) && annika.has(heute));
-}
-
 // Markiert, dass ein zeitgesteuertes Ereignis (Vorabend, 1h-vorher,
-// Frage-des-Tages, Streak-Warnung, ...) für einen Schlüssel schon erledigt
+// Frage-des-Tages, ...) für einen Schlüssel schon erledigt
 // ist -- damit der nächste Alarm es nicht noch einmal auslöst. Liegt im
 // Merker, nicht in den Ops: das ist Server-Buchhaltung, kein Chat-Ereignis,
 // und soll nicht als unbekannte Op-Art beim Client ankommen.

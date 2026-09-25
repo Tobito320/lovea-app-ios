@@ -19,6 +19,8 @@ import {
   medienNachFertigAufraeumen,
   standortSchreiben,
   letzterStandort,
+  zustandMerken,
+  letzterZustand,
   zufaelligNah,
   einstellung,
   geraetSpeichern,
@@ -27,14 +29,11 @@ import {
   offeneTreffen,
   offeneAngeheftet,
   offeneSpielEinladungen,
-  streakLaeuftHeuteAb,
   alarmErledigt,
   alarmAlsErledigtMarkieren,
   letzteZufaelligNahMs,
   zufaelligNahAlsGemeldetMarkieren,
   ortInfo,
-  offeneKapseln,
-  kapselEntfernen,
   gemeinsamPruefen,
   gemeinsamSeitMs,
   gemeinsamSeitSetzen,
@@ -47,7 +46,7 @@ import {
 import { push } from "./push.js";
 import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
-import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt } from "./spotify.js";
+import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe } from "./spotify.js";
 
 const PERSONEN = ["ahmed", "annika"];
 const partnerVon = (person) => (person === "ahmed" ? "annika" : "ahmed");
@@ -57,13 +56,11 @@ const ALARM_TEXT = {
   vorabend: { titel: "Lovea", text: "Morgen seht ihr euch", stufe: "laut", kategorie: "kalender" },
   stundeVorher: { titel: "Lovea", text: "In einer Stunde geht's los", stufe: "laut", kategorie: "kalender" },
   frageDesTages: { titel: "Lovea", text: "Die Frage des Tages ist da", stufe: "leise", kategorie: "frage" },
-  streakWarnung: { titel: "Lovea", text: "Euer Streak läuft heute ab!", stufe: "laut", kategorie: "streak" },
   // Z-22.3: nur eine Mitteilung, der Server rechnet keine Punkte -- die App zeigt beim Öffnen, wie's steht.
   challengeEndspurtWoche: { titel: "Lovea", text: "Letzter Tag für die Wochen-Challenges!", stufe: "laut", kategorie: "challenge" },
   challengeEndeWoche: { titel: "Lovea", text: "Die Wochen-Challenges sind vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
   challengeEndspurtMonat: { titel: "Lovea", text: "Letzter Tag für Gemeinsam Monat!", stufe: "laut", kategorie: "challenge" },
   challengeEndeMonat: { titel: "Lovea", text: "Der Monats-Challenge ist vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
-  kapselOeffnet: { titel: "Lovea", text: "Eure Zeitkapsel hat sich geöffnet", stufe: "laut", kategorie: "chat" },
 };
 
 export class Raum {
@@ -94,6 +91,7 @@ export class Raum {
     if (teile[0] === "medien") return this.#medien(request, teile, person);
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
+    if (url.pathname === "/spotify/trennen" && request.method === "POST") return this.#spotifyTrennen(person);
     return new Response("not found", { status: 404 });
   }
 
@@ -136,6 +134,14 @@ export class Raum {
 
     const letzter = letzterStandort(this.sql, partnerVon(person));
     if (letzter) server.send(JSON.stringify({ t: "standort", person: partnerVon(person), d: letzter.d }));
+    const zustand = letzterZustand(this.sql, partnerVon(person));
+    // audit-szene #4: `seit` reitet mit, wie beim Live-Broadcast oben -- der Client erkennt daran
+    // einen unveraenderten Replay (z. B. eine seit Tagen eingefrorene "schlaeft") statt ihn als
+    // frisch zu behandeln, nur weil UNSER Reconnect ihn erneut ausgeliefert hat.
+    if (zustand) {
+      const d = zustand.zeit ? { ...zustand.d, seit: zustand.zeit } : zustand.d;
+      server.send(JSON.stringify({ t: "fl", von: partnerVon(person), art: "zustand", d }));
+    }
 
     this.#sendePraesenz();
     return new Response(null, { status: 101, webSocket: client });
@@ -260,7 +266,15 @@ export class Raum {
     if (art === "standort") {
       await this.#standort(person, d);
     } else {
-      this.#sendeAnPartner(person, { t: "fl", von: person, art, d });
+      let ausgehend = d;
+      if (art === "zustand") {
+        // audit-szene #4: `seit` reitet auf `d` mit, damit der Client (auch beim Live-Empfang,
+        // nicht nur beim Reconnect-Replay unten) weiss, wann DIESER Wert wirklich verschickt wurde.
+        const zeitIso = new Date().toISOString();
+        zustandMerken(this.sql, person, d, zeitIso);
+        ausgehend = { ...d, seit: zeitIso };
+      }
+      this.#sendeAnPartner(person, { t: "fl", von: person, art, d: ausgehend });
     }
   }
 
@@ -317,7 +331,9 @@ export class Raum {
 
     const token = geraetToken(this.sql, empfaenger);
     if (!token) return;
-    const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton: r.ton });
+    // Z-32.1: Antippen springt im Chat zur Nachricht, die App liest `userInfo["nachrichtId"]`.
+    const daten = op.art.startsWith("nachricht.") && typeof op.d.id === "string" ? { art: op.art, nachrichtId: op.d.id } : undefined;
+    const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton: r.ton, daten });
     if (!res.ok) this.#log("APNs-Antwort", op.art, "->", res.status);
     if (res.expired) geraetLoeschen(this.sql, empfaenger);
   }
@@ -338,9 +354,7 @@ export class Raum {
     if (letzteWarnungMs !== null && jetztMs - letzteWarnungMs < 6 * 3_600_000) return;
     zufaelligNahAlsGemeldetMarkieren(this.sql, jetztMs);
 
-    // Eine Op "an beide" -- nicht zwei separate, sonst zwei System-Bubbles im
-    // Chat und doppelte Streak-Zählung (siehe auch: Systemnachrichten zählen
-    // ohnehin nicht für den Streak).
+    // Eine Op "an beide" -- nicht zwei separate, sonst zwei System-Bubbles im Chat.
     const op = { id: `nah-${jetztMs}`, art: "nachricht.neu", von: person, zeit: new Date(jetztMs).toISOString(), d: { system: "nah" } };
     const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
     const bestaetigt = { ...op, seq };
@@ -445,9 +459,11 @@ export class Raum {
     const ziel = url.searchParams.get("person");
     if (!PERSONEN.includes(ziel)) return new Response("bad request", { status: 400 });
 
+    const stufe = einstellung(this.sql, ziel, "spotify.teilen");
+    if (stufe === "aus") return Response.json({}); // keine Spotify-Abfrage, wenn nichts geteilt wird
     const jetztMs = Date.now();
     const cache = spotifyCacheLesen(this.sql, ziel);
-    if (cacheGueltig(cache, jetztMs)) return Response.json(cache.daten);
+    if (cacheGueltig(cache, jetztMs)) return Response.json(nachFreigabe(cache.daten, stufe));
 
     let token = spotifyTokenLesen(this.sql, ziel);
     if (!token) return Response.json({});
@@ -465,7 +481,15 @@ export class Raum {
       return {};
     });
     spotifyCacheSchreiben(this.sql, ziel, { geladenMs: jetztMs, daten });
-    return Response.json(daten);
+    return Response.json(nachFreigabe(daten, stufe));
+  }
+
+  // Nur der Konto-Inhaber (Header) trennt sich selbst. `null` im Merker liest sich wie "nie verbunden".
+  #spotifyTrennen(person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    spotifyTokenSchreiben(this.sql, person, null);
+    spotifyCacheSchreiben(this.sql, person, null);
+    return Response.json({ ok: true });
   }
 
   // --- Alarme (Z-1.7) ---------------------------------------------------------
@@ -488,11 +512,8 @@ export class Raum {
       treffen: offeneTreffen(this.sql, kontextAb),
       angeheftet: offeneAngeheftet(this.sql),
       spielEinladungen: offeneSpielEinladungen(this.sql),
-      kapseln: offeneKapseln(this.sql),
-      streakLaeuftHeuteAb: streakLaeuftHeuteAb(this.sql, jetztMs),
       erinnerungenHeute: {
         frage: alarmErledigt(this.sql, "frageDesTages", heute),
-        streak: alarmErledigt(this.sql, "streakWarnung", heute),
       },
       challengeErledigt: {
         endspurtWoche: alarmErledigt(this.sql, "challengeEndspurtWoche", montagDerWoche(heute)),
@@ -530,8 +551,7 @@ export class Raum {
         await this.#pushBeide({ stufe: "still" }); // still: keine mitteilungen.<kategorie>-Prüfung nötig
         break;
       }
-      case "frageDesTages":
-      case "streakWarnung": {
+      case "frageDesTages": {
         const schluessel = berlinDatum(jetztMs);
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
@@ -563,14 +583,6 @@ export class Raum {
         const schluessel = berlinDatum(jetztMs).slice(0, 7);
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
-        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
-        break;
-      }
-      case "kapselOeffnet": {
-        // Schlüssel = Nachrichten-id (offeneKapseln): jede Zeitkapsel öffnet einmal.
-        kapselEntfernen(this.sql, ereignis.id); // I-8: vor dem erledigt-Check, sonst bliebe sie ewig "offen"
-        if (alarmErledigt(this.sql, ereignis.art, ereignis.id)) return;
-        alarmAlsErledigtMarkieren(this.sql, ereignis.art, ereignis.id, jetztIso);
         await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
         break;
       }
