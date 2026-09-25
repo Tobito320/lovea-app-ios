@@ -8,8 +8,11 @@ enum ProfilSzene: Equatable, Sendable {
     case schlafen(zusammen: Bool)
     case gym
     case draussen(wetter: Wetter, nacht: Bool)
-    /// On a train, bus or in a car: outside flying past (Brief G bugfix).
+    /// Runde 4 "Unterwegs" (kein Auto): up to 20 km/h on the green Ryde e-scooter, street with wind.
     case unterwegs(wetter: Wetter, nacht: Bool)
+    /// Faster than the scooter, or Annika at any vehicle speed: the train, seat and a window with
+    /// the landscape passing.
+    case abteil(wetter: Wetter, nacht: Bool)
     /// At the saved places `schule` and `arbeit`: a classroom or an office, at a desk.
     case schule, arbeit
     /// Brief Z: in the drawing studio, in the own room; both drawing at once draw one heart.
@@ -21,11 +24,14 @@ enum ProfilSzene: Equatable, Sendable {
     /// outside. Drawing is an app state, which the drawer's own phone already ranks above sleep and
     /// place (`FigurZustand.bestimmen`). `tag` is Open-Meteo's `is_day` (real sunrise/sunset);
     /// unknown -> night is 20-6 Uhr.
-    static func fuer(schlaeft: Bool, partnerSchlaeft: Bool, ort: String?, wetterCode: Int?, tag: Bool?, stunde: Int, unterwegs: Bool = false,
+    static func fuer(schlaeft: Bool, partnerSchlaeft: Bool, ort: String?, wetterCode: Int?, tag: Bool?, stunde: Int, unterwegs: FigurZustand? = nil,
                      zeichnet: Bool = false, partnerZeichnet: Bool = false) -> ProfilSzene {
         if zeichnet { return .zeichnen(zusammen: partnerZeichnet) }
         if schlaeft { return .schlafen(zusammen: partnerSchlaeft) }
-        if unterwegs { return .unterwegs(wetter: wetter(code: wetterCode), nacht: istNacht(tag: tag, stunde: stunde)) }
+        if let unterwegs {
+            let w = wetter(code: wetterCode), n = istNacht(tag: tag, stunde: stunde)
+            return unterwegs == .zug ? .abteil(wetter: w, nacht: n) : .unterwegs(wetter: w, nacht: n)
+        }
         switch ort {
         case "gym": return .gym
         case "zuhause": return .zimmer
@@ -60,7 +66,8 @@ enum ProfilSzene: Equatable, Sendable {
     func figur(_ z: FigurZustand) -> FigurZustand {
         switch self {
         case .gym: return Self.geste(z) ? z : .gym
-        case .unterwegs: return Self.geste(z) || z == .zug ? z : .faehrt
+        case .unterwegs: return Self.geste(z) ? z : .scooter
+        case .abteil: return Self.geste(z) ? z : .zug
         case .schule: return Self.geste(z) ? z : .schule
         case .arbeit: return Self.geste(z) ? z : .arbeit
         case .zimmer: return z == .zuhause ? .ruhig : z
@@ -77,7 +84,7 @@ enum ProfilSzene: Equatable, Sendable {
         case .gym: return z == .gym ? [.hanteln] : []
         case .draussen(_, let nacht): return KarteLogik.extras(wetterCode: wetterCode, temperatur: temperatur, tag: !nacht, laedt: z == .laedt)
         case .zeichnen(let zusammen): return zusammen && z == .zeichnet ? [.mitzeichnen] : []
-        case .zimmer, .schlafen, .unterwegs, .schule, .arbeit: return []
+        case .zimmer, .schlafen, .unterwegs, .abteil, .schule, .arbeit: return []
         }
     }
 
@@ -87,7 +94,7 @@ enum ProfilSzene: Equatable, Sendable {
         switch self {
         case .schlafen: true
         case .zimmer, .schule, .arbeit, .zeichnen: nacht
-        case .gym, .draussen, .unterwegs: false
+        case .gym, .draussen, .unterwegs, .abteil: false
         }
     }
 
@@ -98,7 +105,7 @@ enum ProfilSzene: Equatable, Sendable {
         case .arbeit: .arbeit
         case .schule: .schule
         case .gym: .gym
-        case .draussen, .unterwegs: nil
+        case .draussen, .unterwegs, .abteil: nil
         }
     }
 
@@ -108,7 +115,7 @@ enum ProfilSzene: Equatable, Sendable {
 
     /// Travelling: the shared state says so, or a fresh fix (under 5 min) is in a vehicle or fast.
     static func istUnterwegs(anzeige: FigurZustand, bewegung: String?, tempo: Double?, fixAlter: TimeInterval?) -> Bool {
-        if anzeige == .faehrt || anzeige == .zug { return true }
+        if anzeige == .faehrt || anzeige == .zug || anzeige == .scooter { return true }
         guard (fixAlter ?? .infinity) < 300 else { return false }
         return bewegung == "faehrt" || (tempo ?? 0) > AnwesenheitEingabe.reiseTempo
     }
@@ -134,9 +141,13 @@ extension ProfilSzene {
         return FigurenModell.shared.zustand[p]?.haupt == .zeichnet
     }
 
-    static func unterwegsGerade(_ p: Person) -> Bool {
+    /// `nil` = not travelling, else which scene: the shared state if it already says scooter/train,
+    /// else the generic `faehrt` (still fresh-classifying, or a car e.g. the driving school).
+    static func unterwegsGerade(_ p: Person) -> FigurZustand? {
         let fix = Standort.shared.positionen[p]
-        return istUnterwegs(anzeige: geteilterZustand(p) ?? .ruhig, bewegung: fix?.bewegung, tempo: fix?.tempo, fixAlter: fix?.sekundenAlt)
+        let anzeige = geteilterZustand(p) ?? .ruhig
+        guard istUnterwegs(anzeige: anzeige, bewegung: fix?.bewegung, tempo: fix?.tempo, fixAlter: fix?.sekundenAlt) else { return nil }
+        return anzeige == .scooter || anzeige == .zug ? anzeige : .faehrt
     }
 
     /// The state `p`'s own phone decided and shared: live while online, else the last one (the
@@ -214,7 +225,7 @@ struct ProfilSzeneHintergrund: View {
     private var imZimmer: Bool {
         switch szene {
         case .zimmer, .schlafen, .schule, .arbeit, .zeichnen: true
-        case .gym, .draussen, .unterwegs: false
+        case .gym, .draussen, .unterwegs, .abteil: false
         }
     }
 
@@ -224,6 +235,7 @@ struct ProfilSzeneHintergrund: View {
         case .gym: UIImage(named: "szene-gym")
         case .draussen(_, let n): UIImage(named: n ? "szene-draussen-nacht" : "szene-draussen-tag")
         case .unterwegs: UIImage(named: "szene-unterwegs")
+        case .abteil: UIImage(named: "szene-abteil")
         case .schule: UIImage(named: "szene-schule")
         case .arbeit: UIImage(named: "szene-arbeit")
         }
@@ -236,7 +248,7 @@ struct ProfilSzeneHintergrund: View {
         case .schule: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang") || nacht
         case .arbeit: zimmer.hat("lichterkette") || zimmer.hat("lichtervorhang")
         case .gym: false
-        case .draussen, .unterwegs: true
+        case .draussen, .unterwegs, .abteil: true
         }
     }
 
@@ -244,7 +256,7 @@ struct ProfilSzeneHintergrund: View {
     /// keep 15 fps; twinkling lights and stars, drifting clouds and the slow sun get by with 10.
     private var bildrate: Double {
         switch szene {
-        case .draussen(.regen, _), .draussen(.schnee, _), .unterwegs: 15
+        case .draussen(.regen, _), .draussen(.schnee, _), .unterwegs, .abteil: 15
         default: 10
         }
     }

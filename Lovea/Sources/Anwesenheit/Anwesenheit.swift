@@ -27,9 +27,6 @@ final class Anwesenheit {
     private var supermarktName: String?
     /// Brief G fix 2: last real movement (steps or walking/running/cycling), for `SchlafLogik`.
     private var letzteBewegung: Date?
-    /// Brief G bugfix: on a train rather than in a car (`AnwesenheitEingabe.zug`).
-    private var imZug = false
-    private var schnellSeit: Date?
 
     private var letzterZustand: FigurenModell.Zustand?
     private var letzterVersand = Date.distantPast
@@ -240,7 +237,7 @@ final class Anwesenheit {
             person: ich,
             app: imHintergrund ? nil : appAktivitaet,
             ort: ortZustand(ich),
-            bewegung: imZug ? .zug : AnwesenheitEingabe.reise(bewegung, tempo: Standort.shared.positionen[ich]?.tempo, fixAlter: Standort.shared.positionen[ich]?.sekundenAlt),
+            bewegung: AnwesenheitEingabe.reise(bewegung, person: ich, tempo: Standort.shared.positionen[ich]?.tempo, fixAlter: Standort.shared.positionen[ich]?.sekundenAlt),
             akku: akku,
             laedt: laedt,
             // ponytail: own connectivity is irrelevant here — `Raum.fluechtig` drops `fl` silently
@@ -263,12 +260,6 @@ final class Anwesenheit {
 
     private func aktualisieren() {
         guard let ich = Raum.shared.ich else { return }
-        let fix = Standort.shared.positionen[ich]
-        let frisch = (fix?.sekundenAlt ?? .infinity) < 180
-        (imZug, schnellSeit) = AnwesenheitEingabe.zug(
-            bisher: imZug, reist: AnwesenheitEingabe.reise(bewegung, tempo: fix?.tempo, fixAlter: fix?.sekundenAlt) == .faehrt,
-            schnell: frisch && (fix?.tempo ?? 0) > AnwesenheitEingabe.zugTempo, schnellSeit: schnellSeit, jetzt: Date()
-        )
         let (haupt, abzeichen) = FigurZustand.bestimmen(eingabe(ich))
         let neu = FigurenModell.Zustand(haupt: haupt, abzeichen: abzeichen)
         guard neu != letzterZustand else { return }
@@ -315,23 +306,16 @@ enum AnwesenheitEingabe {
     /// Faster than this (m/s, ~22 km/h) is a vehicle, whatever CoreMotion says.
     static let reiseTempo: Double = 6
 
-    /// A fresh fix (under 3 min) at vehicle speed counts as `faehrt` (train, bus, car).
-    static func reise(_ bewegung: FigurZustand?, tempo: Double?, fixAlter: TimeInterval?) -> FigurZustand? {
-        if let tempo, tempo > reiseTempo, (fixAlter ?? .infinity) < 180 { return .faehrt }
-        return bewegung
-    }
+    /// Runde 4 "Unterwegs": no car. Up to this speed (m/s, ~20 km/h) on Ahmed's green Ryde
+    /// e-scooter, faster is the train. Annika has no scooter: any vehicle speed is the train.
+    static let scooterTempo: Double = 5.56
 
-    /// Faster than this (m/s, ~80 km/h) for a minute is a train.
-    static let zugTempo: Double = 22
-
-    /// CoreMotion's "automotive" can't tell a car from a train. Fast (`schnell`: a fresh fix above
-    /// `zugTempo`) for a minute or more makes it a train, and it stays one through stations until
-    /// the trip ends (`reist` false).
-    static func zug(bisher: Bool, reist: Bool, schnell: Bool, schnellSeit: Date?, jetzt: Date) -> (zug: Bool, schnellSeit: Date?) {
-        guard reist else { return (false, nil) }
-        let seit = schnell ? (schnellSeit ?? jetzt) : schnellSeit
-        let lange = schnell && jetzt.timeIntervalSince(seit ?? jetzt) >= 60
-        return (bisher || lange, seit)
+    /// A fresh fix (under 3 min) at vehicle speed splits into scooter or train by GPS speed; without
+    /// a fresh fix (CoreMotion says "automotive" but no speed yet) it stays the generic `faehrt`.
+    static func reise(_ bewegung: FigurZustand?, person: Person, tempo: Double?, fixAlter: TimeInterval?) -> FigurZustand? {
+        guard let tempo, tempo > reiseTempo, (fixAlter ?? .infinity) < 180 else { return bewegung }
+        guard person == .ahmed, tempo <= scooterTempo else { return .zug }
+        return .scooter
     }
 
     /// Whether the place `ort` the last fix sits in still holds: not at vehicle speed, not driving
@@ -340,7 +324,7 @@ enum AnwesenheitEingabe {
     /// and fixes there are rare, and sleep needs it.
     static func ortGilt(_ ort: FigurZustand, tempo: Double?, bewegung: FigurZustand?, fixZeit: Date?, letzteBewegung: Date?) -> Bool {
         if let tempo, tempo > reiseTempo { return false }
-        if bewegung == .faehrt || bewegung == .rad { return false }
+        if bewegung == .faehrt || bewegung == .scooter || bewegung == .zug || bewegung == .rad { return false }
         if ort != .zuhause, let fixZeit, let letzteBewegung, letzteBewegung.timeIntervalSince(fixZeit) > 180 { return false }
         return true
     }

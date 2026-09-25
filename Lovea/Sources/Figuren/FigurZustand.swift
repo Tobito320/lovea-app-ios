@@ -23,6 +23,8 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
     case sitztImBett
     // Unterwegs (Brief G bugfix): automotive and fast for a minute or more is a train, not a car
     case zug
+    // Unterwegs (Runde 4, kein Auto): up to 20 km/h on the green Ryde e-scooter, Ahmed only
+    case scooter
 
     /// The Runde-3 expressions, in picker order.
     static let mimik: [FigurZustand] = [
@@ -88,6 +90,7 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         case .tanzt: "tanzt"
         case .sitztImBett: "wird müde"
         case .zug: "fährt Zug"
+        case .scooter: "fährt Scooter"
         }
     }
 
@@ -121,7 +124,7 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
         if !e.online { return .offline }
         // Unterwegs ist der echte Zustand, auch mit offenem Chat und auch im Laden, aus dem man gerade
         // hinausfährt (Brief G bugfix). Die Fahrschule bleibt Fahrschule.
-        if e.bewegung == .faehrt || e.bewegung == .zug, e.ort != .fahrschule, let reise = e.bewegung { return reise }
+        if e.bewegung == .faehrt || e.bewegung == .zug || e.bewegung == .scooter, e.ort != .fahrschule, let reise = e.bewegung { return reise }
         if let app = e.app { return app }
         // Schlägt "zu Hause"; unterwegs oder an einem anderen Ort nie schlafend, dann nur "nicht stören".
         // Ohne gespeichertes Zuhause gilt man als zu Hause. Gerade in Bewegung zählt als Bewegung jetzt.
@@ -217,7 +220,7 @@ struct FigurEingabe: Sendable {
     var geste: FigurZustand?        // anstupsen, kuss, herz, lacht, anstossen, pokal
     var app: FigurZustand?          // imChat … spielt
     var ort: FigurZustand?          // zuhause … supermarkt
-    var bewegung: FigurZustand?     // laeuft, rennt, rad, faehrt, zug
+    var bewegung: FigurZustand?     // laeuft, rennt, rad, faehrt, scooter, zug
     var akku: Double?               // 0…1
     var laedt = false
     var online = true
