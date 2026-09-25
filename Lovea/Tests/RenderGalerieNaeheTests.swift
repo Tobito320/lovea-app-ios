@@ -17,7 +17,7 @@ final class RenderGalerieNaeheTests: XCTestCase {
     private func reihe(_ pose: NaehePose, _ ebene: PaarEbene) -> some View {
         HStack(spacing: -64) {
             ForEach([Person.annika, .ahmed], id: \.self) { p in
-                figur(p, pose, ebene).zIndex(p == pose.vorn ? 1 : 0)
+                self.figur(p, pose, ebene).zIndex(p == pose.vorn ? 1 : 0)
             }
         }
     }
