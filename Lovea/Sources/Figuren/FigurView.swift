@@ -714,12 +714,18 @@ private struct Zeichner {
         let v = vForm
         let a = v.achselL
         return Path { p in
+            // 25.09. (schulter.py S4): the torso carries the whole round shoulder, the sleeve only
+            // hangs below it, so there is no notch and no second shoulder.
             p.move(to: P(v.taille, 240))
             p.addLine(to: a)
-            p.addCurve(to: P(72, 164), control1: P(a.x - 3, a.y - 15), control2: P(a.x - 1, 168))
+            p.addCurve(to: P(v.sch - 16, 180), control1: P(a.x - 2, a.y - 14), control2: P(v.sch - 17, 190))
+            p.addCurve(to: P(v.sch + 10, 162), control1: P(v.sch - 15, 170), control2: P(v.sch - 5, 163))
+            p.addQuadCurve(to: P(72, 164), control: P(66, 161))
             halsAusschnitt(&p, ausschnitt)
             p.addLine(to: P(128, 164))
-            p.addCurve(to: P(200 - a.x, a.y), control1: P(200 - (a.x - 1), 168), control2: P(200 - (a.x - 3), a.y - 15))
+            p.addQuadCurve(to: P(200 - v.sch - 10, 162), control: P(134, 161))
+            p.addCurve(to: P(200 - v.sch + 16, 180), control1: P(200 - v.sch + 5, 163), control2: P(200 - v.sch + 15, 170))
+            p.addCurve(to: P(200 - a.x, a.y), control1: P(200 - v.sch + 17, 190), control2: P(200 - a.x + 2, a.y - 14))
             p.addLine(to: P(200 - v.taille, 240))
             p.closeSubpath()
         }
@@ -5837,12 +5843,19 @@ private extension Zeichner {
     func istVorn(_ a: Arm) -> Bool { a.hand.y < a.ellbogen.y - 4 }
 
     func armForm(_ s: CGPoint, _ a: Arm, _ d: CGFloat) -> Path {
-        armUmriss(s, a.ellbogen, a.hand, 26 * d, 20 * d, 15 * d, kappeS: 0.3, kappeH: 0.9)
+        // Face B: no bulge at the shoulder end, the torso's round shoulder covers it (schulter.py S4).
+        armUmriss(s, a.ellbogen, a.hand, 26 * d, 20 * d, 15 * d, kappeS: neu == .b ? 0 : 0.3, kappeH: 0.9)
     }
 
     func aermelStoff(_ s: CGPoint, _ a: Arm, _ d: CGFloat) -> Path {
-        armUmriss(s, a.ellbogen, a.hand, 34 * d, 29 * d, 27 * d, kappeS: 0.55, kappeH: 0.4)
-            .intersection(schulterSeite(s, a.ellbogen, saum: 0.5))
+        let form: Path
+        if neu == .b {
+            let (ws, we, wh): (CGFloat, CGFloat, CGFloat) = z == .gym ? (36, 31, 29) : (33, 29, 27)
+            form = armUmriss(s, a.ellbogen, a.hand, ws * d, we * d, wh * d, kappeS: 0, kappeH: 0.4)
+        } else {
+            form = armUmriss(s, a.ellbogen, a.hand, 34 * d, 29 * d, 27 * d, kappeS: 0.55, kappeH: 0.4)
+        }
+        return form.intersection(schulterSeite(s, a.ellbogen, saum: 0.5))
     }
 
     /// `koerper` draws in a context scaled by `breite` around x = 100; this maps its paths to the
