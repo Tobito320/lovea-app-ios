@@ -50,6 +50,8 @@ struct FigurView: View {
     private let extras: Set<FigurExtra>
     private let tisch: Int
     private let umarmung: Umarmung?
+    /// Teil 4: the exercise the gym scene shows; nil picks one at random per person.
+    private let gymGeste: GymGeste?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
@@ -61,7 +63,7 @@ struct FigurView: View {
     /// `.ruhig` for `zustand` in `leinwand` rather than only swapping the arms, so props/scenery/
     /// pajamas tied to the real `zustand` (barbell, sofa, phone, …) don't linger under the pose.
     /// `extras` (Z-39.4): umbrella, sunglasses, hat and scarf, phone with a white cable, snowflakes.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil) {
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil) {
         self.umarmung = umarmung
         self.aussehen = aussehen
         self.zustand = zustand
@@ -73,6 +75,7 @@ struct FigurView: View {
         self.poseImmer = poseImmer
         self.extras = extras
         self.tisch = tisch
+        self.gymGeste = gymGeste
     }
 
     var body: some View {
@@ -106,7 +109,7 @@ struct FigurView: View {
         // this reuses that existing "idle" path — with none of `zustand`'s props/scene/pajamas —
         // instead of teaching `Zeichner` a second pose-priority system.
         let posiert = poseImmer && aussehen.pose != nil && !Zeichner.keinePoseUeberschreibung.contains(zustand)
-        return Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung)
+        return Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung, gymGeste: gymGeste)
     }
 
     private func leinwand(_ basis: Zeichner, _ t: Double) -> some View {
@@ -364,8 +367,11 @@ private struct Zeichner {
     let oberkoerperFrei, sportTop: Bool
     /// Brief F2: set for the redesigned faces, nil draws the old face.
     let neu: NeuesGesicht?
+    /// Teil 4: the running exercise, forwarded as-is (nil = pick one at random per person, see `gymGeste`).
+    let gymFest: GymGeste?
 
-    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil) {
+    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil) {
+        self.gymFest = gymGeste
         typealias A = FigurAussehen
         self.umarmung = ganz ? umarmung : nil
         self.z = z
@@ -456,6 +462,12 @@ private struct Zeichner {
     }
 
     func w(_ tempo: Double, _ versatz: Double = 0) -> CGFloat { CGFloat(sin(t * tempo + versatz)) }
+
+    /// Teil 4: the exercise in the gym (full body only). The running one, else a random pick per person.
+    var gymGeste: GymGeste? {
+        guard ganz, z == .gym, let person else { return nil }
+        return gymFest ?? GymGeste.zufall(person, t: t)
+    }
 
     func zyklus(_ periode: Double, _ versatz: Double = 0) -> CGFloat {
         CGFloat((t + versatz).truncatingRemainder(dividingBy: periode) / periode)
@@ -613,6 +625,7 @@ private struct Zeichner {
     static let sonnenbrillen: Set<Int> = [3, 8, 9, 10, 11]
 
     func bewegung() -> (winkel: Double, hoch: CGFloat) {
+        if let g = gymGeste { return g == .wadenheben ? (0, -wdh * 8) : (0, 0) }
         switch z {
         case .anstupsen: return (zyklus(1.4) < 0.5 ? Double(w(22)) * 6 : 0, 0)
         case .schlaeft: return (-5, 0)
@@ -3574,6 +3587,7 @@ extension Zeichner {
         if z == .morgen || z == .abend { hintergrund(k) }
         if extras.contains(.schneeflocken) { schneeflocken(g, CGRect(x: 0, y: 0, width: 200, height: 400)) }
         szeneHinten(g, m, oben)
+        gymHinten(g, m, oben)
         let arme = umarmt(mitExtrasGanz(poseGanz(m), m), m)
         let dach = schirmDachMitte(halb: false, m)
         if let dach { schirmDach(u, dach, radius: 40) }
@@ -3660,6 +3674,7 @@ extension Zeichner {
     }
 
     var haltung: Haltung {
+        if let g = gymGeste { return gymHaltung(g) }
         switch z {
         case .laeuft, .tanzt: .gehen
         case .rennt: .rennen
@@ -3673,6 +3688,10 @@ extension Zeichner {
 
     /// How far the upper body drops: sitting puts the hips at knee height.
     func obenVersatz(_ hal: Haltung, _ m: Masse) -> CGFloat {
+        if let g = gymGeste {
+            if g == .kniebeuge { return wdh * 34 }
+            if g == .ausfallschritt { return wdh * 26 }
+        }
         switch hal {
         case .sitzen, .fahren: m.knieY - m.hueftY - 4
         case .rad: 40
@@ -3683,6 +3702,7 @@ extension Zeichner {
     // MARK: Legs, pants, shoes
 
     func beinGelenke(_ hal: Haltung, _ m: Masse, _ oben: CGFloat) -> (l: Bein, r: Bein) {
+        if let g = gymGeste, let b = gymBeine(g, m, oben) { return b }
         let hx: CGFloat = m.h * 0.52
         let hy: CGFloat = m.hueftY + oben
         let fy = Masse.fussY
@@ -4122,6 +4142,7 @@ extension Zeichner {
         case .herz:
             return (Arm(P(lx - 6, y + 44), P(93, y + 32)), Arm(P(rx + 6, y + 44), P(107, y + 32)))
         case .gym:
+            if let g = gymGeste { return gymArme(g, m, obenVersatz(haltung, m)) }
             let c: CGFloat = (1 + w(3.2)) / 2
             return (restL, Arm(P(rx + 4, y + 50), P(rx + 8 - c * 10, y + 92 - c * 52)))
         case .supermarkt:
@@ -4216,12 +4237,16 @@ extension Zeichner {
         case .sprache:
             kleinesHandy(g, P(arme.r.hand.x + 2, arme.r.hand.y - 8))
         case .gym:
-            let h = arme.r.hand
-            let stange = strich(P(h.x - 13, h.y), P(h.x + 13, h.y))
-            linie(g, stange, Pal.silber.kontur, 5)
-            linie(g, stange, Pal.silber.farbe, 3)
-            teil(g, box(h.x - 19, h.y - 8, 6, 16, 2), Pal.dunkel, 2)
-            teil(g, box(h.x + 13, h.y - 8, 6, 16, 2), Pal.dunkel, 2)
+            if gymGeste != nil {
+                gymInHaenden(g, arme, m)
+            } else {
+                let h = arme.r.hand
+                let stange = strich(P(h.x - 13, h.y), P(h.x + 13, h.y))
+                linie(g, stange, Pal.silber.kontur, 5)
+                linie(g, stange, Pal.silber.farbe, 3)
+                teil(g, box(h.x - 19, h.y - 8, 6, 16, 2), Pal.dunkel, 2)
+                teil(g, box(h.x + 13, h.y - 8, 6, 16, 2), Pal.dunkel, 2)
+            }
         case .herz:
             let p = Double(zyklus(1.0))
             let a1 = exp(-pow((p - 0.1) / 0.06, 2))
@@ -4288,6 +4313,8 @@ extension Zeichner {
         let sY = m.schulterY
         let sitz = m.hueftY + oben
         switch z {
+        case .gym:
+            gymVorArmen(g, m, oben)
         case .scooter:
             scooterLenker(g, m)
         case .rad:
@@ -5182,6 +5209,224 @@ extension Zeichner {
     }
 }
 
+// MARK: - Teil 4: gym exercises
+
+extension Zeichner {
+    /// Rep phase: 0 = start of the rep, 1 = the top. A static render freezes at the middle.
+    var wdh: CGFloat { statisch ? 0.5 : (1 + w(3.2)) / 2 }
+
+    /// Which stance an exercise borrows: legs and upper-body drop come from the ordinary `Haltung`
+    /// cases, only the treadmill and the seated machines need a different one from `.stehen`.
+    func gymHaltung(_ g: GymGeste) -> Haltung {
+        switch g {
+        case .laufband: return (statisch || zyklus(40) < 0.6) ? .gehen : .rennen
+        case .bank, .preacher, .beinstrecker: return .sitzen
+        default: return .stehen
+        }
+    }
+
+    /// Custom leg placement for the exercises whose `Haltung` legs (standing/sitting) aren't enough.
+    /// `nil` lets `beinGelenke` fall back to the ordinary legs for `gymHaltung`.
+    func gymBeine(_ g: GymGeste, _ m: Masse, _ oben: CGFloat) -> (l: Bein, r: Bein)? {
+        let hx: CGFloat = m.h * 0.52
+        let hy: CGFloat = m.hueftY + oben
+        let fy = Masse.fussY
+        let wd = wdh
+        switch g {
+        case .kniebeuge:
+            func bein(_ seite: CGFloat) -> Bein {
+                let hipX = 100 + seite * hx
+                let footX = 100 + seite * (hx + 8)
+                return Bein(h: P(hipX, hy), k: P(footX + seite * (6 + wd * 16), (hy + fy) / 2 + 4), f: P(footX, fy))
+            }
+            return (bein(-1), bein(1))
+        case .ausfallschritt:
+            // Front (left) leg takes the load, knee over the foot; the back (right) knee drops low.
+            let l = Bein(h: P(100 - hx, hy), k: P(96, (hy + fy) / 2 + wd * 6), f: P(94, fy))
+            let r = Bein(h: P(100 + hx, hy), k: P(106, hy + (fy - hy) * (0.55 + wd * 0.3)), f: P(110, fy - 6))
+            return (l, r)
+        case .beinKabel:
+            // Left leg stands (the ordinary `.stehen` shape); the right swings out on the ankle strap.
+            let hipR = P(100 + hx, hy)
+            let footR = P(100 + hx + 6 + wd * 34, fy - wd * 26)
+            let standL = Bein(h: P(100 - hx, hy), k: P(100 - hx - 1, m.knieY), f: P(100 - hx - 2, fy))
+            return (standL, Bein(h: hipR, k: zwischen(hipR, footR, 0.5), f: footR))
+        case .beinstrecker:
+            func bein(_ seite: CGFloat) -> Bein {
+                let x = 100 + seite * hx
+                let footY = fy + (m.knieY + 24 - fy) * wd
+                return Bein(h: P(x, hy), k: P(x + seite * 5, m.knieY + 10), f: P(x + seite * 4, footY))
+            }
+            return (bein(-1), bein(1))
+        default:
+            return nil
+        }
+    }
+
+    /// Arm placement per exercise; `oben` is the upper-body drop already in effect (`obenVersatz`),
+    /// needed for the machines whose hand rests near the hip.
+    func gymArme(_ g: GymGeste, _ m: Masse, _ oben: CGFloat) -> (l: Arm, r: Arm) {
+        let lx: CGFloat = 100 - m.s + 6, rx: CGFloat = 100 + m.s - 6, y = m.schulterY
+        let wd = wdh
+        switch g {
+        case .curls:
+            let handL = zwischen(P(lx - 2, y + 92), P(lx + 8, y + 44), wd)
+            let handR = zwischen(P(rx + 2, y + 92), P(rx - 8, y + 44), 1 - wd)
+            return (Arm(P(lx - 4, y + 50), handL), Arm(P(rx + 4, y + 50), handR))
+        case .schulterdruecken:
+            return (Arm(P(lx - 20, y + 12 - wd * 20), P(lx - 16, y - 20 - wd * 38)),
+                    Arm(P(rx + 20, y + 12 - wd * 20), P(rx + 16, y - 20 - wd * 38)))
+        case .bank:
+            return (Arm(P(lx - 20, y + 40 - wd * 22), P(lx - 10, y + 26 - wd * 52)),
+                    Arm(P(rx + 20, y + 40 - wd * 22), P(rx + 10, y + 26 - wd * 52)))
+        case .preacher:
+            let handL = zwischen(P(80, y + 96), P(86, y + 30), wd)
+            let handR = zwischen(P(120, y + 96), P(114, y + 30), wd)
+            return (Arm(P(82, y + 62), handL), Arm(P(118, y + 62), handR))
+        case .kabelzug:
+            let handL = zwischen(P(lx - 30, y - 8), P(94, y + 64), wd)
+            let handR = zwischen(P(rx + 30, y - 8), P(106, y + 64), wd)
+            let midL = zwischen(P(lx, y), handL, 0.5)
+            let midR = zwischen(P(rx, y), handR, 0.5)
+            return (Arm(P(midL.x - 10, midL.y), handL), Arm(P(midR.x + 10, midR.y), handR))
+        case .beinKabel:
+            // Left hand rests on the hip, elbow out; the right holds the tower.
+            return (Arm(P(lx - 14, m.hueftY + oben - 30), P(lx + 4, m.hueftY + oben - 6)),
+                    Arm(P(rx + 20, y + 30), P(178, y + 30)))
+        case .beinstrecker:
+            // Hands grip the seat edges beside the hips.
+            return (Arm(P(lx - 8, m.hueftY + oben - 16), P(lx - 8, m.hueftY + oben + 4)),
+                    Arm(P(rx + 8, m.hueftY + oben - 16), P(rx + 8, m.hueftY + oben + 4)))
+        case .kniebeuge:
+            return (Arm(P(lx - 16, y + 30), P(lx - 10, y - 2)), Arm(P(rx + 16, y + 30), P(rx + 10, y - 2)))
+        case .ausfallschritt, .wadenheben:
+            return (Arm(P(lx - 6, y + 50), P(lx - 4, y + 94)), Arm(P(rx + 6, y + 50), P(rx + 4, y + 94)))
+        case .laufband:
+            if statisch || zyklus(40) < 0.6 {
+                let s: CGFloat = statisch ? 0.9 : w(7)
+                let vl = max(0, -s), vr = max(0, s)
+                return (Arm(P(lx - 6 + vl * 6, y + 48 - vl * 6), P(lx - 2 + vl * 16, y + 88 - vl * 30)),
+                        Arm(P(rx + 6 - vr * 6, y + 48 - vr * 6), P(rx + 2 - vr * 16, y + 88 - vr * 30)))
+            } else {
+                let s = w(12)
+                return (Arm(P(lx - 12, y + 40), P(lx + 4, y + 30 + s * 14)), Arm(P(rx + 12, y + 40), P(rx - 4, y + 30 - s * 14)))
+            }
+        case .pause:
+            // Left arm rests; the right holds the bottle at the mouth.
+            return (Arm(P(lx - 6, y + 50), P(lx - 4, y + 92)), Arm(P(rx + 8, y + 40), P(112, y - 30)))
+        }
+    }
+
+    /// Equipment behind the body: towers, the bench, seats, the treadmill belt and (Draw-order:
+    /// the squat bar must sit behind the head, so it lives here rather than in `gymInHaenden`).
+    func gymHinten(_ g: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
+        guard let gy = gymGeste else { return }
+        let y = m.schulterY
+        let sitz = m.hueftY + oben
+        let fy = Masse.fussY
+        switch gy {
+        case .kabelzug:
+            for x in [CGFloat(10), 190] {
+                linie(g, strich(P(x, y - 80), P(x, 384)), Pal.dunkel.kontur, 10)
+                linie(g, strich(P(x, y - 80), P(x, 384)), Pal.dunkel.farbe, 6)
+                teil(g, kreis(P(x, y - 80), 8), Pal.silber, 2)
+            }
+        case .beinKabel:
+            linie(g, strich(P(184, y - 80), P(184, 384)), Pal.dunkel.kontur, 10)
+            linie(g, strich(P(184, y - 80), P(184, 384)), Pal.dunkel.farbe, 6)
+            teil(g, kreis(P(184, fy - 6), 7), Pal.silber, 2)
+        case .bank:
+            teil(g, box(66, sitz - 150, 68, 150, 12), Pal.dunkel.mix(Pal.weiss, 0.08))
+            teil(g, box(70, sitz - 6, 60, 20, 8), Pal.dunkel.mix(Pal.weiss, 0.08))
+        case .preacher, .beinstrecker:
+            teil(g, box(70, sitz - 6, 60, 20, 8), Pal.dunkel.mix(Pal.weiss, 0.08))
+        case .kniebeuge:
+            let stange = strich(P(20, y - 4), P(180, y - 4))
+            linie(g, stange, Pal.silber.kontur, 6)
+            linie(g, stange, Pal.silber.farbe, 4)
+            for x in [CGFloat(20), 180] { teil(g, box(x - 5, y - 21, 10, 34, 3), Pal.dunkel, 2) }
+        case .laufband:
+            var band = Path()
+            band.move(to: P(56, fy - 4))
+            band.addLine(to: P(144, fy - 4))
+            band.addLine(to: P(154, fy + 14))
+            band.addLine(to: P(46, fy + 14))
+            band.closeSubpath()
+            teil(g, band, Pal.dunkel, 2.5)
+            for x in [CGFloat(40), 160] { linie(g, strich(P(x, fy + 10), P(x, sitz)), Pal.silber.kontur, 6) }
+            linie(g, strich(P(40, sitz), P(160, sitz)), Pal.dunkel.kontur, 6)
+        default:
+            break
+        }
+    }
+
+    /// The preacher pad under the elbows, covering the chest.
+    func gymVorArmen(_ g: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
+        guard gymGeste == .preacher else { return }
+        let y = m.schulterY
+        let pad = Path { p in
+            p.move(to: P(62, y + 44))
+            p.addLine(to: P(138, y + 44))
+            p.addLine(to: P(130, y + 76))
+            p.addLine(to: P(70, y + 76))
+            p.closeSubpath()
+        }
+        teil(g, pad, Pal.dunkel, 2.5)
+        teil(g, box(68, y + 46, 64, 8, 4), Pal.dunkel.mix(Pal.weiss, 0.25))
+    }
+
+    /// What the hands hold: bars, dumbbells, cable lines and handles, the ankle strap, the
+    /// leg-extension roll pad and the water bottle. The squat bar is drawn in `gymHinten` instead
+    /// (it must sit behind the head); the hands from `armV`/`arm` land in front of it either way.
+    func gymInHaenden(_ g: GraphicsContext, _ arme: (l: Arm, r: Arm), _ m: Masse) {
+        guard let gy = gymGeste else { return }
+        func hantel(_ c: CGPoint) {
+            let stange = strich(P(c.x - 13, c.y), P(c.x + 13, c.y))
+            linie(g, stange, Pal.silber.kontur, 5)
+            linie(g, stange, Pal.silber.farbe, 3)
+            teil(g, box(c.x - 19, c.y - 8, 6, 16, 2), Pal.dunkel, 2)
+            teil(g, box(c.x + 13, c.y - 8, 6, 16, 2), Pal.dunkel, 2)
+        }
+        func barbell(_ a: CGPoint, _ b: CGPoint, platten: Bool) {
+            let stange = strich(a, b)
+            linie(g, stange, Pal.silber.kontur, 6)
+            linie(g, stange, Pal.silber.farbe, 4)
+            if platten {
+                for x in [a.x, b.x] { teil(g, box(x - 5, a.y - 17, 10, 34, 3), Pal.dunkel, 2) }
+            }
+        }
+        switch gy {
+        case .curls, .ausfallschritt, .wadenheben, .schulterdruecken:
+            hantel(arme.l.hand)
+            hantel(arme.r.hand)
+        case .bank:
+            barbell(P(16, arme.l.hand.y), P(184, arme.r.hand.y), platten: true)
+        case .preacher:
+            barbell(arme.l.hand, arme.r.hand, platten: false)
+        case .kabelzug:
+            linie(g, strich(P(10, m.schulterY - 80), arme.l.hand), Pal.silber.kontur, 2)
+            linie(g, strich(P(190, m.schulterY - 80), arme.r.hand), Pal.silber.kontur, 2)
+        case .beinKabel:
+            let oben = obenVersatz(haltung, m)
+            if let beine = gymBeine(gy, m, oben) {
+                linie(g, strich(P(184, Masse.fussY - 6), beine.r.f), Pal.dunkel.kontur, 2.5)
+                teil(g, box(beine.r.f.x - 6, beine.r.f.y - 4, 12, 8, 3), Pal.dunkel, 1.5)
+            }
+        case .beinstrecker:
+            let oben = obenVersatz(haltung, m)
+            if let beine = gymBeine(gy, m, oben) {
+                for bein in [beine.l, beine.r] { teil(g, box(bein.f.x - 7, bein.f.y - 5, 14, 10, 4), Pal.dunkel, 1.8) }
+            }
+        case .pause:
+            let mund = arme.r.hand
+            teil(g, box(mund.x - 5, mund.y - 14, 10, 20, 3), Pal.himmel, 2)
+            teil(g, box(mund.x - 3, mund.y - 18, 6, 6, 2), Pal.himmel.mix(Pal.weiss, 0.3), 1.5)
+        default:
+            break
+        }
+    }
+}
+
 // MARK: - Extras (Z-39.4)
 
 extension Zeichner {
@@ -5190,8 +5435,8 @@ extension Zeichner {
         extras.contains(.schirm) && ![.faehrt, .fahrschule, .rad, .scooter, .schlaeft, .zuhause, .ruhe, .zug].contains(z)
     }
 
-    /// Dumbbells only while both hands are free of phone and umbrella.
-    var hantelnAktiv: Bool { extras.contains(.hanteln) && !extras.contains(.handyKabel) && !schirmAktiv }
+    /// Dumbbells only while both hands are free of phone and umbrella, and no real exercise shows (Teil 4).
+    var hantelnAktiv: Bool { extras.contains(.hanteln) && !extras.contains(.handyKabel) && !schirmAktiv && gymGeste == nil }
 
     /// The right hand holds the phone, the umbrella or a dumbbell, so the state's own hand prop steps aside.
     var rechteHandBelegt: Bool { extras.contains(.handyKabel) || schirmAktiv || hantelnAktiv }

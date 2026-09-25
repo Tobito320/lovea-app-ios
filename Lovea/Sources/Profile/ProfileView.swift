@@ -381,7 +381,8 @@ private struct ProfilInhalt: View {
             return um
         }
         let v = FigurView(FigurenModell.shared.aussehen(p), zustand: gezeigt, abzeichen: abzeichen(p), groesse: 340, bildrate: gezeigt == .zeichnet ? 15 : 30,
-                          ganzkoerper: true, poseImmer: pose && naehe == nil, extras: paarExtras, tisch: tisch, umarmung: umarmung)
+                          ganzkoerper: true, poseImmer: pose && naehe == nil, extras: paarExtras, tisch: tisch, umarmung: umarmung,
+                          gymGeste: gezeigt == .gym ? GymGeste.fuer(id: TrainingModell.shared.aktiveUebung(p)) : nil)
             .rotationEffect(.degrees(lehnt ? Double(richtung) * 7 : 0), anchor: .bottom)
             .offset(x: lehnt ? richtung * 38 : 0)
             .scaleEffect(lehnt ? 1.05 : 1, anchor: .bottom)
