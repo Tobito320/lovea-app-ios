@@ -3,6 +3,7 @@ import SwiftUI
 
 private enum AppTab: String, Hashable {
     case home, chat, drawing, health, profile
+    case heute, koerper, training, verlauf, zurueck
 }
 
 /// Deep links across tabs. The banner "… zeichnet gerade an ‚X' – zuschauen?" sets
@@ -127,6 +128,7 @@ private extension AppRootView {
         }
         .leiste()
     }
+
     var topOverlay: some View {
         VStack(spacing: 0) {
             SprachMiniPlayer()
