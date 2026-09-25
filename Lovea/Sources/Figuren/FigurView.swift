@@ -3578,6 +3578,7 @@ extension Zeichner {
         let dach = schirmDachMitte(halb: false, m)
         if let dach { schirmDach(u, dach, radius: 40) }
         haareHinten(haarKontext(k))
+        scooter(g, m, oben)
         if hal != .fahren { beine(g, m, hal, oben) }
         rumpfGanz(u, m)
         if extras.contains(.muetzeSchal) { schal(u, P(100, m.schulterY - 4), s: 0.66) }
@@ -3604,7 +3605,6 @@ extension Zeichner {
         zubehoerGanz(u, arme, m)
         if let id = tierId { zeichneHaustier(g, id: id, boden: P(174, Masse.fussY), groesse: 0.8) }
         auto(g, m, oben)
-        scooter(g, m, oben)
         switch z {
         case .laeuft, .rennt, .rad, .scooter: tempoStriche(g, m.schulterY + oben)
         case .schautVideo: break
@@ -3704,8 +3704,8 @@ extension Zeichner {
             case .stehen:
                 return Bein(h: P(x, hy), k: P(x + seite, m.knieY), f: P(x + seite * 2, fy))
             case .scooter:
-                // One foot forward on the deck, the other planted; a slight wide stance for balance.
-                return Bein(h: P(x, hy), k: P(x + seite * 3, m.knieY), f: P(x + seite * (seite > 0 ? 16 : 4), fy))
+                // Both feet side by side on the deck, knees a little bent.
+                return Bein(h: P(x, hy), k: P(x + seite * 4, m.knieY + 4), f: P(100 + seite * 10, fy - 2))
             }
         }
         let s: CGFloat
@@ -4138,7 +4138,8 @@ extension Zeichner {
         case .rad:
             return (Arm(P(lx - 8, y + 40), P(66, y + 58)), Arm(P(rx + 8, y + 40), P(134, y + 58)))
         case .scooter:
-            return (Arm(P(lx - 6, y + 40), P(70, y + 30)), Arm(P(rx + 6, y + 40), P(130, y + 30)))
+            let lenk = scooterLenkerY(m)
+            return (Arm(P(lx - 8, y + 46), P(64, lenk)), Arm(P(rx + 8, y + 46), P(136, lenk)))
         case .faehrt, .fahrschule:
             return (Arm(P(lx - 6, y + 44), amSteuer(200, y)), Arm(P(rx + 6, y + 44), amSteuer(340, y)))
         case .arbeit:
@@ -4287,6 +4288,8 @@ extension Zeichner {
         let sY = m.schulterY
         let sitz = m.hueftY + oben
         switch z {
+        case .scooter:
+            scooterLenker(g, m)
         case .rad:
             let lenkY: CGFloat = sY + oben + 58
             let reifen = oval(P(100, 336), 8, 38)
@@ -4463,17 +4466,34 @@ extension Zeichner {
         }
     }
 
-    /// Runde 4 "Unterwegs": the green Ryde e-scooter, standing on the deck with a raised handlebar.
+    /// Runde 4 "Unterwegs": the green Ryde e-scooter from the front, like the bike. The deck lies
+    /// under the feet (drawn before the legs), stem and handlebar come in `vorArmen`, the hands on the grips.
     func scooter(_ g: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
         guard z == .scooter else { return }
-        let deckY: CGFloat = 372
-        let lenkerY: CGFloat = m.schulterY + oben + 26
-        for x in [CGFloat(46), 154] { teil(g, kreis(P(x, deckY + 8), 10), Pal.dunkel) }
-        teil(g, box(40, deckY - 10, 120, 14, 6), Pal.gruen)
-        linie(g, strich(P(150, deckY - 8), P(150, lenkerY)), Pal.dunkel.kontur, 6)
-        let griff = strich(P(124, lenkerY), P(176, lenkerY))
-        linie(g, griff, Pal.dunkel.kontur, 9)
-        linie(g, griff, Pal.gruen.farbe, 5.5)
+        let fy = Masse.fussY
+        teil(g, oval(P(100, fy + 18), 7, 10), Pal.dunkel, 2.5)
+        var deck = Path()
+        deck.move(to: P(84, fy - 2))
+        deck.addLine(to: P(116, fy - 2))
+        deck.addLine(to: P(122, fy + 10))
+        deck.addLine(to: P(78, fy + 10))
+        deck.closeSubpath()
+        teil(g, deck, Pal.gruen, 2.5)
+    }
+
+    func scooterLenkerY(_ m: Masse) -> CGFloat { m.hueftY - 4 }
+
+    func scooterLenker(_ g: GraphicsContext, _ m: Masse) {
+        let lenk = scooterLenkerY(m)
+        let stange = strich(P(100, Masse.fussY + 8), P(100, lenk))
+        linie(g, stange, Pal.gruen.kontur, 9)
+        linie(g, stange, Pal.gruen.farbe, 5.5)
+        teil(g, kreis(P(100, lenk + 14), 5), Pal.weiss, 2)
+        let bar = strich(P(58, lenk), P(142, lenk))
+        linie(g, bar, Pal.dunkel.kontur, 8)
+        linie(g, bar, Pal.silber.farbe, 4.5)
+        teil(g, box(52, lenk - 4, 14, 8, 4), Pal.dunkel, 2)
+        teil(g, box(134, lenk - 4, 14, 8, 4), Pal.dunkel, 2)
     }
 
     func tempoStriche(_ g: GraphicsContext, _ y0: CGFloat) {

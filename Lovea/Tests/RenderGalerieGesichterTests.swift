@@ -67,10 +67,10 @@ final class RenderGalerieGesichterTests: XCTestCase {
         for (titel, a) in [("Jacke", jacke), ("Langarm", langarm), ("altes Gesicht", alt)] {
             zellen.append((titel: titel, ansicht: AnyView(FigurView(a, zustand: .ruhig, groesse: 180, animiert: false))))
         }
-        for z in [FigurZustand.ruhig, .gym, .laeuft] {
+        for z in [FigurZustand.ruhig, .gym, .laeuft, .scooter] {
             zellen.append((titel: "ganz \(z.rawValue)", ansicht: AnyView(FigurView(ahmed, zustand: z, groesse: 280, animiert: false, ganzkoerper: true))))
         }
-        RenderTafel.speichern("koerper-v", spalten: 6, zellen: zellen)
+        RenderTafel.speichern("koerper-v", spalten: 7, zellen: zellen)
     }
 
     func testHalbfigurSchultern() {
