@@ -124,7 +124,7 @@ struct KoerperBlatt: View {
         let auf = offen.contains(z.id)
         return VStack(alignment: .leading, spacing: 0) {
             Button {
-                withAnimation(Feder.weich) { if auf { offen.remove(z.id) } else { offen.insert(z.id) } }
+                withAnimation(Feder.weich) { if offen.remove(z.id) == nil { offen.insert(z.id) } }
             } label: {
                 HStack(spacing: 10) {
                     VStack(alignment: .leading, spacing: 2) {
