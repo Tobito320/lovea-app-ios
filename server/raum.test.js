@@ -155,8 +155,9 @@ test("Push geht raus, sobald der Empfänger-Socket seit über 60s still ist, tro
 });
 
 // Z-32.1: Antippen einer Chat-Mitteilung springt zur Nachricht -- `art` und `nachrichtId` stehen oben
-// neben `aps`, nur bei `nachricht.*`-Ops mit `d.id`.
-test("Push für nachricht.neu und nachricht.reaktion trägt art und nachrichtId, eine Geste nicht", async () => {
+// neben `aps`, nur bei `nachricht.*`-Ops mit `d.id`. 25.09.: eine Geste trägt nur `art` (öffnet das
+// Partnerprofil), keine `nachrichtId`.
+test("Push für nachricht.neu und nachricht.reaktion trägt art und nachrichtId, eine Geste nur art", async () => {
   const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
   await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
   websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
@@ -180,6 +181,7 @@ test("Push für nachricht.neu und nachricht.reaktion trägt art und nachrichtId,
   assert.equal(bodies[0].nachrichtId, "msg-1");
   assert.equal(bodies[0].aps.alert.body, "Ahmed: hi");
   assert.deepEqual([bodies[1].art, bodies[1].nachrichtId], ["nachricht.reaktion", "msg-1"]);
+  assert.equal(bodies[2].art, "geste");
   assert.equal(bodies[2].nachrichtId, undefined);
   assert.equal(bodies[2].aps.alert.body, "Ahmed denkt gerade an dich");
 });

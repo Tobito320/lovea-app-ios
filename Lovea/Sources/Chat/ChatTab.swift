@@ -24,6 +24,7 @@ struct ChatTab: View {
         .onChange(of: AppNavigation.shared.chatSuche, initial: true) { _, an in if an { offen = true } }
         .onChange(of: AppNavigation.shared.kameraOeffnen, initial: true) { _, an in if an { offen = true } }
         .onChange(of: AppNavigation.shared.gespraechOeffnen, initial: true) { _, an in if an { offen = true; AppNavigation.shared.gespraechOeffnen = false } }
+        .onChange(of: AppNavigation.shared.partnerProfilOeffnen, initial: true) { _, an in if an { offen = true } }
     }
 }
 
@@ -461,6 +462,12 @@ private struct Spruenge: ViewModifier {
             // replays the log, the catch-up follows).
             .onChange(of: AppNavigation.shared.chatZiel, initial: true) { _, _ in zielPruefen() }
             .onChange(of: modell.nachrichten.count) { _, _ in zielPruefen() }
+            // Kuss/Anstupsen/Herz-Push angetippt: Partnerprofil öffnen (25.09.).
+            .onChange(of: AppNavigation.shared.partnerProfilOeffnen, initial: true) { _, an in
+                guard an else { return }
+                AppNavigation.shared.partnerProfilOeffnen = false
+                blatt.profil = true
+            }
     }
 
     private func zielPruefen() {
