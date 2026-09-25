@@ -4,7 +4,7 @@ import XCTest
 /// Brief Z: drawing in the studio beats every other scene, keeps the room, and together draws one heart.
 final class ZeichnenSzeneTests: XCTestCase {
     private func szene(zeichnet: Bool = true, partner: Bool = false, schlaeft: Bool = false, ort: String? = nil, unterwegs: Bool = false) -> ProfilSzene {
-        ProfilSzene.fuer(schlaeft: schlaeft, partnerSchlaeft: false, ort: ort, wetterCode: 61, tag: false, stunde: 23, unterwegs: unterwegs,
+        ProfilSzene.fuer(schlaeft: schlaeft, partnerSchlaeft: false, ort: ort, wetterCode: 61, tag: false, stunde: 23, unterwegs: unterwegs ? .zug : nil,
                          zeichnet: zeichnet, partnerZeichnet: partner)
     }
 
