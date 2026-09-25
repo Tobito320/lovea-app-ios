@@ -23,4 +23,32 @@ final class RenderGalerieGesichterTests: XCTestCase {
         }
         RenderTafel.speichern("gesichter-neu", spalten: 5, zellen: zellen)
     }
+
+    func testGesichterMimik() {
+        let zustaende: [FigurZustand] = [.ruhig, .lacht, .gut, .kuss, .schmollt, .verlegen, .sauer, .schockiert,
+                                         .ueberrascht, .muede, .schlaeft, .weint, .denkt, .zwinkert, .verliebt, .sprache]
+        var zellen: [Zelle] = []
+        for p in Person.allCases {
+            for z in zustaende { zellen.append((titel: "\(p.name) \(z.rawValue)", ansicht: figur(p, z, groesse: 150))) }
+        }
+        RenderTafel.speichern("gesichter-mimik", spalten: 8, zellen: zellen)
+    }
+
+    func testGesichterZubehoer() {
+        var zellen: [Zelle] = []
+        for p in Person.allCases {
+            var brille = FigurAussehen.standard(for: p)
+            brille.brille = 1
+            var muetze = FigurAussehen.standard(for: p)
+            muetze.kopfbedeckung = 1
+            var andereFrisur = FigurAussehen.standard(for: p)
+            andereFrisur.frisur = p == .ahmed ? 3 : 7
+            var altesGesicht = FigurAussehen.standard(for: p)
+            altesGesicht.gesichtsform = 0
+            for (titel, a) in [("Brille", brille), ("Mütze", muetze), ("andere Frisur", andereFrisur), ("altes Gesicht", altesGesicht)] {
+                zellen.append((titel: "\(p.name) \(titel)", ansicht: AnyView(FigurView(a, zustand: .ruhig, groesse: 150, animiert: false, ganzkoerper: false))))
+            }
+        }
+        RenderTafel.speichern("gesichter-zubehoer", spalten: 4, zellen: zellen)
+    }
 }

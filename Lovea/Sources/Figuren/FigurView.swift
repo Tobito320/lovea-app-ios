@@ -3269,12 +3269,14 @@ private struct Zeichner {
         case .lacht:
             var h = g
             h.opacity = an(0.5, 0.3) ? 1 : 0.4
+            // Brief F2: squint lines and sweat drops sit at the old eye position, narrowed onto the new face.
+            let hk = zubehoerKontext(h)
             for seite in [CGFloat(-1), 1] {
-                linie(h, strich(P(100 + seite * 64, 78), P(100 + seite * 76, 70)), tinte, 3)
-                linie(h, strich(P(100 + seite * 68, 96), P(100 + seite * 82, 96)), tinte, 3)
+                linie(hk, strich(P(100 + seite * 64, 78), P(100 + seite * 76, 70)), tinte, 3)
+                linie(hk, strich(P(100 + seite * 68, 96), P(100 + seite * 82, 96)), tinte, 3)
             }
-            teil(g, tropfenPfad(P(64, 110)), Pal.himmel, 1.5)
-            teil(g, tropfenPfad(P(136, 110)), Pal.himmel, 1.5)
+            teil(zubehoerKontext(g), tropfenPfad(P(64, 110)), Pal.himmel, 1.5)
+            teil(zubehoerKontext(g), tropfenPfad(P(136, 110)), Pal.himmel, 1.5)
         case .anstossen:
             if an(2.0, 0.25) { g.fill(funkel(P(160, 84), 10), with: .color(Pal.gelb.farbe)) }
         case .pokal:
@@ -3326,27 +3328,32 @@ private struct Zeichner {
         case .verlegen:
             teil(g, tropfenPfad(P(150, 68 + zyklus(2.2) * 8)), Pal.himmel, 2)
         case .muede:
-            teil(g, tropfenPfad(P(66, 110)), Pal.himmel, 1.5)
+            // Brief F2: sweat drop at the old eye position, narrowed onto the new face.
+            teil(zubehoerKontext(g), tropfenPfad(P(66, 110)), Pal.himmel, 1.5)
         case .ueberrascht:
             let s: CGFloat = 1 + 0.15 * abs(w(6))
             g.fill(box(160, 22, 7 * s, 22 * s, 3.5), with: .color(Pal.rose.farbe))
             g.fill(kreis(P(163.5, 50 * s), 4), with: .color(Pal.rose.farbe))
         case .lachtTraenen:
+            // Brief F2: tears start at the old eye position, narrowed onto the new face.
+            let lk = zubehoerKontext(g)
             for seite in [CGFloat(-1), 1] {
-                linie(g, strich(P(100 + seite * 64, 78), P(100 + seite * 76, 70)), tinte, 3)
+                linie(lk, strich(P(100 + seite * 64, 78), P(100 + seite * 76, 70)), tinte, 3)
                 for i in 0..<2 {
                     let p = zyklus(0.8, Double(i) * 0.4)
                     let tropfen = P(100 + seite * (34 + p * 30), 104 - p * 8 + p * p * 30)
-                    teil(g, tropfenPfad(tropfen), Pal.himmel, 1.5)
+                    teil(lk, tropfenPfad(tropfen), Pal.himmel, 1.5)
                 }
             }
         case .weint:
+            // Brief F2: the tear stream starts at the old eye position, narrowed onto the new face.
+            let wk = zubehoerKontext(g)
             for seite in [CGFloat(-1), 1] {
                 let strom = bogen(P(100 + seite * 30, 104), P(100 + seite * 34, 156), P(100 + seite * 38, 128))
-                linie(g, strom, Pal.himmel.kontur.opacity(0.6), 7)
-                linie(g, strom, Pal.himmel.farbe, 4.5)
+                linie(wk, strom, Pal.himmel.kontur.opacity(0.6), 7)
+                linie(wk, strom, Pal.himmel.farbe, 4.5)
                 let p = zyklus(0.9, seite > 0 ? 0.45 : 0)
-                var d = g
+                var d = wk
                 d.opacity = Double(1 - p)
                 teil(d, tropfenPfad(P(100 + seite * 34, 160 + p * 40)), Pal.himmel, 1.5)
             }
