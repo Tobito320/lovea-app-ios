@@ -243,13 +243,20 @@ final class DrawingSession: ObservableObject {
         tool = previousTool
     }
 
-    func tap(at point: CGPoint) {
+    /// `final: false` is a live preview while the eyedropper drags: it updates the color only,
+    /// never the tool (that would jump back to the brush mid-drag).
+    func tap(at point: CGPoint, final: Bool = true) {
         guard let engine else { return }
         switch tool {
         case .eyedropper:
             Task {
                 if let sampled = await engine.sampleColor(at: point), sampled.alpha > 0 {
-                    setColor(RGBAColor(red: sampled.red, green: sampled.green, blue: sampled.blue))
+                    let picked = RGBAColor(red: sampled.red, green: sampled.green, blue: sampled.blue)
+                    if final { setColor(picked); Haptik.auswahl() } else { color = picked }
+                } else if final, let paper = document.background.paperColor {
+                    // Empty paper: pick the paper color when it is solid; transparent paper stays ignored.
+                    setColor(paper)
+                    Haptik.auswahl()
                 }
             }
         case .fill:
