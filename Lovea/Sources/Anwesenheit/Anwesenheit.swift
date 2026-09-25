@@ -132,10 +132,10 @@ final class Anwesenheit {
         aktualisieren()
     }
 
-    /// Clears the app slot only while it still holds `z`, so a screen whose `onDisappear` lands after
-    /// the next screen's `onAppear` doesn't wipe that one.
-    func appEnde(_ z: FigurZustand) {
-        if appAktivitaet == z { app(nil) }
+    /// Clears the app slot only while it still holds one of `zs`, so a screen whose `onDisappear` lands
+    /// after the next screen's `onAppear` doesn't wipe that one.
+    func appEnde(_ zs: FigurZustand...) {
+        if let a = appAktivitaet, zs.contains(a) { app(nil) }
     }
 
     // MARK: - Battery (Z-7.1)

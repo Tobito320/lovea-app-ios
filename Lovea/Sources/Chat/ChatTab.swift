@@ -401,7 +401,7 @@ private struct Lesebestaetigung: ViewModifier {
             // screen reported something. Covers (camera, viewer) send their own state right after.
             .onDisappear {
                 sichtbar = false
-                FigurenModell.shared.zustandSenden(.init(haupt: .ruhig))
+                Anwesenheit.shared.appEnde(.imChat, .tippt)
             }
             .onChange(of: scenePhase) { _, _ in leseBestaetigen() }
             .onChange(of: modell.nachrichten.count) { _, _ in

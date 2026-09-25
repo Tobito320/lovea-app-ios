@@ -54,7 +54,7 @@ struct KarteTab: View {
                 await WetterModell.shared.aktualisieren()
             }
             .onDisappear {
-                Anwesenheit.shared.app(nil)
+                Anwesenheit.shared.appEnde(.karte)
                 Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false))
                 SpotifyModell.shared.wegschauen()
             }
