@@ -13,6 +13,7 @@ struct BrushTip: Equatable, Sendable {
     var tiltWidens = false
     var pixelSnap = false
     var buildsUp = false           // Airbrush: Deckkraft wächst innerhalb des Strichs
+    var taper: Float = 0           // Q1: 0 = kein Taper, sonst Taperlänge in pt / 18
 }
 
 extension BrushPreset {
@@ -40,19 +41,24 @@ extension BrushPreset {
         case .pixel:
             // ponytail: spacing is ignored for pixelSnap, the sampler steps 1 px.
             BrushTip(hardness: 1, spacing: 0.5, flow: 1, pixelSnap: true)
+        case .shanShui:
+            // Q1: ink brush like ibisPaint "Orientalisch (Shan Shui)": thin start and tapered end,
+            // swells with pressure, dry grain at the edge.
+            BrushTip(hardness: 0.7, spacing: 0.035, flow: 0.9, grain: 0.35, sizeJitter: 0.04,
+                     pressureGamma: 1.7, minPressureScale: 0.04, tiltWidens: true, taper: 0.8)
         }
     }
 
     var pressureControlsSize: Bool {
         switch self {
-        case .pen, .gPen, .pencil, .watercolor, .chalk, .calligraphy: true
+        case .pen, .gPen, .pencil, .watercolor, .chalk, .calligraphy, .shanShui: true
         case .marker, .airbrush, .highlighter, .pixel: false
         }
     }
 
     var pressureControlsOpacity: Bool {
         switch self {
-        case .pencil, .airbrush, .watercolor, .chalk: true
+        case .pencil, .airbrush, .watercolor, .chalk, .shanShui: true
         default: false
         }
     }
