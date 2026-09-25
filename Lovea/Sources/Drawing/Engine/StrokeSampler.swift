@@ -76,6 +76,7 @@ struct StrokeSampler {
     private var lastInput: StrokeInput?
     private var carry = 0.0
     private var index = 0
+    private var distanceFromStart = 0.0
     private(set) var bounds = CGRect.null
 
     init(settings: BrushSettings) {
@@ -122,13 +123,14 @@ struct StrokeSampler {
         let opacity = opacity(for: input)
         guard let previous = last else {
             last = (point, radius, opacity)
-            return [stamp(at: point, radius: radius, opacity: opacity, direction: 0)]
+            return [stamp(at: point, radius: radius, opacity: opacity, direction: 0, distanceFromStart: distanceFromStart)]
         }
         let dx = Double(point.x - previous.point.x)
         let dy = Double(point.y - previous.point.y)
         let distance = hypot(dx, dy)
         guard distance > 0 else { return [] }
         let direction = atan2(dy, dx)
+        let baseDistance = distanceFromStart
         var stamps: [Stamp] = []
         var position = 0.0
         var since = carry
@@ -143,16 +145,34 @@ struct StrokeSampler {
                 at: CGPoint(x: Double(previous.point.x) + dx * t, y: Double(previous.point.y) + dy * t),
                 radius: previous.radius + (radius - previous.radius) * t,
                 opacity: previous.opacity + (opacity - previous.opacity) * t,
-                direction: direction
+                direction: direction,
+                distanceFromStart: baseDistance + position
             ))
         }
         carry = since + distance - position
+        distanceFromStart = baseDistance + distance
         last = (point, radius, opacity)
         return stamps
     }
 
-    private mutating func stamp(at point: CGPoint, radius: Double, opacity: Double, direction: Double) -> Stamp {
+    /// Q1: strokes without pressure (finger) have constant width. `taper` fades the first
+    /// `18 * taper` pt of the stroke from 0.15x up to full width, ease-out.
+    // ponytail: start-only. The end can't taper the same way: stamps land on the scratch texture
+    // live as they are drawn (see CanvasEngine.flushStamps), so by the time a stroke ends the last
+    // points are already composited at full size. Retroactively shrinking them needs buffering the
+    // whole stroke before it reaches the canvas; add that if the ink brush needs a tapered tail too.
+    private func taperScale(distanceFromStart: Double) -> Double {
+        guard tip.taper > 0 else { return 1 }
+        let taperLength = 18.0 * Double(tip.taper)
+        guard distanceFromStart < taperLength else { return 1 }
+        let t = max(0, min(1, distanceFromStart / taperLength))
+        let easedOut = 1 - (1 - t) * (1 - t)
+        return 0.15 + 0.85 * easedOut
+    }
+
+    private mutating func stamp(at point: CGPoint, radius: Double, opacity: Double, direction: Double, distanceFromStart: Double) -> Stamp {
         defer { index += 1 }
+        let radius = radius * taperScale(distanceFromStart: distanceFromStart)
         var stamp: Stamp
         if tip.pixelSnap {
             let half = Float(max(settings.size.rounded(), 1)) / 2

@@ -61,6 +61,7 @@ enum BrushPreset: String, CaseIterable, Identifiable {
     case calligraphy
     case highlighter
     case pixel
+    case shanShui
 
     var id: String { rawValue }
 
@@ -76,6 +77,7 @@ enum BrushPreset: String, CaseIterable, Identifiable {
         case .calligraphy: "Kalligrafie"
         case .highlighter: "Leuchtstift"
         case .pixel: "Pixel"
+        case .shanShui: "Tusche"
         }
     }
 
@@ -91,6 +93,7 @@ enum BrushPreset: String, CaseIterable, Identifiable {
         case .calligraphy: 14
         case .highlighter: 26
         case .pixel: 4
+        case .shanShui: 22
         }
     }
 
