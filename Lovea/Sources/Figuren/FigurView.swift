@@ -4498,12 +4498,12 @@ extension Zeichner {
     func scooter(_ g: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
         guard z == .scooter else { return }
         let fy = Masse.fussY
-        teil(g, oval(P(100, fy + 18), 7, 10), Pal.dunkel, 2.5)
+        teil(g, oval(P(100, fy + 18), 8, 11), Pal.dunkel, 2.5)
         var deck = Path()
-        deck.move(to: P(84, fy - 2))
-        deck.addLine(to: P(116, fy - 2))
-        deck.addLine(to: P(122, fy + 10))
-        deck.addLine(to: P(78, fy + 10))
+        deck.move(to: P(74, fy - 4))
+        deck.addLine(to: P(126, fy - 4))
+        deck.addLine(to: P(134, fy + 12))
+        deck.addLine(to: P(66, fy + 12))
         deck.closeSubpath()
         teil(g, deck, Pal.gruen, 2.5)
     }
@@ -4513,8 +4513,8 @@ extension Zeichner {
     func scooterLenker(_ g: GraphicsContext, _ m: Masse) {
         let lenk = scooterLenkerY(m)
         let stange = strich(P(100, Masse.fussY + 8), P(100, lenk))
-        linie(g, stange, Pal.gruen.kontur, 9)
-        linie(g, stange, Pal.gruen.farbe, 5.5)
+        linie(g, stange, Pal.gruen.kontur, 11)
+        linie(g, stange, Pal.gruen.farbe, 7)
         teil(g, kreis(P(100, lenk + 14), 5), Pal.weiss, 2)
         let bar = strich(P(58, lenk), P(142, lenk))
         linie(g, bar, Pal.dunkel.kontur, 8)
