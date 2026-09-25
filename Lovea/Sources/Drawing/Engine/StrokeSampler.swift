@@ -78,6 +78,11 @@ struct StrokeSampler {
     private var index = 0
     private var distanceFromStart = 0.0
     private(set) var bounds = CGRect.null
+    /// Q5: stamps of the last `endLaenge` points, held back so `finish()` can taper the stroke's end.
+    private var gehalten: [(stamp: Stamp, abstand: Double)] = []
+    /// Distance from the start of every stamp made since the last `halten`, filled by `stamp(...)`.
+    private var neueAbstaende: [Double] = []
+    private var endLaenge: Double { 24.0 * Double(tip.taper) }
 
     init(settings: BrushSettings) {
         self.settings = settings
@@ -87,12 +92,43 @@ struct StrokeSampler {
 
     mutating func add(_ input: StrokeInput) -> [Stamp] {
         lastInput = input
-        return walk(to: stabilizer.smooth(input.location), input: input)
+        return halten(walk(to: stabilizer.smooth(input.location), input: input))
     }
 
     mutating func finish() -> [Stamp] {
-        guard let input = lastInput else { return [] }
-        return stabilizer.catchUp(to: input.location).flatMap { walk(to: $0, input: input) }
+        guard let input = lastInput else { return auslaufen() }
+        let rest = stabilizer.catchUp(to: input.location).flatMap { walk(to: $0, input: input) }
+        return halten(rest) + auslaufen()
+    }
+
+    /// Q5: keeps the newest stamps back while they are within `endLaenge` of the pen; releases the older ones.
+    private mutating func halten(_ neu: [Stamp]) -> [Stamp] {
+        let abstaende = neueAbstaende
+        neueAbstaende = []
+        guard tip.taper > 0 else { return neu }
+        for (s, a) in zip(neu, abstaende) { gehalten.append((stamp: s, abstand: a)) }
+        let grenze = distanceFromStart - endLaenge
+        var frei: [Stamp] = []
+        while let erster = gehalten.first, erster.abstand < grenze {
+            frei.append(erster.stamp)
+            gehalten.removeFirst()
+        }
+        return frei
+    }
+
+    /// Q5: the held stamps, thinner toward the end of the stroke (ease-out down to 0.12x).
+    private mutating func auslaufen() -> [Stamp] {
+        let ende = distanceFromStart
+        let laenge = max(endLaenge, 0.001)
+        let aus = gehalten.map { g -> Stamp in
+            var s = g.stamp
+            let t = max(0, min(1, (ende - g.abstand) / laenge))
+            let weich = 1 - (1 - t) * (1 - t)
+            s.radius *= Float(0.12 + 0.88 * weich)
+            return s
+        }
+        gehalten = []
+        return aus
     }
 
     static func pressureScale(_ pressure: Double, tip: BrushTip) -> Double {
@@ -157,10 +193,8 @@ struct StrokeSampler {
 
     /// Q1: strokes without pressure (finger) have constant width. `taper` fades the first
     /// `18 * taper` pt of the stroke from 0.15x up to full width, ease-out.
-    // ponytail: start-only. The end can't taper the same way: stamps land on the scratch texture
-    // live as they are drawn (see CanvasEngine.flushStamps), so by the time a stroke ends the last
-    // points are already composited at full size. Retroactively shrinking them needs buffering the
-    // whole stroke before it reaches the canvas; add that if the ink brush needs a tapered tail too.
+    // ponytail: start only. Q5's `halten`/`auslaufen` taper the end by holding back the last
+    // `endLaenge` of stamps before they reach the canvas; see those for the tail.
     private func taperScale(distanceFromStart: Double) -> Double {
         guard tip.taper > 0 else { return 1 }
         let taperLength = 18.0 * Double(tip.taper)
@@ -172,6 +206,7 @@ struct StrokeSampler {
 
     private mutating func stamp(at point: CGPoint, radius: Double, opacity: Double, direction: Double, distanceFromStart: Double) -> Stamp {
         defer { index += 1 }
+        neueAbstaende.append(distanceFromStart)
         let radius = radius * taperScale(distanceFromStart: distanceFromStart)
         var stamp: Stamp
         if tip.pixelSnap {
