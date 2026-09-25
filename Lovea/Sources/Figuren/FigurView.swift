@@ -477,18 +477,14 @@ private struct Zeichner {
         mitte(g)
         let schulter: CGFloat = 40 * breite
         let d = km.armHalb
-        if neu == .b {
-            let v = vForm
-            let torso = rumpf(ausschnitt)
-            if let l = arme.l { armV(g, v.schulterL, l, v.dick, rumpf: torso) }
-            if let r = arme.r { armV(g, P(200 - v.sch, v.schulterL.y), r, v.dick, rumpf: torso) }
-        } else {
+        // F5: the new faces drew their arms together with the torso in `koerper`.
+        if neu == nil {
             if let l = arme.l { arm(g, P(100 - schulter, 184), l, d) }
             if let r = arme.r { arm(g, P(100 + schulter, 184), r, d) }
         }
         if !rechteHandBelegt { requisite(g, arme.r?.hand ?? P(142, 252)) }
         extrasInHand(g, l: arme.l?.hand, r: arme.r?.hand, dach: schirmDachMitte(halb: true), groesse: 1)
-        if neu != .b {
+        if neu == nil {
             let hand: CGFloat = 9.5 * min(d, 1.12)
             if let l = arme.l { teil(g, kreis(l.hand, hand), haut) }
             if let r = arme.r { teil(g, kreis(r.hand, hand), haut) }
@@ -750,17 +746,18 @@ private struct Zeichner {
         k.translateBy(x: 100, y: 0)
         k.scaleBy(x: breite, y: 1)
         k.translateBy(x: -100, y: 0)
+        if neu != nil { armeHinten(g) }
 
         if oberkoerperFrei {
             let form = rumpf(0)
-            teil(k, form, haut)
+            basis(g, k, form, haut)
             k.fill(box(80, 150, 40, 28), with: .color(haut.farbe))
             var h = k
             h.clip(to: form)
             koerperDetails(h, nackt: true)
         } else if oberteil == 6 {
             let form = rumpf(0)
-            teil(k, form, haut)
+            basis(g, k, form, haut)
             k.fill(box(80, 150, 40, 28), with: .color(haut.farbe))
             let kleid = Path { p in
                 p.move(to: P(20, 250))
@@ -780,7 +777,7 @@ private struct Zeichner {
             }
         } else {
             let form = rumpf(ausschnitt)
-            teil(k, form, top)
+            basis(g, k, form, top)
             var h = k
             h.clip(to: form)
             if oberteil == 11 {
@@ -789,9 +786,12 @@ private struct Zeichner {
             }
             oberteilDetails(k, h)
             koerperDetails(h, nackt: false)
-            if Self.konturNachMuster.contains(oberteil) { linie(k, form, top.kontur, 3.5) }
+            if Self.konturNachMuster.contains(oberteil) {
+                if neu != nil { linie(g, hemd(form), top.kontur, 3.5) } else { linie(k, form, top.kontur, 3.5) }
+            }
         }
         if jacke > 0 { jackeZeichnen(k, form: rumpf(0), oben: 161, unten: 240, s: 1) }
+        if neu != nil { armeVorn(g, torsoK: rumpf(ausschnitt)) }
     }
 
     /// Z-38.2 body cues in the half-figure torso space (`h` is clipped to the torso; the full body
@@ -5818,5 +5818,75 @@ private extension Zeichner {
             aufRumpf.fill(arm, with: .color(haut.farbe))
         }
         aermelDetails(g, s, a, d)
+    }
+
+    // MARK: - F5: half-figure shirt and sleeves as one outline (new faces only)
+
+    /// The half figure's arms with their shoulder points and thickness.
+    func neueArme() -> [(s: CGPoint, a: Arm, d: CGFloat)] {
+        let arme = mitExtras(pose())
+        let schulter: CGPoint = neu == .b ? vForm.schulterL : P(100 - 40 * breite, 184)
+        let d: CGFloat = neu == .b ? vForm.dick : 0.85
+        var out: [(s: CGPoint, a: Arm, d: CGFloat)] = []
+        if let l = arme.l { out.append((s: schulter, a: l, d: d)) }
+        if let r = arme.r { out.append((s: P(200 - schulter.x, schulter.y), a: r, d: d)) }
+        return out
+    }
+
+    /// A raised or folded forearm lies in front of the body.
+    func istVorn(_ a: Arm) -> Bool { a.hand.y < a.ellbogen.y - 4 }
+
+    func armForm(_ s: CGPoint, _ a: Arm, _ d: CGFloat) -> Path {
+        armUmriss(s, a.ellbogen, a.hand, 26 * d, 20 * d, 15 * d, kappeS: 0.3, kappeH: 0.9)
+    }
+
+    func aermelStoff(_ s: CGPoint, _ a: Arm, _ d: CGFloat) -> Path {
+        armUmriss(s, a.ellbogen, a.hand, 34 * d, 29 * d, 27 * d, kappeS: 0.55, kappeH: 0.4)
+            .intersection(schulterSeite(s, a.ellbogen, saum: 0.5))
+    }
+
+    /// `koerper` draws in a context scaled by `breite` around x = 100; this maps its paths to the
+    /// unscaled half-figure space where the arms live.
+    var kMatrix: CGAffineTransform { CGAffineTransform(a: breite, b: 0, c: 0, d: 1, tx: 100 - 100 * breite, ty: 0) }
+
+    /// Torso plus sleeves (or bare arms) as ONE outline, unscaled space.
+    func hemd(_ torsoK: Path) -> Path {
+        var form = torsoK.applying(kMatrix)
+        for arm in neueArme() where !istVorn(arm.a) {
+            switch aermel {
+            case .kurz: form = form.union(aermelStoff(arm.s, arm.a, arm.d))
+            case .lang, .keine: form = form.union(armForm(arm.s, arm.a, arm.d))
+            }
+        }
+        return form
+    }
+
+    /// The base shape of a torso branch in `koerper`: old faces unchanged, new faces as one outline.
+    func basis(_ g: GraphicsContext, _ k: GraphicsContext, _ form: Path, _ farbe: FigurFarbe) {
+        guard neu != nil else { teil(k, form, farbe); return }
+        let rand = aermel == .lang ? aermelFarbe.kontur : farbe.kontur
+        flaeche(g, hemd(form), .color(farbe.farbe), rand: rand, breite: 3.5)
+    }
+
+    /// Before the torso: the hands, and bare arms that disappear under short sleeves.
+    func armeHinten(_ g: GraphicsContext) {
+        for arm in neueArme() where !istVorn(arm.a) {
+            teil(g, kreis(P(arm.a.hand.x, arm.a.hand.y + 2 * arm.d), 8.5 * arm.d), haut, 3 * min(arm.d, 1))
+            if aermel == .kurz { teil(g, armForm(arm.s, arm.a, arm.d), haut, 3 * min(arm.d, 1)) }
+        }
+    }
+
+    /// After torso and jacket: long sleeves get their color (their outline came with `hemd`), arms in
+    /// front of the body are drawn whole on top (they bring their own hand and sleeve).
+    func armeVorn(_ g: GraphicsContext, torsoK: Path) {
+        let torso = torsoK.applying(kMatrix)
+        for arm in neueArme() {
+            if istVorn(arm.a) {
+                armV(g, arm.s, arm.a, arm.d, rumpf: torso)
+            } else if aermel == .lang {
+                g.fill(armForm(arm.s, arm.a, arm.d), with: .color(aermelFarbe.farbe))
+                aermelDetails(g, arm.s, arm.a, arm.d)
+            }
+        }
     }
 }

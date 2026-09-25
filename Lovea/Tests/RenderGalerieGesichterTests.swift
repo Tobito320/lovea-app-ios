@@ -72,4 +72,14 @@ final class RenderGalerieGesichterTests: XCTestCase {
         }
         RenderTafel.speichern("koerper-v", spalten: 6, zellen: zellen)
     }
+
+    func testHalbfigurSchultern() {
+        var zellen: [Zelle] = []
+        for p in Person.allCases {
+            for z in [FigurZustand.ruhig, .imChat, .kamera, .liest, .gym] {
+                zellen.append((titel: "\(p.name) \(z.rawValue)", ansicht: AnyView(FigurView(.standard(for: p), zustand: z, groesse: 180, animiert: false))))
+            }
+        }
+        RenderTafel.speichern("halbfigur-schultern", spalten: 5, zellen: zellen)
+    }
 }
