@@ -5864,8 +5864,8 @@ private extension Zeichner {
     func aermelStoff(_ s: CGPoint, _ a: Arm, _ d: CGFloat) -> Path {
         let form: Path
         if neu == .b {
-            let (ws, we, wh): (CGFloat, CGFloat, CGFloat) = z == .gym ? (36, 31, 29) : (33, 29, 27)
-            form = armUmriss(s, a.ellbogen, a.hand, ws * d, we * d, wh * d, kappeS: 0, kappeH: 0.4)
+            // Ahmed: S4 is the cleanest; the wider S5 sleeve starts to separate from the body.
+            form = armUmriss(s, a.ellbogen, a.hand, 33 * d, 29 * d, 27 * d, kappeS: 0, kappeH: 0.4)
         } else {
             form = armUmriss(s, a.ellbogen, a.hand, 34 * d, 29 * d, 27 * d, kappeS: 0.55, kappeH: 0.4)
         }
