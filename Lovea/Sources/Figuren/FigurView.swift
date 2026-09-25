@@ -673,7 +673,7 @@ private struct Zeichner {
     func koerper(_ g: GraphicsContext) {
         if let neu {
             neuerHals(g, neu)
-            g.fill(box(78, 156, 44, 36), with: .color(haut.farbe))
+            g.fill(neu == .b ? box(88, 156, 24, 36) : box(91, 156, 18, 36), with: .color(haut.farbe))
         } else {
             teil(g, box(86, 132, 28, 58, 10), haut)
             g.fill(box(78, 156, 44, 36), with: .color(haut.farbe))
@@ -1384,12 +1384,14 @@ private struct Zeichner {
     /// the kiss meets near the edge of the head. Unchanged while there is no turn.
     func gedreht(_ g: GraphicsContext, mund: Bool = false) -> GraphicsContext {
         guard let um = umarmung, um.arme + um.kuss > 0 else { return g }
-        let dreh = um.seite * (10 * um.arme + 18 * um.kuss)
+        // Brief F2: the new faces are narrower, so the features slide less.
+        let schmal: CGFloat = neu == nil ? 1 : 0.6
+        let dreh = um.seite * (10 * um.arme + 18 * um.kuss) * schmal
         var h = g
         h.clip(to: kopfPfad)
         h.translateBy(x: 100 + dreh, y: 0)
         h.scaleBy(x: 1 - abs(dreh) / 150, y: 1)
-        h.translateBy(x: -100 + (mund ? um.seite * 12 * um.kuss : 0), y: 0)
+        h.translateBy(x: -100 + (mund ? um.seite * 12 * um.kuss * schmal : 0), y: 0)
         return h
     }
 
@@ -5306,6 +5308,11 @@ private extension Zeichner {
     }
 
     func neuesGesicht(_ basis: GraphicsContext, _ neu: NeuesGesicht) {
+        if neu == .b && eigeneFrisur {
+            let taper = verlaufY(78, 104, [.init(color: haar.farbe.opacity(0.95), location: 0), .init(color: haar.farbe.opacity(0.55), location: 0.55), .init(color: haar.farbe.opacity(0.05), location: 1)])
+            basis.fill(GesichtB.taperL, with: taper)
+            basis.fill(GesichtB.taperR, with: taper)
+        }
         let g = gedreht(basis)
         let mundKontext = gedreht(basis, mund: true)
         switch neu {
@@ -5321,11 +5328,6 @@ private extension Zeichner {
         for (wange, c) in [(GesichtB.wangeL, P(62, 122)), (GesichtB.wangeR, P(138, 122))] {
             let s = haut.mal(0.84).farbe
             h.fill(wange, with: verlaufRund(c, 14, [.init(color: s.opacity(0.7), location: 0), .init(color: s.opacity(0), location: 1)]))
-        }
-        if eigeneFrisur {
-            let taper = verlaufY(78, 104, [.init(color: haar.farbe.opacity(0.95), location: 0), .init(color: haar.farbe.opacity(0.55), location: 0.55), .init(color: haar.farbe.opacity(0.05), location: 1)])
-            g.fill(GesichtB.taperL, with: taper)
-            g.fill(GesichtB.taperR, with: taper)
         }
         let bartFarbe = FigurFarbe(0x5C4030)
         if kinnbart > 0 {
