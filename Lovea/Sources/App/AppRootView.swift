@@ -23,12 +23,20 @@ final class AppNavigation {
     /// Z-32.1: message the chat tab scrolls to and highlights (notification tap, "Heute vor …").
     /// Stays set until that message has arrived; the conversation clears it.
     var chatZiel: String?
+    /// 25.09.: Kuss/Anstupsen/Herz-Push angetippt -> die Unterhaltung öffnet das Partnerprofil.
+    var partnerProfilOeffnen = false
     /// Contexts on screen right now, for screenshot/recording notices (`ScreenshotKontext`).
     var bildschirm: [ScreenshotKontext] = []
     private init() {}
 
     /// Notification tap: chat pushes carry `art` (op kind) and `nachrichtId` (Z-32.1).
+    /// 25.09.: Kuss/Anstupsen/Herz (`art == "geste"`) öffnen statt der Nachricht das Partnerprofil.
     func mitteilungGeoeffnet(nachrichtId: String?, art: String?) {
+        if art == "geste" {
+            tabWunsch = "chat"
+            partnerProfilOeffnen = true
+            return
+        }
         let chat = nachrichtId != nil || art.map { $0.hasPrefix("nachricht.") || $0.hasPrefix("snap.") } == true
         guard chat else { return }
         chatZiel = nachrichtId

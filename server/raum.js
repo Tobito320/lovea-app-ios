@@ -332,7 +332,10 @@ export class Raum {
     const token = geraetToken(this.sql, empfaenger);
     if (!token) return;
     // Z-32.1: Antippen springt im Chat zur Nachricht, die App liest `userInfo["nachrichtId"]`.
-    const daten = op.art.startsWith("nachricht.") && typeof op.d.id === "string" ? { art: op.art, nachrichtId: op.d.id } : undefined;
+    // 25.09.: Kuss/Anstupsen/Herz (art "geste") schicken `art` mit, die App öffnet damit das Partnerprofil.
+    const daten = op.art.startsWith("nachricht.") && typeof op.d.id === "string"
+      ? { art: op.art, nachrichtId: op.d.id }
+      : op.art === "geste" ? { art: op.art } : undefined;
     const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton: r.ton, daten });
     if (!res.ok) this.#log("APNs-Antwort", op.art, "->", res.status);
     if (res.expired) geraetLoeschen(this.sql, empfaenger);
