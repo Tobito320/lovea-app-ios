@@ -553,7 +553,7 @@ struct HeuteView: View {
             ForEach(hinweise) { h in
                 HinweisKarte(hinweis: h, punkte: punkte, offen: offeneHinweise.contains(h.id)) {
                     withAnimation(ruhig ? nil : Feder.weich) {
-                        if offeneHinweise.contains(h.id) { offeneHinweise.remove(h.id) } else { offeneHinweise.insert(h.id) }
+                        if offeneHinweise.remove(h.id) == nil { offeneHinweise.insert(h.id) }
                     }
                 }
             }
