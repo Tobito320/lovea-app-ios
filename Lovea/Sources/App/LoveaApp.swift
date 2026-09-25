@@ -64,7 +64,7 @@ enum AppStart {
         _ = FigurenModell.shared; _ = ChatModell.shared; _ = ChatEinstellungen.shared; _ = OrteModell.shared
         _ = KalenderModell.shared; _ = WirModell.shared; _ = SpieleModell.shared; _ = EinstellungenModell.shared
         _ = TeilenModell.shared; _ = LiveZeichnung.shared; _ = UmzugImport.shared; _ = HealthModell.shared
-        _ = PunkteModell.shared; _ = UmzugAufraeumen.shared; _ = WetterModell.shared
+        _ = PunkteModell.shared; _ = UmzugAufraeumen.shared; _ = WetterModell.shared; _ = TrainingModell.shared
         // Kein Prompt hier (nur `sicherstellen()` vom Health-Tab darf fragen) — startet HealthKit-
         // Observer/Background-Delivery erneut, falls die Berechtigung früher schon erteilt wurde.
         // Die Replay-Kette existiert schon (Registrierung oben); `Raum.shared.leer()` im Handler wartet darauf.
