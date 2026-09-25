@@ -183,8 +183,9 @@ def ahmed_B(p=""):
     s = Svg(p); c = AH; haut, haar = c["haut"], c["haar"]
     rh = kontur(haut)
     # 25.09. (Ahmed: "Wangen bissl sharper"): Wangenknochen bei y 112, gerade Kante zur Kieferecke (137|133).
-    gesicht = ("M100,26 C127,26 147,44 147,77 C147,95 146,105 144,112 L137,133 C130,144 116,150 100,151 "
-               "C84,150 70,144 63,133 L56,112 C54,105 53,95 53,77 C53,44 73,26 100,26 Z")
+    # 25.09. (Ahmed: "Kinn zu klein und nicht scharf"): breites, eckiges Kinn mit flacher Unterkante.
+    gesicht = ("M100,26 C127,26 147,44 147,77 C147,95 146,105 144,112 L137,133 L117,148.5 Q100,153 83,148.5 "
+               "L63,133 L56,112 C54,105 53,95 53,77 C53,44 73,26 100,26 Z")
     n = len(AH_AUSSEN)
     s.g("hair-back", teil(wolke(AH_AUSSEN + [(150, 94), (50, 94)], (100, 60), beulen(n + 2, 3.8)), haar))
     hals_und_rumpf(s, haut, c["top"])
