@@ -26,6 +26,8 @@ final class HealthModell {
     /// `seq`/`id`, so the same winner per day).
     private var schritteExtras: [Person: [String: TagesEintrag<SchritteExtra>]] = [:]
     private var habitFaltung = HabitFaltung()
+    /// `ziel.saetze.<gruppe>` und `ziel.prio.<gruppe>`: Person -> Schlüssel -> Änderungen.
+    private var zielAndere: [Person: [String: [ZielAenderung]]] = [:]
 
     /// Teil 5: hand-entered bed and wake-up times per person and wake-up day (newest op wins).
     private(set) var schlafZeiten: [Person: [String: SchlafZeitenD]] = [:]
@@ -128,6 +130,18 @@ final class HealthModell {
         HealthLogik.zielAmTag(heute, zielWasserAenderungen[person ?? Raum.shared.ich ?? .ahmed] ?? [], standard: 8)
     }
 
+    /// Generisch für `ziel.saetze.<gruppe>` und `ziel.prio.<gruppe>`: der neueste Wert, nil wenn nie gesetzt.
+    func ziel(_ schluessel: String, _ person: Person) -> Int? {
+        zielAndere[person]?[schluessel]?.enumerated()
+            .max { ($0.element.seq ?? .max, $0.offset) < ($1.element.seq ?? .max, $1.offset) }?
+            .element.wert
+    }
+
+    /// Nur lesen, der Kalender gehört jemand anderem. "gut" | "mittel" | "schlecht".
+    func stimmung(_ person: Person, _ tag: String) -> String? {
+        KalenderModell.shared.zustand.stimmungen[tag]?[person]?.stimmung
+    }
+
     /// "Letzter gewinnt" (schnittstellen.md), keine Personen-Historie wie bei den anderen Zielen.
     /// Gleichstand (zwei unbestätigte) → die später angekommene (I-2).
     var zielGemeinsamWoche: Int {
@@ -194,7 +208,9 @@ final class HealthModell {
         case "ziel.gym": HealthLogik.zielAufnehmen(&zielGymAenderungen[op.von, default: []], aenderung)
         case "ziel.wasser": HealthLogik.zielAufnehmen(&zielWasserAenderungen[op.von, default: []], aenderung)
         case "ziel.gemeinsamWoche": HealthLogik.zielAufnehmen(&zielGemeinsamWocheAenderungen, aenderung)
-        default: break
+        default:
+            guard d.schluessel.hasPrefix("ziel.saetze.") || d.schluessel.hasPrefix("ziel.prio.") else { break }
+            HealthLogik.zielAufnehmen(&zielAndere[op.von, default: [:]][d.schluessel, default: []], aenderung)
         }
     }
 

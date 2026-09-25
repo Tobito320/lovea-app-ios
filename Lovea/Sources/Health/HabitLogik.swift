@@ -193,7 +193,7 @@ struct HabitFaltung: Sendable {
     /// Without hidden ones, "ich" habits only for their creator. Gym, Wasser, then creation order.
     func sichtbar(fuer ich: Person) -> [Habit] {
         habits(ich: ich).values
-            .filter { !$0.ausgeblendet && ($0.fuer != "ich" || $0.von == ich.rawValue) }
+            .filter { !Habit.nurHeute.contains($0.id) && !$0.ausgeblendet && ($0.fuer != "ich" || $0.von == ich.rawValue) }
             .sorted { rang($0) < rang($1) }
     }
 
