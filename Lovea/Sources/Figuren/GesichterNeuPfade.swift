@@ -79,10 +79,12 @@ enum GesichtB {
         Path { p in
             p.move(to: P(100, 26))
             p.addCurve(to: P(147, 77), control1: P(127, 26), control2: P(147, 44))
-            p.addCurve(to: P(139, 129), control1: P(147, 100), control2: P(145, 117))
-            p.addCurve(to: P(100, 151), control1: P(132, 142), control2: P(117, 150))
-            p.addCurve(to: P(61, 129), control1: P(83, 150), control2: P(68, 142))
-            p.addCurve(to: P(53, 77), control1: P(55, 117), control2: P(53, 100))
+            p.addCurve(to: P(144, 112), control1: P(147, 95), control2: P(146, 105))
+            p.addLine(to: P(137, 133))
+            p.addCurve(to: P(100, 151), control1: P(130, 144), control2: P(116, 150))
+            p.addCurve(to: P(63, 133), control1: P(84, 150), control2: P(70, 144))
+            p.addLine(to: P(56, 112))
+            p.addCurve(to: P(53, 77), control1: P(54, 105), control2: P(53, 95))
             p.addCurve(to: P(100, 26), control1: P(53, 44), control2: P(73, 26))
             p.closeSubpath()
         }
