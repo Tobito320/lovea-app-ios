@@ -44,7 +44,27 @@ final class RenderGalerieMuskelFigurTests: XCTestCase {
         XCTAssertEqual(MuskelPfade.faktor(600), 1, accuracy: 0.001)
     }
 
-    func testMuskelFigurTafel() {
+    func testFokusWaehltDieSeiteMitDemMuskel() {
+        let figur = MuskelPfade.figur(.ahmed)
+        XCTAssertTrue(figur.hinten(fuer: .ruecken, teil: nil))
+        XCTAssertTrue(figur.hinten(fuer: .ruecken, teil: .rLat))
+        XCTAssertFalse(figur.hinten(fuer: .ruecken, teil: .rTrapezOben))
+        XCTAssertFalse(figur.hinten(fuer: .beine, teil: nil))
+        XCTAssertTrue(figur.hinten(fuer: .beine, teil: .bePo))
+        XCTAssertTrue(figur.hinten(fuer: .trizeps, teil: nil))
+        XCTAssertFalse(figur.hinten(fuer: .brust, teil: .bUnten))
+    }
+
+    func testMuskelFigurTafeln() {
+        for person in Person.allCases { tafel(person) }
+    }
+
+    /// One board per person: `KopfFigur` draws everyone but `Raum.shared.ich` washed out (offline).
+    private func tafel(_ person: Person) {
+        let vorher = Raum.shared.ich
+        Raum.shared.ich = person
+        defer { Raum.shared.ich = vorher }
+
         let hoehe: CGFloat = 400
         let breite = hoehe * MuskelPfade.rahmen.width / MuskelPfade.rahmen.height
         func karte(_ titel: String, _ ansicht: some View) -> Zelle {
@@ -54,17 +74,17 @@ final class RenderGalerieMuskelFigurTests: XCTestCase {
                 .background(Color(red: 0x1C / 255, green: 0x1C / 255, blue: 0x1E / 255), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .environment(\.colorScheme, .dark)))
         }
-        var zellen: [Zelle] = []
-        for person in Person.allCases {
-            for hinten in [false, true] {
-                let seite = MuskelSeite(person: person, hinten: hinten, farbe: MuskelFigurBeispiel.farbe, animiert: false)
-                zellen.append(karte("\(person.name) \(hinten ? "hinten" : "vorne")", seite))
-            }
+        let farbe = MuskelFigurBeispiel.farbe
+        let fokusse: [(MuskelGruppe, MuskelTeil)] = person == .ahmed ? [(.beine, .beQuads), (.trizeps, .triLang)] : [(.brust, .bUnten), (.ruecken, .rLat)]
+        var zellen: [Zelle] = [
+            karte("\(person.name) vorne", MuskelSeite(person: person, hinten: false, farbe: farbe, animiert: false)),
+            karte("\(person.name) hinten", MuskelSeite(person: person, hinten: true, farbe: farbe, animiert: false)),
+            karte("drehbar, mit Knopf", MuskelFigur(person: person, farbe: farbe, animiert: false)),
+        ]
+        for (gruppe, teil) in fokusse {
+            let figur = MuskelFigur(person: person, farbe: farbe, markiert: teil, fokus: gruppe, animiert: false)
+            zellen.append(karte("Fokus \(gruppe.name), \(teil.name) weiß", figur))
         }
-        zellen.append(karte("Ahmed, drehbar mit Knopf", MuskelFigur(person: .ahmed, farbe: MuskelFigurBeispiel.farbe, animiert: false)))
-        zellen.append(karte("Annika, drehbar mit Knopf", MuskelFigur(person: .annika, farbe: MuskelFigurBeispiel.farbe, animiert: false)))
-        zellen.append(karte("Fokus Beine, Quadrizeps markiert", MuskelFigur(person: .ahmed, farbe: MuskelFigurBeispiel.farbe, markiert: .beQuads, fokus: .beine, animiert: false)))
-        zellen.append(karte("Fokus Rücken, Latissimus markiert", MuskelFigur(person: .annika, farbe: MuskelFigurBeispiel.farbe, markiert: .rLat, fokus: .ruecken, animiert: false)))
-        RenderTafel.speichern("muskel-figur", spalten: 4, zellen: zellen)
+        RenderTafel.speichern("muskel-figur-\(person.rawValue)", spalten: 5, zellen: zellen)
     }
 }

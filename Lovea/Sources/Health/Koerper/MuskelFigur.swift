@@ -46,8 +46,13 @@ enum MuskelPfade {
             return flaechen.last(where: { $0.seite == seite && $0.pfad.contains(p) })?.teil
         }
 
-        func hatVorne(_ g: MuskelGruppe) -> Bool {
-            flaechen.contains(where: { $0.seite == .vorne && $0.teil.gruppe == g })
+        /// Which side shows a group: the one that holds `teil` (front if both do), else the one with more of the group.
+        func hinten(fuer g: MuskelGruppe, teil: MuskelTeil?) -> Bool {
+            if let teil, teil.gruppe == g {
+                return !flaechen.contains(where: { $0.seite == .vorne && $0.teil == teil })
+            }
+            let vorne = flaechen.filter { $0.seite == .vorne && $0.teil.gruppe == g }.count
+            return flaechen.filter { $0.seite == .hinten && $0.teil.gruppe == g }.count > vorne
         }
     }
 
@@ -318,7 +323,7 @@ struct MuskelSeite: View {
 /// The turnable cartoon muscle figure (Erholung, Körper tab). Drag turns 1:1 (1.1 deg per pt) and
 /// swings on with a spring, a tap turns by 180 deg, a tap on a muscle reports its `MuskelTeil`.
 /// With `fokus` (the sheet of one muscle group) the figure does not turn: it shows the side that
-/// holds the group, other groups are skin-gray and `markiert` is white.
+/// holds `markiert` or the group, other groups are skin-gray and `markiert` is white.
 struct MuskelFigur: View {
     let person: Person
     let farbe: (MuskelTeil) -> Color
@@ -328,21 +333,44 @@ struct MuskelFigur: View {
     let animiert: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var winkel: Double
+    @State private var lauf: Lauf
+    @State private var laeuft = false
     @State private var zug: Zug? = nil
     @State private var gedrueckt: MuskelTeil? = nil
+
+    /// The turn as a damped spring in closed form (period 0.42 s, damping 0.8, as in the draft).
+    /// The angle is a pure function of time: a touch in mid-flight picks the figure up where it is,
+    /// and the side that shows always matches the drawn angle.
+    private struct Lauf {
+        static let dauer = 1.2
+        var von: Double
+        var tempo = 0.0
+        var ziel: Double
+        var seit = Date.distantPast
+
+        static func ruhig(_ w: Double) -> Lauf { Lauf(von: w, ziel: w) }
+
+        func winkel(_ jetzt: Date) -> Double {
+            let t = jetzt.timeIntervalSince(seit)
+            if t <= 0 { return von }
+            if t >= Self.dauer { return ziel }
+            let w0 = 2 * Double.pi / 0.42, z = 0.8
+            let wd = w0 * (1 - z * z).squareRoot()
+            let a = von - ziel
+            return ziel + exp(-z * w0 * t) * (a * cos(wd * t) + (tempo + z * w0 * a) / wd * sin(wd * t))
+        }
+    }
 
     /// One touch from finger down to finger up.
     private struct Zug {
         enum Art { case tippen, drehen, scrollen }
         var art = Art.tippen
-        let start: Double
+        let ort: CGPoint
+        let von: Double
         var zeit: Date
         var x: CGFloat = 0
         var tempo = 0.0
     }
-
-    private static let feder = Animation.spring(response: 0.42, dampingFraction: 0.8)
 
     /// `animiert` turns the figure in once from -34 deg to the front, as in the draft.
     init(
@@ -355,47 +383,59 @@ struct MuskelFigur: View {
         self.fokus = fokus
         self.onTipp = onTipp
         self.animiert = animiert
-        let start: Double
-        if let fokus {
-            start = MuskelPfade.figur(person).hatVorne(fokus) ? 0 : 180
-        } else {
-            start = animiert ? -34 : 0
-        }
-        _winkel = State(initialValue: start)
+        _lauf = State(initialValue: .ruhig(animiert && fokus == nil ? -34 : 0))
     }
 
     var body: some View {
         GeometryReader { geo in
-            figur(geo.size)
+            TimelineView(.animation(paused: !laeuft)) { kontext in
+                let w = winkel(kontext.date)
+                figur(geo.size, w)
+                    .overlay(alignment: .bottomTrailing) { knopf(w) }
+            }
         }
         .aspectRatio(MuskelPfade.rahmen.width / MuskelPfade.rahmen.height, contentMode: .fit)
-        .overlay(alignment: .bottomTrailing) { knopf }
         .onAppear { einblenden() }
+        // Pauses the timeline once the spring has settled; a new spring restarts this task.
+        .task(id: lauf.seit) {
+            let warte = lauf.seit.timeIntervalSinceNow + Lauf.dauer
+            if warte > 0 {
+                do { try await Task.sleep(for: .seconds(warte)) } catch { return }
+            }
+            laeuft = false
+        }
     }
 
-    private var vorneSichtbar: Bool { cos(winkel * .pi / 180) >= 0 }
+    private static func zeigtVorne(_ w: Double) -> Bool { cos(w * .pi / 180) >= 0 }
 
-    private func figur(_ groesse: CGSize) -> some View {
-        ZStack {
-            seite(hinten: false).opacity(vorneSichtbar ? 1 : 0)
+    /// The angle at `jetzt`. With `fokus` the figure stands still on the side that shows the muscle.
+    private func winkel(_ jetzt: Date) -> Double {
+        guard let fokus else { return lauf.winkel(jetzt) }
+        return MuskelPfade.figur(person).hinten(fuer: fokus, teil: markiert) ? 180 : 0
+    }
+
+    private func figur(_ groesse: CGSize, _ w: Double) -> some View {
+        let vorne = Self.zeigtVorne(w)
+        return ZStack {
+            seite(hinten: false).opacity(vorne ? 1 : 0)
             seite(hinten: true)
                 .rotation3DEffect(.degrees(180), axis: (x: 0, y: 1, z: 0))
-                .opacity(vorneSichtbar ? 0 : 1)
+                .opacity(vorne ? 0 : 1)
         }
-        .rotation3DEffect(.degrees(winkel), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
+        .rotation3DEffect(.degrees(w), axis: (x: 0, y: 1, z: 0), perspective: 0.5)
         // The gesture sits outside the turning view, so its coordinates do not turn with it.
         .contentShape(Rectangle())
         // ponytail: simultaneous, so a vertical drag on the figure still scrolls the page.
         .simultaneousGesture(geste(groesse))
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(person.name), Muskeln von \(vorneSichtbar ? "vorne" : "hinten")")
+        .accessibilityLabel("\(person.name), Muskeln von \(vorne ? "vorne" : "hinten")")
     }
 
     private func seite(hinten: Bool) -> MuskelSeite {
         MuskelSeite(person: person, hinten: hinten, farbe: farbe, markiert: markiert, fokus: fokus, gedrueckt: gedrueckt, animiert: animiert)
     }
 
-    @ViewBuilder private var knopf: some View {
+    @ViewBuilder private func knopf(_ w: Double) -> some View {
         if fokus == nil {
             VStack(spacing: 2) {
                 Button {
@@ -409,7 +449,7 @@ struct MuskelFigur: View {
                 }
                 .buttonStyle(.federnd)
                 .accessibilityLabel("Figur drehen")
-                Text(vorneSichtbar ? "Vorne" : "Hinten")
+                Text(Self.zeigtVorne(w) ? "Vorne" : "Hinten")
                     .font(.caption2.weight(.semibold))
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
@@ -426,11 +466,12 @@ struct MuskelFigur: View {
     }
 
     private func beruehren(_ wert: DragGesture.Value, _ groesse: CGSize) {
-        var z = zug ?? Zug(start: winkel, zeit: wert.time)
-        if zug == nil, onTipp != nil { gedrueckt = muskel(bei: wert.startLocation, groesse) }
-        let dx = wert.translation.width
-        if z.art == .tippen, max(abs(dx), abs(wert.translation.height)) > 8 {
-            z.art = abs(dx) > abs(wert.translation.height) && fokus == nil ? .drehen : .scrollen
+        // A touch the scroll view took never ends here: a new start point means a new touch.
+        if zug?.ort != wert.startLocation { zug = nil }
+        var z = zug ?? anfassen(wert, groesse)
+        let dx = wert.translation.width, dy = wert.translation.height
+        if z.art == .tippen, max(abs(dx), abs(dy)) > 8 {
+            z.art = abs(dx) > abs(dy) && fokus == nil ? .drehen : .scrollen
             gedrueckt = nil
         }
         if z.art == .drehen {
@@ -439,21 +480,30 @@ struct MuskelFigur: View {
             if dt > 0 { z.tempo = z.tempo * 0.6 + Double(dx - z.x) / dt * 1.1 * 0.4 }
             z.zeit = wert.time
             z.x = dx
-            winkel = z.start + Double(dx) * 1.1
+            lauf = .ruhig(z.von + Double(dx) * 1.1)
         }
         zug = z
+    }
+
+    /// Finger down: stops a turn in flight and notes the muscle under the finger.
+    private func anfassen(_ wert: DragGesture.Value, _ groesse: CGSize) -> Zug {
+        let w = winkel(wert.time)
+        if fokus == nil { lauf = .ruhig(w) }
+        gedrueckt = onTipp == nil ? nil : muskel(bei: wert.startLocation, groesse, w)
+        return Zug(ort: wert.startLocation, von: w, zeit: wert.time)
     }
 
     private func loslassen(_ wert: DragGesture.Value, _ groesse: CGSize) {
         guard let z = zug else { return }
         zug = nil
         gedrueckt = nil
+        let w = winkel(wert.time)
         switch z.art {
         case .drehen:
             let tempo = wert.time.timeIntervalSince(z.zeit) < 0.08 ? z.tempo : 0
-            springe(zu: ((winkel + tempo * 0.099) / 180).rounded() * 180)
+            springe(zu: ((w + tempo * 0.099) / 180).rounded() * 180, tempo: tempo)
         case .tippen:
-            if let onTipp, let teil = muskel(bei: wert.location, groesse) {
+            if let onTipp, let teil = muskel(bei: wert.location, groesse, w) {
                 Haptik.auswahl()
                 onTipp(teil)
             } else if fokus == nil {
@@ -465,22 +515,24 @@ struct MuskelFigur: View {
         }
     }
 
-    /// Only exact while the figure stands still. A touch that starts a turn never asks.
-    private func muskel(bei ort: CGPoint, _ groesse: CGSize) -> MuskelTeil? {
+    /// Exact while the figure stands still, a good guess in flight.
+    private func muskel(bei ort: CGPoint, _ groesse: CGSize, _ w: Double) -> MuskelTeil? {
         let r = MuskelPfade.rahmen
         let s = r.width / groesse.width
-        return MuskelPfade.figur(person).teil(bei: P(r.minX + ort.x * s, r.minY + ort.y * s), hinten: !vorneSichtbar)
+        return MuskelPfade.figur(person).teil(bei: P(r.minX + ort.x * s, r.minY + ort.y * s), hinten: !Self.zeigtVorne(w))
     }
 
-    private func springe(zu ziel: Double, verzoegert: Double = 0) {
+    /// Starts the spring from wherever the figure is now. Reduce Motion: it just jumps.
+    private func springe(zu ziel: Double, tempo: Double = 0, verzoegert: TimeInterval = 0) {
         if reduceMotion {
-            winkel = ziel
+            lauf = .ruhig(ziel)
         } else {
-            withAnimation(Self.feder.delay(verzoegert)) { winkel = ziel }
+            lauf = Lauf(von: lauf.winkel(Date()), tempo: tempo, ziel: ziel, seit: Date().addingTimeInterval(verzoegert))
+            laeuft = true
         }
     }
 
-    private func drehen() { springe(zu: (winkel / 180).rounded() * 180 + 180) }
+    private func drehen() { springe(zu: (lauf.winkel(Date()) / 180).rounded() * 180 + 180) }
 
     private func einblenden() {
         if animiert, fokus == nil { springe(zu: 0, verzoegert: 0.16) }
