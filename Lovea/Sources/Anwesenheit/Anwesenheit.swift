@@ -236,7 +236,8 @@ final class Anwesenheit {
         return FigurEingabe(
             person: ich,
             app: imHintergrund ? nil : appAktivitaet,
-            ort: ortZustand(ich),
+            // A running gym session is the gym, with or without a saved place (Training, Runde 4).
+            ort: TrainingModell.shared.laufende(ich) != nil ? .gym : ortZustand(ich),
             bewegung: AnwesenheitEingabe.reise(bewegung, person: ich, tempo: Standort.shared.positionen[ich]?.tempo, fixAlter: Standort.shared.positionen[ich]?.sekundenAlt),
             akku: akku,
             laedt: laedt,
