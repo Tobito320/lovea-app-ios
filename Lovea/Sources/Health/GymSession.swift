@@ -9,6 +9,8 @@ struct TrainingKartenStand {
     var laufendTag: TrainingsTag? = nil
     var vergessen: GymSession? = nil
     var planLeer: Bool
+    var heuteRuhe = false
+    var planHinweis: String? = nil
     var partner: String? = nil
     var jetzt: Date
 }
@@ -64,9 +66,12 @@ struct TrainingKarte: View {
 
     private func stand(_ jetzt: Date) -> TrainingKartenStand {
         let laufend = modell.laufende(ich, jetzt: jetzt)
+        let plan = modell.plan(ich)
         return TrainingKartenStand(
             heute: modell.heutigerTag(ich), laufend: laufend, laufendTag: modell.tag(ich, id: laufend?.tag),
-            vergessen: modell.vergessene(ich, jetzt: jetzt), planLeer: modell.plan(ich).tage.isEmpty,
+            vergessen: modell.vergessene(ich, jetzt: jetzt), planLeer: plan.tage.isEmpty,
+            heuteRuhe: RuhetagLogik.art(plan, Datum.wochentag(Datum.text(jetzt))) == .ruhe,
+            planHinweis: RuhetagLogik.hinweise(plan).first?.text,
             partner: partnerText(jetzt), jetzt: jetzt
         )
     }
@@ -173,6 +178,20 @@ struct TrainingKarteInhalt: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             }
+            if let hinweis = stand.planHinweis {
+                Button(action: aktionen.plan) {
+                    Label {
+                        Text(hinweis).font(.footnote).multilineTextAlignment(.leading)
+                    } icon: {
+                        Image(systemName: "lightbulb.fill").foregroundStyle(Color.yellow)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.federnd)
+                .foregroundStyle(Color.primary)
+                .accessibilityHint("Öffnet den Trainingsplan")
+            }
             Button(action: aktionen.einchecken) {
                 Label("Im Gym einchecken", systemImage: "figure.strengthtraining.traditional")
                     .frame(maxWidth: .infinity, minHeight: 50)
@@ -184,7 +203,7 @@ struct TrainingKarteInhalt: View {
 
     private var heuteText: String {
         if stand.planLeer { return "Noch kein Trainingsplan" }
-        guard let t = stand.heute else { return "Heute ist Ruhetag" }
+        guard let t = stand.heute else { return stand.heuteRuhe ? "Heute ist Ruhetag" : "Heute ist noch nicht geplant" }
         return "Heute: \(t.name) · \(t.uebungen.count) Übungen"
     }
 

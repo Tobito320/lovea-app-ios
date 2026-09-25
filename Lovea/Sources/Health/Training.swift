@@ -45,9 +45,12 @@ struct TrainingsTag: Codable, Identifiable, Equatable, Sendable {
     var uebungen: [PlanUebung]
 }
 
-/// One person's plan, sent whole as `gym.plan` (newest wins). Weekdays without a day are rest days.
+/// One person's plan, sent whole as `gym.plan` (newest wins). A weekday is a training day, a rest
+/// day (`ruhetage`) or still open (`RuhetagLogik`).
 struct TrainingsPlan: Codable, Equatable, Sendable {
     var tage: [TrainingsTag]
+    /// Weekdays marked as rest days, 1 = Mo … 7 = So. Optional: plans from the first build have none.
+    var ruhetage: [Int]? = nil
     static let leer = TrainingsPlan(tage: [])
 }
 
@@ -176,6 +179,7 @@ enum TrainingLogik {
         for i in p.tage.indices where p.tage[i].id != tag.id {
             p.tage[i].wochentage.removeAll { tag.wochentage.contains($0) }
         }
+        p.ruhetage = p.ruhetage.map { ruhe in ruhe.filter { !tag.wochentage.contains($0) } }
         if let i = p.tage.firstIndex(where: { $0.id == tag.id }) { p.tage[i] = tag } else { p.tage.append(tag) }
         return p
     }

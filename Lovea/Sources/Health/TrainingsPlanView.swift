@@ -12,12 +12,13 @@ struct TrainingsPlanView: View {
         let plan = modell.plan(person)
         List {
             Section {
-                WochenLeiste(plan: plan)
+                WochenLeiste(plan: plan, setzen: eigener ? setzenAktion(plan) : nil)
             } header: {
                 Text("Woche")
             } footer: {
-                Text("Tage ohne Training sind Ruhetage.")
+                Text(eigener ? "Tipp auf einen Tag: Training oder Ruhetag." : "")
             }
+            if eigener { hinweise(plan) }
             Section("Trainingstage") {
                 if plan.tage.isEmpty { leer }
                 ForEach(plan.tage) { tag in
@@ -64,12 +65,39 @@ struct TrainingsPlanView: View {
         modell.planSichern(neu)
         Haptik.leicht()
     }
+
+    @ViewBuilder
+    private func hinweise(_ plan: TrainingsPlan) -> some View {
+        let liste = RuhetagLogik.hinweise(plan)
+        if !liste.isEmpty {
+            Section("Vorschlag") {
+                ForEach(liste) { h in
+                    PlanHinweisZeile(hinweis: h) { uebernehmen(h, plan) }
+                }
+            }
+        }
+    }
+
+    private func setzenAktion(_ plan: TrainingsPlan) -> (Int, String?) -> Void {
+        { w, tag in
+            modell.planSichern(RuhetagLogik.setzen(plan, w, tag: tag))
+            Haptik.auswahl()
+        }
+    }
+
+    private func uebernehmen(_ h: PlanHinweis, _ plan: TrainingsPlan) {
+        guard let t = h.tausch, t.count == 2 else { return }
+        modell.planSichern(RuhetagLogik.tauschen(plan, t[0], t[1]))
+        Haptik.erfolg()
+    }
 }
 
-/// Mo to So with the day's name or "Ruhe"; today stands out.
+/// Mo to So: the training day's name, "Ruhe", or an orange "?" while still open. Own plan: tapping
+/// a day opens a menu to make it a training day or a rest day.
 struct WochenLeiste: View {
     let plan: TrainingsPlan
     var heute: Int = Datum.wochentag(Datum.text(Date()))
+    var setzen: ((Int, String?) -> Void)? = nil
 
     var body: some View {
         HStack(spacing: 6) {
@@ -78,25 +106,95 @@ struct WochenLeiste: View {
         .padding(.vertical, 4)
     }
 
+    @ViewBuilder
     private func spalte(_ w: Int) -> some View {
-        let tag = plan.tage.first { $0.wochentage.contains(w) }
+        if let setzen {
+            Menu {
+                menue(w, setzen)
+            } label: {
+                inhalt(w)
+            }
+            .accessibilityHint("Training oder Ruhetag festlegen")
+        } else {
+            inhalt(w)
+        }
+    }
+
+    @ViewBuilder
+    private func menue(_ w: Int, _ aktion: @escaping (Int, String?) -> Void) -> some View {
+        ForEach(plan.tage) { t in
+            Button(t.name.isEmpty ? "Ohne Namen" : t.name, systemImage: "dumbbell") { aktion(w, t.id) }
+        }
+        Button("Ruhetag", systemImage: "bed.double") { aktion(w, nil) }
+    }
+
+    private func inhalt(_ w: Int) -> some View {
+        let art = RuhetagLogik.art(plan, w)
+        let form = RoundedRectangle(cornerRadius: 8, style: .continuous)
         return VStack(spacing: 4) {
             Text(HabitLogik.wochentagKuerzel[w - 1])
                 .font(.caption.weight(w == heute ? .bold : .semibold))
                 .foregroundStyle(w == heute ? Color.primary : Color.secondary)
-            Text(tag?.name ?? "Ruhe")
+            Text(titel(art))
                 .font(.caption2.weight(.medium))
+                .foregroundStyle(Color.primary)
                 .lineLimit(1)
                 .minimumScaleFactor(0.6)
                 .padding(.horizontal, 2)
                 .frame(maxWidth: .infinity, minHeight: 34)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(tag == nil ? Color(uiColor: .tertiarySystemFill) : HabitFarbe.mint.farbe.opacity(0.25))
-                )
+                .background(form.fill(farbe(art)))
+                .overlay {
+                    if art == .offen { form.strokeBorder(Color.orange, style: StrokeStyle(lineWidth: 1, dash: [3, 2])) }
+                }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(TrainingLogik.wochentagName[w - 1]): \(tag?.name ?? "Ruhetag")")
+        .accessibilityLabel("\(TrainingLogik.wochentagName[w - 1]): \(beschreibung(art))")
+    }
+
+    private func titel(_ art: TagArt) -> String {
+        switch art {
+        case .training(let t): return t.name.isEmpty ? "Training" : t.name
+        case .ruhe: return "Ruhe"
+        case .offen: return "?"
+        }
+    }
+
+    private func beschreibung(_ art: TagArt) -> String {
+        switch art {
+        case .training(let t): return t.name.isEmpty ? "Training" : t.name
+        case .ruhe: return "Ruhetag"
+        case .offen: return "noch nicht geplant"
+        }
+    }
+
+    private func farbe(_ art: TagArt) -> Color {
+        switch art {
+        case .training: return HabitFarbe.mint.farbe.opacity(0.25)
+        case .ruhe: return Color(uiColor: .tertiarySystemFill)
+        case .offen: return Color.orange.opacity(0.15)
+        }
+    }
+}
+
+/// A rest-day hint with the lightbulb; "Übernehmen" when it carries a swap.
+struct PlanHinweisZeile: View {
+    let hinweis: PlanHinweis
+    var uebernehmen: () -> Void = {}
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label {
+                Text(hinweis.text).font(.subheadline)
+            } icon: {
+                Image(systemName: "lightbulb.fill").foregroundStyle(Color.yellow)
+            }
+            if hinweis.tausch != nil {
+                Button("Übernehmen", action: uebernehmen)
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+            }
+        }
+        .padding(.vertical, 4)
     }
 }
 

@@ -40,8 +40,9 @@ final class RenderGalerieTrainingTests: XCTestCase {
         let staende: [(String, TrainingKartenStand)] = [
             ("Heute Push", TrainingKartenStand(heute: push, planLeer: false, partner: "Annika hat heute Beine", jetzt: jetzt)),
             ("Im Gym", TrainingKartenStand(heute: push, laufend: laufend, laufendTag: push, planLeer: false, partner: "Annika trainiert gerade: Beinstrecker", jetzt: jetzt)),
-            ("Ruhetag + vergessen", TrainingKartenStand(heute: nil, vergessen: GymSession(id: "v", tag: "beine", start: t0 - 20 * 3600, ende: nil, laeufe: []), planLeer: false, jetzt: jetzt)),
+            ("Ruhetag + vergessen", TrainingKartenStand(heute: nil, vergessen: GymSession(id: "v", tag: "beine", start: t0 - 20 * 3600, ende: nil, laeufe: []), planLeer: false, heuteRuhe: true, jetzt: jetzt)),
             ("Kein Plan", TrainingKartenStand(heute: nil, planLeer: true, jetzt: jetzt)),
+            ("Plan-Tipp", TrainingKartenStand(heute: push, planLeer: false, planHinweis: "Brust kommt am Montag und gleich wieder am Dienstag dran, dazwischen braucht der Muskel Erholung. Vorschlag: Ruhetag auf Dienstag, Push auf Mittwoch.", jetzt: jetzt)),
         ]
         var zellen: [(titel: String, ansicht: AnyView)] = []
         for schema in [ColorScheme.light, .dark] {
@@ -49,7 +50,7 @@ final class RenderGalerieTrainingTests: XCTestCase {
                 zellen.append(zelle("\(titel), \(schema == .light ? "hell" : "dunkel")", TrainingKarteInhalt(stand: stand), schema))
             }
         }
-        RenderTafel.speichern("training-karte", spalten: 4, zellen: zellen)
+        RenderTafel.speichern("training-karte", spalten: 5, zellen: zellen)
     }
 
     func testGymSession() {
@@ -68,7 +69,7 @@ final class RenderGalerieTrainingTests: XCTestCase {
     }
 
     func testPlanUndKatalog() {
-        let plan = TrainingsPlan(tage: [push, TrainingsTag(id: "beine", name: "Beine", wochentage: [2, 6], uebungen: [pu("x", "Beinstrecker an der Maschine"), pu("y", "Kickbacks am Kabelzug")])])
+        let plan = TrainingsPlan(tage: [push, TrainingsTag(id: "beine", name: "Beine", wochentage: [2, 6], uebungen: [pu("x", "Beinstrecker an der Maschine"), pu("y", "Kickbacks am Kabelzug")])], ruhetage: [4, 7])
         let bundle = Bundle(for: FigurenModell.self)
         let katalog = UebungsKatalog.laden(bundle)
         let beispiele = ["barbell bench press", "lever leg extension", "cable kickback", "dumbbell standing biceps curl", "walking on incline treadmill"]
@@ -81,6 +82,8 @@ final class RenderGalerieTrainingTests: XCTestCase {
             zelle("Woche, hell", WochenLeiste(plan: plan, heute: 3)),
             zelle("Woche, dunkel", WochenLeiste(plan: plan, heute: 3), .dark),
             zelle("Tage", VStack(spacing: 12) { ForEach(plan.tage) { TagZeile(tag: $0) } }),
+            zelle("Woche mit offenen Tagen", WochenLeiste(plan: TrainingsPlan(tage: [push], ruhetage: [2]), heute: 3)),
+            zelle("Vorschlag", PlanHinweisZeile(hinweis: PlanHinweis(id: "v", text: "Brust kommt am Montag und gleich wieder am Dienstag dran, dazwischen braucht der Muskel Erholung. Vorschlag: Ruhetag auf Dienstag, Push auf Mittwoch.", tausch: [2, 3]))),
             zelle("Katalog, hell", zeilen),
             zelle("Katalog, dunkel", zeilen, .dark),
             zelle("Verlauf", VStack(spacing: 8) {
