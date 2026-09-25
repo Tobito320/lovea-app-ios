@@ -324,6 +324,9 @@ AN_BACK = ("M100,31 C76,31 56,40 54,62 C52,90 51,120 50,150 C48,180 40,205 36,23
            "L46,225 L53,236 L62,228 L74,234 L100,230 L126,234 L138,228 L147,236 L154,225 L164,232 "
            "C160,205 152,180 150,150 C149,120 148,90 146,62 C144,40 124,31 100,31 Z")
 
+# Haaransatz tiefer als in Runde 2 (Ahmed 25.09.: "Annikas Stirn ist in echt noch etwas kleiner").
+AN_ANSATZ = 5.5
+
 def an_vorhang(sd, px=100.0, tief=0.0):
     """Eine Haarseite: Oberkopf ab dem Scheitel `px`, Pony-Strang ueber Schlaefe und Wange,
     lange Straehne vor der Schulter mit spitzen Enden. `tief` schiebt den Pony tiefer ins Gesicht."""
@@ -334,8 +337,8 @@ def an_vorhang(sd, px=100.0, tief=0.0):
             f"L{x(57)},222 L{x(53)},234 L{x(48)},222 L{x(42)},231 "
             f"C{x(41)},200 {x(39)},170 {x(36)},142 "
             f"C{x(34)},128 {x(37)},114 {x(36)},{f(102+tief)} "
-            f"C{x(35)},{f(86+tief)} {x(25)},{f(71+tief*0.8)} {p(14)},{f(63+tief*0.6)} "
-            f"C{p(8)},{f(60.5+tief*0.3)} {p(3)},59.5 {p(0.8)},59.5 Z")
+            f"C{x(35)},{f(86+tief)} {x(25)},{f(71+tief*0.8+AN_ANSATZ*0.6)} {p(14)},{f(63+tief*0.6+AN_ANSATZ)} "
+            f"C{p(8)},{f(60.5+tief*0.3+AN_ANSATZ)} {p(3)},{f(59.5+AN_ANSATZ)} {p(0.8)},{f(59.5+AN_ANSATZ)} Z")
 
 def an_hinters_ohr(sd, px=100.0):
     """Seite, die hinters Ohr gesteckt ist: Pony vorne, dann hinter dem Ohr nach hinten (Rest liegt im hair-back)."""
@@ -343,7 +346,7 @@ def an_hinters_ohr(sd, px=100.0):
     p = lambda dx: f(px + sd * dx)
     return (f"M{p(0.8)},30 C{x(28)},27 {x(46)},38 {x(48)},60 C{x(50)},86 {x(51)},122 {x(53)},152 "
             f"L{x(50)},154 C{x(49)},134 {x(49)},120 {x(48)},108 "
-            f"C{x(46)},90 {x(28)},70 {p(14)},63 C{p(8)},60.5 {p(3)},59.5 {p(0.8)},59.5 Z")
+            f"C{x(46)},90 {x(28)},{f(70+AN_ANSATZ*0.6)} {p(14)},{f(63+AN_ANSATZ)} C{p(8)},{f(60.5+AN_ANSATZ)} {p(3)},{f(59.5+AN_ANSATZ)} {p(0.8)},{f(59.5+AN_ANSATZ)} Z")
 
 def an_straehne(sd, y0=70, y1=142, dx0=37, dx1=33, b=4.5):
     """Duenne Straehne, die von der Schlaefe ueber die Wangenkante faellt und spitz endet."""

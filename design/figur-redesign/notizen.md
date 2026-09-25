@@ -21,7 +21,7 @@ Kantige Schattenflächen. Der Schnurrbart ist gestylt, mit leicht hochgezwirbelt
 **Ahmed C** wurde verworfen (Ahmed: "voll kacke"). Diese Richtung nicht wieder aufgreifen: halb-realistisch, dünne Kontur, Lidfalte, Nasenrücken-Schatten, Locken als Einzelschwünge.
 
 **Annika, Runde 2** (nach ihren KI-Stickern `wir-annika-*` und `wir-kuss-echt.gif`). Alle drei haben dieselbe Basis:
-- kleine Stirn: Haaransatz in der Mitte bei y 59,5, Brauen bei 88, also etwa ein Drittel des Gesichts;
+- kleine Stirn: Haaransatz in der Mitte bei y 65 (25.09. von 59,5 gesenkt, `AN_ANSATZ`), Brauen bei 88, also etwa ein Drittel des Gesichts;
 - Vorhänge ab dem Scheitel über Schläfen und Wangenrand, gesichtsrahmende Strähnen, lange Spitzen vor den Schultern;
 - schmales weiches Oval mit kleinem Kinn (y 146);
 - schmaler Hals (21 statt 26), Schultern auf 0,88 schmaler.
@@ -51,7 +51,7 @@ Ausnahme Annika: Hals 90–110 statt 86–114, Torso-Hinweis = `rumpf(0)` mit x 
 | Mundmitte | (100\|128) | (100\|138) | (100\|132) |
 | Schnurrbart | – | y 127–134, x 84–116 | – |
 | Kinn unten | 152–162 | 151 (E: 149) | 146 |
-| Gesicht oben / Haar oben | 30 / ca. 20 | 26 / 16 | 34 / 30, Haaransatz Mitte 59,5 |
+| Gesicht oben / Haar oben | 30 / ca. 20 | 26 / 16 | 34 / 30, Haaransatz Mitte 65 |
 
 Zubehör, das im alten Raum hart kodiert ist (Brillen, AirPods, Ohrringe, Hut-Clip y 34, alle Frisuren), bekommt eine einfache Abbildung:
 `x' = 100 + (x − 100) · 0,81`, `y' = y + 3` für alles zwischen y 80 und 130 (Brillen, Mimik-Effekte an den Augen).

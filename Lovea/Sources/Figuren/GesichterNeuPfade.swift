@@ -654,8 +654,8 @@ enum GesichtAn3 {
             p.addLine(to: P(58, 231))
             p.addCurve(to: P(64, 142), control1: P(59, 200), control2: P(61, 170))
             p.addCurve(to: P(64, 102), control1: P(66, 128), control2: P(63, 114))
-            p.addCurve(to: P(86, 63), control1: P(65, 86), control2: P(75, 71))
-            p.addCurve(to: P(99.2, 59.5), control1: P(92, 60.5), control2: P(97, 59.5))
+            p.addCurve(to: P(86, 68.5), control1: P(65, 86), control2: P(75, 74.3))
+            p.addCurve(to: P(99.2, 65), control1: P(92, 66), control2: P(97, 65))
             p.closeSubpath()
         }
     }
@@ -666,8 +666,8 @@ enum GesichtAn3 {
             p.addCurve(to: P(153, 152), control1: P(150, 86), control2: P(151, 122))
             p.addLine(to: P(150, 154))
             p.addCurve(to: P(148, 108), control1: P(149, 134), control2: P(149, 120))
-            p.addCurve(to: P(114, 63), control1: P(146, 90), control2: P(128, 70))
-            p.addCurve(to: P(100.8, 59.5), control1: P(108, 60.5), control2: P(103, 59.5))
+            p.addCurve(to: P(114, 68.5), control1: P(146, 90), control2: P(128, 73.3))
+            p.addCurve(to: P(100.8, 65), control1: P(108, 66), control2: P(103, 65))
             p.closeSubpath()
         }
     }
