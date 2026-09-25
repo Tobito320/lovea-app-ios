@@ -12,11 +12,24 @@ enum FigurExtra: String, CaseIterable, Sendable { case schirm, sonnenbrille, mue
 /// and `kuss` run 0…1: the arms go around the partner, the head tilts and the face turns to them.
 /// The right figure lays its arm over the partner's shoulders, the left one's goes round the waist
 /// behind them, so the right figure must be drawn in front.
+/// Teil 2 (Nähe): where this figure's partner-side hand rests on the partner.
+enum PaarHand: String, Sendable, Equatable { case schulter, brust, hals, taille }
+
+/// Teil 2: which part of a figure a view draws, so two figures can be layered
+/// (both bodies first, then both pair arms on top).
+enum PaarEbene: Sendable, Equatable { case alles, ohneArm, nurArm }
+
 struct Umarmung: Equatable, Sendable {
     var seite: CGFloat
     var abstand: CGFloat
     var arme: CGFloat
     var kuss: CGFloat
+    /// Teil 2: explicit pose values. `nil`/`false` keeps the Brief K hug behaviour.
+    var neigung: CGFloat? = nil      // head lean in degrees, sign as drawn on screen (+ = clockwise)
+    var drehung: CGFloat? = nil      // 3/4 turn: feature slide in head units, sign = screen direction
+    var augenZu: Bool = false
+    var hand: PaarHand? = nil
+    var ebene: PaarEbene = .alles
 }
 
 /// Bitmoji-style figure. `groesse` is the height. Half figure (chat, stickers): width is 5/6 of the height.
@@ -1401,6 +1414,7 @@ private struct Zeichner {
     var gaehnt: Bool { schlaefrig && !statisch && zyklus(29) < 0.08 }
 
     var augenAusdruck: Auge {
+        if umarmung?.augenZu == true { return .zu }
         if schlaefrig { return gaehnt ? .zu : .muede }
         return switch z {
         case .schlaeft, .morgen: .zu
@@ -1456,10 +1470,17 @@ private struct Zeichner {
     /// slide toward them and narrow, clipped to the head; `mund` moves the lips a bit further so
     /// the kiss meets near the edge of the head. Unchanged while there is no turn.
     func gedreht(_ g: GraphicsContext, mund: Bool = false) -> GraphicsContext {
-        guard let um = umarmung, um.arme + um.kuss > 0 else { return g }
+        guard let um = umarmung else { return g }
         // Brief F2: the new faces are narrower, so the features slide less.
         let schmal: CGFloat = neu == nil ? 1 : 0.6
-        let dreh = um.seite * (10 * um.arme + 18 * um.kuss) * schmal
+        let dreh: CGFloat
+        if let d = um.drehung {
+            dreh = d
+        } else {
+            guard um.arme + um.kuss > 0 else { return g }
+            dreh = um.seite * (10 * um.arme + 18 * um.kuss) * schmal
+        }
+        guard dreh != 0 else { return g }
         var h = g
         h.clip(to: kopfPfad)
         h.translateBy(x: 100 + dreh, y: 0)
@@ -3533,10 +3554,14 @@ extension Zeichner {
         k.scaleBy(x: 0.8, y: 0.8)
         if let um = umarmung {
             // Brief K: the head leans onto the partner in the hug and straightens a little to kiss.
-            let neigung = um.seite * (6 * um.arme * (1 - um.kuss) + 3 * um.kuss)
+            let neigung = um.neigung ?? um.seite * (6 * um.arme * (1 - um.kuss) + 3 * um.kuss)
             k.translateBy(x: 100, y: 152)
             k.rotate(by: .degrees(Double(neigung)))
             k.translateBy(x: -100, y: -152)
+        }
+        if umarmung?.ebene == .nurArm {
+            paarArm(u, m)
+            return
         }
 
         if z == .morgen || z == .abend { hintergrund(k) }
@@ -3551,20 +3576,23 @@ extension Zeichner {
         if extras.contains(.muetzeSchal) { schal(u, P(100, m.schulterY - 4), s: 0.66) }
         kopfGruppe(k)
         vorArmen(g, u, m, oben)
+        // Teil 2: the partner-side arm is drawn separately (`paarArm`) so it can layer over both bodies.
+        let paarSeiteLinks = (umarmung?.hand != nil) && (umarmung?.seite ?? 0) < 0
+        let paarSeiteRechts = (umarmung?.hand != nil) && (umarmung?.seite ?? 0) > 0
         if neu == .b {
             let torso = rumpfPfad(m, unten: m.hueftY + 4)
-            armV(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm * vForm.dick, rumpf: torso)
-            armV(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm * vForm.dick, rumpf: torso)
+            if !paarSeiteLinks { armV(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm * vForm.dick, rumpf: torso) }
+            if !paarSeiteRechts { armV(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm * vForm.dick, rumpf: torso) }
         } else {
-            arm(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm)
-            arm(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm)
+            if !paarSeiteLinks { arm(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm) }
+            if !paarSeiteRechts { arm(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm) }
         }
         if !rechteHandBelegt { handRequisite(u, arme, m) }
         extrasInHand(u, l: arme.l.hand, r: arme.r.hand, dach: dach, groesse: 0.66)
         if neu != .b {
             let hand: CGFloat = 10 * m.arm
-            teil(u, kreis(arme.l.hand, hand), haut, 2.5)
-            teil(u, kreis(arme.r.hand, hand), haut, 2.5)
+            if !paarSeiteLinks { teil(u, kreis(arme.l.hand, hand), haut, 2.5) }
+            if !paarSeiteRechts { teil(u, kreis(arme.r.hand, hand), haut, 2.5) }
         }
         zubehoerGanz(u, arme, m)
         if let id = tierId { zeichneHaustier(g, id: id, boden: P(174, Masse.fussY), groesse: 0.8) }
@@ -3576,13 +3604,14 @@ extension Zeichner {
         default: if umarmung == nil { effekte(k) }
         }
         abzeichenVorn(k)
+        if umarmung?.ebene == .alles, umarmung?.hand != nil { paarArm(u, m) }
     }
 
     /// Brief K: blends the arms from the current pose into the hug. The right figure's inner arm
     /// lies over the partner's shoulders, the left one's reaches round the partner's waist behind
     /// them; the outer arm hangs at rest (no blown-kiss hand).
     func umarmt(_ a: (l: Arm, r: Arm), _ m: Masse) -> (l: Arm, r: Arm) {
-        guard let um = umarmung, um.arme > 0 else { return a }
+        guard let um = umarmung, um.arme > 0, um.hand == nil, um.neigung == nil else { return a }
         let y = m.schulterY
         let lx: CGFloat = 100 - m.s + 6
         let rx: CGFloat = 100 + m.s - 6
@@ -5919,6 +5948,69 @@ private extension Zeichner {
                 // Sleeveless top (Annika's gym top): bare arm in front of the top's edge.
                 teil(g, armForm(arm.s, arm.a, arm.d), haut, 3 * min(arm.d, 1))
             }
+        }
+    }
+}
+
+// MARK: - Teil 2 (Nähe): the partner-side arm and hand
+
+private extension Zeichner {
+    /// Where the hand rests, in this figure's full-body space. The partner stands at
+    /// `100 + seite * abstand`; y values follow this figure's shoulders (both stand on the same floor).
+    func paarZiel(_ um: Umarmung, _ m: Masse) -> CGPoint {
+        let partner = 100 + um.seite * um.abstand
+        switch um.hand {
+        case .schulter: return P(partner + um.seite * 26, m.schulterY + 6)
+        case .brust: return P(partner - um.seite * 12, m.schulterY + 34)
+        case .hals: return P(partner - um.seite * 8, m.schulterY - 14)
+        case .taille: return P(partner - um.seite * 2, m.hueftY - 22)
+        case nil: return P(100, m.schulterY)
+        }
+    }
+
+    func paarArm(_ u: GraphicsContext, _ m: Masse) {
+        guard let um = umarmung, let hand = um.hand else { return }
+        let ziel = paarZiel(um, m)
+        let d = m.arm * (neu == .b ? vForm.dick : 1)
+        switch hand {
+        case .schulter:
+            // The arm runs behind her back: only the fingers show over the far shoulder.
+            fingerUeberSchulter(u, ziel, 9 * d / 0.8)
+        case .taille:
+            flacheHand(u, ziel, 9 * d / 0.8, winkel: -10 * Double(um.seite))
+        case .brust, .hals:
+            let schulter = P(100 + um.seite * (m.s - 6), m.schulterY + 10)
+            let ellbogen = P(100 + um.seite * (m.s + 2), m.schulterY + 56)
+            let torso = rumpfPfad(m, unten: m.hueftY + 4)
+            armV(u, schulter, Arm(ellbogen, ziel), d, rumpf: torso)
+            flacheHand(u, ziel, 8.5 * d / 0.8, winkel: 20 * Double(um.seite))
+        }
+    }
+
+    /// A hand laid over a shoulder from behind: back of the hand and four fingertips.
+    func fingerUeberSchulter(_ g: GraphicsContext, _ c: CGPoint, _ r: CGFloat) {
+        let form = Path { p in
+            p.move(to: P(c.x - r * 1.1, c.y - r * 0.6))
+            p.addQuadCurve(to: P(c.x + r * 1.1, c.y - r * 0.6), control: P(c.x, c.y - r * 1.3))
+            p.addLine(to: P(c.x + r, c.y + r * 0.5))
+            p.addQuadCurve(to: P(c.x - r, c.y + r * 0.5), control: P(c.x, c.y + r * 0.9))
+            p.closeSubpath()
+        }
+        teil(g, form, haut, 2.6)
+        for dx in [CGFloat(-0.62), -0.2, 0.22, 0.62] {
+            linie(g, strich(P(c.x + dx * r, c.y + r * 0.1), P(c.x + dx * r, c.y + r * 0.75)), haut.kontur.opacity(0.6), 1.2)
+        }
+    }
+
+    /// A flat hand (palm with three finger lines), turned by `winkel` degrees.
+    func flacheHand(_ g: GraphicsContext, _ c: CGPoint, _ r: CGFloat, winkel: Double) {
+        var h = g
+        h.translateBy(x: c.x, y: c.y)
+        h.rotate(by: .degrees(winkel))
+        h.translateBy(x: -c.x, y: -c.y)
+        teil(h, oval(c, r, r * 1.15), haut, 2.6)
+        for dx in [-r * 0.35, 0, r * 0.35] {
+            linie(h, strich(P(c.x + dx, c.y + r * 0.3), P(c.x + dx, c.y + r * 0.95)), haut.kontur.opacity(0.6), 1.2)
         }
     }
 }
