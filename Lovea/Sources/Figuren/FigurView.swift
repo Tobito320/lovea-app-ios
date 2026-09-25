@@ -487,9 +487,11 @@ private struct Zeichner {
         }
         if !rechteHandBelegt { requisite(g, arme.r?.hand ?? P(142, 252)) }
         extrasInHand(g, l: arme.l?.hand, r: arme.r?.hand, dach: schirmDachMitte(halb: true), groesse: 1)
-        let hand: CGFloat = neu == .b ? 9.5 * vForm.dick : 9.5 * min(d, 1.12)
-        if let l = arme.l { teil(g, kreis(l.hand, hand), haut) }
-        if let r = arme.r { teil(g, kreis(r.hand, hand), haut) }
+        if neu != .b {
+            let hand: CGFloat = 9.5 * min(d, 1.12)
+            if let l = arme.l { teil(g, kreis(l.hand, hand), haut) }
+            if let r = arme.r { teil(g, kreis(r.hand, hand), haut) }
+        }
         zubehoer(g, arme)
         effekte(g)
         abzeichenVorn(g)
@@ -3544,9 +3546,11 @@ extension Zeichner {
         }
         if !rechteHandBelegt { handRequisite(u, arme, m) }
         extrasInHand(u, l: arme.l.hand, r: arme.r.hand, dach: dach, groesse: 0.66)
-        let hand: CGFloat = 10 * m.arm
-        teil(u, kreis(arme.l.hand, hand), haut, 2.5)
-        teil(u, kreis(arme.r.hand, hand), haut, 2.5)
+        if neu != .b {
+            let hand: CGFloat = 10 * m.arm
+            teil(u, kreis(arme.l.hand, hand), haut, 2.5)
+            teil(u, kreis(arme.r.hand, hand), haut, 2.5)
+        }
         zubehoerGanz(u, arme, m)
         if let id = tierId { zeichneHaustier(g, id: id, boden: P(174, Masse.fussY), groesse: 0.8) }
         auto(g, m, oben)
@@ -5727,52 +5731,83 @@ private extension Zeichner {
 
     // MARK: - Brief F3
 
-    /// Short sleeve or shoulder cap along the upper arm: straight hem at `saum` (0 = shoulder,
-    /// 1 = elbow), round cap over the shoulder (koerper.py `shirt_v`). Closes through the torso.
-    func aermelKappe(_ s: CGPoint, _ e: CGPoint, _ d: CGFloat, saum: CGFloat) -> Path {
-        let v = vForm
-        let dx = e.x - s.x, dy = e.y - s.y
-        let l = max(1, (dx * dx + dy * dy).squareRoot())
-        let aussen: CGFloat = s.x < 100 ? -1 : 1
-        var nx = dy / l, ny = -dx / l
-        if nx * aussen < 0 { nx = -nx; ny = -ny }
-        let mitte = P(s.x + dx * saum, s.y + dy * saum)
-        let b = v.armB * d
-        let hoch = P(s.x - aussen * 12 * d, s.y - 14 * d)
-        let rund = v.delt * d
+    /// F4: one closed outline shoulder -> elbow -> wrist (arme.py `arm_umriss`). `ws`/`we`/`wh` are the
+    /// widths at shoulder, elbow and wrist; the ends bulge by `kappeS`/`kappeH` widths. Soft through the elbow.
+    func armUmriss(_ s: CGPoint, _ e: CGPoint, _ h: CGPoint, _ ws: CGFloat, _ we: CGFloat, _ wh: CGFloat,
+                   kappeS: CGFloat, kappeH: CGFloat) -> Path {
+        let n1 = einheitsNormale(s, e)
+        let n2 = einheitsNormale(e, h)
+        let nm = einheit(P(n1.x + n2.x, n1.y + n2.y))
+        let a1 = P(s.x + n1.x * ws / 2, s.y + n1.y * ws / 2)
+        let a2 = P(e.x + nm.x * we / 2, e.y + nm.y * we / 2)
+        let a3 = P(h.x + n2.x * wh / 2, h.y + n2.y * wh / 2)
+        let b1 = P(s.x - n1.x * ws / 2, s.y - n1.y * ws / 2)
+        let b2 = P(e.x - nm.x * we / 2, e.y - nm.y * we / 2)
+        let b3 = P(h.x - n2.x * wh / 2, h.y - n2.y * wh / 2)
+        let u = einheit(P(h.x - e.x, h.y - e.y))
+        let v = einheit(P(s.x - e.x, s.y - e.y))
+        let spitze = P(h.x + u.x * wh * kappeH, h.y + u.y * wh * kappeH)
+        let oben = P(s.x + v.x * ws * kappeS, s.y + v.y * ws * kappeS)
         return Path { p in
-            p.move(to: P(mitte.x - nx * b, mitte.y - ny * b))
-            p.addLine(to: P(mitte.x + nx * b, mitte.y + ny * b))
-            p.addCurve(to: hoch,
-                       control1: P(mitte.x + nx * b + aussen * 6 * rund, mitte.y + ny * b - 18 * rund),
-                       control2: P(hoch.x + aussen * 20 * rund, hoch.y - 2 * rund))
+            p.move(to: a1)
+            p.addQuadCurve(to: a3, control: a2)
+            p.addQuadCurve(to: b3, control: spitze)
+            p.addQuadCurve(to: b1, control: b2)
+            p.addQuadCurve(to: a1, control: oben)
             p.closeSubpath()
         }
     }
 
-    /// Brief F3: arm of the V-taper body. Plain arm without muscle bulges, then the sleeve cap on top;
-    /// the part of the cap that lies on `rumpf` is refilled without outline, so shirt and sleeve are one
-    /// piece. Shirtless (gym) the cap is skin and reads as the shoulder muscle.
-    func armV(_ g: GraphicsContext, _ s: CGPoint, _ a: Arm, _ d: CGFloat, rumpf: Path) {
-        let oben = strich(s, a.ellbogen)
-        let unten = strich(a.ellbogen, a.hand)
-        let armFarbe = aermel == .lang ? aermelFarbe : haut
-        let kappenFarbe = aermel == .keine ? haut : aermelFarbe
-        let vorn = a.hand.y < a.ellbogen.y - 4
-        if !vorn { unterarmV(g, unten, armFarbe, d) }
-        linie(g, oben, armFarbe.kontur, 24 * d)
-        linie(g, oben, armFarbe.farbe, 18.5 * d)
-        let kappe = aermelKappe(s, a.ellbogen, d, saum: aermel == .keine ? 0.36 : 0.5)
-        teil(g, kappe, kappenFarbe, 3.2)
-        var h = g
-        h.clip(to: rumpf)
-        h.fill(kappe, with: .color(kappenFarbe.farbe))
-        if vorn { unterarmV(g, unten, armFarbe, d) }
-        aermelDetails(g, s, a, d)
+    func einheit(_ p: CGPoint) -> CGPoint {
+        let l = max(0.001, (p.x * p.x + p.y * p.y).squareRoot())
+        return P(p.x / l, p.y / l)
     }
 
-    func unterarmV(_ g: GraphicsContext, _ unten: Path, _ f: FigurFarbe, _ d: CGFloat) {
-        linie(g, unten, f.kontur, 19 * d)
-        linie(g, unten, f.farbe, 13.5 * d)
+    func einheitsNormale(_ a: CGPoint, _ b: CGPoint) -> CGPoint {
+        let u = einheit(P(b.x - a.x, b.y - a.y))
+        return P(-u.y, u.x)
+    }
+
+    /// The side of the upper arm toward the shoulder, cut at `saum` (0 = shoulder, 1 = elbow)
+    /// perpendicular to the upper arm. Works for raised arms too.
+    func schulterSeite(_ s: CGPoint, _ e: CGPoint, saum: CGFloat) -> Path {
+        let u = einheit(P(e.x - s.x, e.y - s.y))
+        let n = P(-u.y, u.x)
+        let m = P(s.x + (e.x - s.x) * saum, s.y + (e.y - s.y) * saum)
+        return Path { p in
+            p.move(to: P(m.x + n.x * 300, m.y + n.y * 300))
+            p.addLine(to: P(m.x - n.x * 300, m.y - n.y * 300))
+            p.addLine(to: P(m.x - n.x * 300 - u.x * 400, m.y - n.y * 300 - u.y * 400))
+            p.addLine(to: P(m.x + n.x * 300 - u.x * 400, m.y + n.y * 300 - u.y * 400))
+            p.closeSubpath()
+        }
+    }
+
+    /// Brief F4: one closed outline shoulder -> elbow -> wrist (arme.py `arm_umriss`/`arm_haut`/`aermel`).
+    /// The short sleeve is a wider copy of the same outline cut at the hem; on the torso it is refilled
+    /// without outline so shirt and sleeve are one piece.
+    func armV(_ g: GraphicsContext, _ s: CGPoint, _ a: Arm, _ d: CGFloat, rumpf: Path) {
+        let armFarbe = aermel == .lang ? aermelFarbe : haut
+        // Hand first, the arm's rounded wrist lies over it (no ball on top of the arm).
+        teil(g, kreis(P(a.hand.x, a.hand.y + 2 * d), 8.5 * d), haut, 3 * min(d, 1))
+        let arm = armUmriss(s, a.ellbogen, a.hand, 26 * d, 20 * d, 15 * d, kappeS: 0.3, kappeH: 0.9)
+        teil(g, arm, armFarbe, 3 * min(d, 1))
+        var aufRumpf = g
+        aufRumpf.clip(to: rumpf)
+        switch aermel {
+        case .kurz:
+            let stoff = armUmriss(s, a.ellbogen, a.hand, 34 * d, 29 * d, 27 * d, kappeS: 0.55, kappeH: 0.4)
+            var k = g
+            k.clip(to: schulterSeite(s, a.ellbogen, saum: 0.5))
+            teil(k, stoff, aermelFarbe, 3.2 * min(d, 1))
+            var r = k
+            r.clip(to: rumpf)
+            r.fill(stoff, with: .color(aermelFarbe.farbe))
+        case .lang:
+            aufRumpf.fill(arm, with: .color(aermelFarbe.farbe))
+        case .keine:
+            aufRumpf.fill(arm, with: .color(haut.farbe))
+        }
+        aermelDetails(g, s, a, d)
     }
 }
