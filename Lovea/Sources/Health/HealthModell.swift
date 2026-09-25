@@ -25,6 +25,11 @@ final class HealthModell {
     private(set) var zielWasserAenderungen: [Person: [ZielAenderung]] = [:]
     private(set) var zielGemeinsamWocheAenderungen: [ZielAenderung] = []
 
+    /// Koffein, Protein, Gewicht (`Habit.nurHeute`): habit-id -> Person -> Tag.
+    private(set) var habitWerte: [String: [Person: [String: TagesEintrag<Int>]]] = [:]
+    /// `ziel.saetze.<gruppe>` und `ziel.prio.<gruppe>`: Person -> Schlüssel -> Änderungen.
+    private(set) var zielAndere: [Person: [String: [ZielAenderung]]] = [:]
+
     private let store = HKHealthStore()
     private let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
     private let sleepType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)!
@@ -59,6 +64,17 @@ final class HealthModell {
     func gymAbgehakt(_ person: Person, _ tag: String) -> Bool { (gym[person]?[tag]?.wert ?? 0) > 0 }
     func wasserAnzahl(_ person: Person, _ tag: String) -> Int { wasser[person]?[tag]?.wert ?? 0 }
     func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date)? { schlaf[person]?[tag] }
+    func habitWert(_ id: String, _ person: Person, _ tag: String) -> Int? { habitWerte[id]?[person]?[tag]?.wert }
+
+    /// Nur lesen, der Kalender gehört jemand anderem. "gut" | "mittel" | "schlecht".
+    func stimmung(_ person: Person, _ tag: String) -> String? { KalenderModell.shared.zustand.stimmungen[tag]?[person]?.stimmung }
+
+    /// Der neueste Wert gewinnt (wie `zielGemeinsamWoche`), nil wenn nie gesetzt.
+    func ziel(_ schluessel: String, _ person: Person) -> Int? {
+        zielAndere[person]?[schluessel]?.enumerated()
+            .max { ($0.element.seq ?? .max, $0.offset) < ($1.element.seq ?? .max, $1.offset) }?
+            .element.wert
+    }
 
     func zielSchritte(_ person: Person? = nil) -> Int {
         HealthLogik.zielAmTag(heute, zielSchritteAenderungen[person ?? Raum.shared.ich ?? .ahmed] ?? [], standard: 10_000)
@@ -90,6 +106,11 @@ final class HealthModell {
         Raum.shared.senden("habit.setzen", HabitD(art: "wasser", datum: datum, wert: max(0, anzahl)))
     }
 
+    /// `id` ist eine von `Habit.nurHeute`. Gewicht in Zehntel-Kilo.
+    func setzeHabit(_ id: String, datum: String, wert: Int) {
+        Raum.shared.senden("habit.setzen", HabitD(art: id, datum: datum, wert: max(0, wert)))
+    }
+
     /// `schluessel` ist eines von `ziel.schritte`, `ziel.gym`, `ziel.wasser`, `ziel.gemeinsamWoche`.
     func setzeZiel(_ schluessel: String, _ wert: Int) {
         EinstellungenModell.shared.setzen(schluessel, .number(Double(wert)))
@@ -109,6 +130,7 @@ final class HealthModell {
         let eintrag = TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: Datum.text(op.zeit), wert: d.wert, id: op.id)
         if d.art == "gym" { HealthFaltung.aufnehmen(&gym, eintrag) }
         else if d.art == "wasser" { HealthFaltung.aufnehmen(&wasser, eintrag) }
+        else if Habit.nurHeute.contains(d.art) { HealthFaltung.aufnehmen(&habitWerte[d.art, default: [:]], eintrag) }
     }
 
     private func schlafOpAnwenden(_ op: Op) {
@@ -126,7 +148,9 @@ final class HealthModell {
         case "ziel.gym": HealthLogik.zielAufnehmen(&zielGymAenderungen[op.von, default: []], aenderung)
         case "ziel.wasser": HealthLogik.zielAufnehmen(&zielWasserAenderungen[op.von, default: []], aenderung)
         case "ziel.gemeinsamWoche": HealthLogik.zielAufnehmen(&zielGemeinsamWocheAenderungen, aenderung)
-        default: break
+        default:
+            guard d.schluessel.hasPrefix("ziel.saetze.") || d.schluessel.hasPrefix("ziel.prio.") else { break }
+            HealthLogik.zielAufnehmen(&zielAndere[op.von, default: [:]][d.schluessel, default: []], aenderung)
         }
     }
 
