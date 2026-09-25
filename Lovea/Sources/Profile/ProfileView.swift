@@ -243,7 +243,7 @@ private struct ProfilInhalt: View {
         let personen: [Person] = paar || beide ? [.annika, .ahmed] : [person]
         switch szene {
         case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlafGerade($0) != .wach })
-        case .gym, .draussen, .unterwegs, .schule, .arbeit, .zeichnen: return (personen, [])
+        case .gym, .draussen, .unterwegs, .abteil, .schule, .arbeit, .zeichnen: return (personen, [])
         }
     }
 

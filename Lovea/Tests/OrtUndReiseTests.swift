@@ -16,6 +16,8 @@ final class OrtUndReiseTests: XCTestCase {
         XCTAssertFalse(gilt(gelaufenNach: 200), "walked on more than 3 min after the last fix there")
         XCTAssertFalse(gilt(tempo: 9), "a fix at vehicle speed")
         XCTAssertFalse(gilt(bewegung: .faehrt))
+        XCTAssertFalse(gilt(bewegung: .scooter))
+        XCTAssertFalse(gilt(bewegung: .zug))
         XCTAssertFalse(gilt(.gym, bewegung: .rad))
     }
 
@@ -25,27 +27,13 @@ final class OrtUndReiseTests: XCTestCase {
     }
 
     func testTempoIstReise() {
-        XCTAssertEqual(AnwesenheitEingabe.reise(nil, tempo: 25, fixAlter: 20), .faehrt)
-        XCTAssertEqual(AnwesenheitEingabe.reise(.laeuft, tempo: 25, fixAlter: 20), .faehrt, "walking through the train")
-        XCTAssertEqual(AnwesenheitEingabe.reise(.laeuft, tempo: 25, fixAlter: 600), .laeuft, "an old fast fix says nothing now")
-        XCTAssertEqual(AnwesenheitEingabe.reise(nil, tempo: 1.2, fixAlter: 20), nil)
-    }
-
-    func testZugNachEinerMinuteSchnell() {
-        let t0 = fix
-        var z = AnwesenheitEingabe.zug(bisher: false, reist: true, schnell: true, schnellSeit: nil, jetzt: t0)
-        XCTAssertFalse(z.zug)
-        z = AnwesenheitEingabe.zug(bisher: z.zug, reist: true, schnell: true, schnellSeit: z.schnellSeit, jetzt: t0.addingTimeInterval(61))
-        XCTAssertTrue(z.zug)
-        // Stays a train through a station stop, ends with the trip.
-        z = AnwesenheitEingabe.zug(bisher: z.zug, reist: true, schnell: false, schnellSeit: z.schnellSeit, jetzt: t0.addingTimeInterval(300))
-        XCTAssertTrue(z.zug)
-        z = AnwesenheitEingabe.zug(bisher: z.zug, reist: false, schnell: false, schnellSeit: z.schnellSeit, jetzt: t0.addingTimeInterval(900))
-        XCTAssertFalse(z.zug)
-        XCTAssertNil(z.schnellSeit)
-        // A car at town speed never becomes a train.
-        z = AnwesenheitEingabe.zug(bisher: false, reist: true, schnell: false, schnellSeit: nil, jetzt: t0.addingTimeInterval(3600))
-        XCTAssertFalse(z.zug)
+        // Kein Auto (Runde 4): bis 20 km/h (~5.56 m/s) Scooter für Ahmed, schneller Zug.
+        XCTAssertEqual(AnwesenheitEingabe.reise(nil, person: .ahmed, tempo: 4, fixAlter: 20), .scooter)
+        XCTAssertEqual(AnwesenheitEingabe.reise(.laeuft, person: .ahmed, tempo: 25, fixAlter: 20), .zug, "walking through the train")
+        XCTAssertEqual(AnwesenheitEingabe.reise(.laeuft, person: .ahmed, tempo: 25, fixAlter: 600), .laeuft, "an old fast fix says nothing now")
+        XCTAssertEqual(AnwesenheitEingabe.reise(nil, person: .ahmed, tempo: 1.2, fixAlter: 20), nil)
+        // Annika hat keinen Scooter: jede Fahrgeschwindigkeit ist Zug.
+        XCTAssertEqual(AnwesenheitEingabe.reise(nil, person: .annika, tempo: 4, fixAlter: 20), .zug)
     }
 
     func testReiseSchlaegtLadenUndChat() {
@@ -72,19 +60,26 @@ final class OrtUndReiseTests: XCTestCase {
     }
 
     func testSzeneUnterwegs() {
-        XCTAssertEqual(ProfilSzene.fuer(schlaeft: false, partnerSchlaeft: false, ort: "supermarkt", wetterCode: 3, tag: true, stunde: 9, unterwegs: true),
+        // Unterwegs (Runde 4): Scooter zeigt die Straßenszene, Zug das eigene Abteil.
+        XCTAssertEqual(ProfilSzene.fuer(schlaeft: false, partnerSchlaeft: false, ort: "supermarkt", wetterCode: 3, tag: true, stunde: 9, unterwegs: .scooter),
                        .unterwegs(wetter: .wolken, nacht: false))
-        XCTAssertEqual(ProfilSzene.fuer(schlaeft: false, partnerSchlaeft: false, ort: "gym", wetterCode: 3, tag: true, stunde: 9, unterwegs: false), .gym)
+        XCTAssertEqual(ProfilSzene.fuer(schlaeft: false, partnerSchlaeft: false, ort: "supermarkt", wetterCode: 3, tag: true, stunde: 9, unterwegs: .zug),
+                       .abteil(wetter: .wolken, nacht: false))
+        XCTAssertEqual(ProfilSzene.fuer(schlaeft: false, partnerSchlaeft: false, ort: "gym", wetterCode: 3, tag: true, stunde: 9, unterwegs: nil), .gym)
         XCTAssertTrue(ProfilSzene.istUnterwegs(anzeige: .faehrt, bewegung: nil, tempo: nil, fixAlter: nil))
         XCTAssertTrue(ProfilSzene.istUnterwegs(anzeige: .zug, bewegung: nil, tempo: nil, fixAlter: nil))
+        XCTAssertTrue(ProfilSzene.istUnterwegs(anzeige: .scooter, bewegung: nil, tempo: nil, fixAlter: nil))
         XCTAssertTrue(ProfilSzene.istUnterwegs(anzeige: .offline, bewegung: "faehrt", tempo: nil, fixAlter: 60))
         XCTAssertTrue(ProfilSzene.istUnterwegs(anzeige: .offline, bewegung: nil, tempo: 20, fixAlter: 60))
         XCTAssertFalse(ProfilSzene.istUnterwegs(anzeige: .offline, bewegung: "faehrt", tempo: 20, fixAlter: 900))
         XCTAssertFalse(ProfilSzene.istUnterwegs(anzeige: .supermarkt, bewegung: nil, tempo: 0, fixAlter: 60))
-        let szene = ProfilSzene.unterwegs(wetter: .sonne, nacht: false)
-        XCTAssertEqual(szene.figur(.imChat), .faehrt)
-        XCTAssertEqual(szene.figur(.zug), .zug)
-        XCTAssertEqual(szene.figur(.kuss), .kuss)
-        XCTAssertEqual(szene.extras(.faehrt, wetterCode: 61, temperatur: 10), [])
+        let scooterSzene = ProfilSzene.unterwegs(wetter: .sonne, nacht: false)
+        XCTAssertEqual(scooterSzene.figur(.imChat), .scooter)
+        XCTAssertEqual(scooterSzene.figur(.kuss), .kuss)
+        XCTAssertEqual(scooterSzene.extras(.scooter, wetterCode: 61, temperatur: 10), [])
+        let abteil = ProfilSzene.abteil(wetter: .sonne, nacht: false)
+        XCTAssertEqual(abteil.figur(.imChat), .zug)
+        XCTAssertEqual(abteil.figur(.kuss), .kuss)
+        XCTAssertEqual(abteil.extras(.zug, wetterCode: 61, temperatur: 10), [])
     }
 }

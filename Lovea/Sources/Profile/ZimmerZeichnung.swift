@@ -309,6 +309,7 @@ enum SzenenZeichnung {
             case .unterwegs(let wetter, let n):
                 draussen(g, wetter: wetter, nacht: n, e, t: t)
                 if e == .oben { fahrtStreifen(g, t: t) }
+            case .abteil(let wetter, let n): abteil(g, wetter: wetter, nacht: n, e, t: t)
             }
         }
     }
@@ -1494,6 +1495,24 @@ enum SzenenZeichnung {
                 g.fill(kreis(P(bx, 330 + zufall(k * 5 + 1) * 90), 3), with: .color(farbe(blueten[k % blueten.count])))
             }
         }
+    }
+
+    /// Runde 4 "Unterwegs" train: the cabin wall, a big window showing the outside scene passing
+    /// faster than on the scooter, and the seat back in front of it (Ahmed and Annika sit facing it).
+    private static func abteil(_ g: GraphicsContext, wetter: ProfilSzene.Wetter, nacht: Bool, _ e: SzenenEbene, t: Double) {
+        let fenster = CGRect(x: 55, y: 60, width: 280, height: 170)
+        if e == .hinten {
+            g.fill(alles, with: .color(farbe(nacht ? 0x2B2D31 : 0xE7DCC8)))
+            teil(g, Path(roundedRect: fenster, cornerRadius: 16), Pal.silber, 6)
+        }
+        var innen = g
+        innen.clip(to: Path(fenster.insetBy(dx: 8, dy: 8)))
+        draussen(innen, wetter: wetter, nacht: nacht, e, t: t * 2.2)
+        if e == .oben { fahrtStreifen(innen, t: t * 2.2) }
+        guard e == .vorn else { return }
+        teil(g, box(-10, 330, breite + 20, 120, 0), Pal.rose)
+        teil(g, box(24, 292, 74, 54, 16), Pal.rose)
+        teil(g, box(breite - 98, 292, 74, 54, 16), Pal.rose)
     }
 
     /// Travelling: light streaks rushing past, over the outdoor scene.

@@ -44,7 +44,9 @@ final class SzenenNachtUndWandTests: XCTestCase {
             XCTAssertFalse(szene.dunkel(nacht: false), "\(szene) by day")
         }
         XCTAssertTrue(ProfilSzene.schlafen(zusammen: false).dunkel(nacht: false), "the bed is always night")
-        let hell: [ProfilSzene] = [.gym, .draussen(wetter: .sonne, nacht: true), .unterwegs(wetter: .regen, nacht: true)]
+        let hell: [ProfilSzene] = [
+            .gym, .draussen(wetter: .sonne, nacht: true), .unterwegs(wetter: .regen, nacht: true), .abteil(wetter: .regen, nacht: true),
+        ]
         for szene in hell { XCTAssertFalse(szene.dunkel(nacht: true), "\(szene) has its own light") }
     }
 }

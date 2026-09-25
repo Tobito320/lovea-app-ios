@@ -312,7 +312,7 @@ fileprivate struct VForm {
 }
 
 fileprivate enum Aermel { case lang, kurz, keine }
-fileprivate enum Haltung { case stehen, gehen, rennen, rad, fahren, sitzen }
+fileprivate enum Haltung { case stehen, gehen, rennen, rad, fahren, sitzen, scooter }
 
 /// Full-body proportions in the 200 x 400 space. Feet stand at `fussY`, taller figures have longer legs.
 fileprivate struct Masse {
@@ -623,6 +623,7 @@ private struct Zeichner {
         case .gut, .pokal: return (0, -abs(w(3.4)) * 3)
         case .supermarkt: return (0, -abs(w(4)) * 1.5)
         case .faehrt, .fahrschule: return (Double(w(1.8)) * 1.5, 0)
+        case .scooter: return (Double(w(2.2)) * 3, -abs(w(6)) * 1.5)
         // Mimik (Runde 3)
         case .zwinkert: return (4, 0)
         case .verliebt: return (Double(w(1.6)) * 4, 0)
@@ -3537,7 +3538,7 @@ extension Zeichner {
         let bew = bewegung()
         // Scenes with furniture only bob; standing figures may also sway. Driving (Brief G bugfix):
         // the car drifts and tilts gently, in step with the steering wheel (`lenkWinkel`).
-        let winkel: Double = [.stehen, .gehen, .rennen, .fahren].contains(hal) ? bew.winkel : 0
+        let winkel: Double = [.stehen, .gehen, .rennen, .fahren, .scooter].contains(hal) ? bew.winkel : 0
         let drift: CGFloat = hal == .fahren ? w(1.8) * 3 : 0
         let atem: CGFloat = z == .offline ? 1 : 1.005 + 0.005 * w(2 * Double.pi / 3.6)
         g.translateBy(x: 100 + drift, y: 392)
@@ -3597,8 +3598,9 @@ extension Zeichner {
         zubehoerGanz(u, arme, m)
         if let id = tierId { zeichneHaustier(g, id: id, boden: P(174, Masse.fussY), groesse: 0.8) }
         auto(g, m, oben)
+        scooter(g, m, oben)
         switch z {
-        case .laeuft, .rennt, .rad: tempoStriche(g, m.schulterY + oben)
+        case .laeuft, .rennt, .rad, .scooter: tempoStriche(g, m.schulterY + oben)
         case .schautVideo: break
         // In the hug the kiss is the lips themselves, no blown kiss flying off.
         default: if umarmung == nil { effekte(k) }
@@ -3654,6 +3656,7 @@ extension Zeichner {
         case .rennt: .rennen
         case .rad: .rad
         case .faehrt, .fahrschule: .fahren
+        case .scooter: .scooter
         case .zuhause, .schule, .arbeit, .schautVideo, .ruhe, .zug, .zeichnet: .sitzen
         default: .stehen
         }
@@ -3691,6 +3694,9 @@ extension Zeichner {
                 return Bein(h: P(x, hy), k: P(x + seite * 10, knie), f: P(x + seite * 2, pedal))
             case .stehen:
                 return Bein(h: P(x, hy), k: P(x + seite, m.knieY), f: P(x + seite * 2, fy))
+            case .scooter:
+                // One foot forward on the deck, the other planted; a slight wide stance for balance.
+                return Bein(h: P(x, hy), k: P(x + seite * 3, m.knieY), f: P(x + seite * (seite > 0 ? 16 : 4), fy))
             }
         }
         let s: CGFloat
@@ -4122,6 +4128,8 @@ extension Zeichner {
             return (Arm(P(lx - 12, y + 40), P(lx + 4, y + 30 + s * 14)), Arm(P(rx + 12, y + 40), P(rx - 4, y + 30 - s * 14)))
         case .rad:
             return (Arm(P(lx - 8, y + 40), P(66, y + 58)), Arm(P(rx + 8, y + 40), P(134, y + 58)))
+        case .scooter:
+            return (Arm(P(lx - 6, y + 40), P(70, y + 30)), Arm(P(rx + 6, y + 40), P(130, y + 30)))
         case .faehrt, .fahrschule:
             return (Arm(P(lx - 6, y + 44), amSteuer(200, y)), Arm(P(rx + 6, y + 44), amSteuer(340, y)))
         case .arbeit:
@@ -4444,6 +4452,19 @@ extension Zeichner {
             teil(g, box(88, dach + 6, 24, 24, 4), Pal.weiss, 2.5)
             text(g, "L", P(100, dach + 18), 18, Pal.rose.farbe)
         }
+    }
+
+    /// Runde 4 "Unterwegs": the green Ryde e-scooter, standing on the deck with a raised handlebar.
+    func scooter(_ g: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
+        guard z == .scooter else { return }
+        let deckY: CGFloat = 372
+        let lenkerY: CGFloat = m.schulterY + oben + 26
+        for x in [CGFloat(46), 154] { teil(g, kreis(P(x, deckY + 8), 10), Pal.dunkel) }
+        teil(g, box(40, deckY - 10, 120, 14, 6), Pal.gruen)
+        linie(g, strich(P(150, deckY - 8), P(150, lenkerY)), Pal.dunkel.kontur, 6)
+        let griff = strich(P(124, lenkerY), P(176, lenkerY))
+        linie(g, griff, Pal.dunkel.kontur, 9)
+        linie(g, griff, Pal.gruen.farbe, 5.5)
     }
 
     func tempoStriche(_ g: GraphicsContext, _ y0: CGFloat) {
@@ -5137,7 +5158,7 @@ extension Zeichner {
 extension Zeichner {
     /// No umbrella in a vehicle, in bed or on the sofa: the arms are busy there.
     var schirmAktiv: Bool {
-        extras.contains(.schirm) && ![.faehrt, .fahrschule, .rad, .schlaeft, .zuhause, .ruhe, .zug].contains(z)
+        extras.contains(.schirm) && ![.faehrt, .fahrschule, .rad, .scooter, .schlaeft, .zuhause, .ruhe, .zug].contains(z)
     }
 
     /// Dumbbells only while both hands are free of phone and umbrella.

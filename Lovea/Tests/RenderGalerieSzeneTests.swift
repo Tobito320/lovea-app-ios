@@ -50,8 +50,11 @@ final class RenderGalerieSzeneTests: XCTestCase {
             (titel: "Draußen Schnee", ansicht: kopf(.draussen(wetter: .schnee, nacht: false), code: 73, temperatur: -2)),
         ]
         let unterwegs = ProfilSzene.unterwegs(wetter: .wolken, nacht: false)
-        zellen.append((titel: "Unterwegs (Auto)", ansicht: kopf(unterwegs, .ahmed)))
-        zellen.append((titel: "Unterwegs (Zug)", ansicht: kopf(unterwegs, .ahmed, live: .zug)))
+        zellen.append((titel: "Unterwegs (Scooter)", ansicht: kopf(unterwegs, .ahmed)))
+        zellen.append((titel: "Unterwegs (Scooter, Nacht)", ansicht: kopf(.unterwegs(wetter: .wolken, nacht: true), .ahmed, nacht: true)))
+        let abteil = ProfilSzene.abteil(wetter: .wolken, nacht: false)
+        zellen.append((titel: "Unterwegs (Zug)", ansicht: kopf(abteil, .ahmed, live: .zug)))
+        zellen.append((titel: "Unterwegs (Zug, Annika)", ansicht: kopf(abteil, .annika, live: .zug)))
         zellen.append((titel: "Schule Annika", ansicht: kopf(.schule, .annika)))
         zellen.append((titel: "Schule Ahmed", ansicht: kopf(.schule, .ahmed)))
         zellen.append((titel: "Arbeit Annika", ansicht: kopf(.arbeit, .annika)))

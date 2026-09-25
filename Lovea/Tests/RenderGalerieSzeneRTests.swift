@@ -43,6 +43,7 @@ final class RenderGalerieSzeneRTests: XCTestCase {
             ("Klassenzimmer Nacht", .schule, Zimmer(ort: .schule), true),
             ("Draußen Regen Nacht", .draussen(wetter: .regen, nacht: true), Zimmer(), false),
             ("Unterwegs Schnee", .unterwegs(wetter: .schnee, nacht: false), Zimmer(), false),
+            ("Abteil Regen", .abteil(wetter: .regen, nacht: false), Zimmer(), false),
         ]
         var zellen: [(titel: String, ansicht: AnyView)] = []
         for (titel, szene, z, nacht) in faelle {

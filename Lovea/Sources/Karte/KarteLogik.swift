@@ -25,7 +25,7 @@ enum KarteLogik {
     }
 
     private static let gesten: Set<FigurZustand> = [.anstupsen, .kuss, .herz, .lacht, .anstossen, .pokal]
-    private static let bewegungen: Set<FigurZustand> = [.laeuft, .rennt, .rad, .faehrt]
+    private static let bewegungen: Set<FigurZustand> = [.laeuft, .rennt, .rad, .faehrt, .scooter, .zug]
     private static let ortZustaende: Set<FigurZustand> = [.zuhause, .gym, .schule, .arbeit, .fahrschule, .supermarkt]
 
     /// The figure on the map. A live gesture always wins. A fresh movement from the location fix
