@@ -77,6 +77,8 @@ extension RGBAColor {
 @MainActor
 final class ColorPaletteStore: ObservableObject {
     static let slotCount = 16
+    /// Annika (25.09.): the palette grows with "+" beyond the 16 starting colors.
+    static let maxSlots = 48
     static let recentLimit = 8
     static let defaultPalette: [RGBAColor?] = {
         let bytes: [(Double, Double, Double)] = [
@@ -101,8 +103,8 @@ final class ColorPaletteStore: ObservableObject {
         recentKey = "recentColors.\(person)"
         let storedPalette = defaults.data(forKey: paletteKey)
             .flatMap { try? JSONDecoder().decode([RGBAColor?].self, from: $0) }
-        if let storedPalette, storedPalette.count == Self.slotCount {
-            palette = storedPalette
+        if let storedPalette, storedPalette.count >= Self.slotCount {
+            palette = Array(storedPalette.prefix(Self.maxSlots))
         } else {
             palette = Self.defaultPalette
         }
@@ -114,6 +116,31 @@ final class ColorPaletteStore: ObservableObject {
     func store(_ color: RGBAColor, at slot: Int) {
         guard palette.indices.contains(slot) else { return }
         palette[slot] = color
+        speichern()
+    }
+
+    /// Fills the first empty slot, else appends a new one (up to `maxSlots`).
+    func add(_ color: RGBAColor) {
+        if let frei = palette.firstIndex(where: { $0 == nil }) {
+            palette[frei] = color
+        } else if palette.count < Self.maxSlots {
+            palette.append(color)
+        } else {
+            return
+        }
+        speichern()
+    }
+
+    /// Added slots disappear, the 16 base slots become empty.
+    func remove(at slot: Int) {
+        guard palette.indices.contains(slot) else { return }
+        if slot >= Self.slotCount { palette.remove(at: slot) } else { palette[slot] = nil }
+        speichern()
+    }
+
+    var istVoll: Bool { palette.count >= Self.maxSlots && !palette.contains(where: { $0 == nil }) }
+
+    private func speichern() {
         defaults.set(try? JSONEncoder().encode(palette), forKey: paletteKey)
     }
 
@@ -171,6 +198,7 @@ struct ColorPanel: View {
                     ForEach(palette.palette.indices, id: \.self) { slot in
                         paletteSlot(slot)
                     }
+                    if !palette.istVoll { hinzufuegenKnopf }
                 }
 
                 Text("Zuletzt").font(.headline)
@@ -258,6 +286,22 @@ struct ColorPanel: View {
         .accessibilityHidden(true)
     }
 
+    private var hinzufuegenKnopf: some View {
+        Button {
+            palette.add(color)
+            Haptik.auswahl()
+        } label: {
+            Image(systemName: "plus")
+                .font(.body.weight(.semibold))
+                .frame(width: 36, height: 36)
+                .background(Circle().strokeBorder(.secondary, lineWidth: 1.5))
+                .frame(minWidth: 44, minHeight: 44)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("Aktuelle Farbe zur Palette hinzufügen")
+    }
+
     private func paletteSlot(_ slot: Int) -> some View {
         let stored = palette.palette[slot]
         let label: String = stored.map { "Palette \(slot + 1), \($0.hex)" } ?? "Palette \(slot + 1), leer"
@@ -285,6 +329,11 @@ struct ColorPanel: View {
         .contextMenu {
             Button("Aktuelle Farbe hier speichern", systemImage: "square.and.arrow.down") {
                 palette.store(color, at: slot)
+            }
+            if stored != nil {
+                Button("Entfernen", systemImage: "trash", role: .destructive) {
+                    palette.remove(at: slot)
+                }
             }
         }
     }
