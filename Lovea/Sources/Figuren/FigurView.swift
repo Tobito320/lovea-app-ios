@@ -476,11 +476,18 @@ private struct Zeichner {
         mitte(g)
         let schulter: CGFloat = 40 * breite
         let d = km.armHalb
-        if let l = arme.l { arm(g, P(100 - schulter, 184), l, d) }
-        if let r = arme.r { arm(g, P(100 + schulter, 184), r, d) }
+        if neu == .b {
+            let v = vForm
+            let torso = rumpf(ausschnitt)
+            if let l = arme.l { armV(g, v.schulterL, l, v.dick, rumpf: torso) }
+            if let r = arme.r { armV(g, P(200 - v.sch, v.schulterL.y), r, v.dick, rumpf: torso) }
+        } else {
+            if let l = arme.l { arm(g, P(100 - schulter, 184), l, d) }
+            if let r = arme.r { arm(g, P(100 + schulter, 184), r, d) }
+        }
         if !rechteHandBelegt { requisite(g, arme.r?.hand ?? P(142, 252)) }
         extrasInHand(g, l: arme.l?.hand, r: arme.r?.hand, dach: schirmDachMitte(halb: true), groesse: 1)
-        let hand: CGFloat = 9.5 * min(d, 1.12)
+        let hand: CGFloat = neu == .b ? 9.5 * vForm.dick : 9.5 * min(d, 1.12)
         if let l = arme.l { teil(g, kreis(l.hand, hand), haut) }
         if let r = arme.r { teil(g, kreis(r.hand, hand), haut) }
         zubehoer(g, arme)
@@ -2693,8 +2700,9 @@ private struct Zeichner {
     }
 
     func pose() -> (l: Arm?, r: Arm?) {
-        let restL = Arm(P(42, 216), P(46, 252))
-        let restR = Arm(P(158, 216), P(154, 252))
+        let v = vForm
+        let restL = neu == .b ? Arm(v.ellbogenL, v.handL) : Arm(P(42, 216), P(46, 252))
+        let restR = neu == .b ? Arm(P(200 - v.ellbogenL.x, v.ellbogenL.y), P(200 - v.handL.x, v.handL.y)) : Arm(P(158, 216), P(154, 252))
         switch z {
         case .imChat:
             let welle: CGFloat = zyklus(5) < 0.45 ? w(9) * 9 : 0
@@ -5708,5 +5716,56 @@ private extension Zeichner {
         k.scaleBy(x: 0.81, y: 1)
         k.translateBy(x: -100, y: 0)
         return k
+    }
+
+    // MARK: - Brief F3
+
+    /// Short sleeve or shoulder cap along the upper arm: straight hem at `saum` (0 = shoulder,
+    /// 1 = elbow), round cap over the shoulder (koerper.py `shirt_v`). Closes through the torso.
+    func aermelKappe(_ s: CGPoint, _ e: CGPoint, _ d: CGFloat, saum: CGFloat) -> Path {
+        let v = vForm
+        let dx = e.x - s.x, dy = e.y - s.y
+        let l = max(1, (dx * dx + dy * dy).squareRoot())
+        let aussen: CGFloat = s.x < 100 ? -1 : 1
+        var nx = dy / l, ny = -dx / l
+        if nx * aussen < 0 { nx = -nx; ny = -ny }
+        let mitte = P(s.x + dx * saum, s.y + dy * saum)
+        let b = v.armB * d
+        let hoch = P(s.x - aussen * 12 * d, s.y - 14 * d)
+        let rund = v.delt * d
+        return Path { p in
+            p.move(to: P(mitte.x - nx * b, mitte.y - ny * b))
+            p.addLine(to: P(mitte.x + nx * b, mitte.y + ny * b))
+            p.addCurve(to: hoch,
+                       control1: P(mitte.x + nx * b + aussen * 6 * rund, mitte.y + ny * b - 18 * rund),
+                       control2: P(hoch.x + aussen * 20 * rund, hoch.y - 2 * rund))
+            p.closeSubpath()
+        }
+    }
+
+    /// Brief F3: arm of the V-taper body. Plain arm without muscle bulges, then the sleeve cap on top;
+    /// the part of the cap that lies on `rumpf` is refilled without outline, so shirt and sleeve are one
+    /// piece. Shirtless (gym) the cap is skin and reads as the shoulder muscle.
+    func armV(_ g: GraphicsContext, _ s: CGPoint, _ a: Arm, _ d: CGFloat, rumpf: Path) {
+        let oben = strich(s, a.ellbogen)
+        let unten = strich(a.ellbogen, a.hand)
+        let armFarbe = aermel == .lang ? aermelFarbe : haut
+        let kappenFarbe = aermel == .keine ? haut : aermelFarbe
+        let vorn = a.hand.y < a.ellbogen.y - 4
+        if !vorn { unterarmV(g, unten, armFarbe, d) }
+        linie(g, oben, armFarbe.kontur, 24 * d)
+        linie(g, oben, armFarbe.farbe, 18.5 * d)
+        let kappe = aermelKappe(s, a.ellbogen, d, saum: aermel == .keine ? 0.36 : 0.5)
+        teil(g, kappe, kappenFarbe, 3.2)
+        var h = g
+        h.clip(to: rumpf)
+        h.fill(kappe, with: .color(kappenFarbe.farbe))
+        if vorn { unterarmV(g, unten, armFarbe, d) }
+        aermelDetails(g, s, a, d)
+    }
+
+    func unterarmV(_ g: GraphicsContext, _ unten: Path, _ f: FigurFarbe, _ d: CGFloat) {
+        linie(g, unten, f.kontur, 19 * d)
+        linie(g, unten, f.farbe, 13.5 * d)
     }
 }
