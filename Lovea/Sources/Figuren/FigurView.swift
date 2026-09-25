@@ -5313,7 +5313,7 @@ extension Zeichner {
             }
         case .pause:
             // Left arm rests; the right holds the bottle at the mouth.
-            return (Arm(P(lx - 6, y + 50), P(lx - 4, y + 92)), Arm(P(rx + 8, y + 40), P(112, y - 30)))
+            return (Arm(P(lx - 6, y + 50), P(lx - 4, y + 92)), Arm(P(rx + 8, y + 40), P(110, y - 6)))
         }
     }
 
@@ -5419,8 +5419,8 @@ extension Zeichner {
             }
         case .pause:
             let mund = arme.r.hand
-            teil(g, box(mund.x - 5, mund.y - 14, 10, 20, 3), Pal.himmel, 2)
-            teil(g, box(mund.x - 3, mund.y - 18, 6, 6, 2), Pal.himmel.mix(Pal.weiss, 0.3), 1.5)
+            teil(g, box(mund.x - 5, mund.y - 24, 10, 20, 3), Pal.himmel, 2)
+            teil(g, box(mund.x - 3, mund.y - 28, 6, 6, 2), Pal.himmel.mix(Pal.weiss, 0.3), 1.5)
         default:
             break
         }
