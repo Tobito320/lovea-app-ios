@@ -51,4 +51,25 @@ final class RenderGalerieGesichterTests: XCTestCase {
         }
         RenderTafel.speichern("gesichter-zubehoer", spalten: 4, zellen: zellen)
     }
+
+    func testKoerperV() {
+        var zellen: [Zelle] = []
+        let ahmed = FigurAussehen.standard(for: .ahmed)
+        for z in [FigurZustand.ruhig, .gym, .imChat, .kamera, .liest, .sprache] {
+            zellen.append((titel: "halb \(z.rawValue)", ansicht: AnyView(FigurView(ahmed, zustand: z, groesse: 180, animiert: false))))
+        }
+        var jacke = ahmed
+        jacke.jacke = 1
+        var langarm = ahmed
+        langarm.oberteil = 1
+        var alt = ahmed
+        alt.gesichtsform = 0
+        for (titel, a) in [("Jacke", jacke), ("Langarm", langarm), ("altes Gesicht", alt)] {
+            zellen.append((titel: titel, ansicht: AnyView(FigurView(a, zustand: .ruhig, groesse: 180, animiert: false))))
+        }
+        for z in [FigurZustand.ruhig, .gym, .laeuft] {
+            zellen.append((titel: "ganz \(z.rawValue)", ansicht: AnyView(FigurView(ahmed, zustand: z, groesse: 280, animiert: false, ganzkoerper: true))))
+        }
+        RenderTafel.speichern("koerper-v", spalten: 6, zellen: zellen)
+    }
 }
