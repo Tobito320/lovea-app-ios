@@ -528,18 +528,25 @@ private struct Zeichner {
         kopf(g)
         gesicht(g)
         // Before the hair: hair that covers the ears also covers the buds.
-        if airpods { airpodsZeichnen(g) }
+        if airpods { airpodsZeichnen(zubehoerKontext(g)) }
         haareVorn(haarKontext(g))
-        ohrringeZeichnen(g)
-        muetzeZeichnen(g)
-        kopfschmuck(g)
-        brillen(gedreht(g))
+        ohrringeZeichnen(zubehoerKontext(g))
+        muetzeZeichnen(zubehoerKontext(g, dy: 0))
+        kopfschmuck(zubehoerKontext(g, dy: 0))
+        brillen(zubehoerKontext(gedreht(g)))
     }
 
     /// Under a covering hat the hair stops at the hat line, so tall styles never poke through.
+    /// Brief F2: other hair on a new face is narrowed onto it like the accessories; the face's own
+    /// hair (`eigeneFrisur`) is already drawn to fit and stays unscaled.
     func haarKontext(_ g: GraphicsContext) -> GraphicsContext {
-        guard (1...4).contains(muetze) || muetze == 7 || muetze == 8 else { return g }
         var h = g
+        if neu != nil && !eigeneFrisur {
+            h.translateBy(x: 100, y: 0)
+            h.scaleBy(x: 0.81, y: 1)
+            h.translateBy(x: -100, y: 0)
+        }
+        guard (1...4).contains(muetze) || muetze == 7 || muetze == 8 else { return h }
         h.clip(to: Path(CGRect(x: -100, y: 34, width: 400, height: 400)))
         return h
     }
@@ -5329,6 +5336,7 @@ private extension Zeichner {
             let s = haut.mal(0.84).farbe
             h.fill(wange, with: verlaufRund(c, 14, [.init(color: s.opacity(0.7), location: 0), .init(color: s.opacity(0), location: 1)]))
         }
+        wangenRot(h, .b)
         let bartFarbe = FigurFarbe(0x5C4030)
         if kinnbart > 0 {
             h.fill(GesichtB.kinnbart, with: .color(bartFarbe.farbe.opacity(0.45)))
@@ -5338,9 +5346,15 @@ private extension Zeichner {
         neueBrauen(g, .b)
         linie(g, GesichtB.nase, haut.kontur, 2.4)
         g.fill(GesichtB.nasenSchatten, with: .color(haut.mal(0.85).farbe.opacity(0.6)))
+        gesichtsExtras(g)
         neuerMund(mundKontext, .b)
-        // ponytail: every mustache style draws B's thin mustache, the other beard styles are not ported yet.
-        if bart > 0 { teil(mundKontext, GesichtB.schnurrbart, bartFarbe, 1.2) }
+        if bart > 0 {
+            var k = mundKontext
+            if case .offen = mundForm { k.translateBy(x: 0, y: -1.5) }
+            if case .grinsen = mundForm { k.translateBy(x: 0, y: -1) }
+            // ponytail: every mustache style draws B's thin mustache, the other beard styles are not ported yet.
+            teil(k, GesichtB.schnurrbart, FigurFarbe(0x5C4030), 1.2)
+        }
     }
 
     func neueAugen(_ g: GraphicsContext, _ neu: NeuesGesicht) {
@@ -5464,12 +5478,41 @@ private extension Zeichner {
         }
     }
 
-    /// Wave 1: resting lips only. Task 7 replaces this with the full mouth set.
     func neuerMund(_ g: GraphicsContext, _ neu: NeuesGesicht) {
-        switch neu {
-        case .b: lippenB(g)
-        case .an3: lippenAn3(g)
+        switch (mundForm, neu) {
+        case (.neutral, .b), (.laecheln, .b): lippenB(g)
+        case (.neutral, .an3): lippenAn3(g)
+        case (.laecheln, .an3), (.grinsen, .an3): lachLippenAn3(g)
+        case (.grinsen, .b), (.zaehne, .b): lachMundB(g)
+        case (.offen(let r), _):
+            let o = oval(P(100, neu.mundMitte), r * 0.7, r * 0.85)
+            g.fill(o, with: .color(Pal.mundInnen.farbe))
+            linie(g, o, (neu == .b ? lippeB : lippeAn3).mal(0.55).farbe, 2)
+        default:
+            // Kiss, pout, sad, wavy, crying, crooked and Annika's teeth: the old shapes, moved onto the
+            // new mouth and made 15 % smaller.
+            var k = g
+            k.translateBy(x: 100, y: neu.mundMitte)
+            k.scaleBy(x: 0.85, y: 0.85)
+            k.translateBy(x: -100, y: -131)
+            mund(k)
         }
+    }
+
+    func lachMundB(_ g: GraphicsContext) {
+        flaeche(g, GesichtB.lachMund, .color(Pal.mundInnen.farbe), rand: lippeB.mal(0.5).farbe, breite: 1.6)
+        g.fill(GesichtB.lachZaehne, with: .color(.white))
+        g.fill(GesichtB.lachZunge, with: .color(Pal.zunge.farbe))
+    }
+
+    func lachLippenAn3(_ g: GraphicsContext) {
+        let l = lippeAn3
+        let rand = l.mal(0.62).farbe
+        g.fill(GesichtAn3.lachLippeOben, with: .color(l.mal(0.88).farbe))
+        g.fill(GesichtAn3.lachLippeUnten, with: .color(l.farbe))
+        linie(g, GesichtAn3.lachLinie, rand, 1.3)
+        linie(g, GesichtAn3.lachWinkelL, rand, 1)
+        linie(g, GesichtAn3.lachWinkelR, rand, 1)
     }
 
     var lippeB: FigurFarbe { haut.mix(FigurFarbe(0xE07A8A), 0.38) }
@@ -5510,13 +5553,11 @@ private extension Zeichner {
     func neuesGesichtAn3(_ g: GraphicsContext, _ mundKontext: GraphicsContext) {
         var h = g
         h.clip(to: GesichtAn3.gesicht)
-        let rot = FigurFarbe(0xF07C86).farbe
-        for (wange, c) in [(GesichtAn3.wangeL, P(73, 119)), (GesichtAn3.wangeR, P(127, 119))] {
-            h.fill(wange, with: verlaufRund(c, 11, [.init(color: rot.opacity(0.24), location: 0), .init(color: rot.opacity(0), location: 1)]))
-        }
+        wangenRot(h, .an3)
         neueAugen(g, .an3)
         neueBrauen(g, .an3)
         linie(g, GesichtAn3.nase, haut.kontur, 1.8)
+        gesichtsExtras(g)
         neuerMund(mundKontext, .an3)
     }
 
@@ -5560,5 +5601,55 @@ private extension Zeichner {
                 k.fill(i == 0 ? GesichtAn3.braueL : GesichtAn3.braueR, with: .color(haar.mal(1.05).farbe))
             }
         }
+    }
+
+    /// Brief F2: no permanent rouge circles any more (they made the old faces look puffy). Blush only
+    /// for love, embarrassment, kiss, heart and closeness, or when the look sets `rouge`.
+    var erroetet: Bool { [.verliebt, .verlegen, .kuss, .herz, .naehe].contains(z) || rouge }
+
+    func wangenRot(_ h: GraphicsContext, _ neu: NeuesGesicht) {
+        guard neu == .an3 || erroetet else { return }
+        let rot = FigurFarbe(0xF07C86).farbe
+        let stark = [FigurZustand.verliebt, .verlegen].contains(z)
+        let (mitten, r): ([CGPoint], CGFloat) = neu == .b ? ([P(66, 121), P(134, 121)], 13) : ([P(73, 119), P(127, 119)], 11)
+        let deckung: Double = neu == .an3 ? (stark ? 0.5 : (erroetet ? 0.34 : 0.24)) : (stark ? 0.45 : 0.3)
+        for c in mitten {
+            h.fill(oval(c, r, r * 0.65), with: verlaufRund(c, r, [.init(color: rot.opacity(deckung), location: 0), .init(color: rot.opacity(0), location: 1)]))
+        }
+    }
+
+    /// The small extras of the old `gesicht` (embarrassed lines, angry forehead, freckles, moles),
+    /// moved onto the narrower face with the accessory map.
+    func gesichtsExtras(_ g: GraphicsContext) {
+        let k = zubehoerKontext(g)
+        if z == .verlegen {
+            for x in [CGFloat(62), 68, 74, 126, 132, 138] { linie(k, strich(P(x, 123), P(x + 3, 117)), Pal.rose.kontur.opacity(0.6), 1.4) }
+        }
+        if z == .sauer {
+            var h = g
+            h.clip(to: kopfPfad)
+            h.fill(box(30, 26, 140, 44), with: .color(Pal.rose.farbe.opacity(0.22)))
+        }
+        if sommersprossen {
+            for c in [P(62, 114), P(69, 110), P(74, 117), P(66, 121), P(92, 110), P(97, 106)] {
+                k.fill(kreis(c, 1.4), with: .color(haut.mal(0.72).farbe))
+                k.fill(kreis(P(200 - c.x, c.y), 1.4), with: .color(haut.mal(0.72).farbe))
+            }
+        }
+        if muttermal { k.fill(kreis(P(122, 127), 1.9), with: .color(Pal.tinte.farbe.opacity(0.8))) }
+        if muttermale {
+            for c in [P(66, 118), P(130, 124)] { k.fill(kreis(c, 1.1), with: .color(haut.mal(0.5).farbe.opacity(0.75))) }
+        }
+    }
+
+    /// Brief F2: the old accessories were built for the 116 px wide head. On a new face they move with
+    /// `x' = 100 + (x - 100) * 0.81`, `y' = y + 3` (notizen.md). Old faces get `g` back unchanged.
+    func zubehoerKontext(_ g: GraphicsContext, dy: CGFloat = 3) -> GraphicsContext {
+        guard neu != nil else { return g }
+        var k = g
+        k.translateBy(x: 100, y: dy)
+        k.scaleBy(x: 0.81, y: 1)
+        k.translateBy(x: -100, y: 0)
+        return k
     }
 }
