@@ -29,6 +29,14 @@ enum NaeheLogik {
         let h = sin(dLat / 2) * sin(dLat / 2) + cos(a.lat * .pi / 180) * cos(b.lat * .pi / 180) * sin(dLon / 2) * sin(dLon / 2)
         return 2 * r * asin(min(1, sqrt(h)))
     }
+
+    /// Small sign while apart: every 25 s (level 1) or 15 s (level 2 and 3) the figure looks at the
+    /// phone and smiles for 4 s. Level 0: never.
+    static func handySchauen(stufe: Int, jetzt: Date) -> Bool {
+        guard stufe > 0 else { return false }
+        let periode = stufe == 1 ? 25 : 15
+        return Int(jetzt.timeIntervalSince1970) % periode < 4
+    }
 }
 
 @MainActor

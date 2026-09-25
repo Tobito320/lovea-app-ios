@@ -31,4 +31,14 @@ final class NaeheLogikTests: XCTestCase {
         let c = (lat: 51.502, lon: 7.46)    // about 222 m
         XCTAssertFalse(NaeheLogik.zusammen(a: a, b: c, ortA: nil, ortB: nil))
     }
+
+    func testHandySchauen() {
+        XCTAssertFalse(NaeheLogik.handySchauen(stufe: 0, jetzt: jetzt))
+        let bei2 = Date(timeIntervalSince1970: 25 * 4 + 2)
+        XCTAssertTrue(NaeheLogik.handySchauen(stufe: 1, jetzt: bei2))
+        let bei10 = Date(timeIntervalSince1970: 25 * 4 + 10)
+        XCTAssertFalse(NaeheLogik.handySchauen(stufe: 1, jetzt: bei10))
+        let stufe2Bei2 = Date(timeIntervalSince1970: 15 * 3 + 2)
+        XCTAssertTrue(NaeheLogik.handySchauen(stufe: 2, jetzt: stufe2Bei2))
+    }
 }

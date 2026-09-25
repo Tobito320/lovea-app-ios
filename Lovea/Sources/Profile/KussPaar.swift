@@ -36,22 +36,6 @@ enum KussAblauf {
     }
 }
 
-extension KussAblauf.Stand {
-    /// Sideways shift in points of the profile's 340-pt figures (HStack spacing -64, centres 106 pt
-    /// apart, 0.85 pt per canvas unit): hug at about 77 units, kiss at about 69.
-    func versatz(_ p: Person) -> CGFloat { p == .ahmed ? -(35 * weg + 6 * kuss) : 6 * weg }
-
-    func umarmung(_ p: Person) -> Umarmung {
-        let abstand = (106 + versatz(.ahmed) - versatz(.annika)) / 0.85
-        return Umarmung(seite: p == .ahmed ? -1 : 1, abstand: abstand, arme: arme, kuss: kuss)
-    }
-
-    func zustand(_ p: Person) -> FigurZustand {
-        if kuss > 0.3 { return .kuss }
-        return p == .ahmed && geht ? .laeuft : .ruhig
-    }
-}
-
 extension FigurenModell {
     /// When the kiss playing right now began (either person), `nil` when none plays.
     var kussBeginn: Date? {
@@ -63,20 +47,34 @@ extension FigurenModell {
     }
 }
 
-/// The awake pair in the partner profile, driven by one 30 fps clock only while a kiss plays.
+/// The awake pair in the partner profile. Level changes glide over 1.5 s; while a kiss plays
+/// (fresh, own or a missed one replayed) the pair blends into Stufe 3 and back, driven by a
+/// 30 fps clock, hearts rising along the way.
 struct KussPaar<Figur: View>: View {
     /// Who stands in front while no kiss plays (the profile's person).
     let vorn: Person
-    @ViewBuilder let figur: (Person, KussAblauf.Stand?) -> Figur
+    let stufe: Int
+    let zusammen: Bool
+    @ViewBuilder let figur: (Person, NaehePose, PaarEbene) -> Figur
     /// Bumped when the window ends: nothing in the model changes then, the pair must still let go.
     @State private var nachKuss = 0
+    /// Stufe glide: the level shown before the last change and when it changed.
+    @State private var vonStufe: Int?
+    @State private var wechsel: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         let _ = nachKuss
         let beginn = FigurenModell.shared.kussBeginn
-        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: beginn == nil || reduceMotion)) { kontext in
-            KussPaarBild(vorn: vorn, stand: stand(beginn, kontext.date), figur: figur)
+        let gleitet = wechsel.map { Date().timeIntervalSince($0) < 1.5 } ?? false
+        TimelineView(.animation(minimumInterval: 1.0 / 30, paused: (beginn == nil && !gleitet) || reduceMotion)) { kontext in
+            let stand = standBei(beginn, kontext.date)
+            KussPaarBild(pose: pose(stand, kontext.date), herzen: stand != nil,
+                         ahmedHerein: (stand.map { 1 - $0.weg } ?? 0) * (zusammen ? 0 : 150), figur: figur)
+        }
+        .onChange(of: stufe) { alt, _ in
+            vonStufe = alt
+            wechsel = Date()
         }
         .task(id: FigurenModell.shared.kussEreignis) {
             guard let beginn = FigurenModell.shared.kussBeginn else { return }
@@ -85,40 +83,61 @@ struct KussPaar<Figur: View>: View {
         }
     }
 
-    private func stand(_ beginn: Date?, _ jetzt: Date) -> KussAblauf.Stand? {
+    private func standBei(_ beginn: Date?, _ jetzt: Date) -> KussAblauf.Stand? {
         guard let beginn else { return nil }
         return reduceMotion ? KussAblauf.voll : KussAblauf.stand(jetzt.timeIntervalSince(beginn))
     }
+
+    /// Level pose (gliding 1.5 s after a change), blended into Stufe 3 while a kiss plays.
+    private func pose(_ stand: KussAblauf.Stand?, _ jetzt: Date) -> NaehePose {
+        let ziel = NaehePose.stufe(zusammen ? stufe : 0, vorn: vorn)
+        var basis = ziel
+        if let von = vonStufe, let wechsel, !reduceMotion {
+            let t = min(1, CGFloat(jetzt.timeIntervalSince(wechsel) / 1.5))
+            basis = NaehePose.mix(NaehePose.stufe(zusammen ? von : 0, vorn: vorn), ziel, t * t * (3 - 2 * t))
+        }
+        guard let stand else { return basis }
+        var p = NaehePose.mix(basis, .stufe(3, vorn: vorn), stand.arme)
+        if stand.geht { p.zustandAhmed = .laeuft }
+        return p
+    }
 }
 
-/// One frame of the pair, also drawn by the render board. While a kiss plays Ahmed is always in
-/// front (his arm lies over her shoulders), the same on both phones.
+/// One frame of the pair in the partner profile: both bodies (front figure on top), then both pair
+/// arms, like the `naehe-posen` board. While a kiss plays, hearts rise.
 struct KussPaarBild<Figur: View>: View {
-    let vorn: Person
-    let stand: KussAblauf.Stand?
-    @ViewBuilder let figur: (Person, KussAblauf.Stand?) -> Figur
+    let pose: NaehePose
+    var herzen = false
+    /// Extra sideways shift of Ahmed while he walks in from the right (kiss while apart).
+    var ahmedHerein: CGFloat = 0
+    @ViewBuilder let figur: (Person, NaehePose, PaarEbene) -> Figur
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
-        HStack(alignment: .bottom, spacing: -64) {
-            ForEach([Person.annika, .ahmed], id: \.self) { p in
-                figur(p, stand)
-                    .offset(x: stand?.versatz(p) ?? 0)
-                    .zIndex((stand == nil ? p == vorn : p == .ahmed) ? 1 : 0)
-            }
+        ZStack {
+            reihe(.ohneArm)
+            reihe(.nurArm)
         }
         .overlay {
-            if let stand, stand.kuss > 0, !reduceMotion {
-                SteigendeHerzen()
-                    .opacity(Double(stand.kuss))
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
+            if herzen, !reduceMotion {
+                SteigendeHerzen().allowsHitTesting(false).accessibilityHidden(true)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func reihe(_ ebene: PaarEbene) -> some View {
+        HStack(alignment: .bottom, spacing: -64) {
+            ForEach([Person.annika, .ahmed], id: \.self) { p in
+                self.figur(p, self.pose, ebene)
+                    .offset(x: self.pose.versatz(p) + (p == .ahmed ? self.ahmedHerein : 0))
+                    .zIndex(p == self.pose.vorn ? 1 : 0)
             }
         }
     }
 }
 
-private struct SteigendeHerzen: View {
+struct SteigendeHerzen: View {
     @State private var start = Date()
 
     var body: some View {

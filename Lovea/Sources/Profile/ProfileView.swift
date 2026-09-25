@@ -76,6 +76,7 @@ private struct ProfilInhalt: View {
     let schliessen: () -> Void
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dehnung: CGFloat = 0
     @State private var tipps = 0
     @State private var nummerFehlt = 0
@@ -171,7 +172,7 @@ private struct ProfilInhalt: View {
         let szene = ProfilSzene.fuer(person: person)
         let b = belegung(szene, paar: true)
         return ZStack(alignment: .bottomLeading) {
-            kopfFiguren(szene, b)
+            kopfFiguren(szene, b, paar: true)
                 .frame(maxWidth: .infinity, alignment: .trailing)
                 .padding(.trailing, -6)
 
@@ -200,7 +201,7 @@ private struct ProfilInhalt: View {
         let szene = ProfilSzene.fuer(person: person)
         let b = belegung(szene, paar: false)
         return ZStack(alignment: .bottomLeading) {
-            kopfFiguren(szene, b)
+            kopfFiguren(szene, b, paar: false)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 20)
             HStack(spacing: 12) {
@@ -237,10 +238,12 @@ private struct ProfilInhalt: View {
 
     /// Brief G fix: who is shown, always Annika left and Ahmed right, and who of them lies in bed.
     /// Only a sleeper is in bed, and a bed only exists in the room. The own profile shows the own
-    /// figure alone, or both when both sleep.
+    /// figure alone, or both when both sleep. Teil 2 (Nähe): the partner profile shows the pair
+    /// only when they are together (or a kiss plays) — getrennt zeigt es nur die eigene Person.
     private func belegung(_ szene: ProfilSzene, paar: Bool) -> Belegung {
         let beide = szene == .schlafen(zusammen: true) || szene == .zeichnen(zusammen: true)
-        let personen: [Person] = paar || beide ? [.annika, .ahmed] : [person]
+        let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
+        let personen: [Person] = paarDa || beide ? [.annika, .ahmed] : [person]
         switch szene {
         case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlafGerade($0) != .wach })
         case .gym, .draussen, .unterwegs, .abteil, .schule, .arbeit, .zeichnen: return (personen, [])
@@ -248,20 +251,34 @@ private struct ProfilInhalt: View {
     }
 
     /// Everyone asleep: one bed. Mixed: a smaller bed beside the one standing. At night the room
-    /// dims its figures along with the drawing.
+    /// dims its figures along with the drawing. `paar`: true from the partner profile's `kopf`
+    /// (small signs while apart are only shown there, never on the own profile).
     @ViewBuilder
-    private func kopfFiguren(_ szene: ProfilSzene, _ b: Belegung) -> some View {
+    private func kopfFiguren(_ szene: ProfilSzene, _ b: Belegung, paar: Bool) -> some View {
         let wach = b.personen.filter { !b.imBett.contains($0) }
         let dunkel = nachtImZimmer(szene)
         Group {
             if wach.isEmpty {
                 bett(b.imBett, skala: 1)
             } else if wach.count == 2 {
-                // Brief K: both awake, so a kiss becomes a hug and a kiss of the two figures.
-                KussPaar(vorn: person) { p, stand in figur(p, szene: figurSzene(szene, p), paar: stand) }
+                // Teil 2 (Nähe): both awake and together, the pair's closeness pose (kiss glides
+                // into Stufe 3 and back).
+                KussPaar(vorn: person, stufe: NaeheLogik.aktuelleStufe, zusammen: NaeheLogik.sindZusammen) { p, pose, ebene in
+                    figur(p, szene: figurSzene(szene, p), naehe: pose, ebene: ebene)
+                }
             } else if b.imBett.isEmpty {
-                HStack(alignment: .bottom, spacing: -64) {
-                    ForEach(wach, id: \.self) { p in figur(p, szene: figurSzene(szene, p)).zIndex(p == person ? 1 : 0) }
+                let zeichenApart = paar && NaeheLogik.aktuelleStufe > 0 && !NaeheLogik.sindZusammen
+                if zeichenApart {
+                    TimelineView(.periodic(from: .now, by: 1)) { kontext in
+                        einzelReihe(wach, szene, handy: NaeheLogik.handySchauen(stufe: NaeheLogik.aktuelleStufe, jetzt: kontext.date))
+                            .overlay {
+                                if NaeheLogik.aktuelleStufe >= 3, !reduceMotion {
+                                    SteigendeHerzen().opacity(0.35).allowsHitTesting(false).accessibilityHidden(true)
+                                }
+                            }
+                    }
+                } else {
+                    einzelReihe(wach, szene)
                 }
             } else {
                 HStack(alignment: .bottom, spacing: -30) {
@@ -272,6 +289,13 @@ private struct ProfilInhalt: View {
             }
         }
         .brightness(dunkel ? -0.1 : 0)
+    }
+
+    /// The apart branch's plain HStack, unchanged whether or not the small "looks at phone" sign runs.
+    private func einzelReihe(_ wach: [Person], _ szene: ProfilSzene, handy: Bool = false) -> some View {
+        HStack(alignment: .bottom, spacing: -64) {
+            ForEach(wach, id: \.self) { p in figur(p, szene: figurSzene(szene, p), handy: handy).zIndex(p == person ? 1 : 0) }
+        }
     }
 
     /// The scene dresses the profile person only; drawing together (Brief Z) dresses both.
@@ -324,9 +348,11 @@ private struct ProfilInhalt: View {
     /// `szene` (Brief G, profile person only): the scene's state and extras (dumbbells in the gym,
     /// umbrella or sunglasses outside). A sleeper outside the room (no bed there) stands asleep;
     /// from 22:00 an awake figure is tired and yawns now and then.
-    /// `paar` (Brief K): the pair's hug-and-kiss frame while a kiss plays; it replaces the lean.
+    /// `naehe` (Teil 2 Nähe): the pair's closeness pose (level hug or kiss) while together; it
+    /// replaces the lean. `ebene` splits the pair's bodies from their pair arms (see `KussPaarBild`).
+    /// `handy` (Teil 2): apart, the small "looks at phone and smiles" sign.
     @ViewBuilder
-    private func figur(_ p: Person, szene: ProfilSzene? = nil, paar: KussAblauf.Stand? = nil) -> some View {
+    private func figur(_ p: Person, szene: ProfilSzene? = nil, naehe: NaehePose? = nil, ebene: PaarEbene = .alles, handy: Bool = false) -> some View {
         // Their own shared state even while their app is closed (it arrives in the background too),
         // so both phones show the same; grey "offline" only when nothing was ever shared.
         let live = ProfilSzene.geteilterZustand(p) ?? .offline
@@ -344,13 +370,18 @@ private struct ProfilInhalt: View {
         // A bought pose would replace the curls, the desk or the tablet, so these keep their own.
         let pose = (szene.map { $0 != .gym && $0 != .schule && $0 != .arbeit } ?? true) && zustand != .zeichnet
         let tisch = szene?.raumOrt.map { Zimmer.von(person, ort: $0).tisch } ?? 0
-        // Alone (own profile, next to a bed) the kiss is still the lean; the pair hugs instead.
-        let lehnt = kuesst && paar == nil
-        let gezeigt: FigurZustand = paar?.zustand(p) ?? (kuesst ? .kuss : zustand)
-        let paarExtras: Set<FigurExtra> = paar == nil ? extras : []
+        // Alone (own profile, next to a bed) the kiss is still the lean; the pair's closeness pose replaces it.
+        let lehnt = kuesst && naehe == nil
+        let gezeigt: FigurZustand = naehe?.zustand(p) ?? (kuesst ? .kuss : (handy && [.ruhig, .mittel, .gut].contains(zustand) ? .imChat : zustand))
+        let paarExtras: Set<FigurExtra> = naehe == nil ? extras : []
         // Brief Z: the pencil and its strokes live in the figure; 15 fps like the scene's lights.
+        let umarmung: Umarmung? = naehe.map { pose in
+            var um = pose.umarmung(p, partnerHaut: NaehePose.haut(FigurenModell.shared.aussehen(p.partner)))
+            um.ebene = ebene
+            return um
+        }
         let v = FigurView(FigurenModell.shared.aussehen(p), zustand: gezeigt, abzeichen: abzeichen(p), groesse: 340, bildrate: gezeigt == .zeichnet ? 15 : 30,
-                          ganzkoerper: true, poseImmer: pose && paar == nil, extras: paarExtras, tisch: tisch, umarmung: paar?.umarmung(p))
+                          ganzkoerper: true, poseImmer: pose && naehe == nil, extras: paarExtras, tisch: tisch, umarmung: umarmung)
             .rotationEffect(.degrees(lehnt ? Double(richtung) * 7 : 0), anchor: .bottom)
             .offset(x: lehnt ? richtung * 38 : 0)
             .scaleEffect(lehnt ? 1.05 : 1, anchor: .bottom)
