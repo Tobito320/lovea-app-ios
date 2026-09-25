@@ -310,10 +310,14 @@ enum AnwesenheitEingabe {
     /// e-scooter, faster is the train. Annika has no scooter: any vehicle speed is the train.
     static let scooterTempo: Double = 5.56
 
-    /// A fresh fix (under 3 min) at vehicle speed splits into scooter or train by GPS speed; without
+    /// Above this (m/s, ~12.6 km/h) a fix counts as riding: faster than walking or jogging. It must
+    /// lie below `scooterTempo`, else the scooter could never be detected.
+    static let fahrTempo: Double = 3.5
+
+    /// A fresh fix (under 3 min) at riding speed splits into scooter or train by GPS speed; without
     /// a fresh fix (CoreMotion says "automotive" but no speed yet) it stays the generic `faehrt`.
     static func reise(_ bewegung: FigurZustand?, person: Person, tempo: Double?, fixAlter: TimeInterval?) -> FigurZustand? {
-        guard let tempo, tempo > reiseTempo, (fixAlter ?? .infinity) < 180 else { return bewegung }
+        guard let tempo, tempo > fahrTempo, (fixAlter ?? .infinity) < 180 else { return bewegung }
         guard person == .ahmed, tempo <= scooterTempo else { return .zug }
         return .scooter
     }
