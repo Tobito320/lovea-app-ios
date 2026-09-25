@@ -184,8 +184,9 @@ def ahmed_B(p=""):
     rh = kontur(haut)
     # 25.09. (Ahmed: "Wangen bissl sharper"): Wangenknochen bei y 112, gerade Kante zur Kieferecke (137|133).
     # 25.09. (Ahmed: "Kinn zu klein und nicht scharf"): breites, eckiges Kinn mit flacher Unterkante.
-    gesicht = ("M100,26 C127,26 147,44 147,77 C147,95 146,105 144,112 L137,133 L117,148.5 Q100,153 83,148.5 "
-               "L63,133 L56,112 C54,105 53,95 53,77 C53,44 73,26 100,26 Z")
+    # 25.09. (Ahmed: "Abstand Kinn zu Mund zu gering"): Kinn 5 tiefer, Kieferecke 3 tiefer.
+    gesicht = ("M100,26 C127,26 147,44 147,77 C147,95 146,106 144,114 L137,136 L117,153.5 Q100,158 83,153.5 "
+               "L63,136 L56,114 C54,106 53,95 53,77 C53,44 73,26 100,26 Z")
     n = len(AH_AUSSEN)
     s.g("hair-back", teil(wolke(AH_AUSSEN + [(150, 94), (50, 94)], (100, 60), beulen(n + 2, 3.8)), haar))
     hals_und_rumpf(s, haut, c["top"])
@@ -198,8 +199,8 @@ def ahmed_B(p=""):
     s.g("shading", pony_schatten(s, mal(haut, 0.88), cl, 0.6) + f'<g {cl}><ellipse cx="62" cy="122" rx="10" ry="15" fill="{wl}"/><ellipse cx="138" cy="122" rx="10" ry="15" fill="{wr}"/></g>')
     s.g("jaw", "")
     s.g("taper", taper(s, haar, haut, "taperB"))
-    s.g("goatee", f'<g {cl}>' + fill("M96,143 Q100,142 104,143 Q103.5,148 100,148.5 Q96.5,148 96,143 Z", c["bart"], ' fill-opacity="0.45"')
-        + fill("M86,149 Q100,145 114,149 L114,158 L86,158 Z", c["bart"], ' fill-opacity="0.14"') + '</g>')
+    s.g("goatee", f'<g {cl}>' + fill("M96,147 Q100,146 104,147 Q103.5,152.5 100,153 Q96.5,152.5 96,147 Z", c["bart"], ' fill-opacity="0.45"')
+        + fill("M86,153 Q100,149 114,153 L114,162 L86,162 Z", c["bart"], ' fill-opacity="0.14"') + '</g>')
     augen, smile = "", ""
     for sd in (-1, 1):
         cx, cy = 100 + sd * 19, 101

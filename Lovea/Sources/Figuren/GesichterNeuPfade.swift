@@ -79,13 +79,13 @@ enum GesichtB {
         Path { p in
             p.move(to: P(100, 26))
             p.addCurve(to: P(147, 77), control1: P(127, 26), control2: P(147, 44))
-            p.addCurve(to: P(144, 112), control1: P(147, 95), control2: P(146, 105))
-            p.addLine(to: P(137, 133))
-            p.addLine(to: P(117, 148.5))
-            p.addQuadCurve(to: P(83, 148.5), control: P(100, 153))
-            p.addLine(to: P(63, 133))
-            p.addLine(to: P(56, 112))
-            p.addCurve(to: P(53, 77), control1: P(54, 105), control2: P(53, 95))
+            p.addCurve(to: P(144, 114), control1: P(147, 95), control2: P(146, 106))
+            p.addLine(to: P(137, 136))
+            p.addLine(to: P(117, 153.5))
+            p.addQuadCurve(to: P(83, 153.5), control: P(100, 158))
+            p.addLine(to: P(63, 136))
+            p.addLine(to: P(56, 114))
+            p.addCurve(to: P(53, 77), control1: P(54, 106), control2: P(53, 95))
             p.addCurve(to: P(100, 26), control1: P(53, 44), control2: P(73, 26))
             p.closeSubpath()
         }
@@ -148,19 +148,19 @@ enum GesichtB {
     }
     static var kinnbart: Path {
         Path { p in
-            p.move(to: P(96, 143))
-            p.addQuadCurve(to: P(104, 143), control: P(100, 142))
-            p.addQuadCurve(to: P(100, 148.5), control: P(103.5, 148))
-            p.addQuadCurve(to: P(96, 143), control: P(96.5, 148))
+            p.move(to: P(96, 147))
+            p.addQuadCurve(to: P(104, 147), control: P(100, 146))
+            p.addQuadCurve(to: P(100, 153), control: P(103.5, 152.5))
+            p.addQuadCurve(to: P(96, 147), control: P(96.5, 152.5))
             p.closeSubpath()
         }
     }
     static var kinnSchatten: Path {
         Path { p in
-            p.move(to: P(86, 149))
-            p.addQuadCurve(to: P(114, 149), control: P(100, 145))
-            p.addLine(to: P(114, 158))
-            p.addLine(to: P(86, 158))
+            p.move(to: P(86, 153))
+            p.addQuadCurve(to: P(114, 153), control: P(100, 149))
+            p.addLine(to: P(114, 162))
+            p.addLine(to: P(86, 162))
             p.closeSubpath()
         }
     }
