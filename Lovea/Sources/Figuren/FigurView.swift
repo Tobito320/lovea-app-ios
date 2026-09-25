@@ -4498,29 +4498,57 @@ extension Zeichner {
     func scooter(_ g: GraphicsContext, _ m: Masse, _ oben: CGFloat) {
         guard z == .scooter else { return }
         let fy = Masse.fussY
-        teil(g, oval(P(100, fy + 18), 8, 11), Pal.dunkel, 2.5)
-        var deck = Path()
-        deck.move(to: P(74, fy - 4))
-        deck.addLine(to: P(126, fy - 4))
-        deck.addLine(to: P(134, fy + 12))
-        deck.addLine(to: P(66, fy + 12))
-        deck.closeSubpath()
-        teil(g, deck, Pal.gruen, 2.5)
+        teil(g, oval(P(100, fy + 19), 11, 12), Pal.dunkel, 2.5)
+        teil(g, oval(P(100, fy + 19), 4, 5), Pal.silber, 1.5)
+        teil(g, box(87, fy + 5, 26, 8, 4), Pal.gruen, 2)
+        teil(g, trapez(fy - 6, 66, 134, fy + 12, 56, 144), Pal.gruen, 2.5)
+        g.fill(trapez(fy - 3, 72, 128, fy + 5, 66, 134), with: .color(Pal.dunkel.farbe.opacity(0.85)))
+        text(g, "RYDE", P(100, fy + 9), 6, .white)
+    }
+
+    /// A deck-like trapezoid: top edge at `oben` from `ol` to `or`, bottom edge at `unten` from `ul` to `ur`.
+    func trapez(_ oben: CGFloat, _ ol: CGFloat, _ or: CGFloat, _ unten: CGFloat, _ ul: CGFloat, _ ur: CGFloat) -> Path {
+        Path { p in
+            p.move(to: P(ol, oben))
+            p.addLine(to: P(or, oben))
+            p.addLine(to: P(ur, unten))
+            p.addLine(to: P(ul, unten))
+            p.closeSubpath()
+        }
     }
 
     func scooterLenkerY(_ m: Masse) -> CGFloat { m.hueftY - 4 }
 
+    /// Stem with headlight, handlebar with grips and brake levers, and Ahmed's iPhone in a holder
+    /// in the middle, screen on (a map with the route).
     func scooterLenker(_ g: GraphicsContext, _ m: Masse) {
         let lenk = scooterLenkerY(m)
-        let stange = strich(P(100, Masse.fussY + 8), P(100, lenk))
-        linie(g, stange, Pal.gruen.kontur, 11)
-        linie(g, stange, Pal.gruen.farbe, 7)
-        teil(g, kreis(P(100, lenk + 14), 5), Pal.weiss, 2)
-        let bar = strich(P(58, lenk), P(142, lenk))
+        teil(g, trapez(lenk + 4, 94, 106, Masse.fussY + 8, 91, 109), Pal.gruen, 2.5)
+        let licht = P(100, lenk + 24)
+        g.fill(kreis(licht, 16), with: verlaufRund(licht, 16, [.init(color: .white.opacity(0.75), location: 0), .init(color: .white.opacity(0), location: 1)]))
+        teil(g, kreis(licht, 6.5), Pal.weiss, 2)
+        g.fill(kreis(licht, 3.5), with: .color(Pal.gelb.mix(Pal.weiss, 0.5).farbe))
+        let bar = strich(P(52, lenk), P(148, lenk))
         linie(g, bar, Pal.dunkel.kontur, 8)
         linie(g, bar, Pal.silber.farbe, 4.5)
-        teil(g, box(52, lenk - 4, 14, 8, 4), Pal.dunkel, 2)
-        teil(g, box(134, lenk - 4, 14, 8, 4), Pal.dunkel, 2)
+        for (a, e) in [(P(62, lenk + 2), P(76, lenk + 9)), (P(138, lenk + 2), P(124, lenk + 9))] {
+            linie(g, strich(a, e), Pal.dunkel.kontur, 3)
+        }
+        teil(g, box(44, lenk - 5, 16, 10, 5), Pal.dunkel, 2)
+        teil(g, box(140, lenk - 5, 16, 10, 5), Pal.dunkel, 2)
+        // Phone holder: clamp on the bar, the phone standing on it with its screen on.
+        teil(g, box(95, lenk - 4, 10, 8, 2), Pal.dunkel, 1.5)
+        let handy = P(100, lenk - 21)
+        g.fill(kreis(handy, 26), with: verlaufRund(handy, 26, [.init(color: Pal.himmel.farbe.opacity(0.45), location: 0), .init(color: Pal.himmel.farbe.opacity(0), location: 1)]))
+        teil(g, box(89, lenk - 38, 22, 34, 5), Pal.dunkel, 2)
+        g.fill(box(91.5, lenk - 35.5, 17, 29, 3), with: .color(Color(red: 0.86, green: 0.93, blue: 1)))
+        var route = Path()
+        route.move(to: P(95, lenk - 10))
+        route.addQuadCurve(to: P(104, lenk - 30), control: P(106, lenk - 20))
+        g.stroke(route, with: .color(Color.loveaRose), style: StrokeStyle(lineWidth: 2, lineCap: .round))
+        g.fill(kreis(P(95, lenk - 10), 2.2), with: .color(Color(red: 0.18, green: 0.44, blue: 0.89)))
+        linie(g, strich(P(88, lenk - 28), P(88, lenk - 16)), Pal.dunkel.kontur, 2.5)
+        linie(g, strich(P(112, lenk - 28), P(112, lenk - 16)), Pal.dunkel.kontur, 2.5)
     }
 
     func tempoStriche(_ g: GraphicsContext, _ y0: CGFloat) {
