@@ -176,6 +176,21 @@ func linie(_ g: GraphicsContext, _ p: Path, _ c: Color, _ breite: CGFloat) {
     g.stroke(p, with: .color(c), style: StrokeStyle(lineWidth: breite, lineCap: .round, lineJoin: .round))
 }
 
+/// Brief F2: vertical and round gradients in the figure space, like the SVG `userSpaceOnUse` gradients.
+func verlaufY(_ y0: CGFloat, _ y1: CGFloat, _ stops: [Gradient.Stop]) -> GraphicsContext.Shading {
+    .linearGradient(Gradient(stops: stops), startPoint: CGPoint(x: 0, y: y0), endPoint: CGPoint(x: 0, y: y1))
+}
+
+func verlaufRund(_ c: CGPoint, _ r: CGFloat, _ stops: [Gradient.Stop]) -> GraphicsContext.Shading {
+    .radialGradient(Gradient(stops: stops), center: c, startRadius: 0, endRadius: r)
+}
+
+/// Fill with a free outline colour (the new faces do not always use `kontur`).
+func flaeche(_ g: GraphicsContext, _ p: Path, _ fuellung: GraphicsContext.Shading, rand: Color? = nil, breite: CGFloat = 0) {
+    g.fill(p, with: fuellung)
+    if let rand { g.stroke(p, with: .color(rand), style: StrokeStyle(lineWidth: breite, lineCap: .round, lineJoin: .round)) }
+}
+
 fileprivate func text(_ g: GraphicsContext, _ s: String, _ c: CGPoint, _ groesse: CGFloat, _ farbe: Color) {
     g.draw(Text(s).font(.system(size: groesse, weight: .heavy, design: .rounded)).foregroundStyle(farbe), at: c)
 }
@@ -242,6 +257,24 @@ fileprivate struct Bein {
 
 fileprivate enum Mund { case laecheln, grinsen, offen(CGFloat), neutral, traurig, kuss, schmoll, wellig, heulen, zaehne, schief }
 fileprivate enum Auge { case offen(gross: Bool), zu, froh, muede, schock, boese }
+
+/// Brief F2: the redesigned faces, `gesichtsform` 7 (Ahmed, option B) and 8 (Annika, option 3).
+/// Deviation from the plan: `Equatable` added — the plan's own `mundMitte` (`self == .b`) and later
+/// tasks compare `neu`/`self` with `==`, which needs an explicit conformance to compile.
+fileprivate enum NeuesGesicht: Equatable {
+    case b, an3
+
+    /// Eye centres, left then right (`notizen.md`, anchor table).
+    var augen: [(c: CGPoint, sd: CGFloat)] {
+        switch self {
+        case .b: [(P(81, 101), -1), (P(119, 101), 1)]
+        case .an3: [(P(81.5, 102), -1), (P(118.5, 102), 1)]
+        }
+    }
+
+    /// Where the old mouth shapes (built around (100|131)) land on this face.
+    var mundMitte: CGFloat { self == .b ? 139.5 : 132.5 }
+}
 fileprivate enum Aermel { case lang, kurz, keine }
 fileprivate enum Haltung { case stehen, gehen, rennen, rad, fahren, sitzen }
 
@@ -290,6 +323,8 @@ private struct Zeichner {
     let person: Person?
     /// Gym look (Brief D addendum): Ahmed trains shirtless, Annika in a sleeveless sports top.
     let oberkoerperFrei, sportTop: Bool
+    /// Brief F2: set for the redesigned faces, nil draws the old face.
+    let neu: NeuesGesicht?
 
     init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil) {
         typealias A = FigurAussehen
@@ -335,6 +370,7 @@ private struct Zeichner {
         brille = extras.contains(.sonnenbrille) && !Self.sonnenbrillen.contains(eigeneBrille) ? 3 : eigeneBrille
         bart = grenze(a.bart, A.baerte.count)
         gesichtsform = grenze(a.gesichtsform, A.gesichtsformen.count)
+        neu = gesichtsform == 7 ? .b : (gesichtsform == 8 ? .an3 : nil)
         augenform = grenze(a.augenform, A.augenformen.count)
         brauenStil = grenze(a.brauen, A.augenbrauen.count)
         nasenStil = grenze(a.nase, A.nasen.count)
@@ -511,7 +547,12 @@ private struct Zeichner {
     /// Z-38.2: the body type's measures (`FigurAussehen.koerper`).
     var km: FigurAussehen.Koerper { FigurAussehen.koerper[koerperform] }
 
-    var breite: CGFloat { km.breite }
+    /// Brief F2: Annika's new face sits on 0.88 narrower shoulders (`AN_RUMPF` in bau.py). Half figure only.
+    var breite: CGFloat { km.breite * (neu == .an3 ? 0.88 : 1) }
+
+    /// Brief F2: the new face draws its own hair only with the person's everyday style; every other
+    /// style is drawn narrowed onto the new head (`haarKontext`).
+    var eigeneFrisur: Bool { (neu == .b && (78...82).contains(frisur)) || (neu == .an3 && frisur == 56) }
 
     static let sonnenbrillen: Set<Int> = [3, 8, 9, 10, 11]
 
@@ -581,6 +622,11 @@ private struct Zeichner {
     ]
 
     var kopfPfad: Path {
+        switch neu {
+        case .b: return GesichtB.gesicht
+        case .an3: return GesichtAn3.gesicht
+        case nil: break
+        }
         let f = Self.formen[gesichtsform]
         return Path { p in
             p.move(to: P(100, 30))
@@ -625,9 +671,14 @@ private struct Zeichner {
     }
 
     func koerper(_ g: GraphicsContext) {
-        teil(g, box(86, 132, 28, 58, 10), haut)
-        g.fill(box(78, 156, 44, 36), with: .color(haut.farbe))
-        g.fill(oval(P(100, 152), 15, 6), with: .color(haut.mal(0.8).farbe.opacity(0.6)))
+        if let neu {
+            neuerHals(g, neu)
+            g.fill(box(78, 156, 44, 36), with: .color(haut.farbe))
+        } else {
+            teil(g, box(86, 132, 28, 58, 10), haut)
+            g.fill(box(78, 156, 44, 36), with: .color(haut.farbe))
+            g.fill(oval(P(100, 152), 15, 6), with: .color(haut.mal(0.8).farbe.opacity(0.6)))
+        }
         var k = g
         k.translateBy(x: 100, y: 0)
         k.scaleBy(x: breite, y: 1)
@@ -1183,6 +1234,7 @@ private struct Zeichner {
     }
 
     func kopf(_ g: GraphicsContext) {
+        if let neu { neuerKopf(g, neu); return }
         for x in [CGFloat(42), 158] {
             teil(g, kreis(P(x, 100), 11), haut)
             g.fill(kreis(P(x, 100), 5), with: .color(haut.mal(0.85).farbe))
@@ -1342,6 +1394,7 @@ private struct Zeichner {
     }
 
     func gesicht(_ basis: GraphicsContext) {
+        if let neu { neuesGesicht(basis, neu); return }
         let g = gedreht(basis)
         let mundKontext = gedreht(basis, mund: true)
         let staerke = [.verliebt, .verlegen, .schmollt].contains(z) ? 0.7 : ((z == .kuss || z == .herz || z == .naehe || rouge) ? 0.5 : 0.28)
@@ -1913,6 +1966,7 @@ private struct Zeichner {
     }
 
     func haareHinten(_ g: GraphicsContext) {
+        if let neu, eigeneFrisur { neueHaareHinten(g, neu); return }
         switch frisur {
         case 6, 28:
             haarTeil(g, box(32, 30, 136, 124, 50))
@@ -2000,6 +2054,7 @@ private struct Zeichner {
     }
 
     func haareVorn(_ g: GraphicsContext) {
+        if let neu, eigeneFrisur { neueHaareVorn(g, neu); return }
         switch frisur {
         case 0:
             haarTeil(g, kappe(top: 18, scheitel: 100, ansatz: 58, unten: 92))
@@ -5216,5 +5271,183 @@ private struct AlleOptionenVorschau: View {
     HStack {
         FigurView(.standard(for: .annika), zustand: .gut, abzeichen: ["partyhut", "herzaugen"], groesse: 220)
         FigurView(.standard(for: .ahmed), zustand: .ruhig, abzeichen: ["outfit", "uhrwerk", "krone"], groesse: 220)
+    }
+}
+
+// MARK: - Brief F2: redesigned faces (Ahmed B, Annika 3). Shapes: GesichterNeuPfade.swift, colours: bau.py.
+
+private extension Zeichner {
+    /// Ears and face skin. Annika's left ear is hidden under her hair, the right one is tucked out.
+    func neuerKopf(_ g: GraphicsContext, _ neu: NeuesGesicht) {
+        switch neu {
+        case .b:
+            for ohr in [GesichtB.ohrL, GesichtB.ohrR] { teil(g, ohr, haut) }
+            for innen in [GesichtB.ohrInnenL, GesichtB.ohrInnenR] { linie(g, innen, haut.kontur.opacity(0.6), 1.6) }
+            let weich = verlaufRund(P(96, 92), 72, [.init(color: haut.farbe, location: 0.55), .init(color: haut.mal(0.9).farbe, location: 1)])
+            flaeche(g, GesichtB.gesicht, weich, rand: haut.kontur, breite: 3.5)
+        case .an3:
+            flaeche(g, GesichtAn3.ohr, .color(haut.farbe), rand: haut.kontur, breite: 3.2)
+            linie(g, GesichtAn3.ohrInnen, haut.kontur.opacity(0.6), 1.4)
+            let weich = verlaufRund(P(98, 92), 64, [.init(color: haut.farbe, location: 0.62), .init(color: haut.mal(0.93).farbe, location: 1)])
+            flaeche(g, GesichtAn3.gesicht, weich, rand: haut.kontur, breite: 3.2)
+        }
+    }
+
+    /// Neck with the soft chin shadow.
+    func neuerHals(_ g: GraphicsContext, _ neu: NeuesGesicht) {
+        let hals = neu == .b ? GesichtB.hals : GesichtAn3.hals
+        flaeche(g, hals, .color(haut.farbe), rand: haut.kontur, breite: neu == .b ? 3.5 : 3.2)
+        var h = g
+        h.clip(to: hals)
+        let schatten = haut.mal(0.78).farbe
+        let (y0, y1, deckung): (CGFloat, CGFloat, Double) = neu == .b ? (140, 166, 0.9) : (132, 156, 0.8)
+        h.fill(neu == .b ? GesichtB.halsSchatten : GesichtAn3.halsSchatten,
+               with: verlaufY(y0, y1, [.init(color: schatten.opacity(deckung), location: 0), .init(color: schatten.opacity(0), location: 1)]))
+    }
+
+    func neuesGesicht(_ basis: GraphicsContext, _ neu: NeuesGesicht) {
+        let g = gedreht(basis)
+        let mundKontext = gedreht(basis, mund: true)
+        switch neu {
+        case .b: neuesGesichtB(g, mundKontext)
+        case .an3: neuesGesichtAn3(g, mundKontext)
+        }
+    }
+
+    func neuesGesichtB(_ g: GraphicsContext, _ mundKontext: GraphicsContext) {
+        var h = g
+        h.clip(to: GesichtB.gesicht)
+        if eigeneFrisur { h.fill(GesichtB.ponySchatten, with: .color(haut.mal(0.88).farbe.opacity(0.6))) }
+        for (wange, c) in [(GesichtB.wangeL, P(62, 122)), (GesichtB.wangeR, P(138, 122))] {
+            let s = haut.mal(0.84).farbe
+            h.fill(wange, with: verlaufRund(c, 14, [.init(color: s.opacity(0.7), location: 0), .init(color: s.opacity(0), location: 1)]))
+        }
+        if eigeneFrisur {
+            let taper = verlaufY(78, 104, [.init(color: haar.farbe.opacity(0.95), location: 0), .init(color: haar.farbe.opacity(0.55), location: 0.55), .init(color: haar.farbe.opacity(0.05), location: 1)])
+            g.fill(GesichtB.taperL, with: taper)
+            g.fill(GesichtB.taperR, with: taper)
+        }
+        let bartFarbe = FigurFarbe(0x5C4030)
+        if kinnbart > 0 {
+            h.fill(GesichtB.kinnbart, with: .color(bartFarbe.farbe.opacity(0.45)))
+            h.fill(GesichtB.kinnSchatten, with: .color(bartFarbe.farbe.opacity(0.14)))
+        }
+        neueAugen(g, .b)
+        for braue in [GesichtB.braueL, GesichtB.braueR] { linie(g, braue, haar.mal(1.2).farbe, 4.4) }
+        linie(g, GesichtB.nase, haut.kontur, 2.4)
+        g.fill(GesichtB.nasenSchatten, with: .color(haut.mal(0.85).farbe.opacity(0.6)))
+        neuerMund(mundKontext, .b)
+        // ponytail: every mustache style draws B's thin mustache, the other beard styles are not ported yet.
+        if bart > 0 { teil(mundKontext, GesichtB.schnurrbart, bartFarbe, 1.2) }
+    }
+
+    /// Wave 1: open eyes only. Task 6 replaces this with the full expression set.
+    func neueAugen(_ g: GraphicsContext, _ neu: NeuesGesicht) {
+        for auge in neu.augen { neuesAugeOffen(g, neu, auge.c, auge.sd) }
+    }
+
+    func neuesAugeOffen(_ g: GraphicsContext, _ neu: NeuesGesicht, _ c: CGPoint, _ sd: CGFloat) {
+        let links = sd < 0
+        let b = blick
+        switch neu {
+        case .b:
+            let weiss = links ? GesichtB.augeWeissL : GesichtB.augeWeissR
+            g.fill(weiss, with: .color(.white))
+            var h = g
+            h.clip(to: weiss)
+            let ic = P(c.x + sd * 0.5 + b.x * 2.5, 101.8 + b.y * 2)
+            h.fill(kreis(ic, 5.4), with: .color(iris.farbe))
+            h.fill(kreis(ic, 2.6), with: .color(Pal.tinte.mal(0.7).farbe))
+            h.fill(kreis(P(ic.x - 1.6 - sd * 0.5, ic.y - 2), 1.6), with: .color(.white))
+            h.fill(links ? GesichtB.lidL : GesichtB.lidR, with: .color(haut.farbe))
+            linie(g, links ? GesichtB.lidStrichL : GesichtB.lidStrichR, Pal.tinte.farbe, 3)
+            linie(g, links ? GesichtB.lidFalteL : GesichtB.lidFalteR, haut.kontur.opacity(0.5), 1.3)
+        case .an3:
+            let weiss = links ? GesichtAn3.augeWeissL : GesichtAn3.augeWeissR
+            g.fill(weiss, with: .color(.white))
+            var h = g
+            h.clip(to: weiss)
+            let ic = P(c.x + sd * 0.3 + b.x * 2.5, 102.3 + b.y * 2)
+            let hell = iris.mix(FigurFarbe(0xA8D0F4), 0.5)
+            h.fill(oval(ic, 5.2, 6), with: verlaufY(96, 108, [.init(color: iris.mal(0.45).farbe, location: 0), .init(color: hell.farbe, location: 1)]))
+            h.fill(kreis(P(ic.x, ic.y + 0.3), 2.4), with: .color(FigurFarbe(0x140C0A).farbe))
+            h.fill(kreis(P(ic.x - 1.8, ic.y - 2.1), 1.7), with: .color(.white))
+            h.fill(kreis(P(ic.x + 1.9, ic.y + 2.1), 0.8), with: .color(.white.opacity(0.85)))
+            linie(g, links ? GesichtAn3.lidStrichL : GesichtAn3.lidStrichR, Pal.tinte.farbe, 3)
+            linie(g, links ? GesichtAn3.fluegelL : GesichtAn3.fluegelR, Pal.tinte.farbe, 1.5)
+        }
+    }
+
+    /// Wave 1: resting lips only. Task 7 replaces this with the full mouth set.
+    func neuerMund(_ g: GraphicsContext, _ neu: NeuesGesicht) {
+        switch neu {
+        case .b: lippenB(g)
+        case .an3: lippenAn3(g)
+        }
+    }
+
+    var lippeB: FigurFarbe { haut.mix(FigurFarbe(0xE07A8A), 0.38) }
+    var lippeAn3: FigurFarbe { haut.mix(Pal.rose, 0.4).mal(0.9) }
+
+    func lippenB(_ g: GraphicsContext) {
+        let l = lippeB
+        flaeche(g, GesichtB.lippeOben, .color(l.mal(0.9).farbe), rand: l.mal(0.6).farbe, breite: 1.6)
+        flaeche(g, GesichtB.lippeUnten, .color(l.farbe), rand: l.mal(0.6).farbe, breite: 1.6)
+    }
+
+    func lippenAn3(_ g: GraphicsContext) {
+        let l = lippeAn3
+        g.fill(GesichtAn3.lippeOben, with: .color(l.mal(0.88).farbe))
+        g.fill(GesichtAn3.lippeUnten, with: .color(l.farbe))
+        linie(g, GesichtAn3.lippenLinie, l.mal(0.62).farbe, 0.9)
+        g.fill(GesichtAn3.lippenGlanz, with: .color(.white.opacity(0.45)))
+    }
+
+    func neueHaareHinten(_ g: GraphicsContext, _ neu: NeuesGesicht) {
+        switch neu {
+        case .b: teil(g, GesichtB.haarHinten, haar)
+        case .an3: flaeche(g, GesichtAn3.haarHinten, .color(haar.mal(0.7).farbe), rand: haar.mal(0.55).farbe, breite: 3)
+        }
+    }
+
+    func neueHaareVorn(_ g: GraphicsContext, _ neu: NeuesGesicht) {
+        switch neu {
+        case .b:
+            teil(g, GesichtB.haarVorn, haar)
+            let ton = haar.mix(Pal.weiss, 0.16).farbe.opacity(0.9)
+            for locke in GesichtB.lockenGlanz { linie(g, locke, ton, 2.2) }
+        case .an3:
+            neueHaareVornAn3(g)
+        }
+    }
+
+    func neuesGesichtAn3(_ g: GraphicsContext, _ mundKontext: GraphicsContext) {
+        var h = g
+        h.clip(to: GesichtAn3.gesicht)
+        let rot = FigurFarbe(0xF07C86).farbe
+        for (wange, c) in [(GesichtAn3.wangeL, P(73, 119)), (GesichtAn3.wangeR, P(127, 119))] {
+            h.fill(wange, with: verlaufRund(c, 11, [.init(color: rot.opacity(0.24), location: 0), .init(color: rot.opacity(0), location: 1)]))
+        }
+        neueAugen(g, .an3)
+        for braue in [GesichtAn3.braueL, GesichtAn3.braueR] { g.fill(braue, with: .color(haar.mal(1.05).farbe)) }
+        linie(g, GesichtAn3.nase, haut.kontur, 1.8)
+        neuerMund(mundKontext, .an3)
+    }
+
+    /// Annika 3's hair in front: a thin strand, both curtains from the centre parting (the right one
+    /// tucked behind the ear), strand lines on the left and soft highlights.
+    func neueHaareVornAn3(_ g: GraphicsContext) {
+        let rand = haar.mal(0.55).farbe
+        flaeche(g, GesichtAn3.straehne, .color(haar.farbe), rand: rand, breite: 3)
+        let verlauf = verlaufY(30, 236, [
+            .init(color: haar.mix(FigurFarbe(0x6A4632), 0.45).farbe, location: 0),
+            .init(color: haar.farbe, location: 0.35),
+            .init(color: haar.mal(0.85).farbe, location: 1),
+        ])
+        flaeche(g, GesichtAn3.haarVornL, verlauf, rand: rand, breite: 3)
+        flaeche(g, GesichtAn3.haarVornR, verlauf, rand: rand, breite: 3)
+        for l in GesichtAn3.haarLinien { linie(g, l, rand.opacity(0.7), 1.2) }
+        let glanz = haar.mix(FigurFarbe(0xC9A080), 0.45).farbe.opacity(0.55)
+        for l in GesichtAn3.haarGlanz { linie(g, l, glanz, 2.2) }
     }
 }
