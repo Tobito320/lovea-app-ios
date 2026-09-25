@@ -34,7 +34,8 @@ enum TagesformLogik {
         } else if schlaf <= trinken && schlaf <= gehen {
             satz = "Schlaf bremst dich. Heute früher ins Bett bringt morgen am meisten."
         } else if trinken <= gehen {
-            satz = "Wasser bremst dich: noch \(wasserZiel - wasser) Gläser bis zum Ziel."
+            let fehlt = wasserZiel - wasser
+            satz = "Wasser bremst dich: noch \(fehlt) \(fehlt == 1 ? "Glas" : "Gläser") bis zum Ziel."
         } else {
             satz = "Schritte bremsen dich: noch \(deZahl(schritteZiel - (schritte ?? 0))) bis zum Ziel."
         }
@@ -76,6 +77,7 @@ enum SchlafLeistung {
         return punkte
     }
 
+    // ponytail: wiederholt das private `HinweisLogik.bestwerte`, dort internal machen und hier löschen.
     private static func e1rm(_ s: GymSession) -> [String: Double] {
         var werte: [String: Double] = [:]
         for lauf in s.laeufe where lauf.fertig && lauf.uebung != PlanUebung.eigen {
@@ -499,6 +501,7 @@ struct HeuteView: View {
             // gut, mittel, schlecht, wieder gut
             let naechste = stufe == 3 ? "mittel" : stufe == 2 ? "schlecht" : "gut"
             Raum.shared.senden("stimmung.setzen", StimmungSetzen(datum: heute, stimmung: naechste))
+            FigurenModell.shared.zustandSenden(.init(haupt: FigurZustand(rawValue: naechste) ?? .ruhig))
         }
     }
 
@@ -580,7 +583,7 @@ struct HeuteView: View {
             gymTage: Set(sessions.map { Datum.text($0.start) }).union(gymAbgehakt),
             stimmungTage: schlaf.keys.filter { health.stimmung(ich, $0) != nil }.count,
             koffeinTage: schlaf.keys.filter { (koffein[$0] ?? 0) > 0 }.count,
-            prio: prio.sorted { $0.rang < $1.rang }.map(\.gruppe), heute: heute)
+            prio: prio.sorted { $0.rang < $1.rang }.map { $0.gruppe }, heute: heute)
     }
 
     // MARK: Punkte
