@@ -25,7 +25,7 @@ enum RaumOrt: String, CaseIterable, Sendable {
     }
 }
 
-/// Brief S: lets Einstellungen present the editor with `.sheet(item:)`, like `OrteListeView`.
+/// Brief S: lets Einstellungen present the editor with `.sheet(item:)`.
 extension RaumOrt: Identifiable {
     var id: Self { self }
 }

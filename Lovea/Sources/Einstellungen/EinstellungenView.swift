@@ -6,7 +6,6 @@ struct EinstellungenView: View {
     @ObservedObject var session: PersonSession
     @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
-    @State private var zeigtOrte = false
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
 
@@ -39,8 +38,7 @@ struct EinstellungenView: View {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
             }
             Section("Wir") {
-                Button("Orte") { zeigtOrte = true }
-                    .foregroundStyle(.primary)
+                NavigationLink("Orte") { OrteListeView() }
                 NavigationLink("Jahrestag") { JahrestagEditor() }
                 NavigationLink("Wochenplan") { WochenplanEditor() }
             }
@@ -72,7 +70,6 @@ struct EinstellungenView: View {
         }
         .navigationTitle("Einstellungen")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $zeigtOrte) { OrteListeView() }
         .sheet(item: $szenenOrt) { ort in NavigationStack { ZimmerEditor(person: person, ort: ort) } }
     }
 }

@@ -11,8 +11,8 @@ private struct PersonAuswahl: Identifiable {
 
 /// Z-41: full-screen map, opened from the partner profile. The figures stand on the pitched
 /// realistic map; the controls float on glass - close and weather top left, the partner's town top
-/// right, the quiet 3D/satellite switch bottom left, "Unsere Orte" bottom centre, framing and the
-/// places list bottom right. Dark look at night and over satellite.
+/// right, the quiet 3D/satellite switch bottom left, framing bottom right. Dark look at night and
+/// over satellite.
 struct KarteTab: View {
     var schliessen: (() -> Void)?
     @Environment(\.scenePhase) private var scenePhase
@@ -27,10 +27,7 @@ struct KarteTab: View {
     /// Z-41.1: the first tap on a figure zooms to it and sets this; the second tap opens the info card.
     @State private var fokus: Person?
     @State private var info: PersonAuswahl?
-    @State private var orteListe = false
     @State private var gebietPartner: String?
-    @State private var unsereOrteAn = false
-    @State private var gemeinsamAusgewaehlt: GemeinsamerOrt?
 
     private let standort = Standort.shared
     private let orte = OrteModell.shared
@@ -41,8 +38,6 @@ struct KarteTab: View {
     var body: some View {
         inhalt
             .sheet(item: $info) { InfoKarteView(person: $0.person) }
-            .sheet(isPresented: $orteListe) { OrteListeView() }
-            .sheet(item: $gemeinsamAusgewaehlt) { GemeinsamerOrtDetail(ort: $0) }
             .task {
                 Standort.shared.start()
                 FigurenModell.shared.zustandSenden(.init(haupt: .karte))
@@ -90,7 +85,6 @@ struct KarteTab: View {
                     }
                 }
             }
-            unsereOrtePins
         }
         .mapStyle(kartenStil)
         .mapControls { MapCompass() }
@@ -105,19 +99,6 @@ struct KarteTab: View {
         satellit
             ? .hybrid(elevation: .realistic, pointsOfInterest: .all)
             : .standard(elevation: .realistic, pointsOfInterest: .all)
-    }
-
-    // Separate `MapContentBuilder`, so `karte`'s body stays small (common.md).
-    @MapContentBuilder
-    private var unsereOrtePins: some MapContent {
-        if unsereOrteAn {
-            ForEach(KarteLogik.unsereOrte(orte.gemeinsameOrte)) { ort in
-                Annotation("Unser Ort", coordinate: CLLocationCoordinate2D(latitude: ort.lat, longitude: ort.lon), anchor: .bottom) {
-                    OrtBlase(ort: ort) { gemeinsamAusgewaehlt = ort }
-                }
-                .annotationTitles(.hidden)
-            }
-        }
     }
 
     // MARK: - Camera
@@ -235,12 +216,7 @@ struct KarteTab: View {
             HStack(alignment: .bottom, spacing: 8) {
                 stilSchalter
                 Spacer(minLength: 0)
-                unsereOrteChip
-                Spacer(minLength: 0)
-                VStack(spacing: 10) {
-                    rundKnopf("scope", "Beide zeigen") { beideZeigen() }
-                    rundKnopf("list.bullet", "Orte verwalten") { orteListe = true }
-                }
+                rundKnopf("scope", "Beide zeigen") { beideZeigen() }
             }
         }
         .padding(.horizontal)
@@ -307,30 +283,6 @@ struct KarteTab: View {
         }
         .buttonStyle(.plain)
         .kartenGlas(satellit, in: .capsule, interaktiv: true)
-    }
-
-    /// Z-41.2: the old bare heart, now labeled - it shows our shared places as photo bubbles.
-    private var unsereOrteChip: some View {
-        Button {
-            Haptik.auswahl()
-            unsereOrteAn.toggle()
-        } label: {
-            Label {
-                Text("Unsere Orte")
-            } icon: {
-                Image(systemName: unsereOrteAn ? "heart.fill" : "heart")
-                    .foregroundStyle(unsereOrteAn ? Color.loveaRose : Color.primary)
-            }
-            .font(.subheadline.weight(.semibold))
-            .lineLimit(1)
-            .padding(.horizontal, 14)
-            .frame(minHeight: 44)
-            .contentShape(.capsule)
-        }
-        .buttonStyle(.plain)
-        .kartenGlas(satellit, in: .capsule, interaktiv: true)
-        .accessibilityValue(unsereOrteAn ? "an" : "aus")
-        .accessibilityAddTraits(.isToggle)
     }
 
     private func rundKnopf(_ symbol: String, _ label: String, aktion: @escaping () -> Void) -> some View {
@@ -483,6 +435,18 @@ enum OrteKategorien {
         case "fahrschule": "Fahrschule"
         case "supermarkt": "Supermarkt"
         default: "Sonstiges"
+        }
+    }
+
+    static func symbol(_ k: String) -> String {
+        switch k {
+        case "zuhause": "house.fill"
+        case "gym": "figure.strengthtraining.traditional"
+        case "schule": "graduationcap.fill"
+        case "arbeit": "briefcase.fill"
+        case "fahrschule": "car.fill"
+        case "supermarkt": "cart.fill"
+        default: "mappin"
         }
     }
 }

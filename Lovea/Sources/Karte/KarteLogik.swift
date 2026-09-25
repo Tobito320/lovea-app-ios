@@ -1,8 +1,7 @@
-import CoreLocation
 import Foundation
 
-/// Z-41: pure map logic - what the figure wears and does, the label texts, the night look and the
-/// "Unsere Orte" dedupe. Everything here is tested in `KarteLogikTests`.
+/// Z-41: pure map logic - what the figure wears and does, the label texts and the night look.
+/// Everything here is tested in `KarteLogikTests`.
 enum KarteLogik {
     // MARK: - Figure
 
@@ -82,23 +81,5 @@ enum KarteLogik {
     static func istNacht(_ datum: Date) -> Bool {
         let stunde = Calendar.berlin.component(.hour, from: datum)
         return stunde >= 20 || stunde < 7
-    }
-
-    // MARK: - Unsere Orte
-
-    /// One bubble per place: joint stays within 150 m collapse into the newest one. The server emits
-    /// one `ort.gemeinsam` per 30-minute streak, so "home" would otherwise stack up day after day.
-    // ponytail: newest visit per place only (its detail shows that day); collect all days per place
-    // if older days should stay reachable from the map.
-    static func unsereOrte(_ alle: [GemeinsamerOrt]) -> [GemeinsamerOrt] {
-        var ergebnis: [GemeinsamerOrt] = []
-        for ort in alle.sorted(by: { $0.datum > $1.datum }) where !ergebnis.contains(where: { nah($0, ort) }) {
-            ergebnis.append(ort)
-        }
-        return ergebnis
-    }
-
-    private static func nah(_ a: GemeinsamerOrt, _ b: GemeinsamerOrt) -> Bool {
-        CLLocation(latitude: a.lat, longitude: a.lon).distance(from: CLLocation(latitude: b.lat, longitude: b.lon)) < 150
     }
 }
