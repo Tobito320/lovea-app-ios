@@ -30,6 +30,9 @@ struct Umarmung: Equatable, Sendable {
     var augenZu: Bool = false
     var hand: PaarHand? = nil
     var ebene: PaarEbene = .alles
+    /// The partner's hand rests over this figure's far shoulder (their arm runs behind this back).
+    /// Drawn by this figure, because it lies outside the partner's own drawing area; value = their skin.
+    var haltHand: FigurFarbe? = nil
 }
 
 /// Bitmoji-style figure. `groesse` is the height. Half figure (chat, stickers): width is 5/6 of the height.
@@ -1432,6 +1435,8 @@ private struct Zeichner {
     }
 
     var mundForm: Mund {
+        // Teil 2: the pair kiss purses the lips without the blown-kiss hand of `.kuss`.
+        if let um = umarmung, um.augenZu, um.kuss > 0.5 { return .kuss }
         if gaehnt { return .offen(7 + 7 * CGFloat(sin(Double(zyklus(29)) / 0.08 * Double.pi))) }
         return switch z {
         case .gut, .lacht, .pokal, .anstossen, .imChat: .grinsen
@@ -3562,6 +3567,7 @@ extension Zeichner {
         }
         if umarmung?.ebene == .nurArm {
             paarArm(u, m)
+            gehalteneHand(u, m)
             return
         }
 
@@ -3606,7 +3612,10 @@ extension Zeichner {
         default: if umarmung == nil { effekte(k) }
         }
         abzeichenVorn(k)
-        if umarmung?.ebene == .alles, umarmung?.hand != nil { paarArm(u, m) }
+        if umarmung?.ebene == .alles {
+            paarArm(u, m)
+            gehalteneHand(u, m)
+        }
     }
 
     /// Brief K: blends the arms from the current pose into the hug. The right figure's inner arm
@@ -5995,8 +6004,8 @@ private extension Zeichner {
         let d = m.arm * (neu == .b ? vForm.dick : 1)
         switch hand {
         case .schulter:
-            // The arm runs behind her back: only the fingers show over the far shoulder.
-            fingerUeberSchulter(u, ziel, 9 * d / 0.8)
+            // The arm runs behind her back; the partner draws the fingers (`haltHand`).
+            break
         case .taille:
             flacheHand(u, ziel, 9 * d / 0.8, winkel: -10 * Double(um.seite))
         case .brust, .hals:
@@ -6008,8 +6017,15 @@ private extension Zeichner {
         }
     }
 
+    /// The partner's fingers over this figure's far shoulder (`Umarmung.haltHand`).
+    func gehalteneHand(_ u: GraphicsContext, _ m: Masse) {
+        guard let um = umarmung, let farbe = um.haltHand else { return }
+        let schulter = P(100 - um.seite * (m.s - 8), m.schulterY + 4)
+        fingerUeberSchulter(u, schulter, 9 * m.arm / 0.8, farbe: farbe)
+    }
+
     /// A hand laid over a shoulder from behind: back of the hand and four fingertips.
-    func fingerUeberSchulter(_ g: GraphicsContext, _ c: CGPoint, _ r: CGFloat) {
+    func fingerUeberSchulter(_ g: GraphicsContext, _ c: CGPoint, _ r: CGFloat, farbe: FigurFarbe) {
         let form = Path { p in
             p.move(to: P(c.x - r * 1.1, c.y - r * 0.6))
             p.addQuadCurve(to: P(c.x + r * 1.1, c.y - r * 0.6), control: P(c.x, c.y - r * 1.3))
@@ -6017,9 +6033,9 @@ private extension Zeichner {
             p.addQuadCurve(to: P(c.x - r, c.y + r * 0.5), control: P(c.x, c.y + r * 0.9))
             p.closeSubpath()
         }
-        teil(g, form, haut, 2.6)
+        teil(g, form, farbe, 2.6)
         for dx in [CGFloat(-0.62), -0.2, 0.22, 0.62] {
-            linie(g, strich(P(c.x + dx * r, c.y + r * 0.1), P(c.x + dx * r, c.y + r * 0.75)), haut.kontur.opacity(0.6), 1.2)
+            linie(g, strich(P(c.x + dx * r, c.y + r * 0.1), P(c.x + dx * r, c.y + r * 0.75)), farbe.kontur.opacity(0.6), 1.2)
         }
     }
 

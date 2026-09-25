@@ -11,6 +11,19 @@ struct NaehePose: Equatable, Sendable {
     var zustandAhmed: FigurZustand
 
     func umarmung(_ p: Person) -> Umarmung { p == .ahmed ? ahmed : annika }
+
+    /// The pose for `p`, with the partner's hand over `p`'s far shoulder when the partner's pair hand
+    /// is `.schulter` (that hand lies outside the partner's drawing area, so `p` draws it).
+    func umarmung(_ p: Person, partnerHaut: FigurFarbe) -> Umarmung {
+        var um = umarmung(p)
+        if umarmung(p == .ahmed ? .annika : .ahmed).hand == .schulter { um.haltHand = partnerHaut }
+        return um
+    }
+
+    /// Skin colour of a look, for `umarmung(_:partnerHaut:)`.
+    static func haut(_ a: FigurAussehen) -> FigurFarbe {
+        FigurAussehen.hautToene[min(max(a.haut, 0), FigurAussehen.hautToene.count - 1)].farbe
+    }
     func zustand(_ p: Person) -> FigurZustand { p == .ahmed ? zustandAhmed : zustandAnnika }
     /// Sideways shift of each figure from its place in the profile's HStack (centres 106 pt apart).
     func versatz(_ p: Person) -> CGFloat { (106 - abstand) / 2 * (p == .ahmed ? -1 : 1) }
@@ -26,15 +39,15 @@ struct NaehePose: Equatable, Sendable {
         case 1:
             return NaehePose(abstand: 91, vorn: .ahmed,
                             annika: um(1, 91, neigung: 3, drehung: 11), ahmed: um(-1, 91, neigung: -3, drehung: -11),
-                            zustandAnnika: .gut, zustandAhmed: .gut)
+                            zustandAnnika: .ruhig, zustandAhmed: .ruhig)
         case 2:
             return NaehePose(abstand: 70, vorn: .annika,
                             annika: um(1, 70, neigung: 6), ahmed: um(-1, 70, neigung: -4, hand: .schulter),
-                            zustandAnnika: .gut, zustandAhmed: .ruhig)
+                            zustandAnnika: .ruhig, zustandAhmed: .ruhig)
         case 3:
             return NaehePose(abstand: 64, vorn: .ahmed,
                             annika: um(1, 64, neigung: 14, hand: .brust), ahmed: um(-1, 64, neigung: -5, hand: .schulter),
-                            zustandAnnika: .gut, zustandAhmed: .ruhig)
+                            zustandAnnika: .ruhig, zustandAhmed: .ruhig)
         default:
             return NaehePose(abstand: 106, vorn: vorn, annika: um(1, 106), ahmed: um(-1, 106),
                             zustandAnnika: .ruhig, zustandAhmed: .ruhig)
@@ -44,7 +57,7 @@ struct NaehePose: Equatable, Sendable {
     static let kuss = NaehePose(abstand: 34, vorn: .ahmed,
                                annika: um(1, 34, neigung: 14, drehung: 16, augenZu: true, kuss: 1, hand: .hals),
                                ahmed: um(-1, 34, neigung: -10, drehung: -22, augenZu: true, kuss: 1, hand: .taille),
-                               zustandAnnika: .kuss, zustandAhmed: .kuss)
+                               zustandAnnika: .ruhig, zustandAhmed: .ruhig)
 
     /// Blend two poses: numbers glide, hands, eyes, front figure and moods switch at the middle.
     static func mix(_ a: NaehePose, _ b: NaehePose, _ t: CGFloat) -> NaehePose {

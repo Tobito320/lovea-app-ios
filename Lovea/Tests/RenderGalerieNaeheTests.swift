@@ -5,7 +5,8 @@ import XCTest
 @MainActor
 final class RenderGalerieNaeheTests: XCTestCase {
     private func figur(_ p: Person, _ pose: NaehePose, _ ebene: PaarEbene) -> some View {
-        var um = pose.umarmung(p)
+        let partner = FigurAussehen.standard(for: p == .ahmed ? .annika : .ahmed)
+        var um = pose.umarmung(p, partnerHaut: NaehePose.haut(partner))
         um.ebene = ebene
         return FigurView(.standard(for: p), zustand: pose.zustand(p), groesse: 340, animiert: false, ganzkoerper: true, umarmung: um)
             .frame(width: 170, height: 340)
