@@ -5855,7 +5855,9 @@ private extension Zeichner {
         for arm in neueArme() where !istVorn(arm.a) {
             switch aermel {
             case .kurz: form = form.union(aermelStoff(arm.s, arm.a, arm.d))
-            case .lang, .keine: form = form.union(armForm(arm.s, arm.a, arm.d))
+            case .lang: form = form.union(armForm(arm.s, arm.a, arm.d))
+            // Bare arms join the torso only when the torso is skin too; a sleeveless top keeps its own shape.
+            case .keine: if oberkoerperFrei { form = form.union(armForm(arm.s, arm.a, arm.d)) }
             }
         }
         return form
@@ -5886,6 +5888,9 @@ private extension Zeichner {
             } else if aermel == .lang {
                 g.fill(armForm(arm.s, arm.a, arm.d), with: .color(aermelFarbe.farbe))
                 aermelDetails(g, arm.s, arm.a, arm.d)
+            } else if aermel == .keine && !oberkoerperFrei {
+                // Sleeveless top (Annika's gym top): bare arm in front of the top's edge.
+                teil(g, armForm(arm.s, arm.a, arm.d), haut, 3 * min(arm.d, 1))
             }
         }
     }
