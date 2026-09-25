@@ -275,6 +275,29 @@ fileprivate enum NeuesGesicht: Equatable {
     /// Where the old mouth shapes (built around (100|131)) land on this face.
     var mundMitte: CGFloat { self == .b ? 139.5 : 132.5 }
 }
+
+/// Brief F3: Ahmed's V-taper upper body for face B (`design/figur-redesign/koerper.py`, V4 and V5).
+/// `sch` = left shoulder joint x, `taille` = left waist x at the bottom edge (y 240), `armB` = half
+/// sleeve width at the hem, `delt` = roundness of the shoulder cap, `dick` = arm thickness.
+fileprivate struct VForm {
+    let sch, taille, armB, delt, dick: CGFloat
+
+    static let alltag = VForm(sch: 50, taille: 68, armB: 13.5, delt: 1, dick: 1)
+    static let gym = VForm(sch: 46, taille: 70, armB: 15, delt: 1.2, dick: 1.1)
+
+    var schulterL: CGPoint { P(sch, 182) }
+    var ellbogenL: CGPoint { P(sch - 18, 228) }
+    var handL: CGPoint { P(sch - 16, 262) }
+
+    /// Left armpit: the inner end of the sleeve hem, moved up and in (koerper.py `shirt_v`).
+    var achselL: CGPoint {
+        let s = schulterL, e = ellbogenL
+        let dx = e.x - s.x, dy = e.y - s.y
+        let l = (dx * dx + dy * dy).squareRoot()
+        return P(s.x + dx * 0.5 + dy / l * armB + 8, s.y + dy * 0.5 - dx / l * armB - 9)
+    }
+}
+
 fileprivate enum Aermel { case lang, kurz, keine }
 fileprivate enum Haltung { case stehen, gehen, rennen, rad, fahren, sitzen }
 
@@ -555,11 +578,15 @@ private struct Zeichner {
     var km: FigurAussehen.Koerper { FigurAussehen.koerper[koerperform] }
 
     /// Brief F2: Annika's new face sits on 0.88 narrower shoulders (`AN_RUMPF` in bau.py). Half figure only.
-    var breite: CGFloat { km.breite * (neu == .an3 ? 0.88 : 1) }
+    /// Brief F3: face B uses the absolute V path directly, so no extra body-type scaling applies.
+    var breite: CGFloat { neu == .b ? 1 : km.breite * (neu == .an3 ? 0.88 : 1) }
 
     /// Brief F2: the new face draws its own hair only with the person's everyday style; every other
     /// style is drawn narrowed onto the new head (`haarKontext`).
     var eigeneFrisur: Bool { (neu == .b && (78...82).contains(frisur)) || (neu == .an3 && frisur == 56) }
+
+    /// Brief F3: V5 in the gym, V4 everywhere else (Ahmed, 25.09.).
+    var vForm: VForm { z == .gym ? .gym : .alltag }
 
     static let sonnenbrillen: Set<Int> = [3, 8, 9, 10, 11]
 
@@ -646,25 +673,48 @@ private struct Zeichner {
     }
 
     func rumpf(_ ausschnitt: Int) -> Path {
-        Path { p in
+        if neu == .b { return vRumpf(ausschnitt) }
+        return Path { p in
             p.move(to: P(30, 240))
             p.addLine(to: P(33, 200))
             p.addCurve(to: P(72, 164), control1: P(35, 178), control2: P(50, 166))
-            switch ausschnitt {
-            case 1:
-                p.addLine(to: P(86, 161))
-                p.addLine(to: P(100, 186))
-                p.addLine(to: P(114, 161))
-            case 2:
-                p.addLine(to: P(80, 162))
-                p.addQuadCurve(to: P(120, 162), control: P(100, 192))
-            default:
-                p.addLine(to: P(86, 161))
-                p.addQuadCurve(to: P(114, 161), control: P(100, 178))
-            }
+            halsAusschnitt(&p, ausschnitt)
             p.addLine(to: P(128, 164))
             p.addCurve(to: P(167, 200), control1: P(150, 166), control2: P(165, 178))
             p.addLine(to: P(170, 240))
+            p.closeSubpath()
+        }
+    }
+
+    /// Neckline from (72|164) to (114|161) or (120|162): round, V or wide.
+    func halsAusschnitt(_ p: inout Path, _ ausschnitt: Int) {
+        switch ausschnitt {
+        case 1:
+            p.addLine(to: P(86, 161))
+            p.addLine(to: P(100, 186))
+            p.addLine(to: P(114, 161))
+        case 2:
+            p.addLine(to: P(80, 162))
+            p.addQuadCurve(to: P(120, 162), control: P(100, 192))
+        default:
+            p.addLine(to: P(86, 161))
+            p.addQuadCurve(to: P(114, 161), control: P(100, 178))
+        }
+    }
+
+    /// Brief F3: V-taper torso without sleeves: waist, armpit, round shoulder, neckline, mirrored.
+    /// The shoulder caps come from `armV`.
+    func vRumpf(_ ausschnitt: Int) -> Path {
+        let v = vForm
+        let a = v.achselL
+        return Path { p in
+            p.move(to: P(v.taille, 240))
+            p.addLine(to: a)
+            p.addCurve(to: P(72, 164), control1: P(a.x - 3, a.y - 15), control2: P(a.x - 1, 168))
+            halsAusschnitt(&p, ausschnitt)
+            p.addLine(to: P(128, 164))
+            p.addCurve(to: P(200 - a.x, a.y), control1: P(200 - (a.x - 1), 168), control2: P(200 - (a.x - 3), a.y - 15))
+            p.addLine(to: P(200 - v.taille, 240))
             p.closeSubpath()
         }
     }
