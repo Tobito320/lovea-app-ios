@@ -106,7 +106,7 @@ final class FigurenTests: XCTestCase {
 
     func testOptionenAnzahl() {
         typealias A = FigurAussehen
-        XCTAssertEqual(A.gesichtsformen.count, 7)
+        XCTAssertEqual(A.gesichtsformen.count, 9)
         XCTAssertGreaterThanOrEqual(A.hautToene.count, 12)
         XCTAssertGreaterThanOrEqual(A.augenformen.count, 8)
         XCTAssertGreaterThanOrEqual(A.augenfarben.count, 8)
@@ -137,7 +137,7 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Mushroom Taper")
         XCTAssertEqual(FigurAussehen.haarfarben[ahmed.haarfarbe].name, "Fast schwarz")
         XCTAssertEqual(FigurAussehen.hautToene[ahmed.haut].name, "Hell warm")
-        XCTAssertEqual(FigurAussehen.gesichtsformen[ahmed.gesichtsform], "Kantig lang")
+        XCTAssertEqual(FigurAussehen.gesichtsformen[ahmed.gesichtsform], "Schmal markant") // Brief F2: option B
         XCTAssertEqual(FigurAussehen.augenbrauen[ahmed.brauen], "Dick gerade")
         XCTAssertEqual(FigurAussehen.baerte[ahmed.bart], "Oberlippenbart hellbraun")
         XCTAssertEqual(FigurAussehen.kinnbaerte[ahmed.kinnbart], "Leichter Kinnbart")

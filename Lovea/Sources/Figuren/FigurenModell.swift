@@ -130,7 +130,7 @@ final class FigurenModell {
     /// Falls back to the Bitmoji look (Z-38.4) for whoever never sent an own `figur.aussehen`.
     /// Stamps `person` so the drawing knows whose figure it is (gym look).
     func aussehen(_ p: Person) -> FigurAussehen {
-        var a = aussehen[p] ?? .standard(for: p)
+        var a = FigurAussehen.mitNeuemGesicht(aussehen[p] ?? .standard(for: p), p)
         a.person = p
         return a
     }

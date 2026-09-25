@@ -31,6 +31,8 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     var kinnbart = 0
     // v6 (fix round 4): several small moles on the cheeks, white AirPods in both ears.
     var muttermale = false, airpods = false
+    // v7 (Brief F2): nil = saved before the redesigned faces, so `mitNeuemGesicht` switches it once.
+    var gesichtV2: Bool?
     /// Whose figure this is. Not synced (missing from `CodingKeys`): `standard(for:)` and
     /// `FigurenModell.aussehen(_:)` set it, so the drawing can dress Ahmed and Annika differently
     /// in the gym. `nil` = unknown, draws the chosen outfit.
@@ -46,6 +48,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         case kette, ring, armband, uhrAlltag
         case kinnbart
         case muttermale, airpods
+        case gesichtV2
     }
 
     /// Z-38.4: the looks of Ahmed's and Annika's Bitmojis (`docs/figuren-vorlage/`). Whoever never sent
@@ -61,7 +64,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             // heavy relaxed lids, long nose, full light-pink lips, medium-brown mustache, a trace of
             // chin stubble, AirPods, black tee, grey wide jeans, white low tops.
             a.haut = 12          // Hell warm
-            a.gesichtsform = 6   // Kantig lang
+            a.gesichtsform = 7   // Schmal markant (Brief F2, option B)
             a.frisur = 79        // Mushroom Taper (Locken-Wolke mit Pony)
             a.haarfarbe = 16     // Fast schwarz
             a.augen = 0          // Dunkelbraun
@@ -79,6 +82,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             a.schuhe = 15        // Weiße Low-Top-Sneaker
         case .annika:
             a.haut = 1
+            a.gesichtsform = 8   // Schmal weich (Brief F2, option 3)
             a.frisur = 56        // Lang glatt Mittelscheitel
             a.haarfarbe = 1      // Dunkelbraun
             a.augen = 4          // Blau
@@ -96,7 +100,20 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             a.schuhe = 1         // High-Top
             a.schuhfarbe = 3     // Schwarz
         }
+        a.gesichtV2 = true
         return a
+    }
+
+    /// Brief F2 (25.09.): Ahmed and Annika saved their looks before the redesigned faces. A look without
+    /// `gesichtV2` gets the new face once, together with the hairstyle that belongs to it (Ahmed chose
+    /// the heads including the hair); the editor saves the flag, so a later choice sticks.
+    static func mitNeuemGesicht(_ a: FigurAussehen, _ p: Person) -> FigurAussehen {
+        guard a.gesichtV2 == nil else { return a }
+        var b = a
+        b.gesichtsform = p == .ahmed ? 7 : 8
+        b.frisur = p == .ahmed ? 79 : 56
+        b.gesichtV2 = true
+        return b
     }
 
     static let hautToene: [(name: String, farbe: FigurFarbe)] = [
@@ -109,7 +126,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         ("Hell warm", FigurFarbe(0xE8C2A6)), // Fix round 4 (Ahmed)
     ]
 
-    static let gesichtsformen = ["Oval", "Rund", "Herz", "Eckig", "Länglich", "Diamant", "Kantig lang"]
+    static let gesichtsformen = ["Oval", "Rund", "Herz", "Eckig", "Länglich", "Diamant", "Kantig lang", "Schmal markant", "Schmal weich"]
 
     static let frisuren = [
         "Kurz", "Raspel", "Seitenscheitel", "Locken", "Tolle", "Glatze",
@@ -365,6 +382,7 @@ extension FigurAussehen {
         try lies(.kinnbart, &kinnbart)
         try lies(.muttermale, &muttermale)
         try lies(.airpods, &airpods)
+        try lies(.gesichtV2, &gesichtV2)
     }
 }
 
