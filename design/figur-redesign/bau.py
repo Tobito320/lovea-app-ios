@@ -358,7 +358,10 @@ def an_hinters_ohr(sd, px=100.0):
     """Seite, die hinters Ohr gesteckt ist: Pony vorne, dann hinter dem Ohr nach hinten (Rest liegt im hair-back)."""
     x = lambda dx: f(100 + sd * dx)
     p = lambda dx: f(px + sd * dx)
+    # 25.09. (Ahmed: "Annika hat ihre Haare zu 99% nach vorne"): hinter dem Ohr, dann vor der Schulter lang nach unten.
     return (f"M{p(0.8)},30 C{x(28)},27 {x(46)},38 {x(48)},60 C{x(50)},86 {x(51)},122 {x(53)},152 "
+            f"C{x(56)},176 {x(60)},200 {x(62)},230 L{x(57)},222 L{x(53)},234 L{x(48)},222 L{x(43)},231 "
+            f"C{x(43)},206 {x(45)},180 {x(47)},158 "
             f"L{x(50)},154 C{x(49)},134 {x(49)},120 {x(48)},108 "
             f"C{x(46)},90 {x(28)},{f(70+AN_ANSATZ*0.6)} {p(14)},{f(63+AN_ANSATZ)} C{p(8)},{f(60.5+AN_ANSATZ)} {p(3)},{f(59.5+AN_ANSATZ)} {p(0.8)},{f(59.5+AN_ANSATZ)} Z")
 

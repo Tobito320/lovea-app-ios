@@ -387,7 +387,8 @@ private struct Zeichner {
         schmuckId = a.schmuck
         poseId = a.pose
         tierId = a.tier
-        frisur = grenze(a.frisur, A.frisuren.count)
+        // 25.09. (Ahmed): Annika bindet im Gym die Haare zum hohen Zopf (index 23 "Hoher Zopf").
+        frisur = z == .gym && a.person == .annika ? 23 : grenze(a.frisur, A.frisuren.count)
         let eigeneBrille = grenze(a.brille, A.brillen.count)
         // Sun extra: own sunglasses stay, anything else becomes plain sunglasses.
         brille = extras.contains(.sonnenbrille) && !Self.sonnenbrillen.contains(eigeneBrille) ? 3 : eigeneBrille
@@ -2545,6 +2546,14 @@ private struct Zeichner {
                 // Herz-Hänger
                 linie(g, strich(P(x, 110), P(x, 118)), Pal.gold.farbe, 1.6)
                 teil(g, herzPfad(P(x, 122), 4.2), Pal.rose, 1.2)
+            case 8:
+                // 25.09.: white flower like on Annika's photo, hanging at the lobe.
+                let mitte = P(x, 121)
+                for i in 0..<5 {
+                    let w = Double(i) / 5 * 2 * Double.pi - Double.pi / 2
+                    teil(g, kreis(P(mitte.x + CGFloat(cos(w)) * 3.4, mitte.y + CGFloat(sin(w)) * 3.4), 2.7), FigurFarbe(0xFBF7EE), 1)
+                }
+                g.fill(kreis(mitte, 1.6), with: .color(Pal.gelb.farbe))
             default:
                 teil(g, kreis(P(x, 112), 4.2), FigurFarbe(0xF4EEE6), 1.5)
                 g.fill(kreis(P(x - 1.3, 110.7), 1.3), with: .color(.white))

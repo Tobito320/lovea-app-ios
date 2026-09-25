@@ -90,7 +90,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             a.wimpern = true
             a.mund = 3           // Volle Lippen
             a.rouge = true
-            a.ohrringe = 1
+            a.ohrringe = 8       // Blume (25.09., nach ihrem Foto)
             a.koerperform = 5    // Sportlich
             a.oberteil = 4       // Top
             a.oberteilfarbe = 12 // Hellrosa
@@ -199,8 +199,8 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     /// editor; a figure already wearing one keeps rendering it.
     static let halbglatze: Set<Int> = [13, 14, 30, 35, 37, 38, 40, 41, 43, 48, 49, 50, 52, 54]
     static let baerteGeschlecht: [FigurGeschlecht] = [.n, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m]
-    static let ohrringArten = ["Keine", "Stecker", "Kreolen", "Hänger", "Perlen", "Diamant-Stecker", "Große Kreolen", "Herz-Hänger"]
-    static let ohrringeGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .w]
+    static let ohrringArten = ["Keine", "Stecker", "Kreolen", "Hänger", "Perlen", "Diamant-Stecker", "Große Kreolen", "Herz-Hänger", "Blume"]
+    static let ohrringeGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .w, .w]
     static let kopfbedeckungen = ["Keine", "Cap", "Cap rückwärts", "Beanie", "Fischerhut", "Stirnband", "Haarreif", "Carhartt Beanie", "Trucker Cap"]
 
     static let oberteile = [
