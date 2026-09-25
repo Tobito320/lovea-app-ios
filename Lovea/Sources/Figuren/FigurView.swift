@@ -5992,7 +5992,7 @@ private extension Zeichner {
         switch um.hand {
         case .schulter: return P(partner + um.seite * 26, m.schulterY + 6)
         case .brust: return P(partner - um.seite * 12, m.schulterY + 34)
-        case .hals: return P(partner - um.seite * 8, m.schulterY - 14)
+        case .hals: return P(partner - um.seite * 12, m.schulterY - 4)
         case .taille: return P(partner - um.seite * 2, m.hueftY - 22)
         case nil: return P(100, m.schulterY)
         }

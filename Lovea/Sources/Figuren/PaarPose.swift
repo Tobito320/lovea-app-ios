@@ -54,9 +54,10 @@ struct NaehePose: Equatable, Sendable {
         }
     }
 
-    static let kuss = NaehePose(abstand: 34, vorn: .ahmed,
-                               annika: um(1, 34, neigung: 14, drehung: 16, augenZu: true, kuss: 1, hand: .hals),
-                               ahmed: um(-1, 34, neigung: -10, drehung: -22, augenZu: true, kuss: 1, hand: .taille),
+    // 25.09. board check: 34 pt hid her face behind his head; 46 lets the lips meet at his cheek edge.
+    static let kuss = NaehePose(abstand: 46, vorn: .ahmed,
+                               annika: um(1, 46, neigung: 14, drehung: 18, augenZu: true, kuss: 1, hand: .hals),
+                               ahmed: um(-1, 46, neigung: -10, drehung: -24, augenZu: true, kuss: 1, hand: .taille),
                                zustandAnnika: .ruhig, zustandAhmed: .ruhig)
 
     /// Blend two poses: numbers glide, hands, eyes, front figure and moods switch at the middle.
