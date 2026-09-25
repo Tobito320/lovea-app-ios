@@ -175,7 +175,10 @@ struct NachrichtFokusEbene: View {
         let text = nachricht.text ?? ""
         var liste = [MenuePunkt(id: "antworten", titel: "Antworten", symbol: "arrowshape.turn.up.left") { tun(.antworten) }]
         // Fix round 3: straight from the bubble, no need to open the photo first.
-        if nachricht.snap == nil, fokusMedien.contains(where: { $0.typ == "foto" || $0.typ == "video" }) {
+        // Q3: a snap saved in the chat (`snapGespeichert`) is a real photo/video now (`alsFoto` in
+        // `SnapZeile`), so it gets the same Photos option as any other medium; an unsaved/unopened/
+        // expired snap stays without it (still ephemeral).
+        if (nachricht.snap == nil || nachricht.snapGespeichert), fokusMedien.contains(where: { $0.typ == "foto" || $0.typ == "video" }) {
             liste.append(MenuePunkt(id: "aufnahmen", titel: "In Aufnahmen speichern", symbol: "square.and.arrow.down") { tun(.aufnahmenSpeichern) })
         }
         if !text.isEmpty {
