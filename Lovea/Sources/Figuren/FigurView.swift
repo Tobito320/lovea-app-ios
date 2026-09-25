@@ -5403,10 +5403,7 @@ private extension Zeichner {
         var h = g
         h.clip(to: GesichtB.gesicht)
         if eigeneFrisur { h.fill(GesichtB.ponySchatten, with: .color(haut.mal(0.88).farbe.opacity(0.6))) }
-        for (wange, c) in [(GesichtB.wangeL, P(62, 122)), (GesichtB.wangeR, P(138, 122))] {
-            let s = haut.mal(0.84).farbe
-            h.fill(wange, with: verlaufRund(c, 14, [.init(color: s.opacity(0.7), location: 0), .init(color: s.opacity(0), location: 1)]))
-        }
+        // 25.09. (Ahmed): no cheek shadows, they read as fat cheeks.
         wangenRot(h, .b)
         let bartFarbe = FigurFarbe(0x5C4030)
         if kinnbart > 0 {
@@ -5586,13 +5583,18 @@ private extension Zeichner {
         linie(g, GesichtAn3.lachWinkelR, rand, 1)
     }
 
-    var lippeB: FigurFarbe { haut.mix(FigurFarbe(0xE07A8A), 0.38) }
+    /// 25.09. (Ahmed): thin, calm lips close under the mustache, not full pink ones.
+    var lippeB: FigurFarbe { haut.mix(FigurFarbe(0xE07A8A), 0.26) }
     var lippeAn3: FigurFarbe { haut.mix(Pal.rose, 0.4).mal(0.9) }
 
     func lippenB(_ g: GraphicsContext) {
         let l = lippeB
-        flaeche(g, GesichtB.lippeOben, .color(l.mal(0.9).farbe), rand: l.mal(0.6).farbe, breite: 1.6)
-        flaeche(g, GesichtB.lippeUnten, .color(l.farbe), rand: l.mal(0.6).farbe, breite: 1.6)
+        var k = g
+        k.translateBy(x: 100, y: 137.5)
+        k.scaleBy(x: 0.84, y: 0.58)
+        k.translateBy(x: -100, y: -139)
+        flaeche(k, GesichtB.lippeOben, .color(l.mal(0.9).farbe), rand: l.mal(0.7).farbe, breite: 1.4)
+        flaeche(k, GesichtB.lippeUnten, .color(l.farbe), rand: l.mal(0.7).farbe, breite: 1.4)
     }
 
     func lippenAn3(_ g: GraphicsContext) {
@@ -5676,14 +5678,15 @@ private extension Zeichner {
 
     /// Brief F2: no permanent rouge circles any more (they made the old faces look puffy). Blush only
     /// for love, embarrassment, kiss, heart and closeness, or when the look sets `rouge`.
-    var erroetet: Bool { [.verliebt, .verlegen, .kuss, .herz, .naehe].contains(z) || rouge }
+    /// 25.09. (Ahmed): "keine fetten Cheeks", for Annika too, so the look's `rouge` no longer blushes the new faces.
+    var erroetet: Bool { [.verliebt, .verlegen, .kuss, .herz, .naehe].contains(z) || (rouge && neu == nil) }
 
     func wangenRot(_ h: GraphicsContext, _ neu: NeuesGesicht) {
-        guard neu == .an3 || erroetet else { return }
+        guard erroetet else { return }
         let rot = FigurFarbe(0xF07C86).farbe
         let stark = [FigurZustand.verliebt, .verlegen].contains(z)
         let (mitten, r): ([CGPoint], CGFloat) = neu == .b ? ([P(66, 121), P(134, 121)], 13) : ([P(73, 119), P(127, 119)], 11)
-        let deckung: Double = neu == .an3 ? (stark ? 0.5 : (erroetet ? 0.34 : 0.24)) : (stark ? 0.45 : 0.3)
+        let deckung: Double = stark ? 0.45 : 0.3
         for c in mitten {
             h.fill(oval(c, r, r * 0.65), with: verlaufRund(c, r, [.init(color: rot.opacity(deckung), location: 0), .init(color: rot.opacity(0), location: 1)]))
         }
@@ -5708,9 +5711,7 @@ private extension Zeichner {
             }
         }
         if muttermal { k.fill(kreis(P(122, 127), 1.9), with: .color(Pal.tinte.farbe.opacity(0.8))) }
-        if muttermale {
-            for c in [P(66, 118), P(130, 124)] { k.fill(kreis(c, 1.1), with: .color(haut.mal(0.5).farbe.opacity(0.75))) }
-        }
+        // 25.09. (Ahmed): the new faces draw no cheek moles (`muttermale`).
     }
 
     /// Brief F2: the old accessories were built for the 116 px wide head. On a new face they move with
