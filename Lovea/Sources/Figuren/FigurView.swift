@@ -3534,8 +3534,14 @@ extension Zeichner {
         if extras.contains(.muetzeSchal) { schal(u, P(100, m.schulterY - 4), s: 0.66) }
         kopfGruppe(k)
         vorArmen(g, u, m, oben)
-        arm(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm)
-        arm(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm)
+        if neu == .b {
+            let torso = rumpfPfad(m, unten: m.hueftY + 4)
+            armV(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm * vForm.dick, rumpf: torso)
+            armV(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm * vForm.dick, rumpf: torso)
+        } else {
+            arm(u, P(100 - m.s + 6, m.schulterY + 10), arme.l, m.arm)
+            arm(u, P(100 + m.s - 6, m.schulterY + 10), arme.r, m.arm)
+        }
         if !rechteHandBelegt { handRequisite(u, arme, m) }
         extrasInHand(u, l: arme.l.hand, r: arme.r.hand, dach: dach, groesse: 0.66)
         let hand: CGFloat = 10 * m.arm
@@ -3590,7 +3596,7 @@ extension Zeichner {
         let k = km
         let beinL = beinLaengen[groesseStufe]
         let hueftY = Masse.fussY - beinL
-        return Masse(s: k.s, t: k.t, h: k.h, arm: k.arm, bein: k.bein,
+        return Masse(s: k.s * (neu == .b && z != .gym ? 0.92 : 1), t: k.t, h: k.h, arm: k.arm, bein: k.bein,
                      hueftY: hueftY, schulterY: hueftY - 96, knieY: hueftY + beinL * 0.5)
     }
 
