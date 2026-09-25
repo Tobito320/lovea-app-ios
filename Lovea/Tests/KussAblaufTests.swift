@@ -43,13 +43,12 @@ final class KussAblaufTests: XCTestCase {
         }
     }
 
-    func testAhmedKommtVonRechtsUndStehtVorn() {
-        let kuss = KussAblauf.voll
-        XCTAssertLessThan(kuss.versatz(.ahmed), 0)
-        XCTAssertGreaterThanOrEqual(kuss.versatz(.annika), 0)
-        XCTAssertEqual(kuss.umarmung(.ahmed).seite, -1)
-        XCTAssertEqual(kuss.umarmung(.annika).seite, 1)
-        XCTAssertEqual(kuss.zustand(.ahmed), .kuss)
-        XCTAssertEqual(KussAblauf.stand(0.3).zustand(.ahmed), .laeuft)
+    /// Teil 2: a kiss glides the pair into Stufe 3 (head to head); Ahmed is in front there.
+    func testKussFuehrtZuKopfAnKopf() {
+        let voll = NaehePose.mix(.stufe(0, vorn: .annika), .stufe(3, vorn: .annika), KussAblauf.voll.arme)
+        XCTAssertEqual(voll.vorn, .ahmed)
+        XCTAssertEqual(voll.annika.hand, .brust)
+        XCTAssertLessThan(voll.abstand, 106)
+        XCTAssertTrue(KussAblauf.stand(0.3).geht)
     }
 }
