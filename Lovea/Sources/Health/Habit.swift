@@ -54,9 +54,27 @@ struct Habit: Codable, Equatable, Sendable, Identifiable {
     /// `ziel.wasser` (per day) — the numbers here are only the defaults.
     static let gym = Habit(id: "gym", name: "Gym", symbol: "dumbbell.fill", farbe: HabitFarbe.mint.rawValue, zaehlen: false, tagesziel: nil, haeufigkeit: .proWoche(3), fuer: "beide")
     static let wasser = Habit(id: "wasser", name: "Wasser", symbol: "drop.fill", farbe: HabitFarbe.himmel.rawValue, zaehlen: true, tagesziel: 8, haeufigkeit: .taeglich, fuer: "beide")
-    static let eingebaut = [gym, wasser]
+    /// Nur für "Heute" (Tagesformen): nie in der Habit-Liste (`HabitFaltung.sichtbar`).
+    static let koffein = Habit(id: "koffein", name: "Koffein", symbol: "cup.and.saucer.fill", farbe: HabitFarbe.amber.rawValue, zaehlen: true, tagesziel: nil, haeufigkeit: .taeglich, fuer: "beide")
+    static let protein = Habit(id: "protein", name: "Protein", symbol: "fork.knife", farbe: HabitFarbe.koralle.rawValue, zaehlen: false, tagesziel: nil, haeufigkeit: .taeglich, fuer: "beide")
+    /// Wert = Zehntel-Kilo (784 = 78,4 kg), siehe `GewichtText`.
+    static let gewicht = Habit(id: "gewicht", name: "Gewicht", symbol: "scalemass.fill", farbe: HabitFarbe.grau.rawValue, zaehlen: true, tagesziel: nil, haeufigkeit: .taeglich, fuer: "beide")
+    static let eingebaut = [gym, wasser, koffein, protein, gewicht]
+    static let nurHeute: Set<String> = [koffein.id, protein.id, gewicht.id]
 
     var istEingebaut: Bool { Habit.eingebaut.contains { $0.id == id } }
+}
+
+enum GewichtText {
+    /// 784 -> "78,4 kg".
+    static func anzeige(_ zehntel: Int) -> String { "\(zehntel / 10),\(zehntel % 10) kg" }
+
+    /// "78,4" oder "78.4" -> 784. Leer, Text, negativ, unendlich -> nil.
+    static func zehntel(_ eingabe: String) -> Int? {
+        let text = eingabe.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
+        guard let kilo = Double(text), kilo.isFinite, kilo > 0, kilo < 1000 else { return nil }
+        return Int((kilo * 10).rounded())
+    }
 }
 
 /// The eight HabitLink tints. Colors live with the views (`HealthStil.swift`).
