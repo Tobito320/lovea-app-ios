@@ -25,13 +25,17 @@ struct SchlafCard: View {
 
     private func schlafPerson(_ person: Person, heute: String) -> some View {
         let nacht = health.schlafNacht(person, heute)
+        let zeiten = health.schlafZeitenAm(person, heute)
         return VStack(alignment: .leading, spacing: 2) {
             Text(person.name).font(.caption.weight(.semibold)).foregroundStyle(Color.person(person))
-            Text(nacht.map { dauerText($0.minuten) } ?? "–")
+            Text(nacht.map { dauerText($0.minuten) } ?? zeiten.map { EnergieLogik.dauer(EnergieLogik.imBett($0)) } ?? "–")
                 .font(.system(.title2, design: .rounded).weight(.bold))
                 .monospacedDigit()
             if let nacht {
                 Text("\(uhrzeit(nacht.von))–\(uhrzeit(nacht.bis))").font(.caption).foregroundStyle(.secondary).monospacedDigit()
+            }
+            if let zeiten {
+                Text("Im Bett \(uhrzeit(zeiten.bett))–\(uhrzeit(zeiten.auf))").font(.caption2).foregroundStyle(.secondary).monospacedDigit()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

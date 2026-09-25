@@ -26,6 +26,12 @@ final class HealthModell {
     /// `seq`/`id`, so the same winner per day).
     private var schritteExtras: [Person: [String: TagesEintrag<SchritteExtra>]] = [:]
     private var habitFaltung = HabitFaltung()
+
+    /// Teil 5: hand-entered bed and wake-up times per person and wake-up day (newest op wins).
+    private(set) var schlafZeiten: [Person: [String: SchlafZeitenD]] = [:]
+    private var schlafZeitenZeit: [Person: [String: Date]] = [:]
+    /// Teil 5: every Wasser `habit.setzen` by op id, for the times of the glasses.
+    private var wasserOps: [Person: [String: [String: (zeit: Date, wert: Int)]]] = [:]
     /// When each person's steps last came in (live ops only, not the backfill) — "vor 3 Std.".
     private(set) var schritteZuletzt: [Person: Date] = [:]
 
@@ -61,8 +67,10 @@ final class HealthModell {
         Raum.shared.beobachten(["schlaf.setzen"]) { [weak self] op in self?.schlafOpAnwenden(op) }
         Raum.shared.beobachten(["habit.setzen", "habit.anlegen", "habit.aendern", "habit.ausblenden"]) { [weak self] op in
             self?.habitFaltung.anwenden(op)
+            self?.wasserOpMerken(op)
         }
         Raum.shared.beobachten(["einstellung.setzen"]) { [weak self] op in self?.zielOpAnwenden(op) }
+        Raum.shared.beobachten(["schlaf.zeiten"]) { [weak self] op in self?.schlafZeitenAnwenden(op) }
     }
 
     private var heute: String { Datum.text(Date()) }
@@ -77,6 +85,14 @@ final class HealthModell {
     /// All days with steps (backfilled ones too — display only).
     func schritteWerte(_ person: Person) -> [String: Int] { (schritte[person] ?? [:]).mapValues(\.wert) }
     func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date)? { schlaf[person]?[tag] }
+    func schlafZeitenAm(_ person: Person, _ tag: String) -> SchlafZeitenD? { schlafZeiten[person]?[tag] }
+    /// Health's asleep minutes, else the hand-entered time in bed.
+    func schlafMinuten(_ person: Person, _ tag: String) -> Int? {
+        schlafNacht(person, tag)?.minuten ?? schlafZeitenAm(person, tag).map(EnergieLogik.imBett)
+    }
+    func wasserZeiten(_ person: Person, _ tag: String) -> [Date] {
+        EnergieLogik.wasserZeiten(Array((wasserOps[person]?[tag] ?? [:]).values))
+    }
 
     /// Every habit incl. Gym and Wasser; `ausgeblendet` = hidden by this device's person.
     var habits: [String: Habit] { habitFaltung.habits(ich: Raum.shared.ich ?? .ahmed) }
@@ -132,6 +148,7 @@ final class HealthModell {
 
     func setzeGym(datum: String, an: Bool) { setzeHabit(Habit.gym.id, datum: datum, wert: an ? 1 : 0) }
     func setzeWasser(datum: String, anzahl: Int) { setzeHabit(Habit.wasser.id, datum: datum, wert: anzahl) }
+    func schlafEintragen(_ d: SchlafZeitenD) { Raum.shared.senden("schlaf.zeiten", d) }
 
     /// `schluessel` ist eines von `ziel.schritte`, `ziel.gym`, `ziel.wasser`, `ziel.gemeinsamWoche`.
     func setzeZiel(_ schluessel: String, _ wert: Int) {
@@ -155,6 +172,17 @@ final class HealthModell {
         guard angewendeteOps.insert(op.id).inserted, let d = op.daten(SchlafD.self) else { return }
         guard let von = Self.isoDatum(d.von), let bis = Self.isoDatum(d.bis) else { return }
         schlaf[op.von, default: [:]][d.datum] = (minuten: d.minuten, von: von, bis: bis)
+    }
+
+    private func schlafZeitenAnwenden(_ op: Op) {
+        guard let d = op.daten(SchlafZeitenD.self), (schlafZeitenZeit[op.von]?[d.datum] ?? .distantPast) <= op.zeit else { return }
+        schlafZeiten[op.von, default: [:]][d.datum] = d
+        schlafZeitenZeit[op.von, default: [:]][d.datum] = op.zeit
+    }
+
+    private func wasserOpMerken(_ op: Op) {
+        guard op.art == "habit.setzen", let d = op.daten(HabitSetzenD.self), d.art == Habit.wasser.id else { return }
+        wasserOps[op.von, default: [:]][d.datum, default: [:]][op.id] = (zeit: op.zeit, wert: d.wert)
     }
 
     private func zielOpAnwenden(_ op: Op) {

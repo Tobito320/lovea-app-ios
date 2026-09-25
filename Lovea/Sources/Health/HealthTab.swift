@@ -19,6 +19,7 @@ struct HealthTab: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     kopf
+                    EnergieKarte()
                     TrainingKarte(oeffnen: oeffnen)
                     SchritteKarte(zoom: zoom, oeffnen: oeffnen)
                     SchritteWocheKarte()
