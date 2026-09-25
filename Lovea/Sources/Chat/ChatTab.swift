@@ -192,8 +192,9 @@ private struct Unterhaltung: View {
 
     var body: some View {
         NachrichtenListe(modell: modell, ich: ich, zielID: $zielID, aktionen: aktionen)
-            // Bars, not insets: iOS 26 blurs messages scrolling under the glass header and input
-            // (scroll edge effect), so bubbles and reactions no longer shine through the header.
+            // Ahmed 25.09.: no blurred band above the header or behind the input, the backdrop and
+            // the bubbles stay visible up to the glass controls.
+            .scrollEdgeEffectHidden(true, for: [.top, .bottom])
             .safeAreaBar(edge: .top, spacing: 0) { oben }
             .safeAreaBar(edge: .bottom, spacing: 0) { unten }
             .background { ChatHintergrundAnsicht(ich: ich) }
@@ -317,6 +318,8 @@ private struct Unterhaltung: View {
             PartnerFigurLeiste(partner: ich.partner)
             ChatEingabeleiste(ich: ich, antwortAuf: $antwortAuf)
         }
+        // Transparent, but bubbles under the input area don't take taps (the header area does).
+        .contentShape(Rectangle())
         .tastaturWischen()
     }
 
