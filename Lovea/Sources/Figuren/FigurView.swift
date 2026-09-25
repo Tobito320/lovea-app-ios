@@ -5335,7 +5335,7 @@ private extension Zeichner {
             h.fill(GesichtB.kinnSchatten, with: .color(bartFarbe.farbe.opacity(0.14)))
         }
         neueAugen(g, .b)
-        for braue in [GesichtB.braueL, GesichtB.braueR] { linie(g, braue, haar.mal(1.2).farbe, 4.4) }
+        neueBrauen(g, .b)
         linie(g, GesichtB.nase, haut.kontur, 2.4)
         g.fill(GesichtB.nasenSchatten, with: .color(haut.mal(0.85).farbe.opacity(0.6)))
         neuerMund(mundKontext, .b)
@@ -5343,9 +5343,93 @@ private extension Zeichner {
         if bart > 0 { teil(mundKontext, GesichtB.schnurrbart, bartFarbe, 1.2) }
     }
 
-    /// Wave 1: open eyes only. Task 6 replaces this with the full expression set.
     func neueAugen(_ g: GraphicsContext, _ neu: NeuesGesicht) {
-        for auge in neu.augen { neuesAugeOffen(g, neu, auge.c, auge.sd) }
+        let form = augenAusdruck
+        var offen = true
+        if case .zu = form { offen = false }
+        if case .froh = form { offen = false }
+        if (offen && abz.contains("herzaugen")) || z == .verliebt {
+            let s: CGFloat = 8.5 + 1.2 * w(8)
+            for auge in neu.augen { teil(g, herzPfad(auge.c, s), Pal.rose, 2.2) }
+            return
+        }
+        let blinzelt = !statisch && zyklus(4.2, 1.3) < 0.035
+        for auge in neu.augen {
+            if z == .zwinkert && auge.sd > 0 { neuesAugeZu(g, neu, auge.c, auge.sd, froh: true); continue }
+            if blinzelt && offen { neuesAugeZu(g, neu, auge.c, auge.sd, froh: false); continue }
+            neuesAuge(g, neu, auge.c, auge.sd, form)
+        }
+    }
+
+    func neuesAuge(_ g: GraphicsContext, _ neu: NeuesGesicht, _ c: CGPoint, _ sd: CGFloat, _ form: Auge) {
+        switch form {
+        case .zu:
+            neuesAugeZu(g, neu, c, sd, froh: false)
+        case .froh:
+            neuesAugeOffen(g, neu, c, sd)
+            neuesLachLid(g, neu, sd)
+        case .offen(let gross):
+            if gross {
+                var k = g
+                k.translateBy(x: c.x, y: c.y)
+                k.scaleBy(x: 1.12, y: 1.12)
+                k.translateBy(x: -c.x, y: -c.y)
+                neuesAugeOffen(k, neu, c, sd)
+            } else {
+                neuesAugeOffen(g, neu, c, sd)
+            }
+        case .muede:
+            neuesAugeOffen(g, neu, c, sd)
+            neuesLid(g, neu, c, sd, innen: 1, aussen: 1)
+        case .schock:
+            let weiss = oval(c, 9, 11)
+            g.fill(weiss, with: .color(.white))
+            linie(g, weiss, Pal.tinte.farbe, 2.4)
+            g.fill(kreis(P(c.x, c.y + 1), 2.3), with: .color(Pal.tinte.farbe))
+        case .boese:
+            neuesAugeOffen(g, neu, c, sd)
+            neuesLid(g, neu, c, sd, innen: 3, aussen: -7)
+        }
+    }
+
+    /// Closed eye: a lash line along the lower edge of the almond. `froh` bends it up (^^).
+    func neuesAugeZu(_ g: GraphicsContext, _ neu: NeuesGesicht, _ c: CGPoint, _ sd: CGFloat, froh: Bool) {
+        let innen = P(c.x - sd * 10, c.y + 1)
+        let aussen = P(c.x + sd * 11, c.y - 1)
+        linie(g, bogen(innen, aussen, P(c.x, c.y + (froh ? -7 : 6))), Pal.tinte.farbe, 3)
+        if neu == .an3 { linie(g, strich(aussen, P(aussen.x + sd * 3.6, aussen.y - 2.8)), Pal.tinte.farbe, 1.6) }
+    }
+
+    /// Smile: the lower lid pushes up over the open eye (group `eyes-smile` in bau.py).
+    func neuesLachLid(_ g: GraphicsContext, _ neu: NeuesGesicht, _ sd: CGFloat) {
+        let links = sd < 0
+        let weiss = neu == .b ? (links ? GesichtB.augeWeissL : GesichtB.augeWeissR) : (links ? GesichtAn3.augeWeissL : GesichtAn3.augeWeissR)
+        let lid = neu == .b ? (links ? GesichtB.lachLidL : GesichtB.lachLidR) : (links ? GesichtAn3.lachLidL : GesichtAn3.lachLidR)
+        let strich = neu == .b ? (links ? GesichtB.lachLidStrichL : GesichtB.lachLidStrichR) : (links ? GesichtAn3.lachLidStrichL : GesichtAn3.lachLidStrichR)
+        var h = g
+        h.clip(to: weiss)
+        h.fill(lid, with: .color(haut.farbe))
+        linie(g, strich, (neu == .b ? haut.kontur : haut.mal(0.66).farbe).opacity(0.55), 1.4)
+    }
+
+    /// Upper lid pulled down: `innen`/`aussen` are the lid edge heights (y offsets from the eye centre)
+    /// at the inner and outer corner. Tired = both at +1 (about 55 % closed), angry = inner corner low.
+    func neuesLid(_ g: GraphicsContext, _ neu: NeuesGesicht, _ c: CGPoint, _ sd: CGFloat, innen: CGFloat, aussen: CGFloat) {
+        let links = sd < 0
+        let weiss = neu == .b ? (links ? GesichtB.augeWeissL : GesichtB.augeWeissR) : (links ? GesichtAn3.augeWeissL : GesichtAn3.augeWeissR)
+        let pi = P(c.x - sd * 13, c.y + innen)
+        let pa = P(c.x + sd * 13, c.y + aussen)
+        let lid = Path { p in
+            p.move(to: P(pi.x, c.y - 16))
+            p.addLine(to: P(pa.x, c.y - 16))
+            p.addLine(to: pa)
+            p.addLine(to: pi)
+            p.closeSubpath()
+        }
+        var h = g
+        h.clip(to: weiss)
+        h.fill(lid, with: .color(haut.farbe))
+        h.stroke(strich(pi, pa), with: .color(Pal.tinte.farbe), style: StrokeStyle(lineWidth: 3, lineCap: .round))
     }
 
     func neuesAugeOffen(_ g: GraphicsContext, _ neu: NeuesGesicht, _ c: CGPoint, _ sd: CGFloat) {
@@ -5431,7 +5515,7 @@ private extension Zeichner {
             h.fill(wange, with: verlaufRund(c, 11, [.init(color: rot.opacity(0.24), location: 0), .init(color: rot.opacity(0), location: 1)]))
         }
         neueAugen(g, .an3)
-        for braue in [GesichtAn3.braueL, GesichtAn3.braueR] { g.fill(braue, with: .color(haar.mal(1.05).farbe)) }
+        neueBrauen(g, .an3)
         linie(g, GesichtAn3.nase, haut.kontur, 1.8)
         neuerMund(mundKontext, .an3)
     }
@@ -5451,5 +5535,30 @@ private extension Zeichner {
         for l in GesichtAn3.haarLinien { linie(g, l, rand.opacity(0.7), 1.2) }
         let glanz = haar.mix(FigurFarbe(0xC9A080), 0.45).farbe.opacity(0.55)
         for l in GesichtAn3.haarGlanz { linie(g, l, glanz, 2.2) }
+    }
+
+    /// Same moves as the old `brauen`: up for looking/surprised, inner end up when sad, down when angry.
+    func neueBrauen(_ g: GraphicsContext, _ neu: NeuesGesicht) {
+        let hoch: CGFloat = (z == .schautBild || z == .schautVideo || z == .anstupsen) ? -5 : 0
+        let traurig: CGFloat = [.schlecht, .akkuLeer, .weint, .verlegen].contains(z) ? -6 : 0
+        let staunen: CGFloat = [.ueberrascht, .schockiert].contains(z) ? -8 : 0
+        let boese: CGFloat = z == .sauer ? 8 : (z == .schmollt ? 4 : 0)
+        for (i, sd) in [CGFloat(-1), 1].enumerated() {
+            let heben: CGFloat = z == .denkt && sd > 0 ? -6 : staunen
+            let aussenX: CGFloat = 100 + sd * 30
+            let aussenY: CGFloat = neu == .b ? 86.5 : 87.2
+            // Tilt around the outer end: positive `kipp` lowers the inner end.
+            let kipp = atan2(Double(traurig + boese * 1.4), 22) * Double(-sd)
+            var k = g
+            k.translateBy(x: 0, y: hoch + heben - boese * 0.4)
+            k.translateBy(x: aussenX, y: aussenY)
+            k.rotate(by: .radians(kipp))
+            k.translateBy(x: -aussenX, y: -aussenY)
+            if neu == .b {
+                linie(k, i == 0 ? GesichtB.braueL : GesichtB.braueR, haar.mal(1.2).farbe, 4.4)
+            } else {
+                k.fill(i == 0 ? GesichtAn3.braueL : GesichtAn3.braueR, with: .color(haar.mal(1.05).farbe))
+            }
+        }
     }
 }
