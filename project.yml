@@ -19,6 +19,8 @@ targets:
     platform: iOS
     sources:
       - Lovea/Sources
+      - path: Lovea/Uebungen
+        type: folder
       - path: LoveaWidgets/Shared
         group: LoveaWidgetsShared
     dependencies:
