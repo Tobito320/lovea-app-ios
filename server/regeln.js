@@ -54,9 +54,15 @@ function nachrichtText(von, d) {
 function gesteRegel(von, d) {
   const name = NAME[von];
   if (d.art === "herz") {
-    return { stufe: "laut", kategorie: "geste", titel: "Lovea", text: `${name} denkt gerade an dich`, ton: "herzschlag.caf" };
+    return { stufe: "laut", kategorie: "geste", titel: "Lovea", text: `${name} denkt gerade an dich`, ton: "herzschlag.wav" };
   }
-  // anstupsen, kuss: nur in der App.
+  // 25.09.: Kuss und Anstupsen kommen auch als Mitteilung, mit eigenem verspielten Ton.
+  if (d.art === "kuss") {
+    return { stufe: "laut", kategorie: "geste", titel: "Lovea", text: `${name} hat dir einen Kuss geschickt`, ton: "kuss_mitteilung.wav" };
+  }
+  if (d.art === "anstupsen") {
+    return { stufe: "laut", kategorie: "geste", titel: "Lovea", text: `${name} hat dich angestupst`, ton: "anstupsen.wav" };
+  }
   return { stufe: "inapp", kategorie: "geste", titel: "Lovea", text: null };
 }
 
@@ -102,5 +108,9 @@ const TABELLE = {
 export function regel(art, von, d, kontext) {
   const f = TABELLE[art];
   if (!f) return null;
-  return f(von, d, kontext);
+  const r = f(von, d, kontext);
+  // 25.09.: laute Mitteilungen hatten nie einen Ton. Orte klingen gleich, alles andere wie eine Nachricht.
+  // Die Dateien liegen in der App (Lovea/Sources/App/Toene), sonst spielt iOS nichts.
+  if (r && r.stufe === "laut" && !r.ton) r.ton = r.kategorie === "orte" ? "ort.wav" : "nachricht.wav";
+  return r;
 }

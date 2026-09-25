@@ -24,14 +24,25 @@ test("nachricht.reaktion: leise", () => {
   assert.equal(regel("nachricht.reaktion", "annika", { id: "1" }).stufe, "leise");
 });
 
-test("geste herz: laut mit Herzschlag-Ton; kuss/anstupsen: nur in der App", () => {
+test("geste herz, kuss, anstupsen: laut mit eigenem Ton", () => {
   const herz = regel("geste", "annika", { art: "herz" });
   assert.equal(herz.stufe, "laut");
   assert.equal(herz.text, "Annika denkt gerade an dich");
-  assert.equal(herz.ton, "herzschlag.caf");
+  assert.equal(herz.ton, "herzschlag.wav");
 
-  assert.equal(regel("geste", "annika", { art: "kuss" }).stufe, "inapp");
-  assert.equal(regel("geste", "annika", { art: "anstupsen" }).stufe, "inapp");
+  const kuss = regel("geste", "annika", { art: "kuss" });
+  assert.equal(kuss.stufe, "laut");
+  assert.equal(kuss.text, "Annika hat dir einen Kuss geschickt");
+  assert.equal(kuss.ton, "kuss_mitteilung.wav");
+  const stups = regel("geste", "ahmed", { art: "anstupsen" });
+  assert.equal(stups.text, "Ahmed hat dich angestupst");
+  assert.equal(stups.ton, "anstupsen.wav");
+});
+
+test("laute Mitteilungen haben immer einen Ton, leise keinen", () => {
+  assert.equal(regel("nachricht.neu", "ahmed", { text: "hi" }).ton, "nachricht.wav");
+  assert.equal(regel("ort.ereignis", "ahmed", { art: "ankunft" }, { ortName: "Gym" }).ton, "ort.wav");
+  assert.equal(regel("nachricht.reaktion", "ahmed", { id: "1" }).ton, undefined);
 });
 
 test("zufällig nah kommt als system-Nachricht mit laut", () => {
