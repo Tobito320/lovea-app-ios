@@ -49,29 +49,27 @@ struct AppRootView: View {
     let person: Person
     @SceneStorage("app.selectedTab") private var selectedTab: AppTab = .drawing
 
+    @State private var letzterHauptTab: AppTab = .drawing
+
+    private var imHealth: Bool { [.heute, .koerper, .training, .verlauf].contains(selectedTab) }
+
     var body: some View {
-        TabView(selection: $selectedTab) {
-            Tab("Home", systemImage: "house", value: AppTab.home) {
-                HomeView(person: person)
-            }
-            Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: AppTab.chat) {
-                ChatTab()
-            }
-            .badge(ChatModell.shared.ungelesen(fuer: person))
-            Tab("Zeichnen", systemImage: "paintbrush.pointed", value: AppTab.drawing) {
-                DrawingView(person: person)
-            }
-            Tab("Health", systemImage: "heart.text.square", value: AppTab.health) {
-                HealthTab()
-            }
-            Tab("Profil", systemImage: "person.crop.circle", value: AppTab.profile) {
-                ProfileView(person: person, session: session, bilanz: spieleBilanz)
+        Group {
+            if imHealth { healthLeiste } else { hauptLeiste }
+        }
+        .animation(.spring(duration: 0.4), value: imHealth)
+        .onAppear {
+            // Alter Wert "health" aus SceneStorage: direkt in den Health-Modus.
+            if selectedTab == .health { selectedTab = .heute } else if !imHealth { letzterHauptTab = selectedTab }
+        }
+        .onChange(of: selectedTab) { _, tab in
+            switch tab {
+            case .health: selectedTab = .heute
+            case .zurueck: selectedTab = letzterHauptTab
+            case .home, .chat, .drawing, .profile: letzterHauptTab = tab
+            case .heute, .koerper, .training, .verlauf: break
             }
         }
-        .tabViewStyle(.sidebarAdaptable)
-        // Spec 2.1: the bar stays, and shrinks while scrolling (the chat is a tab, not a pushed screen).
-        .tabBarMinimizeBehavior(.onScrollDown)
-        .tint(Color.loveaRose)
         .spieleBuehne()
         // Screenshot/recording notices for whatever chat context is on screen (`ScreenshotKontext`).
         .modifier(ChatAufnahmeHinweise())
@@ -96,6 +94,39 @@ private extension AppRootView {
         }
     }
 
+    var hauptLeiste: some View {
+        TabView(selection: $selectedTab) {
+            Tab("Home", systemImage: "house", value: AppTab.home) {
+                HomeView(person: person)
+            }
+            Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: AppTab.chat) {
+                ChatTab()
+            }
+            .badge(ChatModell.shared.ungelesen(fuer: person))
+            Tab("Zeichnen", systemImage: "paintbrush.pointed", value: AppTab.drawing) {
+                DrawingView(person: person)
+            }
+            Tab("Health", systemImage: "heart.text.square", value: AppTab.health) {
+                HealthTab()
+            }
+            Tab("Profil", systemImage: "person.crop.circle", value: AppTab.profile) {
+                ProfileView(person: person, session: session, bilanz: spieleBilanz)
+            }
+        }
+        .leiste()
+    }
+
+    var healthLeiste: some View {
+        TabView(selection: $selectedTab) {
+            Tab("Heute", systemImage: "sun.max", value: AppTab.heute) { HeuteView() }
+            Tab("Körper", systemImage: "figure.stand", value: AppTab.koerper) { KoerperView() }
+            Tab("Training", systemImage: "dumbbell", value: AppTab.training) { HealthTab() }
+            Tab("Verlauf", systemImage: "chart.bar", value: AppTab.verlauf) { VerlaufView() }
+            // ponytail: role .search gibt iOS 26 den abgesetzten runden Knopf, hier als "Zurück" benutzt.
+            Tab("Zurück", systemImage: "chevron.left", value: AppTab.zurueck, role: .search) { Color.clear }
+        }
+        .leiste()
+    }
     var topOverlay: some View {
         VStack(spacing: 0) {
             SprachMiniPlayer()
@@ -104,5 +135,14 @@ private extension AppRootView {
                 selectedTab = .drawing
             })
         }
+    }
+}
+
+private extension View {
+    /// Gemeinsame Optik beider Leisten. Spec 2.1: die Leiste bleibt und schrumpft beim Scrollen.
+    func leiste() -> some View {
+        tabViewStyle(.sidebarAdaptable)
+            .tabBarMinimizeBehavior(.onScrollDown)
+            .tint(Color.loveaRose)
     }
 }
