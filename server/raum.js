@@ -328,6 +328,7 @@ export class Raum {
 
   // --- Push für eintreffende Ops (Z-1.6) ------------------------------------
 
+  #letzterTon = {}; // ponytail: nur im Speicher, nach Hibernation klingt die nächste Push wieder
   async #pushFuerOp(op) {
     let kontext;
     if (op.art === "ort.ereignis") {
@@ -353,7 +354,12 @@ export class Raum {
     const daten = op.art.startsWith("nachricht.") && typeof op.d.id === "string"
       ? { art: op.art, nachrichtId: op.d.id }
       : op.art === "geste" ? { art: op.art } : undefined;
-    const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton: r.ton, daten });
+    // Several pushes in a burst each played their sound over the last one ("glitch"): only the
+    // first within 3 s per recipient rings, the rest arrive silently.
+    const jetzt = Date.now();
+    const ton = jetzt - (this.#letzterTon[empfaenger] ?? 0) < 3000 ? undefined : r.ton;
+    if (ton) this.#letzterTon[empfaenger] = jetzt;
+    const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton, daten });
     if (!res.ok) this.#log("APNs-Antwort", op.art, "->", res.status);
     if (res.expired) geraetLoeschen(this.sql, empfaenger);
   }

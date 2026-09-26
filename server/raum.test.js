@@ -571,3 +571,26 @@ test("karte.offen: verbundener Partner bekommt es nur per WebSocket, keine Push"
   assert.equal(pushes, 0);
   assert.ok(websockets.annika.gesendet.some((m) => m.t === "fl" && m.art === "karte.offen"));
 });
+
+// 27.09. Ton-Glitch: mehrere laute Pushes kurz hintereinander spielten je ihren Ton, die sich
+// überlappten. Innerhalb von 3 s pro Empfänger geht nur die erste mit Ton raus, der Rest still.
+test("laute Pushes an denselben Empfänger binnen 3 s: nur die erste mit Ton", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+  const bodies = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { bodies.push(JSON.parse(init.body)); return new Response(null, { status: 200 }); };
+  try {
+    const zeit = new Date().toISOString();
+    for (const [i, d] of [{ id: "m1", text: "a" }, { id: "m2", text: "b" }].entries()) {
+      await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: `t-${i}`, art: "nachricht.neu", von: "ahmed", zeit, d } }));
+    }
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(bodies.length, 2);
+  assert.ok(bodies[0].aps.sound);
+  assert.equal(bodies[1].aps.sound, undefined);
+  assert.ok(bodies[1].aps.alert);
+});
