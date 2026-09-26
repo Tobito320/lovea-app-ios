@@ -29,6 +29,7 @@ struct ProfileView: View {
 struct PartnerProfilView: View {
     let person: Person
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         NavigationStack {
@@ -40,6 +41,12 @@ struct PartnerProfilView: View {
         .presentationDragIndicator(.visible)
         // Screenshot notice "… von deinem Profil" (the own profile tab registers nothing).
         .screenshotKontext(.partnerProfil)
+        // The profile shows the partner's place and state too: wake their live location like the map does.
+        .task { Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: true)) }
+        .onDisappear { Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false)) }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false)) }
+        }
     }
 
     private var bilanz: [(spiel: String, ahmed: Int, annika: Int)] {
