@@ -415,15 +415,18 @@ struct TagebuchAnsicht: View {
         return Button {
             aktionen.wasserSetzen(voll ? i : i + 1)
         } label: {
-            ZStack {
-                Image(systemName: voll ? "waterbottle.fill" : "waterbottle")
-                    .font(.title2)
-                    .foregroundStyle(voll ? ErnaehrungStil.wasser : Color.primary.opacity(0.25))
+            Group {
                 if naechstes && stand.bearbeitbar {
-                    Image(systemName: "plus").font(.caption.weight(.bold)).foregroundStyle(Color.primary)
+                    Image(systemName: "plus.circle.fill")
+                        .foregroundStyle(ErnaehrungStil.wasser)
+                } else {
+                    Image(systemName: voll ? "waterbottle.fill" : "waterbottle")
+                        .foregroundStyle(voll ? ErnaehrungStil.wasser : Color.primary.opacity(0.25))
                 }
             }
-            .frame(maxWidth: .infinity, minHeight: 44)
+            .font(.title)
+            .imageScale(.large)
+            .frame(maxWidth: .infinity, minHeight: 50)
             .contentShape(.rect)
         }
         .buttonStyle(.plain)
