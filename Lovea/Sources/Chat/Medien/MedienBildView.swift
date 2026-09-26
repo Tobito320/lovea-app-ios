@@ -97,7 +97,9 @@ enum MedienDatei {
         if let vorhanden = Medien.lokal(medium.id) { return vorhanden }
         while !Task.isCancelled {
             if let geholt = try? await Medien.holen(medium.id) { return geholt }
-            try? await Task.sleep(for: .seconds(5))
+            // The message arrives before the upload finishes (404 until then): 5 s here meant the
+            // photo showed up to 5 s after it was actually there.
+            try? await Task.sleep(for: .seconds(1))
         }
         return nil
     }
