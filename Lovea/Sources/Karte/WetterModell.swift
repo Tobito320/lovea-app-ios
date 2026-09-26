@@ -25,7 +25,8 @@ final class WetterModell {
     private init() {
         Task { @MainActor [weak self] in
             while let self {
-                await self.aktualisieren()
+                // Background wakes (location, silent push) must not fetch weather nobody sees.
+                if UIApplication.shared.applicationState == .active { await self.aktualisieren() }
                 try? await Task.sleep(for: .seconds(300)) // pollt Standort öfter, ruft Open-Meteo aber höchstens alle 30 min
             }
         }

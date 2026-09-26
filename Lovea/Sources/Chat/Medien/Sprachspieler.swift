@@ -278,6 +278,8 @@ struct SprachMiniPlayer: View {
                     Button {
                         Haptik.leicht()
                         spieler.parken()
+                        // Closed for good: release the session (audio background mode) and let other apps' music back.
+                        try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
                     } label: {
                         Image(systemName: "xmark")
                             .font(.system(size: 14, weight: .bold))
