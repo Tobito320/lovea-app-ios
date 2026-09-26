@@ -41,6 +41,24 @@ final class LebensmittelBasisTests: XCTestCase {
         }
     }
 
+    /// Echte USDA-Laborwerte (SR Legacy): mindestens 110 der 122 Grund-Lebensmittel haben
+    /// pro100.mikro mit mindestens 10 Werten (Vitamine/Mineralstoffe).
+    func testMindestens110HabenMikronaehrstoffe() {
+        let mitMikro = Self.alle.filter { ($0.pro100.mikro?.count ?? 0) >= 10 }
+        XCTAssertGreaterThanOrEqual(mitMikro.count, 110)
+    }
+
+    /// USDA fdc_id 170457 (Tomatoes, red, ripe, raw): Vitamin C 13,7 mg, Kalium 237 mg pro 100 g.
+    func testTomatenVitaminCUndKalium() {
+        guard let tomaten = Self.alle.first(where: { $0.id == "basis-tomaten" }) else {
+            return XCTFail("basis-tomaten fehlt")
+        }
+        let vitaminC = tomaten.pro100.wert(.vitaminC) ?? -1
+        let kalium = tomaten.pro100.wert(.kalium) ?? -1
+        XCTAssertTrue((10...20).contains(vitaminC), "Vitamin C \(vitaminC) nicht in 10...20")
+        XCTAssertTrue((200...260).contains(kalium), "Kalium \(kalium) nicht in 200...260")
+    }
+
     /// 4·KH + 4·Protein + 9·Fett muss 70–130 % der kcal ergeben, außer Getränke mit kcal < 5
     /// (Wasser, Kaffee, Tee: die Energie steckt nicht in den Makros).
     func testMakroEnergieIstPlausibel() {

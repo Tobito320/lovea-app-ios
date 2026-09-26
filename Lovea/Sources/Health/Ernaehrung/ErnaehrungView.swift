@@ -44,6 +44,8 @@ struct ErnaehrungView: View {
                 .transition(ruhig ? AnyTransition.opacity : AnyTransition.push(from: vorwaerts ? .trailing : .leading))
         }
         .background(Color(uiColor: .systemBackground))
+        // Waagerecht wischen wechselt den Tag, deshalb zurück nur mit dem Pfeil oben links.
+        .background(ZurueckWischenAus().frame(width: 0, height: 0))
         .simultaneousGesture(tagWischen)
         .navigationTitle("Food")
         .navigationBarTitleDisplayMode(.inline)

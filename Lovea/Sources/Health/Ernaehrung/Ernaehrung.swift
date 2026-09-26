@@ -16,20 +16,32 @@ struct Naehrwerte: Codable, Equatable, Sendable {
     var ballaststoffe: Double? = nil
     var salz: Double? = nil
     var gesFett: Double? = nil
+    /// Vitamine, Mineralstoffe und weitere Werte, Schlüssel = `Mikro.rawValue`, Einheit = `Mikro.einheit`.
+    var mikro: [String: Double]? = nil
 
     static let null = Naehrwerte()
+
+    func wert(_ m: Mikro) -> Double? { mikro?[m.rawValue] }
 
     func mal(_ f: Double) -> Naehrwerte {
         Naehrwerte(kcal: kcal * f, protein: protein * f, kohlenhydrate: kohlenhydrate * f, fett: fett * f,
                    zucker: zucker.map { $0 * f }, ballaststoffe: ballaststoffe.map { $0 * f },
-                   salz: salz.map { $0 * f }, gesFett: gesFett.map { $0 * f })
+                   salz: salz.map { $0 * f }, gesFett: gesFett.map { $0 * f },
+                   mikro: mikro.map { $0.mapValues { $0 * f } })
     }
 
     static func + (a: Naehrwerte, b: Naehrwerte) -> Naehrwerte {
         Naehrwerte(kcal: a.kcal + b.kcal, protein: a.protein + b.protein,
                    kohlenhydrate: a.kohlenhydrate + b.kohlenhydrate, fett: a.fett + b.fett,
                    zucker: plus(a.zucker, b.zucker), ballaststoffe: plus(a.ballaststoffe, b.ballaststoffe),
-                   salz: plus(a.salz, b.salz), gesFett: plus(a.gesFett, b.gesFett))
+                   salz: plus(a.salz, b.salz), gesFett: plus(a.gesFett, b.gesFett),
+                   mikro: mikroPlus(a.mikro, b.mikro))
+    }
+
+    private static func mikroPlus(_ a: [String: Double]?, _ b: [String: Double]?) -> [String: Double]? {
+        guard let a else { return b }
+        guard let b else { return a }
+        return a.merging(b, uniquingKeysWith: +)
     }
 
     private static func plus(_ a: Double?, _ b: Double?) -> Double? {
@@ -84,6 +96,19 @@ struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
     func hash(into h: inout Hasher) { h.combine(id) }
 
     var basisEinheit: Einheit { fluessig ? .ml : .g }
+
+    /// Offizielles Vorderseiten-Foto dieses Barcodes bei Open Food Facts, 200 px. nil, wenn die Adresse
+    /// nicht zu genau diesem Barcode gehört: lieber kein Bild als ein falsches.
+    var bildKlein: URL? {
+        guard let bild, ErnaehrungLogik.offBildPasst(bild, barcode: barcode) else { return nil }
+        return URL(string: bild)
+    }
+
+    /// Dasselbe Foto in 400 px (Open Food Facts liefert jede Größe unter derselben Adresse mit anderer Endung).
+    var bildGross: URL? {
+        guard let bild, ErnaehrungLogik.offBildPasst(bild, barcode: barcode) else { return nil }
+        return URL(string: bild.replacingOccurrences(of: ".200.jpg", with: ".400.jpg"))
+    }
     var istRezept: Bool { id.hasPrefix("rezept-") }
     var anzeigeName: String { marke.map { "\(name) · \($0)" } ?? name }
 }
@@ -596,7 +621,8 @@ enum ErnaehrungLogik {
         let werte = Naehrwerte(kcal: kcal, protein: zahlWert(n["proteins_100g"]) ?? 0,
                                kohlenhydrate: zahlWert(n["carbohydrates_100g"]) ?? 0, fett: zahlWert(n["fat_100g"]) ?? 0,
                                zucker: zahlWert(n["sugars_100g"]), ballaststoffe: zahlWert(n["fiber_100g"]),
-                               salz: zahlWert(n["salt_100g"]), gesFett: zahlWert(n["saturated-fat_100g"]))
+                               salz: zahlWert(n["salt_100g"]), gesFett: zahlWert(n["saturated-fat_100g"]),
+                               mikro: Mikro.ausOpenFoodFacts(n))
         let portion = zahlWert(p["serving_quantity"]).flatMap { $0 > 0 ? $0 : nil }
         let packung = zahlWert(p["product_quantity"]).flatMap { $0 > 0 ? $0 : nil }
         let grade = (p["nutriscore_grade"] as? String)?.lowercased()
@@ -619,6 +645,20 @@ enum ErnaehrungLogik {
         guard !t.isEmpty, !einheiten.contains(t.lowercased()) else { return nil }
         return t
     }
+
+    /// Nur `https://images.openfoodfacts.org/images/products/<Barcode in Stücken>/front_...jpg` zählt, und die
+    /// Ziffern im Pfad müssen genau der Barcode sein (Open Food Facts füllt kurze Codes vorne mit Nullen auf).
+    static func offBildPasst(_ adresse: String, barcode: String?) -> Bool {
+        guard let barcode, !barcode.isEmpty, adresse.hasPrefix("https://images.openfoodfacts.org/images/products/") else { return false }
+        let pfad = adresse.dropFirst("https://images.openfoodfacts.org/images/products/".count)
+        let teile = pfad.split(separator: "/")
+        guard let datei = teile.last, datei.hasPrefix("front") else { return false }
+        let ziffern = teile.dropLast().joined()
+        guard !ziffern.isEmpty, ziffern.allSatisfy(\.isNumber) else { return false }
+        return ohneFuehrendeNullen(ziffern) == ohneFuehrendeNullen(barcode)
+    }
+
+    private static func ohneFuehrendeNullen(_ s: String) -> String { String(s.drop { $0 == "0" }) }
 
     /// Zahl aus JSON, die als Zahl oder als Text ("496", "12,5") kommen kann.
     static func zahlWert(_ wert: Any?) -> Double? {

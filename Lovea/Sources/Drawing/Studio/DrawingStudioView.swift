@@ -334,7 +334,8 @@ struct DrawingStudioView: View {
 
 /// Studio: no swipe back, a stroke from the left edge must never leave the drawing. Only the back button
 /// top left leaves. Switches the navigation controller's pop gestures off while the studio is on screen.
-private struct ZurueckWischenAus: UIViewControllerRepresentable {
+/// Also used by the Food diary, where swiping sideways changes the day.
+struct ZurueckWischenAus: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Steuerung { Steuerung() }
     func updateUIViewController(_ controller: Steuerung, context: Context) {}
 

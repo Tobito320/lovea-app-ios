@@ -38,7 +38,8 @@ struct LebensmittelDetailView: View {
         if let letzte = ErnaehrungModell.shared.letzteMenge(ErnaehrungModell.shared.ich, l) {
             return (MengenOption.auswahl(einheit: letzte.einheit, portionName: l.portionName, l: l), letzte.menge)
         }
-        if let erste = ErnaehrungLogik.portionsAuswahl(l).first { return (.portion(erste), 1) }
+        let portionen = ErnaehrungLogik.portionsAuswahl(l)
+        if let erste = portionen.first(where: { $0.name.contains("mittel") }) ?? portionen.first { return (.portion(erste), 1) }
         return (l.fluessig ? .milliliter : .gramm, 100)
     }
 
@@ -117,6 +118,16 @@ struct LebensmittelDetailView: View {
     // MARK: Inhalt
 
     private var kopf: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            if let gross = lebensmittel.bildGross {
+                LebensmittelBild(url: gross, groesse: 220)
+                    .frame(maxWidth: .infinity)
+            }
+            kopfText
+        }
+    }
+
+    private var kopfText: some View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 4) {
                 Text(lebensmittel.name).font(.title.weight(.bold))
@@ -146,10 +157,62 @@ struct LebensmittelDetailView: View {
     }
 
     private var naehrwerteAbschnitt: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Nährwerte").font(.title3.weight(.bold))
-            naehrwerteListe
+        VStack(alignment: .leading, spacing: 24) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Nährwerte").font(.title3.weight(.bold))
+                naehrwerteListe
+            }
+            ForEach(Mikro.Gruppe.allCases, id: \.self) { gruppe in mikroAbschnitt(gruppe) }
+            if naehrwerte.mikro?.isEmpty ?? true {
+                Text("Für dieses Lebensmittel gibt es keine Angaben zu Vitaminen und Mineralstoffen.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+            }
         }
+    }
+
+    /// Nur Werte, die es für dieses Lebensmittel wirklich gibt. Rechts der Anteil an der EU-Tagesreferenzmenge.
+    @ViewBuilder
+    private func mikroAbschnitt(_ gruppe: Mikro.Gruppe) -> some View {
+        let werte: [MikroWert] = Mikro.allCases.filter { $0.gruppe == gruppe }.compactMap { m in
+            naehrwerte.wert(m).map { MikroWert(mikro: m, wert: $0) }
+        }
+        if !werte.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(gruppe.rawValue).font(.title3.weight(.bold))
+                VStack(spacing: 0) {
+                    ForEach(werte) { w in
+                        mikroZeile(w.mikro, w.wert)
+                        if w.id != werte.last?.id { Divider() }
+                    }
+                }
+                if gruppe != .weitere {
+                    Text("% = Anteil am Tagesbedarf (EU-Referenzmenge)").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func mikroZeile(_ m: Mikro, _ wert: Double) -> some View {
+        HStack {
+            Text(m.name)
+            Spacer()
+            Text("\(mikroZahl(wert)) \(m.einheit)").foregroundStyle(.secondary).monospacedDigit()
+            if let referenz = m.referenz, referenz > 0 {
+                Text("\(Int((wert / referenz * 100).rounded())) %")
+                    .font(.subheadline.weight(.semibold))
+                    .monospacedDigit()
+                    .frame(minWidth: 48, alignment: .trailing)
+            }
+        }
+        .padding(.vertical, 10)
+        .accessibilityElement(children: .combine)
+    }
+
+    /// Kleine Mengen mit mehr Nachkommastellen (0,04 mg Vitamin B2), große ohne.
+    private func mikroZahl(_ x: Double) -> String {
+        let stellen = x >= 10 ? 0 : (x >= 1 ? 1 : 2)
+        return x.formatted(.number.precision(.fractionLength(0...stellen)).locale(Locale(identifier: "de_DE")))
     }
 
     private var naehrwerteListe: some View {
@@ -296,4 +359,10 @@ struct EintragBearbeitenBlatt: View {
                 }
         }
     }
+}
+
+private struct MikroWert: Identifiable {
+    let mikro: Mikro
+    let wert: Double
+    var id: Mikro { mikro }
 }

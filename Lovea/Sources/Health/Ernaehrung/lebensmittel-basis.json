@@ -1,2515 +1,6388 @@
 [
-  {
-    "id": "basis-tomaten",
-    "name": "Tomaten, frisch",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 18,
-      "protein": 0.9,
-      "kohlenhydrate": 3.9,
-      "fett": 0.2,
-      "zucker": 2.6,
-      "ballaststoffe": 1.2,
-      "salz": 0.0125
-    },
-    "portionen": [
-      {
-        "name": "ganze, klein",
-        "gramm": 90
-      },
-      {
-        "name": "ganze, mittelgroß",
-        "gramm": 123
-      },
-      {
-        "name": "ganze, groß",
-        "gramm": 180
-      }
-    ]
-  },
-  {
-    "id": "basis-gurke",
-    "name": "Gurke, frisch",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 15,
-      "protein": 0.7,
-      "kohlenhydrate": 3.6,
-      "fett": 0.1,
-      "zucker": 1.7,
-      "ballaststoffe": 0.5,
-      "salz": 0.005
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 300
-      },
-      {
-        "name": "Scheibe",
-        "gramm": 10
-      }
-    ]
-  },
-  {
-    "id": "basis-paprika-rot",
-    "name": "Paprika, rot",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 31,
-      "protein": 1.0,
-      "kohlenhydrate": 6.0,
-      "fett": 0.3,
-      "zucker": 4.2,
-      "ballaststoffe": 2.1,
-      "salz": 0.0075
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 150
-      },
-      {
-        "name": "Ring",
-        "gramm": 15
-      }
-    ]
-  },
-  {
-    "id": "basis-paprika-gruen",
-    "name": "Paprika, grün",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 20,
-      "protein": 0.9,
-      "kohlenhydrate": 4.6,
-      "fett": 0.2,
-      "zucker": 2.4,
-      "ballaststoffe": 1.7,
-      "salz": 0.0075
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-zwiebel",
-    "name": "Zwiebel, frisch",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 40,
-      "protein": 1.1,
-      "kohlenhydrate": 9.3,
-      "fett": 0.1,
-      "zucker": 4.2,
-      "ballaststoffe": 1.7,
-      "salz": 0.01
-    },
-    "portionen": [
-      {
-        "name": "ganze, mittelgroß",
-        "gramm": 110
-      },
-      {
-        "name": "ganze, klein",
-        "gramm": 70
-      }
-    ]
-  },
-  {
-    "id": "basis-knoblauch",
-    "name": "Knoblauch",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 149,
-      "protein": 6.4,
-      "kohlenhydrate": 33.0,
-      "fett": 0.5,
-      "zucker": 1.0,
-      "ballaststoffe": 2.1,
-      "salz": 0.0425
-    },
-    "portionen": [
-      {
-        "name": "Zehe",
-        "gramm": 3
-      }
-    ]
-  },
-  {
-    "id": "basis-karotte",
-    "name": "Karotte, frisch",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 41,
-      "protein": 0.9,
-      "kohlenhydrate": 9.6,
-      "fett": 0.2,
-      "zucker": 4.7,
-      "ballaststoffe": 2.8,
-      "salz": 0.1725
-    },
-    "portionen": [
-      {
-        "name": "ganze, mittelgroß",
-        "gramm": 61
-      },
-      {
-        "name": "Handvoll (Baby)",
-        "gramm": 50
-      }
-    ]
-  },
-  {
-    "id": "basis-brokkoli",
-    "name": "Brokkoli, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 34,
-      "protein": 2.8,
-      "kohlenhydrate": 6.6,
-      "fett": 0.4,
-      "zucker": 1.7,
-      "ballaststoffe": 2.6,
-      "salz": 0.0825
-    },
-    "portionen": [
-      {
-        "name": "Röschen",
-        "gramm": 15
-      },
-      {
-        "name": "Portion",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-blumenkohl",
-    "name": "Blumenkohl, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 25,
-      "protein": 1.9,
-      "kohlenhydrate": 5.0,
-      "fett": 0.3,
-      "zucker": 1.9,
-      "ballaststoffe": 2.0,
-      "salz": 0.075
-    },
-    "portionen": [
-      {
-        "name": "Röschen",
-        "gramm": 15
-      },
-      {
-        "name": "Portion",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-spinat",
-    "name": "Spinat, frisch",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 23,
-      "protein": 2.9,
-      "kohlenhydrate": 3.6,
-      "fett": 0.4,
-      "zucker": 0.4,
-      "ballaststoffe": 2.2,
-      "salz": 0.1975
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 30
-      },
-      {
-        "name": "Portion",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-kopfsalat",
-    "name": "Kopfsalat",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 15,
-      "protein": 1.4,
-      "kohlenhydrate": 2.9,
-      "fett": 0.2,
-      "zucker": 0.8,
-      "ballaststoffe": 1.3,
-      "salz": 0.07
-    },
-    "portionen": [
-      {
-        "name": "Blatt",
-        "gramm": 10
-      },
-      {
-        "name": "ganzer Kopf",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-zucchini",
-    "name": "Zucchini",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 17,
-      "protein": 1.2,
-      "kohlenhydrate": 3.1,
-      "fett": 0.3,
-      "zucker": 2.5,
-      "ballaststoffe": 1.0,
-      "salz": 0.02
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-aubergine",
-    "name": "Aubergine",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 25,
-      "protein": 1.0,
-      "kohlenhydrate": 5.9,
-      "fett": 0.2,
-      "zucker": 3.2,
-      "ballaststoffe": 3.0,
-      "salz": 0.005
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 250
-      }
-    ]
-  },
-  {
-    "id": "basis-champignons",
-    "name": "Champignons",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 22,
-      "protein": 3.1,
-      "kohlenhydrate": 3.3,
-      "fett": 0.3,
-      "zucker": 2.0,
-      "ballaststoffe": 1.0,
-      "salz": 0.0125
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 15
-      },
-      {
-        "name": "Handvoll",
-        "gramm": 50
-      }
-    ]
-  },
-  {
-    "id": "basis-mais-dose",
-    "name": "Mais, Dose",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 86,
-      "protein": 3.2,
-      "kohlenhydrate": 19.0,
-      "fett": 1.2,
-      "zucker": 3.0,
-      "ballaststoffe": 2.4,
-      "salz": 0.625
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 20
-      },
-      {
-        "name": "Portion",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-erbsen-tk",
-    "name": "Erbsen, TK",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 81,
-      "protein": 5.4,
-      "kohlenhydrate": 14.0,
-      "fett": 0.4,
-      "zucker": 5.7,
-      "ballaststoffe": 5.1,
-      "salz": 0.0075
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 80
-      }
-    ]
-  },
-  {
-    "id": "basis-gruene-bohnen-tk",
-    "name": "Grüne Bohnen, TK",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 31,
-      "protein": 1.8,
-      "kohlenhydrate": 7.0,
-      "fett": 0.1,
-      "zucker": 3.3,
-      "ballaststoffe": 3.4,
-      "salz": 0.015
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-rotkohl",
-    "name": "Rotkohl, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 31,
-      "protein": 1.4,
-      "kohlenhydrate": 6.9,
-      "fett": 0.2,
-      "zucker": 3.8,
-      "ballaststoffe": 2.1,
-      "salz": 0.0675
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-weisskohl",
-    "name": "Weißkohl, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 25,
-      "protein": 1.3,
-      "kohlenhydrate": 5.8,
-      "fett": 0.1,
-      "zucker": 3.2,
-      "ballaststoffe": 2.5,
-      "salz": 0.045
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-sellerie",
-    "name": "Sellerie, Stangen",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 16,
-      "protein": 0.7,
-      "kohlenhydrate": 3.0,
-      "fett": 0.2,
-      "zucker": 1.8,
-      "ballaststoffe": 1.6,
-      "salz": 0.2
-    },
-    "portionen": [
-      {
-        "name": "Stange",
-        "gramm": 40
-      }
-    ]
-  },
-  {
-    "id": "basis-lauch",
-    "name": "Lauch",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 61,
-      "protein": 1.5,
-      "kohlenhydrate": 14.2,
-      "fett": 0.3,
-      "zucker": 3.9,
-      "ballaststoffe": 1.8,
-      "salz": 0.05
-    },
-    "portionen": [
-      {
-        "name": "ganze Stange",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-rettich",
-    "name": "Rettich",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 16,
-      "protein": 0.6,
-      "kohlenhydrate": 3.4,
-      "fett": 0.1,
-      "zucker": 1.9,
-      "ballaststoffe": 1.6,
-      "salz": 0.0525
-    },
-    "portionen": [
-      {
-        "name": "ganzer",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-radieschen",
-    "name": "Radieschen",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 16,
-      "protein": 0.7,
-      "kohlenhydrate": 3.4,
-      "fett": 0.1,
-      "zucker": 1.9,
-      "ballaststoffe": 1.6,
-      "salz": 0.0975
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 8
-      },
-      {
-        "name": "Handvoll",
-        "gramm": 50
-      }
-    ]
-  },
-  {
-    "id": "basis-kuerbis-hokkaido",
-    "name": "Kürbis, Hokkaido",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 40,
-      "protein": 1.5,
-      "kohlenhydrate": 8.8,
-      "fett": 0.3,
-      "zucker": 2.2,
-      "ballaststoffe": 1.5,
-      "salz": 0.01
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-suesskartoffel",
-    "name": "Süßkartoffel, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 86,
-      "protein": 1.6,
-      "kohlenhydrate": 20.0,
-      "fett": 0.1,
-      "zucker": 4.2,
-      "ballaststoffe": 3.0,
-      "salz": 0.1375
-    },
-    "portionen": [
-      {
-        "name": "ganze, mittelgroß",
-        "gramm": 130
-      }
-    ]
-  },
-  {
-    "id": "basis-feldsalat",
-    "name": "Feldsalat",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 15,
-      "protein": 2.0,
-      "kohlenhydrate": 0.4,
-      "fett": 0.4,
-      "ballaststoffe": 1.4,
-      "salz": 0.0125
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 50
-      }
-    ]
-  },
-  {
-    "id": "basis-fruehlingszwiebel",
-    "name": "Frühlingszwiebel",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 32,
-      "protein": 1.8,
-      "kohlenhydrate": 4.6,
-      "fett": 0.2,
-      "ballaststoffe": 2.6,
-      "salz": 0.04
-    },
-    "portionen": [
-      {
-        "name": "Stange",
-        "gramm": 15
-      }
-    ]
-  },
-  {
-    "id": "basis-apfel",
-    "name": "Apfel",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 52,
-      "protein": 0.3,
-      "kohlenhydrate": 14.0,
-      "fett": 0.2,
-      "zucker": 10.0,
-      "ballaststoffe": 2.4,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "ganzer, klein",
-        "gramm": 130
-      },
-      {
-        "name": "ganzer, mittelgroß",
-        "gramm": 180
-      },
-      {
-        "name": "ganzer, groß",
-        "gramm": 220
-      }
-    ]
-  },
-  {
-    "id": "basis-banane",
-    "name": "Banane",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 89,
-      "protein": 1.1,
-      "kohlenhydrate": 23.0,
-      "fett": 0.3,
-      "zucker": 12.0,
-      "ballaststoffe": 2.6,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "ganze, klein",
-        "gramm": 90
-      },
-      {
-        "name": "ganze, mittelgroß",
-        "gramm": 118
-      },
-      {
-        "name": "ganze, groß",
-        "gramm": 130
-      }
-    ]
-  },
-  {
-    "id": "basis-orange",
-    "name": "Orange",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 47,
-      "protein": 0.9,
-      "kohlenhydrate": 12.0,
-      "fett": 0.1,
-      "zucker": 9.0,
-      "ballaststoffe": 2.4
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 130
-      }
-    ]
-  },
-  {
-    "id": "basis-birne",
-    "name": "Birne",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 57,
-      "protein": 0.4,
-      "kohlenhydrate": 15.0,
-      "fett": 0.1,
-      "zucker": 10.0,
-      "ballaststoffe": 3.1,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 178
-      }
-    ]
-  },
-  {
-    "id": "basis-weintrauben",
-    "name": "Weintrauben",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 69,
-      "protein": 0.7,
-      "kohlenhydrate": 18.0,
-      "fett": 0.2,
-      "zucker": 16.0,
-      "ballaststoffe": 0.9,
-      "salz": 0.005
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 80
-      }
-    ]
-  },
-  {
-    "id": "basis-erdbeeren",
-    "name": "Erdbeeren",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 32,
-      "protein": 0.7,
-      "kohlenhydrate": 7.7,
-      "fett": 0.3,
-      "zucker": 4.9,
-      "ballaststoffe": 2.0,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 12
-      },
-      {
-        "name": "Portion (Schale)",
-        "gramm": 250
-      }
-    ]
-  },
-  {
-    "id": "basis-blaubeeren",
-    "name": "Blaubeeren",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 57,
-      "protein": 0.7,
-      "kohlenhydrate": 14.0,
-      "fett": 0.3,
-      "zucker": 10.0,
-      "ballaststoffe": 2.4,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 60
-      }
-    ]
-  },
-  {
-    "id": "basis-himbeeren",
-    "name": "Himbeeren",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 52,
-      "protein": 1.2,
-      "kohlenhydrate": 12.0,
-      "fett": 0.7,
-      "zucker": 4.4,
-      "ballaststoffe": 6.5,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 60
-      }
-    ]
-  },
-  {
-    "id": "basis-kiwi",
-    "name": "Kiwi",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 61,
-      "protein": 1.1,
-      "kohlenhydrate": 15.0,
-      "fett": 0.5,
-      "zucker": 9.0,
-      "ballaststoffe": 3.0,
-      "salz": 0.0075
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 76
-      }
-    ]
-  },
-  {
-    "id": "basis-ananas",
-    "name": "Ananas",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 50,
-      "protein": 0.5,
-      "kohlenhydrate": 13.0,
-      "fett": 0.1,
-      "zucker": 10.0,
-      "ballaststoffe": 1.4,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 84
-      }
-    ]
-  },
-  {
-    "id": "basis-wassermelone",
-    "name": "Wassermelone",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 30,
-      "protein": 0.6,
-      "kohlenhydrate": 7.6,
-      "fett": 0.15,
-      "zucker": 6.2,
-      "ballaststoffe": 0.4,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 280
-      }
-    ]
-  },
-  {
-    "id": "basis-honigmelone",
-    "name": "Honigmelone",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 36,
-      "protein": 0.9,
-      "kohlenhydrate": 8.6,
-      "fett": 0.1,
-      "zucker": 8.0,
-      "ballaststoffe": 0.8,
-      "salz": 0.045
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-mango",
-    "name": "Mango",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 60,
-      "protein": 0.8,
-      "kohlenhydrate": 15.0,
-      "fett": 0.4,
-      "zucker": 14.0,
-      "ballaststoffe": 1.6,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-pfirsich",
-    "name": "Pfirsich",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 39,
-      "protein": 0.9,
-      "kohlenhydrate": 9.5,
-      "fett": 0.3,
-      "zucker": 8.4,
-      "ballaststoffe": 1.5
-    },
-    "portionen": [
-      {
-        "name": "ganzer",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-aprikose",
-    "name": "Aprikose",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 48,
-      "protein": 1.4,
-      "kohlenhydrate": 11.0,
-      "fett": 0.4,
-      "zucker": 9.2,
-      "ballaststoffe": 2.0,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 35
-      }
-    ]
-  },
-  {
-    "id": "basis-pflaume",
-    "name": "Pflaume",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 46,
-      "protein": 0.7,
-      "kohlenhydrate": 11.0,
-      "fett": 0.3,
-      "zucker": 10.0,
-      "ballaststoffe": 1.4
-    },
-    "portionen": [
-      {
-        "name": "ganze",
-        "gramm": 55
-      }
-    ]
-  },
-  {
-    "id": "basis-kirschen",
-    "name": "Kirschen",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 63,
-      "protein": 1.1,
-      "kohlenhydrate": 16.0,
-      "fett": 0.2,
-      "zucker": 13.0,
-      "ballaststoffe": 2.1
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-avocado",
-    "name": "Avocado",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 160,
-      "protein": 2.0,
-      "kohlenhydrate": 8.5,
-      "fett": 15.0,
-      "zucker": 0.7,
-      "ballaststoffe": 6.7,
-      "salz": 0.0175
-    },
-    "portionen": [
-      {
-        "name": "halbe",
-        "gramm": 100
-      },
-      {
-        "name": "ganze",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-kartoffeln-gekocht",
-    "name": "Kartoffeln, gekocht",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 87,
-      "protein": 1.9,
-      "kohlenhydrate": 20.0,
-      "fett": 0.1,
-      "zucker": 0.8,
-      "ballaststoffe": 1.8,
-      "salz": 0.015
-    },
-    "portionen": [
-      {
-        "name": "ganze, mittelgroß",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-kartoffeln-roh",
-    "name": "Kartoffeln, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 77,
-      "protein": 2.0,
-      "kohlenhydrate": 17.0,
-      "fett": 0.1,
-      "zucker": 0.8,
-      "ballaststoffe": 2.2,
-      "salz": 0.015
-    },
-    "portionen": [
-      {
-        "name": "ganze, mittelgroß",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-pommes-ofen",
-    "name": "Pommes frites, Ofen",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 165,
-      "protein": 2.8,
-      "kohlenhydrate": 24.0,
-      "fett": 6.0,
-      "zucker": 0.5,
-      "ballaststoffe": 2.5,
-      "salz": 0.75,
-      "gesFett": 0.8
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-kartoffelpueree",
-    "name": "Kartoffelpüree",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 90,
-      "protein": 1.9,
-      "kohlenhydrate": 14.0,
-      "fett": 3.0,
-      "zucker": 1.0,
-      "ballaststoffe": 1.3,
-      "salz": 0.75,
-      "gesFett": 1.9
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-reis-weiss-roh",
-    "name": "Reis, weiß, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 349,
-      "protein": 6.7,
-      "kohlenhydrate": 79.0,
-      "fett": 0.6,
-      "zucker": 0.1,
-      "ballaststoffe": 1.3,
-      "salz": 0.0125
-    },
-    "portionen": [
-      {
-        "name": "Portion, roh",
-        "gramm": 75
-      }
-    ]
-  },
-  {
-    "id": "basis-reis-weiss-gekocht",
-    "name": "Reis, weiß, gekocht",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 130,
-      "protein": 2.7,
-      "kohlenhydrate": 28.0,
-      "fett": 0.3,
-      "zucker": 0.1,
-      "ballaststoffe": 0.4,
-      "salz": 0.0025
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 180
-      }
-    ]
-  },
-  {
-    "id": "basis-vollkornreis-gekocht",
-    "name": "Vollkornreis, gekocht",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 123,
-      "protein": 2.7,
-      "kohlenhydrate": 26.0,
-      "fett": 1.0,
-      "zucker": 0.4,
-      "ballaststoffe": 1.8,
-      "salz": 0.01
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 180
-      }
-    ]
-  },
-  {
-    "id": "basis-nudeln-roh",
-    "name": "Nudeln, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 358,
-      "protein": 12.0,
-      "kohlenhydrate": 71.0,
-      "fett": 1.5,
-      "zucker": 3.0,
-      "ballaststoffe": 3.0,
-      "salz": 0.015
-    },
-    "portionen": [
-      {
-        "name": "Portion, roh",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-nudeln-gekocht",
-    "name": "Nudeln, gekocht",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 158,
-      "protein": 5.8,
-      "kohlenhydrate": 31.0,
-      "fett": 0.9,
-      "zucker": 1.3,
-      "ballaststoffe": 1.8,
-      "salz": 0.0075
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 250
-      }
-    ]
-  },
-  {
-    "id": "basis-vollkornnudeln-gekocht",
-    "name": "Vollkornnudeln, gekocht",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 149,
-      "protein": 5.3,
-      "kohlenhydrate": 30.0,
-      "fett": 1.4,
-      "zucker": 1.0,
-      "ballaststoffe": 4.5,
-      "salz": 0.01
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 250
-      }
-    ]
-  },
-  {
-    "id": "basis-vollkornbrot",
-    "name": "Vollkornbrot",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 219,
-      "protein": 8.5,
-      "kohlenhydrate": 39.0,
-      "fett": 3.0,
-      "zucker": 3.0,
-      "ballaststoffe": 7.0,
-      "salz": 1.0,
-      "gesFett": 0.6
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 45
-      }
-    ]
-  },
-  {
-    "id": "basis-toastbrot",
-    "name": "Toastbrot",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 265,
-      "protein": 8.0,
-      "kohlenhydrate": 49.0,
-      "fett": 3.3,
-      "zucker": 5.0,
-      "ballaststoffe": 2.5,
-      "salz": 1.2,
-      "gesFett": 0.7
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 25
-      }
-    ]
-  },
-  {
-    "id": "basis-mischbrot",
-    "name": "Mischbrot",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 235,
-      "protein": 7.5,
-      "kohlenhydrate": 45.0,
-      "fett": 1.5,
-      "zucker": 2.0,
-      "ballaststoffe": 5.0,
-      "salz": 1.15,
-      "gesFett": 0.3
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 50
-      }
-    ]
-  },
-  {
-    "id": "basis-broetchen",
-    "name": "Brötchen",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 275,
-      "protein": 9.0,
-      "kohlenhydrate": 52.0,
-      "fett": 1.8,
-      "zucker": 3.0,
-      "ballaststoffe": 3.5,
-      "salz": 1.2,
-      "gesFett": 0.4
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 50
-      }
-    ]
-  },
-  {
-    "id": "basis-knaeckebrot",
-    "name": "Knäckebrot",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 377,
-      "protein": 10.0,
-      "kohlenhydrate": 70.0,
-      "fett": 2.5,
-      "zucker": 2.0,
-      "ballaststoffe": 13.0,
-      "salz": 0.95,
-      "gesFett": 0.5
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 10
-      }
-    ]
-  },
-  {
-    "id": "basis-baguette",
-    "name": "Baguette",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 274,
-      "protein": 9.0,
-      "kohlenhydrate": 55.0,
-      "fett": 1.3,
-      "zucker": 2.0,
-      "ballaststoffe": 2.7,
-      "salz": 1.25,
-      "gesFett": 0.3
-    },
-    "portionen": [
-      {
-        "name": "Stück (30 cm)",
-        "gramm": 250
-      },
-      {
-        "name": "Scheibe",
-        "gramm": 25
-      }
-    ]
-  },
-  {
-    "id": "basis-haferflocken",
-    "name": "Haferflocken",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 372,
-      "protein": 13.5,
-      "kohlenhydrate": 58.0,
-      "fett": 7.0,
-      "zucker": 1.0,
-      "ballaststoffe": 10.0,
-      "salz": 0.015,
-      "gesFett": 1.4
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 40
-      },
-      {
-        "name": "Esslöffel",
-        "gramm": 10
-      }
-    ]
-  },
-  {
-    "id": "basis-ei-gekocht",
-    "name": "Ei, gekocht",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 155,
-      "protein": 13.0,
-      "kohlenhydrate": 1.1,
-      "fett": 11.0,
-      "zucker": 1.1,
-      "ballaststoffe": 0,
-      "salz": 0.31,
-      "gesFett": 3.1
-    },
-    "portionen": [
-      {
-        "name": "Stück, Größe M",
-        "gramm": 60
-      }
-    ]
-  },
-  {
-    "id": "basis-ei-roh",
-    "name": "Ei, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 143,
-      "protein": 12.6,
-      "kohlenhydrate": 0.7,
-      "fett": 9.5,
-      "salz": 0.355,
-      "gesFett": 3.1
-    },
-    "portionen": [
-      {
-        "name": "Stück, Größe M",
-        "gramm": 58
-      }
-    ]
-  },
-  {
-    "id": "basis-ruehrei",
-    "name": "Rührei",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 168,
-      "protein": 11.5,
-      "kohlenhydrate": 1.6,
-      "fett": 13.0,
-      "salz": 0.425,
-      "gesFett": 4.0
-    },
-    "portionen": [
-      {
-        "name": "Portion (2 Eier)",
-        "gramm": 120
-      }
-    ]
-  },
-  {
-    "id": "basis-milch-15",
-    "name": "Milch, 1,5 %",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 47,
-      "protein": 3.3,
-      "kohlenhydrate": 4.8,
-      "fett": 1.5,
-      "zucker": 4.8,
-      "salz": 0.11,
-      "gesFett": 1.0
-    },
-    "portionen": [
-      {
-        "name": "Glas (200 ml)",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-milch-35",
-    "name": "Milch, 3,5 %",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 65,
-      "protein": 3.3,
-      "kohlenhydrate": 4.7,
-      "fett": 3.5,
-      "zucker": 4.7,
-      "salz": 0.11,
-      "gesFett": 2.2
-    },
-    "portionen": [
-      {
-        "name": "Glas (200 ml)",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-joghurt-natur",
-    "name": "Joghurt, natur, 1,5 %",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 57,
-      "protein": 4.5,
-      "kohlenhydrate": 6.0,
-      "fett": 1.5,
-      "zucker": 6.0,
-      "salz": 0.125
-    },
-    "portionen": [
-      {
-        "name": "Becher",
-        "gramm": 150
-      },
-      {
-        "name": "Esslöffel",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-joghurt-griechisch",
-    "name": "Joghurt, griechisch, 10 %",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 133,
-      "protein": 4.0,
-      "kohlenhydrate": 4.5,
-      "fett": 10.0,
-      "zucker": 4.5,
-      "salz": 0.1,
-      "gesFett": 6.5
-    },
-    "portionen": [
-      {
-        "name": "Becher",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-quark-mager",
-    "name": "Quark, Magerstufe",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 67,
-      "protein": 12.0,
-      "kohlenhydrate": 4.0,
-      "fett": 0.2,
-      "zucker": 4.0,
-      "salz": 0.085
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 100
-      },
-      {
-        "name": "Esslöffel",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-quark-40",
-    "name": "Quark, 40 % Fett i. Tr.",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 152,
-      "protein": 11.0,
-      "kohlenhydrate": 3.5,
-      "fett": 11.0,
-      "salz": 0.075,
-      "gesFett": 7.0
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-skyr",
-    "name": "Skyr",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 63,
-      "protein": 11.0,
-      "kohlenhydrate": 4.0,
-      "fett": 0.2,
-      "zucker": 4.0,
-      "salz": 0.1125
-    },
-    "portionen": [
-      {
-        "name": "Becher",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-butter",
-    "name": "Butter",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 741,
-      "protein": 0.7,
-      "kohlenhydrate": 0.6,
-      "fett": 82.0,
-      "salz": 0.0375,
-      "gesFett": 54.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 10
-      },
-      {
-        "name": "Teelöffel",
-        "gramm": 5
-      }
-    ]
-  },
-  {
-    "id": "basis-schlagsahne",
-    "name": "Schlagsahne, 30 %",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 292,
-      "protein": 2.4,
-      "kohlenhydrate": 3.4,
-      "fett": 30.0,
-      "salz": 0.1,
-      "gesFett": 19.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 15
-      }
-    ]
-  },
-  {
-    "id": "basis-frischkaese",
-    "name": "Frischkäse, Doppelrahmstufe",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 245,
-      "protein": 6.0,
-      "kohlenhydrate": 3.5,
-      "fett": 24.0,
-      "salz": 0.5,
-      "gesFett": 16.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-mozzarella",
-    "name": "Mozzarella",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 253,
-      "protein": 18.0,
-      "kohlenhydrate": 2.0,
-      "fett": 19.0,
-      "salz": 0.925,
-      "gesFett": 12.5
-    },
-    "portionen": [
-      {
-        "name": "Kugel",
-        "gramm": 125
-      },
-      {
-        "name": "Scheibe",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-gouda",
-    "name": "Gouda",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 356,
-      "protein": 25.0,
-      "kohlenhydrate": 0.0,
-      "fett": 28.0,
-      "salz": 2.0475,
-      "gesFett": 18.0
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 20
-      }
-    ]
-  },
-  {
-    "id": "basis-emmentaler",
-    "name": "Emmentaler",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 380,
-      "protein": 28.0,
-      "kohlenhydrate": 0.0,
-      "fett": 30.0,
-      "salz": 1.0,
-      "gesFett": 19.0
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 20
-      }
-    ]
-  },
-  {
-    "id": "basis-feta",
-    "name": "Feta",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 264,
-      "protein": 14.0,
-      "kohlenhydrate": 4.0,
-      "fett": 21.0,
-      "salz": 2.85,
-      "gesFett": 15.0
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 50
-      }
-    ]
-  },
-  {
-    "id": "basis-parmesan",
-    "name": "Parmesan",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 392,
-      "protein": 35.0,
-      "kohlenhydrate": 3.2,
-      "fett": 26.0,
-      "salz": 3.825,
-      "gesFett": 17.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel, gerieben",
-        "gramm": 10
-      }
-    ]
-  },
-  {
-    "id": "basis-huettenkaese",
-    "name": "Hüttenkäse",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 98,
-      "protein": 11.0,
-      "kohlenhydrate": 3.4,
-      "fett": 4.3,
-      "salz": 0.875,
-      "gesFett": 2.7
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-buttermilch",
-    "name": "Buttermilch",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 35,
-      "protein": 3.5,
-      "kohlenhydrate": 4.5,
-      "fett": 0.5,
-      "salz": 0.25
-    },
-    "portionen": [
-      {
-        "name": "Glas (200 ml)",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-haehnchenbrust-roh",
-    "name": "Hähnchenbrust, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 120,
-      "protein": 23.0,
-      "kohlenhydrate": 0.0,
-      "fett": 2.5,
-      "salz": 0.15,
-      "gesFett": 0.7
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-haehnchenbrust-gebraten",
-    "name": "Hähnchenbrust, gebraten",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 165,
-      "protein": 31.0,
-      "kohlenhydrate": 0.0,
-      "fett": 3.6,
-      "salz": 0.175,
-      "gesFett": 1.0
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-rinderhack-roh",
-    "name": "Rinderhack, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 215,
-      "protein": 18.0,
-      "kohlenhydrate": 0.0,
-      "fett": 15.0,
-      "salz": 0.1625,
-      "gesFett": 6.5
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 125
-      }
-    ]
-  },
-  {
-    "id": "basis-rinderhack-gebraten",
-    "name": "Rinderhack, gebraten",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 254,
-      "protein": 26.0,
-      "kohlenhydrate": 0.0,
-      "fett": 17.0,
-      "salz": 0.1875,
-      "gesFett": 7.0
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 125
-      }
-    ]
-  },
-  {
-    "id": "basis-schweineschnitzel",
-    "name": "Schweineschnitzel, gebraten",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 197,
-      "protein": 30.0,
-      "kohlenhydrate": 0.0,
-      "fett": 8.0,
-      "salz": 0.1625,
-      "gesFett": 2.6
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-rindersteak",
-    "name": "Rindersteak, gebraten",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 208,
-      "protein": 28.0,
-      "kohlenhydrate": 0.0,
-      "fett": 10.0,
-      "salz": 0.15,
-      "gesFett": 4.0
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-putenbrust",
-    "name": "Putenbrust, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 104,
-      "protein": 24.0,
-      "kohlenhydrate": 0.0,
-      "fett": 1.0,
-      "salz": 0.1375
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-salami",
-    "name": "Salami",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 407,
-      "protein": 22.0,
-      "kohlenhydrate": 1.6,
-      "fett": 34.0,
-      "zucker": 0.5,
-      "salz": 3.75,
-      "gesFett": 13.0
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 10
-      }
-    ]
-  },
-  {
-    "id": "basis-kochschinken",
-    "name": "Kochschinken",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 105,
-      "protein": 18.0,
-      "kohlenhydrate": 0.8,
-      "fett": 3.0,
-      "salz": 2.375,
-      "gesFett": 1.0
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 20
-      }
-    ]
-  },
-  {
-    "id": "basis-lyoner",
-    "name": "Lyoner",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 260,
-      "protein": 13.0,
-      "kohlenhydrate": 1.5,
-      "fett": 22.0,
-      "salz": 2.375,
-      "gesFett": 8.0
-    },
-    "portionen": [
-      {
-        "name": "Scheibe",
-        "gramm": 25
-      }
-    ]
-  },
-  {
-    "id": "basis-bratwurst",
-    "name": "Bratwurst, gebraten",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 296,
-      "protein": 14.0,
-      "kohlenhydrate": 1.0,
-      "fett": 26.0,
-      "salz": 2.125,
-      "gesFett": 9.5
-    },
-    "portionen": [
-      {
-        "name": "Stück",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-lachs-roh",
-    "name": "Lachs, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 208,
-      "protein": 20.0,
-      "kohlenhydrate": 0.0,
-      "fett": 13.0,
-      "salz": 0.1475,
-      "gesFett": 3.0
-    },
-    "portionen": [
-      {
-        "name": "Filet",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-lachs-gebraten",
-    "name": "Lachs, gebraten",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 231,
-      "protein": 25.0,
-      "kohlenhydrate": 0.0,
-      "fett": 14.0,
-      "salz": 0.1625,
-      "gesFett": 3.2
-    },
-    "portionen": [
-      {
-        "name": "Filet",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-thunfisch-dose",
-    "name": "Thunfisch, Dose, in Wasser",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 116,
-      "protein": 26.0,
-      "kohlenhydrate": 0.0,
-      "fett": 1.0,
-      "salz": 0.75
-    },
-    "portionen": [
-      {
-        "name": "Dose, abgetropft",
-        "gramm": 140
-      }
-    ]
-  },
-  {
-    "id": "basis-garnelen",
-    "name": "Garnelen, gekocht",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 99,
-      "protein": 21.0,
-      "kohlenhydrate": 0.2,
-      "fett": 1.4,
-      "salz": 0.475
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 100
-      }
-    ]
-  },
-  {
-    "id": "basis-kabeljau",
-    "name": "Kabeljau, roh",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 82,
-      "protein": 18.0,
-      "kohlenhydrate": 0.0,
-      "fett": 0.7,
-      "salz": 0.135
-    },
-    "portionen": [
-      {
-        "name": "Filet",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-linsen-gekocht",
-    "name": "Linsen, gekocht",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 116,
-      "protein": 9.0,
-      "kohlenhydrate": 20.0,
-      "fett": 0.4,
-      "ballaststoffe": 7.9,
-      "salz": 0.005
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 150
-      }
-    ]
-  },
-  {
-    "id": "basis-kichererbsen-dose",
-    "name": "Kichererbsen, Dose",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 139,
-      "protein": 7.3,
-      "kohlenhydrate": 22.0,
-      "fett": 2.6,
-      "ballaststoffe": 6.0,
-      "salz": 0.6
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 120
-      }
-    ]
-  },
-  {
-    "id": "basis-kidneybohnen-dose",
-    "name": "Kidneybohnen, Dose",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 127,
-      "protein": 8.7,
-      "kohlenhydrate": 20.0,
-      "fett": 0.5,
-      "ballaststoffe": 6.8,
-      "salz": 0.625
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 120
-      }
-    ]
-  },
-  {
-    "id": "basis-weisse-bohnen-dose",
-    "name": "Weiße Bohnen, Dose",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 120,
-      "protein": 8.0,
-      "kohlenhydrate": 20.0,
-      "fett": 0.5,
-      "ballaststoffe": 6.0,
-      "salz": 0.6
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 120
-      }
-    ]
-  },
-  {
-    "id": "basis-tofu",
-    "name": "Tofu, natur",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 76,
-      "protein": 8.0,
-      "kohlenhydrate": 1.9,
-      "fett": 4.8,
-      "salz": 0.0175
-    },
-    "portionen": [
-      {
-        "name": "Portion",
-        "gramm": 100
-      },
-      {
-        "name": "Scheibe",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-mandeln",
-    "name": "Mandeln",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 579,
-      "protein": 21.0,
-      "kohlenhydrate": 22.0,
-      "fett": 50.0,
-      "ballaststoffe": 12.5,
-      "salz": 0.0025,
-      "gesFett": 3.8
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-walnuesse",
-    "name": "Walnüsse",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 654,
-      "protein": 15.0,
-      "kohlenhydrate": 14.0,
-      "fett": 65.0,
-      "ballaststoffe": 6.7,
-      "salz": 0.005,
-      "gesFett": 6.0
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-cashewkerne",
-    "name": "Cashewkerne",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 553,
-      "protein": 18.0,
-      "kohlenhydrate": 30.0,
-      "fett": 44.0,
-      "ballaststoffe": 3.3,
-      "salz": 0.03,
-      "gesFett": 7.8
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-erdnuesse",
-    "name": "Erdnüsse",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 567,
-      "protein": 26.0,
-      "kohlenhydrate": 16.0,
-      "fett": 49.0,
-      "ballaststoffe": 8.5,
-      "salz": 0.045,
-      "gesFett": 7.0
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-erdnussbutter",
-    "name": "Erdnussbutter",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 588,
-      "protein": 25.0,
-      "kohlenhydrate": 20.0,
-      "fett": 50.0,
-      "ballaststoffe": 6.0,
-      "salz": 1.0,
-      "gesFett": 10.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 20
-      }
-    ]
-  },
-  {
-    "id": "basis-haselnuesse",
-    "name": "Haselnüsse",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 628,
-      "protein": 15.0,
-      "kohlenhydrate": 17.0,
-      "fett": 61.0,
-      "ballaststoffe": 9.7,
-      "gesFett": 4.5
-    },
-    "portionen": [
-      {
-        "name": "Handvoll",
-        "gramm": 30
-      }
-    ]
-  },
-  {
-    "id": "basis-olivenoel",
-    "name": "Olivenöl",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 884,
-      "protein": 0.0,
-      "kohlenhydrate": 0.0,
-      "fett": 100.0,
-      "gesFett": 14.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 10
-      },
-      {
-        "name": "Teelöffel",
-        "gramm": 5
-      }
-    ]
-  },
-  {
-    "id": "basis-rapsoel",
-    "name": "Rapsöl",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 884,
-      "protein": 0.0,
-      "kohlenhydrate": 0.0,
-      "fett": 100.0,
-      "gesFett": 7.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 10
-      }
-    ]
-  },
-  {
-    "id": "basis-sonnenblumenoel",
-    "name": "Sonnenblumenöl",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 884,
-      "protein": 0.0,
-      "kohlenhydrate": 0.0,
-      "fett": 100.0,
-      "gesFett": 10.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 10
-      }
-    ]
-  },
-  {
-    "id": "basis-zucker",
-    "name": "Zucker, weiß",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 400,
-      "protein": 0.0,
-      "kohlenhydrate": 100.0,
-      "fett": 0.0,
-      "zucker": 100.0
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 12
-      },
-      {
-        "name": "Teelöffel",
-        "gramm": 4
-      }
-    ]
-  },
-  {
-    "id": "basis-honig",
-    "name": "Honig",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 304,
-      "protein": 0.3,
-      "kohlenhydrate": 76.0,
-      "fett": 0.0,
-      "zucker": 76.0,
-      "salz": 0.0125
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 21
-      },
-      {
-        "name": "Teelöffel",
-        "gramm": 7
-      }
-    ]
-  },
-  {
-    "id": "basis-marmelade",
-    "name": "Marmelade",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 250,
-      "protein": 0.3,
-      "kohlenhydrate": 62.0,
-      "fett": 0.1,
-      "zucker": 55.0,
-      "salz": 0.025
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 20
-      },
-      {
-        "name": "Teelöffel",
-        "gramm": 7
-      }
-    ]
-  },
-  {
-    "id": "basis-nutella",
-    "name": "Nutella",
-    "fluessig": false,
-    "pro100": {
-      "kcal": 539,
-      "protein": 6.3,
-      "kohlenhydrate": 57.0,
-      "fett": 31.0,
-      "zucker": 56.0,
-      "salz": 0.1025,
-      "gesFett": 10.6
-    },
-    "portionen": [
-      {
-        "name": "Esslöffel",
-        "gramm": 20
-      },
-      {
-        "name": "Teelöffel",
-        "gramm": 7
-      }
-    ]
-  },
-  {
-    "id": "basis-wasser",
-    "name": "Wasser",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 0,
-      "protein": 0.0,
-      "kohlenhydrate": 0.0,
-      "fett": 0.0
-    },
-    "portionen": [
-      {
-        "name": "Glas (200 ml)",
-        "gramm": 200
-      },
-      {
-        "name": "Flasche (500 ml)",
-        "gramm": 500
-      }
-    ]
-  },
-  {
-    "id": "basis-kaffee-schwarz",
-    "name": "Kaffee, schwarz",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 1,
-      "protein": 0.1,
-      "kohlenhydrate": 0.0,
-      "fett": 0.0,
-      "salz": 0.005
-    },
-    "portionen": [
-      {
-        "name": "Tasse",
-        "gramm": 125
-      }
-    ]
-  },
-  {
-    "id": "basis-tee",
-    "name": "Tee, ungesüßt",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 1,
-      "protein": 0.0,
-      "kohlenhydrate": 0.3,
-      "fett": 0.0,
-      "salz": 0.005
-    },
-    "portionen": [
-      {
-        "name": "Tasse",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-orangensaft",
-    "name": "Orangensaft",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 45,
-      "protein": 0.7,
-      "kohlenhydrate": 10.0,
-      "fett": 0.2,
-      "zucker": 8.5,
-      "salz": 0.005
-    },
-    "portionen": [
-      {
-        "name": "Glas (200 ml)",
-        "gramm": 200
-      }
-    ]
-  },
-  {
-    "id": "basis-cola",
-    "name": "Cola",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 42,
-      "protein": 0.0,
-      "kohlenhydrate": 10.6,
-      "fett": 0.0,
-      "zucker": 10.6,
-      "salz": 0.005
-    },
-    "portionen": [
-      {
-        "name": "Glas (200 ml)",
-        "gramm": 200
-      },
-      {
-        "name": "Dose (330 ml)",
-        "gramm": 330
-      }
-    ]
-  },
-  {
-    "id": "basis-apfelsaft",
-    "name": "Apfelsaft",
-    "fluessig": true,
-    "pro100": {
-      "kcal": 46,
-      "protein": 0.1,
-      "kohlenhydrate": 11.0,
-      "fett": 0.0,
-      "zucker": 10.5,
-      "salz": 0.01
-    },
-    "portionen": [
-      {
-        "name": "Glas (200 ml)",
-        "gramm": 200
-      }
-    ]
-  }
+ {
+  "id": "basis-tomaten",
+  "name": "Tomaten, frisch",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 18.0,
+   "protein": 0.9,
+   "kohlenhydrate": 3.9,
+   "fett": 0.2,
+   "zucker": 2.63,
+   "ballaststoffe": 1.2,
+   "gesFett": 0.028,
+   "salz": 0.0125,
+   "mikro": {
+    "vitaminA": 42.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.54,
+    "vitaminK": 7.9,
+    "vitaminC": 13.7,
+    "vitaminB1": 0.037,
+    "vitaminB2": 0.019,
+    "niacin": 0.594,
+    "pantothensaeure": 0.089,
+    "vitaminB6": 0.08,
+    "folat": 15.0,
+    "vitaminB12": 0.0,
+    "kalium": 237.0,
+    "calcium": 10.0,
+    "magnesium": 11.0,
+    "phosphor": 24.0,
+    "eisen": 0.27,
+    "zink": 0.17,
+    "kupfer": 0.059,
+    "mangan": 0.114,
+    "selen": 0.0,
+    "natrium": 5.0,
+    "wasser": 94.5,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.031,
+    "mehrfachUngesaettigt": 0.083,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 182.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 123.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 91.0
+   },
+   {
+    "name": "Scheibe",
+    "gramm": 20.0
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 180.0
+   }
+  ]
+ },
+ {
+  "id": "basis-gurke",
+  "name": "Gurke, frisch",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 15.0,
+   "protein": 0.7,
+   "kohlenhydrate": 3.6,
+   "fett": 0.1,
+   "zucker": 1.67,
+   "ballaststoffe": 0.5,
+   "gesFett": 0.037,
+   "salz": 0.005,
+   "mikro": {
+    "vitaminA": 5.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.03,
+    "vitaminK": 16.4,
+    "vitaminC": 2.8,
+    "vitaminB1": 0.027,
+    "vitaminB2": 0.033,
+    "niacin": 0.098,
+    "pantothensaeure": 0.259,
+    "vitaminB6": 0.04,
+    "folat": 7.0,
+    "vitaminB12": 0.0,
+    "kalium": 147.0,
+    "calcium": 16.0,
+    "magnesium": 13.0,
+    "phosphor": 24.0,
+    "eisen": 0.28,
+    "zink": 0.2,
+    "kupfer": 0.041,
+    "mangan": 0.079,
+    "selen": 0.3,
+    "natrium": 2.0,
+    "wasser": 95.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.005,
+    "mehrfachUngesaettigt": 0.032,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze",
+    "gramm": 301.0
+   }
+  ]
+ },
+ {
+  "id": "basis-paprika-rot",
+  "name": "Paprika, rot",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 26.0,
+   "protein": 1.0,
+   "kohlenhydrate": 6.0,
+   "fett": 0.3,
+   "zucker": 4.2,
+   "ballaststoffe": 2.1,
+   "gesFett": 0.059,
+   "salz": 0.01,
+   "mikro": {
+    "vitaminA": 157.0,
+    "vitaminD": 0.0,
+    "vitaminE": 1.58,
+    "vitaminK": 4.9,
+    "vitaminC": 128.0,
+    "vitaminB1": 0.054,
+    "vitaminB2": 0.085,
+    "niacin": 0.979,
+    "pantothensaeure": 0.317,
+    "vitaminB6": 0.291,
+    "folat": 46.0,
+    "vitaminB12": 0.0,
+    "kalium": 211.0,
+    "calcium": 7.0,
+    "magnesium": 12.0,
+    "phosphor": 26.0,
+    "eisen": 0.43,
+    "zink": 0.25,
+    "kupfer": 0.017,
+    "mangan": 0.112,
+    "selen": 0.1,
+    "natrium": 4.0,
+    "wasser": 92.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.007,
+    "mehrfachUngesaettigt": 0.156,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 164.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 119.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 74.0
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 9.3
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 149.0
+   }
+  ]
+ },
+ {
+  "id": "basis-paprika-gruen",
+  "name": "Paprika, grün",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 20.0,
+   "protein": 0.9,
+   "kohlenhydrate": 4.6,
+   "fett": 0.2,
+   "zucker": 2.4,
+   "ballaststoffe": 1.7,
+   "gesFett": 0.058,
+   "salz": 0.0075,
+   "mikro": {
+    "vitaminA": 18.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.37,
+    "vitaminK": 7.4,
+    "vitaminC": 80.4,
+    "vitaminB1": 0.057,
+    "vitaminB2": 0.028,
+    "niacin": 0.48,
+    "pantothensaeure": 0.099,
+    "vitaminB6": 0.224,
+    "folat": 10.0,
+    "vitaminB12": 0.0,
+    "kalium": 175.0,
+    "calcium": 10.0,
+    "magnesium": 10.0,
+    "phosphor": 20.0,
+    "eisen": 0.34,
+    "zink": 0.13,
+    "kupfer": 0.066,
+    "mangan": 0.122,
+    "selen": 0.0,
+    "natrium": 3.0,
+    "wasser": 93.9,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.008,
+    "mehrfachUngesaettigt": 0.062,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 164.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 119.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 74.0
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 9.3
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 149.0
+   }
+  ]
+ },
+ {
+  "id": "basis-zwiebel",
+  "name": "Zwiebel, frisch",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 40.0,
+   "protein": 1.1,
+   "kohlenhydrate": 9.3,
+   "fett": 0.1,
+   "zucker": 4.24,
+   "ballaststoffe": 1.7,
+   "gesFett": 0.042,
+   "salz": 0.01,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.02,
+    "vitaminK": 0.4,
+    "vitaminC": 7.4,
+    "vitaminB1": 0.046,
+    "vitaminB2": 0.027,
+    "niacin": 0.116,
+    "pantothensaeure": 0.123,
+    "vitaminB6": 0.12,
+    "folat": 19.0,
+    "vitaminB12": 0.0,
+    "kalium": 146.0,
+    "calcium": 23.0,
+    "magnesium": 10.0,
+    "phosphor": 29.0,
+    "eisen": 0.21,
+    "zink": 0.17,
+    "kupfer": 0.039,
+    "mangan": 0.129,
+    "selen": 0.5,
+    "natrium": 4.0,
+    "wasser": 89.1,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.013,
+    "mehrfachUngesaettigt": 0.017,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 150.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 110.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 70.0
+   },
+   {
+    "name": "Scheibe",
+    "gramm": 38.0
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 10.0
+   }
+  ]
+ },
+ {
+  "id": "basis-knoblauch",
+  "name": "Knoblauch",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 149.0,
+   "protein": 6.4,
+   "kohlenhydrate": 33.1,
+   "fett": 0.5,
+   "zucker": 1.0,
+   "ballaststoffe": 2.1,
+   "gesFett": 0.089,
+   "salz": 0.0425,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.08,
+    "vitaminK": 1.7,
+    "vitaminC": 31.2,
+    "vitaminB1": 0.2,
+    "vitaminB2": 0.11,
+    "niacin": 0.7,
+    "pantothensaeure": 0.596,
+    "vitaminB6": 1.24,
+    "folat": 3.0,
+    "vitaminB12": 0.0,
+    "kalium": 401.0,
+    "calcium": 181.0,
+    "magnesium": 25.0,
+    "phosphor": 153.0,
+    "eisen": 1.7,
+    "zink": 1.16,
+    "kupfer": 0.299,
+    "mangan": 1.67,
+    "selen": 14.2,
+    "natrium": 17.0,
+    "wasser": 58.6,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.011,
+    "mehrfachUngesaettigt": 0.249,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Zehe",
+    "gramm": 3.0
+   },
+   {
+    "name": "Teelöffel",
+    "gramm": 2.8
+   },
+   {
+    "name": "Tasse",
+    "gramm": 136.0
+   }
+  ]
+ },
+ {
+  "id": "basis-karotte",
+  "name": "Karotte, frisch",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 41.0,
+   "protein": 0.9,
+   "kohlenhydrate": 9.6,
+   "fett": 0.2,
+   "zucker": 4.74,
+   "ballaststoffe": 2.8,
+   "gesFett": 0.032,
+   "salz": 0.1725,
+   "mikro": {
+    "vitaminA": 835.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.66,
+    "vitaminK": 13.2,
+    "vitaminC": 5.9,
+    "vitaminB1": 0.066,
+    "vitaminB2": 0.058,
+    "niacin": 0.983,
+    "pantothensaeure": 0.273,
+    "vitaminB6": 0.138,
+    "folat": 19.0,
+    "vitaminB12": 0.0,
+    "kalium": 320.0,
+    "calcium": 33.0,
+    "magnesium": 12.0,
+    "phosphor": 35.0,
+    "eisen": 0.3,
+    "zink": 0.24,
+    "kupfer": 0.045,
+    "mangan": 0.143,
+    "selen": 0.1,
+    "natrium": 69.0,
+    "wasser": 88.3,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.012,
+    "mehrfachUngesaettigt": 0.102,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 72.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 61.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 50.0
+   },
+   {
+    "name": "Scheibe",
+    "gramm": 3.0
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 128.0
+   }
+  ]
+ },
+ {
+  "id": "basis-brokkoli",
+  "name": "Brokkoli, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 34.0,
+   "protein": 2.8,
+   "kohlenhydrate": 6.6,
+   "fett": 0.4,
+   "zucker": 1.7,
+   "ballaststoffe": 2.6,
+   "gesFett": 0.114,
+   "salz": 0.0825,
+   "mikro": {
+    "vitaminA": 31.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.78,
+    "vitaminK": 102.0,
+    "vitaminC": 89.2,
+    "vitaminB1": 0.071,
+    "vitaminB2": 0.117,
+    "niacin": 0.639,
+    "pantothensaeure": 0.573,
+    "vitaminB6": 0.175,
+    "folat": 63.0,
+    "vitaminB12": 0.0,
+    "kalium": 316.0,
+    "calcium": 47.0,
+    "magnesium": 21.0,
+    "phosphor": 66.0,
+    "eisen": 0.73,
+    "zink": 0.41,
+    "kupfer": 0.049,
+    "mangan": 0.21,
+    "selen": 2.5,
+    "natrium": 33.0,
+    "wasser": 89.3,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.031,
+    "mehrfachUngesaettigt": 0.112,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Stange",
+    "gramm": 151.0
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 91.0
+   }
+  ]
+ },
+ {
+  "id": "basis-blumenkohl",
+  "name": "Blumenkohl, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 25.0,
+   "protein": 1.9,
+   "kohlenhydrate": 5.0,
+   "fett": 0.3,
+   "zucker": 1.91,
+   "ballaststoffe": 2.0,
+   "gesFett": 0.13,
+   "salz": 0.075,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.08,
+    "vitaminK": 15.5,
+    "vitaminC": 48.2,
+    "vitaminB1": 0.05,
+    "vitaminB2": 0.06,
+    "niacin": 0.507,
+    "pantothensaeure": 0.667,
+    "vitaminB6": 0.184,
+    "folat": 57.0,
+    "vitaminB12": 0.0,
+    "kalium": 299.0,
+    "calcium": 22.0,
+    "magnesium": 15.0,
+    "phosphor": 44.0,
+    "eisen": 0.42,
+    "zink": 0.27,
+    "kupfer": 0.039,
+    "mangan": 0.155,
+    "selen": 0.6,
+    "natrium": 30.0,
+    "wasser": 92.1,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.034,
+    "mehrfachUngesaettigt": 0.031,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 840.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 588.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 265.0
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 107.0
+   }
+  ]
+ },
+ {
+  "id": "basis-spinat",
+  "name": "Spinat, frisch",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 23.0,
+   "protein": 2.9,
+   "kohlenhydrate": 3.6,
+   "fett": 0.4,
+   "zucker": 0.42,
+   "ballaststoffe": 2.2,
+   "gesFett": 0.063,
+   "salz": 0.1975,
+   "mikro": {
+    "vitaminA": 469.0,
+    "vitaminD": 0.0,
+    "vitaminE": 2.03,
+    "vitaminK": 483.0,
+    "vitaminC": 28.1,
+    "vitaminB1": 0.078,
+    "vitaminB2": 0.189,
+    "niacin": 0.724,
+    "pantothensaeure": 0.065,
+    "vitaminB6": 0.195,
+    "folat": 194.0,
+    "vitaminB12": 0.0,
+    "kalium": 558.0,
+    "calcium": 99.0,
+    "magnesium": 79.0,
+    "phosphor": 49.0,
+    "eisen": 2.71,
+    "zink": 0.53,
+    "kupfer": 0.13,
+    "mangan": 0.897,
+    "selen": 1.0,
+    "natrium": 79.0,
+    "wasser": 91.4,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.01,
+    "mehrfachUngesaettigt": 0.165,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 30.0
+   }
+  ]
+ },
+ {
+  "id": "basis-kopfsalat",
+  "name": "Kopfsalat",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 14.0,
+   "protein": 0.9,
+   "kohlenhydrate": 3.0,
+   "fett": 0.1,
+   "zucker": 1.97,
+   "ballaststoffe": 1.2,
+   "gesFett": 0.018,
+   "salz": 0.025,
+   "mikro": {
+    "vitaminA": 25.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.18,
+    "vitaminK": 24.1,
+    "vitaminC": 2.8,
+    "vitaminB1": 0.041,
+    "vitaminB2": 0.025,
+    "niacin": 0.123,
+    "pantothensaeure": 0.091,
+    "vitaminB6": 0.042,
+    "folat": 29.0,
+    "vitaminB12": 0.0,
+    "kalium": 141.0,
+    "calcium": 18.0,
+    "magnesium": 7.0,
+    "phosphor": 20.0,
+    "eisen": 0.41,
+    "zink": 0.15,
+    "kupfer": 0.025,
+    "mangan": 0.125,
+    "selen": 0.1,
+    "natrium": 10.0,
+    "wasser": 95.6,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.006,
+    "mehrfachUngesaettigt": 0.074,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 755.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 539.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 324.0
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 57.0
+   }
+  ]
+ },
+ {
+  "id": "basis-zucchini",
+  "name": "Zucchini",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 17.0,
+   "protein": 1.2,
+   "kohlenhydrate": 3.1,
+   "fett": 0.3,
+   "zucker": 2.5,
+   "ballaststoffe": 1.0,
+   "gesFett": 0.084,
+   "salz": 0.02,
+   "mikro": {
+    "vitaminA": 10.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.12,
+    "vitaminK": 4.3,
+    "vitaminC": 17.9,
+    "vitaminB1": 0.045,
+    "vitaminB2": 0.094,
+    "niacin": 0.451,
+    "pantothensaeure": 0.204,
+    "vitaminB6": 0.163,
+    "folat": 24.0,
+    "vitaminB12": 0.0,
+    "kalium": 261.0,
+    "calcium": 16.0,
+    "magnesium": 18.0,
+    "phosphor": 38.0,
+    "eisen": 0.37,
+    "zink": 0.32,
+    "kupfer": 0.053,
+    "mangan": 0.177,
+    "selen": 0.2,
+    "natrium": 8.0,
+    "wasser": 94.8,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.011,
+    "mehrfachUngesaettigt": 0.091,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 323.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 196.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 118.0
+   },
+   {
+    "name": "Scheibe",
+    "gramm": 9.9
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 124.0
+   }
+  ]
+ },
+ {
+  "id": "basis-aubergine",
+  "name": "Aubergine",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 25.0,
+   "protein": 1.0,
+   "kohlenhydrate": 5.9,
+   "fett": 0.2,
+   "zucker": 3.53,
+   "ballaststoffe": 3.0,
+   "gesFett": 0.034,
+   "salz": 0.005,
+   "mikro": {
+    "vitaminA": 1.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.3,
+    "vitaminK": 3.5,
+    "vitaminC": 2.2,
+    "vitaminB1": 0.039,
+    "vitaminB2": 0.037,
+    "niacin": 0.649,
+    "pantothensaeure": 0.281,
+    "vitaminB6": 0.084,
+    "folat": 22.0,
+    "vitaminB12": 0.0,
+    "kalium": 229.0,
+    "calcium": 9.0,
+    "magnesium": 14.0,
+    "phosphor": 24.0,
+    "eisen": 0.23,
+    "zink": 0.16,
+    "kupfer": 0.081,
+    "mangan": 0.232,
+    "selen": 0.3,
+    "natrium": 2.0,
+    "wasser": 92.3,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.016,
+    "mehrfachUngesaettigt": 0.076,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze",
+    "gramm": 250
+   }
+  ]
+ },
+ {
+  "id": "basis-champignons",
+  "name": "Champignons",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 22.0,
+   "protein": 3.1,
+   "kohlenhydrate": 3.3,
+   "fett": 0.3,
+   "zucker": 1.98,
+   "ballaststoffe": 1.0,
+   "gesFett": 0.05,
+   "salz": 0.0125,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.2,
+    "vitaminE": 0.01,
+    "vitaminK": 0.0,
+    "vitaminC": 2.1,
+    "vitaminB1": 0.081,
+    "vitaminB2": 0.402,
+    "niacin": 3.61,
+    "pantothensaeure": 1.5,
+    "vitaminB6": 0.104,
+    "folat": 17.0,
+    "vitaminB12": 0.04,
+    "kalium": 318.0,
+    "calcium": 3.0,
+    "magnesium": 9.0,
+    "phosphor": 86.0,
+    "eisen": 0.5,
+    "zink": 0.52,
+    "kupfer": 0.318,
+    "mangan": 0.047,
+    "selen": 9.3,
+    "natrium": 5.0,
+    "wasser": 92.5,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.0,
+    "mehrfachUngesaettigt": 0.16,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 23.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 18.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 10.0
+   },
+   {
+    "name": "Scheibe",
+    "gramm": 6.0
+   }
+  ]
+ },
+ {
+  "id": "basis-mais-dose",
+  "name": "Mais, Dose",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 67.0,
+   "protein": 2.3,
+   "kohlenhydrate": 14.3,
+   "fett": 1.2,
+   "zucker": 4.44,
+   "ballaststoffe": 2.0,
+   "gesFett": 0.245,
+   "salz": 0.5125,
+   "mikro": {
+    "vitaminA": 2.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.09,
+    "vitaminK": 0.0,
+    "vitaminC": 1.8,
+    "vitaminB1": 0.039,
+    "vitaminB2": 0.089,
+    "niacin": 1.0,
+    "pantothensaeure": 0.209,
+    "vitaminB6": 0.037,
+    "folat": 39.0,
+    "vitaminB12": 0.0,
+    "kalium": 132.0,
+    "calcium": 3.0,
+    "magnesium": 13.0,
+    "phosphor": 46.0,
+    "eisen": 0.27,
+    "zink": 0.32,
+    "kupfer": 0.033,
+    "mangan": 0.067,
+    "selen": 0.6,
+    "natrium": 205.0,
+    "wasser": 81.4,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.374,
+    "mehrfachUngesaettigt": 0.519,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 164.0
+   }
+  ]
+ },
+ {
+  "id": "basis-erbsen-tk",
+  "name": "Erbsen, TK",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 77.0,
+   "protein": 5.2,
+   "kohlenhydrate": 13.6,
+   "fett": 0.4,
+   "zucker": 5.0,
+   "ballaststoffe": 4.5,
+   "gesFett": 0.066,
+   "salz": 0.27,
+   "mikro": {
+    "vitaminA": 103.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.02,
+    "vitaminK": 27.9,
+    "vitaminC": 18.0,
+    "vitaminB1": 0.259,
+    "vitaminB2": 0.1,
+    "niacin": 1.72,
+    "pantothensaeure": 0.547,
+    "vitaminB6": 0.083,
+    "folat": 53.0,
+    "vitaminB12": 0.0,
+    "kalium": 153.0,
+    "calcium": 22.0,
+    "magnesium": 26.0,
+    "phosphor": 82.0,
+    "eisen": 1.53,
+    "zink": 0.82,
+    "kupfer": 0.124,
+    "mangan": 0.336,
+    "selen": 1.9,
+    "natrium": 108.0,
+    "wasser": 80.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.033,
+    "mehrfachUngesaettigt": 0.175,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 134.0
+   }
+  ]
+ },
+ {
+  "id": "basis-gruene-bohnen-tk",
+  "name": "Grüne Bohnen, TK",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 33.0,
+   "protein": 1.8,
+   "kohlenhydrate": 7.5,
+   "fett": 0.2,
+   "zucker": 2.21,
+   "ballaststoffe": 2.6,
+   "gesFett": 0.047,
+   "salz": 0.0075,
+   "mikro": {
+    "vitaminA": 27.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.42,
+    "vitaminK": 44.8,
+    "vitaminC": 12.9,
+    "vitaminB1": 0.098,
+    "vitaminB2": 0.091,
+    "niacin": 0.496,
+    "pantothensaeure": 0.104,
+    "vitaminB6": 0.044,
+    "folat": 15.0,
+    "vitaminB12": 0.0,
+    "kalium": 186.0,
+    "calcium": 42.0,
+    "magnesium": 22.0,
+    "phosphor": 32.0,
+    "eisen": 0.85,
+    "zink": 0.26,
+    "kupfer": 0.049,
+    "mangan": 0.369,
+    "selen": 0.6,
+    "natrium": 3.0,
+    "wasser": 89.9,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.008,
+    "mehrfachUngesaettigt": 0.108,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 121.0
+   }
+  ]
+ },
+ {
+  "id": "basis-rotkohl",
+  "name": "Rotkohl, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 31.0,
+   "protein": 1.4,
+   "kohlenhydrate": 7.4,
+   "fett": 0.2,
+   "zucker": 3.83,
+   "ballaststoffe": 2.1,
+   "gesFett": 0.021,
+   "salz": 0.0675,
+   "mikro": {
+    "vitaminA": 56.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.11,
+    "vitaminK": 38.2,
+    "vitaminC": 57.0,
+    "vitaminB1": 0.064,
+    "vitaminB2": 0.069,
+    "niacin": 0.418,
+    "pantothensaeure": 0.147,
+    "vitaminB6": 0.209,
+    "folat": 18.0,
+    "vitaminB12": 0.0,
+    "kalium": 243.0,
+    "calcium": 45.0,
+    "magnesium": 16.0,
+    "phosphor": 30.0,
+    "eisen": 0.8,
+    "zink": 0.22,
+    "kupfer": 0.017,
+    "mangan": 0.243,
+    "selen": 0.6,
+    "natrium": 27.0,
+    "wasser": 90.4,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.012,
+    "mehrfachUngesaettigt": 0.08,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 1134.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 839.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 567.0
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 89.0
+   }
+  ]
+ },
+ {
+  "id": "basis-weisskohl",
+  "name": "Weißkohl, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 25.0,
+   "protein": 1.3,
+   "kohlenhydrate": 5.8,
+   "fett": 0.1,
+   "zucker": 3.2,
+   "ballaststoffe": 2.5,
+   "gesFett": 0.034,
+   "salz": 0.045,
+   "mikro": {
+    "vitaminA": 5.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.15,
+    "vitaminK": 76.0,
+    "vitaminC": 36.6,
+    "vitaminB1": 0.061,
+    "vitaminB2": 0.04,
+    "niacin": 0.234,
+    "pantothensaeure": 0.212,
+    "vitaminB6": 0.124,
+    "folat": 43.0,
+    "vitaminB12": 0.0,
+    "kalium": 170.0,
+    "calcium": 40.0,
+    "magnesium": 12.0,
+    "phosphor": 26.0,
+    "eisen": 0.47,
+    "zink": 0.18,
+    "kupfer": 0.019,
+    "mangan": 0.16,
+    "selen": 0.3,
+    "natrium": 18.0,
+    "wasser": 92.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.017,
+    "mehrfachUngesaettigt": 0.017,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 1248.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 908.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 714.0
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 89.0
+   }
+  ]
+ },
+ {
+  "id": "basis-sellerie",
+  "name": "Sellerie, Stangen",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 14.0,
+   "protein": 0.7,
+   "kohlenhydrate": 3.0,
+   "fett": 0.2,
+   "zucker": 1.34,
+   "ballaststoffe": 1.6,
+   "gesFett": 0.042,
+   "salz": 0.2,
+   "mikro": {
+    "vitaminA": 22.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.27,
+    "vitaminK": 29.3,
+    "vitaminC": 3.1,
+    "vitaminB1": 0.021,
+    "vitaminB2": 0.057,
+    "niacin": 0.32,
+    "pantothensaeure": 0.246,
+    "vitaminB6": 0.074,
+    "folat": 36.0,
+    "vitaminB12": 0.0,
+    "kalium": 260.0,
+    "calcium": 40.0,
+    "magnesium": 11.0,
+    "phosphor": 24.0,
+    "eisen": 0.2,
+    "zink": 0.13,
+    "kupfer": 0.035,
+    "mangan": 0.103,
+    "selen": 0.4,
+    "natrium": 80.0,
+    "wasser": 95.4,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.032,
+    "mehrfachUngesaettigt": 0.079,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Stange",
+    "gramm": 64.0
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 7.5
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 101.0
+   }
+  ]
+ },
+ {
+  "id": "basis-lauch",
+  "name": "Lauch",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 61.0,
+   "protein": 1.5,
+   "kohlenhydrate": 14.2,
+   "fett": 0.3,
+   "zucker": 3.9,
+   "ballaststoffe": 1.8,
+   "gesFett": 0.04,
+   "salz": 0.05,
+   "mikro": {
+    "vitaminA": 83.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.92,
+    "vitaminK": 47.0,
+    "vitaminC": 12.0,
+    "vitaminB1": 0.06,
+    "vitaminB2": 0.03,
+    "niacin": 0.4,
+    "pantothensaeure": 0.14,
+    "vitaminB6": 0.233,
+    "folat": 64.0,
+    "vitaminB12": 0.0,
+    "kalium": 180.0,
+    "calcium": 59.0,
+    "magnesium": 28.0,
+    "phosphor": 35.0,
+    "eisen": 2.1,
+    "zink": 0.12,
+    "kupfer": 0.12,
+    "mangan": 0.481,
+    "selen": 1.0,
+    "natrium": 20.0,
+    "wasser": 83.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.004,
+    "mehrfachUngesaettigt": 0.166,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 6.0
+   },
+   {
+    "name": "Tasse",
+    "gramm": 89.0
+   }
+  ]
+ },
+ {
+  "id": "basis-rettich",
+  "name": "Rettich",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 18.0,
+   "protein": 0.6,
+   "kohlenhydrate": 4.1,
+   "fett": 0.1,
+   "zucker": 2.5,
+   "ballaststoffe": 1.6,
+   "gesFett": 0.03,
+   "salz": 0.0525,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.0,
+    "vitaminK": 0.3,
+    "vitaminC": 22.0,
+    "vitaminB1": 0.02,
+    "vitaminB2": 0.02,
+    "niacin": 0.2,
+    "pantothensaeure": 0.138,
+    "vitaminB6": 0.046,
+    "folat": 28.0,
+    "vitaminB12": 0.0,
+    "kalium": 227.0,
+    "calcium": 27.0,
+    "magnesium": 16.0,
+    "phosphor": 23.0,
+    "eisen": 0.4,
+    "zink": 0.15,
+    "kupfer": 0.115,
+    "mangan": 0.038,
+    "selen": 0.7,
+    "natrium": 21.0,
+    "wasser": 94.6,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.017,
+    "mehrfachUngesaettigt": 0.045,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganzer",
+    "gramm": 200
+   }
+  ]
+ },
+ {
+  "id": "basis-radieschen",
+  "name": "Radieschen",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 16.0,
+   "protein": 0.7,
+   "kohlenhydrate": 3.4,
+   "fett": 0.1,
+   "zucker": 1.86,
+   "ballaststoffe": 1.6,
+   "gesFett": 0.032,
+   "salz": 0.0975,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.0,
+    "vitaminK": 1.3,
+    "vitaminC": 14.8,
+    "vitaminB1": 0.012,
+    "vitaminB2": 0.039,
+    "niacin": 0.254,
+    "pantothensaeure": 0.165,
+    "vitaminB6": 0.071,
+    "folat": 25.0,
+    "vitaminB12": 0.0,
+    "kalium": 233.0,
+    "calcium": 25.0,
+    "magnesium": 10.0,
+    "phosphor": 20.0,
+    "eisen": 0.34,
+    "zink": 0.28,
+    "kupfer": 0.05,
+    "mangan": 0.069,
+    "selen": 0.6,
+    "natrium": 39.0,
+    "wasser": 95.3,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.017,
+    "mehrfachUngesaettigt": 0.048,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 9.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 4.5
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 2.0
+   },
+   {
+    "name": "Scheibe",
+    "gramm": 1.0
+   }
+  ]
+ },
+ {
+  "id": "basis-kuerbis-hokkaido",
+  "name": "Kürbis, Hokkaido",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 26.0,
+   "protein": 1.0,
+   "kohlenhydrate": 6.5,
+   "fett": 0.1,
+   "zucker": 2.76,
+   "ballaststoffe": 0.5,
+   "gesFett": 0.052,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 426.0,
+    "vitaminD": 0.0,
+    "vitaminE": 1.06,
+    "vitaminK": 1.1,
+    "vitaminC": 9.0,
+    "vitaminB1": 0.05,
+    "vitaminB2": 0.11,
+    "niacin": 0.6,
+    "pantothensaeure": 0.298,
+    "vitaminB6": 0.061,
+    "folat": 16.0,
+    "vitaminB12": 0.0,
+    "kalium": 340.0,
+    "calcium": 21.0,
+    "magnesium": 12.0,
+    "phosphor": 44.0,
+    "eisen": 0.8,
+    "zink": 0.32,
+    "kupfer": 0.127,
+    "mangan": 0.125,
+    "selen": 0.3,
+    "natrium": 1.0,
+    "wasser": 91.6,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.013,
+    "mehrfachUngesaettigt": 0.005,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-suesskartoffel",
+  "name": "Süßkartoffel, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 86.0,
+   "protein": 1.6,
+   "kohlenhydrate": 20.1,
+   "fett": 0.1,
+   "zucker": 4.18,
+   "ballaststoffe": 3.0,
+   "gesFett": 0.018,
+   "salz": 0.1375,
+   "mikro": {
+    "vitaminA": 709.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.26,
+    "vitaminK": 1.8,
+    "vitaminC": 2.4,
+    "vitaminB1": 0.078,
+    "vitaminB2": 0.061,
+    "niacin": 0.557,
+    "pantothensaeure": 0.8,
+    "vitaminB6": 0.209,
+    "folat": 11.0,
+    "vitaminB12": 0.0,
+    "kalium": 337.0,
+    "calcium": 30.0,
+    "magnesium": 25.0,
+    "phosphor": 47.0,
+    "eisen": 0.61,
+    "zink": 0.3,
+    "kupfer": 0.151,
+    "mangan": 0.258,
+    "selen": 0.6,
+    "natrium": 55.0,
+    "wasser": 77.3,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.001,
+    "mehrfachUngesaettigt": 0.014,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 130
+   }
+  ]
+ },
+ {
+  "id": "basis-feldsalat",
+  "name": "Feldsalat",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 15,
+   "protein": 2.0,
+   "kohlenhydrate": 0.4,
+   "fett": 0.4,
+   "ballaststoffe": 1.4,
+   "salz": 0.0125
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 50
+   }
+  ]
+ },
+ {
+  "id": "basis-fruehlingszwiebel",
+  "name": "Frühlingszwiebel",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 32.0,
+   "protein": 1.8,
+   "kohlenhydrate": 7.3,
+   "fett": 0.2,
+   "zucker": 2.33,
+   "ballaststoffe": 2.6,
+   "gesFett": 0.032,
+   "salz": 0.04,
+   "mikro": {
+    "vitaminA": 50.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.55,
+    "vitaminK": 207.0,
+    "vitaminC": 18.8,
+    "vitaminB1": 0.055,
+    "vitaminB2": 0.08,
+    "niacin": 0.525,
+    "pantothensaeure": 0.075,
+    "vitaminB6": 0.061,
+    "folat": 64.0,
+    "vitaminB12": 0.0,
+    "kalium": 276.0,
+    "calcium": 72.0,
+    "magnesium": 20.0,
+    "phosphor": 37.0,
+    "eisen": 1.48,
+    "zink": 0.39,
+    "kupfer": 0.083,
+    "mangan": 0.16,
+    "selen": 0.6,
+    "natrium": 16.0,
+    "wasser": 89.8,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.027,
+    "mehrfachUngesaettigt": 0.074,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 25.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 15.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 5.0
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 6.0
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 100.0
+   }
+  ]
+ },
+ {
+  "id": "basis-apfel",
+  "name": "Apfel",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 52.0,
+   "protein": 0.3,
+   "kohlenhydrate": 13.8,
+   "fett": 0.2,
+   "zucker": 10.4,
+   "ballaststoffe": 2.4,
+   "gesFett": 0.028,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 3.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.18,
+    "vitaminK": 2.2,
+    "vitaminC": 4.6,
+    "vitaminB1": 0.017,
+    "vitaminB2": 0.026,
+    "niacin": 0.091,
+    "pantothensaeure": 0.061,
+    "vitaminB6": 0.041,
+    "folat": 3.0,
+    "vitaminB12": 0.0,
+    "kalium": 107.0,
+    "calcium": 6.0,
+    "magnesium": 5.0,
+    "phosphor": 11.0,
+    "eisen": 0.12,
+    "zink": 0.04,
+    "kupfer": 0.027,
+    "mangan": 0.035,
+    "selen": 0.0,
+    "natrium": 1.0,
+    "wasser": 85.6,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.007,
+    "mehrfachUngesaettigt": 0.051,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 223.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 182.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 149.0
+   }
+  ]
+ },
+ {
+  "id": "basis-banane",
+  "name": "Banane",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 89.0,
+   "protein": 1.1,
+   "kohlenhydrate": 22.8,
+   "fett": 0.3,
+   "zucker": 12.2,
+   "ballaststoffe": 2.6,
+   "gesFett": 0.112,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 3.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.1,
+    "vitaminK": 0.5,
+    "vitaminC": 8.7,
+    "vitaminB1": 0.031,
+    "vitaminB2": 0.073,
+    "niacin": 0.665,
+    "pantothensaeure": 0.334,
+    "vitaminB6": 0.367,
+    "folat": 20.0,
+    "vitaminB12": 0.0,
+    "kalium": 358.0,
+    "calcium": 5.0,
+    "magnesium": 27.0,
+    "phosphor": 22.0,
+    "eisen": 0.26,
+    "zink": 0.15,
+    "kupfer": 0.078,
+    "mangan": 0.27,
+    "selen": 1.0,
+    "natrium": 1.0,
+    "wasser": 74.9,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.032,
+    "mehrfachUngesaettigt": 0.073,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, klein",
+    "gramm": 101.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 118.0
+   },
+   {
+    "name": "ganze, groß",
+    "gramm": 136.0
+   }
+  ]
+ },
+ {
+  "id": "basis-orange",
+  "name": "Orange",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 47.0,
+   "protein": 0.9,
+   "kohlenhydrate": 11.8,
+   "fett": 0.1,
+   "zucker": 9.35,
+   "ballaststoffe": 2.4,
+   "gesFett": 0.015,
+   "salz": 0.0,
+   "mikro": {
+    "vitaminA": 11.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.18,
+    "vitaminK": 0.0,
+    "vitaminC": 53.2,
+    "vitaminB1": 0.087,
+    "vitaminB2": 0.04,
+    "niacin": 0.282,
+    "pantothensaeure": 0.25,
+    "vitaminB6": 0.06,
+    "folat": 30.0,
+    "vitaminB12": 0.0,
+    "kalium": 181.0,
+    "calcium": 40.0,
+    "magnesium": 10.0,
+    "phosphor": 14.0,
+    "eisen": 0.1,
+    "zink": 0.07,
+    "kupfer": 0.045,
+    "mangan": 0.025,
+    "selen": 0.5,
+    "natrium": 0.0,
+    "wasser": 86.8,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.023,
+    "mehrfachUngesaettigt": 0.025,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 184.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 96.0
+   },
+   {
+    "name": "ganze",
+    "gramm": 131.0
+   }
+  ]
+ },
+ {
+  "id": "basis-birne",
+  "name": "Birne",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 57.0,
+   "protein": 0.4,
+   "kohlenhydrate": 15.2,
+   "fett": 0.1,
+   "zucker": 9.75,
+   "ballaststoffe": 3.1,
+   "gesFett": 0.022,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 1.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.12,
+    "vitaminK": 4.4,
+    "vitaminC": 4.3,
+    "vitaminB1": 0.012,
+    "vitaminB2": 0.026,
+    "niacin": 0.161,
+    "pantothensaeure": 0.049,
+    "vitaminB6": 0.029,
+    "folat": 7.0,
+    "vitaminB12": 0.0,
+    "kalium": 116.0,
+    "calcium": 9.0,
+    "magnesium": 7.0,
+    "phosphor": 12.0,
+    "eisen": 0.18,
+    "zink": 0.1,
+    "kupfer": 0.082,
+    "mangan": 0.048,
+    "selen": 0.1,
+    "natrium": 1.0,
+    "wasser": 84.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.084,
+    "mehrfachUngesaettigt": 0.094,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, klein",
+    "gramm": 148.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 178.0
+   },
+   {
+    "name": "ganze, groß",
+    "gramm": 230.0
+   }
+  ]
+ },
+ {
+  "id": "basis-weintrauben",
+  "name": "Weintrauben",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 69.0,
+   "protein": 0.7,
+   "kohlenhydrate": 18.1,
+   "fett": 0.2,
+   "zucker": 15.5,
+   "ballaststoffe": 0.9,
+   "gesFett": 0.054,
+   "salz": 0.005,
+   "mikro": {
+    "vitaminA": 3.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.19,
+    "vitaminK": 14.6,
+    "vitaminC": 3.2,
+    "vitaminB1": 0.069,
+    "vitaminB2": 0.07,
+    "niacin": 0.188,
+    "pantothensaeure": 0.05,
+    "vitaminB6": 0.086,
+    "folat": 2.0,
+    "vitaminB12": 0.0,
+    "kalium": 191.0,
+    "calcium": 10.0,
+    "magnesium": 7.0,
+    "phosphor": 20.0,
+    "eisen": 0.36,
+    "zink": 0.07,
+    "kupfer": 0.127,
+    "mangan": 0.071,
+    "selen": 0.1,
+    "natrium": 2.0,
+    "wasser": 80.5,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.007,
+    "mehrfachUngesaettigt": 0.048,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 151.0
+   }
+  ]
+ },
+ {
+  "id": "basis-erdbeeren",
+  "name": "Erdbeeren",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 32.0,
+   "protein": 0.7,
+   "kohlenhydrate": 7.7,
+   "fett": 0.3,
+   "zucker": 4.89,
+   "ballaststoffe": 2.0,
+   "gesFett": 0.015,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 1.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.29,
+    "vitaminK": 2.2,
+    "vitaminC": 58.8,
+    "vitaminB1": 0.024,
+    "vitaminB2": 0.022,
+    "niacin": 0.386,
+    "pantothensaeure": 0.125,
+    "vitaminB6": 0.047,
+    "folat": 24.0,
+    "vitaminB12": 0.0,
+    "kalium": 153.0,
+    "calcium": 16.0,
+    "magnesium": 13.0,
+    "phosphor": 24.0,
+    "eisen": 0.41,
+    "zink": 0.14,
+    "kupfer": 0.048,
+    "mangan": 0.386,
+    "selen": 0.4,
+    "natrium": 1.0,
+    "wasser": 91.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.043,
+    "mehrfachUngesaettigt": 0.155,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 18.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 12.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 7.0
+   }
+  ]
+ },
+ {
+  "id": "basis-blaubeeren",
+  "name": "Blaubeeren",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 57.0,
+   "protein": 0.7,
+   "kohlenhydrate": 14.5,
+   "fett": 0.3,
+   "zucker": 9.96,
+   "ballaststoffe": 2.4,
+   "gesFett": 0.028,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 3.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.57,
+    "vitaminK": 19.3,
+    "vitaminC": 9.7,
+    "vitaminB1": 0.037,
+    "vitaminB2": 0.041,
+    "niacin": 0.418,
+    "pantothensaeure": 0.124,
+    "vitaminB6": 0.052,
+    "folat": 6.0,
+    "vitaminB12": 0.0,
+    "kalium": 77.0,
+    "calcium": 6.0,
+    "magnesium": 6.0,
+    "phosphor": 12.0,
+    "eisen": 0.28,
+    "zink": 0.16,
+    "kupfer": 0.057,
+    "mangan": 0.336,
+    "selen": 0.1,
+    "natrium": 1.0,
+    "wasser": 84.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.047,
+    "mehrfachUngesaettigt": 0.146,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 148.0
+   }
+  ]
+ },
+ {
+  "id": "basis-himbeeren",
+  "name": "Himbeeren",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 52.0,
+   "protein": 1.2,
+   "kohlenhydrate": 11.9,
+   "fett": 0.7,
+   "zucker": 4.42,
+   "ballaststoffe": 6.5,
+   "gesFett": 0.019,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 2.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.87,
+    "vitaminK": 7.8,
+    "vitaminC": 26.2,
+    "vitaminB1": 0.032,
+    "vitaminB2": 0.038,
+    "niacin": 0.598,
+    "pantothensaeure": 0.329,
+    "vitaminB6": 0.055,
+    "folat": 21.0,
+    "vitaminB12": 0.0,
+    "kalium": 151.0,
+    "calcium": 25.0,
+    "magnesium": 22.0,
+    "phosphor": 29.0,
+    "eisen": 0.69,
+    "zink": 0.42,
+    "kupfer": 0.09,
+    "mangan": 0.67,
+    "selen": 0.2,
+    "natrium": 1.0,
+    "wasser": 85.8,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.064,
+    "mehrfachUngesaettigt": 0.375,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 123.0
+   }
+  ]
+ },
+ {
+  "id": "basis-kiwi",
+  "name": "Kiwi",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 61.0,
+   "protein": 1.1,
+   "kohlenhydrate": 14.7,
+   "fett": 0.5,
+   "zucker": 8.99,
+   "ballaststoffe": 3.0,
+   "gesFett": 0.029,
+   "salz": 0.0075,
+   "mikro": {
+    "vitaminA": 4.0,
+    "vitaminD": 0.0,
+    "vitaminE": 1.46,
+    "vitaminK": 40.3,
+    "vitaminC": 92.7,
+    "vitaminB1": 0.027,
+    "vitaminB2": 0.025,
+    "niacin": 0.341,
+    "pantothensaeure": 0.183,
+    "vitaminB6": 0.063,
+    "folat": 25.0,
+    "vitaminB12": 0.0,
+    "kalium": 312.0,
+    "calcium": 34.0,
+    "magnesium": 17.0,
+    "phosphor": 34.0,
+    "eisen": 0.31,
+    "zink": 0.14,
+    "kupfer": 0.13,
+    "mangan": 0.098,
+    "selen": 0.2,
+    "natrium": 3.0,
+    "wasser": 83.1,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.047,
+    "mehrfachUngesaettigt": 0.287,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze",
+    "gramm": 69.0
+   }
+  ]
+ },
+ {
+  "id": "basis-ananas",
+  "name": "Ananas",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 50.0,
+   "protein": 0.5,
+   "kohlenhydrate": 13.1,
+   "fett": 0.1,
+   "zucker": 9.85,
+   "ballaststoffe": 1.4,
+   "gesFett": 0.009,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 3.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.02,
+    "vitaminK": 0.7,
+    "vitaminC": 47.8,
+    "vitaminB1": 0.079,
+    "vitaminB2": 0.032,
+    "niacin": 0.5,
+    "pantothensaeure": 0.213,
+    "vitaminB6": 0.112,
+    "folat": 18.0,
+    "vitaminB12": 0.0,
+    "kalium": 109.0,
+    "calcium": 13.0,
+    "magnesium": 12.0,
+    "phosphor": 8.0,
+    "eisen": 0.29,
+    "zink": 0.12,
+    "kupfer": 0.11,
+    "mangan": 0.927,
+    "selen": 0.1,
+    "natrium": 1.0,
+    "wasser": 86.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.013,
+    "mehrfachUngesaettigt": 0.04,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 84.0
+   }
+  ]
+ },
+ {
+  "id": "basis-wassermelone",
+  "name": "Wassermelone",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 30.0,
+   "protein": 0.6,
+   "kohlenhydrate": 7.5,
+   "fett": 0.1,
+   "zucker": 6.2,
+   "ballaststoffe": 0.4,
+   "gesFett": 0.016,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 28.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.05,
+    "vitaminK": 0.1,
+    "vitaminC": 8.1,
+    "vitaminB1": 0.033,
+    "vitaminB2": 0.021,
+    "niacin": 0.178,
+    "pantothensaeure": 0.221,
+    "vitaminB6": 0.045,
+    "folat": 3.0,
+    "vitaminB12": 0.0,
+    "kalium": 112.0,
+    "calcium": 7.0,
+    "magnesium": 10.0,
+    "phosphor": 11.0,
+    "eisen": 0.24,
+    "zink": 0.1,
+    "kupfer": 0.042,
+    "mangan": 0.038,
+    "selen": 0.4,
+    "natrium": 1.0,
+    "wasser": 91.5,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.037,
+    "mehrfachUngesaettigt": 0.05,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 280
+   }
+  ]
+ },
+ {
+  "id": "basis-honigmelone",
+  "name": "Honigmelone",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 36.0,
+   "protein": 0.5,
+   "kohlenhydrate": 9.1,
+   "fett": 0.1,
+   "zucker": 8.12,
+   "ballaststoffe": 0.8,
+   "gesFett": 0.038,
+   "salz": 0.045,
+   "mikro": {
+    "vitaminA": 3.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.02,
+    "vitaminK": 2.9,
+    "vitaminC": 18.0,
+    "vitaminB1": 0.038,
+    "vitaminB2": 0.012,
+    "niacin": 0.418,
+    "pantothensaeure": 0.155,
+    "vitaminB6": 0.088,
+    "folat": 19.0,
+    "vitaminB12": 0.0,
+    "kalium": 228.0,
+    "calcium": 6.0,
+    "magnesium": 10.0,
+    "phosphor": 11.0,
+    "eisen": 0.17,
+    "zink": 0.09,
+    "kupfer": 0.024,
+    "mangan": 0.027,
+    "selen": 0.7,
+    "natrium": 18.0,
+    "wasser": 89.8,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.003,
+    "mehrfachUngesaettigt": 0.059,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-mango",
+  "name": "Mango",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 60.0,
+   "protein": 0.8,
+   "kohlenhydrate": 15.0,
+   "fett": 0.4,
+   "zucker": 13.7,
+   "ballaststoffe": 1.6,
+   "gesFett": 0.092,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 54.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.9,
+    "vitaminK": 4.2,
+    "vitaminC": 36.4,
+    "vitaminB1": 0.028,
+    "vitaminB2": 0.038,
+    "niacin": 0.669,
+    "pantothensaeure": 0.197,
+    "vitaminB6": 0.119,
+    "folat": 43.0,
+    "vitaminB12": 0.0,
+    "kalium": 168.0,
+    "calcium": 11.0,
+    "magnesium": 10.0,
+    "phosphor": 14.0,
+    "eisen": 0.16,
+    "zink": 0.09,
+    "kupfer": 0.111,
+    "mangan": 0.063,
+    "selen": 0.6,
+    "natrium": 1.0,
+    "wasser": 83.5,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.14,
+    "mehrfachUngesaettigt": 0.071,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze",
+    "gramm": 200
+   }
+  ]
+ },
+ {
+  "id": "basis-pfirsich",
+  "name": "Pfirsich",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 39.0,
+   "protein": 0.9,
+   "kohlenhydrate": 9.5,
+   "fett": 0.2,
+   "zucker": 8.39,
+   "ballaststoffe": 1.5,
+   "gesFett": 0.019,
+   "salz": 0.0,
+   "mikro": {
+    "vitaminA": 16.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.73,
+    "vitaminK": 2.6,
+    "vitaminC": 6.6,
+    "vitaminB1": 0.024,
+    "vitaminB2": 0.031,
+    "niacin": 0.806,
+    "pantothensaeure": 0.153,
+    "vitaminB6": 0.025,
+    "folat": 4.0,
+    "vitaminB12": 0.0,
+    "kalium": 190.0,
+    "calcium": 6.0,
+    "magnesium": 9.0,
+    "phosphor": 20.0,
+    "eisen": 0.25,
+    "zink": 0.17,
+    "kupfer": 0.068,
+    "mangan": 0.061,
+    "selen": 0.1,
+    "natrium": 0.0,
+    "wasser": 88.9,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.067,
+    "mehrfachUngesaettigt": 0.086,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, klein",
+    "gramm": 130.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 150.0
+   },
+   {
+    "name": "ganze, groß",
+    "gramm": 175.0
+   }
+  ]
+ },
+ {
+  "id": "basis-aprikose",
+  "name": "Aprikose",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 48.0,
+   "protein": 1.4,
+   "kohlenhydrate": 11.1,
+   "fett": 0.4,
+   "zucker": 9.24,
+   "ballaststoffe": 2.0,
+   "gesFett": 0.027,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 96.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.89,
+    "vitaminK": 3.3,
+    "vitaminC": 10.0,
+    "vitaminB1": 0.03,
+    "vitaminB2": 0.04,
+    "niacin": 0.6,
+    "pantothensaeure": 0.24,
+    "vitaminB6": 0.054,
+    "folat": 9.0,
+    "vitaminB12": 0.0,
+    "kalium": 259.0,
+    "calcium": 13.0,
+    "magnesium": 10.0,
+    "phosphor": 23.0,
+    "eisen": 0.39,
+    "zink": 0.2,
+    "kupfer": 0.078,
+    "mangan": 0.077,
+    "selen": 0.1,
+    "natrium": 1.0,
+    "wasser": 86.3,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.17,
+    "mehrfachUngesaettigt": 0.077,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze",
+    "gramm": 35.0
+   }
+  ]
+ },
+ {
+  "id": "basis-pflaume",
+  "name": "Pflaume",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 46.0,
+   "protein": 0.7,
+   "kohlenhydrate": 11.4,
+   "fett": 0.3,
+   "zucker": 9.92,
+   "ballaststoffe": 1.4,
+   "gesFett": 0.017,
+   "salz": 0.0,
+   "mikro": {
+    "vitaminA": 17.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.26,
+    "vitaminK": 6.4,
+    "vitaminC": 9.5,
+    "vitaminB1": 0.028,
+    "vitaminB2": 0.026,
+    "niacin": 0.417,
+    "pantothensaeure": 0.135,
+    "vitaminB6": 0.029,
+    "folat": 5.0,
+    "vitaminB12": 0.0,
+    "kalium": 157.0,
+    "calcium": 6.0,
+    "magnesium": 7.0,
+    "phosphor": 16.0,
+    "eisen": 0.17,
+    "zink": 0.1,
+    "kupfer": 0.057,
+    "mangan": 0.052,
+    "selen": 0.0,
+    "natrium": 0.0,
+    "wasser": 87.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.134,
+    "mehrfachUngesaettigt": 0.044,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze",
+    "gramm": 66.0
+   }
+  ]
+ },
+ {
+  "id": "basis-kirschen",
+  "name": "Kirschen",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 63.0,
+   "protein": 1.1,
+   "kohlenhydrate": 16.0,
+   "fett": 0.2,
+   "zucker": 12.8,
+   "ballaststoffe": 2.1,
+   "gesFett": 0.038,
+   "salz": 0.0,
+   "mikro": {
+    "vitaminA": 3.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.07,
+    "vitaminK": 2.1,
+    "vitaminC": 7.0,
+    "vitaminB1": 0.027,
+    "vitaminB2": 0.033,
+    "niacin": 0.154,
+    "pantothensaeure": 0.199,
+    "vitaminB6": 0.049,
+    "folat": 4.0,
+    "vitaminB12": 0.0,
+    "kalium": 222.0,
+    "calcium": 13.0,
+    "magnesium": 11.0,
+    "phosphor": 21.0,
+    "eisen": 0.36,
+    "zink": 0.07,
+    "kupfer": 0.06,
+    "mangan": 0.07,
+    "selen": 0.0,
+    "natrium": 0.0,
+    "wasser": 82.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.047,
+    "mehrfachUngesaettigt": 0.052,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Handvoll",
+    "gramm": 100
+   }
+  ]
+ },
+ {
+  "id": "basis-avocado",
+  "name": "Avocado",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 160.0,
+   "protein": 2.0,
+   "kohlenhydrate": 8.5,
+   "fett": 14.7,
+   "zucker": 0.66,
+   "ballaststoffe": 6.7,
+   "gesFett": 2.13,
+   "salz": 0.0175,
+   "mikro": {
+    "vitaminA": 7.0,
+    "vitaminD": 0.0,
+    "vitaminE": 2.07,
+    "vitaminK": 21.0,
+    "vitaminC": 10.0,
+    "vitaminB1": 0.067,
+    "vitaminB2": 0.13,
+    "niacin": 1.74,
+    "pantothensaeure": 1.39,
+    "vitaminB6": 0.257,
+    "folat": 81.0,
+    "vitaminB12": 0.0,
+    "kalium": 485.0,
+    "calcium": 12.0,
+    "magnesium": 29.0,
+    "phosphor": 52.0,
+    "eisen": 0.55,
+    "zink": 0.64,
+    "kupfer": 0.19,
+    "mangan": 0.142,
+    "selen": 0.4,
+    "natrium": 7.0,
+    "wasser": 73.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 9.8,
+    "mehrfachUngesaettigt": 1.82,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze",
+    "gramm": 201.0
+   }
+  ]
+ },
+ {
+  "id": "basis-kartoffeln-gekocht",
+  "name": "Kartoffeln, gekocht",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 87.0,
+   "protein": 1.9,
+   "kohlenhydrate": 20.1,
+   "fett": 0.1,
+   "zucker": 0.91,
+   "ballaststoffe": 1.8,
+   "gesFett": 0.026,
+   "salz": 0.01,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.01,
+    "vitaminK": 2.2,
+    "vitaminC": 13.0,
+    "vitaminB1": 0.106,
+    "vitaminB2": 0.02,
+    "niacin": 1.44,
+    "pantothensaeure": 0.52,
+    "vitaminB6": 0.299,
+    "folat": 10.0,
+    "vitaminB12": 0.0,
+    "kalium": 379.0,
+    "calcium": 5.0,
+    "magnesium": 22.0,
+    "phosphor": 44.0,
+    "eisen": 0.31,
+    "zink": 0.3,
+    "kupfer": 0.188,
+    "mangan": 0.138,
+    "selen": 0.3,
+    "natrium": 4.0,
+    "wasser": 77.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.002,
+    "mehrfachUngesaettigt": 0.043,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 156.0
+   }
+  ]
+ },
+ {
+  "id": "basis-kartoffeln-roh",
+  "name": "Kartoffeln, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 77.0,
+   "protein": 2.0,
+   "kohlenhydrate": 17.5,
+   "fett": 0.1,
+   "zucker": 0.82,
+   "ballaststoffe": 2.1,
+   "gesFett": 0.025,
+   "salz": 0.015,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.01,
+    "vitaminK": 2.0,
+    "vitaminC": 19.7,
+    "vitaminB1": 0.081,
+    "vitaminB2": 0.032,
+    "niacin": 1.06,
+    "pantothensaeure": 0.295,
+    "vitaminB6": 0.298,
+    "folat": 15.0,
+    "vitaminB12": 0.0,
+    "kalium": 425.0,
+    "calcium": 12.0,
+    "magnesium": 23.0,
+    "phosphor": 57.0,
+    "eisen": 0.81,
+    "zink": 0.3,
+    "kupfer": 0.11,
+    "mangan": 0.153,
+    "selen": 0.4,
+    "natrium": 6.0,
+    "wasser": 79.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.002,
+    "mehrfachUngesaettigt": 0.042,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 369.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 213.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 170.0
+   }
+  ]
+ },
+ {
+  "id": "basis-pommes-ofen",
+  "name": "Pommes frites, Ofen",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 161.0,
+   "protein": 2.5,
+   "kohlenhydrate": 27.5,
+   "fett": 5.1,
+   "zucker": 0.29,
+   "ballaststoffe": 2.3,
+   "gesFett": 1.08,
+   "salz": 0.9775,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.1,
+    "vitaminK": 2.3,
+    "vitaminC": 11.8,
+    "vitaminB1": 0.122,
+    "vitaminB2": 0.031,
+    "niacin": 2.13,
+    "pantothensaeure": 0.491,
+    "vitaminB6": 0.172,
+    "kalium": 471.0,
+    "calcium": 13.0,
+    "magnesium": 28.0,
+    "phosphor": 97.0,
+    "eisen": 0.75,
+    "zink": 0.4,
+    "kupfer": 0.145,
+    "mangan": 0.219,
+    "selen": 0.1,
+    "natrium": 391.0,
+    "wasser": 63.1,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 3.45,
+    "mehrfachUngesaettigt": 0.319,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-kartoffelpueree",
+  "name": "Kartoffelpüree",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 83.0,
+   "protein": 1.9,
+   "kohlenhydrate": 17.6,
+   "fett": 0.6,
+   "zucker": 1.48,
+   "ballaststoffe": 1.5,
+   "gesFett": 0.302,
+   "salz": 0.755,
+   "mikro": {
+    "vitaminA": 7.0,
+    "vitaminD": 0.2,
+    "vitaminE": 0.02,
+    "vitaminK": 1.8,
+    "vitaminC": 6.2,
+    "vitaminB1": 0.089,
+    "vitaminB2": 0.041,
+    "niacin": 1.12,
+    "pantothensaeure": 0.485,
+    "vitaminB6": 0.232,
+    "folat": 8.0,
+    "vitaminB12": 0.07,
+    "kalium": 296.0,
+    "calcium": 24.0,
+    "magnesium": 18.0,
+    "phosphor": 46.0,
+    "eisen": 0.27,
+    "zink": 0.28,
+    "kupfer": 0.145,
+    "mangan": 0.119,
+    "selen": 0.8,
+    "natrium": 302.0,
+    "wasser": 78.5,
+    "cholesterin": 2.0,
+    "einfachUngesaettigt": 0.124,
+    "mehrfachUngesaettigt": 0.065,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 210.0
+   }
+  ]
+ },
+ {
+  "id": "basis-reis-weiss-roh",
+  "name": "Reis, weiß, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 365.0,
+   "protein": 7.1,
+   "kohlenhydrate": 80.0,
+   "fett": 0.7,
+   "zucker": 0.12,
+   "ballaststoffe": 1.3,
+   "gesFett": 0.18,
+   "salz": 0.0125,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.11,
+    "vitaminK": 0.1,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.07,
+    "vitaminB2": 0.049,
+    "niacin": 1.6,
+    "pantothensaeure": 1.01,
+    "vitaminB6": 0.164,
+    "folat": 8.0,
+    "vitaminB12": 0.0,
+    "kalium": 115.0,
+    "calcium": 28.0,
+    "magnesium": 25.0,
+    "phosphor": 115.0,
+    "eisen": 0.8,
+    "zink": 1.09,
+    "kupfer": 0.22,
+    "mangan": 1.09,
+    "selen": 15.1,
+    "natrium": 5.0,
+    "wasser": 11.6,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.206,
+    "mehrfachUngesaettigt": 0.177,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 185.0
+   }
+  ]
+ },
+ {
+  "id": "basis-reis-weiss-gekocht",
+  "name": "Reis, weiß, gekocht",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 130.0,
+   "protein": 2.7,
+   "kohlenhydrate": 28.2,
+   "fett": 0.3,
+   "zucker": 0.05,
+   "ballaststoffe": 0.4,
+   "gesFett": 0.077,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.04,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.02,
+    "vitaminB2": 0.013,
+    "niacin": 0.4,
+    "pantothensaeure": 0.39,
+    "vitaminB6": 0.093,
+    "folat": 3.0,
+    "vitaminB12": 0.0,
+    "kalium": 35.0,
+    "calcium": 10.0,
+    "magnesium": 12.0,
+    "phosphor": 43.0,
+    "eisen": 0.2,
+    "zink": 0.49,
+    "kupfer": 0.069,
+    "mangan": 0.472,
+    "selen": 7.5,
+    "natrium": 1.0,
+    "wasser": 68.4,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.088,
+    "mehrfachUngesaettigt": 0.076,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 158.0
+   }
+  ]
+ },
+ {
+  "id": "basis-vollkornreis-gekocht",
+  "name": "Vollkornreis, gekocht",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 123.0,
+   "protein": 2.7,
+   "kohlenhydrate": 25.6,
+   "fett": 1.0,
+   "zucker": 0.24,
+   "ballaststoffe": 1.6,
+   "gesFett": 0.26,
+   "salz": 0.01,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.17,
+    "vitaminK": 0.2,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.178,
+    "vitaminB2": 0.069,
+    "niacin": 2.56,
+    "pantothensaeure": 0.38,
+    "vitaminB6": 0.123,
+    "folat": 9.0,
+    "vitaminB12": 0.0,
+    "kalium": 86.0,
+    "calcium": 3.0,
+    "magnesium": 39.0,
+    "phosphor": 103.0,
+    "eisen": 0.56,
+    "zink": 0.71,
+    "kupfer": 0.106,
+    "mangan": 0.974,
+    "selen": 5.8,
+    "natrium": 4.0,
+    "wasser": 70.3,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.369,
+    "mehrfachUngesaettigt": 0.366,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 202.0
+   }
+  ]
+ },
+ {
+  "id": "basis-nudeln-roh",
+  "name": "Nudeln, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 371.0,
+   "protein": 13.0,
+   "kohlenhydrate": 74.7,
+   "fett": 1.5,
+   "zucker": 2.67,
+   "ballaststoffe": 3.2,
+   "gesFett": 0.277,
+   "salz": 0.015,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.11,
+    "vitaminK": 0.1,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.09,
+    "vitaminB2": 0.06,
+    "niacin": 1.7,
+    "pantothensaeure": 0.431,
+    "vitaminB6": 0.142,
+    "folat": 18.0,
+    "vitaminB12": 0.0,
+    "kalium": 223.0,
+    "calcium": 21.0,
+    "magnesium": 53.0,
+    "phosphor": 189.0,
+    "eisen": 1.3,
+    "zink": 1.41,
+    "kupfer": 0.289,
+    "mangan": 0.917,
+    "selen": 63.2,
+    "natrium": 6.0,
+    "wasser": 9.9,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.171,
+    "mehrfachUngesaettigt": 0.564,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion, roh",
+    "gramm": 100
+   }
+  ]
+ },
+ {
+  "id": "basis-nudeln-gekocht",
+  "name": "Nudeln, gekocht",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 158.0,
+   "protein": 5.8,
+   "kohlenhydrate": 30.9,
+   "fett": 0.9,
+   "zucker": 0.56,
+   "ballaststoffe": 1.8,
+   "gesFett": 0.176,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.06,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.02,
+    "vitaminB2": 0.02,
+    "niacin": 0.4,
+    "pantothensaeure": 0.112,
+    "vitaminB6": 0.049,
+    "folat": 7.0,
+    "vitaminB12": 0.0,
+    "kalium": 44.0,
+    "calcium": 7.0,
+    "magnesium": 18.0,
+    "phosphor": 58.0,
+    "eisen": 0.5,
+    "zink": 0.51,
+    "kupfer": 0.1,
+    "mangan": 0.322,
+    "selen": 26.4,
+    "natrium": 1.0,
+    "wasser": 62.1,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.131,
+    "mehrfachUngesaettigt": 0.326,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 250
+   }
+  ]
+ },
+ {
+  "id": "basis-vollkornnudeln-gekocht",
+  "name": "Vollkornnudeln, gekocht",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 149.0,
+   "protein": 6.0,
+   "kohlenhydrate": 30.1,
+   "fett": 1.7,
+   "zucker": 0.75,
+   "ballaststoffe": 3.9,
+   "gesFett": 0.243,
+   "salz": 0.01,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.23,
+    "vitaminK": 0.6,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.156,
+    "vitaminB2": 0.099,
+    "niacin": 3.13,
+    "pantothensaeure": 0.268,
+    "vitaminB6": 0.093,
+    "folat": 21.0,
+    "vitaminB12": 0.0,
+    "kalium": 96.0,
+    "calcium": 13.0,
+    "magnesium": 54.0,
+    "phosphor": 127.0,
+    "eisen": 1.72,
+    "zink": 1.34,
+    "kupfer": 0.225,
+    "mangan": 1.32,
+    "selen": 36.3,
+    "natrium": 4.0,
+    "wasser": 61.8,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.176,
+    "mehrfachUngesaettigt": 0.574,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 250
+   }
+  ]
+ },
+ {
+  "id": "basis-vollkornbrot",
+  "name": "Vollkornbrot",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 252.0,
+   "protein": 12.4,
+   "kohlenhydrate": 42.7,
+   "fett": 3.5,
+   "zucker": 4.34,
+   "ballaststoffe": 6.0,
+   "gesFett": 0.722,
+   "salz": 1.1375,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 2.66,
+    "vitaminK": 7.8,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.394,
+    "vitaminB2": 0.167,
+    "niacin": 4.44,
+    "pantothensaeure": 0.646,
+    "vitaminB6": 0.215,
+    "folat": 42.0,
+    "vitaminB12": 0.0,
+    "kalium": 254.0,
+    "calcium": 161.0,
+    "magnesium": 75.0,
+    "phosphor": 212.0,
+    "eisen": 2.47,
+    "zink": 1.77,
+    "kupfer": 0.227,
+    "mangan": 2.17,
+    "selen": 25.7,
+    "natrium": 455.0,
+    "wasser": 39.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.62,
+    "mehrfachUngesaettigt": 1.59,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 32.0
+   }
+  ]
+ },
+ {
+  "id": "basis-toastbrot",
+  "name": "Toastbrot",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 266.0,
+   "protein": 8.8,
+   "kohlenhydrate": 49.4,
+   "fett": 3.3,
+   "zucker": 5.67,
+   "ballaststoffe": 2.7,
+   "gesFett": 0.698,
+   "salz": 1.225,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.22,
+    "vitaminK": 0.2,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.533,
+    "vitaminB2": 0.243,
+    "niacin": 4.78,
+    "pantothensaeure": 0.536,
+    "vitaminB6": 0.087,
+    "folat": 171.0,
+    "vitaminB12": 0.0,
+    "kalium": 126.0,
+    "calcium": 144.0,
+    "magnesium": 23.0,
+    "phosphor": 98.0,
+    "eisen": 3.61,
+    "zink": 0.74,
+    "kupfer": 0.101,
+    "mangan": 0.536,
+    "selen": 22.0,
+    "natrium": 490.0,
+    "wasser": 36.4,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.599,
+    "mehrfachUngesaettigt": 1.6,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 29.0
+   }
+  ]
+ },
+ {
+  "id": "basis-mischbrot",
+  "name": "Mischbrot",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 274.0,
+   "protein": 10.7,
+   "kohlenhydrate": 47.5,
+   "fett": 4.5,
+   "zucker": 5.73,
+   "ballaststoffe": 4.0,
+   "gesFett": 0.697,
+   "salz": 1.1825,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.19,
+    "vitaminK": 4.9,
+    "vitaminC": 0.2,
+    "vitaminB1": 0.411,
+    "vitaminB2": 0.252,
+    "niacin": 5.59,
+    "pantothensaeure": 0.82,
+    "vitaminB6": 0.111,
+    "folat": 99.0,
+    "vitaminB12": 0.0,
+    "kalium": 141.0,
+    "calcium": 125.0,
+    "magnesium": 41.0,
+    "phosphor": 129.0,
+    "eisen": 3.6,
+    "zink": 1.04,
+    "kupfer": 0.148,
+    "mangan": 1.03,
+    "selen": 28.8,
+    "natrium": 473.0,
+    "wasser": 35.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.612,
+    "mehrfachUngesaettigt": 1.61,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 29.0
+   }
+  ]
+ },
+ {
+  "id": "basis-broetchen",
+  "name": "Brötchen",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 310.0,
+   "protein": 10.9,
+   "kohlenhydrate": 52.0,
+   "fett": 6.5,
+   "zucker": 5.55,
+   "ballaststoffe": 2.0,
+   "gesFett": 1.38,
+   "salz": 1.1675,
+   "mikro": {
+    "vitaminA": 1.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.28,
+    "vitaminK": 10.6,
+    "vitaminC": 0.2,
+    "vitaminB1": 0.526,
+    "vitaminB2": 0.374,
+    "niacin": 5.37,
+    "pantothensaeure": 0.452,
+    "vitaminB6": 0.097,
+    "folat": 150.0,
+    "vitaminB12": 0.13,
+    "kalium": 139.0,
+    "calcium": 178.0,
+    "magnesium": 26.0,
+    "phosphor": 122.0,
+    "eisen": 3.72,
+    "zink": 0.99,
+    "kupfer": 0.135,
+    "mangan": 0.582,
+    "selen": 26.8,
+    "natrium": 467.0,
+    "wasser": 28.4,
+    "cholesterin": 4.0,
+    "einfachUngesaettigt": 1.88,
+    "mehrfachUngesaettigt": 2.51,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, klein",
+    "gramm": 25.0
+   },
+   {
+    "name": "ganze, groß",
+    "gramm": 43.0
+   }
+  ]
+ },
+ {
+  "id": "basis-knaeckebrot",
+  "name": "Knäckebrot",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 366.0,
+   "protein": 7.9,
+   "kohlenhydrate": 82.2,
+   "fett": 1.3,
+   "zucker": 1.07,
+   "ballaststoffe": 16.5,
+   "gesFett": 0.145,
+   "salz": 1.025,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.81,
+    "vitaminK": 6.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.243,
+    "vitaminB2": 0.145,
+    "niacin": 1.04,
+    "pantothensaeure": 0.676,
+    "vitaminB6": 0.21,
+    "folat": 65.0,
+    "vitaminB12": 0.0,
+    "kalium": 319.0,
+    "calcium": 31.0,
+    "magnesium": 78.0,
+    "phosphor": 269.0,
+    "eisen": 2.43,
+    "zink": 2.39,
+    "kupfer": 0.255,
+    "mangan": 2.48,
+    "selen": 36.6,
+    "natrium": 410.0,
+    "wasser": 6.1,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.165,
+    "mehrfachUngesaettigt": 0.557,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 10.0
+   }
+  ]
+ },
+ {
+  "id": "basis-baguette",
+  "name": "Baguette",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 272.0,
+   "protein": 10.8,
+   "kohlenhydrate": 51.9,
+   "fett": 2.4,
+   "zucker": 4.62,
+   "ballaststoffe": 2.2,
+   "gesFett": 0.529,
+   "salz": 1.505,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.21,
+    "vitaminK": 0.7,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.71,
+    "vitaminB2": 0.427,
+    "niacin": 4.82,
+    "pantothensaeure": 0.455,
+    "vitaminB6": 0.107,
+    "folat": 170.0,
+    "vitaminB12": 0.0,
+    "kalium": 117.0,
+    "calcium": 52.0,
+    "magnesium": 32.0,
+    "phosphor": 105.0,
+    "eisen": 3.91,
+    "zink": 1.04,
+    "kupfer": 0.152,
+    "mangan": 0.577,
+    "selen": 28.6,
+    "natrium": 602.0,
+    "wasser": 33.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.362,
+    "mehrfachUngesaettigt": 0.855,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Stück (30 cm)",
+    "gramm": 250
+   },
+   {
+    "name": "Scheibe",
+    "gramm": 25
+   }
+  ]
+ },
+ {
+  "id": "basis-haferflocken",
+  "name": "Haferflocken",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 379.0,
+   "protein": 13.2,
+   "kohlenhydrate": 67.7,
+   "fett": 6.5,
+   "zucker": 0.99,
+   "ballaststoffe": 10.1,
+   "gesFett": 1.11,
+   "salz": 0.015,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.42,
+    "vitaminK": 2.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.46,
+    "vitaminB2": 0.155,
+    "niacin": 1.12,
+    "pantothensaeure": 1.12,
+    "vitaminB6": 0.1,
+    "folat": 32.0,
+    "vitaminB12": 0.0,
+    "kalium": 362.0,
+    "calcium": 52.0,
+    "magnesium": 138.0,
+    "phosphor": 410.0,
+    "eisen": 4.25,
+    "zink": 3.64,
+    "kupfer": 0.391,
+    "mangan": 3.63,
+    "selen": 28.9,
+    "natrium": 6.0,
+    "wasser": 10.8,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 1.98,
+    "mehrfachUngesaettigt": 2.3,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 81.0
+   }
+  ]
+ },
+ {
+  "id": "basis-ei-gekocht",
+  "name": "Ei, gekocht",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 155.0,
+   "protein": 12.6,
+   "kohlenhydrate": 1.1,
+   "fett": 10.6,
+   "zucker": 1.12,
+   "ballaststoffe": 0.0,
+   "gesFett": 3.27,
+   "salz": 0.31,
+   "mikro": {
+    "vitaminA": 149.0,
+    "vitaminD": 2.2,
+    "vitaminE": 1.03,
+    "vitaminK": 0.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.066,
+    "vitaminB2": 0.513,
+    "niacin": 0.064,
+    "pantothensaeure": 1.4,
+    "vitaminB6": 0.121,
+    "folat": 44.0,
+    "vitaminB12": 1.11,
+    "kalium": 126.0,
+    "calcium": 50.0,
+    "magnesium": 10.0,
+    "phosphor": 172.0,
+    "eisen": 1.19,
+    "zink": 1.05,
+    "kupfer": 0.013,
+    "mangan": 0.026,
+    "selen": 30.8,
+    "natrium": 124.0,
+    "wasser": 74.6,
+    "cholesterin": 373.0,
+    "einfachUngesaettigt": 4.08,
+    "mehrfachUngesaettigt": 1.41,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 50.0
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 8.5
+   },
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 136.0
+   }
+  ]
+ },
+ {
+  "id": "basis-ei-roh",
+  "name": "Ei, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 143.0,
+   "protein": 12.6,
+   "kohlenhydrate": 0.7,
+   "fett": 9.5,
+   "zucker": 0.37,
+   "ballaststoffe": 0.0,
+   "gesFett": 3.13,
+   "salz": 0.355,
+   "mikro": {
+    "vitaminA": 160.0,
+    "vitaminD": 2.0,
+    "vitaminE": 1.05,
+    "vitaminK": 0.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.04,
+    "vitaminB2": 0.457,
+    "niacin": 0.075,
+    "pantothensaeure": 1.53,
+    "vitaminB6": 0.17,
+    "folat": 47.0,
+    "vitaminB12": 0.89,
+    "kalium": 138.0,
+    "calcium": 56.0,
+    "magnesium": 12.0,
+    "phosphor": 198.0,
+    "eisen": 1.75,
+    "zink": 1.29,
+    "kupfer": 0.072,
+    "mangan": 0.028,
+    "selen": 30.7,
+    "natrium": 142.0,
+    "wasser": 76.2,
+    "cholesterin": 372.0,
+    "einfachUngesaettigt": 3.66,
+    "mehrfachUngesaettigt": 1.91,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 50.0
+   },
+   {
+    "name": "ganze, mittelgroß",
+    "gramm": 44.0
+   },
+   {
+    "name": "ganze, klein",
+    "gramm": 38.0
+   }
+  ]
+ },
+ {
+  "id": "basis-ruehrei",
+  "name": "Rührei",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 149.0,
+   "protein": 10.0,
+   "kohlenhydrate": 1.6,
+   "fett": 11.0,
+   "zucker": 1.39,
+   "ballaststoffe": 0.0,
+   "gesFett": 3.33,
+   "salz": 0.3625,
+   "mikro": {
+    "vitaminA": 161.0,
+    "vitaminD": 1.8,
+    "vitaminE": 1.15,
+    "vitaminK": 4.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.04,
+    "vitaminB2": 0.376,
+    "niacin": 0.076,
+    "pantothensaeure": 1.22,
+    "vitaminB6": 0.134,
+    "folat": 36.0,
+    "vitaminB12": 0.76,
+    "kalium": 132.0,
+    "calcium": 66.0,
+    "magnesium": 11.0,
+    "phosphor": 165.0,
+    "eisen": 1.31,
+    "zink": 1.04,
+    "kupfer": 0.059,
+    "mangan": 0.022,
+    "selen": 23.5,
+    "natrium": 145.0,
+    "wasser": 76.4,
+    "cholesterin": 277.0,
+    "einfachUngesaettigt": 4.44,
+    "mehrfachUngesaettigt": 2.43,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, groß",
+    "gramm": 61.0
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 13.7
+   },
+   {
+    "name": "Tasse",
+    "gramm": 220.0
+   }
+  ]
+ },
+ {
+  "id": "basis-milch-15",
+  "name": "Milch, 1,5 %",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 42.0,
+   "protein": 3.4,
+   "kohlenhydrate": 5.0,
+   "fett": 1.0,
+   "zucker": 5.2,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.633,
+   "salz": 0.11,
+   "mikro": {
+    "vitaminA": 58.0,
+    "vitaminD": 1.2,
+    "vitaminE": 0.01,
+    "vitaminK": 0.1,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.02,
+    "vitaminB2": 0.185,
+    "niacin": 0.093,
+    "pantothensaeure": 0.361,
+    "vitaminB6": 0.037,
+    "folat": 5.0,
+    "vitaminB12": 0.47,
+    "kalium": 150.0,
+    "calcium": 125.0,
+    "magnesium": 11.0,
+    "phosphor": 95.0,
+    "eisen": 0.03,
+    "zink": 0.42,
+    "kupfer": 0.01,
+    "mangan": 0.003,
+    "selen": 3.3,
+    "natrium": 44.0,
+    "wasser": 89.9,
+    "cholesterin": 5.0,
+    "einfachUngesaettigt": 0.277,
+    "mehrfachUngesaettigt": 0.035,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 244.0
+   }
+  ]
+ },
+ {
+  "id": "basis-milch-35",
+  "name": "Milch, 3,5 %",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 61.0,
+   "protein": 3.1,
+   "kohlenhydrate": 4.8,
+   "fett": 3.2,
+   "zucker": 5.05,
+   "ballaststoffe": 0.0,
+   "gesFett": 1.86,
+   "salz": 0.1075,
+   "mikro": {
+    "vitaminA": 46.0,
+    "vitaminD": 1.3,
+    "vitaminE": 0.07,
+    "vitaminK": 0.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.046,
+    "vitaminB2": 0.169,
+    "niacin": 0.089,
+    "pantothensaeure": 0.373,
+    "vitaminB6": 0.036,
+    "folat": 5.0,
+    "vitaminB12": 0.45,
+    "kalium": 132.0,
+    "calcium": 113.0,
+    "magnesium": 10.0,
+    "phosphor": 84.0,
+    "eisen": 0.03,
+    "zink": 0.37,
+    "kupfer": 0.025,
+    "mangan": 0.004,
+    "selen": 3.7,
+    "natrium": 43.0,
+    "wasser": 88.1,
+    "cholesterin": 10.0,
+    "einfachUngesaettigt": 0.812,
+    "mehrfachUngesaettigt": 0.195,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 15.0
+   },
+   {
+    "name": "Tasse",
+    "gramm": 244.0
+   }
+  ]
+ },
+ {
+  "id": "basis-joghurt-natur",
+  "name": "Joghurt, natur, 1,5 %",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 63.0,
+   "protein": 5.2,
+   "kohlenhydrate": 7.0,
+   "fett": 1.6,
+   "zucker": 7.04,
+   "ballaststoffe": 0.0,
+   "gesFett": 1.0,
+   "salz": 0.175,
+   "mikro": {
+    "vitaminA": 14.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.03,
+    "vitaminK": 0.2,
+    "vitaminC": 0.8,
+    "vitaminB1": 0.044,
+    "vitaminB2": 0.214,
+    "niacin": 0.114,
+    "pantothensaeure": 0.591,
+    "vitaminB6": 0.049,
+    "folat": 11.0,
+    "vitaminB12": 0.56,
+    "kalium": 234.0,
+    "calcium": 183.0,
+    "magnesium": 17.0,
+    "phosphor": 144.0,
+    "eisen": 0.08,
+    "zink": 0.89,
+    "kupfer": 0.013,
+    "mangan": 0.004,
+    "selen": 3.3,
+    "natrium": 70.0,
+    "wasser": 85.1,
+    "cholesterin": 6.0,
+    "einfachUngesaettigt": 0.426,
+    "mehrfachUngesaettigt": 0.044,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Becher",
+    "gramm": 150
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 30
+   }
+  ]
+ },
+ {
+  "id": "basis-joghurt-griechisch",
+  "name": "Joghurt, griechisch, 10 %",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 97.0,
+   "protein": 9.0,
+   "kohlenhydrate": 4.0,
+   "fett": 5.0,
+   "zucker": 4.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 2.4,
+   "salz": 0.0875,
+   "mikro": {
+    "vitaminA": 2.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.01,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.023,
+    "vitaminB2": 0.278,
+    "niacin": 0.208,
+    "pantothensaeure": 0.331,
+    "vitaminB6": 0.063,
+    "folat": 5.0,
+    "vitaminB12": 0.75,
+    "kalium": 141.0,
+    "calcium": 100.0,
+    "magnesium": 11.0,
+    "phosphor": 135.0,
+    "eisen": 0.0,
+    "zink": 0.52,
+    "kupfer": 0.017,
+    "mangan": 0.009,
+    "selen": 9.7,
+    "natrium": 35.0,
+    "wasser": 81.3,
+    "cholesterin": 13.0,
+    "einfachUngesaettigt": 2.14,
+    "mehrfachUngesaettigt": 0.469,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Becher",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-quark-mager",
+  "name": "Quark, Magerstufe",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 67,
+   "protein": 12.0,
+   "kohlenhydrate": 4.0,
+   "fett": 0.2,
+   "zucker": 4.0,
+   "salz": 0.085
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 100
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 30
+   }
+  ]
+ },
+ {
+  "id": "basis-quark-40",
+  "name": "Quark, 40 % Fett i. Tr.",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 152,
+   "protein": 11.0,
+   "kohlenhydrate": 3.5,
+   "fett": 11.0,
+   "salz": 0.075,
+   "gesFett": 7.0
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 100
+   }
+  ]
+ },
+ {
+  "id": "basis-skyr",
+  "name": "Skyr",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 63,
+   "protein": 11.0,
+   "kohlenhydrate": 4.0,
+   "fett": 0.2,
+   "zucker": 4.0,
+   "salz": 0.1125
+  },
+  "portionen": [
+   {
+    "name": "Becher",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-butter",
+  "name": "Butter",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 717.0,
+   "protein": 0.8,
+   "kohlenhydrate": 0.1,
+   "fett": 81.1,
+   "zucker": 0.06,
+   "ballaststoffe": 0.0,
+   "gesFett": 50.5,
+   "salz": 0.0275,
+   "mikro": {
+    "vitaminA": 684.0,
+    "vitaminD": 0.0,
+    "vitaminE": 2.32,
+    "vitaminK": 7.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.005,
+    "vitaminB2": 0.034,
+    "niacin": 0.042,
+    "pantothensaeure": 0.11,
+    "vitaminB6": 0.003,
+    "folat": 3.0,
+    "vitaminB12": 0.17,
+    "kalium": 24.0,
+    "calcium": 24.0,
+    "magnesium": 2.0,
+    "phosphor": 24.0,
+    "eisen": 0.02,
+    "zink": 0.09,
+    "kupfer": 0.016,
+    "mangan": 0.004,
+    "selen": 1.0,
+    "natrium": 11.0,
+    "wasser": 16.2,
+    "cholesterin": 215.0,
+    "einfachUngesaettigt": 23.4,
+    "mehrfachUngesaettigt": 3.01,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 14.2
+   },
+   {
+    "name": "Tasse",
+    "gramm": 227.0
+   }
+  ]
+ },
+ {
+  "id": "basis-schlagsahne",
+  "name": "Schlagsahne, 30 %",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 340.0,
+   "protein": 2.8,
+   "kohlenhydrate": 2.8,
+   "fett": 36.1,
+   "zucker": 2.92,
+   "ballaststoffe": 0.0,
+   "gesFett": 23.0,
+   "salz": 0.0675,
+   "mikro": {
+    "vitaminA": 411.0,
+    "vitaminD": 1.6,
+    "vitaminE": 0.92,
+    "vitaminK": 3.2,
+    "vitaminC": 0.6,
+    "vitaminB1": 0.02,
+    "vitaminB2": 0.188,
+    "niacin": 0.064,
+    "pantothensaeure": 0.495,
+    "vitaminB6": 0.035,
+    "folat": 4.0,
+    "vitaminB12": 0.16,
+    "kalium": 95.0,
+    "calcium": 66.0,
+    "magnesium": 7.0,
+    "phosphor": 58.0,
+    "eisen": 0.1,
+    "zink": 0.24,
+    "kupfer": 0.011,
+    "mangan": 0.006,
+    "selen": 3.0,
+    "natrium": 27.0,
+    "wasser": 57.7,
+    "cholesterin": 113.0,
+    "einfachUngesaettigt": 9.1,
+    "mehrfachUngesaettigt": 1.57,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 15.0
+   }
+  ]
+ },
+ {
+  "id": "basis-frischkaese",
+  "name": "Frischkäse, Doppelrahmstufe",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 350.0,
+   "protein": 6.2,
+   "kohlenhydrate": 5.5,
+   "fett": 34.4,
+   "zucker": 3.76,
+   "ballaststoffe": 0.0,
+   "gesFett": 20.2,
+   "salz": 0.785,
+   "mikro": {
+    "vitaminA": 308.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.86,
+    "vitaminK": 2.1,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.023,
+    "vitaminB2": 0.23,
+    "niacin": 0.091,
+    "pantothensaeure": 0.517,
+    "vitaminB6": 0.056,
+    "folat": 9.0,
+    "vitaminB12": 0.22,
+    "kalium": 132.0,
+    "calcium": 97.0,
+    "magnesium": 9.0,
+    "phosphor": 107.0,
+    "eisen": 0.11,
+    "zink": 0.5,
+    "kupfer": 0.018,
+    "mangan": 0.011,
+    "selen": 8.6,
+    "natrium": 314.0,
+    "wasser": 52.6,
+    "cholesterin": 101.0,
+    "einfachUngesaettigt": 8.91,
+    "mehrfachUngesaettigt": 1.48,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "ganze, klein",
+    "gramm": 85.0
+   },
+   {
+    "name": "Esslöffel",
+    "gramm": 14.5
+   },
+   {
+    "name": "Tasse",
+    "gramm": 232.0
+   }
+  ]
+ },
+ {
+  "id": "basis-mozzarella",
+  "name": "Mozzarella",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 299.0,
+   "protein": 22.2,
+   "kohlenhydrate": 2.4,
+   "fett": 22.1,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 13.9,
+   "salz": 1.215,
+   "mikro": {
+    "vitaminA": 179.0,
+    "vitaminD": 0.4,
+    "vitaminE": 0.19,
+    "vitaminK": 2.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.03,
+    "vitaminB2": 0.283,
+    "niacin": 0.104,
+    "pantothensaeure": 0.141,
+    "vitaminB6": 0.037,
+    "folat": 7.0,
+    "vitaminB12": 2.28,
+    "kalium": 76.0,
+    "calcium": 505.0,
+    "magnesium": 20.0,
+    "phosphor": 354.0,
+    "eisen": 0.44,
+    "zink": 2.92,
+    "kupfer": 0.011,
+    "mangan": 0.03,
+    "selen": 17.0,
+    "natrium": 486.0,
+    "wasser": 50.0,
+    "cholesterin": 79.0,
+    "einfachUngesaettigt": 6.57,
+    "mehrfachUngesaettigt": 0.765,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 28.3
+   }
+  ]
+ },
+ {
+  "id": "basis-gouda",
+  "name": "Gouda",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 356.0,
+   "protein": 24.9,
+   "kohlenhydrate": 2.2,
+   "fett": 27.4,
+   "zucker": 2.22,
+   "ballaststoffe": 0.0,
+   "gesFett": 17.6,
+   "salz": 2.0475,
+   "mikro": {
+    "vitaminA": 165.0,
+    "vitaminD": 0.5,
+    "vitaminE": 0.24,
+    "vitaminK": 2.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.03,
+    "vitaminB2": 0.334,
+    "niacin": 0.063,
+    "pantothensaeure": 0.34,
+    "vitaminB6": 0.08,
+    "folat": 21.0,
+    "vitaminB12": 1.54,
+    "kalium": 121.0,
+    "calcium": 700.0,
+    "magnesium": 29.0,
+    "phosphor": 546.0,
+    "eisen": 0.24,
+    "zink": 3.9,
+    "kupfer": 0.036,
+    "mangan": 0.011,
+    "selen": 14.5,
+    "natrium": 819.0,
+    "wasser": 41.5,
+    "cholesterin": 114.0,
+    "einfachUngesaettigt": 7.75,
+    "mehrfachUngesaettigt": 0.657,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 20
+   }
+  ]
+ },
+ {
+  "id": "basis-emmentaler",
+  "name": "Emmentaler",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 393.0,
+   "protein": 27.0,
+   "kohlenhydrate": 1.4,
+   "fett": 31.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 18.2,
+   "salz": 0.4675,
+   "mikro": {
+    "vitaminA": 288.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.6,
+    "vitaminK": 1.4,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.011,
+    "vitaminB2": 0.302,
+    "niacin": 0.064,
+    "pantothensaeure": 0.353,
+    "vitaminB6": 0.071,
+    "folat": 10.0,
+    "vitaminB12": 3.06,
+    "kalium": 72.0,
+    "calcium": 890.0,
+    "magnesium": 33.0,
+    "phosphor": 574.0,
+    "eisen": 0.13,
+    "zink": 4.37,
+    "kupfer": 0.047,
+    "mangan": 0.026,
+    "selen": 30.0,
+    "natrium": 187.0,
+    "wasser": 37.6,
+    "cholesterin": 93.0,
+    "einfachUngesaettigt": 8.05,
+    "mehrfachUngesaettigt": 1.34,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 28.0
+   }
+  ]
+ },
+ {
+  "id": "basis-feta",
+  "name": "Feta",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 265.0,
+   "protein": 14.2,
+   "kohlenhydrate": 3.9,
+   "fett": 21.5,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 13.3,
+   "salz": 2.8475,
+   "mikro": {
+    "vitaminA": 125.0,
+    "vitaminD": 0.4,
+    "vitaminE": 0.18,
+    "vitaminK": 1.8,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.154,
+    "vitaminB2": 0.844,
+    "niacin": 0.991,
+    "pantothensaeure": 0.967,
+    "vitaminB6": 0.424,
+    "folat": 32.0,
+    "vitaminB12": 1.69,
+    "kalium": 62.0,
+    "calcium": 493.0,
+    "magnesium": 19.0,
+    "phosphor": 337.0,
+    "eisen": 0.65,
+    "zink": 2.88,
+    "kupfer": 0.032,
+    "mangan": 0.028,
+    "selen": 15.0,
+    "natrium": 1140.0,
+    "wasser": 55.2,
+    "cholesterin": 89.0,
+    "einfachUngesaettigt": 4.62,
+    "mehrfachUngesaettigt": 0.591,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 50
+   }
+  ]
+ },
+ {
+  "id": "basis-parmesan",
+  "name": "Parmesan",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 392.0,
+   "protein": 35.8,
+   "kohlenhydrate": 3.2,
+   "fett": 25.0,
+   "zucker": 0.11,
+   "ballaststoffe": 0.0,
+   "gesFett": 14.8,
+   "salz": 2.9375,
+   "mikro": {
+    "vitaminA": 207.0,
+    "vitaminD": 0.5,
+    "vitaminE": 0.22,
+    "vitaminK": 1.7,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.039,
+    "vitaminB2": 0.332,
+    "niacin": 0.271,
+    "pantothensaeure": 0.453,
+    "vitaminB6": 0.091,
+    "folat": 7.0,
+    "vitaminB12": 1.2,
+    "kalium": 92.0,
+    "calcium": 1180.0,
+    "magnesium": 44.0,
+    "phosphor": 694.0,
+    "eisen": 0.82,
+    "zink": 2.75,
+    "kupfer": 0.032,
+    "mangan": 0.02,
+    "selen": 22.5,
+    "natrium": 1180.0,
+    "wasser": 30.0,
+    "cholesterin": 68.0,
+    "einfachUngesaettigt": 7.51,
+    "mehrfachUngesaettigt": 0.569,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel, gerieben",
+    "gramm": 10
+   }
+  ]
+ },
+ {
+  "id": "basis-huettenkaese",
+  "name": "Hüttenkäse",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 98.0,
+   "protein": 11.1,
+   "kohlenhydrate": 3.4,
+   "fett": 4.3,
+   "zucker": 2.67,
+   "ballaststoffe": 0.0,
+   "gesFett": 1.72,
+   "salz": 0.7875,
+   "mikro": {
+    "vitaminA": 37.0,
+    "vitaminD": 0.1,
+    "vitaminE": 0.08,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.027,
+    "vitaminB2": 0.163,
+    "niacin": 0.099,
+    "pantothensaeure": 0.557,
+    "vitaminB6": 0.046,
+    "folat": 12.0,
+    "vitaminB12": 0.43,
+    "kalium": 104.0,
+    "calcium": 83.0,
+    "magnesium": 8.0,
+    "phosphor": 159.0,
+    "eisen": 0.07,
+    "zink": 0.4,
+    "kupfer": 0.029,
+    "mangan": 0.002,
+    "selen": 9.7,
+    "natrium": 315.0,
+    "wasser": 79.8,
+    "cholesterin": 17.0,
+    "einfachUngesaettigt": 0.778,
+    "mehrfachUngesaettigt": 0.123,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 100
+   }
+  ]
+ },
+ {
+  "id": "basis-buttermilch",
+  "name": "Buttermilch",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 40.0,
+   "protein": 3.3,
+   "kohlenhydrate": 4.8,
+   "fett": 1.1,
+   "zucker": 5.36,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.66,
+   "salz": 0.37,
+   "mikro": {
+    "vitaminA": 14.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.05,
+    "vitaminK": 0.1,
+    "vitaminC": 1.0,
+    "vitaminB1": 0.034,
+    "vitaminB2": 0.154,
+    "niacin": 0.058,
+    "pantothensaeure": 0.275,
+    "vitaminB6": 0.034,
+    "folat": 5.0,
+    "vitaminB12": 0.22,
+    "kalium": 151.0,
+    "calcium": 116.0,
+    "magnesium": 11.0,
+    "phosphor": 89.0,
+    "eisen": 0.05,
+    "zink": 0.42,
+    "kupfer": 0.011,
+    "mangan": 0.002,
+    "selen": 2.0,
+    "natrium": 148.0,
+    "wasser": 90.1,
+    "cholesterin": 4.0,
+    "einfachUngesaettigt": 0.254,
+    "mehrfachUngesaettigt": 0.033,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 245.0
+   }
+  ]
+ },
+ {
+  "id": "basis-haehnchenbrust-roh",
+  "name": "Hähnchenbrust, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 120.0,
+   "protein": 22.5,
+   "kohlenhydrate": 0.0,
+   "fett": 2.6,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.563,
+   "salz": 0.1125,
+   "mikro": {
+    "vitaminA": 9.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.56,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.094,
+    "vitaminB2": 0.177,
+    "niacin": 9.6,
+    "pantothensaeure": 1.5,
+    "vitaminB6": 0.811,
+    "folat": 9.0,
+    "vitaminB12": 0.21,
+    "kalium": 334.0,
+    "calcium": 5.0,
+    "magnesium": 28.0,
+    "phosphor": 213.0,
+    "eisen": 0.37,
+    "zink": 0.68,
+    "kupfer": 0.037,
+    "mangan": 0.011,
+    "selen": 22.8,
+    "natrium": 45.0,
+    "wasser": 73.9,
+    "cholesterin": 73.0,
+    "einfachUngesaettigt": 0.689,
+    "mehrfachUngesaettigt": 0.424,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Stück",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-haehnchenbrust-gebraten",
+  "name": "Hähnchenbrust, gebraten",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 165.0,
+   "protein": 31.0,
+   "kohlenhydrate": 0.0,
+   "fett": 3.6,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 1.01,
+   "salz": 0.185,
+   "mikro": {
+    "vitaminA": 6.0,
+    "vitaminD": 0.1,
+    "vitaminE": 0.27,
+    "vitaminK": 0.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.07,
+    "vitaminB2": 0.114,
+    "niacin": 13.7,
+    "pantothensaeure": 0.965,
+    "vitaminB6": 0.6,
+    "folat": 4.0,
+    "vitaminB12": 0.34,
+    "kalium": 256.0,
+    "calcium": 15.0,
+    "magnesium": 29.0,
+    "phosphor": 228.0,
+    "eisen": 1.04,
+    "zink": 1.0,
+    "kupfer": 0.049,
+    "mangan": 0.017,
+    "selen": 27.6,
+    "natrium": 74.0,
+    "wasser": 65.3,
+    "cholesterin": 85.0,
+    "einfachUngesaettigt": 1.24,
+    "mehrfachUngesaettigt": 0.77,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 140.0
+   }
+  ]
+ },
+ {
+  "id": "basis-rinderhack-roh",
+  "name": "Rinderhack, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 215.0,
+   "protein": 18.6,
+   "kohlenhydrate": 0.0,
+   "fett": 15.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 5.71,
+   "salz": 0.165,
+   "mikro": {
+    "vitaminA": 4.0,
+    "vitaminD": 0.1,
+    "vitaminE": 0.17,
+    "vitaminK": 1.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.042,
+    "vitaminB2": 0.151,
+    "niacin": 4.65,
+    "pantothensaeure": 0.549,
+    "vitaminB6": 0.346,
+    "folat": 6.0,
+    "vitaminB12": 2.17,
+    "kalium": 295.0,
+    "calcium": 15.0,
+    "magnesium": 18.0,
+    "phosphor": 171.0,
+    "eisen": 2.09,
+    "zink": 4.48,
+    "kupfer": 0.067,
+    "mangan": 0.01,
+    "selen": 15.8,
+    "natrium": 66.0,
+    "wasser": 65.7,
+    "cholesterin": 68.0,
+    "einfachUngesaettigt": 6.47,
+    "mehrfachUngesaettigt": 0.433,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 125
+   }
+  ]
+ },
+ {
+  "id": "basis-rinderhack-gebraten",
+  "name": "Rinderhack, gebraten",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 232.0,
+   "protein": 24.6,
+   "kohlenhydrate": 0.0,
+   "fett": 14.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 5.33,
+   "salz": 0.1975,
+   "mikro": {
+    "vitaminA": 3.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.13,
+    "vitaminK": 1.5,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.043,
+    "vitaminB2": 0.177,
+    "niacin": 5.78,
+    "pantothensaeure": 0.728,
+    "vitaminB6": 0.367,
+    "folat": 8.0,
+    "vitaminB12": 2.79,
+    "kalium": 349.0,
+    "calcium": 20.0,
+    "magnesium": 22.0,
+    "phosphor": 211.0,
+    "eisen": 2.68,
+    "zink": 6.2,
+    "kupfer": 0.081,
+    "mangan": 0.012,
+    "selen": 20.3,
+    "natrium": 79.0,
+    "wasser": 60.6,
+    "cholesterin": 84.0,
+    "einfachUngesaettigt": 6.03,
+    "mehrfachUngesaettigt": 0.438,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 125
+   }
+  ]
+ },
+ {
+  "id": "basis-schweineschnitzel",
+  "name": "Schweineschnitzel, gebraten",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 210.0,
+   "protein": 28.6,
+   "kohlenhydrate": 0.0,
+   "fett": 9.8,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 3.64,
+   "salz": 0.16,
+   "mikro": {
+    "vitaminA": 2.0,
+    "vitaminD": 0.9,
+    "vitaminE": 0.27,
+    "vitaminK": 0.0,
+    "vitaminC": 0.7,
+    "vitaminB1": 0.923,
+    "vitaminB2": 0.338,
+    "niacin": 5.24,
+    "pantothensaeure": 0.729,
+    "vitaminB6": 0.492,
+    "folat": 6.0,
+    "vitaminB12": 0.72,
+    "kalium": 438.0,
+    "calcium": 17.0,
+    "magnesium": 29.0,
+    "phosphor": 253.0,
+    "eisen": 0.91,
+    "zink": 2.48,
+    "kupfer": 0.075,
+    "mangan": 0.009,
+    "selen": 48.2,
+    "natrium": 64.0,
+    "wasser": 60.7,
+    "cholesterin": 79.0,
+    "einfachUngesaettigt": 4.45,
+    "mehrfachUngesaettigt": 0.77,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Stück",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-rindersteak",
+  "name": "Rindersteak, gebraten",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 165.0,
+   "protein": 30.8,
+   "kohlenhydrate": 0.0,
+   "fett": 4.7,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 1.54,
+   "salz": 0.14,
+   "mikro": {
+    "vitaminA": 2.0,
+    "vitaminD": 0.1,
+    "vitaminK": 1.6,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.068,
+    "vitaminB2": 0.221,
+    "niacin": 6.3,
+    "vitaminB6": 0.551,
+    "folat": 7.0,
+    "vitaminB12": 3.42,
+    "kalium": 390.0,
+    "calcium": 6.0,
+    "magnesium": 28.0,
+    "phosphor": 262.0,
+    "eisen": 3.19,
+    "zink": 8.62,
+    "kupfer": 0.152,
+    "selen": 31.3,
+    "natrium": 56.0,
+    "wasser": 63.4,
+    "cholesterin": 74.0,
+    "einfachUngesaettigt": 2.17,
+    "mehrfachUngesaettigt": 0.161,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Stück",
+    "gramm": 200
+   }
+  ]
+ },
+ {
+  "id": "basis-putenbrust",
+  "name": "Putenbrust, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 114.0,
+   "protein": 23.7,
+   "kohlenhydrate": 0.1,
+   "fett": 1.5,
+   "zucker": 0.05,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.289,
+   "salz": 0.2825,
+   "mikro": {
+    "vitaminA": 6.0,
+    "vitaminD": 0.1,
+    "vitaminE": 0.06,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.042,
+    "vitaminB2": 0.145,
+    "niacin": 9.92,
+    "pantothensaeure": 0.775,
+    "vitaminB6": 0.813,
+    "folat": 7.0,
+    "vitaminB12": 0.63,
+    "kalium": 242.0,
+    "calcium": 11.0,
+    "magnesium": 28.0,
+    "phosphor": 201.0,
+    "eisen": 0.73,
+    "zink": 1.28,
+    "kupfer": 0.07,
+    "mangan": 0.011,
+    "selen": 22.7,
+    "natrium": 113.0,
+    "wasser": 74.9,
+    "cholesterin": 57.0,
+    "einfachUngesaettigt": 0.264,
+    "mehrfachUngesaettigt": 0.258,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Stück",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-salami",
+  "name": "Salami",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 378.0,
+   "protein": 21.1,
+   "kohlenhydrate": 0.7,
+   "fett": 31.6,
+   "zucker": 0.26,
+   "ballaststoffe": 0.0,
+   "gesFett": 11.4,
+   "salz": 4.39,
+   "mikro": {
+    "vitaminA": 11.0,
+    "vitaminD": 0.9,
+    "vitaminE": 0.64,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.386,
+    "vitaminB2": 0.196,
+    "niacin": 6.11,
+    "pantothensaeure": 1.01,
+    "vitaminB6": 0.441,
+    "folat": 0.0,
+    "vitaminB12": 1.15,
+    "kalium": 363.0,
+    "calcium": 24.0,
+    "magnesium": 20.0,
+    "phosphor": 192.0,
+    "eisen": 1.36,
+    "zink": 2.67,
+    "kupfer": 0.096,
+    "mangan": 0.948,
+    "selen": 33.6,
+    "natrium": 1760.0,
+    "wasser": 41.2,
+    "cholesterin": 108.0,
+    "einfachUngesaettigt": 14.7,
+    "mehrfachUngesaettigt": 4.89,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 9.8
+   }
+  ]
+ },
+ {
+  "id": "basis-kochschinken",
+  "name": "Kochschinken",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 107.0,
+   "protein": 16.9,
+   "kohlenhydrate": 0.7,
+   "fett": 4.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 1.23,
+   "salz": 2.3625,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.6,
+    "vitaminE": 0.29,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.336,
+    "vitaminB2": 0.266,
+    "niacin": 5.7,
+    "pantothensaeure": 0.697,
+    "vitaminB6": 0.394,
+    "folat": 0.0,
+    "vitaminB12": 0.36,
+    "kalium": 463.0,
+    "calcium": 5.0,
+    "magnesium": 19.0,
+    "phosphor": 252.0,
+    "eisen": 0.59,
+    "zink": 1.51,
+    "kupfer": 0.05,
+    "mangan": 0.014,
+    "selen": 31.6,
+    "natrium": 945.0,
+    "wasser": 74.8,
+    "cholesterin": 41.0,
+    "einfachUngesaettigt": 1.62,
+    "mehrfachUngesaettigt": 0.626,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 13.0
+   }
+  ]
+ },
+ {
+  "id": "basis-lyoner",
+  "name": "Lyoner",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 281.0,
+   "protein": 10.3,
+   "kohlenhydrate": 6.3,
+   "fett": 23.8,
+   "zucker": 1.97,
+   "ballaststoffe": 0.0,
+   "gesFett": 7.39,
+   "salz": 3.4475,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.8,
+    "vitaminE": 0.59,
+    "vitaminK": 1.7,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.047,
+    "vitaminB2": 0.158,
+    "niacin": 3.19,
+    "pantothensaeure": 0.771,
+    "vitaminB6": 0.193,
+    "folat": 7.0,
+    "vitaminB12": 0.47,
+    "kalium": 320.0,
+    "calcium": 125.0,
+    "magnesium": 15.0,
+    "phosphor": 212.0,
+    "eisen": 1.24,
+    "zink": 1.06,
+    "kupfer": 0.035,
+    "mangan": 0.038,
+    "selen": 14.4,
+    "natrium": 1380.0,
+    "wasser": 55.9,
+    "cholesterin": 92.0,
+    "einfachUngesaettigt": 10.3,
+    "mehrfachUngesaettigt": 4.59,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Scheibe",
+    "gramm": 33.0
+   }
+  ]
+ },
+ {
+  "id": "basis-bratwurst",
+  "name": "Bratwurst, gebraten",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 333.0,
+   "protein": 13.7,
+   "kohlenhydrate": 2.9,
+   "fett": 29.2,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 10.0,
+   "salz": 2.115,
+   "mikro": {
+    "vitaminA": 2.0,
+    "vitaminD": 1.1,
+    "vitaminE": 0.26,
+    "vitaminK": 3.4,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.459,
+    "vitaminB2": 0.307,
+    "niacin": 4.79,
+    "pantothensaeure": 0.666,
+    "vitaminB6": 0.327,
+    "folat": 3.0,
+    "vitaminB12": 0.73,
+    "kalium": 348.0,
+    "calcium": 28.0,
+    "magnesium": 21.0,
+    "phosphor": 208.0,
+    "eisen": 0.53,
+    "zink": 3.25,
+    "kupfer": 0.104,
+    "mangan": 0.014,
+    "selen": 39.7,
+    "natrium": 846.0,
+    "wasser": 51.5,
+    "cholesterin": 74.0,
+    "einfachUngesaettigt": 14.7,
+    "mehrfachUngesaettigt": 2.63,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Stück",
+    "gramm": 100
+   }
+  ]
+ },
+ {
+  "id": "basis-lachs-roh",
+  "name": "Lachs, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 208.0,
+   "protein": 20.4,
+   "kohlenhydrate": 0.0,
+   "fett": 13.4,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 3.05,
+   "salz": 0.1475,
+   "mikro": {
+    "vitaminA": 58.0,
+    "vitaminD": 11.0,
+    "vitaminE": 3.55,
+    "vitaminK": 0.5,
+    "vitaminC": 3.9,
+    "vitaminB1": 0.207,
+    "vitaminB2": 0.155,
+    "niacin": 8.67,
+    "pantothensaeure": 1.55,
+    "vitaminB6": 0.636,
+    "folat": 26.0,
+    "vitaminB12": 3.23,
+    "kalium": 363.0,
+    "calcium": 9.0,
+    "magnesium": 27.0,
+    "phosphor": 240.0,
+    "eisen": 0.34,
+    "zink": 0.36,
+    "kupfer": 0.045,
+    "mangan": 0.011,
+    "selen": 24.0,
+    "natrium": 59.0,
+    "wasser": 64.9,
+    "cholesterin": 55.0,
+    "einfachUngesaettigt": 3.77,
+    "mehrfachUngesaettigt": 3.89,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Filet",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-lachs-gebraten",
+  "name": "Lachs, gebraten",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 206.0,
+   "protein": 22.1,
+   "kohlenhydrate": 0.0,
+   "fett": 12.3,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 2.4,
+   "salz": 0.1525,
+   "mikro": {
+    "vitaminA": 69.0,
+    "vitaminD": 13.1,
+    "vitaminE": 1.14,
+    "vitaminK": 0.1,
+    "vitaminC": 3.7,
+    "vitaminB1": 0.34,
+    "vitaminB2": 0.135,
+    "niacin": 8.04,
+    "pantothensaeure": 1.48,
+    "vitaminB6": 0.647,
+    "folat": 34.0,
+    "vitaminB12": 2.8,
+    "kalium": 384.0,
+    "calcium": 15.0,
+    "magnesium": 30.0,
+    "phosphor": 252.0,
+    "eisen": 0.34,
+    "zink": 0.43,
+    "kupfer": 0.049,
+    "mangan": 0.016,
+    "selen": 41.4,
+    "natrium": 61.0,
+    "wasser": 64.8,
+    "cholesterin": 63.0,
+    "einfachUngesaettigt": 4.18,
+    "mehrfachUngesaettigt": 4.55,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Filet",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-thunfisch-dose",
+  "name": "Thunfisch, Dose, in Wasser",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 116.0,
+   "protein": 25.5,
+   "kohlenhydrate": 0.0,
+   "fett": 0.8,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.234,
+   "salz": 0.125,
+   "mikro": {
+    "vitaminC": 0.0,
+    "vitaminB1": 0.032,
+    "vitaminB2": 0.074,
+    "niacin": 13.3,
+    "pantothensaeure": 0.214,
+    "vitaminB6": 0.35,
+    "folat": 4.0,
+    "vitaminB12": 2.99,
+    "kalium": 237.0,
+    "calcium": 11.0,
+    "magnesium": 27.0,
+    "phosphor": 163.0,
+    "eisen": 1.53,
+    "zink": 0.77,
+    "kupfer": 0.051,
+    "mangan": 0.011,
+    "selen": 80.4,
+    "natrium": 50.0,
+    "wasser": 75.2,
+    "cholesterin": 30.0,
+    "einfachUngesaettigt": 0.159,
+    "mehrfachUngesaettigt": 0.337
+   }
+  },
+  "portionen": [
+   {
+    "name": "Dose, abgetropft",
+    "gramm": 140
+   }
+  ]
+ },
+ {
+  "id": "basis-garnelen",
+  "name": "Garnelen, gekocht",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 99.0,
+   "protein": 24.0,
+   "kohlenhydrate": 0.2,
+   "fett": 0.3,
+   "gesFett": 0.056,
+   "salz": 0.2775,
+   "mikro": {
+    "kalium": 259.0,
+    "calcium": 70.0,
+    "magnesium": 39.0,
+    "phosphor": 237.0,
+    "eisen": 0.51,
+    "zink": 1.64,
+    "kupfer": 0.379,
+    "mangan": 0.033,
+    "natrium": 111.0,
+    "wasser": 74.3,
+    "cholesterin": 189.0,
+    "einfachUngesaettigt": 0.048,
+    "mehrfachUngesaettigt": 0.079
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 100
+   }
+  ]
+ },
+ {
+  "id": "basis-kabeljau",
+  "name": "Kabeljau, roh",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 82.0,
+   "protein": 17.8,
+   "kohlenhydrate": 0.0,
+   "fett": 0.7,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.131,
+   "salz": 0.135,
+   "mikro": {
+    "vitaminA": 12.0,
+    "vitaminD": 0.9,
+    "vitaminE": 0.64,
+    "vitaminK": 0.1,
+    "vitaminC": 1.0,
+    "vitaminB1": 0.076,
+    "vitaminB2": 0.065,
+    "niacin": 2.06,
+    "pantothensaeure": 0.153,
+    "vitaminB6": 0.245,
+    "folat": 7.0,
+    "vitaminB12": 0.91,
+    "kalium": 413.0,
+    "calcium": 16.0,
+    "magnesium": 32.0,
+    "phosphor": 203.0,
+    "eisen": 0.38,
+    "zink": 0.45,
+    "kupfer": 0.028,
+    "mangan": 0.015,
+    "selen": 33.1,
+    "natrium": 54.0,
+    "wasser": 81.2,
+    "cholesterin": 43.0,
+    "einfachUngesaettigt": 0.094,
+    "mehrfachUngesaettigt": 0.231,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Filet",
+    "gramm": 150
+   }
+  ]
+ },
+ {
+  "id": "basis-linsen-gekocht",
+  "name": "Linsen, gekocht",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 116.0,
+   "protein": 9.0,
+   "kohlenhydrate": 20.1,
+   "fett": 0.4,
+   "zucker": 1.8,
+   "ballaststoffe": 7.9,
+   "gesFett": 0.053,
+   "salz": 0.005,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.11,
+    "vitaminK": 1.7,
+    "vitaminC": 1.5,
+    "vitaminB1": 0.169,
+    "vitaminB2": 0.073,
+    "niacin": 1.06,
+    "pantothensaeure": 0.638,
+    "vitaminB6": 0.178,
+    "folat": 181.0,
+    "vitaminB12": 0.0,
+    "kalium": 369.0,
+    "calcium": 19.0,
+    "magnesium": 36.0,
+    "phosphor": 180.0,
+    "eisen": 3.33,
+    "zink": 1.27,
+    "kupfer": 0.251,
+    "mangan": 0.494,
+    "selen": 2.8,
+    "natrium": 2.0,
+    "wasser": 69.6,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.064,
+    "mehrfachUngesaettigt": 0.175,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 12.3
+   },
+   {
+    "name": "Tasse",
+    "gramm": 198.0
+   }
+  ]
+ },
+ {
+  "id": "basis-kichererbsen-dose",
+  "name": "Kichererbsen, Dose",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 139.0,
+   "protein": 7.0,
+   "kohlenhydrate": 22.5,
+   "fett": 2.8,
+   "zucker": 4.01,
+   "ballaststoffe": 6.4,
+   "gesFett": 0.214,
+   "salz": 0.615,
+   "mikro": {
+    "vitaminA": 1.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.29,
+    "vitaminK": 3.4,
+    "vitaminC": 0.1,
+    "vitaminB1": 0.027,
+    "vitaminB2": 0.015,
+    "niacin": 0.14,
+    "vitaminB6": 0.116,
+    "folat": 48.0,
+    "vitaminB12": 0.0,
+    "kalium": 126.0,
+    "calcium": 45.0,
+    "magnesium": 26.0,
+    "phosphor": 85.0,
+    "eisen": 1.07,
+    "zink": 0.63,
+    "kupfer": 0.253,
+    "mangan": 0.846,
+    "selen": 3.1,
+    "natrium": 246.0,
+    "wasser": 66.7,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.488,
+    "mehrfachUngesaettigt": 0.967,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 120
+   }
+  ]
+ },
+ {
+  "id": "basis-kidneybohnen-dose",
+  "name": "Kidneybohnen, Dose",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 124.0,
+   "protein": 8.0,
+   "kohlenhydrate": 21.5,
+   "fett": 1.1,
+   "zucker": 3.8,
+   "ballaststoffe": 5.5,
+   "gesFett": 0.181,
+   "salz": 0.5775,
+   "mikro": {
+    "vitaminD": 0.0,
+    "vitaminC": 0.2,
+    "vitaminB1": 0.067,
+    "vitaminB2": 0.016,
+    "niacin": 0.46,
+    "folat": 28.0,
+    "vitaminB12": 0.0,
+    "kalium": 277.0,
+    "calcium": 57.0,
+    "magnesium": 30.0,
+    "phosphor": 121.0,
+    "eisen": 1.5,
+    "zink": 0.75,
+    "kupfer": 0.272,
+    "mangan": 0.384,
+    "selen": 1.6,
+    "natrium": 231.0,
+    "wasser": 68.1,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.029,
+    "mehrfachUngesaettigt": 0.193,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Portion",
+    "gramm": 120
+   }
+  ]
+ },
+ {
+  "id": "basis-weisse-bohnen-dose",
+  "name": "Weiße Bohnen, Dose",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 114.0,
+   "protein": 7.4,
+   "kohlenhydrate": 21.0,
+   "fett": 0.4,
+   "zucker": 1.41,
+   "ballaststoffe": 4.9,
+   "gesFett": 0.12,
+   "salz": 0.925,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.79,
+    "vitaminK": 3.0,
+    "vitaminC": 1.3,
+    "vitaminB1": 0.143,
+    "vitaminB2": 0.06,
+    "niacin": 0.461,
+    "pantothensaeure": 0.278,
+    "vitaminB6": 0.106,
+    "folat": 81.0,
+    "vitaminB12": 0.0,
+    "kalium": 351.0,
+    "calcium": 53.0,
+    "magnesium": 51.0,
+    "phosphor": 136.0,
+    "eisen": 1.57,
+    "zink": 0.65,
+    "kupfer": 0.16,
+    "mangan": 0.408,
+    "selen": 4.1,
+    "natrium": 370.0,
+    "wasser": 69.9,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.018,
+    "mehrfachUngesaettigt": 0.161,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 262.0
+   }
+  ]
+ },
+ {
+  "id": "basis-tofu",
+  "name": "Tofu, natur",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 76.0,
+   "protein": 8.1,
+   "kohlenhydrate": 1.9,
+   "fett": 4.8,
+   "zucker": 0.62,
+   "ballaststoffe": 0.3,
+   "gesFett": 0.691,
+   "salz": 0.0175,
+   "mikro": {
+    "vitaminD": 0.0,
+    "vitaminE": 0.01,
+    "vitaminK": 2.4,
+    "vitaminC": 0.1,
+    "vitaminB1": 0.081,
+    "vitaminB2": 0.052,
+    "niacin": 0.195,
+    "pantothensaeure": 0.068,
+    "vitaminB6": 0.047,
+    "folat": 15.0,
+    "vitaminB12": 0.0,
+    "kalium": 121.0,
+    "calcium": 350.0,
+    "magnesium": 30.0,
+    "phosphor": 97.0,
+    "eisen": 5.36,
+    "zink": 0.8,
+    "kupfer": 0.193,
+    "mangan": 0.605,
+    "selen": 8.9,
+    "natrium": 7.0,
+    "wasser": 84.5,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 1.06,
+    "mehrfachUngesaettigt": 2.7,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 248.0
+   }
+  ]
+ },
+ {
+  "id": "basis-mandeln",
+  "name": "Mandeln",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 579.0,
+   "protein": 21.1,
+   "kohlenhydrate": 21.6,
+   "fett": 49.9,
+   "zucker": 4.35,
+   "ballaststoffe": 12.5,
+   "gesFett": 3.8,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 25.6,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.205,
+    "vitaminB2": 1.14,
+    "niacin": 3.62,
+    "pantothensaeure": 0.471,
+    "vitaminB6": 0.137,
+    "folat": 44.0,
+    "vitaminB12": 0.0,
+    "kalium": 733.0,
+    "calcium": 269.0,
+    "magnesium": 270.0,
+    "phosphor": 481.0,
+    "eisen": 3.71,
+    "zink": 3.12,
+    "kupfer": 1.03,
+    "mangan": 2.18,
+    "selen": 4.1,
+    "natrium": 1.0,
+    "wasser": 4.41,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 31.6,
+    "mehrfachUngesaettigt": 12.3,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Handvoll",
+    "gramm": 30
+   }
+  ]
+ },
+ {
+  "id": "basis-walnuesse",
+  "name": "Walnüsse",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 654.0,
+   "protein": 15.2,
+   "kohlenhydrate": 13.7,
+   "fett": 65.2,
+   "zucker": 2.61,
+   "ballaststoffe": 6.7,
+   "gesFett": 6.13,
+   "salz": 0.005,
+   "mikro": {
+    "vitaminA": 1.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.7,
+    "vitaminK": 2.7,
+    "vitaminC": 1.3,
+    "vitaminB1": 0.341,
+    "vitaminB2": 0.15,
+    "niacin": 1.12,
+    "pantothensaeure": 0.57,
+    "vitaminB6": 0.537,
+    "folat": 98.0,
+    "vitaminB12": 0.0,
+    "kalium": 441.0,
+    "calcium": 98.0,
+    "magnesium": 158.0,
+    "phosphor": 346.0,
+    "eisen": 2.91,
+    "zink": 3.09,
+    "kupfer": 1.59,
+    "mangan": 3.41,
+    "selen": 4.9,
+    "natrium": 2.0,
+    "wasser": 4.07,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 8.93,
+    "mehrfachUngesaettigt": 47.2,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 117.0
+   }
+  ]
+ },
+ {
+  "id": "basis-cashewkerne",
+  "name": "Cashewkerne",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 553.0,
+   "protein": 18.2,
+   "kohlenhydrate": 30.2,
+   "fett": 43.9,
+   "zucker": 5.91,
+   "ballaststoffe": 3.3,
+   "gesFett": 7.78,
+   "salz": 0.03,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.9,
+    "vitaminK": 34.1,
+    "vitaminC": 0.5,
+    "vitaminB1": 0.423,
+    "vitaminB2": 0.058,
+    "niacin": 1.06,
+    "pantothensaeure": 0.864,
+    "vitaminB6": 0.417,
+    "folat": 25.0,
+    "vitaminB12": 0.0,
+    "kalium": 660.0,
+    "calcium": 37.0,
+    "magnesium": 292.0,
+    "phosphor": 593.0,
+    "eisen": 6.68,
+    "zink": 5.78,
+    "kupfer": 2.19,
+    "mangan": 1.66,
+    "selen": 19.9,
+    "natrium": 12.0,
+    "wasser": 5.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 23.8,
+    "mehrfachUngesaettigt": 7.84
+   }
+  },
+  "portionen": [
+   {
+    "name": "Handvoll",
+    "gramm": 30
+   }
+  ]
+ },
+ {
+  "id": "basis-erdnuesse",
+  "name": "Erdnüsse",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 567.0,
+   "protein": 25.8,
+   "kohlenhydrate": 16.1,
+   "fett": 49.2,
+   "zucker": 4.72,
+   "ballaststoffe": 8.5,
+   "gesFett": 6.28,
+   "salz": 0.045,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 8.33,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.64,
+    "vitaminB2": 0.135,
+    "niacin": 12.1,
+    "pantothensaeure": 1.77,
+    "vitaminB6": 0.348,
+    "folat": 240.0,
+    "vitaminB12": 0.0,
+    "kalium": 705.0,
+    "calcium": 92.0,
+    "magnesium": 168.0,
+    "phosphor": 376.0,
+    "eisen": 4.58,
+    "zink": 3.27,
+    "kupfer": 1.14,
+    "mangan": 1.93,
+    "selen": 7.2,
+    "natrium": 18.0,
+    "wasser": 6.5,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 24.4,
+    "mehrfachUngesaettigt": 15.6,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 146.0
+   }
+  ]
+ },
+ {
+  "id": "basis-erdnussbutter",
+  "name": "Erdnussbutter",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 598.0,
+   "protein": 22.2,
+   "kohlenhydrate": 22.3,
+   "fett": 51.4,
+   "zucker": 10.5,
+   "ballaststoffe": 5.0,
+   "gesFett": 10.3,
+   "salz": 0.0425,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 9.1,
+    "vitaminK": 0.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.15,
+    "vitaminB2": 0.192,
+    "niacin": 13.1,
+    "pantothensaeure": 1.14,
+    "vitaminB6": 0.441,
+    "folat": 87.0,
+    "vitaminB12": 0.0,
+    "kalium": 558.0,
+    "calcium": 49.0,
+    "magnesium": 168.0,
+    "phosphor": 335.0,
+    "eisen": 1.74,
+    "zink": 2.51,
+    "kupfer": 0.422,
+    "mangan": 1.67,
+    "selen": 4.1,
+    "natrium": 17.0,
+    "wasser": 1.23,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 25.9,
+    "mehrfachUngesaettigt": 12.5,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 16.0
+   },
+   {
+    "name": "Tasse",
+    "gramm": 258.0
+   }
+  ]
+ },
+ {
+  "id": "basis-haselnuesse",
+  "name": "Haselnüsse",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 628.0,
+   "protein": 14.9,
+   "kohlenhydrate": 16.7,
+   "fett": 60.8,
+   "zucker": 4.34,
+   "ballaststoffe": 9.7,
+   "gesFett": 4.46,
+   "salz": 0.0,
+   "mikro": {
+    "vitaminA": 1.0,
+    "vitaminD": 0.0,
+    "vitaminE": 15.0,
+    "vitaminK": 14.2,
+    "vitaminC": 6.3,
+    "vitaminB1": 0.643,
+    "vitaminB2": 0.113,
+    "niacin": 1.8,
+    "pantothensaeure": 0.918,
+    "vitaminB6": 0.563,
+    "folat": 113.0,
+    "vitaminB12": 0.0,
+    "kalium": 680.0,
+    "calcium": 114.0,
+    "magnesium": 163.0,
+    "phosphor": 290.0,
+    "eisen": 4.7,
+    "zink": 2.45,
+    "kupfer": 1.73,
+    "mangan": 6.17,
+    "selen": 2.4,
+    "natrium": 0.0,
+    "wasser": 5.31,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 45.7,
+    "mehrfachUngesaettigt": 7.92,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse, gehackt",
+    "gramm": 115.0
+   }
+  ]
+ },
+ {
+  "id": "basis-olivenoel",
+  "name": "Olivenöl",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 884.0,
+   "protein": 0.0,
+   "kohlenhydrate": 0.0,
+   "fett": 100.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 13.8,
+   "salz": 0.005,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 14.3,
+    "vitaminK": 60.2,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.0,
+    "vitaminB2": 0.0,
+    "niacin": 0.0,
+    "pantothensaeure": 0.0,
+    "vitaminB6": 0.0,
+    "folat": 0.0,
+    "vitaminB12": 0.0,
+    "kalium": 1.0,
+    "calcium": 1.0,
+    "magnesium": 0.0,
+    "phosphor": 0.0,
+    "eisen": 0.56,
+    "zink": 0.0,
+    "kupfer": 0.0,
+    "mangan": 0.0,
+    "selen": 0.0,
+    "natrium": 2.0,
+    "wasser": 0.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 73.0,
+    "mehrfachUngesaettigt": 10.5,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 13.5
+   },
+   {
+    "name": "Teelöffel",
+    "gramm": 4.5
+   },
+   {
+    "name": "Tasse",
+    "gramm": 216.0
+   }
+  ]
+ },
+ {
+  "id": "basis-rapsoel",
+  "name": "Rapsöl",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 884.0,
+   "protein": 0.0,
+   "kohlenhydrate": 0.0,
+   "fett": 100.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 7.37,
+   "salz": 0.0,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 17.5,
+    "vitaminK": 71.3,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.0,
+    "vitaminB2": 0.0,
+    "niacin": 0.0,
+    "pantothensaeure": 0.0,
+    "vitaminB6": 0.0,
+    "folat": 0.0,
+    "vitaminB12": 0.0,
+    "kalium": 0.0,
+    "calcium": 0.0,
+    "magnesium": 0.0,
+    "phosphor": 0.0,
+    "eisen": 0.0,
+    "zink": 0.0,
+    "kupfer": 0.0,
+    "mangan": 0.0,
+    "selen": 0.0,
+    "natrium": 0.0,
+    "wasser": 0.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 63.3,
+    "mehrfachUngesaettigt": 28.1,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 14.0
+   },
+   {
+    "name": "Teelöffel",
+    "gramm": 4.5
+   },
+   {
+    "name": "Tasse",
+    "gramm": 218.0
+   }
+  ]
+ },
+ {
+  "id": "basis-sonnenblumenoel",
+  "name": "Sonnenblumenöl",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 884.0,
+   "protein": 0.0,
+   "kohlenhydrate": 0.0,
+   "fett": 100.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 10.1,
+   "salz": 0.0,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminE": 41.1,
+    "vitaminK": 5.4,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.0,
+    "vitaminB2": 0.0,
+    "niacin": 0.0,
+    "pantothensaeure": 0.0,
+    "vitaminB6": 0.0,
+    "folat": 0.0,
+    "vitaminB12": 0.0,
+    "kalium": 0.0,
+    "calcium": 0.0,
+    "magnesium": 0.0,
+    "phosphor": 0.0,
+    "eisen": 0.03,
+    "zink": 0.0,
+    "selen": 0.0,
+    "natrium": 0.0,
+    "wasser": 0.0,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 45.4,
+    "mehrfachUngesaettigt": 40.1,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 13.6
+   },
+   {
+    "name": "Teelöffel",
+    "gramm": 4.5
+   },
+   {
+    "name": "Tasse",
+    "gramm": 218.0
+   }
+  ]
+ },
+ {
+  "id": "basis-zucker",
+  "name": "Zucker, weiß",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 387.0,
+   "protein": 0.0,
+   "kohlenhydrate": 100.0,
+   "fett": 0.0,
+   "zucker": 99.8,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.0,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.0,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.0,
+    "vitaminB2": 0.019,
+    "niacin": 0.0,
+    "pantothensaeure": 0.0,
+    "vitaminB6": 0.0,
+    "folat": 0.0,
+    "vitaminB12": 0.0,
+    "kalium": 2.0,
+    "calcium": 1.0,
+    "magnesium": 0.0,
+    "phosphor": 0.0,
+    "eisen": 0.05,
+    "zink": 0.01,
+    "kupfer": 0.007,
+    "mangan": 0.004,
+    "selen": 0.6,
+    "natrium": 1.0,
+    "wasser": 0.02,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.0,
+    "mehrfachUngesaettigt": 0.0,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Teelöffel",
+    "gramm": 4.2
+   },
+   {
+    "name": "Tasse",
+    "gramm": 200.0
+   }
+  ]
+ },
+ {
+  "id": "basis-honig",
+  "name": "Honig",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 304.0,
+   "protein": 0.3,
+   "kohlenhydrate": 82.4,
+   "fett": 0.0,
+   "zucker": 82.1,
+   "ballaststoffe": 0.2,
+   "gesFett": 0.0,
+   "salz": 0.01,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.0,
+    "vitaminK": 0.0,
+    "vitaminC": 0.5,
+    "vitaminB1": 0.0,
+    "vitaminB2": 0.038,
+    "niacin": 0.121,
+    "pantothensaeure": 0.068,
+    "vitaminB6": 0.024,
+    "folat": 2.0,
+    "vitaminB12": 0.0,
+    "kalium": 52.0,
+    "calcium": 6.0,
+    "magnesium": 2.0,
+    "phosphor": 4.0,
+    "eisen": 0.42,
+    "zink": 0.22,
+    "kupfer": 0.036,
+    "mangan": 0.08,
+    "selen": 0.8,
+    "natrium": 4.0,
+    "wasser": 17.1,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.0,
+    "mehrfachUngesaettigt": 0.0,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 21.0
+   },
+   {
+    "name": "Tasse",
+    "gramm": 339.0
+   }
+  ]
+ },
+ {
+  "id": "basis-marmelade",
+  "name": "Marmelade",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 278.0,
+   "protein": 0.4,
+   "kohlenhydrate": 68.9,
+   "fett": 0.1,
+   "zucker": 48.5,
+   "ballaststoffe": 1.1,
+   "gesFett": 0.01,
+   "salz": 0.08,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.12,
+    "vitaminK": 0.0,
+    "vitaminC": 8.8,
+    "vitaminB1": 0.016,
+    "vitaminB2": 0.076,
+    "niacin": 0.036,
+    "pantothensaeure": 0.02,
+    "vitaminB6": 0.02,
+    "folat": 11.0,
+    "vitaminB12": 0.0,
+    "kalium": 77.0,
+    "calcium": 20.0,
+    "magnesium": 4.0,
+    "phosphor": 19.0,
+    "eisen": 0.49,
+    "zink": 0.06,
+    "kupfer": 0.1,
+    "mangan": 0.04,
+    "selen": 2.0,
+    "natrium": 32.0,
+    "wasser": 30.5,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.038,
+    "mehrfachUngesaettigt": 0.0,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 20.0
+   }
+  ]
+ },
+ {
+  "id": "basis-nutella",
+  "name": "Nutella",
+  "fluessig": false,
+  "pro100": {
+   "kcal": 539.0,
+   "protein": 5.4,
+   "kohlenhydrate": 62.4,
+   "fett": 29.7,
+   "zucker": 54.0,
+   "ballaststoffe": 5.4,
+   "gesFett": 28.4,
+   "salz": 0.1025,
+   "mikro": {
+    "vitaminA": 1.0,
+    "vitaminD": 0.0,
+    "vitaminE": 4.96,
+    "vitaminK": 1.9,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.085,
+    "vitaminB2": 0.17,
+    "niacin": 0.427,
+    "pantothensaeure": 0.357,
+    "vitaminB6": 0.082,
+    "folat": 14.0,
+    "vitaminB12": 0.27,
+    "kalium": 407.0,
+    "calcium": 108.0,
+    "magnesium": 64.0,
+    "phosphor": 152.0,
+    "eisen": 4.38,
+    "zink": 1.06,
+    "kupfer": 0.469,
+    "mangan": 0.868,
+    "selen": 3.6,
+    "natrium": 41.0,
+    "wasser": 1.07,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.0,
+    "mehrfachUngesaettigt": 0.0,
+    "koffein": 7.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Esslöffel",
+    "gramm": 18.5
+   }
+  ]
+ },
+ {
+  "id": "basis-wasser",
+  "name": "Wasser",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 0,
+   "protein": 0.0,
+   "kohlenhydrate": 0.0,
+   "fett": 0.0
+  },
+  "portionen": [
+   {
+    "name": "Glas (200 ml)",
+    "gramm": 200
+   },
+   {
+    "name": "Flasche (500 ml)",
+    "gramm": 500
+   }
+  ]
+ },
+ {
+  "id": "basis-kaffee-schwarz",
+  "name": "Kaffee, schwarz",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 1.0,
+   "protein": 0.1,
+   "kohlenhydrate": 0.0,
+   "fett": 0.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.002,
+   "salz": 0.005,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.01,
+    "vitaminK": 0.1,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.014,
+    "vitaminB2": 0.076,
+    "niacin": 0.191,
+    "pantothensaeure": 0.254,
+    "vitaminB6": 0.001,
+    "folat": 2.0,
+    "vitaminB12": 0.0,
+    "kalium": 49.0,
+    "calcium": 2.0,
+    "magnesium": 3.0,
+    "phosphor": 3.0,
+    "eisen": 0.01,
+    "zink": 0.02,
+    "kupfer": 0.002,
+    "mangan": 0.023,
+    "selen": 0.0,
+    "natrium": 2.0,
+    "wasser": 99.4,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.015,
+    "mehrfachUngesaettigt": 0.001,
+    "koffein": 40.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 125
+   }
+  ]
+ },
+ {
+  "id": "basis-tee",
+  "name": "Tee, ungesüßt",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 1.0,
+   "protein": 0.0,
+   "kohlenhydrate": 0.3,
+   "fett": 0.0,
+   "zucker": 0.0,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.002,
+   "salz": 0.0075,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.0,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.0,
+    "vitaminB2": 0.014,
+    "niacin": 0.0,
+    "pantothensaeure": 0.011,
+    "vitaminB6": 0.0,
+    "folat": 5.0,
+    "vitaminB12": 0.0,
+    "kalium": 37.0,
+    "calcium": 0.0,
+    "magnesium": 3.0,
+    "phosphor": 1.0,
+    "eisen": 0.02,
+    "zink": 0.02,
+    "kupfer": 0.01,
+    "mangan": 0.219,
+    "selen": 0.0,
+    "natrium": 3.0,
+    "wasser": 99.7,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.001,
+    "mehrfachUngesaettigt": 0.004,
+    "koffein": 20.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 200
+   }
+  ]
+ },
+ {
+  "id": "basis-orangensaft",
+  "name": "Orangensaft",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 45.0,
+   "protein": 0.7,
+   "kohlenhydrate": 10.4,
+   "fett": 0.2,
+   "zucker": 8.4,
+   "ballaststoffe": 0.2,
+   "gesFett": 0.024,
+   "salz": 0.0025,
+   "mikro": {
+    "vitaminA": 10.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.04,
+    "vitaminK": 0.1,
+    "vitaminC": 50.0,
+    "vitaminB1": 0.09,
+    "vitaminB2": 0.03,
+    "niacin": 0.4,
+    "pantothensaeure": 0.19,
+    "vitaminB6": 0.04,
+    "folat": 30.0,
+    "vitaminB12": 0.0,
+    "kalium": 200.0,
+    "calcium": 11.0,
+    "magnesium": 11.0,
+    "phosphor": 17.0,
+    "eisen": 0.2,
+    "zink": 0.05,
+    "kupfer": 0.044,
+    "mangan": 0.014,
+    "selen": 0.1,
+    "natrium": 1.0,
+    "wasser": 88.3,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.036,
+    "mehrfachUngesaettigt": 0.04,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 248.0
+   }
+  ]
+ },
+ {
+  "id": "basis-cola",
+  "name": "Cola",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 42.0,
+   "protein": 0.0,
+   "kohlenhydrate": 10.4,
+   "fett": 0.2,
+   "zucker": 9.94,
+   "ballaststoffe": 0.0,
+   "gesFett": 0.0,
+   "salz": 0.0075,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.0,
+    "vitaminK": 0.0,
+    "vitaminC": 0.0,
+    "vitaminB1": 0.0,
+    "vitaminB2": 0.0,
+    "niacin": 0.0,
+    "pantothensaeure": 0.0,
+    "vitaminB6": 0.0,
+    "folat": 0.0,
+    "vitaminB12": 0.0,
+    "kalium": 5.0,
+    "calcium": 1.0,
+    "magnesium": 0.0,
+    "phosphor": 9.0,
+    "eisen": 0.02,
+    "zink": 0.09,
+    "kupfer": 0.007,
+    "mangan": 0.003,
+    "selen": 0.1,
+    "natrium": 3.0,
+    "wasser": 89.4,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.0,
+    "mehrfachUngesaettigt": 0.0,
+    "koffein": 9.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Glas (200 ml)",
+    "gramm": 200
+   },
+   {
+    "name": "Dose (330 ml)",
+    "gramm": 330
+   }
+  ]
+ },
+ {
+  "id": "basis-apfelsaft",
+  "name": "Apfelsaft",
+  "fluessig": true,
+  "pro100": {
+   "kcal": 46.0,
+   "protein": 0.1,
+   "kohlenhydrate": 11.3,
+   "fett": 0.1,
+   "zucker": 9.62,
+   "ballaststoffe": 0.2,
+   "gesFett": 0.022,
+   "salz": 0.01,
+   "mikro": {
+    "vitaminA": 0.0,
+    "vitaminD": 0.0,
+    "vitaminE": 0.01,
+    "vitaminK": 0.0,
+    "vitaminC": 0.9,
+    "vitaminB1": 0.021,
+    "vitaminB2": 0.017,
+    "niacin": 0.073,
+    "pantothensaeure": 0.049,
+    "vitaminB6": 0.018,
+    "folat": 0.0,
+    "vitaminB12": 0.0,
+    "kalium": 101.0,
+    "calcium": 8.0,
+    "magnesium": 5.0,
+    "phosphor": 7.0,
+    "eisen": 0.12,
+    "zink": 0.02,
+    "kupfer": 0.012,
+    "mangan": 0.074,
+    "selen": 0.1,
+    "natrium": 4.0,
+    "wasser": 88.2,
+    "cholesterin": 0.0,
+    "einfachUngesaettigt": 0.006,
+    "mehrfachUngesaettigt": 0.039,
+    "koffein": 0.0,
+    "alkohol": 0.0
+   }
+  },
+  "portionen": [
+   {
+    "name": "Tasse",
+    "gramm": 248.0
+   }
+  ]
+ }
 ]

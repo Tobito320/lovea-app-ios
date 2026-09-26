@@ -199,4 +199,50 @@ final class ErnaehrungTests: XCTestCase {
         XCTAssertNil(f.koerperwert(.ahmed, .koerperfett, bis: "2026-09-27"))
         XCTAssertNil(f.koerperwert(.annika, .taille, bis: "2026-09-27"))
     }
+    // MARK: - Bilder
+
+    func testBildNurWennAdresseZumBarcodePasst() {
+        let lang = "https://images.openfoodfacts.org/images/products/431/626/862/7979/front_de.25.200.jpg"
+        XCTAssertTrue(ErnaehrungLogik.offBildPasst(lang, barcode: "4316268627979"))
+        XCTAssertFalse(ErnaehrungLogik.offBildPasst(lang, barcode: "4316268627978"))
+        let kurz = "https://images.openfoodfacts.org/images/products/000/002/072/4696/front_en.384.200.jpg"
+        XCTAssertTrue(ErnaehrungLogik.offBildPasst(kurz, barcode: "20724696"))
+        XCTAssertFalse(ErnaehrungLogik.offBildPasst("https://images.openfoodfacts.org/images/products/431/626/862/7979/ingredients_de.3.200.jpg", barcode: "4316268627979"))
+        XCTAssertFalse(ErnaehrungLogik.offBildPasst("https://example.com/images/products/431/626/862/7979/front_de.25.200.jpg", barcode: "4316268627979"))
+        XCTAssertFalse(ErnaehrungLogik.offBildPasst(lang, barcode: nil))
+    }
+
+    func testBildGrossIstDasselbeFotoIn400() {
+        let l = Lebensmittel(id: "off-4316268627979", name: "Skyr", barcode: "4316268627979", pro100: .null,
+                             bild: "https://images.openfoodfacts.org/images/products/431/626/862/7979/front_de.25.200.jpg")
+        XCTAssertEqual(l.bildGross?.absoluteString, "https://images.openfoodfacts.org/images/products/431/626/862/7979/front_de.25.400.jpg")
+        var fremd = l
+        fremd.barcode = "4000417025005"
+        XCTAssertNil(fremd.bildKlein)
+        XCTAssertNil(fremd.bildGross)
+    }
+    // MARK: - Vitamine und Mineralstoffe
+
+    func testMikroAusOpenFoodFactsInMgUndMikrogramm() throws {
+        let json = """
+        {"code":"1","status":1,"product":{"product_name":"Orangensaft","product_quantity_unit":"ml",
+        "nutriments":{"energy-kcal_100g":45,"vitamin-c_100g":0.03,"vitamin-d_100g":0.0000015,"calcium_100g":"0.011","alcohol_100g":1}}}
+        """
+        let l = try XCTUnwrap(ErnaehrungLogik.offProdukt(Data(json.utf8)))
+        XCTAssertEqual(l.pro100.wert(.vitaminC) ?? 0, 30, accuracy: 0.0001)
+        XCTAssertEqual(l.pro100.wert(.vitaminD) ?? 0, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(l.pro100.wert(.calcium) ?? 0, 11, accuracy: 0.0001)
+        XCTAssertEqual(l.pro100.wert(.alkohol) ?? 0, 0.789, accuracy: 0.0001)
+        XCTAssertNil(l.pro100.wert(.eisen))
+    }
+
+    func testMikroSkaliertUndSummiert() {
+        let a = Naehrwerte(kcal: 18, protein: 1, kohlenhydrate: 4, fett: 0, mikro: ["vitaminC": 13.7, "kalium": 237])
+        let b = Naehrwerte(kcal: 0, protein: 0, kohlenhydrate: 0, fett: 0, mikro: ["vitaminC": 10])
+        XCTAssertEqual(a.mal(2).wert(.kalium) ?? 0, 474, accuracy: 0.0001)
+        XCTAssertEqual((a + b).wert(.vitaminC) ?? 0, 23.7, accuracy: 0.0001)
+        XCTAssertNil((Naehrwerte.null + Naehrwerte.null).mikro)
+        XCTAssertEqual(Mikro.vitaminC.referenz, 80)
+        XCTAssertEqual(Mikro.allCases.filter { $0.gruppe == .vitamine }.count, 12)
+    }
 }
