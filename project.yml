@@ -44,7 +44,7 @@ targets:
           - location
           - remote-notification
           - audio
-        NSCameraUsageDescription: "Lovea nutzt die Kamera, damit du Fotos und Videos für den Chat und die Snaps aufnehmen kannst."
+        NSCameraUsageDescription: "Lovea nutzt die Kamera, damit du Fotos und Videos für den Chat und die Snaps aufnehmen und Barcodes von Lebensmitteln scannen kannst."
         NSMicrophoneUsageDescription: "Lovea nutzt das Mikrofon für Sprachnachrichten und Videos im Chat."
         NSPhotoLibraryUsageDescription: "Lovea liest Fotos, damit du sie im Chat oder als Zeichen-Vorlage nutzen kannst."
         NSPhotoLibraryAddUsageDescription: "Lovea speichert deine fertigen Bilder in Fotos."

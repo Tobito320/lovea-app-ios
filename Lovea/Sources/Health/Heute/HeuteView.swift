@@ -314,7 +314,7 @@ private struct Schraffur: Shape {
 // MARK: - Ziele und Gewichtsblatt
 
 private enum HeuteZiel: Hashable {
-    case schritte, schlaf, habits, habit(String), punkte
+    case schritte, schlaf, habits, habit(String), punkte, ernaehrung
 }
 
 private struct StimmungSetzen: Codable { var datum: String; var stimmung: String }
@@ -424,6 +424,7 @@ struct HeuteView: View {
             .navigationTitle("Habits")
         case .habit(let id): HabitDetailView(habitId: id)
         case .punkte: PunkteVerlaufView()
+        case .ernaehrung: ErnaehrungView()
         }
     }
 
@@ -512,9 +513,15 @@ struct HeuteView: View {
     }
 
     private var proteinKachel: some View {
-        let ok = health.habitWert(Habit.protein.id, ich, heute) > 0
-        return FormKachel(form: .protein, titel: "Protein", wert: ok ? "geschafft" : "offen", einheit: "",
-                          fuellung: ok ? 1 : 0) { health.setzeHabit(Habit.protein.id, datum: heute, wert: ok ? 0 : 1) }
+        let ernaehrung = ErnaehrungModell.shared
+        let ziel = ernaehrung.ziele(ich).kcal
+        let summe = ernaehrung.summe(ich, heute)
+        let kcal = Int(summe.kcal.rounded())
+        let protein = Int(summe.protein.rounded())
+        return FormKachel(form: .protein, titel: "Ernährung", wert: "\(kcal)", einheit: "/\(ziel) kcal",
+                          fuellung: ziel > 0 ? Double(kcal) / Double(ziel) : 0, zusatz: "\(protein) g Protein") {
+            pfad.append(.ernaehrung)
+        }
     }
 
     /// Alle Einträge mit Wert, älteste zuerst. Wert = Zehntel-kg.
