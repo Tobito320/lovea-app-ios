@@ -148,6 +148,40 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(logAfterDuplicate.count, 3)
     }
 
+    // MARK: - Watchdog (27.09. Performance)
+
+    func testDeadSocketReconnectsAndAnsweredPingStays() async throws {
+        func raum(_ transport: FakeTransport) -> Raum {
+            let dir = makeTempDirectory()
+            let r = Raum(
+                transport: transport, log: OpLog(rootURL: dir), warteschlange: Warteschlange(rootURL: dir),
+                server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+                medienBeimStartFortsetzen: false, pingAbstand: .milliseconds(50), pongFrist: .milliseconds(100)
+            )
+            r.ich = .ahmed
+            return r
+        }
+
+        let tot = FakeTransport()
+        let toterRaum = raum(tot)
+        toterRaum.start()
+        await toterRaum.leer()
+        try await Task.sleep(for: .milliseconds(600))
+        XCTAssertTrue(tot.sent.contains("ping"))
+        XCTAssertGreaterThanOrEqual(tot.urls.count, 2, "no pong -> must reconnect instead of trusting a dead socket")
+
+        let lebt = FakeTransport()
+        let lebenderRaum = raum(lebt)
+        lebenderRaum.start()
+        await lebenderRaum.leer()
+        for _ in 0..<12 {
+            try await Task.sleep(for: .milliseconds(50))
+            await lebt.receive("pong")
+        }
+        XCTAssertEqual(lebt.urls.count, 1, "answered pings keep the one connection")
+        _ = (toterRaum, lebenderRaum)
+    }
+
     // MARK: - Paging (Z-2.2, Review-Fokus 3)
 
     func testPagingDeliversThreeBatchesForTwelveHundredOps() async {

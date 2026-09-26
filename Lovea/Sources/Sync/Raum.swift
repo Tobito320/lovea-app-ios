@@ -16,12 +16,6 @@ final class Raum {
     private(set) var wartet = 0
     let eingerichtet: Bool
 
-    /// Set by the Karte/Orte block to react to a `karte.offen` push before the socket is even
-    /// open — see `LoveaAppDelegate.application(_:didReceiveRemoteNotification:)`. The payload
-    /// keys (`art`/`an`) are assumed, mirroring the `fl "karte.offen" {an}` WS message — no
-    /// server push payload for this exists yet to confirm against.
-    var onKarteOffen: ((Bool) -> Void)?
-
     struct HttpKonfiguration: Sendable { let basis: URL; let headers: [String: String] }
 
     private let transport: RaumTransport
@@ -42,6 +36,12 @@ final class Raum {
     private var reconnectTask: Task<Void, Never>?
     private var hintergrundTask: Task<Void, Never>?
     private var pingTask: Task<Void, Never>?
+    /// Last frame of any kind from the server — the ping watchdog in `verbinden` compares against it.
+    private var letzterEmpfang = ContinuousClock.now
+    /// A frame still being applied blocks the receive loop, so a pong behind it can't arrive yet.
+    private var empfangLaeuft = false
+    private let pingAbstand: Duration
+    private let pongFrist: Duration
     private var hintergrundAufgabe: UIBackgroundTaskIdentifier = .invalid
     /// Only `Raum.shared` should rescan disk for interrupted uploads on `start()` — a test's own
     /// `Raum` instance must not touch the real Application Support folder.
@@ -71,7 +71,9 @@ final class Raum {
         warteschlange: Warteschlange = Warteschlange(),
         server: URL? = Raum.plistServer(),
         schluessel: String = Raum.plistSchluessel(),
-        medienBeimStartFortsetzen: Bool = true
+        medienBeimStartFortsetzen: Bool = true,
+        pingAbstand: Duration = .seconds(10),
+        pongFrist: Duration = .seconds(5)
     ) {
         self.transport = transport ?? WebSocketTransport()
         self.log = log
@@ -80,6 +82,8 @@ final class Raum {
         self.appKey = schluessel
         self.eingerichtet = server != nil && !schluessel.isEmpty
         self.medienBeimStartFortsetzen = medienBeimStartFortsetzen
+        self.pingAbstand = pingAbstand
+        self.pongFrist = pongFrist
     }
 
     nonisolated static func plistServer() -> URL? {
@@ -287,7 +291,9 @@ final class Raum {
         guard verbunden else {
             // Background: the socket is closed ~30 s after backgrounding. Position and the own
             // state still reach the partner (the server keeps the last of each for a reconnect).
-            if art == "standort" || art == "zustand" { fluechtigPerHttp(art: art, d: d) }
+            // `karte.offen` too: sent right on foregrounding, before the socket is up, and the
+            // server wakes a backgrounded partner with it.
+            if art == "standort" || art == "zustand" || art == "karte.offen" { fluechtigPerHttp(art: art, d: d) }
             return
         }
         sende(FluechtigNachricht(art: art, d: d))
@@ -341,16 +347,26 @@ final class Raum {
             guard let self else { return }
             for op in await self.warteschlange.offen { self.sendeOp(op) }
         }
+        letzterEmpfang = .now
         pingTask?.cancel()
-        pingTask = Task { @MainActor [weak self] in
-            // The server only counts a socket as alive if it heard SOMETHING (ping or any
-            // message) in the last 60 s and pushes are otherwise suppressed for it — 25 s keeps
-            // comfortably inside that. A native WebSocket ping isn't enough: the server can't see
-            // it as a message, so this sends the same JSON text frame it treats a real "ping" as.
+        pingTask = Task { @MainActor [weak self, pingAbstand, pongFrist] in
+            // Raw "ping": the server's auto-response answers "pong" without waking the Durable
+            // Object, and its timestamp keeps the server's 60 s liveness check fresh (so no push
+            // while we're here). No frame at all within `pongFrist` means a dead socket (network
+            // switch, half-open after a suspend): reconnect now instead of sending into it until
+            // iOS gives up on TCP, while the server keeps holding back pushes for us.
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(25))
+                try? await Task.sleep(for: pingAbstand)
                 guard !Task.isCancelled, let self, self.generation == gen else { return }
-                self.sende(PingNachricht())
+                let gesendet = ContinuousClock.now
+                self.transport.senden("ping")
+                try? await Task.sleep(for: pongFrist)
+                guard !Task.isCancelled, self.generation == gen else { return }
+                if self.letzterEmpfang < gesendet, !self.empfangLaeuft {
+                    self.trennen()
+                    self.verbinden()
+                    return
+                }
             }
         }
     }
@@ -396,6 +412,7 @@ final class Raum {
     /// parsing (a `JSONValue` tree per op, for up to 500 ops on a page) and must NOT run on the
     /// main actor — see the comment at the call site in `verbinden`.
     private nonisolated static func nachrichtDekodieren(_ text: String) -> EingehendeNachricht? {
+        if text == "pong" { return .pong }
         guard let data = text.data(using: .utf8) else { return nil }
         guard let huelle = try? JSONDecoder().decode(TypHuelle.self, from: data) else { return nil }
         switch huelle.t {
@@ -426,7 +443,12 @@ final class Raum {
         guard gen == generation else { return }
         // Real proof the connection is up — see the comment on backoff in `verbinden` (I-1).
         backoff = 1
+        letzterEmpfang = .now
+        empfangLaeuft = true
+        defer { empfangLaeuft = false; letzterEmpfang = .now }
         switch nachricht {
+        case .pong:
+            break
         case .ops(let ops, let mehr, let seite, let hoechsteSeq):
             await reiheUndWarte { [weak self] in
                 guard let self else { return }
@@ -522,6 +544,7 @@ private enum EingehendeNachricht: Sendable {
     case fl(Person, String, Data)
     case da(ahmed: Bool, annika: Bool)
     case standort(Person, Data)
+    case pong
 }
 
 private struct TypHuelle: Decodable { let t: String }
@@ -581,6 +604,5 @@ private struct StandortHuelle: Decodable { let person: Person; let d: JSONValue 
 private struct OpNachricht: Encodable { let t = "op"; let op: Op }
 private struct NachholenNachricht: Encodable { let t = "nachholen"; let seit: Int }
 private struct GeraetNachricht: Encodable { let t = "geraet"; let token: String }
-private struct PingNachricht: Encodable { let t = "ping" }
 private struct FluechtigNachricht<D: Encodable>: Encodable { let t = "fl"; let art: String; let d: D }
 private struct FluechtigHttpBody<D: Encodable>: Encodable { let art: String; let d: D }
