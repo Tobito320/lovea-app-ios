@@ -88,9 +88,12 @@ final class HealthModell {
     func schritteWerte(_ person: Person) -> [String: Int] { (schritte[person] ?? [:]).mapValues(\.wert) }
     func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date)? { schlaf[person]?[tag] }
     func schlafZeitenAm(_ person: Person, _ tag: String) -> SchlafZeitenD? { schlafZeiten[person]?[tag] }
-    /// Health's asleep minutes, else the hand-entered time in bed.
+    /// Only the hand-entered time in bed counts (Ahmed, 26.09.: "nur Daten, die ich gebe"). Apple Health
+    /// stays synced in `schlaf` but is not shown. 0 minutes = deleted entry (`SchlafZeitenD.geloescht`).
     func schlafMinuten(_ person: Person, _ tag: String) -> Int? {
-        schlafNacht(person, tag)?.minuten ?? schlafZeitenAm(person, tag).map(EnergieLogik.imBett)
+        guard let z = schlafZeitenAm(person, tag) else { return nil }
+        let minuten = EnergieLogik.imBett(z)
+        return minuten > 0 ? minuten : nil
     }
     func wasserZeiten(_ person: Person, _ tag: String) -> [Date] {
         EnergieLogik.wasserZeiten(Array((wasserOps[person]?[tag] ?? [:]).values))

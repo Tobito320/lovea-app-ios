@@ -1,14 +1,14 @@
 import SwiftUI
 
-/// Z-36.3, Spec 3.4: last night of both (duration, asleep, awake) plus week bars, in the Health card
-/// look (indigo tint, SF Rounded numbers). Read-only — `HealthModell` gets sleep only from HealthKit.
+/// Last night of both plus week bars, in the Health card look (indigo tint, SF Rounded numbers).
+/// Only hand-entered times count (`HealthModell.schlafMinuten`).
 struct SchlafCard: View {
     private var health: HealthModell { HealthModell.shared }
 
     var body: some View {
         let heute = Datum.text(Date())
         VStack(alignment: .leading, spacing: 14) {
-            Label("Schlaf", systemImage: "moon.zzz.fill")
+            Label("Ihr beide", systemImage: "moon.zzz.fill")
                 .font(.headline)
                 .foregroundStyle(HabitFarbe.indigo.farbe)
                 .accessibilityAddTraits(.isHeader)
@@ -24,41 +24,32 @@ struct SchlafCard: View {
     }
 
     private func schlafPerson(_ person: Person, heute: String) -> some View {
-        let nacht = health.schlafNacht(person, heute)
-        let zeiten = health.schlafZeitenAm(person, heute)
+        let minuten = health.schlafMinuten(person, heute)
+        let zeiten = minuten == nil ? nil : health.schlafZeitenAm(person, heute)
         return VStack(alignment: .leading, spacing: 2) {
             Text(person.name).font(.caption.weight(.semibold)).foregroundStyle(Color.person(person))
-            Text(nacht.map { dauerText($0.minuten) } ?? zeiten.map { EnergieLogik.dauer(EnergieLogik.imBett($0)) } ?? "–")
+            Text(minuten.map(EnergieLogik.dauer) ?? "–")
                 .font(.system(.title2, design: .rounded).weight(.bold))
                 .monospacedDigit()
-            if let nacht {
-                Text("\(uhrzeit(nacht.von))–\(uhrzeit(nacht.bis))").font(.caption).foregroundStyle(.secondary).monospacedDigit()
-            }
             if let zeiten {
-                Text("Im Bett \(uhrzeit(zeiten.bett))–\(uhrzeit(zeiten.auf))").font(.caption2).foregroundStyle(.secondary).monospacedDigit()
+                Text("\(Datum.uhrzeit(zeiten.bett))–\(Datum.uhrzeit(zeiten.auf))").font(.caption).foregroundStyle(.secondary).monospacedDigit()
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(nacht.map { "\(person.name): \(dauerText($0.minuten)), \(uhrzeit($0.von)) bis \(uhrzeit($0.bis))" } ?? "\(person.name): keine Schlafdaten")
-    }
-
-    private func dauerText(_ minuten: Int) -> String { "\(minuten / 60) h \(minuten % 60) min" }
-
-    private func uhrzeit(_ datum: Date) -> String {
-        datum.formatted(.dateTime.hour().minute().locale(Locale(identifier: "de_DE")))
+        .accessibilityLabel(minuten.map { "\(person.name): \(EnergieLogik.dauer($0))" } ?? "\(person.name): nichts eingetragen")
     }
 
     private func wocheBalken(heute: String) -> some View {
         let tage = HabitLogik.wochenTage(heute: heute)
-        let alleMinuten = tage.flatMap { tag in Person.allCases.compactMap { health.schlafNacht($0, tag)?.minuten } }
+        let alleMinuten = tage.flatMap { tag in Person.allCases.compactMap { health.schlafMinuten($0, tag) } }
         let maxMinuten = max(alleMinuten.max() ?? 480, 60)
         return HStack(alignment: .bottom, spacing: 8) {
             ForEach(tage, id: \.self) { tag in
                 VStack(spacing: 4) {
                     HStack(alignment: .bottom, spacing: 3) {
-                        balken(health.schlafNacht(.ahmed, tag)?.minuten, hoechstwert: maxMinuten, farbe: Color.person(.ahmed))
-                        balken(health.schlafNacht(.annika, tag)?.minuten, hoechstwert: maxMinuten, farbe: Color.person(.annika))
+                        balken(health.schlafMinuten(.ahmed, tag), hoechstwert: maxMinuten, farbe: Color.person(.ahmed))
+                        balken(health.schlafMinuten(.annika, tag), hoechstwert: maxMinuten, farbe: Color.person(.annika))
                     }
                     .frame(height: 56)
                     Text(HabitLogik.wochentagKuerzel[Datum.wochentag(tag) - 1])
@@ -81,8 +72,8 @@ struct SchlafCard: View {
 
 private struct SchlafNachtWahl: Identifiable { let id: String }
 
-/// Heute → Schlaf: letzte Nacht mit Eintragen-Knopf, beide Personen mit Woche, die letzten 14 Nächte
-/// (Tipp = nachtragen) und Schlaf gegen Leistung.
+/// Heute → Schlaf: letzte Nacht mit Eintragen-Knopf, beide Personen mit Woche, die letzten 30 Nächte
+/// (Tipp = bearbeiten), eine ältere Nacht nachtragen, Schlaf gegen Leistung.
 struct SchlafDetailView: View {
     @State private var eintragen: SchlafNachtWahl?
 
@@ -102,8 +93,13 @@ struct SchlafDetailView: View {
             .padding(16)
         }
         .navigationTitle("Schlaf")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Nacht nachtragen", systemImage: "plus") { eintragen = SchlafNachtWahl(id: heute) }
+            }
+        }
         .sheet(item: $eintragen) { wahl in
-            SchlafEintragenView(tag: wahl.id).presentationDetents([.medium, .large])
+            SchlafEintragenView(tag: wahl.id).presentationDetents([.large])
         }
     }
 
@@ -112,27 +108,31 @@ struct SchlafDetailView: View {
     private var letzteNacht: some View {
         let minuten = health.schlafMinuten(ich, heute)
         let woche = (0..<7).compactMap { health.schlafMinuten(ich, Datum.addTage(heute, -$0)) }
-        let eingetragen = health.schlafZeitenAm(ich, heute) != nil
+        let zeiten = minuten == nil ? nil : health.schlafZeitenAm(ich, heute)
         return VStack(alignment: .leading, spacing: 12) {
             Label("Letzte Nacht", systemImage: "moon.zzz.fill")
                 .font(.headline)
                 .foregroundStyle(farbe)
                 .accessibilityAddTraits(.isHeader)
             VStack(alignment: .leading, spacing: 4) {
-                Text(minuten.map(EnergieLogik.dauer) ?? "Noch nichts da")
+                Text(minuten.map(EnergieLogik.dauer) ?? "Noch nichts eingetragen")
                     .font(.system(.largeTitle, design: .rounded).weight(.bold))
                     .monospacedDigit()
+                if let zeiten {
+                    Text("Im Bett \(Datum.uhrzeit(zeiten.bett)) bis \(Datum.uhrzeit(zeiten.auf))")
+                        .font(.subheadline)
+                        .monospacedDigit()
+                }
                 Text(sollText(minuten)).font(.subheadline).foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
-            quellen(heute)
             if !woche.isEmpty {
                 Text("Schnitt der letzten 7 Nächte: \(EnergieLogik.dauer(woche.reduce(0, +) / woche.count))")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             }
             Button { eintragen = SchlafNachtWahl(id: heute) } label: {
-                Label(eingetragen ? "Eintrag ändern" : "Schlaf eintragen", systemImage: "bed.double.fill")
+                Label(minuten == nil ? "Schlaf eintragen" : "Eintrag ändern", systemImage: "bed.double.fill")
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
             .buttonStyle(.borderedProminent)
@@ -149,52 +149,28 @@ struct SchlafDetailView: View {
         return fehlt > 0 ? "\(EnergieLogik.dauer(fehlt)) unter 8 h" : "8 h geschafft"
     }
 
-    /// Apple Health = echter Schlaf, eingetragen = Zeit im Bett. Gibt es beides, rechnet die App mit Apple Health.
-    @ViewBuilder
-    private func quellen(_ tag: String) -> some View {
-        let nacht = health.schlafNacht(ich, tag)
-        let zeiten = health.schlafZeitenAm(ich, tag)
-        if nacht != nil || zeiten != nil {
-            VStack(alignment: .leading, spacing: 4) {
-                if let nacht {
-                    Label("Geschlafen \(EnergieLogik.dauer(nacht.minuten)), \(Datum.uhrzeit(nacht.von))–\(Datum.uhrzeit(nacht.bis)) (Apple Health)",
-                          systemImage: "heart.fill")
-                }
-                if let zeiten {
-                    Label("Im Bett \(EnergieLogik.dauer(EnergieLogik.imBett(zeiten))), \(Datum.uhrzeit(zeiten.bett))–\(Datum.uhrzeit(zeiten.auf)) (eingetragen)",
-                          systemImage: "bed.double.fill")
-                }
-                if nacht != nil && zeiten != nil {
-                    Text("Die App rechnet mit Apple Health.").font(.caption).foregroundStyle(.tertiary)
-                }
-            }
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-        }
-    }
-
-    // MARK: Letzte 14 Nächte
+    // MARK: Letzte 30 Nächte
 
     private var naechte: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Letzte 14 Nächte").font(.title3.bold()).accessibilityAddTraits(.isHeader)
+            Text("Letzte 30 Nächte").font(.title3.bold()).accessibilityAddTraits(.isHeader)
             VStack(spacing: 0) {
-                ForEach(0..<14, id: \.self) { i in
+                ForEach(0..<30, id: \.self) { i in
                     nachtZeile(Datum.addTage(heute, -i))
-                    if i < 13 { Divider() }
+                    if i < 29 { Divider() }
                 }
             }
             .padding(.horizontal, 16)
             .healthKarte(farbe)
-            Text("Tipp auf eine Nacht, um sie nachzutragen oder zu ändern.").font(.footnote).foregroundStyle(.secondary)
+            Text("Tipp auf eine Nacht, um sie zu ändern oder zu löschen. Ältere Nächte über das Plus oben.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
         }
     }
 
     private func nachtZeile(_ tag: String) -> some View {
         let minuten = health.schlafMinuten(ich, tag)
-        let ausHealth = health.schlafNacht(ich, tag) != nil
-        let eingetragen = health.schlafZeitenAm(ich, tag) != nil
-        let quelle: String = ausHealth && eingetragen ? "Apple Health und eingetragen" : ausHealth ? "Apple Health" : eingetragen ? "eingetragen" : "fehlt"
+        let zeiten = minuten == nil ? nil : health.schlafZeitenAm(ich, tag)
         let teile = tag.split(separator: "-")
         let kurz = teile.count == 3 ? "\(teile[2]).\(teile[1])." : tag
         let wenig = (minuten ?? 480) < 360
@@ -202,7 +178,10 @@ struct SchlafDetailView: View {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(HabitLogik.wochentagKuerzel[Datum.wochentag(tag) - 1]), \(kurz)").font(.subheadline)
-                    Text(quelle).font(.caption).foregroundStyle(.secondary)
+                    Text(zeiten.map { "\(Datum.uhrzeit($0.bett)) bis \(Datum.uhrzeit($0.auf))" } ?? "nichts eingetragen")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
                 }
                 Spacer(minLength: 8)
                 Text(minuten.map(EnergieLogik.dauer) ?? "–")
@@ -215,7 +194,7 @@ struct SchlafDetailView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityHint("Nacht nachtragen oder ändern")
+        .accessibilityHint("Nacht eintragen, ändern oder löschen")
     }
 
     // MARK: Schlaf und Training

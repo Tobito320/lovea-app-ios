@@ -166,13 +166,14 @@ struct EnergieAnsicht: View {
     }
 }
 
-/// Hand-entered bed and wake-up times (Teil 5): Apple Health counts only real sleep.
-/// `tag` = the wake-up day, so a forgotten night can be filled in later.
+/// Hand-entered bed and wake-up times, the only sleep data the app counts. `tag` = the wake-up day;
+/// any past night can be entered, changed or deleted.
 struct SchlafEintragenView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var tag: String
     @State private var bett: Date
     @State private var auf: Date
+    @State private var loeschenFragen = false
 
     init(tag: String = Datum.text(Date())) {
         _tag = State(initialValue: tag)
@@ -181,27 +182,22 @@ struct SchlafEintragenView: View {
         _auf = State(initialValue: start.auf)
     }
 
-    /// Saved times of that night, else Apple Health's, else 23:00 to 07:00.
+    /// Saved times of that night, else 23:00 to 07:00.
     private static func start(_ tag: String) -> (bett: Date, auf: Date) {
         let ich = Raum.shared.ich ?? .ahmed
         let health = HealthModell.shared
-        if let vorhanden = health.schlafZeitenAm(ich, tag) { return (vorhanden.bett, vorhanden.auf) }
-        if let nacht = health.schlafNacht(ich, tag) { return (nacht.von, nacht.bis) }
+        if health.schlafMinuten(ich, tag) != nil, let vorhanden = health.schlafZeitenAm(ich, tag) {
+            return (vorhanden.bett, vorhanden.auf)
+        }
         let tagDatum = Datum.datum(tag)
         return (Datum.kalender.date(byAdding: .hour, value: -1, to: tagDatum) ?? tagDatum,
                 Datum.kalender.date(byAdding: .hour, value: 7, to: tagDatum) ?? tagDatum)
     }
 
-    private var nachtWahl: [String] {
-        let heute = Datum.text(Date())
-        return (0..<14).map { Datum.addTage(heute, -$0) }
-    }
+    private var vorhanden: Bool { HealthModell.shared.schlafMinuten(Raum.shared.ich ?? .ahmed, tag) != nil }
 
-    private func nachtName(_ t: String) -> String {
-        let heute = Datum.text(Date())
-        if t == heute { return "Letzte Nacht" }
-        if t == Datum.addTage(heute, -1) { return "Vorletzte Nacht" }
-        return "Nacht zum \(Datum.anzeige(t))"
+    private var tagDatum: Binding<Date> {
+        Binding(get: { Datum.datum(tag) }, set: { tag = Datum.text($0) })
     }
 
     private var minuten: Int {
@@ -212,9 +208,10 @@ struct SchlafEintragenView: View {
         NavigationStack {
             Form {
                 Section {
-                    Picker("Nacht", selection: $tag) {
-                        ForEach(nachtWahl, id: \.self) { Text(nachtName($0)).tag($0) }
-                    }
+                    DatePicker("Aufgewacht am", selection: tagDatum, in: ...Date(), displayedComponents: .date)
+                        .environment(\.locale, Locale(identifier: "de_DE"))
+                } footer: {
+                    Text(vorhanden ? "Für diese Nacht gibt es schon einen Eintrag. Sichern ersetzt ihn." : "Für diese Nacht ist noch nichts eingetragen.")
                 }
                 Section {
                     DatePicker("Ins Bett", selection: $bett, displayedComponents: .hourAndMinute)
@@ -223,14 +220,22 @@ struct SchlafEintragenView: View {
                         Text(EnergieLogik.dauer(minuten)).monospacedDigit()
                     }
                 } footer: {
-                    Text("Apple Health zählt nur den echten Schlaf. Hier trägst du ein, wann du wirklich im Bett warst.")
+                    Text("Nur was du hier einträgst, zählt. Apple Health wird dafür nicht benutzt.")
+                }
+                if vorhanden {
+                    Section {
+                        Button("Eintrag löschen", systemImage: "trash", role: .destructive) { loeschenFragen = true }
+                    }
                 }
             }
             .navigationTitle("Schlaf eintragen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) { Button("Sichern") { sichern() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Sichern") { sichern() }.disabled(minuten == 0) }
+            }
+            .confirmationDialog("Eintrag für diese Nacht löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
+                Button("Löschen", role: .destructive) { loeschen() }
             }
             .onChange(of: tag) { _, neu in
                 let start = Self.start(neu)
@@ -243,6 +248,14 @@ struct SchlafEintragenView: View {
     private func sichern() {
         HealthModell.shared.schlafEintragen(SchlafZeitenD(datum: tag, bett: bett, auf: auf))
         Haptik.erfolg()
+        dismiss()
+    }
+
+    /// Same bed and wake-up time = 0 minutes, which `HealthModell.schlafMinuten` reads as no entry.
+    private func loeschen() {
+        let jetzt = Datum.datum(tag)
+        HealthModell.shared.schlafEintragen(SchlafZeitenD(datum: tag, bett: jetzt, auf: jetzt))
+        Haptik.leicht()
         dismiss()
     }
 }
