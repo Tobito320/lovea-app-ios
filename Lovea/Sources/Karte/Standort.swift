@@ -56,7 +56,7 @@ final class Standort: NSObject {
         Raum.shared.fluechtigBeobachten("karte.offen") { [weak self] person, daten in
             guard person != Raum.shared.ich else { return }
             guard let an = try? JSONDecoder().decode(KarteOffenD.self, from: daten).an else { return }
-            self?.liveSetzen(an)
+            self?.karteOffen(an)
         }
     }
 
@@ -102,6 +102,13 @@ final class Standort: NSObject {
 
     nonisolated static func extraFixErlaubt(letzter: Date, jetzt: Date, dringend: Bool) -> Bool {
         dringend || jetzt.timeIntervalSince(letzter) >= 45
+    }
+
+    /// The partner opened (or closed) the map — via socket, or a silent push while we're in the
+    /// background. One immediate fix so the partner doesn't wait for the live stream's first update.
+    func karteOffen(_ an: Bool) {
+        liveSetzen(an)
+        if an { fixAnfordern(dringend: true) }
     }
 
     private func liveSetzen(_ an: Bool) {

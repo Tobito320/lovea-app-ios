@@ -527,3 +527,47 @@ test("alarm(): setzt einen zukünftigen Alarm, wenn ein Treffen ansteht", async 
   );
   assert.ok(ctx._alarms.zeitpunkt > Date.now());
 });
+
+// 27.09. Performance: `karte.offen` ging nur per WebSocket raus. Hat der Partner die App im
+// Hintergrund (Socket zu), kam nie etwas an und sein Standort blieb Minuten alt. Jetzt eine stille
+// Push mit `art`/`an`, die LoveaAppDelegate schon auswertet. Höchstens eine pro Minute.
+test("karte.offen weckt den Partner per stiller Push, wenn er nicht verbunden ist, gedrosselt", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  ctx._trennen(websockets.annika);
+
+  const pushes = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    pushes.push({ headers: init.headers, body: JSON.parse(init.body) });
+    return new Response(null, { status: 200 });
+  };
+  try {
+    const offen = JSON.stringify({ t: "fl", art: "karte.offen", d: { an: true } });
+    await raum.webSocketMessage(websockets.ahmed, offen);
+    await raum.webSocketMessage(websockets.ahmed, offen);
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "karte.offen", d: { an: false } }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(pushes.length, 1);
+  assert.equal(pushes[0].headers["apns-push-type"], "background");
+  assert.equal(pushes[0].body.art, "karte.offen");
+  assert.equal(pushes[0].body.an, true);
+  assert.equal(pushes[0].body.aps["content-available"], 1);
+});
+
+test("karte.offen: verbundener Partner bekommt es nur per WebSocket, keine Push", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  let pushes = 0;
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async () => { pushes++; return new Response(null, { status: 200 }); };
+  try {
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "karte.offen", d: { an: true } }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(pushes, 0);
+  assert.ok(websockets.annika.gesendet.some((m) => m.t === "fl" && m.art === "karte.offen"));
+});

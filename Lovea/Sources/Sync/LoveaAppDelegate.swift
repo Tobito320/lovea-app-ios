@@ -30,13 +30,12 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
 
     /// Silent push: connect and wait for a real catch-up (not just fire `start()` and return
     /// immediately — iOS can suspend the app again before anything was actually fetched).
-    /// `userInfo["art"] == "karte.offen"` starts live location via `Raum.shared.onKarteOffen`,
-    /// which the Karte/Orte block sets — the exact payload keys (`art`/`an`) aren't confirmed
-    /// against a server push yet, see the note on `Raum.onKarteOffen`.
+    /// `userInfo["art"] == "karte.offen"` (server `#karteWecken`): the partner opened the map, so
+    /// start live location here too, even from the background.
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
         if let art = userInfo["art"] as? String, art == "karte.offen" {
             let an = (userInfo["an"] as? Bool) ?? true
-            Raum.shared.onKarteOffen?(an)
+            Standort.shared.karteOffen(an)
         }
         await Raum.shared.nachholenBisFertig()
         return .newData

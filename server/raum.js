@@ -275,7 +275,24 @@ export class Raum {
         ausgehend = { ...d, seit: zeitIso };
       }
       this.#sendeAnPartner(person, { t: "fl", von: person, art, d: ausgehend });
+      if (art === "karte.offen" && d?.an === true) await this.#karteWecken(partnerVon(person));
     }
+  }
+
+  // Partner im Hintergrund hat keinen Socket -- ohne Push bleibt sein Standort im Sparbetrieb
+  // (alle paar Minuten). Stille Push, LoveaAppDelegate startet damit den Live-Modus.
+  // ponytail: Drossel nur im Speicher, nach Hibernation darf eine Push extra rausgehen.
+  #karteWeckMs = 0;
+  async #karteWecken(partner) {
+    if (this.#istVerbunden(partner) || Date.now() - this.#karteWeckMs < 60_000) return;
+    const token = geraetToken(this.sql, partner);
+    if (!token) return;
+    this.#karteWeckMs = Date.now();
+    const res = await push(this.env, token, { stufe: "still", daten: { art: "karte.offen", an: true } }).catch((err) => {
+      this.#log("karte.offen-Push fehlgeschlagen", err);
+      return null;
+    });
+    if (res?.expired) geraetLoeschen(this.sql, partner);
   }
 
   async #standort(person, d) {
