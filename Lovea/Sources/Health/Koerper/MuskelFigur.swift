@@ -61,15 +61,21 @@ enum MuskelPfade {
 
     static func figur(_ p: Person) -> Figur { p == .annika ? annika : ahmed }
 
-    /// The drawn area (SVG viewBox `16 -4 208 476` of the draft, plus room for curls and the shadow).
-    static let rahmen = CGRect(x: 16, y: -12, width: 208, height: 492)
+    /// The drawn area (SVG viewBox `8 -4 224 428` of the draft, plus 8 above for the curls).
+    static let rahmen = CGRect(x: 8, y: -12, width: 224, height: 436)
+
+    /// Chibi head width in figure space (front), Annika's is narrower.
+    static func kopfBreite(_ p: Person) -> CGFloat { p == .annika ? 118 : 124 }
 
     // MARK: Helpers from the draft
 
     static func spiegel(_ p: CGPoint) -> CGPoint { P(240 - p.x, p.y) }
 
-    /// Legs shortened below y 250, whole figure moved down by 22.
-    static func kurz(_ p: CGPoint) -> CGPoint { P(p.x, (p.y > 250 ? 250 + (p.y - 250) * 0.72 : p.y) + 22) }
+    /// Chibi: torso 0.86, legs 0.5 (from y 250 on), 1.1 wider, whole figure moved down by 48.
+    static func kurz(_ p: CGPoint) -> CGPoint {
+        let y = p.y <= 90 ? p.y : p.y <= 250 ? 90 + (p.y - 90) * 0.86 : 227.6 + (p.y - 250) * 0.5
+        return P(120 + (p.x - 120) * 1.1, y + 48)
+    }
 
     /// Woman figure: width factor per height.
     static func faktor(_ y: CGFloat) -> CGFloat {
@@ -122,7 +128,7 @@ enum MuskelPfade {
 
     // MARK: Data
 
-    // ponytail: `BASIS_MITTE[0]` (Kopf-Oval) und `BASIS_SEITE[0]` (Ohr) entfallen, der Kopf kommt aus KopfFigur.
+    // ponytail: `BASIS_MITTE[0]` (Kopf-Oval) und `BASIS_SEITE[0]` (Ohr) entfallen, der Kopf kommt aus FigurView (MuskelSeite.kopf).
     /// BASIS_MITTE: Hals, Rumpf.
     private static let basisMitte: [[CGPoint]] = [
         sym(punkte([120, 54, 108, 54, 106, 82, 120, 84])),
@@ -191,6 +197,7 @@ enum MuskelPfade {
 }
 
 /// One side of the figure as a Canvas drawing (`figurSvg` of the draft, without the front head).
+/// Back hair is scaled 1.28 around (120, 0) like in the draft.
 /// Pure values only, so the Canvas closure captures nothing that is actor-isolated.
 struct MuskelAnsicht: Sendable {
     let person: Person
@@ -256,7 +263,11 @@ struct MuskelAnsicht: Sendable {
         return t == gedrueckt ? c.opacity(0.72) : c
     }
 
-    private func haare(_ g: GraphicsContext) {
+    private func haare(_ ctx: GraphicsContext) {
+        var g = ctx
+        g.translateBy(x: 120, y: 0)
+        g.scaleBy(x: 1.28, y: 1.28)
+        g.translateBy(x: -120, y: 0)
         let kontur = StrokeStyle(lineWidth: 2.4)
         if person == .annika {
             let lang = Path { p in
@@ -311,12 +322,20 @@ struct MuskelSeite: View {
             ZStack {
                 Canvas { g, size in ansicht.zeichne(g, size) }
                 if !hinten {
-                    KopfFigur(person: person, groesse: 86 * s, animiert: animiert)
-                        .position(x: (120 - MuskelPfade.rahmen.minX) * s, y: (44 - MuskelPfade.rahmen.minY) * s)
+                    kopf(MuskelPfade.kopfBreite(person) * s)
+                        .position(x: (120 - MuskelPfade.rahmen.minX) * s, y: (MuskelPfade.kopfBreite(person) / 2 - MuskelPfade.rahmen.minY) * s)
                 }
             }
         }
         .aspectRatio(MuskelPfade.rahmen.width / MuskelPfade.rahmen.height, contentMode: .fit)
+    }
+
+    /// `KopfFigur` without the blue circle and the black collar: the head only, cut by an ellipse at the top.
+    private func kopf(_ groesse: CGFloat) -> some View {
+        let anzeige = FigurenModell.shared.anzeige(person)
+        return FigurView(FigurenModell.shared.aussehen(person), zustand: anzeige.haupt, abzeichen: anzeige.abzeichen, groesse: groesse * 1.35, animiert: animiert, bildrate: 20)
+            .frame(width: groesse, height: groesse, alignment: .top)
+            .clipShape(.ellipse)
     }
 }
 

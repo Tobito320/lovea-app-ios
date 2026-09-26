@@ -31,15 +31,16 @@ final class RenderGalerieMuskelFigurTests: XCTestCase {
 
     func testTrefferFindetMuskelAufBeidenHaelften() {
         let ahmed = MuskelPfade.figur(.ahmed)
-        XCTAssertEqual(ahmed.teil(bei: CGPoint(x: 102, y: 122), hinten: false), .bOben)
-        XCTAssertEqual(ahmed.teil(bei: CGPoint(x: 138, y: 122), hinten: false), .bOben)
-        XCTAssertEqual(ahmed.teil(bei: CGPoint(x: 100, y: 212), hinten: true), .rLat)
+        XCTAssertEqual(ahmed.teil(bei: CGPoint(x: 100, y: 147), hinten: false), .bOben)
+        XCTAssertEqual(ahmed.teil(bei: CGPoint(x: 140, y: 147), hinten: false), .bOben)
+        XCTAssertEqual(ahmed.teil(bei: CGPoint(x: 98, y: 243), hinten: true), .rLat)
         XCTAssertNil(ahmed.teil(bei: CGPoint(x: 5, y: 5), hinten: false))
     }
 
     func testBeinKuerzungUndFrauenBreite() {
-        XCTAssertEqual(MuskelPfade.kurz(CGPoint(x: 100, y: 300)).y, 308, accuracy: 0.001)
-        XCTAssertEqual(MuskelPfade.kurz(CGPoint(x: 100, y: 100)).y, 122, accuracy: 0.001)
+        XCTAssertEqual(MuskelPfade.kurz(CGPoint(x: 100, y: 300)).y, 300.6, accuracy: 0.001)
+        XCTAssertEqual(MuskelPfade.kurz(CGPoint(x: 100, y: 100)).y, 146.6, accuracy: 0.001)
+        XCTAssertEqual(MuskelPfade.kurz(CGPoint(x: 100, y: 100)).x, 98, accuracy: 0.001)
         XCTAssertEqual(MuskelPfade.faktor(140), 0.86, accuracy: 0.001)
         XCTAssertEqual(MuskelPfade.faktor(600), 1, accuracy: 0.001)
     }
