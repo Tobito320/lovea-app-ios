@@ -416,7 +416,7 @@ struct HeuteView: View {
     private func ansicht(_ ziel: HeuteZiel) -> some View {
         switch ziel {
         case .schritte: SchritteDetailView(person: ich)
-        case .schlaf: ScrollView { SchlafCard().padding(16) }.navigationTitle("Schlaf")
+        case .schlaf: SchlafDetailView()
         case .habits:
             ScrollView {
                 HabitsSektion(zoom: zoom) { if case .habit(let id) = $0 { pfad.append(.habit(id)) } }.padding(16)

@@ -118,6 +118,17 @@ final class EnergieLogikTests: XCTestCase {
         XCTAssertEqual(EnergieLogik.imBett(z), 390)
     }
 
+    /// Der Picker startet auf gestern 23:00; wer 00:30 wählt, hat gestern 00:30 im Datum stehen.
+    func testImBettNachMitternachtMitDatumVomVortag() {
+        let z = SchlafZeitenD(datum: "2026-09-23", bett: uhr("2026-09-22", 0, 30), auf: uhr("2026-09-23", 7, 0))
+        XCTAssertEqual(EnergieLogik.imBett(z), 390)
+    }
+
+    func testImBettVortagAbends() {
+        let z = SchlafZeitenD(datum: "2026-09-23", bett: uhr("2026-09-22", 22, 45), auf: uhr("2026-09-23", 6, 15))
+        XCTAssertEqual(EnergieLogik.imBett(z), 450)
+    }
+
     // MARK: - inFolge
 
     func testInFolgeDreiTage() {

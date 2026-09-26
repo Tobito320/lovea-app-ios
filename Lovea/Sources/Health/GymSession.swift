@@ -157,7 +157,6 @@ struct TrainingKarteInhalt: View {
                 .accessibilityAddTraits(.isHeader)
             Spacer()
             symbolKnopf("clock.arrow.circlepath", "Verlauf", aktionen.verlauf)
-            symbolKnopf("list.bullet.clipboard", "Trainingsplan", aktionen.plan)
         }
     }
 
@@ -192,6 +191,12 @@ struct TrainingKarteInhalt: View {
                 .foregroundStyle(Color.primary)
                 .accessibilityHint("Öffnet den Trainingsplan")
             }
+            Button(action: aktionen.plan) {
+                Label(stand.planLeer ? "Trainingsplan anlegen" : "Trainingsplan ansehen", systemImage: "list.bullet.clipboard")
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.bordered)
+            .tint(Self.gruen)
             Button(action: aktionen.einchecken) {
                 Label("Im Gym einchecken", systemImage: "figure.strengthtraining.traditional")
                     .frame(maxWidth: .infinity, minHeight: 50)

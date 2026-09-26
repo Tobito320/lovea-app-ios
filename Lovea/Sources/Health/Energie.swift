@@ -118,11 +118,15 @@ enum EnergieLogik {
         return zeiten
     }
 
-    /// Minutes in bed from hand-entered times; a bed time after the wake-up time was the evening before.
+    /// Minutes in bed from hand-entered times. Only the time of day counts: the picker keeps whatever
+    /// date the value started with, so 00:30 can carry yesterday's date. A later bed time was the evening before.
     static func imBett(_ z: SchlafZeitenD) -> Int {
-        var bett = z.bett
-        if bett > z.auf { bett = bett.addingTimeInterval(-86_400) }
-        return max(0, Int(z.auf.timeIntervalSince(bett) / 60))
+        (minutenAmTag(z.auf) - minutenAmTag(z.bett) + 1440) % 1440
+    }
+
+    private static func minutenAmTag(_ d: Date) -> Int {
+        let t = Datum.kalender.dateComponents([.hour, .minute], from: d)
+        return (t.hour ?? 0) * 60 + (t.minute ?? 0)
     }
 
     /// Consecutive days before `heute` on which `trainiert` is true.

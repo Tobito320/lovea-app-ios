@@ -41,18 +41,24 @@ struct TrainingsPlanView: View {
         .toolbar {
             if eigener {
                 ToolbarItem(placement: .primaryAction) {
-                    Button("Neuer Tag", systemImage: "plus") {
-                        bearbeiten = TrainingsTag(id: UUID().uuidString, name: "", wochentage: [], uebungen: [])
-                    }
+                    Button("Neuer Tag", systemImage: "plus") { neuerTag() }
                 }
             }
         }
         .sheet(item: $bearbeiten) { TagEditor(tag: $0, bearbeitbar: eigener) }
     }
 
+    @ViewBuilder
     private var leer: some View {
         Text(eigener ? "Noch kein Tag. Leg zum Beispiel \"Push\" oder \"Beine\" an." : "\(person.name) hat noch keinen Plan.")
             .foregroundStyle(.secondary)
+        if eigener {
+            Button("Ersten Trainingstag anlegen", systemImage: "plus.circle.fill") { neuerTag() }
+        }
+    }
+
+    private func neuerTag() {
+        bearbeiten = TrainingsTag(id: UUID().uuidString, name: "", wochentage: [], uebungen: [])
     }
 
     private func loeschenAktion(_ plan: TrainingsPlan) -> (IndexSet) -> Void {

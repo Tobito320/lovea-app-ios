@@ -45,7 +45,7 @@ struct EnergieKarte: View {
             wasserPlus: { health.setzeWasser(datum: heute, anzahl: wasser + 1) }
         )
         .sheet(isPresented: $eintragen) {
-            SchlafEintragenView().presentationDetents([.medium])
+            SchlafEintragenView().presentationDetents([.medium, .large])
         }
     }
 }
@@ -167,34 +167,61 @@ struct EnergieAnsicht: View {
 }
 
 /// Hand-entered bed and wake-up times (Teil 5): Apple Health counts only real sleep.
+/// `tag` = the wake-up day, so a forgotten night can be filled in later.
 struct SchlafEintragenView: View {
     @Environment(\.dismiss) private var dismiss
+    @State private var tag: String
     @State private var bett: Date
     @State private var auf: Date
 
-    init() {
+    init(tag: String = Datum.text(Date())) {
+        _tag = State(initialValue: tag)
+        let start = Self.start(tag)
+        _bett = State(initialValue: start.bett)
+        _auf = State(initialValue: start.auf)
+    }
+
+    /// Saved times of that night, else Apple Health's, else 23:00 to 07:00.
+    private static func start(_ tag: String) -> (bett: Date, auf: Date) {
         let ich = Raum.shared.ich ?? .ahmed
-        let heute = Datum.text(Date())
         let health = HealthModell.shared
-        if let vorhanden = health.schlafZeitenAm(ich, heute) {
-            _bett = State(initialValue: vorhanden.bett)
-            _auf = State(initialValue: vorhanden.auf)
-        } else if let nacht = health.schlafNacht(ich, heute) {
-            _bett = State(initialValue: nacht.von)
-            _auf = State(initialValue: nacht.bis)
-        } else {
-            let heuteDatum = Datum.datum(heute)
-            _bett = State(initialValue: Datum.kalender.date(byAdding: .hour, value: -1, to: heuteDatum) ?? heuteDatum)
-            _auf = State(initialValue: Datum.kalender.date(byAdding: .hour, value: 7, to: heuteDatum) ?? heuteDatum)
-        }
+        if let vorhanden = health.schlafZeitenAm(ich, tag) { return (vorhanden.bett, vorhanden.auf) }
+        if let nacht = health.schlafNacht(ich, tag) { return (nacht.von, nacht.bis) }
+        let tagDatum = Datum.datum(tag)
+        return (Datum.kalender.date(byAdding: .hour, value: -1, to: tagDatum) ?? tagDatum,
+                Datum.kalender.date(byAdding: .hour, value: 7, to: tagDatum) ?? tagDatum)
+    }
+
+    private var nachtWahl: [String] {
+        let heute = Datum.text(Date())
+        return (0..<14).map { Datum.addTage(heute, -$0) }
+    }
+
+    private func nachtName(_ t: String) -> String {
+        let heute = Datum.text(Date())
+        if t == heute { return "Letzte Nacht" }
+        if t == Datum.addTage(heute, -1) { return "Vorletzte Nacht" }
+        return "Nacht zum \(Datum.anzeige(t))"
+    }
+
+    private var minuten: Int {
+        EnergieLogik.imBett(SchlafZeitenD(datum: tag, bett: bett, auf: auf))
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section {
+                    Picker("Nacht", selection: $tag) {
+                        ForEach(nachtWahl, id: \.self) { Text(nachtName($0)).tag($0) }
+                    }
+                }
+                Section {
                     DatePicker("Ins Bett", selection: $bett, displayedComponents: .hourAndMinute)
                     DatePicker("Aufgestanden", selection: $auf, displayedComponents: .hourAndMinute)
+                    LabeledContent("Im Bett") {
+                        Text(EnergieLogik.dauer(minuten)).monospacedDigit()
+                    }
                 } footer: {
                     Text("Apple Health zählt nur den echten Schlaf. Hier trägst du ein, wann du wirklich im Bett warst.")
                 }
@@ -205,11 +232,16 @@ struct SchlafEintragenView: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) { Button("Sichern") { sichern() } }
             }
+            .onChange(of: tag) { _, neu in
+                let start = Self.start(neu)
+                bett = start.bett
+                auf = start.auf
+            }
         }
     }
 
     private func sichern() {
-        HealthModell.shared.schlafEintragen(SchlafZeitenD(datum: Datum.text(Date()), bett: bett, auf: auf))
+        HealthModell.shared.schlafEintragen(SchlafZeitenD(datum: tag, bett: bett, auf: auf))
         Haptik.erfolg()
         dismiss()
     }
