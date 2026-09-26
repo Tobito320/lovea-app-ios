@@ -59,7 +59,7 @@ struct PartnerFigurAmRand: View {
                 let stift = hub.partnerStift
                 let x = stift.map { state.viewport.screenPoint(CGPoint(x: $0.x, y: $0.y)).x } ?? 48
                 let radiert = stift?.werkzeug == StudioTool.eraser.rawValue && stift?.aktiv == true
-                FigurView(FigurenModell.shared.aussehen(partner), zustand: .zeichnet, groesse: 64)
+                FigurView(FigurenModell.shared.aussehen(partner), zustand: .zeichnet, groesse: 64, bildrate: 20)
                     .figurGesten(person: partner) { FigurenModell.shared.gesteSenden($0) }
                     .overlay(alignment: .bottom) {
                         if radiert {

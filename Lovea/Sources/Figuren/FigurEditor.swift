@@ -6,7 +6,7 @@ import UIKit
 struct FigurEditor: View {
     private let onSave: (FigurAussehen) -> Void
     @State private var aussehen: FigurAussehen
-    @State private var kategorie = Kategorie.gesicht
+    @State private var kategorie = Kategorie.outfits
     @State private var wuerfe = 0
 
     init(start: FigurAussehen, onSave: @escaping (FigurAussehen) -> Void) {
@@ -21,7 +21,7 @@ struct FigurEditor: View {
     private static let akzent = Color(red: 1, green: 59 / 255, blue: 92 / 255)
 
     /// How an option tile shows the figure.
-    fileprivate enum Kachel { case gesicht, kopf, koerper, koerperMitName }
+    fileprivate enum Kachel { case gesicht, kopf, koerper, koerperMitName, schmuck }
 
     fileprivate struct Farbwahl {
         let name: String
@@ -35,12 +35,15 @@ struct FigurEditor: View {
         /// `hexPfad`: free-color override field, `nil` = swatches only (no `ColorPicker`).
         case farben(String, WritableKeyPath<FigurAussehen, Int>, [Farbwahl], hexPfad: WritableKeyPath<FigurAussehen, String?>?)
         case schalter(String, WritableKeyPath<FigurAussehen, Bool>)
+        /// Fix round 3: one-tap outfit presets.
+        case outfits([FigurOutfit])
     }
 
     fileprivate enum Kategorie: String, CaseIterable, Identifiable {
+        case outfits = "Outfits"
         case gesicht = "Gesicht", haare = "Haare", augen = "Augen", bart = "Bart"
         case oberteil = "Oberteil", jacke = "Jacke", hose = "Hose", schuhe = "Schuhe"
-        case accessoires = "Accessoires", koerper = "Körper"
+        case accessoires = "Accessoires", schmuck = "Schmuck", koerper = "Körper"
 
         var id: String { rawValue }
 
@@ -68,11 +71,12 @@ struct FigurEditor: View {
                     .optionen("Mund", \.mund, A.muender, .gesicht, erlaubte: nil),
                     .schalter("Sommersprossen", \.sommersprossen),
                     .schalter("Muttermal", \.muttermal),
+                    .schalter("Mehrere Muttermale", \.muttermale),
                     .schalter("Rouge", \.rouge),
                 ]
             case .haare:
                 return [
-                    .optionen("Frisur", \.frisur, A.frisuren, .kopf, erlaubte: A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person)),
+                    .optionen("Frisur", \.frisur, A.frisuren, .kopf, erlaubte: A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person).filter { !A.halbglatze.contains($0) }),
                     .farben("Haarfarbe", \.haarfarbe, A.haarfarben.map { Farbwahl(name: $0.name, farbe: $0.farbe, straehne: $0.straehne) }, hexPfad: \.haarfarbeHex),
                 ]
             case .augen:
@@ -82,8 +86,13 @@ struct FigurEditor: View {
                     .optionen("Augenbrauen", \.brauen, A.augenbrauen, .gesicht, erlaubte: nil),
                     .schalter("Wimpern", \.wimpern),
                 ]
+            case .outfits:
+                return [.outfits(A.outfits(fuer: person))]
             case .bart:
-                return [.optionen("Bart", \.bart, A.baerte, .gesicht, erlaubte: A.erlaubt(A.baerte, geschlecht: A.baerteGeschlecht, fuer: person))]
+                return [
+                    .optionen("Bart", \.bart, A.baerte, .gesicht, erlaubte: A.erlaubt(A.baerte, geschlecht: A.baerteGeschlecht, fuer: person)),
+                    .optionen("Kinnbart", \.kinnbart, A.kinnbaerte, .gesicht, erlaubte: nil),
+                ]
             case .oberteil:
                 return [
                     .optionen("Oberteil", \.oberteil, A.oberteile, .koerper, erlaubte: A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person)),
@@ -107,13 +116,24 @@ struct FigurEditor: View {
             case .accessoires:
                 return [
                     .optionen("Brille", \.brille, A.brillen, .gesicht, erlaubte: A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person)),
-                    .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht, erlaubte: nil),
+                    .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht, erlaubte: A.erlaubt(A.ohrringArten, geschlecht: A.ohrringeGeschlecht, fuer: person)),
                     .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf, erlaubte: nil),
                     .farben("Farbe der Kopfbedeckung", \.muetzenfarbe, kleidung, hexPfad: nil),
+                    .schalter("AirPods", \.airpods),
+                ]
+            case .schmuck:
+                // Z-39.3: free everyday jewelry; luxury pieces come from the shop.
+                return [
+                    .optionen("Kette", \.kette, A.ketten, .schmuck, erlaubte: A.erlaubt(A.ketten, geschlecht: A.kettenGeschlecht, fuer: person)),
+                    .optionen("Ring", \.ring, A.ringe, .schmuck, erlaubte: A.erlaubt(A.ringe, geschlecht: A.ringeGeschlecht, fuer: person)),
+                    .optionen("Armband", \.armband, A.armbaender, .schmuck, erlaubte: A.erlaubt(A.armbaender, geschlecht: A.armbaenderGeschlecht, fuer: person)),
+                    .optionen("Uhr", \.uhrAlltag, A.uhrenAlltag, .schmuck, erlaubte: nil),
                 ]
             case .koerper:
+                // Z-38.2: body types per person; "Normal" stays for old looks but is hidden.
+                let formen = A.erlaubt(A.koerperformen, geschlecht: A.koerperformenGeschlecht, shop: A.koerperformenVersteckt, fuer: person)
                 return [
-                    .optionen("Körperform", \.koerperform, A.koerperformen, .koerperMitName, erlaubte: nil),
+                    .optionen("Körperform", \.koerperform, A.koerperformen, .koerperMitName, erlaubte: formen),
                     .optionen("Größe", \.groesse, A.groessen, .koerperMitName, erlaubte: nil),
                 ]
             }
@@ -175,7 +195,32 @@ struct FigurEditor: View {
             .padding(12)
             .accessibilityLabel("Zufälliger Look")
         }
+        .overlay(alignment: .topLeading) { bitmojiKnopf }
         .background(LinearGradient(colors: [Self.akzent.opacity(0.16), Self.akzent.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+    }
+
+    private var bitmojiKnopf: some View {
+        Button(action: wieBitmoji) {
+            Label("Wie mein Bitmoji", systemImage: "person.crop.circle.badge.checkmark")
+                .font(.subheadline.weight(.semibold))
+                .padding(.horizontal, 14)
+                .frame(minHeight: 44)
+                .background(.regularMaterial, in: Capsule())
+        }
+        .buttonStyle(.federnd)
+        .foregroundStyle(Self.akzent)
+        .padding(12)
+    }
+
+    /// Z-38.4: back to the Bitmoji look; bought shop pieces stay on.
+    private func wieBitmoji() {
+        var a = FigurAussehen.standard(for: person)
+        a.tasche = aussehen.tasche
+        a.uhr = aussehen.uhr
+        a.schmuck = aussehen.schmuck
+        a.pose = aussehen.pose
+        a.tier = aussehen.tier
+        withAnimation(Feder.weich) { aussehen = a }
     }
 
     private var kategorienLeiste: some View {
@@ -216,6 +261,22 @@ struct FigurEditor: View {
             Toggle(titel, isOn: $aussehen[dynamicMember: pfad])
                 .font(.headline)
                 .tint(Self.akzent)
+        case let .outfits(liste):
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Outfits").font(.headline)
+                outfitKacheln(liste)
+            }
+        }
+    }
+
+    /// Fix round 3: each preset as a live full-body preview; applying one keeps face and hair.
+    private func outfitKacheln(_ liste: [FigurOutfit]) -> some View {
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
+            ForEach(liste) { o in
+                OutfitKachel(outfit: o, aussehen: aussehen, gewaehlt: aussehen.traegt(outfit: o), akzent: Self.akzent) {
+                    withAnimation(Feder.weich) { aussehen.anziehen(outfit: o) }
+                }
+            }
         }
     }
 
@@ -238,7 +299,7 @@ struct FigurEditor: View {
                             Text(namen[i]).font(.caption2.weight(.semibold)).padding(.bottom, 6)
                         }
                     }
-                    .frame(width: 76, height: kachel == .gesicht || kachel == .kopf ? 92 : 128)
+                    .frame(width: 76, height: kachel == .gesicht || kachel == .kopf || kachel == .schmuck ? 92 : 128)
                     .background(Color(uiColor: .secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(gewaehlt ? Self.akzent : Color.clear, lineWidth: 3))
@@ -266,6 +327,11 @@ struct FigurEditor: View {
             FigurView(a, zustand: .ruhig, groesse: 120, animiert: false, ganzkoerper: true)
         case .koerperMitName:
             FigurView(a, zustand: .ruhig, groesse: 104, animiert: false, ganzkoerper: true)
+        case .schmuck:
+            // Chest to hands of a larger full body, so rings and bracelets are visible.
+            FigurView(a, zustand: .ruhig, groesse: 230, animiert: false, ganzkoerper: true)
+                .frame(width: 76, height: 92)
+                .clipped()
         }
     }
 
@@ -342,7 +408,7 @@ struct FigurEditor: View {
         func eins(_ erlaubte: [Int]) -> Int { erlaubte.randomElement() ?? 0 }
         func oftKeins(_ erlaubte: [Int]) -> Int { Bool.random() ? 0 : eins(erlaubte) }
         var a = aussehen
-        a.frisur = eins(A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person))
+        a.frisur = eins(A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person).filter { !A.halbglatze.contains($0) })
         a.haarfarbe = eins(Array(A.haarfarben.indices))
         a.haarfarbeHex = nil
         a.oberteil = eins(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person))
@@ -362,6 +428,42 @@ struct FigurEditor: View {
         a.brille = oftKeins(A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person))
         withAnimation(.snappy) { aussehen = a }
         wuerfe += 1
+    }
+}
+
+/// One outfit preset tile: the figure wearing it, its name, marked when worn.
+private struct OutfitKachel: View {
+    let outfit: FigurOutfit
+    let aussehen: FigurAussehen
+    let gewaehlt: Bool
+    let akzent: Color
+    let anziehen: () -> Void
+
+    var body: some View {
+        Button(action: anziehen) {
+            VStack(spacing: 2) {
+                FigurView(probe, zustand: .ruhig, groesse: 120, animiert: false, ganzkoerper: true)
+                Text(outfit.name)
+                    .font(.caption2.weight(.semibold))
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.7)
+                    .padding(.bottom, 6)
+            }
+            .frame(width: 96, height: 150)
+            .background(Color(uiColor: .secondarySystemBackground))
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(gewaehlt ? akzent : Color.clear, lineWidth: 3))
+            .contentShape(RoundedRectangle(cornerRadius: 16))
+        }
+        .buttonStyle(.federnd)
+        .accessibilityLabel("Outfit \(outfit.name)")
+        .accessibilityAddTraits(gewaehlt ? .isSelected : [])
+    }
+
+    private var probe: FigurAussehen {
+        var a = aussehen
+        a.anziehen(outfit: outfit)
+        return a
     }
 }
 

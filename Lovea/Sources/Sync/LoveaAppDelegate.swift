@@ -51,9 +51,16 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
     // Completion-handler form, completed on the main thread: the async variant hands the
     // system's completion back on a background executor, which crashed on tapping a notification.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        // Z-32.1: plain Strings out of `userInfo` here, so nothing non-Sendable crosses to main.
+        let info = response.notification.request.content.userInfo
+        let nachrichtId = info["nachrichtId"] as? String
+        let art = info["art"] as? String
         let fertig = AbschlussBox(completionHandler)
         DispatchQueue.main.async {
-            MainActor.assumeIsolated { Raum.shared.start() }
+            MainActor.assumeIsolated {
+                Raum.shared.start()
+                AppNavigation.shared.mitteilungGeoeffnet(nachrichtId: nachrichtId, art: art)
+            }
             fertig.aufrufen()
         }
     }

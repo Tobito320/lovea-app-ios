@@ -3,8 +3,8 @@ import SwiftUI
 import UIKit
 
 extension View {
-    /// Tap opens a small menu (Anstupsen, Kuss); long press sends "herz".
-    /// `onGeste` gets exactly "anstupsen", "kuss" or "herz"; the caller sends the `geste` op.
+    /// Tap opens a small menu (Anstupsen, Kuss, the Runde-3 expressions); long press sends "herz".
+    /// `onGeste` gets "anstupsen", "kuss", "herz" or a `FigurZustand.mimik` raw value; the caller sends the `geste` op.
     func figurGesten(person: Person, onGeste: @escaping (String) -> Void) -> some View {
         modifier(FigurGesten(person: person, onGeste: onGeste))
     }
@@ -28,6 +28,8 @@ private struct FigurGesten: ViewModifier {
                     knopf("\(person.name) anstupsen", symbol: "hand.tap", art: "anstupsen")
                     Divider()
                     knopf("Kuss schicken", symbol: "mouth", art: "kuss")
+                    Divider()
+                    mimikGitter
                 }
                 .padding(.vertical, 4)
                 .presentationCompactAdaptation(.popover)
@@ -38,6 +40,29 @@ private struct FigurGesten: ViewModifier {
             .accessibilityAction(named: "Anstupsen") { senden("anstupsen") }
             .accessibilityAction(named: "Kuss schicken") { senden("kuss") }
             .accessibilityAction(named: "Denk an dich") { senden("herz") }
+    }
+
+    /// The own figure making each expression; a tap sends it like the other gestures.
+    private var mimikGitter: some View {
+        let aussehen = FigurenModell.shared.aussehen(Raum.shared.ich ?? person.partner)
+        // Two rows visible, the rest scrolls — all 14 at once was too much.
+        return ScrollView {
+        LazyVGrid(columns: Array(repeating: GridItem(.fixed(66), spacing: 6), count: 4), spacing: 6) {
+            ForEach(FigurZustand.mimik, id: \.self) { z in
+                Button {
+                    menu = false
+                    senden(z.rawValue)
+                } label: {
+                    MimikKachel(aussehen: aussehen, zustand: z)
+                }
+                .buttonStyle(.federnd)
+                .accessibilityLabel(z.titel)
+            }
+        }
+        .padding(10)
+        }
+        .frame(maxHeight: 190)
+        .scrollIndicators(.visible)
     }
 
     private func knopf(_ titel: String, symbol: String, art: String) -> some View {
@@ -59,6 +84,28 @@ private struct FigurGesten: ViewModifier {
     }
 }
 
+/// One expression tile in the gesture menu: the face, zoomed, with its name.
+private struct MimikKachel: View {
+    let aussehen: FigurAussehen
+    let zustand: FigurZustand
+
+    var body: some View {
+        VStack(spacing: 2) {
+            FigurView(aussehen, zustand: zustand, groesse: 52, animiert: false)
+                .scaleEffect(1.5)
+                .offset(y: 7)
+                .frame(width: 58, height: 48)
+                .clipped()
+            Text(zustand.titel)
+                .font(.caption2)
+                .lineLimit(1)
+                .minimumScaleFactor(0.6)
+        }
+        .frame(width: 66, height: 72)
+        .contentShape(Rectangle())
+    }
+}
+
 /// Receiver-side haptics for gestures.
 @MainActor
 enum Herzschlag {
@@ -70,7 +117,8 @@ enum Herzschlag {
         case "herz": spielen()
         case "anstupsen": UIImpactFeedbackGenerator(style: .medium).impactOccurred()
         case "kuss": UIImpactFeedbackGenerator(style: .soft).impactOccurred()
-        default: break
+        default:
+            if let z = FigurZustand(rawValue: art), FigurZustand.mimik.contains(z) { Haptik.mittel() }
         }
     }
 

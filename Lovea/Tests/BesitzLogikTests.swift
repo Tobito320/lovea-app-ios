@@ -90,6 +90,29 @@ final class BesitzLogikTests: XCTestCase {
         }
     }
 
+    // MARK: - Review-Fokus 3: Flammen und Chat-Themes fallen aus dem Katalog (Erstattung)
+
+    func testWeggefallenerArtikelWirdErstattetUndDieAnderenKaeufeBehaltenIhrUrteil() {
+        let vorher: [String: Int] = ["socken": 150, "flamme.herz": 300, "gucci-tasche": 4000]
+        let nachher = vorher.filter { $0.key != "flamme.herz" } // Katalog ohne Flammen
+        let kaeufe = [
+            kauf(10, "flamme", "flamme.herz", verdient: 500),
+            kauf(20, "socken", "socken", verdient: 500),         // eigenes verdient: 500 - 300 = 200 >= 150
+            kauf(30, "tasche", "gucci-tasche", verdient: 3000),  // nie genug, egal mit oder ohne Flamme
+        ]
+        let alt = BesitzLogik.auswerten(kaeufe, verdient: [.annika: 5000], preis: { vorher[$0] })
+        let neu = BesitzLogik.auswerten(kaeufe, verdient: [.annika: 5000], preis: { nachher[$0] })
+
+        XCTAssertTrue(alt.besitzt("flamme.herz", .annika))
+        XCTAssertTrue(neu.abgelehnt.contains("flamme"), "ohne Katalog-Preis abgelehnt = erstattet")
+        XCTAssertFalse(neu.besitzt("flamme.herz", .annika))
+        XCTAssertTrue(neu.besitzt("socken", .annika), "späterer Kauf mit eigenem verdient bleibt angenommen")
+        XCTAssertTrue(neu.abgelehnt.contains("tasche"), "abgelehnt bleibt abgelehnt")
+        XCTAssertEqual(alt.abgelehnt, ["tasche"])
+        XCTAssertEqual(neu.abgelehnt, ["flamme", "tasche"])
+        XCTAssertEqual((alt.ausgegeben[.annika] ?? 0) - (neu.ausgegeben[.annika] ?? 0), 300, "der Kontostand steigt um den Flammen-Preis")
+    }
+
     // MARK: - Final-Review I-5: exklusives Teil für "Gemeinsam Monat"
 
     func testExklusivesTeilProErreichtemMonat() {

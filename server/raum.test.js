@@ -154,6 +154,38 @@ test("Push geht raus, sobald der Empfänger-Socket seit über 60s still ist, tro
   assert.match(calls[0].url, /api\.push\.apple\.com/);
 });
 
+// Z-32.1: Antippen einer Chat-Mitteilung springt zur Nachricht -- `art` und `nachrichtId` stehen oben
+// neben `aps`, nur bei `nachricht.*`-Ops mit `d.id`. 25.09.: eine Geste trägt nur `art` (öffnet das
+// Partnerprofil), keine `nachrichtId`.
+test("Push für nachricht.neu und nachricht.reaktion trägt art und nachrichtId, eine Geste nur art", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+
+  const bodies = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    return new Response(null, { status: 200 });
+  };
+  try {
+    const zeit = new Date().toISOString();
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-1", art: "nachricht.neu", von: "ahmed", zeit, d: { id: "msg-1", text: "hi" } } }));
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-2", art: "nachricht.reaktion", von: "ahmed", zeit, d: { id: "msg-1", emoji: "figur:lacht" } } }));
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-3", art: "geste", von: "ahmed", zeit, d: { art: "herz" } } }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(bodies.length, 3);
+  assert.equal(bodies[0].art, "nachricht.neu");
+  assert.equal(bodies[0].nachrichtId, "msg-1");
+  assert.equal(bodies[0].aps.alert.body, "Ahmed: hi");
+  assert.deepEqual([bodies[1].art, bodies[1].nachrichtId], ["nachricht.reaktion", "msg-1"]);
+  assert.equal(bodies[2].art, "geste");
+  assert.equal(bodies[2].nachrichtId, undefined);
+  assert.equal(bodies[2].aps.alert.body, "Ahmed denkt gerade an dich");
+});
+
 test("nachholen über offenen Socket liefert Seite wie beim Verbinden", async () => {
   const { raum, websockets } = raumMitVerbindung(["ahmed"]);
   for (let i = 0; i < 3; i++) {
@@ -345,17 +377,62 @@ test("Spotify verbinden + jetzt: Token-Tausch, currently-playing, 20s-Cache", as
     assert.deepEqual(await verbinden.json(), { ok: true });
 
     const jetzt1 = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
-    assert.deepEqual(await jetzt1.json(), { titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
+    assert.deepEqual(await jetzt1.json(), { musik: true, titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
     const anrufeNachErstemJetzt = aufrufe.length;
 
     // Zweiter Abruf sofort danach: aus dem 20s-Cache, kein weiterer fetch.
     const jetzt2 = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
-    assert.deepEqual(await jetzt2.json(), { titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
+    assert.deepEqual(await jetzt2.json(), { musik: true, titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
     assert.equal(aufrufe.length, anrufeNachErstemJetzt);
 
     // Niemand hat für ahmed verbunden -> {}.
     const ohneVerbindung = await raum.fetch(new Request("https://x/spotify/jetzt?person=ahmed", { headers: { "X-Lovea-Person": "ahmed" } }));
     assert.deepEqual(await ohneVerbindung.json(), {});
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+});
+
+test("Spotify Freigabe: spotify.teilen der Zielperson filtert auf dem Server, trennen loescht den Token", async () => {
+  const ctx = fakeCtx();
+  const raum = new Raum(ctx, { ...fakeEnv(), SPOTIFY_CLIENT_ID: "test-client" });
+  const annikaWs = new FakeWs();
+  ctx.acceptWebSocket(annikaWs, ["annika"]);
+  const echterFetch = globalThis.fetch;
+  let spotifyAufrufe = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("accounts.spotify.com")) return Response.json({ access_token: "AT", refresh_token: "RT", expires_in: 3600 });
+    spotifyAufrufe += 1;
+    return Response.json({ is_playing: true, item: { name: "Song", artists: [{ name: "Band" }], album: { images: [{ url: "cover" }] }, external_urls: { spotify: "u" } } });
+  };
+  const teilen = (id, wert) =>
+    raum.webSocketMessage(annikaWs, JSON.stringify({ t: "op", op: { id, art: "einstellung.setzen", von: "annika", zeit: new Date().toISOString(), d: { schluessel: "spotify.teilen", wert } } }));
+  const jetzt = async () => (await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }))).json();
+  try {
+    await raum.fetch(
+      new Request("https://x/spotify/verbinden", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Lovea-Person": "annika" },
+        body: JSON.stringify({ code: "c", verifier: "v", redirectUri: "lovea://spotify" }),
+      })
+    );
+    await teilen("s1", "kuenstler");
+    assert.deepEqual(await jetzt(), { musik: true, kuenstler: "Band" });
+    await teilen("s2", "musik");
+    assert.deepEqual(await jetzt(), { musik: true }); // aus dem Cache, trotzdem gefiltert
+    await teilen("s3", "aus");
+    const vorher = spotifyAufrufe;
+    assert.deepEqual(await jetzt(), {});
+    assert.equal(spotifyAufrufe, vorher);
+    await teilen("s4", "song");
+    assert.equal((await jetzt()).titel, "Song");
+
+    // Ahmed kann Annikas Verbindung nicht trennen, nur Annika selbst.
+    await raum.fetch(new Request("https://x/spotify/trennen", { method: "POST", headers: { "X-Lovea-Person": "ahmed" } }));
+    assert.equal((await jetzt()).titel, "Song");
+    const trennen = await raum.fetch(new Request("https://x/spotify/trennen", { method: "POST", headers: { "X-Lovea-Person": "annika" } }));
+    assert.equal(trennen.status, 200);
+    assert.deepEqual(await jetzt(), {});
   } finally {
     globalThis.fetch = echterFetch;
   }

@@ -44,9 +44,10 @@ export async function apnsJwt(env, jetztMs = Date.now()) {
 }
 
 // stufe: "laut" | "leise" | "still". "still" = content-available, kein Text.
-export function apnsPayload({ stufe, titel, text, ton, threadId = "wir" }) {
+// `daten` (optional): eigene Schlüssel oben neben `aps`, z. B. {art, nachrichtId} für den Chat-Sprung.
+export function apnsPayload({ stufe, titel, text, ton, threadId = "wir", daten }) {
   if (stufe === "still") {
-    return { aps: { "content-available": 1 } };
+    return { ...daten, aps: { "content-available": 1 } };
   }
   const aps = {
     alert: { title: titel, body: text },
@@ -54,7 +55,7 @@ export function apnsPayload({ stufe, titel, text, ton, threadId = "wir" }) {
     "thread-id": threadId,
   };
   if (ton) aps.sound = ton;
-  return { aps };
+  return { ...daten, aps };
 }
 
 export function apnsHeaders({ stufe, jwt }) {

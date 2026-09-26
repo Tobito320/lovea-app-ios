@@ -9,7 +9,7 @@ struct DrawingStudioView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("studio.glass") private var glass = true
-    @AppStorage("profile.performanceHUD") private var showsHUD = false
+    @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @State private var showsLayers = true
     @State private var showsLayerSheet = false
     @State private var showsText = false

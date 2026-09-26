@@ -27,7 +27,7 @@ extension FigurAussehen {
             case .schuhe: return schuhe == e.index && schuhfarbeHex == e.hex
             case .brille: return brille == e.index
             }
-        default: return false // chatTheme/flamme/backdrop: keine Figur-Feld, siehe Einstellungen/Profil.
+        default: return false // backdrop: kein Figur-Feld, siehe Profil.
         }
     }
 

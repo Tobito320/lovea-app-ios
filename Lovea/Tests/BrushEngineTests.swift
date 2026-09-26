@@ -95,6 +95,19 @@ final class BrushEngineTests: XCTestCase {
         XCTAssertEqual(all, first + second)
     }
 
+    func testTaperBrushThinsBothEnds() throws {
+        var sampler = StrokeSampler(settings: TestGPU.settings(.rundKurve, size: 20))
+        var stamps: [Stamp] = []
+        for i in 0...40 { stamps += sampler.add(StrokeInput(location: CGPoint(x: Double(i) * 4, y: 0))) }
+        stamps += sampler.finish()
+        let radien = stamps.map(\.radius)
+        let mitte = radien[radien.count / 2]
+        let erster = try XCTUnwrap(radien.first)
+        let letzter = try XCTUnwrap(radien.last)
+        XCTAssertLessThan(erster, mitte * 0.5)
+        XCTAssertLessThan(letzter, mitte * 0.5)
+    }
+
     // MARK: Z-3.5 stamper
 
     func testSingleStampHasHardEdge() async throws {

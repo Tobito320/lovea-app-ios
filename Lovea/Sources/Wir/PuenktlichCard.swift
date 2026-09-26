@@ -52,7 +52,7 @@ struct PuenktlichCard: View {
             Raum.shared.senden("puenktlich.setzen", PuenktlichEintrag(datum: kandidat.datum, ueber: kandidat.ueber, wert: wert))
         } label: {
             VStack(spacing: 6) {
-                FigurView(FigurenModell.shared.aussehen(kandidat.ueber), zustand: zustand, groesse: 72)
+                FigurView(FigurenModell.shared.aussehen(kandidat.ueber), zustand: zustand, groesse: 72, bildrate: 20)
                 Text(titel)
                     .font(.caption2.weight(.medium))
                     .multilineTextAlignment(.center)

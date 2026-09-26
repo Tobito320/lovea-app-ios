@@ -1,7 +1,7 @@
 import XCTest
 @testable import Lovea
 
-/// Block 18: photo-stack grouping and the Chats-row preview (pure logic).
+/// Block 18: photo-stack grouping and the one-line preview (pure logic).
 @MainActor
 final class ChatStapelTests: XCTestCase {
     private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
@@ -47,30 +47,8 @@ final class ChatStapelTests: XCTestCase {
         XCTAssertEqual(ChatStapel.gruppieren([snap, foto("a", nach: 5), weg]).count, 3)
     }
 
-    func testVorschauTipptSchlaegtAlles() {
-        let zeile = ChatVorschau.zeile(nachrichten: [text("a", nach: 0)], ich: .ahmed, gelesenVonPartner: nil, gelesenVonMir: nil, partnerTippt: true)
-        XCTAssertEqual(zeile.text, "Tippt …")
-        XCTAssertTrue(zeile.neu)
-    }
-
-    func testVorschauNeuerSnapUndUngelesenerText() {
-        var snap = foto("s", von: .annika, nach: 0)
-        snap.snap = ChatModell.SnapInfo(bleibt: false)
-        let neuerSnap = ChatVorschau.zeile(nachrichten: [snap], ich: .ahmed, gelesenVonPartner: nil, gelesenVonMir: nil, partnerTippt: false)
-        XCTAssertEqual(neuerSnap, .init(symbol: "square.fill", text: "Neuer Snap", neu: true))
-
-        let nachricht = text("t", von: .annika, nach: 10, "Hallo")
-        let ungelesen = ChatVorschau.zeile(nachrichten: [nachricht], ich: .ahmed, gelesenVonPartner: nil, gelesenVonMir: t0, partnerTippt: false)
-        XCTAssertEqual(ungelesen, .init(symbol: "bubble.left.fill", text: "Hallo", neu: true))
-        let gelesen = ChatVorschau.zeile(nachrichten: [nachricht], ich: .ahmed, gelesenVonPartner: nil, gelesenVonMir: t0.addingTimeInterval(10), partnerTippt: false)
-        XCTAssertFalse(gelesen.neu)
-    }
-
-    func testVorschauEigeneNachrichtZugestelltOderGeoeffnet() {
-        let eigene = text("t", nach: 10, "Hi")
-        let zugestellt = ChatVorschau.zeile(nachrichten: [eigene], ich: .ahmed, gelesenVonPartner: t0, gelesenVonMir: nil, partnerTippt: false)
-        XCTAssertEqual(zugestellt.text, "Zugestellt · Hi")
-        let geoeffnet = ChatVorschau.zeile(nachrichten: [eigene], ich: .ahmed, gelesenVonPartner: t0.addingTimeInterval(10), gelesenVonMir: nil, partnerTippt: false)
-        XCTAssertEqual(geoeffnet.text, "Geöffnet · Hi")
+    func testVorschauZeigtTextOderArt() {
+        XCTAssertEqual(ChatVorschau.inhalt(text("t", nach: 0, "Hallo")), "Hallo")
+        XCTAssertEqual(ChatVorschau.inhalt(foto("f", nach: 0)), "Foto")
     }
 }

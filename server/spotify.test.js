@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { brauchtErneuerung, cacheGueltig, parseAktuellerSong, tokenTauschen, tokenErneuern, jetztSpielt, CACHE_MS } from "./spotify.js";
+import { brauchtErneuerung, cacheGueltig, parseAktuellerSong, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe, CACHE_MS } from "./spotify.js";
 
 const env = { SPOTIFY_CLIENT_ID: "test-client-id" };
 
@@ -99,4 +99,19 @@ test("jetztSpielt: trägt den Access-Token als Bearer-Header ein und liefert den
   const song = await jetztSpielt("mein-token", fetchImpl);
   assert.equal(song.titel, "Song");
   assert.equal(fetchImpl.calls[0].init.headers.authorization, "Bearer mein-token");
+});
+
+test("parseAktuellerSong: pausiert ergibt {}", () => {
+  assert.deepEqual(parseAktuellerSong({ is_playing: false, item: { name: "Song" } }), {});
+});
+
+test("nachFreigabe: jede Stufe gibt nur ihre Felder frei, unbekannt = song", () => {
+  const song = { titel: "Song", kuenstler: "Band", cover: "c", url: "u" };
+  assert.deepEqual(nachFreigabe(song, "aus"), {});
+  assert.deepEqual(nachFreigabe(song, "musik"), { musik: true });
+  assert.deepEqual(nachFreigabe(song, "kuenstler"), { musik: true, kuenstler: "Band" });
+  assert.deepEqual(nachFreigabe(song, "song"), { musik: true, ...song });
+  assert.deepEqual(nachFreigabe(song, undefined), { musik: true, ...song });
+  assert.deepEqual(nachFreigabe(song, "quatsch"), { musik: true, ...song });
+  assert.deepEqual(nachFreigabe({}, "song"), {});
 });

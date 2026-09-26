@@ -16,19 +16,33 @@ final class Anwesenheit {
     ]
 
     private var appAktivitaet: FigurZustand?
+    /// Brief Z: the background pauses the app slot instead of dropping it, so the screen still open
+    /// on return (studio, chat, map) counts again without having to re-announce itself.
+    private var imHintergrund = false
     private var akku: Double?
     private var laedt = false
     private var fokus: String?
     private var bewegung: FigurZustand?
     private var morgenGeoeffnet = false
     private var supermarktName: String?
+    /// Brief G fix 2: last real movement (steps or walking/running/cycling), for `SchlafLogik`.
+    private var letzteBewegung: Date?
 
     private var letzterZustand: FigurenModell.Zustand?
     private var letzterVersand = Date.distantPast
     private var anstehend: Task<Void, Never>?
 
     private let motion = CMMotionActivityManager()
+    private let pedometer = CMPedometer()
     private var fokusAutorisiert = false
+
+    /// Every pedometer update means the step count rose. `nonisolated`, so the handler CoreMotion
+    /// calls on its own queue isn't a main-actor closure; `gelaufen` hops over itself.
+    private nonisolated static func schritteBeobachten(_ pedometer: CMPedometer, gelaufen: @escaping @Sendable () -> Void) {
+        pedometer.startUpdates(from: Date()) { daten, _ in
+            if daten != nil { gelaufen() }
+        }
+    }
 
     private init() {
         UIDevice.current.isBatteryMonitoringEnabled = true
@@ -42,12 +56,17 @@ final class Anwesenheit {
             Task { @MainActor in self?.akkuAktualisieren() }
         }
         center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.app(nil) }
+            Task { @MainActor in
+                self?.imHintergrund = true
+                self?.aktualisieren()
+            }
         }
         center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
             Task { @MainActor in
+                self?.imHintergrund = false
                 self?.morgenPruefen()
                 self?.fokusAktualisieren()
+                self?.aktualisieren()
             }
         }
 
@@ -62,9 +81,20 @@ final class Anwesenheit {
                 let running = activity.running
                 let walking = activity.walking
                 Task { @MainActor in
-                    self?.bewegung = AnwesenheitEingabe.bewegung(automotive: automotive, cycling: cycling, running: running, walking: walking)
+                    // Walking, running or cycling (starting or just ending) wakes the sleep rule.
+                    if walking || running || cycling || self?.bewegung != nil { self?.letzteBewegung = Date() }
+                    let neu = AnwesenheitEingabe.bewegung(automotive: automotive, cycling: cycling, running: running, walking: walking)
+                    // Starting or stopping a walk or a trip likely means arriving or leaving: ask for a
+                    // fix now instead of waiting up to 3 min for the next one (one-shot, cheap).
+                    if neu != self?.bewegung { Standort.shared.fixAnfordern(dringend: neu == .faehrt) }
+                    self?.bewegung = neu
                     self?.aktualisieren()
                 }
+            }
+        }
+        if CMPedometer.isStepCountingAvailable() {
+            Self.schritteBeobachten(pedometer) { [weak self] in
+                Task { @MainActor in self?.letzteBewegung = Date() }
             }
         }
 
@@ -97,6 +127,12 @@ final class Anwesenheit {
             return
         }
         aktualisieren()
+    }
+
+    /// Clears the app slot only while it still holds one of `zs`, so a screen whose `onDisappear` lands
+    /// after the next screen's `onAppear` doesn't wipe that one.
+    func appEnde(_ zs: FigurZustand...) {
+        if let a = appAktivitaet, zs.contains(a) { app(nil) }
     }
 
     // MARK: - Battery (Z-7.1)
@@ -166,8 +202,27 @@ final class Anwesenheit {
         }.flatMap { FigurZustand(rawValue: $0.kategorie) }
     }
 
+    /// A place only while really there (no region exit events: `OrteModell.monitorAn` stays off).
+    /// The last fix decides the place, so a fast or driving fix, or walking well after it, ends it.
     private func ortZustand(_ ich: Person) -> FigurZustand? {
-        ortAusGespeichertenPlaetzen(ich) ?? (supermarktName != nil ? .supermarkt : nil)
+        guard let ort = ortAusGespeichertenPlaetzen(ich) ?? (supermarktName != nil ? .supermarkt : nil) else { return nil }
+        let fix = Standort.shared.positionen[ich]
+        let gilt = AnwesenheitEingabe.ortGilt(
+            ort, tempo: fix?.tempo, bewegung: bewegung, fixZeit: fix.flatMap { Standort.isoFormat.date(from: $0.zeit) },
+            letzteBewegung: letzteBewegung
+        )
+        return gilt ? ort : nil
+    }
+
+    /// Called by `Standort` on every own fix, so a place ends with the fix that leaves it.
+    /// Re-decide the own state right away (e.g. after a "Gute Nacht" / "Guten Morgen").
+    func anstossen() { aktualisieren() }
+
+    func standortNeu() {
+        Task { @MainActor [weak self] in
+            await self?.ortAktualisieren()
+            self?.aktualisieren()
+        }
     }
 
     // MARK: - Fold and send (Z-7.1/Z-7.2)
@@ -180,9 +235,10 @@ final class Anwesenheit {
         let monat = String(heute.prefix(7))
         return FigurEingabe(
             person: ich,
-            app: appAktivitaet,
-            ort: ortZustand(ich),
-            bewegung: bewegung,
+            app: imHintergrund ? nil : appAktivitaet,
+            // A running gym session is the gym, with or without a saved place (Training, Runde 4).
+            ort: TrainingModell.shared.laufende(ich) != nil ? .gym : ortZustand(ich),
+            bewegung: AnwesenheitEingabe.reise(bewegung, person: ich, tempo: Standort.shared.positionen[ich]?.tempo, fixAlter: Standort.shared.positionen[ich]?.sekundenAlt),
             akku: akku,
             laedt: laedt,
             // ponytail: own connectivity is irrelevant here — `Raum.fluechtig` drops `fl` silently
@@ -195,7 +251,11 @@ final class Anwesenheit {
             jahrestag: kalender.jahrestag.map(Datum.datum),
             dateHeute: kalender.daten.treffen.contains { $0.datum == heute },
             puenktlich: kalender.puenktlich[gestern]?[ich.partner],
-            monatsKrone: Puenktlich.monatsKrone(ops: KalenderModell.shared.alleOps, monat: monat) == ich
+            monatsKrone: Puenktlich.monatsKrone(ops: KalenderModell.shared.alleOps, monat: monat) == ich,
+            guteNacht: FigurenModell.shared.gruss[ich]?.nacht,
+            gutenMorgen: FigurenModell.shared.gruss[ich]?.morgen,
+            letzteBewegung: letzteBewegung,
+            zuhauseBekannt: OrteModell.shared.orte.contains { $0.person == ich && $0.kategorie == "zuhause" }
         )
     }
 
@@ -204,7 +264,8 @@ final class Anwesenheit {
         let (haupt, abzeichen) = FigurZustand.bestimmen(eingabe(ich))
         let neu = FigurenModell.Zustand(haupt: haupt, abzeichen: abzeichen)
         guard neu != letzterZustand else { return }
-        let wartezeit = 1 - Date().timeIntervalSince(letzterVersand)
+        // Sent as soon as it changes, at most every 3 s (a burst of changes goes out as one).
+        let wartezeit = 3 - Date().timeIntervalSince(letzterVersand)
         guard wartezeit > 0 else { senden(neu); return }
         guard anstehend == nil else { return }
         anstehend = Task { @MainActor [weak self] in
@@ -242,4 +303,34 @@ enum AnwesenheitEingabe {
     }
 
     static func istMorgenFenster(_ stunde: Int) -> Bool { (5..<11).contains(stunde) }
+
+    /// Faster than this (m/s, ~22 km/h) is a vehicle, whatever CoreMotion says.
+    static let reiseTempo: Double = 6
+
+    /// Runde 4 "Unterwegs": no car. Up to this speed (m/s, ~20 km/h) on Ahmed's green Ryde
+    /// e-scooter, faster is the train. Annika has no scooter: any vehicle speed is the train.
+    static let scooterTempo: Double = 5.56
+
+    /// Above this (m/s, ~12.6 km/h) a fix counts as riding: faster than walking or jogging. It must
+    /// lie below `scooterTempo`, else the scooter could never be detected.
+    static let fahrTempo: Double = 3.5
+
+    /// A fresh fix (under 3 min) at riding speed splits into scooter or train by GPS speed; without
+    /// a fresh fix (CoreMotion says "automotive" but no speed yet) it stays the generic `faehrt`.
+    static func reise(_ bewegung: FigurZustand?, person: Person, tempo: Double?, fixAlter: TimeInterval?) -> FigurZustand? {
+        guard let tempo, tempo > fahrTempo, (fixAlter ?? .infinity) < 180 else { return bewegung }
+        guard person == .ahmed, tempo <= scooterTempo else { return .zug }
+        return .scooter
+    }
+
+    /// Whether the place `ort` the last fix sits in still holds: not at vehicle speed, not driving
+    /// or cycling now, and no walking more than 3 min after that fix (then they left and no newer
+    /// fix has come in yet). Home is exempt from the walking rule: people walk around at home
+    /// and fixes there are rare, and sleep needs it.
+    static func ortGilt(_ ort: FigurZustand, tempo: Double?, bewegung: FigurZustand?, fixZeit: Date?, letzteBewegung: Date?) -> Bool {
+        if let tempo, tempo > reiseTempo { return false }
+        if bewegung == .faehrt || bewegung == .scooter || bewegung == .zug || bewegung == .rad { return false }
+        if ort != .zuhause, let fixZeit, let letzteBewegung, letzteBewegung.timeIntervalSince(fixZeit) > 180 { return false }
+        return true
+    }
 }

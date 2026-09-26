@@ -38,6 +38,8 @@ struct PartnerProfilView: View {
                 }
         }
         .presentationDragIndicator(.visible)
+        // Screenshot notice "… von deinem Profil" (the own profile tab registers nothing).
+        .screenshotKontext(.partnerProfil)
     }
 
     private var bilanz: [(spiel: String, ahmed: Int, annika: Int)] {
@@ -49,7 +51,7 @@ struct PartnerProfilView: View {
 }
 
 private enum ProfilBlatt: String, Identifiable {
-    case wallpaper, chatfarbe, medien, hintergrund, orte, eigenerHintergrund, chatThema, flamme
+    case wallpaper, medien, zimmer, sterne
     var id: String { rawValue }
 }
 
@@ -74,15 +76,19 @@ private struct ProfilInhalt: View {
     let schliessen: () -> Void
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dehnung: CGFloat = 0
     @State private var tipps = 0
     @State private var nummerFehlt = 0
     @State private var blatt: ProfilBlatt?
+    @State private var backdropOffen = false
     /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
     @State private var karteOffen = false
     // Z-25.1: eigenes Profil (Figur bearbeiten, Shop).
     @State private var figurBearbeitenOffen = false
     @State private var shopOffen = false
+    /// Brief G: the place whose editor opens (where the person is right now, else home).
+    @State private var zimmerOrt = RaumOrt.zuhause
     // Z-24.3: Kuss-Animation im Partner-Profil. `kussBasislinie` liest den Ausgangswert beim
     // Erstellen dieser View — spätere Erhöhungen sind dann eindeutig "neu seit dem Öffnen".
     @State private var kussBasislinie = FigurenModell.shared.kussEreignis
@@ -107,13 +113,14 @@ private struct ProfilInhalt: View {
                     if istEigenes {
                         eigeneChips
                         eigeneAktionen
+                        ProfilPunkteKarte(person: person)
                         abschnitt("Spiele-Bilanz") { spieleAbschnittInhalt }
                     } else {
                         chips
                         aktionen
-                        abschnitt("Unser Chat") { unserChat }
                         // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
                         abschnitt("Die Karte") { dieKarte }
+                        abschnitt("Unser Chat") { unserChat }
                         abschnitt("Wir") { wir }
                     }
                 }
@@ -150,57 +157,50 @@ private struct ProfilInhalt: View {
     private func blattInhalt(_ b: ProfilBlatt) -> some View {
         switch b {
         case .wallpaper: WallpaperAuswahl(partner: gegenueber)
-        case .chatfarbe: ChatFarbeAuswahl(ich: ich)
         case .medien: MedienUebersicht(ich: ich)
-        case .hintergrund: ChatHintergrundEinstellung(ich: ich)
-        case .orte: OrteListeView()
-        case .eigenerHintergrund: EigenerHintergrundAuswahl(person: person)
-        case .chatThema: ChatThemaAuswahl(ich: ich)
-        case .flamme: BesitzFlammenAuswahl(ich: ich)
+        case .zimmer: NavigationStack { ZimmerEditor(person: person, ort: zimmerOrt) }
+        case .sterne: SterneBlatt(ich: ich) { zurNachricht($0) }
         }
     }
 
-    // MARK: - Header (stretchy wallpaper, both figures, avatar + name)
+    // MARK: - Header (stretchy scene, both figures, avatar + name)
 
-    /// The container keeps a fixed height; only the wallpaper behind it grows upwards while pulling
+    /// The container keeps a fixed height; only the scene behind it grows upwards while pulling
     /// down, so nothing below shifts and feeds back into the scroll offset.
     private var kopf: some View {
-        ZStack(alignment: .bottomLeading) {
-            HStack(alignment: .bottom, spacing: -64) {
-                figur(person).zIndex(1)
-                figur(person.partner)
-            }
-            .frame(maxWidth: .infinity, alignment: .trailing)
-            .padding(.trailing, -6)
+        let szene = ProfilSzene.fuer(person: person)
+        let b = belegung(szene, paar: true)
+        return ZStack(alignment: .bottomLeading) {
+            kopfFiguren(szene, b, paar: true)
+                .frame(maxWidth: .infinity, alignment: .trailing)
+                .padding(.trailing, -6)
 
             HStack(spacing: 12) {
                 avatar
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(person.name).font(.title.bold())
-                    Text("zusammen seit 26.08.2026").font(.subheadline.weight(.medium)).opacity(0.9)
+                VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(person.name).font(.title.bold())
+                        Text("zusammen seit 26.08.2026").font(.subheadline.weight(.medium)).opacity(0.9)
+                    }
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
+                    partnerJetzt
                 }
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
             }
             .padding(16)
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) {
-            // Z-25.2 "jeder stellt nur seinen eigenen ein": the partner profile shows the
-            // partner's own background too, not the old shared one — `EigenerHintergrund`
-            // falls back to the shared `profilWallpaper` on its own if `person` hasn't set one.
-            EigenerHintergrund(person: person)
-                .frame(height: Self.kopfHoehe + dehnung)
-                .overlay { kopfSchatten }
-        }
+        .background(alignment: .bottom) { szenenHintergrund(szene, mitBett: b.imBett.isEmpty) }
     }
 
-    /// Z-25.1: own profile only — the person's own `profil.hintergrund`, a single full-body figure,
-    /// name and a "Hintergrund ändern" tap target (no partner figure, no "Unser Chat", no steps).
+    /// Z-25.1: own profile only — a single full-body figure in the person's scene, name and a
+    /// "Zimmer gestalten" tap target (no partner figure, no "Unser Chat", no steps).
     private var eigenerKopf: some View {
-        ZStack(alignment: .bottomLeading) {
-            figur(person)
+        let szene = ProfilSzene.fuer(person: person)
+        let b = belegung(szene, paar: false)
+        return ZStack(alignment: .bottomLeading) {
+            kopfFiguren(szene, b, paar: false)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 20)
             HStack(spacing: 12) {
@@ -219,14 +219,105 @@ private struct ProfilInhalt: View {
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) {
-            EigenerHintergrund(person: person)
-                .frame(height: Self.kopfHoehe + dehnung)
-                .overlay { kopfSchatten }
-        }
-        .onTapGesture { blatt = .eigenerHintergrund }
+        .background(alignment: .bottom) { szenenHintergrund(szene, mitBett: b.imBett.isEmpty) }
+        .onTapGesture { zimmerGestalten() }
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Ändert deinen Profil-Hintergrund")
+        .accessibilityHint("Gestaltet dein Zimmer")
+    }
+
+    /// Brief G: the scene follows real life (room, bed, gym, outside) and replaces the plain
+    /// wallpaper; like before it grows upward while pulling down.
+    private func szenenHintergrund(_ szene: ProfilSzene, mitBett: Bool) -> some View {
+        ProfilSzeneHintergrund(szene: szene, zimmer: Zimmer.von(person, ort: szene.raumOrt ?? .zuhause), nacht: ProfilSzene.nacht(person: person), mitBett: mitBett)
+            .frame(height: Self.kopfHoehe + dehnung)
+            .overlay { kopfSchatten }
+    }
+
+    private typealias Belegung = (personen: [Person], imBett: [Person])
+
+    /// Brief G fix: who is shown, always Annika left and Ahmed right, and who of them lies in bed.
+    /// Only a sleeper is in bed, and a bed only exists in the room. The own profile shows the own
+    /// figure alone, or both when both sleep. Teil 2 (Nähe): the partner profile shows the pair
+    /// only when they are together (or a kiss plays) — getrennt zeigt es nur die eigene Person.
+    private func belegung(_ szene: ProfilSzene, paar: Bool) -> Belegung {
+        let beide = szene == .schlafen(zusammen: true) || szene == .zeichnen(zusammen: true)
+        let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
+        let personen: [Person] = paarDa || beide ? [.annika, .ahmed] : [person]
+        switch szene {
+        case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlafGerade($0) != .wach })
+        case .gym, .draussen, .unterwegs, .abteil, .schule, .arbeit, .zeichnen: return (personen, [])
+        }
+    }
+
+    /// Everyone asleep: one bed. Mixed: a smaller bed beside the one standing. At night the room
+    /// dims its figures along with the drawing. `paar`: true from the partner profile's `kopf`
+    /// (small signs while apart are only shown there, never on the own profile).
+    @ViewBuilder
+    private func kopfFiguren(_ szene: ProfilSzene, _ b: Belegung, paar: Bool) -> some View {
+        let wach = b.personen.filter { !b.imBett.contains($0) }
+        let dunkel = nachtImZimmer(szene)
+        Group {
+            if wach.isEmpty {
+                bett(b.imBett, skala: 1)
+            } else if wach.count == 2 {
+                // Teil 2 (Nähe): both awake and together, the pair's closeness pose (kiss glides
+                // into Stufe 3 and back).
+                KussPaar(vorn: person, stufe: NaeheLogik.aktuelleStufe, zusammen: NaeheLogik.sindZusammen) { p, pose, ebene in
+                    figur(p, szene: figurSzene(szene, p), naehe: pose, ebene: ebene)
+                }
+            } else if b.imBett.isEmpty {
+                let zeichenApart = paar && NaeheLogik.aktuelleStufe > 0 && !NaeheLogik.sindZusammen
+                if zeichenApart {
+                    TimelineView(.periodic(from: .now, by: 1)) { kontext in
+                        einzelReihe(wach, szene, handy: NaeheLogik.handySchauen(stufe: NaeheLogik.aktuelleStufe, jetzt: kontext.date))
+                            .overlay {
+                                if NaeheLogik.aktuelleStufe >= 3, !reduceMotion {
+                                    SteigendeHerzen().opacity(0.35).allowsHitTesting(false).accessibilityHidden(true)
+                                }
+                            }
+                    }
+                } else {
+                    einzelReihe(wach, szene)
+                }
+            } else {
+                HStack(alignment: .bottom, spacing: -30) {
+                    ForEach(b.personen, id: \.self) { p in
+                        if b.imBett.contains(p) { bett([p], skala: 0.75) } else { figur(p, szene: figurSzene(szene, p)) }
+                    }
+                }
+            }
+        }
+        .brightness(dunkel ? -0.1 : 0)
+    }
+
+    /// The apart branch's plain HStack, unchanged whether or not the small "looks at phone" sign runs.
+    private func einzelReihe(_ wach: [Person], _ szene: ProfilSzene, handy: Bool = false) -> some View {
+        HStack(alignment: .bottom, spacing: -64) {
+            ForEach(wach, id: \.self) { p in figur(p, szene: figurSzene(szene, p), handy: handy).zIndex(p == person ? 1 : 0) }
+        }
+    }
+
+    /// The scene dresses the profile person only; drawing together (Brief Z) dresses both.
+    private func figurSzene(_ szene: ProfilSzene, _ p: Person) -> ProfilSzene? {
+        p == person || szene == .zeichnen(zusammen: true) ? szene : nil
+    }
+
+    /// Brief G: the editor for the place the person is at right now (home, office, classroom),
+    /// home from anywhere else.
+    private func zimmerGestalten() {
+        zimmerOrt = ProfilSzene.fuer(person: person).raumOrt ?? .zuhause
+        blatt = .zimmer
+    }
+
+    /// Same night as the drawing: the bed scene is always night, the rooms follow the clock.
+    private func nachtImZimmer(_ szene: ProfilSzene) -> Bool {
+        szene.dunkel(nacht: ProfilSzene.nacht(person: person))
+    }
+
+    /// Sitting up (3 quiet minutes after "Gute Nacht") or lying down, per sleeper.
+    private func bett(_ schlaefer: [Person], skala: CGFloat) -> some View {
+        let sitzend = Set(schlaefer.indices.filter { ProfilSzene.schlafGerade(schlaefer[$0]) == .sitzt })
+        return SchlafendeFiguren(zimmer: Zimmer.von(person), schlaefer: schlaefer.map { FigurenModell.shared.aussehen($0) }, skala: skala, sitzend: sitzend)
     }
 
     private var kopfSchatten: some View {
@@ -237,19 +328,64 @@ private struct ProfilInhalt: View {
         }
     }
 
+    /// Z-34.2: weather and "hört gerade" moved here from the chat header. Glass fits: they float
+    /// over the header picture (dark scheme, it sits on the dark bottom shade). Spotify is polled
+    /// only while this is on screen (Spec 9).
+    private var partnerJetzt: some View {
+        HStack(spacing: 6) {
+            if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
+            SpotifyHoertGeradeChip()
+        }
+        .environment(\.colorScheme, .dark)
+        .task { SpotifyModell.shared.schauen() }
+        .onDisappear { SpotifyModell.shared.wegschauen() }
+    }
+
     /// Z-24.3: while a `kuss` is live (fresh receive, own optimistic send, or a missed-kiss replay
     /// — all three go through `FigurenModell.anzeige`/`geste`), the figure leans toward the other
-    /// one. `person` sits left/front of the pair (see `kopf`'s HStack order), `person.partner`
-    /// right/behind, so they lean opposite directions.
+    /// one. Annika stands left, Ahmed right (Brief G fix), so they lean opposite directions.
+    /// `szene` (Brief G, profile person only): the scene's state and extras (dumbbells in the gym,
+    /// umbrella or sunglasses outside). A sleeper outside the room (no bed there) stands asleep;
+    /// from 22:00 an awake figure is tired and yawns now and then.
+    /// `naehe` (Teil 2 Nähe): the pair's closeness pose (level hug or kiss) while together; it
+    /// replaces the lean. `ebene` splits the pair's bodies from their pair arms (see `KussPaarBild`).
+    /// `handy` (Teil 2): apart, the small "looks at phone and smiles" sign.
     @ViewBuilder
-    private func figur(_ p: Person) -> some View {
-        let zustand = FigurenModell.shared.anzeige(p).haupt
-        let kuesst = zustand == .kuss
-        let richtung: CGFloat = p == person ? 1 : -1
-        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: zustand, abzeichen: abzeichen(p), groesse: 340, ganzkoerper: true, poseImmer: true)
-            .offset(x: kuesst ? richtung * 14 : 0)
-            .scaleEffect(kuesst ? 1.04 : 1, anchor: .bottom)
-            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: kuesst)
+    private func figur(_ p: Person, szene: ProfilSzene? = nil, naehe: NaehePose? = nil, ebene: PaarEbene = .alles, handy: Bool = false) -> some View {
+        // Their own shared state even while their app is closed (it arrives in the background too),
+        // so both phones show the same; grey "offline" only when nothing was ever shared.
+        let live = ProfilSzene.geteilterZustand(p) ?? .offline
+        let schlaf = ProfilSzene.schlafGerade(p)
+        let schlaeft = schlaf != .wach
+        let zustand: FigurZustand = schlaf == .schlaeft ? .schlaeft : (schlaf == .sitzt ? .sitztImBett : (szene?.figur(live) ?? live))
+        // Ein Kuss gehört beiden: küsst einer, gleiten beide zueinander, neigen sich und spitzen die Lippen.
+        let kuesst = live == .kuss || FigurenModell.shared.anzeige(p.partner).haupt == .kuss
+        let richtung: CGFloat = p == .annika ? 1 : -1
+        let wetter = WetterModell.shared.staende[p]
+        let spaet = !schlaeft && ProfilSzene.spaet(stunde: Calendar.berlin.component(.hour, from: Date()))
+        // The kiss needs its arm: no umbrella or dumbbells for those 4 s.
+        let szenenExtras: Set<FigurExtra> = kuesst ? [] : szene?.extras(zustand, wetterCode: wetter?.code, temperatur: wetter?.temperatur) ?? []
+        let extras = spaet ? szenenExtras.union([.schlaefrig]) : szenenExtras
+        // A bought pose would replace the curls, the desk or the tablet, so these keep their own.
+        let pose = (szene.map { $0 != .gym && $0 != .schule && $0 != .arbeit } ?? true) && zustand != .zeichnet
+        let tisch = szene?.raumOrt.map { Zimmer.von(person, ort: $0).tisch } ?? 0
+        // Alone (own profile, next to a bed) the kiss is still the lean; the pair's closeness pose replaces it.
+        let lehnt = kuesst && naehe == nil
+        let gezeigt: FigurZustand = naehe?.zustand(p) ?? (kuesst ? .kuss : (handy && [.ruhig, .mittel, .gut].contains(zustand) ? .imChat : zustand))
+        let paarExtras: Set<FigurExtra> = naehe == nil ? extras : []
+        // Brief Z: the pencil and its strokes live in the figure; 15 fps like the scene's lights.
+        let umarmung: Umarmung? = naehe.map { pose in
+            var um = pose.umarmung(p, partnerHaut: NaehePose.haut(FigurenModell.shared.aussehen(p.partner)))
+            um.ebene = ebene
+            return um
+        }
+        let v = FigurView(FigurenModell.shared.aussehen(p), zustand: gezeigt, abzeichen: abzeichen(p), groesse: 340, bildrate: gezeigt == .zeichnet ? 15 : 30,
+                          ganzkoerper: true, poseImmer: pose && naehe == nil, extras: paarExtras, tisch: tisch, umarmung: umarmung,
+                          gymGeste: gezeigt == .gym ? GymGeste.fuer(id: TrainingModell.shared.aktiveUebung(p)) : nil)
+            .rotationEffect(.degrees(lehnt ? Double(richtung) * 7 : 0), anchor: .bottom)
+            .offset(x: lehnt ? richtung * 38 : 0)
+            .scaleEffect(lehnt ? 1.05 : 1, anchor: .bottom)
+            .animation(.spring(response: 0.45, dampingFraction: 0.62), value: lehnt)
         if p == ich {
             v.accessibilityLabel("Deine Figur")
         } else {
@@ -285,17 +421,13 @@ private struct ProfilInhalt: View {
     private var chips: some View {
         let g = BesondereTage.geburtstag(person)
         let zeichen = Sternzeichen.fuer(monat: g.monat, tag: g.tag)
-        let streak = ChatModell.shared.streak.tage
         return ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 chip("🎈", "\(g.tag). \(Self.monate[g.monat - 1])", "Geburtstag \(g.tag). \(Self.monate[g.monat - 1])")
                 chip("💞", "\(tageZusammen) Tage", "\(tageZusammen) Tage zusammen")
-                if streak > 0 {
-                    chip(EinstellungenModell.shared.string("flamme", default: "🔥"), "\(streak)", "Streak \(streak) Tage")
-                }
                 chip(zeichen.symbol, zeichen.name, "Sternzeichen \(zeichen.name)")
                 if istEigenes {
-                    PunkteChip(person: person)
+                    PunkteKnopf(person: person)
                 }
             }
         }
@@ -327,20 +459,28 @@ private struct ProfilInhalt: View {
     }
 
     /// Spendable balance (after purchases), same number as the Health tab and the Shop.
-    private var punkteChip: some View { PunkteChip(person: person) }
+    private var punkteChip: some View { PunkteKnopf(person: person) }
 
-    // MARK: - Eigene Aktionen (Z-25.1: Figur bearbeiten, Shop)
+    // MARK: - Eigene Aktionen (Z-25.1: Figur bearbeiten, Shop; Brief G: Zimmer gestalten)
 
     private var eigeneAktionen: some View {
         HStack(spacing: 10) {
             aktion("person.crop.square", "Figur bearbeiten") { figurBearbeitenOffen = true }
+            aktion("bed.double.fill", "Zimmer gestalten") { zimmerGestalten() }
             aktion("bag.fill", "Shop") { shopOffen = true }
         }
     }
 
     // MARK: - Actions (Kamera · Chat · FaceTime Audio · FaceTime Video)
 
-    private var partnerNummer: String { EinstellungenModell.shared.string("telefon", default: "", von: gegenueber) }
+    /// Z-32.2: the partner's `kontakt.facetime` (number or Apple ID); empty → the older `telefon`
+    /// entry, so numbers typed in before Runde 3 keep working. Same rule as the chat header.
+    private var partnerKontakt: String {
+        let kontakt = EinstellungenModell.shared.string("kontakt.facetime", default: "", von: gegenueber)
+        return kontakt.trimmingCharacters(in: .whitespaces).isEmpty
+            ? EinstellungenModell.shared.string("telefon", default: "", von: gegenueber)
+            : kontakt
+    }
 
     private var aktionen: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -354,8 +494,8 @@ private struct ProfilInhalt: View {
                 aktion("phone.fill", "FaceTime Audio") { anrufen(audio: true) }
                 aktion("video.fill", "FaceTime Video") { anrufen(audio: false) }
             }
-            if FaceTimeLink.url(partnerNummer, audio: false) == nil {
-                Text("\(gegenueber.name) hat noch keine Nummer eingetragen")
+            if FaceTime.url(audio: false, kontakt: partnerKontakt) == nil {
+                Text("\(gegenueber.name) hat noch keine FaceTime-Nummer eingetragen")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
@@ -378,13 +518,13 @@ private struct ProfilInhalt: View {
 
     private func navigieren(_ tab: String, suche: Bool = false) {
         tipps += 1
-        if suche { AppNavigation.shared.chatSuche = true }
+        if suche { AppNavigation.shared.chatSuche = true } else if tab == "chat" { AppNavigation.shared.gespraechOeffnen = true }
         AppNavigation.shared.tabWunsch = tab
         schliessen()
     }
 
     private func anrufen(audio: Bool) {
-        guard let url = FaceTimeLink.url(partnerNummer, audio: audio) else {
+        guard let url = FaceTime.url(audio: audio, kontakt: partnerKontakt) else {
             nummerFehlt += 1
             return
         }
@@ -432,36 +572,40 @@ private struct ProfilInhalt: View {
 
     private var trenner: some View { Divider().padding(.leading, 58) }
 
+    /// Z-34.2: Backdrop (full-screen picker, for both), then Medien and Sterne.
     @ViewBuilder
     private var unserChat: some View {
-        zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { blatt = .wallpaper }
+        zeile("photo.artframe", "Backdrop", backdropUntertitel) { backdropOffen = true }
+            .fullScreenCover(isPresented: $backdropOffen) { BackdropAuswahl() }
         trenner
-        zeile("circle.fill", "Chatfarbe", "Ändere die Farbe deines Namens.", farbe: ChatFarbe.farbe(ich)) { blatt = .chatfarbe }
+        zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { blatt = .wallpaper }
         trenner
         zeile("photo.stack", "Medien") { blatt = .medien }
         trenner
-        zeile("photo.artframe", "Chat-Hintergrund") { blatt = .hintergrund }
-        trenner
-        // Z-23.2: gekaufte Chat-Themes/Flammen werden hier gewählt — der Kauf selbst passiert im Shop.
-        zeile("paintpalette", "Chat-Thema", chatThemaUntertitel) { blatt = .chatThema }
-        trenner
-        zeile("flame", "Deine Flamme", flammeUntertitel) { blatt = .flamme }
+        zeile("star", "Sterne") { blatt = .sterne }
         trenner
         zeile("magnifyingglass", "Im Chat suchen") { navigieren("chat", suche: true) }
     }
 
-    private var chatThemaUntertitel: String? {
-        guard case .string(let id)? = EinstellungenModell.shared.geteilt("chat.theme"), !id.isEmpty else { return "Keins gewählt" }
-        return ChatThemes.von(id)?.name
+    private var backdropUntertitel: String {
+        switch Backdrops.wahl {
+        case .vorlage(let id)?: Backdrops.von(id)?.name ?? Backdrops.neutral.name
+        case .foto?: "Eigenes Foto"
+        case .zeichnung?: "Eigene Zeichnung"
+        case nil: "Für euch beide"
+        }
     }
 
-    private var flammeUntertitel: String { EinstellungenModell.shared.string("flamme", default: "🔥", von: ich) }
+    /// Sterne: close the sheets, switch to the chat and jump to the message (B1's `chatZiel`).
+    private func zurNachricht(_ id: String) {
+        blatt = nil
+        AppNavigation.shared.chatZiel = id
+        navigieren("chat")
+    }
 
     @ViewBuilder
     private var dieKarte: some View {
-        KartenVorschau(person: gegenueber) { tipps += 1; karteOffen = true }
-        Divider()
-        zeile("bell.badge", "Ankunftsbenachrichtigungen", "Wenn jemand an einem Ort ankommt oder geht.") { blatt = .orte }
+        ProfilKarte(person: gegenueber) { tipps += 1; karteOffen = true }
     }
 
     // MARK: - Wir (compact)

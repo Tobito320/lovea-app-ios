@@ -38,7 +38,8 @@ final class UmzugAufraeumenTests: XCTestCase {
         let modell = ChatModell(registrieren: false)
         let neu = Op.neu("nachricht.neu", NachrichtPayload(id: "m1", text: "hi"), von: .ahmed)
         modell.anwenden([Op(id: neu.id, seq: 1, art: neu.art, von: .ahmed, zeit: Date(), d: neu.d)])
-        modell.anwenden([Op.neu("nachricht.geloescht", IDPayloadForTests(id: "m1"), von: .ahmed)])
+        let weg = Op.neu("nachricht.geloescht", IDPayloadForTests(id: "m1"), von: .ahmed)
+        modell.anwenden([Op(id: weg.id, seq: 2, art: weg.art, von: .ahmed, zeit: Date().addingTimeInterval(10), d: weg.d)])
 
         XCTAssertEqual(modell.nachrichten.count, 1)
         XCTAssertEqual(modell.nachrichten.first?.geloescht, true)

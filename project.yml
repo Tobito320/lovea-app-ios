@@ -37,11 +37,14 @@ targets:
           - CFBundleURLName: com.onlyus.lovea
             CFBundleURLSchemes:
               - lovea
+        NSUserActivityTypes:
+          - INSendMessageIntent
+          - INStartCallIntent
         UIBackgroundModes:
           - location
           - remote-notification
           - audio
-        NSCameraUsageDescription: "Lovea nutzt die Kamera, damit du Fotos und Videos für den Chat und die Snaps aufnehmen kannst."
+        NSCameraUsageDescription: "Lovea nutzt die Kamera, damit du Fotos und Videos für den Chat und die Snaps aufnehmen und Barcodes von Lebensmitteln scannen kannst."
         NSMicrophoneUsageDescription: "Lovea nutzt das Mikrofon für Sprachnachrichten und Videos im Chat."
         NSPhotoLibraryUsageDescription: "Lovea liest Fotos, damit du sie im Chat oder als Zeichen-Vorlage nutzen kannst."
         NSPhotoLibraryAddUsageDescription: "Lovea speichert deine fertigen Bilder in Fotos."
@@ -52,7 +55,7 @@ targets:
         NSFocusStatusUsageDescription: "Lovea zeigt deinem Partner, ob du gerade nicht gestört werden möchtest."
         NSCalendarsFullAccessUsageDescription: "Lovea liest deinen Kalender, um Termine mit deinem Partner abzugleichen."
         NSCalendarsWriteOnlyAccessUsageDescription: "Lovea trägt gemeinsame Termine in deinen Kalender ein."
-        NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte und euren Schlaf."
+        NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte, Strecke, Etagen, Aktivität und euren Schlaf."
         NSHealthUpdateUsageDescription: "Lovea schreibt nichts in Health. Apple verlangt diesen Text trotzdem."
     settings:
       base:

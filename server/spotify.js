@@ -23,7 +23,7 @@ export function cacheGueltig(eintrag, jetztMs = Date.now()) {
 
 // Rohe currently-playing-Antwort (oder null/leer bei "nichts läuft") -> Wire-Shape (schnittstellen.md).
 export function parseAktuellerSong(json) {
-  if (!json || !json.item) return {};
+  if (!json || !json.item || json.is_playing === false) return {}; // pausiert ist kein "hört gerade"
   const item = json.item;
   return {
     titel: item.name ?? "",
@@ -31,6 +31,20 @@ export function parseAktuellerSong(json) {
     cover: item.album?.images?.[0]?.url ?? "",
     url: item.external_urls?.spotify ?? "",
   };
+}
+
+// Freigabe der Zielperson (Einstellung `spotify.teilen`), gefiltert hier auf dem Server, damit der
+// Partner nie mehr bekommt als freigegeben. Fehlend oder unbekannt = "song" (bisheriges Verhalten).
+export const STUFEN = ["aus", "musik", "kuenstler", "song"];
+
+export function nachFreigabe(daten, stufe) {
+  if (!daten?.titel) return {};
+  switch (STUFEN.includes(stufe) ? stufe : "song") {
+    case "aus": return {};
+    case "musik": return { musik: true };
+    case "kuenstler": return { musik: true, kuenstler: daten.kuenstler };
+    default: return { musik: true, ...daten };
+  }
 }
 
 // --- Netzwerk (fetchImpl austauschbar für Tests) ----------------------------

@@ -89,4 +89,19 @@ final class ColorPanelTests: XCTestCase {
 
         XCTAssertEqual(store.recent, Array(colors.reversed().prefix(8)))
     }
+
+    func testAddAppendsAndRemoveShrinks() throws {
+        let defaults = try XCTUnwrap(UserDefaults(suiteName: UUID().uuidString))
+        let store = ColorPaletteStore(person: "annika", defaults: defaults)
+        let color = RGBAColor(red: 0.1, green: 0.5, blue: 0.3)
+        store.add(color)
+        XCTAssertEqual(store.palette.count, 17)
+        XCTAssertEqual(ColorPaletteStore(person: "annika", defaults: defaults).palette.last, color)
+        store.remove(at: 16)
+        XCTAssertEqual(store.palette.count, 16)
+        store.remove(at: 2)
+        XCTAssertNil(store.palette[2])
+        store.add(color)
+        XCTAssertEqual(store.palette[2], color)
+    }
 }

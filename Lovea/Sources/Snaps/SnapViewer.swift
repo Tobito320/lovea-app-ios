@@ -18,6 +18,9 @@ struct SnapViewer: View {
     /// both to time `lange` correctly and to never mark a snap "angesehen" that never rendered.
     @State private var begonnen: Date?
     @State private var gemeldeteAufnahmeArten: Set<String> = []
+    /// "In Aufnahmen speichern" (25.09.): gleiche Logik wie das Chat-Menü.
+    @State private var speichernLaeuft = false
+    @State private var hinweis: String?
 
     private var binEmpfaenger: Bool { nachricht.von != ich }
     private var istVideo: Bool { nachricht.medien.first?.typ == "video" }
@@ -45,6 +48,7 @@ struct SnapViewer: View {
         .accessibilityAction { schliessen() }
         .accessibilityAction(.escape) { schliessen() }
         .gesture(DragGesture().onEnded { wert in if wert.translation.height > 60 { schliessen() } })
+        .overlay(alignment: .bottom) { speichernEbene }
         .task { await laden() }
         .onAppear { FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild)) }
         .onDisappear { FigurenModell.shared.zustandSenden(.init(haupt: .imChat)) }
@@ -73,13 +77,15 @@ struct SnapViewer: View {
 
     private func anzeigen(_ url: URL) async {
         if istVideo {
-            let player = AVPlayer(url: url)
+            let player = AVPlayer(url: Videobild.abspielbar(url))
             spieler = player
             player.play()
         } else {
             bild = await Bilddatei.laden(url) // decoded off the main actor (Z-16.2)
         }
         begonnen = Date() // only once it's actually on screen
+        // Snaps replay without limit; each reopening of an already viewed one tells the sender.
+        if binEmpfaenger, nachricht.snapAngesehen { ChatModell.shared.snapWiederholtSenden(nachricht.id) }
     }
 
     private func schliessen() {
@@ -106,6 +112,65 @@ struct SnapViewer: View {
         while !Task.isCancelled {
             if UIScreen.main.isCaptured { aufnahmeMelden(art: "bildschirmaufnahme") }
             try? await Task.sleep(for: .seconds(1))
+        }
+    }
+
+    @ViewBuilder private var speichernEbene: some View {
+        if bild != nil || spieler != nil {
+            VStack(spacing: 10) {
+                if let hinweis {
+                    Text(hinweis)
+                        .font(.footnote.weight(.medium))
+                        .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .glassEffect(.regular, in: .capsule)
+                        .transition(.move(edge: .bottom).combined(with: .opacity))
+                }
+                Button {
+                    Haptik.leicht()
+                    Task { await inAufnahmenSpeichern() }
+                } label: {
+                    Image(systemName: "square.and.arrow.down")
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .frame(width: 52, height: 52)
+                        .contentShape(.circle)
+                }
+                .glassEffect(.regular.interactive(), in: .circle)
+                .buttonStyle(.federnd)
+                .disabled(speichernLaeuft)
+                .accessibilityLabel("In Aufnahmen speichern")
+            }
+            .padding(.bottom, 24)
+            .task(id: hinweis) {
+                guard hinweis != nil else { return }
+                try? await Task.sleep(for: .seconds(2.5))
+                withAnimation(Feder.weich) { hinweis = nil }
+            }
+        }
+    }
+
+    /// Same logic as the chat menu's "In Aufnahmen speichern" (`ChatTab.inAufnahmenSpeichern`).
+    private func inAufnahmenSpeichern() async {
+        guard !speichernLaeuft else { return }
+        let medien = nachricht.medien.filter { $0.typ == "foto" || $0.typ == "video" }
+        guard !medien.isEmpty else { return }
+        speichernLaeuft = true
+        defer { speichernLaeuft = false }
+        do {
+            try await AufnahmenSpeichern.speichern(medien)
+            Haptik.erfolg()
+            withAnimation(Feder.weich) { hinweis = "In Aufnahmen gespeichert" }
+            let nurVideo = medien.allSatisfy { $0.typ == "video" }
+            ChatModell.shared.snapAufnahmeSenden(nachricht.id, art: nurVideo ? ChatHinweis.gespeichertVideo : ChatHinweis.gespeichertFoto)
+        } catch AufnahmenSpeichern.Fehler.keineErlaubnis {
+            Haptik.warnung()
+            withAnimation(Feder.weich) { hinweis = "Kein Zugriff auf Fotos. In den Einstellungen erlauben." }
+        } catch {
+            Haptik.warnung()
+            withAnimation(Feder.weich) { hinweis = "Speichern hat nicht geklappt" }
         }
     }
 }

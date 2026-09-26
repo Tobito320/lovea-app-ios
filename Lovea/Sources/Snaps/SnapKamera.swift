@@ -1,43 +1,130 @@
 import AVFoundation
 import CoreMedia
+import PhotosUI
 import SwiftUI
 import UIKit
 
-/// `startRunning()`/`stopRunning()` block until the camera is up or down; Apple says to call them
-/// off the main thread. One serial queue keeps start and stop in order (Z-16.2).
+/// Z-34.4: the one serial queue that owns the capture session. Configuration, start, stop, mic
+/// on/off, camera switch and recording start/stop all run here in call order, so `startRunning`
+/// never overlaps a `begin/commitConfiguration` (the build-11 crash) and a stop is never
+/// overtaken by an earlier start.
 private let sessionSchlange = DispatchQueue(label: "lovea.snap.kamera", qos: .userInitiated)
 
-/// Carries the session onto `sessionSchlange`. Only start/stop run there, and the session is
-/// documented safe to start/stop from its own queue.
-private struct SessionBox: @unchecked Sendable { let session: AVCaptureSession }
+/// Everything the capture session owns. The mutable inputs are touched only on `sessionSchlange`;
+/// the main actor only reads the three `let`s (preview layer, photo capture).
+private final class KameraSitzung: @unchecked Sendable {
+    let session = AVCaptureSession()
+    let foto = AVCapturePhotoOutput()
+    let film = AVCaptureMovieFileOutput()
+    private var kamera: AVCaptureDeviceInput?
+    private var mikro: AVCaptureDeviceInput?
 
-/// `AVCaptureSession` coordinator (Z-6.1): photo + movie file outputs, front/back, flash, zoom.
-/// Delegates fire on an AVFoundation-internal queue, not necessarily the main actor — every
-/// callback hops back explicitly, same pattern as `SprachSpieler`/`AVAudioPlayerDelegate`.
+    /// Inputs and outputs ready, not running (no camera dot). Idempotent.
+    func konfigurieren(_ position: AVCaptureDevice.Position) {
+        guard kamera == nil else { return }
+        session.beginConfiguration()
+        session.sessionPreset = .high
+        kameraSetzen(position)
+        if session.canAddOutput(foto) { session.addOutput(foto) }
+        if session.canAddOutput(film) { session.addOutput(film) }
+        session.commitConfiguration()
+    }
+
+    /// Configures if still needed, then runs. Returns once frames flow. Idempotent.
+    func starten(_ position: AVCaptureDevice.Position) {
+        konfigurieren(position)
+        if !session.isRunning { session.startRunning() }
+    }
+
+    func stoppen() {
+        mikroWeg()
+        if session.isRunning { session.stopRunning() }
+    }
+
+    func wechseln(_ position: AVCaptureDevice.Position) {
+        guard kamera != nil else { return } // not configured yet: `starten` picks up the new side
+        session.beginConfiguration()
+        kameraSetzen(position)
+        session.commitConfiguration()
+    }
+
+    /// New input first; the old one stays if the new one can't be created or added.
+    private func kameraSetzen(_ position: AVCaptureDevice.Position) {
+        guard let geraet = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
+              let neu = try? AVCaptureDeviceInput(device: geraet)
+        else { return }
+        if let alt = kamera { session.removeInput(alt) }
+        if session.canAddInput(neu) {
+            session.addInput(neu)
+            kamera = neu
+        } else if let alt = kamera {
+            session.addInput(alt)
+        }
+    }
+
+    /// Mic joins only for a video, inside its own configuration block on this queue.
+    private func mikroDazu() {
+        guard mikro == nil, let geraet = AVCaptureDevice.default(for: .audio),
+              let neu = try? AVCaptureDeviceInput(device: geraet)
+        else { return }
+        session.beginConfiguration()
+        if session.canAddInput(neu) {
+            session.addInput(neu)
+            mikro = neu
+        }
+        session.commitConfiguration()
+    }
+
+    func mikroWeg() {
+        guard let mikro else { return }
+        session.beginConfiguration()
+        session.removeInput(mikro)
+        session.commitConfiguration()
+        self.mikro = nil
+    }
+
+    /// Adds the mic, then records. false when the session can't record yet (not running, no
+    /// active video connection) — `startRecording` would throw "No active/enabled connections".
+    func aufnehmen(nach ziel: URL, delegate: any AVCaptureFileOutputRecordingDelegate) -> Bool {
+        guard session.isRunning, let verbindung = film.connection(with: .video), verbindung.isActive else { return false }
+        mikroDazu()
+        // App is portrait-only but a connection defaults to landscape (angle 0).
+        if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
+        film.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
+        film.startRecording(to: ziel, recordingDelegate: delegate)
+        return true
+    }
+}
+
+/// `AVCaptureSession` coordinator (Z-6.1, Z-34.4): photo + movie outputs, front/back, flash, zoom.
+/// The main actor keeps UI state (flags, zoom, position); every session call goes through
+/// `sessionSchlange`. Delegates fire on an AVFoundation queue and hop back to the main actor.
 @MainActor
 @Observable
 final class SnapKameraSteuerung: NSObject {
-    let session = AVCaptureSession()
-    private let photoOutput = AVCapturePhotoOutput()
-    private let movieOutput = AVCaptureMovieFileOutput()
-    private var eingang: AVCaptureDeviceInput?
-    private var position: AVCaptureDevice.Position = .back
+    private let sitzung = KameraSitzung()
+    /// For the preview layer, set once; it shows frames as soon as the session runs.
+    var session: AVCaptureSession { sitzung.session }
 
     private(set) var laeuft = false
+    /// True once `startRunning` returned (frames flow); the preview fades in on it.
+    private(set) var bildDa = false
+    private var vorbereitet = false
     private(set) var nimmtVideoAuf = false
     private(set) var videoFortschritt: Double = 0 // 0...1 of the 30s cap
     var blitzAn = false
     private(set) var zoom: CGFloat = 1
 
+    private var position: AVCaptureDevice.Position = .back
+    /// Main-actor handle on the active camera for zoom and torch (device settings, not session calls).
+    private var geraet: AVCaptureDevice?
     private var fotoContinuation: CheckedContinuation<UIImage?, Never>?
     private var videoContinuation: CheckedContinuation<URL?, Never>?
     private var fortschrittTask: Task<Void, Never>?
     private var aufnahmeStart: Date?
-    private var audioEingang: AVCaptureDeviceInput?
 
-    /// Shared instance (Z-26.5): the conversation prewarms this ahead of time, `SnapKameraView`
-    /// then reuses the already-running session instead of a fresh one, so the first real open has
-    /// nothing left to wait for.
+    /// Shared instance (Z-26.5): the conversation configures it ahead of time, `SnapKameraView`
+    /// reuses that session and only has to start it running.
     static let geteilt = SnapKameraSteuerung()
 
     // MARK: - Warm hold (Z-26.5)
@@ -47,9 +134,9 @@ final class SnapKameraSteuerung: NSObject {
 
     /// Ref-counted: the conversation view and the camera view each call this on appear/`loslassen()`
     /// on disappear. Needed because a `fullScreenCover` opening over the conversation re-fires ITS
-    /// `onDisappear` too (see ChatTab.swift's `Unterhaltung`, same discovery) — without the counter
-    /// and the grace period in `loslassen()`, that transition would stop the very session the camera
-    /// view is about to reuse.
+    /// `onDisappear` too — without the counter and the grace period in `loslassen()`, that
+    /// transition could stop the session the camera view is just starting. The camera closing itself
+    /// stops at once (`kameraVerlassen()`); the hold only covers these hand-overs.
     func halten() {
         haltungen += 1
         abkuehlTask?.cancel()
@@ -66,109 +153,61 @@ final class SnapKameraSteuerung: NSObject {
         }
     }
 
-    /// Configures the session ahead of time, once the chat becomes visible (Z-26.5) — silent: no
-    /// permission prompt (that would pop the camera dialog just from opening the chat), so this
-    /// only fires once the OS already granted access. `start()` still runs the real (possibly
-    /// prompting) setup the moment the camera UI actually opens; if this already warmed the
-    /// session, that call is then a no-op besides the figure-state signal.
-    // Configures only, never runs: a running session keeps the green camera indicator on (and
-    // drains battery) for as long as the chat is open. The expensive part is the configuration.
+    /// Z-34.4: configures the session (inputs and outputs, the slow part) as soon as the chat is
+    /// visible, but does not run it: no green camera dot while chatting. Silent: only once access
+    /// was granted, never a prompt just from opening the chat. Idempotent.
     func vorwaermen() async {
-        guard !konfiguriert, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
-        konfigurieren()
-        konfiguriert = true
+        guard !vorbereitet, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
+        vorbereitet = true
+        let sitzung = sitzung, position = position
+        sessionSchlange.async { sitzung.konfigurieren(position) }
     }
 
-    /// Full open (Z-6.1, possibly prompting): reuses an already-warm session as-is, then always
-    /// makes sure the mic input is present (added here, not just during recording — matches the
-    /// pre-Z-26.5 behavior of setting it up at camera-open time) before signaling `.kamera`.
+    /// Camera UI opening (Z-6.1): may prompt, then runs the (usually already configured) session.
     func start() async {
-        if !laeuft {
-            if !konfiguriert {
-                guard await berechtigung() else { return }
-                konfigurieren()
-                konfiguriert = true
-            }
-            // All configuration BEFORE startRunning: a begin/commitConfiguration on the main thread
-            // while startRunning runs on `sessionSchlange` throws NSGenericException (crash).
-            if audioEingang == nil {
-                session.beginConfiguration()
-                einrichtenAudioEingang()
-                session.commitConfiguration()
-            }
-            laeuft = true
-            startLaeuft = true
-            let box = SessionBox(session: session)
-            await withCheckedContinuation { (fertig: CheckedContinuation<Void, Never>) in
-                sessionSchlange.async {
-                    box.session.startRunning()
-                    fertig.resume()
-                }
-            }
-            startLaeuft = false
-            if stopNachStart {
-                stopNachStart = false
-                stop()
-                return
-            }
-        } else if audioEingang == nil, !startLaeuft {
-            session.beginConfiguration()
-            einrichtenAudioEingang()
-            session.commitConfiguration()
-        }
+        // After the prompt: only if the camera is still wanted, else this start would land after a stop.
+        guard await berechtigung(), !Task.isCancelled, haltungen > 0 else { return }
+        laufenLassen()
         FigurenModell.shared.zustandSenden(.init(haupt: .kamera))
     }
 
-    private var konfiguriert = false
-    private var startLaeuft = false
-    private var stopNachStart = false
-
-    private func konfigurieren() {
-        session.beginConfiguration()
-        session.sessionPreset = .high
-        einrichtenEingang(position: position)
-        if session.canAddOutput(photoOutput) { session.addOutput(photoOutput) }
-        if session.canAddOutput(movieOutput) { session.addOutput(movieOutput) }
-        session.commitConfiguration()
+    private func laufenLassen() {
+        guard !laeuft else { return }
+        laeuft = true
+        vorbereitet = true
+        if geraet == nil { geraet = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position) }
+        let sitzung = sitzung, position = position
+        sessionSchlange.async {
+            sitzung.starten(position)
+            Task { @MainActor in self.bildBereit() }
+        }
     }
 
-    /// The camera UI itself closing (Z-6.1/Z-26.5), as opposed to the session merely staying warm
-    /// in the background while the conversation still holds it: removes the mic right away (a warm
-    /// session sitting in chat must never keep recording audio) and signals `.imChat` immediately,
-    /// instead of waiting for `loslassen()`'s grace period to eventually `stop()` the session.
+    /// A stop requested meanwhile wins: the queue already stopped the session again.
+    private func bildBereit() {
+        guard laeuft else { return }
+        bildDa = true
+    }
+
+    /// The camera UI closing: the session stops right away (camera dot off, mic gone) and
+    /// `.imChat` is signaled. The configuration stays, so the next open only has to start running.
     func kameraVerlassen() {
-        entferneAudioEingang()
+        stop()
         FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
         loslassen()
     }
 
-    /// Only ever stops the session itself — no figure-state signal, so a warm session that outlives
-    /// the camera UI (still just sitting in an open chat) never tells the partner "im Chat" again on
-    /// a timer; `kameraVerlassen()` already sent that the moment the camera UI actually closed.
+    /// Stops running (mic removed first); the configuration stays. No figure-state signal.
     func stop() {
         guard laeuft else { return }
-        // A stop during a pending startRunning would reconfigure mid-start (same crash); defer it.
-        if startLaeuft {
-            stopNachStart = true
-            return
-        }
         laeuft = false
-        entferneAudioEingang() // belt-and-suspenders: a full stop must never leave a stale mic input
-        let box = SessionBox(session: session)
-        sessionSchlange.async { box.session.stopRunning() }
+        bildDa = false
+        let sitzung = sitzung
+        sessionSchlange.async { sitzung.stoppen() }
     }
 
-    private func entferneAudioEingang() {
-        guard let audioEingang else { return }
-        session.beginConfiguration()
-        session.removeInput(audioEingang)
-        session.commitConfiguration()
-        self.audioEingang = nil
-    }
-
-    /// Camera access is required; microphone (Z-6.1 videos have sound) is requested too but a "no"
-    /// there doesn't block the camera itself — it just records silent video, same as the system
-    /// Camera app does when mic access is denied.
+    /// Camera is required; the mic (videos have sound) is asked too, but a "no" only means silent
+    /// video, like the system Camera app.
     private func berechtigung() async -> Bool {
         let kamera = await berechtigungFuer(.video)
         _ = await berechtigungFuer(.audio)
@@ -183,54 +222,27 @@ final class SnapKameraSteuerung: NSObject {
         }
     }
 
-    private func einrichtenEingang(position: AVCaptureDevice.Position) {
-        if let eingang { session.removeInput(eingang) }
-        guard let geraet = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position),
-              let neuerEingang = try? AVCaptureDeviceInput(device: geraet),
-              session.canAddInput(neuerEingang)
-        else { return }
-        session.addInput(neuerEingang)
-        eingang = neuerEingang
-        self.position = position
-        zoom = 1
-    }
-
-    private func einrichtenAudioEingang() {
-        guard let geraet = AVCaptureDevice.default(for: .audio),
-              let eingang = try? AVCaptureDeviceInput(device: geraet),
-              session.canAddInput(eingang)
-        else { return }
-        session.addInput(eingang)
-        audioEingang = eingang
-    }
-
     func kameraWechseln() {
-        session.beginConfiguration()
-        einrichtenEingang(position: position == .back ? .front : .back)
-        session.commitConfiguration()
+        position = position == .back ? .front : .back
+        geraet = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: position)
+        zoom = 1
+        let sitzung = sitzung, position = position
+        sessionSchlange.async { sitzung.wechseln(position) }
     }
 
     func zoomSetzen(_ wert: CGFloat) {
-        guard let geraet = eingang?.device else { return }
+        guard let geraet, (try? geraet.lockForConfiguration()) != nil else { return }
         let ziel = min(max(wert, geraet.minAvailableVideoZoomFactor), min(geraet.maxAvailableVideoZoomFactor, 8))
-        try? geraet.lockForConfiguration()
         geraet.videoZoomFactor = ziel
         geraet.unlockForConfiguration()
         zoom = ziel
     }
 
-    /// App is locked to portrait (`project.yml`) but a capture connection defaults to landscape
-    /// (rotation angle 0) — without this, every photo/video comes out sideways.
-    private func aufAufrechtAusrichten(_ verbindung: AVCaptureConnection?) {
-        guard let verbindung, verbindung.isVideoRotationAngleSupported(90) else { return }
-        verbindung.videoRotationAngle = 90
-    }
-
-    /// The front camera has no flash — `capturePhoto` throws if `flashMode` isn't one of
-    /// `supportedFlashModes`, so this checks rather than assuming `.on` always works.
+    /// The front camera has no torch; setting a mode without the device lock would throw.
     private func taschenlampeSchalten(an: Bool) {
-        guard let geraet = eingang?.device, geraet.hasTorch, geraet.isTorchModeSupported(an ? .on : .off) else { return }
-        try? geraet.lockForConfiguration()
+        guard let geraet, geraet.hasTorch, geraet.isTorchModeSupported(an ? .on : .off),
+              (try? geraet.lockForConfiguration()) != nil
+        else { return }
         geraet.torchMode = an ? .on : .off
         geraet.unlockForConfiguration()
     }
@@ -238,39 +250,63 @@ final class SnapKameraSteuerung: NSObject {
     // MARK: - Foto (Z-6.1: Tippen)
 
     func fotoAufnehmen() async -> UIImage? {
-        aufAufrechtAusrichten(photoOutput.connection(with: .video))
+        // A tap before the first frames (first open, mid camera switch) would throw inside
+        // `capturePhoto`; a second tap while one is in flight would drop its continuation.
+        guard fotoContinuation == nil, let verbindung = sitzung.foto.connection(with: .video), verbindung.isActive else { return nil }
+        if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
         return await withCheckedContinuation { continuation in
             fotoContinuation = continuation
             let einstellungen = AVCapturePhotoSettings()
-            einstellungen.flashMode = blitzAn && photoOutput.supportedFlashModes.contains(.on) ? .on : .off
-            photoOutput.capturePhoto(with: einstellungen, delegate: self)
+            einstellungen.flashMode = blitzAn && sitzung.foto.supportedFlashModes.contains(.on) ? .on : .off
+            sitzung.foto.capturePhoto(with: einstellungen, delegate: self)
         }
     }
 
     // MARK: - Video (Z-6.1: Halten, bis zu 30 s)
 
     func videoStarten() async -> URL? {
-        aufAufrechtAusrichten(movieOutput.connection(with: .video))
+        guard !nimmtVideoAuf else { return nil }
         if blitzAn { taschenlampeSchalten(an: true) }
-        movieOutput.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
+        nimmtVideoAuf = true
+        aufnahmeStart = Date()
+        fortschrittTask = Task { [weak self] in
+            while let self, self.nimmtVideoAuf, !Task.isCancelled {
+                self.videoFortschritt = min(Date().timeIntervalSince(self.aufnahmeStart ?? Date()) / 30, 1)
+                try? await Task.sleep(for: .seconds(0.05))
+            }
+        }
+        let ziel = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
         return await withCheckedContinuation { continuation in
             videoContinuation = continuation
-            let ziel = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
-            nimmtVideoAuf = true
-            aufnahmeStart = Date()
-            movieOutput.startRecording(to: ziel, recordingDelegate: self)
-            fortschrittTask = Task { [weak self] in
-                while let self, self.nimmtVideoAuf, !Task.isCancelled {
-                    self.videoFortschritt = min(Date().timeIntervalSince(self.aufnahmeStart ?? Date()) / 30, 1)
-                    try? await Task.sleep(for: .seconds(0.05))
+            let sitzung = sitzung
+            sessionSchlange.async {
+                guard sitzung.aufnehmen(nach: ziel, delegate: self) else {
+                    Task { @MainActor in self.aufnahmeBeendet(nil) }
+                    return
                 }
             }
         }
     }
 
+    /// Through the queue too: a quick release right after the hold must not stop before the
+    /// queued start ran (the recording would then run to the 30 s cap).
     func videoStoppen() {
         guard nimmtVideoAuf else { return }
-        movieOutput.stopRecording()
+        let sitzung = sitzung
+        sessionSchlange.async { sitzung.film.stopRecording() }
+    }
+
+    /// Recording finished (or never started). The mic leaves only now, so the end of the audio
+    /// isn't cut off.
+    private func aufnahmeBeendet(_ url: URL?) {
+        nimmtVideoAuf = false
+        fortschrittTask?.cancel()
+        videoFortschritt = 0
+        taschenlampeSchalten(an: false)
+        let sitzung = sitzung
+        sessionSchlange.async { sitzung.mikroWeg() }
+        videoContinuation?.resume(returning: url)
+        videoContinuation = nil
     }
 }
 
@@ -289,14 +325,7 @@ extension SnapKameraSteuerung: AVCaptureFileOutputRecordingDelegate {
         // Hitting `maxRecordedDuration` (our 30s cap) itself reports a non-nil error even though the
         // file is complete and valid — only treat every OTHER error as an actual failure.
         let erfolgreich = error == nil || (error as? AVError)?.code == .maximumDurationReached
-        Task { @MainActor in
-            nimmtVideoAuf = false
-            fortschrittTask?.cancel()
-            videoFortschritt = 0
-            taschenlampeSchalten(an: false)
-            videoContinuation?.resume(returning: erfolgreich ? outputFileURL : nil)
-            videoContinuation = nil
-        }
+        Task { @MainActor in aufnahmeBeendet(erfolgreich ? outputFileURL : nil) }
     }
 }
 
@@ -328,12 +357,14 @@ struct SnapKameraView: View {
     let onVideo: (URL) -> Void
     let onAbbrechen: () -> Void
 
-    // Z-26.5: the conversation's own shared instance — reused so a prewarmed session is already
-    // running by the time this view appears.
+    // Z-26.5/Z-34.4: the conversation's shared instance, already configured, so this view only
+    // has to start it running.
     @State private var steuerung = SnapKameraSteuerung.geteilt
     @State private var modus: Modus = .ruhe
     @State private var zoomStart: CGFloat = 1
     @State private var haltTask: Task<Void, Never>?
+    @State private var galerieAuswahl: PhotosPickerItem?
+    @State private var galerieLaedt = false
 
     private enum Modus { case ruhe, haltend }
 
@@ -341,6 +372,8 @@ struct SnapKameraView: View {
         ZStack {
             KameraVorschau(session: steuerung.session)
                 .ignoresSafeArea()
+                .opacity(steuerung.bildDa ? 1 : 0) // fades in with the first frames, no black flash
+                .animation(Feder.weich, value: steuerung.bildDa)
                 .gesture(
                     MagnificationGesture()
                         .onChanged { wert in steuerung.zoomSetzen(zoomStart * wert) }
@@ -377,7 +410,61 @@ struct SnapKameraView: View {
         .padding()
     }
 
+    /// Gallery button left of the shutter, nothing on the right so the shutter stays centred.
     private var untereLeiste: some View {
+        HStack {
+            galerieKnopf.frame(maxWidth: .infinity)
+            ausloeser
+            Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+        }
+        .padding(.bottom, 40)
+    }
+
+    /// A photo or video from the gallery goes through the same editor and snap path as a capture.
+    private var galerieKnopf: some View {
+        PhotosPicker(selection: $galerieAuswahl, matching: .any(of: [.images, .videos])) {
+            Group {
+                if galerieLaedt {
+                    ProgressView().tint(.white)
+                } else {
+                    Image(systemName: "photo.on.rectangle")
+                }
+            }
+            .font(.title2)
+            .foregroundStyle(.white)
+            .frame(width: 52, height: 52)
+            .background(.black.opacity(0.35), in: .rect(cornerRadius: 14))
+        }
+        .disabled(galerieLaedt || steuerung.nimmtVideoAuf)
+        .accessibilityLabel("Foto oder Video aus der Galerie")
+        .onChange(of: galerieAuswahl) { _, item in galerieLaden(item) }
+    }
+
+    private func galerieLaden(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        galerieLaedt = true
+        Task {
+            defer {
+                galerieLaedt = false
+                galerieAuswahl = nil
+            }
+            let video = try? await item.loadTransferable(type: VideoDatei.self)
+            var daten: Data?
+            if video == nil { daten = try? await item.loadTransferable(type: Data.self) }
+            switch SnapGalerie.inhalt(videoURL: video?.url, bildDaten: daten) {
+            case .foto(let bild)?:
+                Haptik.leicht()
+                onFoto(bild)
+            case .video(let url)?:
+                Haptik.leicht()
+                onVideo(url)
+            case nil:
+                Haptik.warnung()
+            }
+        }
+    }
+
+    private var ausloeser: some View {
         ZStack {
             Circle().stroke(.white.opacity(0.4), lineWidth: 4).frame(width: 76, height: 76)
             Circle()
@@ -404,7 +491,6 @@ struct SnapKameraView: View {
         // `onLongPressGesture`'s `maximumDistance` cancels the whole press once the same finger
         // drags past it, which is exactly what dragging up to zoom while holding does.
         .gesture(shutterGeste)
-        .padding(.bottom, 40)
     }
 
     private var shutterGeste: some Gesture {
@@ -416,7 +502,7 @@ struct SnapKameraView: View {
                     haltTask = Task {
                         try? await Task.sleep(for: .milliseconds(300))
                         guard modus == .haltend, !steuerung.nimmtVideoAuf else { return } // released early → tap
-                        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+                        Haptik.mittel()
                         if let url = await steuerung.videoStarten() { onVideo(url) }
                     }
                 }
@@ -432,11 +518,20 @@ struct SnapKameraView: View {
                     return
                 }
                 haltTask?.cancel()
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                Haptik.leicht()
                 Task {
                     if let bild = await steuerung.fotoAufnehmen() { onFoto(bild) }
                 }
             }
+    }
+}
+
+/// Gallery pick → the same editor input as a camera capture: a video wins, else a decodable photo.
+enum SnapGalerie {
+    static func inhalt(videoURL: URL?, bildDaten: Data?) -> SnapInhalt? {
+        if let videoURL { return .video(videoURL) }
+        if let bildDaten, let bild = UIImage(data: bildDaten) { return .foto(bild) }
+        return nil
     }
 }
 

@@ -133,7 +133,7 @@ struct SpielBuehne: View {
 
     private func spieler(_ p: Person, name: String, da: Bool) -> some View {
         VStack(spacing: 4) {
-            FigurView(FigurenModell.shared.aussehen(p), zustand: da ? .spielt : .offline, groesse: 72)
+            FigurView(FigurenModell.shared.aussehen(p), zustand: da ? .spielt : .offline, groesse: 72, bildrate: 20)
             Text(name).font(.caption.weight(.semibold))
         }
     }

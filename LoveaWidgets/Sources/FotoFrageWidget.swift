@@ -13,6 +13,7 @@ struct FotoFrageWidget: Widget {
         .configurationDisplayName("Foto und Frage")
         .description("Letztes Foto des Partners und die Frage des Tages.")
         .supportedFamilies([.systemLarge])
+        .contentMarginsDisabled() // photo runs edge to edge; the question pads itself
     }
 }
 
@@ -23,16 +24,17 @@ private struct FotoFrageView: View {
         ZStack(alignment: .bottom) {
             FotoHintergrund(bild: entry.partnerFoto)
             if let frage = entry.stand.frageDesTages {
-                Text(frage)
-                    .font(.callout).bold()
-                    .foregroundStyle(.white)
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(.black.opacity(0.55))
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("FRAGE DES TAGES").font(.caption2.weight(.semibold)).foregroundStyle(.white.opacity(0.8))
+                    Text(frage).font(.title3.weight(.semibold)).fontDesign(.rounded).foregroundStyle(.white)
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(LinearGradient(colors: [.clear, .black.opacity(0.6)], startPoint: .top, endPoint: .bottom))
             }
         }
         .widgetURL(URL(string: "lovea://chat"))
-        .containerBackground(.background, for: .widget)
+        .widgetHintergrund(WidgetStil.rose)
     }
 }
 
@@ -43,7 +45,7 @@ private struct FotoHintergrund: View {
             Image(uiImage: bild).resizable().scaledToFill()
         } else {
             ZStack {
-                Rectangle().fill(Color.secondary.opacity(0.2))
+                LinearGradient(colors: [WidgetStil.rose.opacity(0.35), WidgetStil.rose.opacity(0.1)], startPoint: .topLeading, endPoint: .bottomTrailing)
                 Image(systemName: "photo").font(.largeTitle).foregroundStyle(.secondary)
             }
         }
