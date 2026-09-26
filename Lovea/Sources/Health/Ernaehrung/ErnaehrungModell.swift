@@ -29,12 +29,15 @@ final class ErnaehrungModell {
     func fasten(_ p: Person) -> FastenD? { faltung.fasten(p) }
     func offline(barcode: String) -> Lebensmittel? { faltung.lebensmittel(barcode: barcode, ich) }
 
+    /// Nie eingerichtet: aus dem Gewicht geschätzt (Standardwerte für den Rest), ohne Fragebogen.
     func ziele(_ p: Person) -> ErnaehrungsZiele {
         var z = ErnaehrungsZiele()
         for feld in ErnaehrungsZiele.felder {
             if let w = HealthModell.shared.ziel("ziel.ernaehrung.\(feld)", p) { z.setzen(feld, w) }
         }
-        return z
+        guard !z.eingerichtet else { return z }
+        if p == .annika && HealthModell.shared.ziel("ziel.ernaehrung.geschlecht", p) == nil { z.geschlecht = 1 }
+        return ErnaehrungLogik.berechnet(z, kg: gewichtKg(p) ?? (z.geschlecht == 1 ? 62 : 78))
     }
 
     /// Neuestes Gewicht aus dem Gewicht-Habit, nil wenn nie eingetragen.

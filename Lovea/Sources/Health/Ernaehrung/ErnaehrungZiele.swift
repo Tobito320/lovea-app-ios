@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Ziele einrichten oder ändern (Teil 5): Körperdaten, Aktivität, Richtung/Tempo, Makro-Profil,
-/// Vorschau der berechneten Werte, optional eigene Werte, Fasten.
+/// Vorschau der berechneten Werte, optional eigene Werte.
 struct ErnaehrungZieleView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var z: ErnaehrungsZiele
@@ -70,16 +70,6 @@ struct ErnaehrungZieleView: View {
                 }
                 vorschauSection
                 eigeneWerteSection
-                Section("Fasten") {
-                    Picker("Fastenfenster", selection: $z.fastenStunden) {
-                        Text("Aus").tag(0)
-                        Text("12:12").tag(12)
-                        Text("14:10").tag(14)
-                        Text("16:8").tag(16)
-                        Text("18:6").tag(18)
-                        Text("20:4").tag(20)
-                    }
-                }
             }
             .navigationTitle("Ziele")
             .navigationBarTitleDisplayMode(.inline)

@@ -31,8 +31,13 @@ struct HinzufuegenBlatt: View {
     private var modell: ErnaehrungModell { ErnaehrungModell.shared }
     private var ich: Person { modell.ich }
 
-    init(mahlzeit: Mahlzeit, datum: String) {
+    /// `scannen`: öffnet sofort die Kamera (Barcode-Knopf im Tagebuch).
+    private let sofortScannen: Bool
+    @State private var sofortErledigt = false
+
+    init(mahlzeit: Mahlzeit, datum: String, scannen: Bool = false) {
         self.datum = datum
+        self.sofortScannen = scannen
         _mahlzeit = State(initialValue: mahlzeit)
     }
 
@@ -63,6 +68,12 @@ struct HinzufuegenBlatt: View {
                     }
                 }
                 .animation(Feder.weich, value: hinweis)
+        }
+        .fontDesign(.rounded)
+        .onAppear {
+            guard sofortScannen, !sofortErledigt else { return }
+            sofortErledigt = true
+            barcodeOffen = true
         }
         .sheet(isPresented: $barcodeOffen, onDismiss: scannerZu) {
             BarcodeScannerBlatt { code in gescannt = code }

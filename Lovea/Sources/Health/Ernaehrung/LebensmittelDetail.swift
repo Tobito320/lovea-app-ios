@@ -13,6 +13,7 @@ struct LebensmittelDetailView: View {
     @State private var text: String
     @State private var einheit: Einheit
     @State private var loeschenFragen = false
+    @State private var alleWerte = false
 
     private var modell: ErnaehrungModell { ErnaehrungModell.shared }
 
@@ -71,6 +72,12 @@ struct LebensmittelDetailView: View {
             ToolbarItem(placement: .primaryAction) { favoritKnopf }
         }
         .safeAreaInset(edge: .bottom) { aktionen }
+        .fontDesign(.rounded)
+        .sheet(isPresented: $alleWerte) {
+            NaehrwerteBlatt(titel: lebensmittel.anzeigeName,
+                            untertitel: ErnaehrungLogik.mengeText(menge ?? 0, einheit, lebensmittel),
+                            werte: naehrwerte, lebensmittel: lebensmittel)
+        }
     }
 
     private var favoritKnopf: some View {
@@ -127,19 +134,19 @@ struct LebensmittelDetailView: View {
                 Text("kcal").font(.subheadline).foregroundStyle(.secondary)
             }
             HStack {
-                makro("Protein", n.protein)
                 makro("Kohlenhydrate", n.kohlenhydrate)
+                makro("Eiweiß", n.protein)
                 makro("Fett", n.fett)
             }
-            VStack(spacing: 0) {
-                if let zucker = n.zucker { detailZeile("Zucker", zucker) }
-                if let ballaststoffe = n.ballaststoffe { detailZeile("Ballaststoffe", ballaststoffe) }
-                if let salz = n.salz { detailZeile("Salz", salz) }
-                if let gesFett = n.gesFett { detailZeile("davon gesättigt", gesFett) }
+            Button { alleWerte = true } label: {
+                HStack(spacing: 4) {
+                    Text("Mehr sehen")
+                    Image(systemName: "chevron.right").font(.footnote.weight(.bold))
+                }
+                .font(.subheadline.weight(.semibold))
+                .frame(minHeight: 44)
             }
-            Text("Pro 100 \(lebensmittel.basisEinheit.rawValue): \(Int(lebensmittel.pro100.kcal.rounded())) kcal")
-                .font(.caption)
-                .foregroundStyle(.tertiary)
+            .buttonStyle(.borderless)
         }
     }
 
@@ -149,15 +156,6 @@ struct LebensmittelDetailView: View {
             Text(titel).font(.caption2).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
-    }
-
-    private func detailZeile(_ titel: String, _ wert: Double) -> some View {
-        HStack {
-            Text(titel).font(.footnote).foregroundStyle(.secondary)
-            Spacer()
-            Text("\(ErnaehrungLogik.zahl(wert)) g").font(.footnote).monospacedDigit()
-        }
-        .padding(.vertical, 4)
     }
 
     private var aktionen: some View {
