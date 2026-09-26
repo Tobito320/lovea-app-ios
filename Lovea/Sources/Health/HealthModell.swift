@@ -212,7 +212,7 @@ final class HealthModell {
         case "ziel.wasser": HealthLogik.zielAufnehmen(&zielWasserAenderungen[op.von, default: []], aenderung)
         case "ziel.gemeinsamWoche": HealthLogik.zielAufnehmen(&zielGemeinsamWocheAenderungen, aenderung)
         default:
-            guard d.schluessel.hasPrefix("ziel.saetze.") || d.schluessel.hasPrefix("ziel.prio.") else { break }
+            guard d.schluessel.hasPrefix("ziel.saetze.") || d.schluessel.hasPrefix("ziel.prio.") || d.schluessel.hasPrefix("ziel.ernaehrung.") else { break }
             HealthLogik.zielAufnehmen(&zielAndere[op.von, default: [:]][d.schluessel, default: []], aenderung)
         }
     }
