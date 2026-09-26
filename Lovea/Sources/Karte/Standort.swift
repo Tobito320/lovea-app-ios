@@ -112,32 +112,37 @@ final class Standort: NSObject {
     }
 
     private func liveSetzen(_ an: Bool) {
+        if an, live { liveEndeStellen(); return } // the viewer is still looking: extend
         guard an != live else { return }
         live = an
         liveTask?.cancel()
         liveEnde?.cancel()
         guard an else { liveTask = nil; liveEnde = nil; return }
-        // The stream can go quiet (standing still) and never reach its own end check; without this a
-        // lost `an: false` kept GPS on for good.
-        liveEnde = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(600))
-            guard !Task.isCancelled else { return }
-            self?.liveSetzen(false)
-        }
+        liveEndeStellen()
         liveTask = Task { @MainActor [weak self] in
             // ponytail: unsure of the exact throwing/async shape of `CLLocationUpdate.liveUpdates()`
             // on iOS 26 (no local compiler to check) - see block-8-report.md. `.default` accuracy
             // is used instead of a named high-accuracy configuration for the same reason.
-            let ende = Date().addingTimeInterval(600)
-            // The stream can go quiet (standing still) and never reach the check below; without this
-            // a lost `an: false` kept GPS on forever.
             do {
                 for try await update in CLLocationUpdate.liveUpdates() {
-                    guard let self, !Task.isCancelled, self.live, Date() < ende else { break }
+                    guard let self, !Task.isCancelled, self.live else { break }
                     if let ort = update.location { await self.melden(ort) }
                 }
             } catch {}
             self?.live = false
+        }
+    }
+
+    /// Live GPS ends 180 s after the last `an: true`; the viewer re-sends every 150 s
+    /// (`partnerStandortLive`). A lost `an: false` (we're in the background, no socket to hear it)
+    /// now costs at most 3 min of GPS instead of 10. A task, not a check in the stream: standing
+    /// still, the stream goes quiet and would never reach its own end check.
+    private func liveEndeStellen() {
+        liveEnde?.cancel()
+        liveEnde = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(180))
+            guard !Task.isCancelled else { return }
+            self?.liveSetzen(false)
         }
     }
 

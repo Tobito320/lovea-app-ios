@@ -15,7 +15,6 @@ private struct PersonAuswahl: Identifiable {
 /// over satellite.
 struct KarteTab: View {
     var schliessen: (() -> Void)?
-    @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var kamera: MapCameraPosition = .automatic
     /// Z-41.3: the camera as it really is (after pans, pinches, rotation), read back through
@@ -41,7 +40,6 @@ struct KarteTab: View {
             .task {
                 Standort.shared.start()
                 FigurenModell.shared.zustandSenden(.init(haupt: .karte))
-                Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: true))
                 SpotifyModell.shared.schauen() // Z-27.6: Spec 9 "nur wenn der Partner hinschaut"
             }
             .task(id: partnerDaten?.lat) {
@@ -50,12 +48,9 @@ struct KarteTab: View {
             }
             .onDisappear {
                 Anwesenheit.shared.appEnde(.karte)
-                Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false))
                 SpotifyModell.shared.wegschauen()
             }
-            .onChange(of: scenePhase) { _, phase in
-                if phase != .active { Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false)) }
-            }
+            .partnerStandortLive()
     }
 
     /// Satellite imagery and the night (20-7 Uhr Berlin) both get the dark appearance: dark map,
@@ -328,6 +323,32 @@ private extension View {
 }
 
 struct KarteOffenAn: Encodable { let an: Bool }
+
+extension View {
+    /// Keeps the partner's live location on while this screen is visible and the app is active
+    /// (map, partner profile). Re-sent every 150 s because the partner's GPS stops on its own after
+    /// 180 s (`Standort.liveEndeStellen`) when our `an: false` can't reach it.
+    func partnerStandortLive() -> some View { modifier(PartnerStandortLive()) }
+}
+
+private struct PartnerStandortLive: ViewModifier {
+    @Environment(\.scenePhase) private var scenePhase
+
+    func body(content: Content) -> some View {
+        content
+            .task(id: scenePhase == .active) {
+                guard scenePhase == .active else {
+                    Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false))
+                    return
+                }
+                while !Task.isCancelled {
+                    Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: true))
+                    try? await Task.sleep(for: .seconds(150))
+                }
+            }
+            .onDisappear { Raum.shared.fluechtig("karte.offen", KarteOffenAn(an: false)) }
+    }
+}
 
 /// One person on the map (Z-41.1): the figure standing on its spot, the Snap-style label
 /// "Name · Akku · vor 5 min" underneath (content layer: material, not glass), and - for the partner -
