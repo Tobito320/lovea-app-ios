@@ -314,7 +314,7 @@ private struct Schraffur: Shape {
 // MARK: - Ziele und Gewichtsblatt
 
 private enum HeuteZiel: Hashable {
-    case schritte, schlaf, habits, habit(String), punkte, ernaehrung
+    case schritte, schlaf, habits, habit(String), punkte, ernaehrung, training, koerper, verlauf
 }
 
 private struct StimmungSetzen: Codable { var datum: String; var stimmung: String }
@@ -361,8 +361,10 @@ private struct GewichtBlatt: View {
 
 // MARK: - Tab
 
+/// Der Health-Tab (Ahmed, 27.09.: ein Health statt vier Tabs). Training, Körper, Verlauf, Schritte, Food und
+/// Schlaf öffnen sich als Seiten im selben Stapel.
 struct HeuteView: View {
-    @State private var pfad: [HeuteZiel] = []
+    @State private var pfad = NavigationPath()
     @State private var gewichtOffen = false
     @State private var offeneHinweise: Set<String> = []
     @Namespace private var zoom
@@ -380,6 +382,7 @@ struct HeuteView: View {
                     kopf
                     TagesformKarte(person: ich, form: tagesform)
                     abschnitt("Dein Tag") { raster }
+                    abschnitt("Training und Körper") { kaesten }
                     abschnitt("Das fällt mir auf") { hinweisListe }
                     punkteZeile
                 }
@@ -387,19 +390,37 @@ struct HeuteView: View {
             }
             .toolbar(.hidden, for: .navigationBar)
             .navigationDestination(for: HeuteZiel.self) { ansicht($0) }
+            .navigationDestination(for: HealthZiel.self) { HealthZielAnsicht(ziel: $0) }
+            .navigationDestination(for: VerlaufZiel.self) { ziel in VerlaufZielSeite(ziel: ziel) { pfad.append($0) } }
             .sheet(isPresented: $gewichtOffen) {
                 GewichtBlatt(start: gewichte.last.map { komma(Double($0.zehntel) / 10) } ?? "") {
                     health.setzeHabit(Habit.gewicht.id, datum: heute, wert: $0)
                 }
             }
         }
-        .onAppear { health.sicherstellen() }
+        .onAppear {
+            health.sicherstellen()
+            seiteAusWunsch()
+        }
+        .onChange(of: AppNavigation.shared.healthSeite) { _, _ in seiteAusWunsch() }
+    }
+
+    /// Sprung von außen ("training", "koerper", "verlauf"), z. B. aus der Körper-Seite oder Home.
+    private func seiteAusWunsch() {
+        guard let wunsch = AppNavigation.shared.healthSeite else { return }
+        AppNavigation.shared.healthSeite = nil
+        switch wunsch {
+        case "training": pfad.append(HeuteZiel.training)
+        case "koerper": pfad.append(HeuteZiel.koerper)
+        case "verlauf": pfad.append(HeuteZiel.verlauf)
+        default: break
+        }
     }
 
     private var kopf: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(Datum.anzeige(heute).uppercased()).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-            Text("Heute").font(.largeTitle.bold())
+            Text("Health").font(.largeTitle.bold())
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isHeader)
@@ -415,17 +436,60 @@ struct HeuteView: View {
     @ViewBuilder
     private func ansicht(_ ziel: HeuteZiel) -> some View {
         switch ziel {
-        case .schritte: SchritteDetailView(person: ich)
+        case .schritte: SchritteUebersicht { pfad.append($0) }
         case .schlaf: SchlafDetailView()
         case .habits:
             ScrollView {
-                HabitsSektion(zoom: zoom) { if case .habit(let id) = $0 { pfad.append(.habit(id)) } }.padding(16)
+                HabitsSektion(zoom: zoom) { if case .habit(let id) = $0 { pfad.append(HeuteZiel.habit(id)) } }.padding(16)
             }
             .navigationTitle("Habits")
         case .habit(let id): HabitDetailView(habitId: id)
         case .punkte: PunkteVerlaufView()
         case .ernaehrung: ErnaehrungView()
+        case .training: TrainingSeite { pfad.append($0) }
+        case .koerper: KoerperView()
+        case .verlauf: VerlaufView { pfad.append($0) }
         }
+    }
+
+    // MARK: Training und Körper
+
+    /// Kästen wie der Schlaf: Tipp öffnet die Seite.
+    private var kaesten: some View {
+        VStack(spacing: 10) {
+            kasten("Training", symbol: "dumbbell.fill", farbe: TagesForm.training.farbe, text: trainingText) { pfad.append(HeuteZiel.training) }
+            kasten("Körper", symbol: "figure.arms.open", farbe: TagesForm.habits.farbe, text: "Erholung deiner Muskeln") { pfad.append(HeuteZiel.koerper) }
+            kasten("Verlauf", symbol: "chart.xyaxis.line", farbe: TagesForm.schlaf.farbe, text: "Übungen und Muskelgruppen") { pfad.append(HeuteZiel.verlauf) }
+        }
+    }
+
+    private var trainingText: String {
+        if TrainingModell.shared.laufende(ich) != nil { return "Du bist gerade im Gym" }
+        if let tag = TrainingModell.shared.heutigerTag(ich) { return "Heute: \(tag.name)" }
+        return TrainingModell.shared.plan(ich).tage.isEmpty ? "Noch kein Trainingsplan" : "Heute kein Training geplant"
+    }
+
+    private func kasten(_ titel: String, symbol: String, farbe: Color, text: String, aktion: @escaping () -> Void) -> some View {
+        Button(action: aktion) {
+            HStack(spacing: 14) {
+                Image(systemName: symbol)
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(farbe)
+                    .frame(width: 44, height: 44)
+                    .background(farbe.opacity(0.18), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titel).font(.headline)
+                    Text(text).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                }
+                Spacer(minLength: 8)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .heuteKarte()
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(.federnd)
     }
 
     // MARK: Tagesform
@@ -458,7 +522,7 @@ struct HeuteView: View {
         let ziel = health.zielSchritte(ich)
         let n = health.heuteSchritte(ich) ?? 0
         return FormKachel(form: .schritte, titel: "Schritte", wert: deZahl(n), einheit: "",
-                          fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0, zusatz: "Ziel \(deZahl(ziel))") { pfad.append(.schritte) }
+                          fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0, zusatz: "Ziel \(deZahl(ziel))") { pfad.append(HeuteZiel.schritte) }
     }
 
     private var wasserKachel: some View {
@@ -473,7 +537,7 @@ struct HeuteView: View {
     private var schlafKachel: some View {
         let minuten = health.schlafMinuten(ich, heute)
         return FormKachel(form: .schlaf, titel: "Schlaf", wert: minuten.map { komma(Double($0) / 60) } ?? "–", einheit: "/8 h",
-                          fuellung: Double(minuten ?? 0) / Double(TagesformLogik.schlafSollMinuten)) { pfad.append(.schlaf) }
+                          fuellung: Double(minuten ?? 0) / Double(TagesformLogik.schlafSollMinuten)) { pfad.append(HeuteZiel.schlaf) }
     }
 
     private var habitsKachel: some View {
@@ -482,7 +546,7 @@ struct HeuteView: View {
             HabitLogik.erledigt($0, wert: health.habitWert($0.id, ich, heute), ziel: health.habitZiel($0.id, ich))
         }.count
         return FormKachel(form: .habits, titel: "Habits", wert: "\(erledigt)", einheit: "/\(sichtbar.count)",
-                          fuellung: sichtbar.isEmpty ? 0 : Double(erledigt) / Double(sichtbar.count)) { pfad.append(.habits) }
+                          fuellung: sichtbar.isEmpty ? 0 : Double(erledigt) / Double(sichtbar.count)) { pfad.append(HeuteZiel.habits) }
     }
 
     /// 1 = schlecht, 3 = gut, nil = noch nicht eingetragen.
@@ -520,7 +584,7 @@ struct HeuteView: View {
         let protein = Int(summe.protein.rounded())
         return FormKachel(form: .protein, titel: "Food", wert: "\(kcal)", einheit: "/\(ziel) kcal",
                           fuellung: ziel > 0 ? Double(kcal) / Double(ziel) : 0, zusatz: "\(protein) g Protein") {
-            pfad.append(.ernaehrung)
+            pfad.append(HeuteZiel.ernaehrung)
         }
     }
 
@@ -545,7 +609,7 @@ struct HeuteView: View {
     private var trainingKachel: some View {
         let dran = health.gymAbgehakt(ich, heute) || TrainingModell.shared.sessions(ich).contains { Datum.text($0.start) == heute }
         return FormKachel(form: .training, titel: "Training", wert: dran ? "Gym" : "Pause", einheit: "", fuellung: dran ? 1 : 0) {
-            AppNavigation.shared.tabWunsch = "training"
+            pfad.append(HeuteZiel.training)
         }
     }
 
@@ -596,7 +660,7 @@ struct HeuteView: View {
     // MARK: Punkte
 
     private var punkteZeile: some View {
-        Button { pfad.append(.punkte) } label: {
+        Button { pfad.append(HeuteZiel.punkte) } label: {
             HStack(spacing: 12) {
                 Image(systemName: "star.circle.fill").font(.title2).foregroundStyle(Color.loveaRose)
                 Text("Punkte und Challenges").font(.headline)

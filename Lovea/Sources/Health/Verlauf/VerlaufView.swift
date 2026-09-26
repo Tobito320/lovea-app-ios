@@ -139,29 +139,34 @@ enum VerlaufZiel: Hashable {
 
 // MARK: - Screens
 
-/// Health tab "Verlauf": muscle groups as tiles, tap opens the group, tap on an exercise its history.
+/// Verlauf (aus Health geöffnet): Muskelgruppen als Kacheln, Tipp öffnet die Gruppe, Tipp auf eine Übung
+/// ihren Verlauf. Kein eigener NavigationStack: `oeffnen` legt das Ziel auf den Stapel von Health.
 struct VerlaufView: View {
-    @State private var pfad: [VerlaufZiel] = []
+    let oeffnen: (VerlaufZiel) -> Void
+    private var ich: Person { Raum.shared.ich ?? .ahmed }
+
+    var body: some View {
+        let laeufe = VerlaufLogik.laeufe(TrainingModell.shared.sessions(ich))
+        ScrollView {
+            VerlaufInhalt(laeufe: laeufe, heute: Datum.text(Date())) { g in
+                Haptik.auswahl()
+                oeffnen(.gruppe(g))
+            }
+        }
+        .navigationTitle("Verlauf")
+    }
+}
+
+/// Eine Muskelgruppe oder eine Übung aus dem Verlauf.
+struct VerlaufZielSeite: View {
+    let ziel: VerlaufZiel
+    let oeffnen: (VerlaufZiel) -> Void
     private var ich: Person { Raum.shared.ich ?? .ahmed }
 
     var body: some View {
         let sessions = TrainingModell.shared.sessions(ich)
         let laeufe = VerlaufLogik.laeufe(sessions)
         let heute = Datum.text(Date())
-        NavigationStack(path: $pfad) {
-            ScrollView {
-                VerlaufInhalt(laeufe: laeufe, heute: heute) { g in
-                    Haptik.auswahl()
-                    pfad.append(.gruppe(g))
-                }
-            }
-            .navigationTitle("Verlauf")
-            .navigationDestination(for: VerlaufZiel.self) { ziel in seite(ziel, sessions, laeufe, heute) }
-        }
-    }
-
-    @ViewBuilder
-    private func seite(_ ziel: VerlaufZiel, _ sessions: [GymSession], _ laeufe: [VerlaufLogik.Lauf], _ heute: String) -> some View {
         switch ziel {
         case .gruppe(let g):
             ScrollView {
@@ -171,7 +176,7 @@ struct VerlaufView: View {
                     erholung: MuskelLogik.erholung(sessions, jetzt: Date())
                 ) { id in
                     Haptik.auswahl()
-                    pfad.append(.uebung(id))
+                    oeffnen(.uebung(id))
                 }
             }
             .navigationTitle(g.name)

@@ -50,7 +50,7 @@ struct KoerperBlatt: View {
         let flaechen = MuskelPfade.figur(daten.person).flaechen
         return [false, true].filter { hinten in
             let seite: MuskelPfade.Seite = hinten ? .hinten : .vorne
-            return flaechen.contains { $0.seite == seite && $0.teil.gruppe == gruppe }
+            return flaechen.contains { $0.seite == seite && $0.gruppe == gruppe }
         }
     }
 
@@ -58,7 +58,7 @@ struct KoerperBlatt: View {
         HStack(spacing: 14) {
             HStack(spacing: 2) {
                 ForEach(seiten, id: \.self) { hinten in
-                    MuskelSeite(person: daten.person, hinten: hinten, farbe: { daten.farbe($0) }, markiert: teil, fokus: gruppe, animiert: animiert)
+                    MuskelSeite(person: daten.person, hinten: hinten, farbe: { daten.figurFarbe($0) }, fokus: gruppe)
                 }
             }
             .frame(height: 132)

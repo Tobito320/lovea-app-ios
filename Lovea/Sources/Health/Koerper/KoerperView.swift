@@ -360,13 +360,21 @@ enum KoerperFarbe {
     static let muede = Color.loveaRose
     /// Erholte Muskeln auf der Figur: gedämpftes Grün, wie in der Tafel der Figur.
     static let figurErholt = FigurFarbe(0x3A3A42).mix(FigurFarbe(0x30D158), 0.72).farbe
+    /// Nicht trainierte Bereiche auf der Figur: neutrales Grau, kein Erholt-Grün.
+    static let neutral = FigurFarbe(0x3A3A42).farbe
 
     static func stufe(_ s: ErholungsStufe) -> Color { s == .erholt ? erholt : s == .fast ? fast : muede }
     static func figur(_ s: ErholungsStufe) -> Color { s == .erholt ? figurErholt : stufe(s) }
 }
 
 extension KoerperDaten {
-    func farbe(_ t: MuskelTeil) -> Color { KoerperFarbe.figur(MuskelLogik.stufe(prozent(t))) }
+    /// Farbe einer Gruppe auf der Figur: der schlechteste Wert ihrer trainierten Teile, Grau ohne
+    /// jedes Training in der Gruppe.
+    func figurFarbe(_ g: MuskelGruppe) -> Color {
+        let werte = MuskelTeil.allCases.filter { $0.gruppe == g }.compactMap { erholung[$0] }
+        guard let schlechtester = werte.min() else { return KoerperFarbe.neutral }
+        return KoerperFarbe.figur(MuskelLogik.stufe(schlechtester))
+    }
 }
 
 // MARK: - Seite
@@ -385,22 +393,20 @@ struct KoerperView: View {
     var body: some View {
         let ich = Raum.shared.ich ?? .ahmed
         let daten = KoerperDaten.laden(ich)
-        NavigationStack {
-            ScrollView {
-                KoerperInhalt(
-                    daten: daten,
-                    onGruppe: { auswahl = Auswahl(gruppe: $0, teil: $1) },
-                    onZiele: { befragung = true },
-                    onTraining: { AppNavigation.shared.tabWunsch = "training" }
-                )
-                .padding(.horizontal, 16)
-                .padding(.bottom, 24)
-            }
-            .navigationTitle("Körper")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button("Ziele", systemImage: "slider.horizontal.3") { befragung = true }
-                }
+        ScrollView {
+            KoerperInhalt(
+                daten: daten,
+                onGruppe: { auswahl = Auswahl(gruppe: $0, teil: $1) },
+                onZiele: { befragung = true },
+                onTraining: { AppNavigation.shared.tabWunsch = "training" }
+            )
+            .padding(.horizontal, 16)
+            .padding(.bottom, 24)
+        }
+        .navigationTitle("Körper")
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Ziele", systemImage: "slider.horizontal.3") { befragung = true }
             }
         }
         .sheet(item: $auswahl) { a in
@@ -448,7 +454,7 @@ struct KoerperInhalt: View {
         return VStack(alignment: .leading, spacing: 4) {
             Text(urteil.titel).font(.title3.weight(.semibold))
             Text(urteil.satz).font(.subheadline).foregroundStyle(.secondary)
-            MuskelFigur(person: ich, farbe: { daten.farbe($0) }, onTipp: { onGruppe($0.gruppe, $0) }, animiert: animiert)
+            MuskelFigur(person: ich, farbe: { daten.figurFarbe($0) }, onTipp: { onGruppe($0, nil) }, animiert: animiert)
                 .frame(height: 340)
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)

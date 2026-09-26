@@ -263,7 +263,7 @@ final class RenderGalerieKoerperTests: XCTestCase {
         }
     }
 
-    /// Eine Tafel pro Person: `KopfFigur` zeichnet alle außer `Raum.shared.ich` ausgewaschen (offline).
+    /// Eine Tafel pro Person.
     private func tafel(_ person: Person, _ zellen: () -> [Zelle]) {
         let vorher = Raum.shared.ich
         Raum.shared.ich = person

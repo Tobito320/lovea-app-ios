@@ -16,7 +16,10 @@ final class AppNavigation {
     /// Profile → "Im Chat suchen": ChatTab opens the conversation with search active and clears it.
     var chatSuche = false
     /// Switch tab from anywhere ("home", "chat", "drawing", "health", "profile"); AppRootView clears it.
+    /// "training", "koerper", "verlauf" open Health and that page (`healthSeite`).
     var tabWunsch: String?
+    /// Page inside Health to open ("training", "koerper", "verlauf"); the Health tab clears it.
+    var healthSeite: String?
     /// Profile → "Kamera": ChatTab opens the snap camera and clears it.
     var kameraOeffnen = false
     /// Profile → "Chat": the Chat tab skips its list and opens the conversation.
@@ -50,34 +53,24 @@ struct AppRootView: View {
     let person: Person
     @SceneStorage("app.selectedTab") private var selectedTab: AppTab = .drawing
 
-    @State private var letzterHauptTab: AppTab = .drawing
-
-    private var imHealth: Bool { [.heute, .koerper, .training, .verlauf].contains(selectedTab) }
-
     var body: some View {
-        Group {
-            if imHealth { healthLeiste } else { hauptLeiste }
-        }
-        .animation(.spring(duration: 0.4), value: imHealth)
+        hauptLeiste
         .onAppear {
-            // Alter Wert "health" aus SceneStorage: direkt in den Health-Modus.
-            if selectedTab == .health { selectedTab = .heute } else if !imHealth { letzterHauptTab = selectedTab }
-        }
-        .onChange(of: selectedTab) { _, tab in
-            switch tab {
-            case .health: selectedTab = .heute
-            case .zurueck: selectedTab = letzterHauptTab
-            case .home, .chat, .drawing, .profile: letzterHauptTab = tab
-            case .heute, .koerper, .training, .verlauf: break
-            }
+            // Alte Werte aus der früheren Health-Leiste (SceneStorage): jetzt ein Health-Tab.
+            if [.heute, .koerper, .training, .verlauf, .zurueck].contains(selectedTab) { selectedTab = .health }
         }
         .spieleBuehne()
         // Screenshot/recording notices for whatever chat context is on screen (`ScreenshotKontext`).
         .modifier(ChatAufnahmeHinweise())
         .onChange(of: AppNavigation.shared.tabWunsch) { _, wunsch in
             guard let wunsch, let tab = AppTab(rawValue: wunsch) else { return }
-            selectedTab = tab
             AppNavigation.shared.tabWunsch = nil
+            if [.heute, .koerper, .training, .verlauf].contains(tab) {
+                if tab != .heute { AppNavigation.shared.healthSeite = wunsch }
+                selectedTab = .health
+            } else if tab != .zurueck {
+                selectedTab = tab
+            }
         }
         // audit-chat #2: voice round (app-wide voice playback outside the conversation) and the
         // Z-7.3 in-app banner (partner online / drawing invite / Anstupsen & Kuss) both dock to the
@@ -108,23 +101,11 @@ private extension AppRootView {
                 DrawingView(person: person)
             }
             Tab("Health", systemImage: "heart.text.square", value: AppTab.health) {
-                HealthTab()
+                HeuteView()
             }
             Tab("Profil", systemImage: "person.crop.circle", value: AppTab.profile) {
                 ProfileView(person: person, session: session, bilanz: spieleBilanz)
             }
-        }
-        .leiste()
-    }
-
-    var healthLeiste: some View {
-        TabView(selection: $selectedTab) {
-            Tab("Heute", systemImage: "sun.max", value: AppTab.heute) { HeuteView() }
-            Tab("Körper", systemImage: "figure.stand", value: AppTab.koerper) { KoerperView() }
-            Tab("Training", systemImage: "dumbbell", value: AppTab.training) { HealthTab() }
-            Tab("Verlauf", systemImage: "chart.bar", value: AppTab.verlauf) { VerlaufView() }
-            // ponytail: role .search gibt iOS 26 den abgesetzten runden Knopf, hier als "Zurück" benutzt.
-            Tab("Zurück", systemImage: "chevron.left", value: AppTab.zurueck, role: .search) { Color.clear }
         }
         .leiste()
     }
@@ -141,7 +122,7 @@ private extension AppRootView {
 }
 
 private extension View {
-    /// Gemeinsame Optik beider Leisten. Spec 2.1: die Leiste bleibt und schrumpft beim Scrollen.
+    /// Spec 2.1: die Leiste bleibt und schrumpft beim Scrollen.
     func leiste() -> some View {
         tabViewStyle(.sidebarAdaptable)
             .tabBarMinimizeBehavior(.onScrollDown)
