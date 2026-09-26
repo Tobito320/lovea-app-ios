@@ -1,0 +1,2515 @@
+[
+  {
+    "id": "basis-tomaten",
+    "name": "Tomaten, frisch",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 18,
+      "protein": 0.9,
+      "kohlenhydrate": 3.9,
+      "fett": 0.2,
+      "zucker": 2.6,
+      "ballaststoffe": 1.2,
+      "salz": 0.0125
+    },
+    "portionen": [
+      {
+        "name": "ganze, klein",
+        "gramm": 90
+      },
+      {
+        "name": "ganze, mittelgroß",
+        "gramm": 123
+      },
+      {
+        "name": "ganze, groß",
+        "gramm": 180
+      }
+    ]
+  },
+  {
+    "id": "basis-gurke",
+    "name": "Gurke, frisch",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 15,
+      "protein": 0.7,
+      "kohlenhydrate": 3.6,
+      "fett": 0.1,
+      "zucker": 1.7,
+      "ballaststoffe": 0.5,
+      "salz": 0.005
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 300
+      },
+      {
+        "name": "Scheibe",
+        "gramm": 10
+      }
+    ]
+  },
+  {
+    "id": "basis-paprika-rot",
+    "name": "Paprika, rot",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 31,
+      "protein": 1.0,
+      "kohlenhydrate": 6.0,
+      "fett": 0.3,
+      "zucker": 4.2,
+      "ballaststoffe": 2.1,
+      "salz": 0.0075
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 150
+      },
+      {
+        "name": "Ring",
+        "gramm": 15
+      }
+    ]
+  },
+  {
+    "id": "basis-paprika-gruen",
+    "name": "Paprika, grün",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 20,
+      "protein": 0.9,
+      "kohlenhydrate": 4.6,
+      "fett": 0.2,
+      "zucker": 2.4,
+      "ballaststoffe": 1.7,
+      "salz": 0.0075
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-zwiebel",
+    "name": "Zwiebel, frisch",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 40,
+      "protein": 1.1,
+      "kohlenhydrate": 9.3,
+      "fett": 0.1,
+      "zucker": 4.2,
+      "ballaststoffe": 1.7,
+      "salz": 0.01
+    },
+    "portionen": [
+      {
+        "name": "ganze, mittelgroß",
+        "gramm": 110
+      },
+      {
+        "name": "ganze, klein",
+        "gramm": 70
+      }
+    ]
+  },
+  {
+    "id": "basis-knoblauch",
+    "name": "Knoblauch",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 149,
+      "protein": 6.4,
+      "kohlenhydrate": 33.0,
+      "fett": 0.5,
+      "zucker": 1.0,
+      "ballaststoffe": 2.1,
+      "salz": 0.0425
+    },
+    "portionen": [
+      {
+        "name": "Zehe",
+        "gramm": 3
+      }
+    ]
+  },
+  {
+    "id": "basis-karotte",
+    "name": "Karotte, frisch",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 41,
+      "protein": 0.9,
+      "kohlenhydrate": 9.6,
+      "fett": 0.2,
+      "zucker": 4.7,
+      "ballaststoffe": 2.8,
+      "salz": 0.1725
+    },
+    "portionen": [
+      {
+        "name": "ganze, mittelgroß",
+        "gramm": 61
+      },
+      {
+        "name": "Handvoll (Baby)",
+        "gramm": 50
+      }
+    ]
+  },
+  {
+    "id": "basis-brokkoli",
+    "name": "Brokkoli, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 34,
+      "protein": 2.8,
+      "kohlenhydrate": 6.6,
+      "fett": 0.4,
+      "zucker": 1.7,
+      "ballaststoffe": 2.6,
+      "salz": 0.0825
+    },
+    "portionen": [
+      {
+        "name": "Röschen",
+        "gramm": 15
+      },
+      {
+        "name": "Portion",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-blumenkohl",
+    "name": "Blumenkohl, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 25,
+      "protein": 1.9,
+      "kohlenhydrate": 5.0,
+      "fett": 0.3,
+      "zucker": 1.9,
+      "ballaststoffe": 2.0,
+      "salz": 0.075
+    },
+    "portionen": [
+      {
+        "name": "Röschen",
+        "gramm": 15
+      },
+      {
+        "name": "Portion",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-spinat",
+    "name": "Spinat, frisch",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 23,
+      "protein": 2.9,
+      "kohlenhydrate": 3.6,
+      "fett": 0.4,
+      "zucker": 0.4,
+      "ballaststoffe": 2.2,
+      "salz": 0.1975
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 30
+      },
+      {
+        "name": "Portion",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-kopfsalat",
+    "name": "Kopfsalat",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 15,
+      "protein": 1.4,
+      "kohlenhydrate": 2.9,
+      "fett": 0.2,
+      "zucker": 0.8,
+      "ballaststoffe": 1.3,
+      "salz": 0.07
+    },
+    "portionen": [
+      {
+        "name": "Blatt",
+        "gramm": 10
+      },
+      {
+        "name": "ganzer Kopf",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-zucchini",
+    "name": "Zucchini",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 17,
+      "protein": 1.2,
+      "kohlenhydrate": 3.1,
+      "fett": 0.3,
+      "zucker": 2.5,
+      "ballaststoffe": 1.0,
+      "salz": 0.02
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-aubergine",
+    "name": "Aubergine",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 25,
+      "protein": 1.0,
+      "kohlenhydrate": 5.9,
+      "fett": 0.2,
+      "zucker": 3.2,
+      "ballaststoffe": 3.0,
+      "salz": 0.005
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 250
+      }
+    ]
+  },
+  {
+    "id": "basis-champignons",
+    "name": "Champignons",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 22,
+      "protein": 3.1,
+      "kohlenhydrate": 3.3,
+      "fett": 0.3,
+      "zucker": 2.0,
+      "ballaststoffe": 1.0,
+      "salz": 0.0125
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 15
+      },
+      {
+        "name": "Handvoll",
+        "gramm": 50
+      }
+    ]
+  },
+  {
+    "id": "basis-mais-dose",
+    "name": "Mais, Dose",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 86,
+      "protein": 3.2,
+      "kohlenhydrate": 19.0,
+      "fett": 1.2,
+      "zucker": 3.0,
+      "ballaststoffe": 2.4,
+      "salz": 0.625
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 20
+      },
+      {
+        "name": "Portion",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-erbsen-tk",
+    "name": "Erbsen, TK",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 81,
+      "protein": 5.4,
+      "kohlenhydrate": 14.0,
+      "fett": 0.4,
+      "zucker": 5.7,
+      "ballaststoffe": 5.1,
+      "salz": 0.0075
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 80
+      }
+    ]
+  },
+  {
+    "id": "basis-gruene-bohnen-tk",
+    "name": "Grüne Bohnen, TK",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 31,
+      "protein": 1.8,
+      "kohlenhydrate": 7.0,
+      "fett": 0.1,
+      "zucker": 3.3,
+      "ballaststoffe": 3.4,
+      "salz": 0.015
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-rotkohl",
+    "name": "Rotkohl, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 31,
+      "protein": 1.4,
+      "kohlenhydrate": 6.9,
+      "fett": 0.2,
+      "zucker": 3.8,
+      "ballaststoffe": 2.1,
+      "salz": 0.0675
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-weisskohl",
+    "name": "Weißkohl, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 25,
+      "protein": 1.3,
+      "kohlenhydrate": 5.8,
+      "fett": 0.1,
+      "zucker": 3.2,
+      "ballaststoffe": 2.5,
+      "salz": 0.045
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-sellerie",
+    "name": "Sellerie, Stangen",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 16,
+      "protein": 0.7,
+      "kohlenhydrate": 3.0,
+      "fett": 0.2,
+      "zucker": 1.8,
+      "ballaststoffe": 1.6,
+      "salz": 0.2
+    },
+    "portionen": [
+      {
+        "name": "Stange",
+        "gramm": 40
+      }
+    ]
+  },
+  {
+    "id": "basis-lauch",
+    "name": "Lauch",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 61,
+      "protein": 1.5,
+      "kohlenhydrate": 14.2,
+      "fett": 0.3,
+      "zucker": 3.9,
+      "ballaststoffe": 1.8,
+      "salz": 0.05
+    },
+    "portionen": [
+      {
+        "name": "ganze Stange",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-rettich",
+    "name": "Rettich",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 16,
+      "protein": 0.6,
+      "kohlenhydrate": 3.4,
+      "fett": 0.1,
+      "zucker": 1.9,
+      "ballaststoffe": 1.6,
+      "salz": 0.0525
+    },
+    "portionen": [
+      {
+        "name": "ganzer",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-radieschen",
+    "name": "Radieschen",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 16,
+      "protein": 0.7,
+      "kohlenhydrate": 3.4,
+      "fett": 0.1,
+      "zucker": 1.9,
+      "ballaststoffe": 1.6,
+      "salz": 0.0975
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 8
+      },
+      {
+        "name": "Handvoll",
+        "gramm": 50
+      }
+    ]
+  },
+  {
+    "id": "basis-kuerbis-hokkaido",
+    "name": "Kürbis, Hokkaido",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 40,
+      "protein": 1.5,
+      "kohlenhydrate": 8.8,
+      "fett": 0.3,
+      "zucker": 2.2,
+      "ballaststoffe": 1.5,
+      "salz": 0.01
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-suesskartoffel",
+    "name": "Süßkartoffel, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 86,
+      "protein": 1.6,
+      "kohlenhydrate": 20.0,
+      "fett": 0.1,
+      "zucker": 4.2,
+      "ballaststoffe": 3.0,
+      "salz": 0.1375
+    },
+    "portionen": [
+      {
+        "name": "ganze, mittelgroß",
+        "gramm": 130
+      }
+    ]
+  },
+  {
+    "id": "basis-feldsalat",
+    "name": "Feldsalat",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 15,
+      "protein": 2.0,
+      "kohlenhydrate": 0.4,
+      "fett": 0.4,
+      "ballaststoffe": 1.4,
+      "salz": 0.0125
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 50
+      }
+    ]
+  },
+  {
+    "id": "basis-fruehlingszwiebel",
+    "name": "Frühlingszwiebel",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 32,
+      "protein": 1.8,
+      "kohlenhydrate": 4.6,
+      "fett": 0.2,
+      "ballaststoffe": 2.6,
+      "salz": 0.04
+    },
+    "portionen": [
+      {
+        "name": "Stange",
+        "gramm": 15
+      }
+    ]
+  },
+  {
+    "id": "basis-apfel",
+    "name": "Apfel",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 52,
+      "protein": 0.3,
+      "kohlenhydrate": 14.0,
+      "fett": 0.2,
+      "zucker": 10.0,
+      "ballaststoffe": 2.4,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "ganzer, klein",
+        "gramm": 130
+      },
+      {
+        "name": "ganzer, mittelgroß",
+        "gramm": 180
+      },
+      {
+        "name": "ganzer, groß",
+        "gramm": 220
+      }
+    ]
+  },
+  {
+    "id": "basis-banane",
+    "name": "Banane",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 89,
+      "protein": 1.1,
+      "kohlenhydrate": 23.0,
+      "fett": 0.3,
+      "zucker": 12.0,
+      "ballaststoffe": 2.6,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "ganze, klein",
+        "gramm": 90
+      },
+      {
+        "name": "ganze, mittelgroß",
+        "gramm": 118
+      },
+      {
+        "name": "ganze, groß",
+        "gramm": 130
+      }
+    ]
+  },
+  {
+    "id": "basis-orange",
+    "name": "Orange",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 47,
+      "protein": 0.9,
+      "kohlenhydrate": 12.0,
+      "fett": 0.1,
+      "zucker": 9.0,
+      "ballaststoffe": 2.4
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 130
+      }
+    ]
+  },
+  {
+    "id": "basis-birne",
+    "name": "Birne",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 57,
+      "protein": 0.4,
+      "kohlenhydrate": 15.0,
+      "fett": 0.1,
+      "zucker": 10.0,
+      "ballaststoffe": 3.1,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 178
+      }
+    ]
+  },
+  {
+    "id": "basis-weintrauben",
+    "name": "Weintrauben",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 69,
+      "protein": 0.7,
+      "kohlenhydrate": 18.0,
+      "fett": 0.2,
+      "zucker": 16.0,
+      "ballaststoffe": 0.9,
+      "salz": 0.005
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 80
+      }
+    ]
+  },
+  {
+    "id": "basis-erdbeeren",
+    "name": "Erdbeeren",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 32,
+      "protein": 0.7,
+      "kohlenhydrate": 7.7,
+      "fett": 0.3,
+      "zucker": 4.9,
+      "ballaststoffe": 2.0,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 12
+      },
+      {
+        "name": "Portion (Schale)",
+        "gramm": 250
+      }
+    ]
+  },
+  {
+    "id": "basis-blaubeeren",
+    "name": "Blaubeeren",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 57,
+      "protein": 0.7,
+      "kohlenhydrate": 14.0,
+      "fett": 0.3,
+      "zucker": 10.0,
+      "ballaststoffe": 2.4,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 60
+      }
+    ]
+  },
+  {
+    "id": "basis-himbeeren",
+    "name": "Himbeeren",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 52,
+      "protein": 1.2,
+      "kohlenhydrate": 12.0,
+      "fett": 0.7,
+      "zucker": 4.4,
+      "ballaststoffe": 6.5,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 60
+      }
+    ]
+  },
+  {
+    "id": "basis-kiwi",
+    "name": "Kiwi",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 61,
+      "protein": 1.1,
+      "kohlenhydrate": 15.0,
+      "fett": 0.5,
+      "zucker": 9.0,
+      "ballaststoffe": 3.0,
+      "salz": 0.0075
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 76
+      }
+    ]
+  },
+  {
+    "id": "basis-ananas",
+    "name": "Ananas",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 50,
+      "protein": 0.5,
+      "kohlenhydrate": 13.0,
+      "fett": 0.1,
+      "zucker": 10.0,
+      "ballaststoffe": 1.4,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 84
+      }
+    ]
+  },
+  {
+    "id": "basis-wassermelone",
+    "name": "Wassermelone",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 30,
+      "protein": 0.6,
+      "kohlenhydrate": 7.6,
+      "fett": 0.15,
+      "zucker": 6.2,
+      "ballaststoffe": 0.4,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 280
+      }
+    ]
+  },
+  {
+    "id": "basis-honigmelone",
+    "name": "Honigmelone",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 36,
+      "protein": 0.9,
+      "kohlenhydrate": 8.6,
+      "fett": 0.1,
+      "zucker": 8.0,
+      "ballaststoffe": 0.8,
+      "salz": 0.045
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-mango",
+    "name": "Mango",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 60,
+      "protein": 0.8,
+      "kohlenhydrate": 15.0,
+      "fett": 0.4,
+      "zucker": 14.0,
+      "ballaststoffe": 1.6,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-pfirsich",
+    "name": "Pfirsich",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 39,
+      "protein": 0.9,
+      "kohlenhydrate": 9.5,
+      "fett": 0.3,
+      "zucker": 8.4,
+      "ballaststoffe": 1.5
+    },
+    "portionen": [
+      {
+        "name": "ganzer",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-aprikose",
+    "name": "Aprikose",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 48,
+      "protein": 1.4,
+      "kohlenhydrate": 11.0,
+      "fett": 0.4,
+      "zucker": 9.2,
+      "ballaststoffe": 2.0,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 35
+      }
+    ]
+  },
+  {
+    "id": "basis-pflaume",
+    "name": "Pflaume",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 46,
+      "protein": 0.7,
+      "kohlenhydrate": 11.0,
+      "fett": 0.3,
+      "zucker": 10.0,
+      "ballaststoffe": 1.4
+    },
+    "portionen": [
+      {
+        "name": "ganze",
+        "gramm": 55
+      }
+    ]
+  },
+  {
+    "id": "basis-kirschen",
+    "name": "Kirschen",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 63,
+      "protein": 1.1,
+      "kohlenhydrate": 16.0,
+      "fett": 0.2,
+      "zucker": 13.0,
+      "ballaststoffe": 2.1
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-avocado",
+    "name": "Avocado",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 160,
+      "protein": 2.0,
+      "kohlenhydrate": 8.5,
+      "fett": 15.0,
+      "zucker": 0.7,
+      "ballaststoffe": 6.7,
+      "salz": 0.0175
+    },
+    "portionen": [
+      {
+        "name": "halbe",
+        "gramm": 100
+      },
+      {
+        "name": "ganze",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-kartoffeln-gekocht",
+    "name": "Kartoffeln, gekocht",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 87,
+      "protein": 1.9,
+      "kohlenhydrate": 20.0,
+      "fett": 0.1,
+      "zucker": 0.8,
+      "ballaststoffe": 1.8,
+      "salz": 0.015
+    },
+    "portionen": [
+      {
+        "name": "ganze, mittelgroß",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-kartoffeln-roh",
+    "name": "Kartoffeln, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 77,
+      "protein": 2.0,
+      "kohlenhydrate": 17.0,
+      "fett": 0.1,
+      "zucker": 0.8,
+      "ballaststoffe": 2.2,
+      "salz": 0.015
+    },
+    "portionen": [
+      {
+        "name": "ganze, mittelgroß",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-pommes-ofen",
+    "name": "Pommes frites, Ofen",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 165,
+      "protein": 2.8,
+      "kohlenhydrate": 24.0,
+      "fett": 6.0,
+      "zucker": 0.5,
+      "ballaststoffe": 2.5,
+      "salz": 0.75,
+      "gesFett": 0.8
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-kartoffelpueree",
+    "name": "Kartoffelpüree",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 90,
+      "protein": 1.9,
+      "kohlenhydrate": 14.0,
+      "fett": 3.0,
+      "zucker": 1.0,
+      "ballaststoffe": 1.3,
+      "salz": 0.75,
+      "gesFett": 1.9
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-reis-weiss-roh",
+    "name": "Reis, weiß, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 349,
+      "protein": 6.7,
+      "kohlenhydrate": 79.0,
+      "fett": 0.6,
+      "zucker": 0.1,
+      "ballaststoffe": 1.3,
+      "salz": 0.0125
+    },
+    "portionen": [
+      {
+        "name": "Portion, roh",
+        "gramm": 75
+      }
+    ]
+  },
+  {
+    "id": "basis-reis-weiss-gekocht",
+    "name": "Reis, weiß, gekocht",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 130,
+      "protein": 2.7,
+      "kohlenhydrate": 28.0,
+      "fett": 0.3,
+      "zucker": 0.1,
+      "ballaststoffe": 0.4,
+      "salz": 0.0025
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 180
+      }
+    ]
+  },
+  {
+    "id": "basis-vollkornreis-gekocht",
+    "name": "Vollkornreis, gekocht",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 123,
+      "protein": 2.7,
+      "kohlenhydrate": 26.0,
+      "fett": 1.0,
+      "zucker": 0.4,
+      "ballaststoffe": 1.8,
+      "salz": 0.01
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 180
+      }
+    ]
+  },
+  {
+    "id": "basis-nudeln-roh",
+    "name": "Nudeln, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 358,
+      "protein": 12.0,
+      "kohlenhydrate": 71.0,
+      "fett": 1.5,
+      "zucker": 3.0,
+      "ballaststoffe": 3.0,
+      "salz": 0.015
+    },
+    "portionen": [
+      {
+        "name": "Portion, roh",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-nudeln-gekocht",
+    "name": "Nudeln, gekocht",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 158,
+      "protein": 5.8,
+      "kohlenhydrate": 31.0,
+      "fett": 0.9,
+      "zucker": 1.3,
+      "ballaststoffe": 1.8,
+      "salz": 0.0075
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 250
+      }
+    ]
+  },
+  {
+    "id": "basis-vollkornnudeln-gekocht",
+    "name": "Vollkornnudeln, gekocht",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 149,
+      "protein": 5.3,
+      "kohlenhydrate": 30.0,
+      "fett": 1.4,
+      "zucker": 1.0,
+      "ballaststoffe": 4.5,
+      "salz": 0.01
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 250
+      }
+    ]
+  },
+  {
+    "id": "basis-vollkornbrot",
+    "name": "Vollkornbrot",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 219,
+      "protein": 8.5,
+      "kohlenhydrate": 39.0,
+      "fett": 3.0,
+      "zucker": 3.0,
+      "ballaststoffe": 7.0,
+      "salz": 1.0,
+      "gesFett": 0.6
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 45
+      }
+    ]
+  },
+  {
+    "id": "basis-toastbrot",
+    "name": "Toastbrot",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 265,
+      "protein": 8.0,
+      "kohlenhydrate": 49.0,
+      "fett": 3.3,
+      "zucker": 5.0,
+      "ballaststoffe": 2.5,
+      "salz": 1.2,
+      "gesFett": 0.7
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 25
+      }
+    ]
+  },
+  {
+    "id": "basis-mischbrot",
+    "name": "Mischbrot",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 235,
+      "protein": 7.5,
+      "kohlenhydrate": 45.0,
+      "fett": 1.5,
+      "zucker": 2.0,
+      "ballaststoffe": 5.0,
+      "salz": 1.15,
+      "gesFett": 0.3
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 50
+      }
+    ]
+  },
+  {
+    "id": "basis-broetchen",
+    "name": "Brötchen",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 275,
+      "protein": 9.0,
+      "kohlenhydrate": 52.0,
+      "fett": 1.8,
+      "zucker": 3.0,
+      "ballaststoffe": 3.5,
+      "salz": 1.2,
+      "gesFett": 0.4
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 50
+      }
+    ]
+  },
+  {
+    "id": "basis-knaeckebrot",
+    "name": "Knäckebrot",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 377,
+      "protein": 10.0,
+      "kohlenhydrate": 70.0,
+      "fett": 2.5,
+      "zucker": 2.0,
+      "ballaststoffe": 13.0,
+      "salz": 0.95,
+      "gesFett": 0.5
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 10
+      }
+    ]
+  },
+  {
+    "id": "basis-baguette",
+    "name": "Baguette",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 274,
+      "protein": 9.0,
+      "kohlenhydrate": 55.0,
+      "fett": 1.3,
+      "zucker": 2.0,
+      "ballaststoffe": 2.7,
+      "salz": 1.25,
+      "gesFett": 0.3
+    },
+    "portionen": [
+      {
+        "name": "Stück (30 cm)",
+        "gramm": 250
+      },
+      {
+        "name": "Scheibe",
+        "gramm": 25
+      }
+    ]
+  },
+  {
+    "id": "basis-haferflocken",
+    "name": "Haferflocken",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 372,
+      "protein": 13.5,
+      "kohlenhydrate": 58.0,
+      "fett": 7.0,
+      "zucker": 1.0,
+      "ballaststoffe": 10.0,
+      "salz": 0.015,
+      "gesFett": 1.4
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 40
+      },
+      {
+        "name": "Esslöffel",
+        "gramm": 10
+      }
+    ]
+  },
+  {
+    "id": "basis-ei-gekocht",
+    "name": "Ei, gekocht",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 155,
+      "protein": 13.0,
+      "kohlenhydrate": 1.1,
+      "fett": 11.0,
+      "zucker": 1.1,
+      "ballaststoffe": 0,
+      "salz": 0.31,
+      "gesFett": 3.1
+    },
+    "portionen": [
+      {
+        "name": "Stück, Größe M",
+        "gramm": 60
+      }
+    ]
+  },
+  {
+    "id": "basis-ei-roh",
+    "name": "Ei, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 143,
+      "protein": 12.6,
+      "kohlenhydrate": 0.7,
+      "fett": 9.5,
+      "salz": 0.355,
+      "gesFett": 3.1
+    },
+    "portionen": [
+      {
+        "name": "Stück, Größe M",
+        "gramm": 58
+      }
+    ]
+  },
+  {
+    "id": "basis-ruehrei",
+    "name": "Rührei",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 168,
+      "protein": 11.5,
+      "kohlenhydrate": 1.6,
+      "fett": 13.0,
+      "salz": 0.425,
+      "gesFett": 4.0
+    },
+    "portionen": [
+      {
+        "name": "Portion (2 Eier)",
+        "gramm": 120
+      }
+    ]
+  },
+  {
+    "id": "basis-milch-15",
+    "name": "Milch, 1,5 %",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 47,
+      "protein": 3.3,
+      "kohlenhydrate": 4.8,
+      "fett": 1.5,
+      "zucker": 4.8,
+      "salz": 0.11,
+      "gesFett": 1.0
+    },
+    "portionen": [
+      {
+        "name": "Glas (200 ml)",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-milch-35",
+    "name": "Milch, 3,5 %",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 65,
+      "protein": 3.3,
+      "kohlenhydrate": 4.7,
+      "fett": 3.5,
+      "zucker": 4.7,
+      "salz": 0.11,
+      "gesFett": 2.2
+    },
+    "portionen": [
+      {
+        "name": "Glas (200 ml)",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-joghurt-natur",
+    "name": "Joghurt, natur, 1,5 %",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 57,
+      "protein": 4.5,
+      "kohlenhydrate": 6.0,
+      "fett": 1.5,
+      "zucker": 6.0,
+      "salz": 0.125
+    },
+    "portionen": [
+      {
+        "name": "Becher",
+        "gramm": 150
+      },
+      {
+        "name": "Esslöffel",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-joghurt-griechisch",
+    "name": "Joghurt, griechisch, 10 %",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 133,
+      "protein": 4.0,
+      "kohlenhydrate": 4.5,
+      "fett": 10.0,
+      "zucker": 4.5,
+      "salz": 0.1,
+      "gesFett": 6.5
+    },
+    "portionen": [
+      {
+        "name": "Becher",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-quark-mager",
+    "name": "Quark, Magerstufe",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 67,
+      "protein": 12.0,
+      "kohlenhydrate": 4.0,
+      "fett": 0.2,
+      "zucker": 4.0,
+      "salz": 0.085
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 100
+      },
+      {
+        "name": "Esslöffel",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-quark-40",
+    "name": "Quark, 40 % Fett i. Tr.",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 152,
+      "protein": 11.0,
+      "kohlenhydrate": 3.5,
+      "fett": 11.0,
+      "salz": 0.075,
+      "gesFett": 7.0
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-skyr",
+    "name": "Skyr",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 63,
+      "protein": 11.0,
+      "kohlenhydrate": 4.0,
+      "fett": 0.2,
+      "zucker": 4.0,
+      "salz": 0.1125
+    },
+    "portionen": [
+      {
+        "name": "Becher",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-butter",
+    "name": "Butter",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 741,
+      "protein": 0.7,
+      "kohlenhydrate": 0.6,
+      "fett": 82.0,
+      "salz": 0.0375,
+      "gesFett": 54.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 10
+      },
+      {
+        "name": "Teelöffel",
+        "gramm": 5
+      }
+    ]
+  },
+  {
+    "id": "basis-schlagsahne",
+    "name": "Schlagsahne, 30 %",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 292,
+      "protein": 2.4,
+      "kohlenhydrate": 3.4,
+      "fett": 30.0,
+      "salz": 0.1,
+      "gesFett": 19.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 15
+      }
+    ]
+  },
+  {
+    "id": "basis-frischkaese",
+    "name": "Frischkäse, Doppelrahmstufe",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 245,
+      "protein": 6.0,
+      "kohlenhydrate": 3.5,
+      "fett": 24.0,
+      "salz": 0.5,
+      "gesFett": 16.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-mozzarella",
+    "name": "Mozzarella",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 253,
+      "protein": 18.0,
+      "kohlenhydrate": 2.0,
+      "fett": 19.0,
+      "salz": 0.925,
+      "gesFett": 12.5
+    },
+    "portionen": [
+      {
+        "name": "Kugel",
+        "gramm": 125
+      },
+      {
+        "name": "Scheibe",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-gouda",
+    "name": "Gouda",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 356,
+      "protein": 25.0,
+      "kohlenhydrate": 0.0,
+      "fett": 28.0,
+      "salz": 2.0475,
+      "gesFett": 18.0
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 20
+      }
+    ]
+  },
+  {
+    "id": "basis-emmentaler",
+    "name": "Emmentaler",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 380,
+      "protein": 28.0,
+      "kohlenhydrate": 0.0,
+      "fett": 30.0,
+      "salz": 1.0,
+      "gesFett": 19.0
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 20
+      }
+    ]
+  },
+  {
+    "id": "basis-feta",
+    "name": "Feta",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 264,
+      "protein": 14.0,
+      "kohlenhydrate": 4.0,
+      "fett": 21.0,
+      "salz": 2.85,
+      "gesFett": 15.0
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 50
+      }
+    ]
+  },
+  {
+    "id": "basis-parmesan",
+    "name": "Parmesan",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 392,
+      "protein": 35.0,
+      "kohlenhydrate": 3.2,
+      "fett": 26.0,
+      "salz": 3.825,
+      "gesFett": 17.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel, gerieben",
+        "gramm": 10
+      }
+    ]
+  },
+  {
+    "id": "basis-huettenkaese",
+    "name": "Hüttenkäse",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 98,
+      "protein": 11.0,
+      "kohlenhydrate": 3.4,
+      "fett": 4.3,
+      "salz": 0.875,
+      "gesFett": 2.7
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-buttermilch",
+    "name": "Buttermilch",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 35,
+      "protein": 3.5,
+      "kohlenhydrate": 4.5,
+      "fett": 0.5,
+      "salz": 0.25
+    },
+    "portionen": [
+      {
+        "name": "Glas (200 ml)",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-haehnchenbrust-roh",
+    "name": "Hähnchenbrust, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 120,
+      "protein": 23.0,
+      "kohlenhydrate": 0.0,
+      "fett": 2.5,
+      "salz": 0.15,
+      "gesFett": 0.7
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-haehnchenbrust-gebraten",
+    "name": "Hähnchenbrust, gebraten",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 165,
+      "protein": 31.0,
+      "kohlenhydrate": 0.0,
+      "fett": 3.6,
+      "salz": 0.175,
+      "gesFett": 1.0
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-rinderhack-roh",
+    "name": "Rinderhack, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 215,
+      "protein": 18.0,
+      "kohlenhydrate": 0.0,
+      "fett": 15.0,
+      "salz": 0.1625,
+      "gesFett": 6.5
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 125
+      }
+    ]
+  },
+  {
+    "id": "basis-rinderhack-gebraten",
+    "name": "Rinderhack, gebraten",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 254,
+      "protein": 26.0,
+      "kohlenhydrate": 0.0,
+      "fett": 17.0,
+      "salz": 0.1875,
+      "gesFett": 7.0
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 125
+      }
+    ]
+  },
+  {
+    "id": "basis-schweineschnitzel",
+    "name": "Schweineschnitzel, gebraten",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 197,
+      "protein": 30.0,
+      "kohlenhydrate": 0.0,
+      "fett": 8.0,
+      "salz": 0.1625,
+      "gesFett": 2.6
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-rindersteak",
+    "name": "Rindersteak, gebraten",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 208,
+      "protein": 28.0,
+      "kohlenhydrate": 0.0,
+      "fett": 10.0,
+      "salz": 0.15,
+      "gesFett": 4.0
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-putenbrust",
+    "name": "Putenbrust, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 104,
+      "protein": 24.0,
+      "kohlenhydrate": 0.0,
+      "fett": 1.0,
+      "salz": 0.1375
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-salami",
+    "name": "Salami",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 407,
+      "protein": 22.0,
+      "kohlenhydrate": 1.6,
+      "fett": 34.0,
+      "zucker": 0.5,
+      "salz": 3.75,
+      "gesFett": 13.0
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 10
+      }
+    ]
+  },
+  {
+    "id": "basis-kochschinken",
+    "name": "Kochschinken",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 105,
+      "protein": 18.0,
+      "kohlenhydrate": 0.8,
+      "fett": 3.0,
+      "salz": 2.375,
+      "gesFett": 1.0
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 20
+      }
+    ]
+  },
+  {
+    "id": "basis-lyoner",
+    "name": "Lyoner",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 260,
+      "protein": 13.0,
+      "kohlenhydrate": 1.5,
+      "fett": 22.0,
+      "salz": 2.375,
+      "gesFett": 8.0
+    },
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 25
+      }
+    ]
+  },
+  {
+    "id": "basis-bratwurst",
+    "name": "Bratwurst, gebraten",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 296,
+      "protein": 14.0,
+      "kohlenhydrate": 1.0,
+      "fett": 26.0,
+      "salz": 2.125,
+      "gesFett": 9.5
+    },
+    "portionen": [
+      {
+        "name": "Stück",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-lachs-roh",
+    "name": "Lachs, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 208,
+      "protein": 20.0,
+      "kohlenhydrate": 0.0,
+      "fett": 13.0,
+      "salz": 0.1475,
+      "gesFett": 3.0
+    },
+    "portionen": [
+      {
+        "name": "Filet",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-lachs-gebraten",
+    "name": "Lachs, gebraten",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 231,
+      "protein": 25.0,
+      "kohlenhydrate": 0.0,
+      "fett": 14.0,
+      "salz": 0.1625,
+      "gesFett": 3.2
+    },
+    "portionen": [
+      {
+        "name": "Filet",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-thunfisch-dose",
+    "name": "Thunfisch, Dose, in Wasser",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 116,
+      "protein": 26.0,
+      "kohlenhydrate": 0.0,
+      "fett": 1.0,
+      "salz": 0.75
+    },
+    "portionen": [
+      {
+        "name": "Dose, abgetropft",
+        "gramm": 140
+      }
+    ]
+  },
+  {
+    "id": "basis-garnelen",
+    "name": "Garnelen, gekocht",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 99,
+      "protein": 21.0,
+      "kohlenhydrate": 0.2,
+      "fett": 1.4,
+      "salz": 0.475
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 100
+      }
+    ]
+  },
+  {
+    "id": "basis-kabeljau",
+    "name": "Kabeljau, roh",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 82,
+      "protein": 18.0,
+      "kohlenhydrate": 0.0,
+      "fett": 0.7,
+      "salz": 0.135
+    },
+    "portionen": [
+      {
+        "name": "Filet",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-linsen-gekocht",
+    "name": "Linsen, gekocht",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 116,
+      "protein": 9.0,
+      "kohlenhydrate": 20.0,
+      "fett": 0.4,
+      "ballaststoffe": 7.9,
+      "salz": 0.005
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 150
+      }
+    ]
+  },
+  {
+    "id": "basis-kichererbsen-dose",
+    "name": "Kichererbsen, Dose",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 139,
+      "protein": 7.3,
+      "kohlenhydrate": 22.0,
+      "fett": 2.6,
+      "ballaststoffe": 6.0,
+      "salz": 0.6
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 120
+      }
+    ]
+  },
+  {
+    "id": "basis-kidneybohnen-dose",
+    "name": "Kidneybohnen, Dose",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 127,
+      "protein": 8.7,
+      "kohlenhydrate": 20.0,
+      "fett": 0.5,
+      "ballaststoffe": 6.8,
+      "salz": 0.625
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 120
+      }
+    ]
+  },
+  {
+    "id": "basis-weisse-bohnen-dose",
+    "name": "Weiße Bohnen, Dose",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 120,
+      "protein": 8.0,
+      "kohlenhydrate": 20.0,
+      "fett": 0.5,
+      "ballaststoffe": 6.0,
+      "salz": 0.6
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 120
+      }
+    ]
+  },
+  {
+    "id": "basis-tofu",
+    "name": "Tofu, natur",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 76,
+      "protein": 8.0,
+      "kohlenhydrate": 1.9,
+      "fett": 4.8,
+      "salz": 0.0175
+    },
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 100
+      },
+      {
+        "name": "Scheibe",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-mandeln",
+    "name": "Mandeln",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 579,
+      "protein": 21.0,
+      "kohlenhydrate": 22.0,
+      "fett": 50.0,
+      "ballaststoffe": 12.5,
+      "salz": 0.0025,
+      "gesFett": 3.8
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-walnuesse",
+    "name": "Walnüsse",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 654,
+      "protein": 15.0,
+      "kohlenhydrate": 14.0,
+      "fett": 65.0,
+      "ballaststoffe": 6.7,
+      "salz": 0.005,
+      "gesFett": 6.0
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-cashewkerne",
+    "name": "Cashewkerne",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 553,
+      "protein": 18.0,
+      "kohlenhydrate": 30.0,
+      "fett": 44.0,
+      "ballaststoffe": 3.3,
+      "salz": 0.03,
+      "gesFett": 7.8
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-erdnuesse",
+    "name": "Erdnüsse",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 567,
+      "protein": 26.0,
+      "kohlenhydrate": 16.0,
+      "fett": 49.0,
+      "ballaststoffe": 8.5,
+      "salz": 0.045,
+      "gesFett": 7.0
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-erdnussbutter",
+    "name": "Erdnussbutter",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 588,
+      "protein": 25.0,
+      "kohlenhydrate": 20.0,
+      "fett": 50.0,
+      "ballaststoffe": 6.0,
+      "salz": 1.0,
+      "gesFett": 10.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 20
+      }
+    ]
+  },
+  {
+    "id": "basis-haselnuesse",
+    "name": "Haselnüsse",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 628,
+      "protein": 15.0,
+      "kohlenhydrate": 17.0,
+      "fett": 61.0,
+      "ballaststoffe": 9.7,
+      "gesFett": 4.5
+    },
+    "portionen": [
+      {
+        "name": "Handvoll",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "id": "basis-olivenoel",
+    "name": "Olivenöl",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 884,
+      "protein": 0.0,
+      "kohlenhydrate": 0.0,
+      "fett": 100.0,
+      "gesFett": 14.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 10
+      },
+      {
+        "name": "Teelöffel",
+        "gramm": 5
+      }
+    ]
+  },
+  {
+    "id": "basis-rapsoel",
+    "name": "Rapsöl",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 884,
+      "protein": 0.0,
+      "kohlenhydrate": 0.0,
+      "fett": 100.0,
+      "gesFett": 7.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 10
+      }
+    ]
+  },
+  {
+    "id": "basis-sonnenblumenoel",
+    "name": "Sonnenblumenöl",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 884,
+      "protein": 0.0,
+      "kohlenhydrate": 0.0,
+      "fett": 100.0,
+      "gesFett": 10.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 10
+      }
+    ]
+  },
+  {
+    "id": "basis-zucker",
+    "name": "Zucker, weiß",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 400,
+      "protein": 0.0,
+      "kohlenhydrate": 100.0,
+      "fett": 0.0,
+      "zucker": 100.0
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 12
+      },
+      {
+        "name": "Teelöffel",
+        "gramm": 4
+      }
+    ]
+  },
+  {
+    "id": "basis-honig",
+    "name": "Honig",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 304,
+      "protein": 0.3,
+      "kohlenhydrate": 76.0,
+      "fett": 0.0,
+      "zucker": 76.0,
+      "salz": 0.0125
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 21
+      },
+      {
+        "name": "Teelöffel",
+        "gramm": 7
+      }
+    ]
+  },
+  {
+    "id": "basis-marmelade",
+    "name": "Marmelade",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 250,
+      "protein": 0.3,
+      "kohlenhydrate": 62.0,
+      "fett": 0.1,
+      "zucker": 55.0,
+      "salz": 0.025
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 20
+      },
+      {
+        "name": "Teelöffel",
+        "gramm": 7
+      }
+    ]
+  },
+  {
+    "id": "basis-nutella",
+    "name": "Nutella",
+    "fluessig": false,
+    "pro100": {
+      "kcal": 539,
+      "protein": 6.3,
+      "kohlenhydrate": 57.0,
+      "fett": 31.0,
+      "zucker": 56.0,
+      "salz": 0.1025,
+      "gesFett": 10.6
+    },
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 20
+      },
+      {
+        "name": "Teelöffel",
+        "gramm": 7
+      }
+    ]
+  },
+  {
+    "id": "basis-wasser",
+    "name": "Wasser",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 0,
+      "protein": 0.0,
+      "kohlenhydrate": 0.0,
+      "fett": 0.0
+    },
+    "portionen": [
+      {
+        "name": "Glas (200 ml)",
+        "gramm": 200
+      },
+      {
+        "name": "Flasche (500 ml)",
+        "gramm": 500
+      }
+    ]
+  },
+  {
+    "id": "basis-kaffee-schwarz",
+    "name": "Kaffee, schwarz",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 1,
+      "protein": 0.1,
+      "kohlenhydrate": 0.0,
+      "fett": 0.0,
+      "salz": 0.005
+    },
+    "portionen": [
+      {
+        "name": "Tasse",
+        "gramm": 125
+      }
+    ]
+  },
+  {
+    "id": "basis-tee",
+    "name": "Tee, ungesüßt",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 1,
+      "protein": 0.0,
+      "kohlenhydrate": 0.3,
+      "fett": 0.0,
+      "salz": 0.005
+    },
+    "portionen": [
+      {
+        "name": "Tasse",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-orangensaft",
+    "name": "Orangensaft",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 45,
+      "protein": 0.7,
+      "kohlenhydrate": 10.0,
+      "fett": 0.2,
+      "zucker": 8.5,
+      "salz": 0.005
+    },
+    "portionen": [
+      {
+        "name": "Glas (200 ml)",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "id": "basis-cola",
+    "name": "Cola",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 42,
+      "protein": 0.0,
+      "kohlenhydrate": 10.6,
+      "fett": 0.0,
+      "zucker": 10.6,
+      "salz": 0.005
+    },
+    "portionen": [
+      {
+        "name": "Glas (200 ml)",
+        "gramm": 200
+      },
+      {
+        "name": "Dose (330 ml)",
+        "gramm": 330
+      }
+    ]
+  },
+  {
+    "id": "basis-apfelsaft",
+    "name": "Apfelsaft",
+    "fluessig": true,
+    "pro100": {
+      "kcal": 46,
+      "protein": 0.1,
+      "kohlenhydrate": 11.0,
+      "fett": 0.0,
+      "zucker": 10.5,
+      "salz": 0.01
+    },
+    "portionen": [
+      {
+        "name": "Glas (200 ml)",
+        "gramm": 200
+      }
+    ]
+  }
+]

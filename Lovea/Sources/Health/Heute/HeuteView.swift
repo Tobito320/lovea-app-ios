@@ -518,7 +518,7 @@ struct HeuteView: View {
         let summe = ernaehrung.summe(ich, heute)
         let kcal = Int(summe.kcal.rounded())
         let protein = Int(summe.protein.rounded())
-        return FormKachel(form: .protein, titel: "Ernährung", wert: "\(kcal)", einheit: "/\(ziel) kcal",
+        return FormKachel(form: .protein, titel: "Food", wert: "\(kcal)", einheit: "/\(ziel) kcal",
                           fuellung: ziel > 0 ? Double(kcal) / Double(ziel) : 0, zusatz: "\(protein) g Protein") {
             pfad.append(.ernaehrung)
         }

@@ -60,10 +60,12 @@ struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
     /// "a" bis "e".
     var nutriscore: String?
     var bild: String?
+    /// Weitere Portionsgrößen wie in YAZIO ("ganze, mittelgroß" = 120 g). Optional, damit alte Einträge lesbar bleiben.
+    var portionen: [LebensmittelPortion]?
 
     init(id: String, name: String, marke: String? = nil, barcode: String? = nil, fluessig: Bool = false,
          pro100: Naehrwerte, portionMenge: Double? = nil, portionName: String? = nil, packungMenge: Double? = nil,
-         nutriscore: String? = nil, bild: String? = nil) {
+         nutriscore: String? = nil, bild: String? = nil, portionen: [LebensmittelPortion]? = nil) {
         self.id = id
         self.name = name
         self.marke = marke
@@ -75,6 +77,7 @@ struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.packungMenge = packungMenge
         self.nutriscore = nutriscore
         self.bild = bild
+        self.portionen = portionen
     }
 
     static func == (a: Lebensmittel, b: Lebensmittel) -> Bool { a.id == b.id && a.name == b.name && a.pro100 == b.pro100 }
@@ -83,6 +86,13 @@ struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
     var basisEinheit: Einheit { fluessig ? .ml : .g }
     var istRezept: Bool { id.hasPrefix("rezept-") }
     var anzeigeName: String { marke.map { "\(name) · \($0)" } ?? name }
+}
+
+/// Eine Portionsgröße, z. B. "ganze, mittelgroß" mit 120 g oder "Scheibe" mit 30 g.
+struct LebensmittelPortion: Codable, Equatable, Hashable, Sendable, Identifiable {
+    var name: String
+    var gramm: Double
+    var id: String { name }
 }
 
 enum Mahlzeit: String, Codable, Sendable, CaseIterable, Identifiable {
@@ -240,10 +250,38 @@ struct ErnaehrungsZiele: Equatable, Sendable {
     }
 }
 
+/// Körperwerte neben dem Gewicht (das Gewicht bleibt im Gewicht-Habit). Op `koerper.setzen`, einer pro Tag und Art.
+enum KoerperArt: String, Codable, Sendable, CaseIterable, Identifiable {
+    case koerperfett, taille, huefte, brust, oberarm, oberschenkel
+
+    var id: String { rawValue }
+
+    var name: String {
+        switch self {
+        case .koerperfett: "Körperfett"
+        case .taille: "Taille"
+        case .huefte: "Hüfte"
+        case .brust: "Brust"
+        case .oberarm: "Oberarm"
+        case .oberschenkel: "Oberschenkel"
+        }
+    }
+
+    var einheit: String { self == .koerperfett ? "%" : "cm" }
+}
+
+struct KoerperwertD: Codable, Equatable, Sendable {
+    var datum: String
+    var art: KoerperArt
+    var wert: Double
+    var geloescht: Bool?
+}
+
 // MARK: - Faltung
 
 struct ErnaehrungFaltung: Sendable {
-    static let arten: Set<String> = ["essen.setzen", "lebensmittel.setzen", "lebensmittel.favorit", "rezept.setzen", "fasten.setzen"]
+    static let arten: Set<String> = ["essen.setzen", "lebensmittel.setzen", "lebensmittel.favorit", "rezept.setzen", "fasten.setzen",
+                                     "koerper.setzen"]
 
     private struct Stand<T: Sendable>: Sendable {
         var zeit: Date
@@ -255,6 +293,7 @@ struct ErnaehrungFaltung: Sendable {
     private var favoriten: [Person: [String: Stand<FavoritD>]] = [:]
     private var rezepteStand: [String: Stand<Rezept>] = [:]
     private var fastenStand: [Person: Stand<FastenD>] = [:]
+    private var koerper: [Person: [String: Stand<KoerperwertD>]] = [:]
 
     mutating func anwenden(_ op: Op) {
         switch op.art {
@@ -273,6 +312,11 @@ struct ErnaehrungFaltung: Sendable {
         case "fasten.setzen":
             guard let d = op.daten(FastenD.self), (fastenStand[op.von]?.zeit ?? .distantPast) <= op.zeit else { return }
             fastenStand[op.von] = Stand(zeit: op.zeit, wert: d)
+        case "koerper.setzen":
+            guard let d = op.daten(KoerperwertD.self) else { return }
+            let schluessel = d.art.rawValue + "|" + d.datum
+            guard (koerper[op.von]?[schluessel]?.zeit ?? .distantPast) <= op.zeit else { return }
+            koerper[op.von, default: [:]][schluessel] = Stand(zeit: op.zeit, wert: d)
         default:
             break
         }
@@ -331,6 +375,13 @@ struct ErnaehrungFaltung: Sendable {
 
     func fasten(_ p: Person) -> FastenD? { fastenStand[p]?.wert }
 
+    /// Neuester Körperwert dieser Art bis einschließlich `tag`.
+    func koerperwert(_ p: Person, _ art: KoerperArt, bis tag: String) -> KoerperwertD? {
+        (koerper[p] ?? [:]).values.map(\.wert)
+            .filter { $0.art == art && $0.geloescht != true && $0.datum <= tag }
+            .max { $0.datum < $1.datum }
+    }
+
     /// Offline-Treffer für einen Barcode: eigene Lebensmittel zuerst, dann alles schon Gegessene.
     func lebensmittel(barcode: String, _ p: Person) -> Lebensmittel? {
         if let eigenes = eigeneLebensmittel.first(where: { $0.barcode == barcode }) { return eigenes }
@@ -384,6 +435,31 @@ enum ErnaehrungLogik {
         if l.portionMenge != nil { liste.insert(.portion, at: 0) }
         if l.packungMenge != nil { liste.append(.packung) }
         return liste
+    }
+
+    /// Alle Portionsgrößen zur Auswahl, ohne doppelte Namen: eigene Liste, Portion der Packung, ganze Packung.
+    static func portionsAuswahl(_ l: Lebensmittel) -> [LebensmittelPortion] {
+        var liste = l.portionen ?? []
+        if let menge = l.portionMenge, menge > 0 {
+            liste.append(LebensmittelPortion(name: l.portionName ?? "Portion", gramm: menge))
+        }
+        if let menge = l.packungMenge, menge > 0 { liste.append(LebensmittelPortion(name: "Packung", gramm: menge)) }
+        var gesehen: Set<String> = []
+        return liste.filter { $0.gramm > 0 && gesehen.insert($0.name).inserted }
+    }
+
+    /// Das Lebensmittel mit dieser Portion als `.portion`: der Eintrag speichert Name und Gewicht mit.
+    static func mitPortion(_ l: Lebensmittel, _ p: LebensmittelPortion) -> Lebensmittel {
+        var neu = l
+        neu.portionMenge = p.gramm
+        neu.portionName = p.name
+        return neu
+    }
+
+    /// Getränke zählen mit ihren ml als Wasser (Näherung für YAZIOs "Wasser aus Lebensmitteln").
+    static func wasserAusLebensmitteln(_ eintraege: [EssenEintrag]) -> Double {
+        eintraege.filter { $0.lebensmittel.fluessig }
+            .reduce(0.0) { $0 + gramm($1.lebensmittel, menge: $1.menge, einheit: $1.einheit) }
     }
 
     /// Menge, mit der das Detailblatt startet: Portion, falls bekannt, sonst 100 g/ml.
@@ -524,11 +600,24 @@ enum ErnaehrungLogik {
         let portion = zahlWert(p["serving_quantity"]).flatMap { $0 > 0 ? $0 : nil }
         let packung = zahlWert(p["product_quantity"]).flatMap { $0 > 0 ? $0 : nil }
         let grade = (p["nutriscore_grade"] as? String)?.lowercased()
+        let portionName: String? = portion == nil ? nil : (p["serving_size"] as? String).flatMap { portionsName($0) }
         return Lebensmittel(id: "off-\(barcode ?? UUID().uuidString)", name: name, marke: marke?.isEmpty == true ? nil : marke,
                             barcode: barcode, fluessig: fluessig, pro100: werte, portionMenge: portion,
-                            portionName: nil, packungMenge: packung,
+                            portionName: portionName, packungMenge: packung,
                             nutriscore: ["a", "b", "c", "d", "e"].contains(grade ?? "") ? grade : nil,
                             bild: p["image_front_small_url"] as? String)
+    }
+
+    /// "1 Riegel (45 g)" -> "Riegel", "30g" -> nil. Nur ein Wort ohne Zahl und Klammer taugt als Name.
+    static func portionsName(_ text: String) -> String? {
+        var t = text
+        if let klammer = t.firstIndex(of: "(") { t = String(t[..<klammer]) }
+        t = t.trimmingCharacters(in: .whitespaces)
+        while let erstes = t.first, erstes.isNumber || erstes == "," || erstes == "." || erstes == " " { t.removeFirst() }
+        t = t.trimmingCharacters(in: .whitespaces)
+        let einheiten = ["g", "gr", "ml", "l", "kg", "cl"]
+        guard !t.isEmpty, !einheiten.contains(t.lowercased()) else { return nil }
+        return t
     }
 
     /// Zahl aus JSON, die als Zahl oder als Text ("496", "12,5") kommen kann.

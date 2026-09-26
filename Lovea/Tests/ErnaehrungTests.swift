@@ -160,4 +160,43 @@ final class ErnaehrungTests: XCTestCase {
         XCTAssertEqual(f.lebensmittel(barcode: "8710624358174", .annika)?.name, "Skyr")
         XCTAssertEqual(f.letzteMenge(.ahmed, skyr.id)?.einheit, .portion)
     }
+    // MARK: - Portionen, Wasser, Körperwerte
+
+    func testPortionsNameAusOpenFoodFacts() {
+        XCTAssertEqual(ErnaehrungLogik.portionsName("1 Riegel (45 g)"), "Riegel")
+        XCTAssertEqual(ErnaehrungLogik.portionsName("2 Scheiben"), "Scheiben")
+        XCTAssertNil(ErnaehrungLogik.portionsName("30 g"))
+        XCTAssertNil(ErnaehrungLogik.portionsName("250ml"))
+    }
+
+    func testPortionsAuswahlOhneDoppelteUndMitPortion() {
+        var tomate = Lebensmittel(id: "basis-tomate", name: "Tomaten, frisch", pro100: Naehrwerte(kcal: 18, protein: 0.9, kohlenhydrate: 3.9, fett: 0.2),
+                                  portionen: [LebensmittelPortion(name: "ganze, mittelgroß", gramm: 123), LebensmittelPortion(name: "ganze, klein", gramm: 91)])
+        tomate.packungMenge = 500
+        let auswahl = ErnaehrungLogik.portionsAuswahl(tomate)
+        XCTAssertEqual(auswahl.map(\.name), ["ganze, mittelgroß", "ganze, klein", "Packung"])
+        let mittel = ErnaehrungLogik.mitPortion(tomate, auswahl[0])
+        XCTAssertEqual(ErnaehrungLogik.naehrwerte(mittel, menge: 4, einheit: .portion).kcal, 18 * 4.92, accuracy: 0.001)
+        XCTAssertEqual(ErnaehrungLogik.mengeText(4, .portion, mittel), "4 ganze, mittelgroß (492 g)")
+    }
+
+    func testWasserAusLebensmittelnNurGetraenke() {
+        let cola = Lebensmittel(id: "c", name: "Cola", fluessig: true, pro100: Naehrwerte(kcal: 42, protein: 0, kohlenhydrate: 10.6, fett: 0), portionMenge: 330)
+        let liste = [
+            EssenEintrag(id: "1", datum: "2026-09-27", mahlzeit: .mittag, menge: 1, einheit: .portion, lebensmittel: cola, geloescht: nil),
+            EssenEintrag(id: "2", datum: "2026-09-27", mahlzeit: .mittag, menge: 200, einheit: .g, lebensmittel: skyr, geloescht: nil),
+        ]
+        XCTAssertEqual(ErnaehrungLogik.wasserAusLebensmitteln(liste), 330, accuracy: 0.001)
+    }
+
+    func testKoerperwertNeuesterBisTag() throws {
+        var f = ErnaehrungFaltung()
+        f.anwenden(try op("koerper.setzen", KoerperwertD(datum: "2026-09-20", art: .taille, wert: 86, geloescht: nil), sekunde: 1))
+        f.anwenden(try op("koerper.setzen", KoerperwertD(datum: "2026-09-27", art: .taille, wert: 84, geloescht: nil), sekunde: 2))
+        f.anwenden(try op("koerper.setzen", KoerperwertD(datum: "2026-09-20", art: .taille, wert: 85, geloescht: nil), sekunde: 3))
+        XCTAssertEqual(f.koerperwert(.ahmed, .taille, bis: "2026-09-25")?.wert, 85)
+        XCTAssertEqual(f.koerperwert(.ahmed, .taille, bis: "2026-09-27")?.wert, 84)
+        XCTAssertNil(f.koerperwert(.ahmed, .koerperfett, bis: "2026-09-27"))
+        XCTAssertNil(f.koerperwert(.annika, .taille, bis: "2026-09-27"))
+    }
 }

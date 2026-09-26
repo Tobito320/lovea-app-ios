@@ -198,7 +198,7 @@ struct HinzufuegenBlatt: View {
     @ViewBuilder private var sucheInhalt: some View {
         let treffer = lokaleTreffer
         if !treffer.isEmpty {
-            Section("Deine Lebensmittel") { ForEach(treffer) { zeile($0) } }
+            Section("Lebensmittel") { ForEach(treffer) { zeile($0) } }
         }
         Section("Open Food Facts") {
             if suchLaedt {
@@ -217,9 +217,12 @@ struct HinzufuegenBlatt: View {
         let t = suchtext.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return [] }
         var gesehen: Set<String> = []
-        return (modell.eigene + modell.zuletzt(ich))
+        let eigeneUndZuletzt = (modell.eigene + modell.zuletzt(ich))
             .filter { $0.name.localizedCaseInsensitiveContains(t) }
             .filter { gesehen.insert($0.id).inserted }
+        let basis = LebensmittelBasis.suchen(t)
+            .filter { gesehen.insert($0.id).inserted }
+        return eigeneUndZuletzt + basis
     }
 
     /// Name, Marke, kcal, rechts ein Plus zum Direkt-Eintragen. Tipp öffnet das Detail.

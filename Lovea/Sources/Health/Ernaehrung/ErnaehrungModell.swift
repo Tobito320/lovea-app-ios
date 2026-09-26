@@ -27,6 +27,14 @@ final class ErnaehrungModell {
     func istFavorit(_ l: Lebensmittel) -> Bool { faltung.istFavorit(ich, l.id) }
     var rezepte: [Rezept] { faltung.rezepte }
     func fasten(_ p: Person) -> FastenD? { faltung.fasten(p) }
+    func koerperwert(_ p: Person, _ art: KoerperArt, bis tag: String) -> KoerperwertD? { faltung.koerperwert(p, art, bis: tag) }
+
+    /// Gewicht (Zehntel-kg) an diesem Tag, sonst das letzte davor, mit Datum.
+    func gewicht(_ p: Person, bis tag: String) -> (zehntel: Int, datum: String)? {
+        HealthModell.shared.habitWerte(Habit.gewicht.id, p).filter { $0.value > 0 && $0.key <= tag }
+            .max { $0.key < $1.key }
+            .map { (zehntel: $0.value, datum: $0.key) }
+    }
     func offline(barcode: String) -> Lebensmittel? { faltung.lebensmittel(barcode: barcode, ich) }
 
     /// Nie eingerichtet: aus dem Gewicht geschätzt (Standardwerte für den Rest), ohne Fragebogen.
@@ -89,6 +97,14 @@ final class ErnaehrungModell {
         var weg = r
         weg.geloescht = true
         Raum.shared.senden("rezept.setzen", weg)
+    }
+
+    func koerperwertSetzen(_ art: KoerperArt, _ wert: Double, datum: String) {
+        Raum.shared.senden("koerper.setzen", KoerperwertD(datum: datum, art: art, wert: wert, geloescht: nil))
+    }
+
+    func gewichtSetzen(zehntel: Int, datum: String) {
+        HealthModell.shared.setzeHabit(Habit.gewicht.id, datum: datum, wert: max(0, zehntel))
     }
 
     func fastenStarten(_ start: Date = Date()) { Raum.shared.senden("fasten.setzen", FastenD(start: start, ende: nil)) }

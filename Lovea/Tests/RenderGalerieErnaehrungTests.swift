@@ -46,14 +46,19 @@ final class RenderGalerieErnaehrungTests: XCTestCase {
             .mittag: [eintrag("m1", .mittag, huehnerReis, menge: 350)],
         ]
         halberTag.verbrannt = 320
-        halberTag.wasser = 3
+        halberTag.wasserGlaeser = 3
+        halberTag.wasserAusEssenMl = 330
+        halberTag.gewicht = GewichtStand(zehntel: 784, datum: "2026-09-22")
+        halberTag.koerperwerte = [KoerperwertD(datum: "2026-09-22", art: .koerperfett, wert: 17.5, geloescht: nil), KoerperwertD(datum: "2026-09-22", art: .taille, wert: 84, geloescht: nil)]
 
         var ueberZiel = TagebuchStand(tag: heute, heute: heute, person: .ahmed, ziele: ziele(kcal: 1500, protein: 130, kh: 150, fett: 50))
         ueberZiel.eintraege = [
             .mittag: [eintrag("b1", .mittag, burger, menge: 250)],
             .abend: [eintrag("p1", .abend, pommes, menge: 300)],
         ]
-        ueberZiel.wasser = 8
+        ueberZiel.wasserGlaeser = 8
+        ueberZiel.wasserAusEssenMl = 637
+        ueberZiel.gewicht = GewichtStand(zehntel: 781, datum: heute)
 
         var partner = halberTag
         partner.person = .annika

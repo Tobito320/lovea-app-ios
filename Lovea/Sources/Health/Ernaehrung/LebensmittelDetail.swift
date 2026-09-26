@@ -1,8 +1,9 @@
 import SwiftUI
 
-/// Ein Lebensmittel eintragen, ändern oder löschen: Menge, Einheit, Mahlzeit, Live-Nährwerte.
-/// Wird meist in einen bestehenden `NavigationStack` gepusht (siehe `HinzufuegenBlatt`), für ein
-/// eigenes Blatt siehe `EintragBearbeitenBlatt`.
+/// Produktseite 1:1 nach YAZIO (Ahmed, 27.09.): Name, Nutri-Score, vier Werte, Nährwerte-Liste,
+/// Portionsbeispiele, unten die Mengen-Zeile mit Rad-Blatt und der Speichern-Knopf. Wird in einen
+/// bestehenden `NavigationStack` gepusht (siehe `HinzufuegenBlatt`), für ein eigenes Blatt siehe
+/// `EintragBearbeitenBlatt`. Kein eigener Zurück-Knopf, damit von links nach rechts zurückgewischt werden kann.
 struct LebensmittelDetailView: View {
     let lebensmittel: Lebensmittel
     let bearbeiten: EssenEintrag?
@@ -10,10 +11,11 @@ struct LebensmittelDetailView: View {
     let fertig: () -> Void
 
     @State private var mahlzeit: Mahlzeit
-    @State private var text: String
-    @State private var einheit: Einheit
+    @State private var auswahl: MengenOption
+    @State private var zahl: Double
+    @State private var mengenRadOffen = false
+    @State private var portionsbeispieleOffen = false
     @State private var loeschenFragen = false
-    @State private var alleWerte = false
 
     private var modell: ErnaehrungModell { ErnaehrungModell.shared }
 
@@ -24,59 +26,74 @@ struct LebensmittelDetailView: View {
         self.fertig = fertig
         _mahlzeit = State(initialValue: bearbeiten?.mahlzeit ?? mahlzeit)
         let start = Self.start(lebensmittel, bearbeiten: bearbeiten)
-        _text = State(initialValue: ErnaehrungLogik.zahl(start.menge))
-        _einheit = State(initialValue: start.einheit)
+        _auswahl = State(initialValue: start.auswahl)
+        _zahl = State(initialValue: start.zahl)
     }
 
-    /// Menge des Eintrags, sonst die letzte Menge dieses Lebensmittels, sonst die Startmenge.
-    private static func start(_ l: Lebensmittel, bearbeiten: EssenEintrag?) -> (menge: Double, einheit: Einheit) {
-        if let bearbeiten { return (bearbeiten.menge, bearbeiten.einheit) }
-        if let letzte = ErnaehrungModell.shared.letzteMenge(ErnaehrungModell.shared.ich, l) { return letzte }
-        return ErnaehrungLogik.startMenge(l)
+    /// Menge des Eintrags, sonst die letzte Menge, sonst 1 × erste Portion, sonst 100 in der Basis-Einheit.
+    private static func start(_ l: Lebensmittel, bearbeiten: EssenEintrag?) -> (auswahl: MengenOption, zahl: Double) {
+        if let e = bearbeiten {
+            return (MengenOption.auswahl(einheit: e.einheit, portionName: e.lebensmittel.portionName, l: l), e.menge)
+        }
+        if let letzte = ErnaehrungModell.shared.letzteMenge(ErnaehrungModell.shared.ich, l) {
+            return (MengenOption.auswahl(einheit: letzte.einheit, portionName: l.portionName, l: l), letzte.menge)
+        }
+        if let erste = ErnaehrungLogik.portionsAuswahl(l).first { return (.portion(erste), 1) }
+        return (l.fluessig ? .milliliter : .gramm, 100)
     }
 
-    private var menge: Double? { ErnaehrungLogik.eingabe(text) }
-    private var kannSichern: Bool { (menge ?? 0) > 0 }
-
-    private var naehrwerte: Naehrwerte {
-        guard let menge else { return .null }
-        return ErnaehrungLogik.naehrwerte(lebensmittel, menge: menge, einheit: einheit)
+    /// Das Lebensmittel mit der gewählten Portion, wie es gespeichert wird.
+    private var lebensmittelFuerMenge: Lebensmittel {
+        if case .portion(let p) = auswahl { return ErnaehrungLogik.mitPortion(lebensmittel, p) }
+        return lebensmittel
     }
+
+    private var naehrwerte: Naehrwerte { ErnaehrungLogik.naehrwerte(lebensmittelFuerMenge, menge: zahl, einheit: auswahl.einheit) }
+    private var kannSpeichern: Bool { zahl > 0 }
 
     var body: some View {
-        Form {
-            Section { kopf }
-            Section {
-                HStack {
-                    TextField("Menge", text: $text)
-                        .keyboardType(.decimalPad)
-                        .accessibilityLabel("Menge")
-                    Picker("Einheit", selection: $einheit) {
-                        ForEach(ErnaehrungLogik.einheiten(lebensmittel), id: \.self) { e in
-                            Text(ErnaehrungLogik.einheitName(e, lebensmittel)).tag(e)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                    .frame(maxWidth: 220)
-                }
-                schnellwahl
-                Picker("Mahlzeit", selection: $mahlzeit) {
-                    ForEach(Mahlzeit.allCases) { m in Label(m.name, systemImage: m.symbol).tag(m) }
-                }
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                kopf
+                werteReihe
+                naehrwerteAbschnitt
+                portionsbeispieleZeile
             }
-            Section("Nährwerte") { naehrwerteBlock }
+            .padding(16)
         }
-        .navigationTitle(lebensmittel.name)
+        .background(Color(uiColor: .systemBackground))
+        .fontDesign(.rounded)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
+            ToolbarItem(placement: .principal) { mahlzeitMenu }
             ToolbarItem(placement: .primaryAction) { favoritKnopf }
+            if bearbeiten != nil {
+                ToolbarItem(placement: .primaryAction) { loeschenKnopf }
+            }
         }
-        .safeAreaInset(edge: .bottom) { aktionen }
-        .fontDesign(.rounded)
-        .sheet(isPresented: $alleWerte) {
-            NaehrwerteBlatt(titel: lebensmittel.anzeigeName,
-                            untertitel: ErnaehrungLogik.mengeText(menge ?? 0, einheit, lebensmittel),
-                            werte: naehrwerte, lebensmittel: lebensmittel)
+        .safeAreaInset(edge: .bottom) { unten }
+        .sheet(isPresented: $mengenRadOffen) {
+            MengenRadBlatt(lebensmittel: lebensmittel, auswahl: $auswahl, zahl: $zahl)
+        }
+        .sheet(isPresented: $portionsbeispieleOffen) { PortionsbeispieleBlatt() }
+        .confirmationDialog("Eintrag löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
+            Button("Löschen", role: .destructive) { loeschen() }
+        }
+    }
+
+    // MARK: Toolbar
+
+    private var mahlzeitMenu: some View {
+        Menu {
+            ForEach(Mahlzeit.allCases) { m in
+                Button { mahlzeit = m } label: { Label(m.name, systemImage: m.symbol) }
+            }
+        } label: {
+            HStack(spacing: 4) {
+                Text(mahlzeit.name).font(.headline)
+                Image(systemName: "chevron.down").font(.caption.weight(.bold))
+            }
+            .foregroundStyle(Color.primary)
         }
     }
 
@@ -90,113 +107,145 @@ struct LebensmittelDetailView: View {
         .accessibilityLabel(modell.istFavorit(lebensmittel) ? "Favorit entfernen" : "Als Favorit merken")
     }
 
+    private var loeschenKnopf: some View {
+        Button(role: .destructive) { loeschenFragen = true } label: {
+            Image(systemName: "trash")
+        }
+        .accessibilityLabel("Eintrag löschen")
+    }
+
+    // MARK: Inhalt
+
     private var kopf: some View {
-        HStack(spacing: 12) {
-            if let bild = lebensmittel.bild, let url = URL(string: bild) {
-                AsyncImage(url: url) { bild in
-                    bild.resizable().scaledToFill()
-                } placeholder: {
-                    Color(uiColor: .tertiarySystemFill)
-                }
-                .frame(width: 44, height: 44)
-                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-            }
-            VStack(alignment: .leading, spacing: 2) {
-                Text(lebensmittel.name).font(.headline)
+        HStack(alignment: .top, spacing: 12) {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(lebensmittel.name).font(.title.weight(.bold))
                 if let marke = lebensmittel.marke { Text(marke).font(.subheadline).foregroundStyle(.secondary) }
             }
-            Spacer()
+            Spacer(minLength: 8)
             if let note = lebensmittel.nutriscore { NutriScoreAbzeichen(note: note) }
         }
     }
 
-    private var schnellwahl: some View {
-        let werte: [Double] = einheit == .g || einheit == .ml ? [50, 100, 150, 200, 250] : [0.5, 1, 1.5, 2]
-        return ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                ForEach(werte, id: \.self) { w in
-                    Button(ErnaehrungLogik.zahl(w)) {
-                        text = ErnaehrungLogik.zahl(w)
-                        Haptik.auswahl()
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(menge == w ? Color.accentColor : Color.secondary)
-                }
-            }
+    private var werteReihe: some View {
+        HStack {
+            wertSpalte(ErnaehrungLogik.zahl(naehrwerte.kcal), "kcal")
+            wertSpalte("\(ErnaehrungLogik.zahl(naehrwerte.kohlenhydrate)) g", "Kohlenhydrate")
+            wertSpalte("\(ErnaehrungLogik.zahl(naehrwerte.protein)) g", "Eiweiß")
+            wertSpalte("\(ErnaehrungLogik.zahl(naehrwerte.fett)) g", "Fett")
         }
     }
 
-    private var naehrwerteBlock: some View {
-        let n = naehrwerte
-        return VStack(alignment: .leading, spacing: 12) {
-            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                Text("\(Int(n.kcal.rounded()))").font(.system(size: 34, weight: .bold)).monospacedDigit()
-                Text("kcal").font(.subheadline).foregroundStyle(.secondary)
-            }
-            HStack {
-                makro("Kohlenhydrate", n.kohlenhydrate)
-                makro("Eiweiß", n.protein)
-                makro("Fett", n.fett)
-            }
-            Button { alleWerte = true } label: {
-                HStack(spacing: 4) {
-                    Text("Mehr sehen")
-                    Image(systemName: "chevron.right").font(.footnote.weight(.bold))
-                }
-                .font(.subheadline.weight(.semibold))
-                .frame(minHeight: 44)
-            }
-            .buttonStyle(.borderless)
-        }
-    }
-
-    private func makro(_ titel: String, _ wert: Double) -> some View {
-        VStack(spacing: 2) {
-            Text("\(ErnaehrungLogik.zahl(wert)) g").font(.subheadline.bold()).monospacedDigit()
-            Text(titel).font(.caption2).foregroundStyle(.secondary)
+    private func wertSpalte(_ wert: String, _ titel: String) -> some View {
+        VStack(spacing: 4) {
+            Text(wert).font(.headline).monospacedDigit()
+            Text(titel).font(.caption).foregroundStyle(.secondary)
         }
         .frame(maxWidth: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
-    private var aktionen: some View {
-        Group {
-            if bearbeiten != nil {
-                HStack(spacing: 12) {
-                    Button("Löschen", role: .destructive) { loeschenFragen = true }
-                        .buttonStyle(.bordered)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                    Button("Sichern") { sichern() }
-                        .buttonStyle(.borderedProminent)
-                        .frame(maxWidth: .infinity, minHeight: 44)
-                        .disabled(!kannSichern)
-                }
-            } else {
-                Button("Eintragen") { eintragen() }
-                    .buttonStyle(.borderedProminent)
-                    .frame(maxWidth: .infinity, minHeight: 44)
-                    .disabled(!kannSichern)
+    private var naehrwerteAbschnitt: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Nährwerte").font(.title3.weight(.bold))
+            naehrwerteListe
+        }
+    }
+
+    private var naehrwerteListe: some View {
+        VStack(spacing: 0) {
+            naehrwertZeile("Kalorien", "\(ErnaehrungLogik.zahl(naehrwerte.kcal)) kcal")
+            Divider()
+            naehrwertZeile("Eiweiß", grammText(naehrwerte.protein))
+            Divider()
+            naehrwertZeile("Kohlenhydrate", grammText(naehrwerte.kohlenhydrate))
+            Divider()
+            naehrwertZeile("davon Zucker", optionalerGrammText(naehrwerte.zucker), einzug: true)
+            Divider()
+            naehrwertZeile("Ballaststoffe", optionalerGrammText(naehrwerte.ballaststoffe))
+            Divider()
+            naehrwertZeile("Fett", grammText(naehrwerte.fett))
+            Divider()
+            naehrwertZeile("davon gesättigte Fettsäuren", optionalerGrammText(naehrwerte.gesFett), einzug: true)
+            Divider()
+            naehrwertZeile("Salz", optionalerGrammText(naehrwerte.salz))
+        }
+    }
+
+    private func grammText(_ x: Double) -> String { "\(ErnaehrungLogik.zahl(x)) g" }
+    private func optionalerGrammText(_ x: Double?) -> String { x.map(grammText) ?? "–" }
+
+    private func naehrwertZeile(_ titel: String, _ wert: String, einzug: Bool = false) -> some View {
+        HStack {
+            Text(titel).padding(.leading, einzug ? 16 : 0)
+            Spacer()
+            Text(wert).foregroundStyle(.secondary).monospacedDigit()
+        }
+        .padding(.vertical, 10)
+    }
+
+    private var portionsbeispieleZeile: some View {
+        Button { portionsbeispieleOffen = true } label: {
+            HStack {
+                Text("Portionsbeispiele").foregroundStyle(.primary)
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(.secondary)
             }
+            .frame(minHeight: 44)
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+    }
+
+    // MARK: Unten
+
+    private var unten: some View {
+        VStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Button { mengenRadOffen = true } label: {
+                    Text(MengenOption.bruchText(zahl)).font(.title3.weight(.bold)).monospacedDigit()
+                }
+                Button { mengenRadOffen = true } label: {
+                    Text(auswahl.anzeige(lebensmittel)).foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .buttonStyle(.plain)
+            .frame(minHeight: 44)
+
+            Button { speichern() } label: {
+                Text(bearbeiten != nil ? "Speichern" : "Hinzufügen")
+                    .font(.headline)
+                    .foregroundStyle(Color.black)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+            }
+                .tint(ErnaehrungStil.akzent)
+                .buttonStyle(.borderedProminent)
+                .buttonBorderShape(.capsule)
+                .disabled(!kannSpeichern)
         }
         .padding(16)
-        .background(.bar)
-        .confirmationDialog("Eintrag löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
-            Button("Löschen", role: .destructive) { loeschen() }
-        }
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: ErnaehrungStil.radius, style: .continuous))
+    }
+
+    // MARK: Aktionen
+
+    private func speichern() {
+        if bearbeiten != nil { sichern() } else { eintragen() }
     }
 
     private func eintragen() {
-        guard let menge else { return }
-        modell.eintragen(lebensmittel, menge: menge, einheit: einheit, mahlzeit: mahlzeit, datum: datum)
+        modell.eintragen(lebensmittelFuerMenge, menge: zahl, einheit: auswahl.einheit, mahlzeit: mahlzeit, datum: datum)
         Haptik.erfolg()
         fertig()
     }
 
     private func sichern() {
-        guard var eintrag = bearbeiten, let menge else { return }
+        guard var eintrag = bearbeiten else { return }
         eintrag.mahlzeit = mahlzeit
-        eintrag.menge = menge
-        eintrag.einheit = einheit
-        eintrag.lebensmittel = lebensmittel
+        eintrag.menge = zahl
+        eintrag.einheit = auswahl.einheit
+        eintrag.lebensmittel = lebensmittelFuerMenge
         modell.aendern(eintrag)
         Haptik.erfolg()
         fertig()
