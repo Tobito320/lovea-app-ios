@@ -352,6 +352,12 @@ private enum HeuteZiel: Hashable {
     case schritte, schlaf, habits, habit(String), punkte, ernaehrung, training, koerper, verlauf
 }
 
+private struct KoerperAuswahl: Identifiable {
+    let gruppe: MuskelGruppe
+    let teil: MuskelTeil?
+    var id: String { "\(gruppe.rawValue)/\(teil?.rawValue ?? "-")" }
+}
+
 private struct StimmungSetzen: Codable { var datum: String; var stimmung: String }
 
 /// Zahlenfeld für das Gewicht. "78,4" wird als 784 Zehntel-kg gespeichert (`GewichtText`).
@@ -400,6 +406,11 @@ private struct GewichtBlatt: View {
 /// Schlaf öffnen sich als Seiten im selben Stapel.
 struct HeuteView: View {
     @State private var pfad = NavigationPath()
+    /// Der gezeigte Tag (Ahmed, 27.09.): Wochenstreifen oben, Pfeile, Monat. Standard heute.
+    @State private var gewaehlt = Datum.text(Date())
+    @State private var monatOffen = false
+    @State private var koerperAuswahl: KoerperAuswahl?
+    @State private var befragung = false
     @State private var gewichtOffen = false
     @State private var offeneHinweise: Set<String> = []
     @Namespace private var zoom
@@ -408,19 +419,29 @@ struct HeuteView: View {
 
     private var health: HealthModell { HealthModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
-    private var heute: String { Datum.text(Date()) }
+    /// Alle Kacheln und die Tagesform zeigen den gewählten Tag (Name bleibt, damit der Rest gleich liest).
+    private var heute: String { gewaehlt }
+    private var echtHeute: String { Datum.text(Date()) }
 
     var body: some View {
         NavigationStack(path: $pfad) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     kopf
-                    TagesformKarte(person: ich, form: tagesform, energie: EnergieLogik.rat(EnergieQuelle.eingabe(ich)),
-                                   partner: (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))))
-                    abschnitt("Dein Tag") { raster }
-                    abschnitt("Training und Körper") { kaesten }
+                    VStack(spacing: 0) {
+                        tagesWahl
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                        TagesformKarte(person: ich, form: tagesform,
+                                       energie: heute == echtHeute ? EnergieLogik.rat(EnergieQuelle.eingabe(ich)) : nil,
+                                       partner: heute == echtHeute ? (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))) : nil)
+                    }
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute)) { raster }
                     abschnitt("Das fällt mir auf") { hinweisListe }
                     punkteZeile
+                    abschnitt("Körper") { koerper }
+                    verlaufKasten
                 }
                 .padding(16)
             }
@@ -428,6 +449,13 @@ struct HeuteView: View {
             .navigationDestination(for: HeuteZiel.self) { ansicht($0) }
             .navigationDestination(for: HealthZiel.self) { HealthZielAnsicht(ziel: $0) }
             .navigationDestination(for: VerlaufZiel.self) { ziel in VerlaufZielSeite(ziel: ziel) { pfad.append($0) } }
+            .sheet(isPresented: $monatOffen) { monatBlatt }
+            .sheet(item: $koerperAuswahl) { a in
+                ScrollView { KoerperBlatt(daten: KoerperDaten.laden(ich), gruppe: a.gruppe, teil: a.teil).padding(.horizontal, 18).padding(.top, 22).padding(.bottom, 30) }
+                    .presentationDetents([.medium, .large])
+                    .presentationDragIndicator(.visible)
+            }
+            .sheet(isPresented: $befragung) { ZieleBefragung() }
             .sheet(isPresented: $gewichtOffen) {
                 GewichtBlatt(start: gewichte.last.map { komma(Double($0.zehntel) / 10) } ?? "") {
                     health.setzeHabit(Habit.gewicht.id, datum: heute, wert: $0)
@@ -457,13 +485,114 @@ struct HeuteView: View {
         }
     }
 
+    /// Tipp auf den Kopf springt zurück zu heute.
     private var kopf: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            Text(Datum.anzeige(heute).uppercased()).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
-            Text("Health").font(.largeTitle.bold())
+        Button { zuHeute() } label: {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(heute == echtHeute ? Datum.anzeige(heute).uppercased() : "ZURÜCK ZU HEUTE")
+                    .font(.footnote.weight(.semibold))
+                    .foregroundStyle(heute == echtHeute ? Color.secondary : Color.accentColor)
+                Text("Health").font(.largeTitle.bold()).foregroundStyle(Color.primary)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .contentShape(.rect)
         }
-        .accessibilityElement(children: .combine)
+        .buttonStyle(.plain)
         .accessibilityAddTraits(.isHeader)
+    }
+
+    private func zuHeute() {
+        guard gewaehlt != echtHeute else { return }
+        Haptik.auswahl()
+        withAnimation(Feder.weich) { gewaehlt = echtHeute }
+    }
+
+    // MARK: Tag wählen
+
+    /// Monat mit Pfeilen (eine Woche vor/zurück), darunter Mo bis So. Monat antippen öffnet den Kalender,
+    /// den Kreis von heute antippen oder den Kopf springt zurück zu heute.
+    private var tagesWahl: some View {
+        let woche = KoerperWoche.bauen(ich: ich, sessions: [ich: TrainingModell.shared.sessions(ich), ich.partner: TrainingModell.shared.sessions(ich.partner)],
+                                       plan: TrainingModell.shared.plan(ich), heute: echtHeute, katalog: { UebungsKatalog.nachId[$0] },
+                                       montagVon: gewaehlt)
+        return VStack(spacing: 0) {
+            HStack {
+                pfeil("chevron.left", -7, "Woche davor")
+                Spacer()
+                Button { monatOffen = true } label: {
+                    HStack(spacing: 4) {
+                        Text(Datum.datum(gewaehlt).formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "de_DE"))))
+                            .font(.subheadline.weight(.semibold))
+                        Image(systemName: "calendar").font(.footnote)
+                    }
+                    .frame(minHeight: 44)
+                }
+                .buttonStyle(.plain)
+                .accessibilityHint("Öffnet den Monat")
+                Spacer()
+                pfeil("chevron.right", 7, "Woche danach")
+            }
+            Streifen(woche: woche, gewaehlt: gewaehlt) { tag in
+                Haptik.auswahl()
+                withAnimation(Feder.weich) { gewaehlt = tag }
+            }
+        }
+        .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { g in
+            guard abs(g.translation.width) > abs(g.translation.height) else { return }
+            blaettern(g.translation.width < 0 ? 7 : -7)
+        })
+    }
+
+    private func pfeil(_ symbol: String, _ tage: Int, _ label: String) -> some View {
+        Button { blaettern(tage) } label: {
+            Image(systemName: symbol).font(.body.weight(.semibold)).frame(width: 44, height: 44)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(label)
+    }
+
+    private func blaettern(_ tage: Int) {
+        Haptik.auswahl()
+        withAnimation(Feder.weich) { gewaehlt = Datum.addTage(gewaehlt, tage) }
+    }
+
+    private var monatBlatt: some View {
+        NavigationStack {
+            DatePicker("Tag", selection: Binding(get: { Datum.datum(gewaehlt) }, set: { gewaehlt = Datum.text($0); monatOffen = false }),
+                       displayedComponents: .date)
+                .datePickerStyle(.graphical)
+                .environment(\.locale, Locale(identifier: "de_DE"))
+                .padding()
+                .navigationTitle("Tag wählen")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar {
+                    ToolbarItem(placement: .cancellationAction) { Button("Heute") { gewaehlt = echtHeute; monatOffen = false } }
+                    ToolbarItem(placement: .confirmationAction) { Button("Fertig") { monatOffen = false } }
+                }
+        }
+        .presentationDetents([.medium, .large])
+    }
+
+    // MARK: Körper und Verlauf (ganz unten)
+
+    private var koerper: some View {
+        KoerperInhalt(
+            daten: KoerperDaten.laden(ich),
+            onGruppe: { koerperAuswahl = KoerperAuswahl(gruppe: $0, teil: $1) },
+            onZiele: { befragung = true },
+            onTraining: { gymOeffnen() },
+            mitStreifen: false
+        )
+    }
+
+    private var verlaufKasten: some View {
+        kasten("Verlauf", symbol: "chart.xyaxis.line", farbe: TagesForm.schlaf.farbe, text: "Übungen und Muskelgruppen") { pfad.append(HeuteZiel.verlauf) }
+    }
+
+    /// Gym: läuft eine Einheit, direkt hinein, sonst der Plan mit Einchecken.
+    private func gymOeffnen() {
+        pfad.append(HeuteZiel.training)
+        if let s = TrainingModell.shared.laufende(ich) { pfad.append(HealthZiel.gymSession(s.id)) }
     }
 
     private func abschnitt<Inhalt: View>(_ titel: String, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
@@ -492,22 +621,7 @@ struct HeuteView: View {
         }
     }
 
-    // MARK: Training und Körper
-
-    /// Kästen wie der Schlaf: Tipp öffnet die Seite.
-    private var kaesten: some View {
-        VStack(spacing: 10) {
-            kasten("Training", symbol: "dumbbell.fill", farbe: TagesForm.training.farbe, text: trainingText) { pfad.append(HeuteZiel.training) }
-            kasten("Körper", symbol: "figure.arms.open", farbe: TagesForm.habits.farbe, text: "Erholung deiner Muskeln") { pfad.append(HeuteZiel.koerper) }
-            kasten("Verlauf", symbol: "chart.xyaxis.line", farbe: TagesForm.schlaf.farbe, text: "Übungen und Muskelgruppen") { pfad.append(HeuteZiel.verlauf) }
-        }
-    }
-
-    private var trainingText: String {
-        if TrainingModell.shared.laufende(ich) != nil { return "Du bist gerade im Gym" }
-        if let tag = TrainingModell.shared.heutigerTag(ich) { return "Heute: \(tag.name)" }
-        return TrainingModell.shared.plan(ich).tage.isEmpty ? "Noch kein Trainingsplan" : "Heute kein Training geplant"
-    }
+    // MARK: Kasten
 
     private func kasten(_ titel: String, symbol: String, farbe: Color, text: String, aktion: @escaping () -> Void) -> some View {
         Button(action: aktion) {
@@ -538,7 +652,7 @@ struct HeuteView: View {
         let erholung = MuskelLogik.erholung(TrainingModell.shared.sessions(ich), jetzt: Date())
         return TagesformLogik.tagesform(
             schlafMinuten: health.schlafMinuten(ich, heute), wasser: health.wasserAnzahl(ich, heute),
-            wasserZiel: health.zielWasser(ich), schritte: health.heuteSchritte(ich), schritteZiel: health.zielSchritte(ich),
+            wasserZiel: health.zielWasser(ich), schritte: health.schritteAm(ich, heute), schritteZiel: health.zielSchritte(ich),
             erholung: TagesformLogik.erholungMittel(erholung), schlafZiel: health.schlafZiel(ich, tag: heute))
     }
 
@@ -560,7 +674,7 @@ struct HeuteView: View {
 
     private var schritteKachel: some View {
         let ziel = health.zielSchritte(ich)
-        let n = health.heuteSchritte(ich) ?? 0
+        let n = health.schritteAm(ich, heute) ?? 0
         return FormKachel(form: .schritte, titel: "Schritte", wert: deZahl(n), einheit: "",
                           fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0, zusatz: "Ziel \(deZahl(ziel))") { pfad.append(HeuteZiel.schritte) }
     }
@@ -646,8 +760,8 @@ struct HeuteView: View {
 
     private var trainingKachel: some View {
         let dran = health.gymAbgehakt(ich, heute) || TrainingModell.shared.sessions(ich).contains { Datum.text($0.start) == heute }
-        return FormKachel(form: .training, titel: "Training", wert: dran ? "Gym" : "Pause", einheit: "", fuellung: dran ? 1 : 0) {
-            pfad.append(HeuteZiel.training)
+        return FormKachel(form: .training, titel: "Gym", wert: dran ? "Gym" : "Pause", einheit: "", fuellung: dran ? 1 : 0) {
+            gymOeffnen()
         }
     }
 

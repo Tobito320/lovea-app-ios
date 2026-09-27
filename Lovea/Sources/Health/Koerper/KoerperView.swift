@@ -280,9 +280,10 @@ struct KoerperWoche: Sendable {
         return "Beine \(beine) von \(b) · Oberkörper \(oben) von \(o) · \(pausen) \(pausen == 1 ? "Pause" : "Pausen")"
     }
 
+    /// `montagVon`: irgendein Tag der gezeigten Woche (Health blättert), Standard die Woche von `heute`.
     static func bauen(ich: Person, sessions: [Person: [GymSession]], plan: TrainingsPlan, heute: String,
-                      katalog: (String) -> Uebung?) -> KoerperWoche {
-        let montag = Datum.montagDerWoche(heute)
+                      katalog: (String) -> Uebung?, montagVon: String? = nil) -> KoerperWoche {
+        let montag = Datum.montagDerWoche(montagVon ?? heute)
         let tage = (0..<7).map { i -> Tag in
             let datum = Datum.addTage(montag, i)
             let wer = Person.allCases.filter { p in (sessions[p] ?? []).contains { Datum.text($0.start) == datum } }
@@ -425,12 +426,14 @@ struct KoerperInhalt: View {
     var onGruppe: (MuskelGruppe, MuskelTeil?) -> Void = { _, _ in }
     var onZiele: () -> Void = {}
     var onTraining: () -> Void = {}
+    /// Health zeigt den Wochenstreifen schon oben in der Tagesform, eingebettet ohne.
+    var mitStreifen = true
 
     private var ich: Person { daten.person }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Streifen(woche: daten.streifen)
+            if mitStreifen { Streifen(woche: daten.streifen) }
             Text(daten.streifen.bilanz)
                 .font(.footnote)
                 .foregroundStyle(.secondary)
@@ -514,28 +517,50 @@ struct KoerperInhalt: View {
 
 /// Wochenstreifen Mo bis So: grüner Haken, heute Rosé-Ring, O oder B für kommende Plan-Tage, darunter
 /// ein Punkt pro Person, die an dem Tag trainiert hat.
-private struct Streifen: View {
+struct Streifen: View {
     let woche: KoerperWoche
+    /// Health: gewählter Tag bekommt einen Ring, Tipp wählt den Tag.
+    var gewaehlt: String? = nil
+    var waehlen: ((String) -> Void)? = nil
 
     var body: some View {
         HStack(alignment: .top, spacing: 0) {
             ForEach(woche.tage, id: \.datum) { tag in
+                zelle(tag)
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel(label(tag))
+                    .accessibilityAddTraits(tag.datum == gewaehlt ? .isSelected : [])
+            }
+        }
+        .padding(.top, 12)
+    }
+
+    @ViewBuilder private func zelle(_ tag: KoerperWoche.Tag) -> some View {
+        if let waehlen {
+            Button { waehlen(tag.datum) } label: { spalte(tag) }.buttonStyle(.plain)
+        } else {
+            spalte(tag)
+        }
+    }
+
+    private func spalte(_ tag: KoerperWoche.Tag) -> some View {
                 VStack(spacing: 5) {
                     Text(tag.kuerzel)
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundStyle(tag.heute ? Color.primary : Color.secondary)
                     kreis(tag)
+                        .overlay {
+                            if tag.datum == gewaehlt, !tag.heute {
+                                Circle().strokeBorder(Color.primary, lineWidth: 2).padding(-3)
+                            }
+                        }
                     HStack(spacing: 3) {
                         ForEach(tag.personen, id: \.self) { Circle().fill(Color.person($0)).frame(width: 5, height: 5) }
                     }
                     .frame(height: 5)
                 }
                 .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(label(tag))
-            }
-        }
-        .padding(.top, 12)
+                .contentShape(.rect)
     }
 
     @ViewBuilder private func kreis(_ tag: KoerperWoche.Tag) -> some View {
