@@ -54,6 +54,7 @@ struct UebungsSuche: View {
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var koerper: String?
+    @State private var muskel: String?
     @State private var hinzugefuegt: Set<String> = []
     @State private var eigeneOffen = false
     @State private var eigenerName = ""
@@ -82,11 +83,22 @@ struct UebungsSuche: View {
     }
 
     private var liste: some View {
-        let basis = koerper.map { k in UebungsKatalog.alle.filter { $0.koerper == k } } ?? UebungsKatalog.alle
+        let basis = UebungsKatalog.alle.filter { u in
+            (koerper.map { u.koerper == $0 } ?? true) && (muskel.map { u.muskel == $0 } ?? true)
+        }
         let treffer = UebungsKatalog.suchen(text, in: basis)
+        let vorschlaege = text.isEmpty ? UebungsKatalog.vorschlaege(in: basis) : []
         return List {
             Section {
                 filter.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                if let koerper {
+                    muskelFilter(koerper).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
+                }
+            }
+            if !vorschlaege.isEmpty {
+                Section("Vorschläge") {
+                    ForEach(vorschlaege) { u in zeile(u) }
+                }
             }
             Section(treffer.isEmpty ? "Nichts gefunden" : "\(treffer.count) Übungen") {
                 ForEach(treffer) { u in zeile(u) }
@@ -97,10 +109,33 @@ struct UebungsSuche: View {
     private var filter: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                chip("Alle", an: koerper == nil) { koerper = nil }
-                ForEach(UebungsKatalog.koerperteile, id: \.self) { k in chip(k, an: koerper == k) { koerper = k } }
+                chip("Alle", an: koerper == nil) {
+                    koerper = nil
+                    muskel = nil
+                }
+                ForEach(UebungsKatalog.koerperteile, id: \.self) { k in
+                    chip(k, an: koerper == k) {
+                        koerper = k
+                        muskel = nil
+                    }
+                }
             }
             .padding(.horizontal, 16)
+        }
+    }
+
+    /// Zweite Ebene: Zielmuskeln des gewählten Körperteils (Beine → Po, Quadrizeps, Beinbeuger …).
+    @ViewBuilder
+    private func muskelFilter(_ koerper: String) -> some View {
+        let muskeln = UebungsKatalog.muskeln(koerper)
+        if muskeln.count > 1 {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    chip("Alle \(koerper)", an: muskel == nil) { muskel = nil }
+                    ForEach(muskeln, id: \.self) { m in chip(m, an: muskel == m) { muskel = m } }
+                }
+                .padding(.horizontal, 16)
+            }
         }
     }
 

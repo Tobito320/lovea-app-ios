@@ -67,6 +67,41 @@ enum UebungsKatalog {
         }
     }
 
+    /// Gängige Studio-Übungen (ExerciseDB-ids), oben als Vorschläge und bei Alternativen zuerst.
+    // ponytail: feste Liste statt Beliebtheit aus Daten; erweitern, wenn eine Kategorie zu dünn ist.
+    static let beliebt: [String] = [
+        "EIeI8Vf", "ns0SIbU", "3TZduzM", "0CXGHya", "T0yTjgW", "yz9nUhF", "I4hDWkc",              // Brust
+        "qXTaZnJ", "jFtipLl", "ila4NZS", "wQ2c4XD", "my33uHU", "17lJ1kr", "Zg3XY7P", "RRWFUcw",  // Beine
+        "CHpahtl", "OM46QHm", "ykUOVze", "bOOdeyc",                                               // Po, Waden
+        "RVwzP10", "eYnzaCm", "lBDjFxJ", "fUBheHs", "7I6LNUG", "eZyBC3j", "C0MA9bC",              // Rücken
+        "DsgkuIt", "znQUdHY", "kTbSH9h", "wqNPGCg", "myfUsKf",                                    // Schultern
+        "25GPyDY", "slDvUAU", "ae9UoXQ", "3ZflifB", "gAwDzB3", "kont8Ut",                         // Arme
+        "TFqbd8t", "I3tsCnC", "WW95auq", "a8VDgLw",                                               // Bauch, Cardio
+    ]
+    private static let beliebtRang: [String: Int] = Dictionary(beliebt.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+
+    /// Zielmuskeln eines Körperteils, häufigste zuerst ("Beine" → Po, Quadrizeps, Beinbeuger …).
+    static func muskeln(_ koerper: String, in liste: [Uebung] = alle) -> [String] {
+        var zahl: [String: Int] = [:]
+        for u in liste where u.koerper == koerper { zahl[u.muskel, default: 0] += 1 }
+        return zahl.keys.sorted { (zahl[$0] ?? 0, $1) > (zahl[$1] ?? 0, $0) }
+    }
+
+    /// Vorschläge aus `liste` (z. B. schon nach Kategorie gefiltert), in Reihenfolge von `beliebt`.
+    static func vorschlaege(in liste: [Uebung]) -> [Uebung] {
+        liste.filter { beliebtRang[$0.id] != nil }.sorted { (beliebtRang[$0.id] ?? 0) < (beliebtRang[$1.id] ?? 0) }
+    }
+
+    /// Andere Übungen für denselben Zielmuskel (sitzend, stehend, Kabel, Maschine …): gängige zuerst, dann kurze Namen.
+    static func alternativen(zu u: Uebung, in liste: [Uebung] = alle) -> [Uebung] {
+        liste.filter { $0.id != u.id && $0.muskel == u.muskel && $0.koerper == u.koerper }.sorted { a, b in
+            let ra = beliebtRang[a.id] ?? Int.max, rb = beliebtRang[b.id] ?? Int.max
+            if ra != rb { return ra < rb }
+            if a.name.count != b.name.count { return a.name.count < b.name.count }
+            return a.name < b.name
+        }
+    }
+
     private static func suchtext(_ u: Uebung) -> String {
         normal("\(u.name) \(u.en) \(u.muskel) \(u.geraet) \(u.koerper)")
     }

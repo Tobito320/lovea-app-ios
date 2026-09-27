@@ -54,6 +54,20 @@ struct TrainingsPlan: Codable, Equatable, Sendable {
     static let leer = TrainingsPlan(tage: [])
 }
 
+/// Farbe je Trainingstag (Ahmed, 27.09.: jeder Tag anders). Feste Tage der Reihe nach aus der
+/// Palette, flexible Tage (ohne Wochentag, an jedem Tag trainierbar) immer Lila.
+enum TagFarbe {
+    static let anzahl = 5
+    static let flexibel = anzahl
+
+    /// Index in die Palette: 0..<anzahl für feste Tage, `flexibel` für Tage ohne Wochentag.
+    static func index(_ tag: TrainingsTag, in plan: TrainingsPlan) -> Int {
+        guard !tag.wochentage.isEmpty else { return flexibel }
+        let feste = plan.tage.filter { !$0.wochentage.isEmpty }
+        return (feste.firstIndex { $0.id == tag.id } ?? 0) % anzahl
+    }
+}
+
 /// Body of `gym.checkin` (`tag`, `start`), `gym.uebung` (`plan` = PlanUebung.id, `uebung` = catalog id,
 /// `status` "start" | "fertig" | "offen", `saetze` on "fertig"), `gym.checkout` (`ende`) and
 /// `gym.loeschen`. Sending check-in or checkout again for the same session corrects its times.

@@ -25,7 +25,7 @@ struct TrainingsPlanView: View {
             Section("Trainingstage") {
                 if plan.tage.isEmpty { leer }
                 ForEach(plan.tage) { tag in
-                    Button { bearbeiten = tag } label: { TagZeile(tag: tag) }
+                    Button { bearbeiten = tag } label: { TagZeile(tag: tag, farbe: TagFarbe.farbe(TagFarbe.index(tag, in: plan))) }
                         .buttonStyle(.plain)
                 }
                 .onDelete(perform: eigener ? loeschenAktion(plan) : nil)
@@ -268,15 +268,24 @@ struct PlanHinweisZeile: View {
 }
 
 /// "Push · Mo, Do" and the exercises in one line.
+extension TagFarbe {
+    static func farbe(_ index: Int) -> Color {
+        [Color.blue, .orange, .pink, .teal, .yellow, .purple][min(max(index, 0), anzahl)]
+    }
+}
+
 struct TagZeile: View {
     let tag: TrainingsTag
+    var farbe: Color = .accentColor
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
+                Circle().fill(farbe).frame(width: 12, height: 12)
                 Text(tag.name.isEmpty ? "Ohne Namen" : tag.name).font(.headline)
                 Spacer()
-                Text(TrainingLogik.wochentageText(tag.wochentage)).font(.subheadline).foregroundStyle(.secondary)
+                Text(tag.wochentage.isEmpty ? "flexibel" : TrainingLogik.wochentageText(tag.wochentage))
+                    .font(.subheadline).foregroundStyle(.secondary)
             }
             Text(tag.uebungen.isEmpty ? "Noch keine Übungen" : tag.uebungen.map(\.anzeigeName).joined(separator: " · "))
                 .font(.footnote)
@@ -303,7 +312,14 @@ struct TagEditor: View {
                 // Nur Name und Wochentage sperren: `.disabled` auf der ganzen Form sperrt auch das Scrollen
                 // (Plan von Annika ließ sich nicht runterscrollen).
                 Section("Name") { TextField("z. B. Push", text: $tag.name) }.disabled(!bearbeitbar)
-                Section("Wochentage") { wochentage }.disabled(!bearbeitbar)
+                Section {
+                    wochentage
+                } header: {
+                    Text("Wochentage")
+                } footer: {
+                    Text("Ohne Wochentag ist der Tag flexibel: an jedem Tag trainierbar, auch als Extra-Tag.")
+                }
+                .disabled(!bearbeitbar)
                 uebungen
             }
             .environment(\.editMode, .constant(sortieren ? .active : .inactive))
@@ -350,10 +366,23 @@ struct TagEditor: View {
     private var uebungen: some View {
         Section {
             ForEach($tag.uebungen) { $u in
-                NavigationLink { SaetzeEditor(uebung: $u) } label: { planZeile(u) }
+                NavigationLink {
+                    SaetzeEditor(uebung: $u, bearbeitbar: bearbeitbar) { tag.uebungen.removeAll { $0.id == u.id } }
+                } label: { planZeile(u) }
+                // Eigene Wisch-Aktion statt onDelete: der feste editMode oben schaltet onDelete ab
+                // (Übungen ließen sich nicht löschen).
+                .swipeActions {
+                    if bearbeitbar {
+                        Button("Löschen", systemImage: "trash", role: .destructive) { tag.uebungen.removeAll { $0.id == u.id } }
+                    }
+                }
+                .contextMenu {
+                    if bearbeitbar {
+                        Button("Löschen", systemImage: "trash", role: .destructive) { tag.uebungen.removeAll { $0.id == u.id } }
+                    }
+                }
             }
             .onMove(perform: bearbeitbar ? { tag.uebungen.move(fromOffsets: $0, toOffset: $1) } : nil)
-            .onDelete(perform: bearbeitbar ? { tag.uebungen.remove(atOffsets: $0) } : nil)
             if bearbeitbar {
                 Button("Übung hinzufügen", systemImage: "plus") { sucheOffen = true }
             }
@@ -398,33 +427,105 @@ struct TagEditor: View {
 /// Sets of one plan exercise (or minutes for cardio), with the GIF on top.
 struct SaetzeEditor: View {
     @Binding var uebung: PlanUebung
+    var bearbeitbar = true
+    var entfernen: () -> Void = {}
+
+    /// Änderungen erst mit "Fertig" übernehmen, "Abbrechen" verwirft sie (Ahmed, 27.09.).
+    @State private var entwurf: PlanUebung
+    @State private var variantenOffen = false
+    @Environment(\.dismiss) private var dismiss
+
+    init(uebung: Binding<PlanUebung>, bearbeitbar: Bool = true, entfernen: @escaping () -> Void = {}) {
+        _uebung = uebung
+        self.bearbeitbar = bearbeitbar
+        self.entfernen = entfernen
+        _entwurf = State(initialValue: uebung.wrappedValue)
+    }
 
     var body: some View {
         Form {
-            if uebung.katalog != nil {
+            if entwurf.katalog != nil {
                 Section {
-                    UebungGif(id: uebung.uebung)
+                    UebungGif(id: entwurf.uebung)
                         .frame(height: 200)
                         .frame(maxWidth: .infinity)
                         .listRowInsets(EdgeInsets())
                 }
             }
-            if uebung.istCardio {
-                Section("Dauer") {
-                    Stepper(value: minuten, in: 5...180, step: 5) { Text("\(uebung.minuten ?? 20) min").monospacedDigit() }
+            Group {
+                if entwurf.istCardio {
+                    Section("Dauer") {
+                        Stepper(value: minuten, in: 5...180, step: 5) { Text("\(entwurf.minuten ?? 20) min").monospacedDigit() }
+                    }
+                } else {
+                    Section { SaetzeListe(saetze: $entwurf.saetze) } header: { Text("Sätze") } footer: {
+                        Text("Failure heißt: bis nichts mehr geht.")
+                    }
                 }
-            } else {
-                Section { SaetzeListe(saetze: $uebung.saetze) } header: { Text("Sätze") } footer: {
-                    Text("Failure heißt: bis nichts mehr geht.")
+            }
+            .disabled(!bearbeitbar)
+            if bearbeitbar {
+                Section {
+                    if let u = entwurf.katalog, !UebungsKatalog.alternativen(zu: u).isEmpty {
+                        Button("Andere Variante wählen", systemImage: "arrow.triangle.2.circlepath") { variantenOffen = true }
+                    }
+                    Button("Übung entfernen", systemImage: "trash", role: .destructive) {
+                        entfernen()
+                        dismiss()
+                    }
                 }
             }
         }
-        .navigationTitle(uebung.anzeigeName)
+        .navigationTitle(entwurf.anzeigeName)
         .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(bearbeitbar)
+        .toolbar {
+            if bearbeitbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig") {
+                        uebung = entwurf
+                        Haptik.erfolg()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $variantenOffen) {
+            if let u = entwurf.katalog {
+                VariantenBlatt(uebung: u) { neu in
+                    entwurf.uebung = neu.id
+                    entwurf.name = nil
+                }
+            }
+        }
     }
 
     private var minuten: Binding<Int> {
-        Binding { uebung.minuten ?? 20 } set: { uebung.minuten = $0 }
+        Binding { entwurf.minuten ?? 20 } set: { entwurf.minuten = $0 }
+    }
+}
+
+/// "Gefällt mir nicht": andere Übungen für denselben Muskel (sitzend, stehend, Kabel, Maschine …).
+struct VariantenBlatt: View {
+    let uebung: Uebung
+    let waehlen: (Uebung) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List(UebungsKatalog.alternativen(zu: uebung)) { u in
+                Button {
+                    waehlen(u)
+                    Haptik.erfolg()
+                    dismiss()
+                } label: { UebungZeile(uebung: u) }
+                .buttonStyle(.plain)
+            }
+            .navigationTitle("Statt \(uebung.name)")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } } }
+        }
     }
 }
 
