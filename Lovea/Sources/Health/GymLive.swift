@@ -5,28 +5,47 @@ import Foundation
 /// sie, eine neue Übung aktualisiert sie, Auschecken beendet sie. Nur auf dem iPhone.
 @MainActor
 enum GymLive {
+    private struct Ziel: Sendable {
+        var attribute: GymAktivitaet
+        var stand: GymAktivitaet.ContentState
+    }
+
+    /// Abgleiche laufen nacheinander: beim Start kommen viele Ops auf einmal, parallel gäbe es doppelte Aktivitäten.
+    private static var letzter: Task<Void, Never>?
+
     static func abgleichen() {
+        let ziel = zielJetzt()
+        let vorher = letzter
+        letzter = Task {
+            await vorher?.value
+            await anwenden(ziel)
+        }
+    }
+
+    private static func zielJetzt() -> Ziel? {
         let modell = TrainingModell.shared
         let ich = Raum.shared.ich ?? .ahmed
-        let aktiv = Activity<GymAktivitaet>.activities
-        guard Geraet.wirdGetragen, let s = modell.laufende(ich) else {
-            for a in aktiv { Task { await a.end(nil, dismissalPolicy: .immediate) } }
-            return
-        }
+        guard Geraet.wirdGetragen, let s = modell.laufende(ich) else { return nil }
         let tag = modell.tag(ich, id: s.tag)
-        let stand = GymAktivitaet.ContentState(
-            uebung: s.aktiv.flatMap { a in tag?.uebungen.first { $0.id == a.plan }?.anzeigeName },
-            fertig: tag?.uebungen.filter { s.erledigt($0.id) }.count ?? 0,
-            gesamt: tag?.uebungen.count ?? 0)
-        for a in aktiv where a.attributes.sessionId != s.id { Task { await a.end(nil, dismissalPolicy: .immediate) } }
-        if let a = aktiv.first(where: { $0.attributes.sessionId == s.id }) {
-            guard a.content.state != stand else { return }
-            Task { await a.update(ActivityContent(state: stand, staleDate: nil)) }
+        return Ziel(
+            attribute: GymAktivitaet(sessionId: s.id, start: s.start, tagName: tag?.name ?? "Training"),
+            stand: GymAktivitaet.ContentState(
+                uebung: s.aktiv.flatMap { a in tag?.uebungen.first { $0.id == a.plan }?.anzeigeName },
+                fertig: tag?.uebungen.filter { s.erledigt($0.id) }.count ?? 0,
+                gesamt: tag?.uebungen.count ?? 0))
+    }
+
+    /// Nonisolated: die `Activity`-Objekte bleiben in diesem einen Ablauf (Swift 6, nicht Sendable).
+    private nonisolated static func anwenden(_ ziel: Ziel?) async {
+        for a in Activity<GymAktivitaet>.activities where a.attributes.sessionId != ziel?.attribute.sessionId {
+            await a.end(nil, dismissalPolicy: .immediate)
+        }
+        guard let ziel else { return }
+        if let a = Activity<GymAktivitaet>.activities.first(where: { $0.attributes.sessionId == ziel.attribute.sessionId }) {
+            if a.content.state != ziel.stand { await a.update(ActivityContent(state: ziel.stand, staleDate: nil)) }
         } else if ActivityAuthorizationInfo().areActivitiesEnabled {
             // Klappt nur im Vordergrund; sonst holt der nächste Abgleich beim Öffnen es nach.
-            _ = try? Activity.request(
-                attributes: GymAktivitaet(sessionId: s.id, start: s.start, tagName: tag?.name ?? "Training"),
-                content: ActivityContent(state: stand, staleDate: nil))
+            _ = try? Activity.request(attributes: ziel.attribute, content: ActivityContent(state: ziel.stand, staleDate: nil))
         }
     }
 }
