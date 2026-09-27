@@ -26,8 +26,11 @@ enum GalerieImport {
     /// custom-size artwork (`ArtworkLibrary.clampDimension`).
     nonisolated static func canvasSize(pixelWidth: Int, pixelHeight: Int, orientation: Int) -> (width: Double, height: Double) {
         let gedreht = (5...8).contains(orientation)
-        let width = gedreht ? pixelHeight : pixelWidth
-        let height = gedreht ? pixelWidth : pixelHeight
-        return (ArtworkLibrary.clampDimension(Double(width)), ArtworkLibrary.clampDimension(Double(height)))
+        let width = Double(gedreht ? pixelHeight : pixelWidth)
+        let height = Double(gedreht ? pixelWidth : pixelHeight)
+        // Scale down as a whole first: clamping each side alone turned a 48 MP photo (8064x6048)
+        // into a 4096x4096 square and squashed the image.
+        let faktor = min(1, 4096 / max(width, height, 1))
+        return (ArtworkLibrary.clampDimension(width * faktor), ArtworkLibrary.clampDimension(height * faktor))
     }
 }
