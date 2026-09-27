@@ -67,13 +67,15 @@ enum AufnahmenSpeichern {
                 let kopie = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
                 try FileManager.default.copyItem(at: quelle, to: kopie)
                 defer { try? FileManager.default.removeItem(at: kopie) }
-                try await PHPhotoLibrary.shared().performChanges {
+                // `@Sendable`: PhotoKit ruft den Block auf einer eigenen Queue auf. Ohne die Markierung erbt er
+                // den Main-Actor dieses Enums und Swift 6 bricht die App zur Laufzeit ab (Snap/Foto speichern).
+                try await PHPhotoLibrary.shared().performChanges { @Sendable in
                     PHAssetCreationRequest.forAsset().addResource(with: .video, fileURL: kopie, options: nil)
                 }
             } else {
                 // As data: the photo's type is read from its bytes, not from the (missing) extension.
                 let daten = try await Task.detached(priority: .userInitiated) { try Data(contentsOf: quelle) }.value
-                try await PHPhotoLibrary.shared().performChanges {
+                try await PHPhotoLibrary.shared().performChanges { @Sendable in
                     PHAssetCreationRequest.forAsset().addResource(with: .photo, data: daten, options: nil)
                 }
             }
