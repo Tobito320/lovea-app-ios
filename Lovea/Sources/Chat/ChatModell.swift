@@ -81,7 +81,7 @@ final class ChatModell {
     private var letzterGesendeterEntwurf: EntwurfEintrag?
 
     static let arten: Set<String> = [
-        "nachricht.neu", "nachricht.bearbeitet", "nachricht.geloescht", "nachricht.reaktion",
+        "nachricht.neu", "nachricht.bearbeitet", "nachricht.geloescht", "nachricht.wiederhergestellt", "nachricht.reaktion",
         "nachricht.gelesen", "nachricht.angeheftet", "nachricht.losgeloest", "stern", "nachricht.gemerkt",
         "medium.abschrift", "snap.angesehen", "snap.gespeichert", "snap.aufnahme", "snap.wiederholt", "zeichnung.einladung",
         "entwurf.setzen",
@@ -182,14 +182,26 @@ final class ChatModell {
             return p.id
         case "nachricht.geloescht":
             guard let p = op.daten(IDPayload.self) else { return nil }
-            // Retracted within 5 s: no "zurückgezogen" line either.
-            if p.id.hasPrefix("umzug:zeichnung/") || byID[p.id].map({ op.zeit.timeIntervalSince($0.zeit) < 5 }) == true {
+            // Ahmed, 27.09.: jede Löschung bleibt als Zeile stehen, damit sie rückgängig gemacht werden kann.
+            if p.id.hasPrefix("umzug:zeichnung/") {
                 // Z-26.4: "aus dem Chat gelöscht" — vanishes outright, no "Nachricht gelöscht" spur.
                 byID.removeValue(forKey: p.id)
             } else {
                 byID[p.id]?.geloescht = true
             }
             return p.id
+        case "nachricht.wiederhergestellt":
+            // Löschen rückgängig, egal wann: die Nachricht kommt zurück, dazu eine eigene Hinweiszeile
+            // (keyed by `op.id`, wie `snap.aufnahme`), damit beide sehen, dass sie wieder da ist.
+            guard let p = op.daten(IDPayload.self) else { return nil }
+            byID[p.id]?.geloescht = false
+            if var vorhanden = byID[op.id] {
+                if let seq = op.seq { vorhanden.seq = seq }
+                byID[op.id] = vorhanden
+            } else {
+                byID[op.id] = Nachricht(id: op.id, von: op.von, zeit: op.zeit, seq: op.seq, system: "\(op.von.name) hat eine Nachricht wiederhergestellt")
+            }
+            return op.id
         case "nachricht.reaktion":
             guard let p = op.daten(ReaktionPayload.self) else { return nil }
             byID[p.id]?.reaktionen[op.von] = p.emoji
@@ -341,6 +353,10 @@ final class ChatModell {
 
     func loeschen(_ id: String) {
         Raum.shared.senden("nachricht.geloescht", IDPayload(id: id))
+    }
+
+    func wiederherstellen(_ id: String) {
+        Raum.shared.senden("nachricht.wiederhergestellt", IDPayload(id: id))
     }
 
     func reagieren(_ id: String, emoji: String?) {

@@ -100,15 +100,24 @@ final class ChatModellTests: XCTestCase {
         XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(0.6)))
     }
 
-    func testZurueckziehenUnterFuenfSekundenOhneSpur() {
+    func testLoeschenLaesstImmerEineSpur() {
+        // Ahmed, 27.09.: auch sofort gelöscht bleibt "gelöscht" im Chat stehen (sonst kein Rückgängig).
         let modell = ChatModell(registrieren: false)
         let t = Date()
         modell.anwenden([op("nachricht.neu", ["id": "s1", "text": "a"], von: .ahmed, zeit: t, seq: 1)])
-        modell.anwenden([op("nachricht.neu", ["id": "s2", "text": "b"], von: .ahmed, zeit: t, seq: 2)])
-        modell.anwenden([op("nachricht.geloescht", ["id": "s1"], von: .ahmed, zeit: t.addingTimeInterval(3), seq: 3)])
-        modell.anwenden([op("nachricht.geloescht", ["id": "s2"], von: .ahmed, zeit: t.addingTimeInterval(8), seq: 4)])
-        XCTAssertNil(modell.nachricht("s1"))
-        XCTAssertEqual(modell.nachricht("s2")?.geloescht, true)
+        modell.anwenden([op("nachricht.geloescht", ["id": "s1"], von: .ahmed, zeit: t.addingTimeInterval(3), seq: 2)])
+        XCTAssertEqual(modell.nachricht("s1")?.geloescht, true)
+    }
+
+    func testWiederherstellenMitHinweiszeile() {
+        let modell = ChatModell(registrieren: false)
+        let t = Date()
+        modell.anwenden([op("nachricht.neu", ["id": "s1", "text": "a"], von: .ahmed, zeit: t, seq: 1)])
+        modell.anwenden([op("nachricht.geloescht", ["id": "s1"], von: .ahmed, zeit: t.addingTimeInterval(60), seq: 2)])
+        modell.anwenden([op("nachricht.wiederhergestellt", ["id": "s1"], von: .ahmed, zeit: t.addingTimeInterval(86400), seq: 3)])
+        XCTAssertEqual(modell.nachricht("s1")?.geloescht, false)
+        XCTAssertEqual(modell.nachricht("s1")?.text, "a")
+        XCTAssertEqual(modell.nachrichten.last?.system, "Ahmed hat eine Nachricht wiederhergestellt")
     }
 
     // Block 18 search, now a pure model function.

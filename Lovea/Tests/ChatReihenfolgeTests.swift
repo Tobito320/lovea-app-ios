@@ -16,7 +16,7 @@ final class ChatReihenfolgeTests: XCTestCase {
         op("nachricht.neu", #"{"id":"\#(id)","text":"\#(id)"}"#, von: .annika, seq: seq, t: t, id: opId)
     }
 
-    /// Out-of-order seqs, an optimistic send and its echo, a mid-list insert, a delete within 5 s,
+    /// Out-of-order seqs, an optimistic send and its echo, a mid-list insert, a quick delete (stays as a row),
     /// a `snap.wiederholt` line that moves down, and plain field updates.
     private func ops() -> [Op] {
         [
@@ -54,7 +54,7 @@ final class ChatReihenfolgeTests: XCTestCase {
             dreier.anwenden(Array(liste[start..<min(start + 3, liste.count)]))
         }
 
-        let erwartet = ["m1", "m3", "m2", "m5", "m4", "m7", "wiederholt-m2-annika", "m8"]
+        let erwartet = ["m1", "m3", "m2", "m5", "m4", "m6", "m7", "wiederholt-m2-annika", "m8"] // m6 gelöscht, bleibt als Zeile
         XCTAssertEqual(einzeln.nachrichten.map(\.id), erwartet)
         XCTAssertEqual(alle.nachrichten.map(\.id), erwartet)
         XCTAssertEqual(dreier.nachrichten.map(\.id), erwartet)

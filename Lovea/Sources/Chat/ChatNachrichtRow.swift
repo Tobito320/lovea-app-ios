@@ -73,8 +73,18 @@ struct ChatNachrichtRow: View {
         if let einladung = nachricht.einladung {
             ZeichnungEinladungZeile(zeichnungId: einladung.zeichnungId, name: einladung.name, von: nachricht.von, ich: ich)
         } else if nachricht.geloescht {
-            hinweisZeile(eigene ? "Du hast eine Nachricht zurückgezogen" : "\(nachricht.von.name) hat eine Nachricht zurückgezogen", symbol: "arrow.uturn.backward")
-                .transition(.opacity)
+            VStack(spacing: 4) {
+                hinweisZeile(eigene ? "Du hast eine Nachricht gelöscht" : "\(nachricht.von.name) hat eine Nachricht gelöscht", symbol: "trash")
+                if eigene {
+                    Button("Rückgängig") {
+                        Haptik.leicht()
+                        withAnimation(Feder.weich) { ChatModell.shared.wiederherstellen(nachricht.id) }
+                    }
+                    .font(.footnote.weight(.semibold))
+                    .frame(minHeight: 44)
+                }
+            }
+            .transition(.opacity)
         } else if let system = nachricht.system {
             hinweisZeile(system, symbol: "info.circle")
         } else {

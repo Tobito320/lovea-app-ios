@@ -227,8 +227,8 @@ struct NachrichtFokusEbene: View {
                 schliessen()
             })
         }
-        if eigene, ChatZeitfenster.darfZurueckziehen(gesendet: nachricht.zeit, jetzt: jetzt) {
-            liste.append(MenuePunkt(id: "zurueck", titel: "Zurückziehen", symbol: "arrow.uturn.backward", destruktiv: true) { zurueckziehen() })
+        if eigene {
+            liste.append(MenuePunkt(id: "zurueck", titel: "Löschen", symbol: "trash", destruktiv: true) { zurueckziehen() })
         }
         return liste
     }
@@ -261,12 +261,12 @@ struct NachrichtFokusEbene: View {
         fokusMedien.filter { $0.typ == "foto" }.compactMap { MedienDatei.lokal($0) }
     }
 
-    /// Unsend with the puff (the row animates `geloescht`). Re-checked at tap time: a menu opened
-    /// at 1:59 must not unsend at 2:01.
+    /// Löschen mit dem Puff (die Zeile animiert `geloescht`). Eigene Nachrichten jeder Art, jederzeit;
+    /// im Chat bleibt "gelöscht" mit "Rückgängig" stehen.
     private func zurueckziehen() {
         let modell = ChatModell.shared
         let eigeneIDs = fokus.stapel.compactMap { modell.nachricht($0) }
-            .filter { $0.von == ich && ChatZeitfenster.darfZurueckziehen(gesendet: $0.zeit, jetzt: Date()) }
+            .filter { $0.von == ich && !$0.geloescht }
             .map(\.id)
         if eigeneIDs.isEmpty {
             Haptik.warnung()

@@ -19,8 +19,4 @@ final class ChatZeitfensterTests: XCTestCase {
         XCTAssertFalse(ChatZeitfenster.darfBearbeiten(gesendet: gesendet, bearbeitungen: 5, jetzt: nach(1, 0)), "nach 5 Bearbeitungen ist Schluss")
     }
 
-    func testZurueckziehenBis2Minuten() {
-        XCTAssertTrue(ChatZeitfenster.darfZurueckziehen(gesendet: gesendet, jetzt: nach(1, 59)))
-        XCTAssertFalse(ChatZeitfenster.darfZurueckziehen(gesendet: gesendet, jetzt: nach(2, 1)))
-    }
 }
