@@ -9,6 +9,7 @@ struct SchritteDetailView: View {
     @State private var person: Person
     @State private var zeitraum: SchritteZeitraum = .tag
     @State private var anker = Datum.text(Date())
+    @State private var eintragenOffen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(person: Person) { _person = State(initialValue: person) }
@@ -20,6 +21,8 @@ struct SchritteDetailView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 20) {
+                personWahl
+                if person == (Raum.shared.ich ?? .ahmed) && !health.schritteVerbunden(person) { HealthNichtErlaubtHinweis() }
                 ringZeile
                 SchritteStatChips(werte: statWerte)
                 verlauf
@@ -31,8 +34,11 @@ struct SchritteDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { zeitraumWahl }
-            ToolbarItem(placement: .topBarTrailing) { personWahl }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Schritte eintragen", systemImage: "plus") { eintragenOffen = true }
+            }
         }
+        .sheet(isPresented: $eintragenOffen) { SchritteEintragenBlatt() }
         .onChange(of: zeitraum) { _, _ in
             Haptik.auswahl()
             anker = min(anker, heute)
@@ -52,15 +58,13 @@ struct SchritteDetailView: View {
     }
 
     /// Default is yourself; tapping switches to the partner's synced steps.
+    /// Einfacher Umschalter zwischen Ahmed und Annika (Ahmed, 27.09.: statt erst über den Kopf oben rechts).
     private var personWahl: some View {
-        Button {
-            withAnimation(bewegung) { person = person.partner }
-            Haptik.auswahl()
-        } label: {
-            FigurKopf(person: person, groesse: 32)
+        Picker("Person", selection: $person.animation(bewegung)) {
+            ForEach(Person.allCases, id: \.self) { p in Text(p.name).tag(p) }
         }
-        .accessibilityLabel("Schritte von \(person.name)")
-        .accessibilityHint("Wechselt zu \(person.partner.name)")
+        .pickerStyle(.segmented)
+        .onChange(of: person) { _, _ in Haptik.auswahl() }
     }
 
     // MARK: Ring

@@ -23,8 +23,8 @@ struct HealthZielAnsicht: View {
     }
 }
 
-/// Training (aus Health geöffnet): Energie, Training, laufende Challenges. Schritte liegen auf der
-/// Schritte-Seite (`SchritteUebersicht`), Habits und Schlaf in Health selbst.
+/// Training (aus Health geöffnet): Energie, Training, laufende Challenges. Schritte öffnen direkt
+/// `SchritteDetailView`, Habits und Schlaf liegen in Health selbst.
 struct TrainingSeite: View {
     let oeffnen: (HealthZiel) -> Void
 
@@ -81,32 +81,8 @@ struct TrainingSeite: View {
     }
 }
 
-/// Schritte (Kachel in Health): beide mit Ringen, Tipp öffnet die Tagesansicht der Person, darunter die Woche.
-struct SchritteUebersicht: View {
-    let oeffnen: (HealthZiel) -> Void
-    @Namespace private var zoom
-    @State private var eintragenOffen = false
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                SchritteKarte(zoom: zoom, oeffnen: oeffnen)
-                SchritteWocheKarte()
-            }
-            .padding(16)
-        }
-        .navigationTitle("Schritte")
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button("Schritte eintragen", systemImage: "plus") { eintragenOffen = true }
-            }
-        }
-        .sheet(isPresented: $eintragenOffen) { SchritteEintragenBlatt() }
-    }
-}
-
 /// Schritte für einen Tag von Hand, wenn kein Tracker zählt.
-private struct SchritteEintragenBlatt: View {
+struct SchritteEintragenBlatt: View {
     @Environment(\.dismiss) private var dismiss
     @State private var datum = Date()
     @State private var text = ""
