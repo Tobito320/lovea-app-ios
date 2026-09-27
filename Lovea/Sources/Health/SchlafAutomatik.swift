@@ -75,21 +75,21 @@ extension SchlafLogik {
     }
 
     /// Segmente zwischen den Aktivitäts-Zeitpunkten (Ende = nächster Zeitpunkt, beim letzten
-    /// `fensterEnde`). Ein ruhiges Segment (stationär, Konfidenz mittel/hoch) zählt immer als Schlaf.
-    /// Ein unruhiges Segment zählt nur, wenn es kurz ist (unter 10 min) UND in der Zeit keine Schritte
-    /// fielen — ein kurzer Toilettengang MIT Schritten fällt raus (die Minuten zählen nicht), ein
-    /// 20-min-Wachliegen auch, weil es allein durch die Länge die 10-Minuten-Schwelle reißt.
-    static func ruheIntervalle(_ aktivitaeten: [Aktivitaet], schritte: [HealthLogik.SchlafIntervall], fensterEnde: Date) -> [HealthLogik.SchlafIntervall] {
+    /// `fensterEnde`). Nur ruhige Segmente (stationär, Konfidenz mittel/hoch) zählen als Schlaf,
+    /// direkt aneinander liegende werden verbunden. Jede andere Bewegung heißt: das Handy war in der
+    /// Hand, also wach — auch ohne Schritte (Ahmed, 27.09.: Handy um 03:30 im Bett benutzt).
+    static func ruheIntervalle(_ aktivitaeten: [Aktivitaet], fensterEnde: Date) -> [HealthLogik.SchlafIntervall] {
         let sortiert = aktivitaeten.sorted { $0.zeit < $1.zeit }
         var ergebnis: [HealthLogik.SchlafIntervall] = []
-        for i in sortiert.indices {
+        for i in sortiert.indices where sortiert[i].stationaer && sortiert[i].konfidenz >= .mittel {
             let von = sortiert[i].zeit
             let bis = i + 1 < sortiert.count ? sortiert[i + 1].zeit : fensterEnde
             guard bis > von else { continue }
-            let ruhig = sortiert[i].stationaer && sortiert[i].konfidenz >= .mittel
-            let kurzOhneSchritte = bis.timeIntervalSince(von) < 600 && !schritte.contains { $0.von < bis && $0.bis > von }
-            guard ruhig || kurzOhneSchritte else { continue }
-            ergebnis.append(HealthLogik.SchlafIntervall(von: von, bis: bis))
+            if let letzte = ergebnis.last, letzte.bis == von {
+                ergebnis[ergebnis.count - 1].bis = bis
+            } else {
+                ergebnis.append(HealthLogik.SchlafIntervall(von: von, bis: bis))
+            }
         }
         return ergebnis
     }
@@ -103,9 +103,18 @@ extension SchlafLogik {
     /// ein Handy, das ab 9 Uhr stundenlang ruhig auf dem Schreibtisch liegt, als (womöglich größerer)
     /// zweiter Teil derselben Nacht durchgehen. Ein früher Kandidat kann trotzdem bis weit nach 6 Uhr
     /// dauern (`bis == tag` reicht dafür).
-    static func bewegungsSchaetzung(_ aktivitaeten: [Aktivitaet], schritte: [HealthLogik.SchlafIntervall], fensterEnde: Date, tag: String) -> (minuten: Int, von: Date, bis: Date)? {
+    ///
+    /// Aufwachen: die erste Ruhephase von mindestens 1 h, die nach 5 Uhr durch Bewegung endet (Wecker
+    /// aus, Handy in die Hand), beendet die Nacht. Was danach still liegt, ist Handy im Bett oder auf
+    /// dem Tisch, kein Schlaf mehr (Ahmed, 27.09.: Wecker 07:00 aus, erst 08:20 aufgestanden).
+    // ponytail: feste 5-Uhr-Grenze; wer nach 5 aufwacht und weiterschläft, verliert den Rest (Eintrag korrigieren).
+    static func bewegungsSchaetzung(_ aktivitaeten: [Aktivitaet], fensterEnde: Date, tag: String) -> (minuten: Int, von: Date, bis: Date)? {
         guard !aktivitaeten.isEmpty else { return nil }
-        let intervalle = ruheIntervalle(aktivitaeten, schritte: schritte, fensterEnde: fensterEnde).sorted { $0.von < $1.von }
+        var intervalle = ruheIntervalle(aktivitaeten, fensterEnde: fensterEnde)
+        let fuenfUhr = Calendar.berlin.date(byAdding: .hour, value: 5, to: Calendar.berlin.startOfDay(for: Datum.datum(tag))) ?? .distantFuture
+        if let wach = intervalle.first(where: { $0.bis >= fuenfUhr && $0.bis < fensterEnde && $0.bis.timeIntervalSince($0.von) >= 3600 })?.bis {
+            intervalle = intervalle.filter { $0.von < wach }
+        }
         guard !intervalle.isEmpty else { return nil }
         var bloecke: [[HealthLogik.SchlafIntervall]] = []
         var blockEnde = Date.distantPast

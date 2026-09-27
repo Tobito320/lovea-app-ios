@@ -77,9 +77,8 @@ final class SchlafAutomatikTests: XCTestCase {
             aktiv(25, 3, 58, stationaer: false),
             aktiv(25, 4, 1, stationaer: true),
         ]
-        let schritte = [intervall(25, 3, 58, 25, 4, 1)]
         let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 7))!
-        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, schritte: schritte, fensterEnde: fensterEnde, tag: "2026-09-25")
+        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
         // Bleibt EIN Block (Lücke unter 10 min): volle Nacht minus die 3 Minuten mit Schritten.
         XCTAssertEqual(ergebnis?.minuten, 8 * 60 - 3)
     }
@@ -92,7 +91,7 @@ final class SchlafAutomatikTests: XCTestCase {
             aktiv(25, 4, 10, stationaer: true),
         ]
         let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 7))!
-        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, schritte: [], fensterEnde: fensterEnde, tag: "2026-09-25")
+        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
         // 20 min reißen die 10-Minuten-Schwelle: zwei Abschnitte derselben Nacht, zusammengezählt ohne die
         // Wachzeit: 23:00–03:50 (290 min) + 04:10–07:00 (170 min) = 460 min.
         XCTAssertEqual(ergebnis?.minuten, 460)
@@ -107,12 +106,45 @@ final class SchlafAutomatikTests: XCTestCase {
             aktiv(25, 9, stationaer: true),
         ]
         let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 14))!
-        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, schritte: [], fensterEnde: fensterEnde, tag: "2026-09-25")
+        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
         XCTAssertEqual(ergebnis?.minuten, 120)
     }
 
+    func testHandyNachtsInDerHandGiltNichtAlsSchlaf() {
+        // 23:00 schlafen, 03:30 Handy in die Hand, alle paar Minuten neue Bewegung ohne Schritte
+        // (kurze Stücke unter 10 min), 03:50 wieder hingelegt, schlafen bis 07:00 (Fensterende).
+        let aktivitaeten = [
+            aktiv(24, 23, stationaer: true),
+            aktiv(25, 3, 30, stationaer: false),
+            aktiv(25, 3, 36, stationaer: false, konfidenz: .niedrig),
+            aktiv(25, 3, 43, stationaer: false),
+            aktiv(25, 3, 50, stationaer: true),
+        ]
+        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 7))!
+        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
+        // 23:00–03:30 (270) + 03:50–07:00 (190), die 20 min am Handy zählen nicht.
+        XCTAssertEqual(ergebnis?.minuten, 460)
+    }
+
+    func testWeckerAusUndHandyImBettBeendetDieNacht() {
+        // Ahmed, 27.09.: Wecker um 07:00 aus, danach im Bett am Handy (liegt meist still), um 08:20
+        // aufgestanden. Aufgewacht ist er um 07:00, nicht 08:20.
+        let aktivitaeten = [
+            aktiv(27, 0, 30, stationaer: true),
+            aktiv(27, 7, 0, stationaer: false),
+            aktiv(27, 7, 3, stationaer: true),
+            aktiv(27, 7, 40, stationaer: false, konfidenz: .niedrig),
+            aktiv(27, 7, 44, stationaer: true),
+            aktiv(27, 8, 20, stationaer: false),
+        ]
+        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 27, hour: 9))!
+        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-27")
+        XCTAssertEqual(ergebnis?.bis, Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 27, hour: 7)))
+        XCTAssertEqual(ergebnis?.minuten, 6 * 60 + 30)
+    }
+
     func testBewegungsSchaetzungOhneDatenIstNil() {
-        XCTAssertNil(SchlafLogik.bewegungsSchaetzung([], schritte: [], fensterEnde: Date(), tag: "2026-09-25"))
+        XCTAssertNil(SchlafLogik.bewegungsSchaetzung([], fensterEnde: Date(), tag: "2026-09-25"))
     }
 
     // MARK: - Schlafziel mit flexiblen Tagen

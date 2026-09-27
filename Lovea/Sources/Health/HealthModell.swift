@@ -51,7 +51,6 @@ final class HealthModell {
     /// Gleiches Muster wie `Anwesenheit`/`Standort`: kein `requestAuthorization` nötig, iOS fragt beim
     /// ersten `queryActivityStarting` selbst (`NSMotionUsageDescription` ist schon gesetzt).
     private let bewegungsManager = CMMotionActivityManager()
-    private let schrittZaehler = CMPedometer()
 
     private var angewendeteOps: Set<String> = []
     private var beobachterGestartet = false
@@ -485,8 +484,7 @@ final class HealthModell {
     }
 
     /// d) Bewegungs-Schätzung: Fenster 18 Uhr Vortag bis 14 Uhr (nie in die Zukunft), Aktivität via
-    /// `CMMotionActivityManager`, Schritte pro fraglicher Lücke via `CMPedometer` (liefert nur eine
-    /// Summe pro Zeitraum, deshalb einzeln je Lücke statt einmal fürs ganze Fenster).
+    /// `CMMotionActivityManager`.
     private func schlafGeschaetzt(_ tag: String) async -> (minuten: Int, von: Date, bis: Date)? {
         guard Geraet.wirdGetragen, CMMotionActivityManager.isActivityAvailable() else { return nil }
         let tagStart = Calendar.berlin.startOfDay(for: Datum.datum(tag))
@@ -504,28 +502,7 @@ final class HealthModell {
                 fortsetzung.resume(returning: liste)
             }
         }
-        guard !aktivitaeten.isEmpty else { return nil }
-        var schrittIntervalle: [HealthLogik.SchlafIntervall] = []
-        let sortiert = aktivitaeten.sorted { $0.zeit < $1.zeit }
-        for i in sortiert.indices where !sortiert[i].stationaer || sortiert[i].konfidenz < .mittel {
-            let von = sortiert[i].zeit
-            let bis = i + 1 < sortiert.count ? sortiert[i + 1].zeit : fensterEnde
-            guard bis > von, bis.timeIntervalSince(von) < 600 else { continue } // nur kurze Lücken interessieren
-            if await schritteVorhanden(von: von, bis: bis) { schrittIntervalle.append(.init(von: von, bis: bis)) }
-        }
-        return SchlafLogik.bewegungsSchaetzung(aktivitaeten, schritte: schrittIntervalle, fensterEnde: fensterEnde, tag: tag)
-    }
-
-    /// `@Sendable`, weil `CMPedometer` den Handler auf einer eigenen Queue aufruft, nicht dem Main-Actor
-    /// — ohne die Markierung würde Swift 6 die Closure als main-actor-isoliert einstufen und beim
-    /// Aufruf aus dem Hintergrund zur Laufzeit abstürzen (gleicher Grund wie `Anwesenheit.schritteBeobachten`).
-    private func schritteVorhanden(von: Date, bis: Date) async -> Bool {
-        guard CMPedometer.isStepCountingAvailable() else { return false }
-        return await withCheckedContinuation { fortsetzung in
-            schrittZaehler.queryPedometerData(from: von, to: bis) { @Sendable daten, _ in
-                fortsetzung.resume(returning: (daten?.numberOfSteps.intValue ?? 0) > 0)
-            }
-        }
+        return SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: tag)
     }
 
     /// UNSICHER (Bericht): `HKCategoryValueSleepAnalysis.allAsleepValues` (iOS 16+) deckt vermutlich
