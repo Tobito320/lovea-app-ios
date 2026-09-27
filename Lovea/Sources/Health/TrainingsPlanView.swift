@@ -304,7 +304,8 @@ struct TagEditor: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var sucheOffen = false
-    @State private var sortieren = false
+    @State private var modus: EditMode = .inactive
+    @State private var kopierenOffen = false
 
     var body: some View {
         NavigationStack {
@@ -322,10 +323,13 @@ struct TagEditor: View {
                 .disabled(!bearbeitbar)
                 uebungen
             }
-            .environment(\.editMode, .constant(sortieren ? .active : .inactive))
+            .environment(\.editMode, $modus)
             .navigationTitle(tag.name.isEmpty ? "Neuer Tag" : tag.name)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { leiste }
+            .sheet(isPresented: $kopierenOffen) {
+                KopierenBlatt(tage: andereTage) { tag.uebungen += $0 }
+            }
             .sheet(isPresented: $sucheOffen) {
                 UebungsSuche { tag.uebungen.append($0) }
             }
@@ -376,27 +380,43 @@ struct TagEditor: View {
                         Button("Löschen", systemImage: "trash", role: .destructive) { tag.uebungen.removeAll { $0.id == u.id } }
                     }
                 }
-                .contextMenu {
+                .swipeActions(edge: .leading) {
                     if bearbeitbar {
-                        Button("Löschen", systemImage: "trash", role: .destructive) { tag.uebungen.removeAll { $0.id == u.id } }
+                        Button("Doppeln", systemImage: "plus.square.on.square") { doppeln(u) }.tint(.blue)
                     }
                 }
             }
             .onMove(perform: bearbeitbar ? { tag.uebungen.move(fromOffsets: $0, toOffset: $1) } : nil)
             if bearbeitbar {
                 Button("Übung hinzufügen", systemImage: "plus") { sucheOffen = true }
+                if andereTage.contains(where: { !$0.uebungen.isEmpty }) {
+                    Button("Von anderem Tag kopieren", systemImage: "doc.on.doc") { kopierenOffen = true }
+                }
             }
         } header: {
             HStack {
                 Text("Übungen")
                 Spacer()
                 if bearbeitbar && tag.uebungen.count > 1 {
-                    Button(sortieren ? "Fertig" : "Reihenfolge") { sortieren.toggle() }
+                    Button(modus.isEditing ? "Fertig" : "Reihenfolge") {
+                        withAnimation { modus = modus.isEditing ? .inactive : .active }
+                    }
                         .font(.footnote.weight(.semibold))
                         .textCase(nil)
                 }
             }
         }
+    }
+
+    /// Die anderen Tage des eigenen Plans (Quelle für "Von anderem Tag kopieren").
+    private var andereTage: [TrainingsTag] {
+        TrainingModell.shared.plan(Raum.shared.ich ?? .ahmed).tage.filter { $0.id != tag.id }
+    }
+
+    private func doppeln(_ u: PlanUebung) {
+        guard let i = tag.uebungen.firstIndex(where: { $0.id == u.id }) else { return }
+        tag.uebungen.insert(contentsOf: TrainingLogik.kopien([u], mitSaetzen: true), at: i + 1)
+        Haptik.leicht()
     }
 
     private func planZeile(_ u: PlanUebung) -> some View {
@@ -503,6 +523,88 @@ struct SaetzeEditor: View {
 
     private var minuten: Binding<Int> {
         Binding { entwurf.minuten ?? 20 } set: { entwurf.minuten = $0 }
+    }
+}
+
+/// Übungen aus anderen Tagen auswählen (eine, mehrere oder alle eines Tages) und hineinkopieren.
+struct KopierenBlatt: View {
+    let tage: [TrainingsTag]
+    let uebernehmen: ([PlanUebung]) -> Void
+
+    @State private var auswahl: Set<String> = []
+    @State private var mitSaetzen = true
+    @Environment(\.dismiss) private var dismiss
+
+    private var plan: TrainingsPlan { TrainingModell.shared.plan(Raum.shared.ich ?? .ahmed) }
+    private var gewaehlt: [PlanUebung] { tage.flatMap(\.uebungen).filter { auswahl.contains($0.id) } }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    Toggle("Sätze und Gewichte mitnehmen", isOn: $mitSaetzen)
+                }
+                ForEach(tage.filter { !$0.uebungen.isEmpty }) { t in
+                    Section {
+                        ForEach(t.uebungen) { u in zeile(u) }
+                    } header: {
+                        kopf(t)
+                    }
+                }
+            }
+            .navigationTitle("Von anderem Tag kopieren")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(auswahl.isEmpty ? "Übernehmen" : "Übernehmen (\(auswahl.count))") {
+                        uebernehmen(TrainingLogik.kopien(gewaehlt, mitSaetzen: mitSaetzen))
+                        Haptik.erfolg()
+                        dismiss()
+                    }
+                    .disabled(auswahl.isEmpty)
+                }
+            }
+        }
+    }
+
+    private func kopf(_ t: TrainingsTag) -> some View {
+        let alle = t.uebungen.allSatisfy { auswahl.contains($0.id) }
+        return HStack {
+            Circle().fill(TagFarbe.farbe(TagFarbe.index(t, in: plan))).frame(width: 10, height: 10)
+            Text(t.name.isEmpty ? "Ohne Namen" : t.name)
+            Spacer()
+            Button(alle ? "Keine" : "Alle") {
+                for u in t.uebungen {
+                    if alle { auswahl.remove(u.id) } else { auswahl.insert(u.id) }
+                }
+                Haptik.auswahl()
+            }
+            .font(.footnote.weight(.semibold))
+            .textCase(nil)
+        }
+    }
+
+    private func zeile(_ u: PlanUebung) -> some View {
+        let an = auswahl.contains(u.id)
+        return Button {
+            if an { auswahl.remove(u.id) } else { auswahl.insert(u.id) }
+            Haptik.auswahl()
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: an ? "checkmark.circle.fill" : "circle")
+                    .font(.title3)
+                    .foregroundStyle(an ? Color.accentColor : Color.secondary)
+                    .contentTransition(.symbolEffect(.replace))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(u.anzeigeName).foregroundStyle(Color.primary)
+                    Text(u.istCardio ? "\(u.minuten ?? 20) min" : "\(u.saetze.count) Sätze").font(.footnote).foregroundStyle(.secondary)
+                }
+            }
+            .contentShape(.rect)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(an ? .isSelected : [])
     }
 }
 

@@ -189,6 +189,20 @@ enum TrainingLogik {
     }
 
     /// The plan with `tag` added or replaced; its weekdays are taken away from every other day.
+    /// Übungen in einen anderen Tag kopieren (Ahmed, 27.09.: Muskeln 2× pro Woche): neue ids, Sätze
+    /// und Gewichte wahlweise mit, sonst frisch wie beim Hinzufügen (3 × 10, Cardio 20 min).
+    static func kopien(_ uebungen: [PlanUebung], mitSaetzen: Bool) -> [PlanUebung] {
+        uebungen.map { u in
+            var neu = u
+            neu.id = UUID().uuidString
+            if !mitSaetzen {
+                neu.saetze = u.istCardio ? [] : Array(repeating: PlanSatz(wdh: 10, kg: nil, failure: false), count: 3)
+                neu.minuten = u.istCardio ? 20 : nil
+            }
+            return neu
+        }
+    }
+
     static func tagSetzen(_ plan: TrainingsPlan, _ tag: TrainingsTag) -> TrainingsPlan {
         var p = plan
         for i in p.tage.indices where p.tage[i].id != tag.id {

@@ -29,6 +29,18 @@ final class PlanAusbauTests: XCTestCase {
         XCTAssertEqual(plan.tage.map { TagFarbe.index($0, in: plan) }, [0, TagFarbe.flexibel, 1, 2])
     }
 
+    func testKopienNeueIdsMitOderOhneSaetze() {
+        let alt = PlanUebung(id: "a", uebung: "my33uHU", name: nil, saetze: [PlanSatz(wdh: 8, kg: 60, failure: true)], minuten: nil)
+        let mit = TrainingLogik.kopien([alt], mitSaetzen: true)[0]
+        XCTAssertNotEqual(mit.id, "a")
+        XCTAssertEqual(mit.saetze, alt.saetze)
+        let ohne = TrainingLogik.kopien([alt], mitSaetzen: false)[0]
+        XCTAssertEqual(ohne.saetze.count, 3)
+        XCTAssertEqual(ohne.saetze.first?.wdh, 10)
+        XCTAssertNil(ohne.saetze.first?.kg)
+        XCTAssertEqual(ohne.uebung, "my33uHU")
+    }
+
     func testKatalogVorschlaegeExistieren() {
         XCTAssertEqual(UebungsKatalog.beliebt.filter { UebungsKatalog.nachId[$0] == nil }, [], "jede Vorschlags-id gibt es im Katalog")
     }
