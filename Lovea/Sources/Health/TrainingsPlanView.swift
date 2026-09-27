@@ -300,11 +300,12 @@ struct TagEditor: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("Name") { TextField("z. B. Push", text: $tag.name) }
-                Section("Wochentage") { wochentage }
+                // Nur Name und Wochentage sperren: `.disabled` auf der ganzen Form sperrt auch das Scrollen
+                // (Plan von Annika ließ sich nicht runterscrollen).
+                Section("Name") { TextField("z. B. Push", text: $tag.name) }.disabled(!bearbeitbar)
+                Section("Wochentage") { wochentage }.disabled(!bearbeitbar)
                 uebungen
             }
-            .disabled(!bearbeitbar)
             .environment(\.editMode, .constant(sortieren ? .active : .inactive))
             .navigationTitle(tag.name.isEmpty ? "Neuer Tag" : tag.name)
             .navigationBarTitleDisplayMode(.inline)
@@ -351,8 +352,8 @@ struct TagEditor: View {
             ForEach($tag.uebungen) { $u in
                 NavigationLink { SaetzeEditor(uebung: $u) } label: { planZeile(u) }
             }
-            .onMove { tag.uebungen.move(fromOffsets: $0, toOffset: $1) }
-            .onDelete { tag.uebungen.remove(atOffsets: $0) }
+            .onMove(perform: bearbeitbar ? { tag.uebungen.move(fromOffsets: $0, toOffset: $1) } : nil)
+            .onDelete(perform: bearbeitbar ? { tag.uebungen.remove(atOffsets: $0) } : nil)
             if bearbeitbar {
                 Button("Übung hinzufügen", systemImage: "plus") { sucheOffen = true }
             }
