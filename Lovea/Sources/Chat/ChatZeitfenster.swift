@@ -6,4 +6,8 @@ enum ChatZeitfenster {
     static func darfBearbeiten(gesendet: Date, bearbeitungen: Int, jetzt: Date) -> Bool {
         jetzt.timeIntervalSince(gesendet) < 15 * 60 && bearbeitungen < 5
     }
+
+    static func darfZurueckziehen(gesendet: Date, jetzt: Date) -> Bool {
+        jetzt.timeIntervalSince(gesendet) < 2 * 60
+    }
 }
