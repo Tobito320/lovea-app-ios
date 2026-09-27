@@ -40,6 +40,11 @@ final class TrainingModell {
         return id
     }
 
+    /// Trainingstag nachträglich wählen: Check-in mit gleicher Zeit nochmal senden (neuester gilt).
+    func tagSetzen(_ s: GymSession, _ tag: String) {
+        Raum.shared.senden("gym.checkin", GymD(session: s.id, tag: tag, start: s.start))
+    }
+
     func starten(_ session: String, _ u: PlanUebung) {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "start"))
     }

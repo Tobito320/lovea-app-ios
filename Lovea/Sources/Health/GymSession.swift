@@ -29,8 +29,6 @@ struct TrainingKartenAktionen {
 struct TrainingKarte: View {
     let oeffnen: (HealthZiel) -> Void
 
-    @State private var tagWahl = false
-    @State private var ortWarnung = false
     @State private var zeiten: GymSession?
 
     private var modell: TrainingModell { TrainingModell.shared }
@@ -39,23 +37,6 @@ struct TrainingKarte: View {
     var body: some View {
         TimelineView(.periodic(from: .now, by: 60)) { kontext in
             TrainingKarteInhalt(stand: stand(kontext.date), aktionen: aktionen)
-        }
-        .alert("Du bist nicht an deinem Gym", isPresented: $ortWarnung) {
-            Button("Trotzdem einchecken") {
-                Task {
-                    try? await Task.sleep(for: .milliseconds(350))
-                    tagWaehlen()
-                }
-            }
-            Button("Abbrechen", role: .cancel) {}
-        } message: {
-            Text("Laut deinem Standort bist du gerade woanders.")
-        }
-        .confirmationDialog("Welcher Trainingstag?", isPresented: $tagWahl, titleVisibility: .visible) {
-            ForEach(modell.plan(ich).tage) { t in
-                Button(t.name.isEmpty ? "Ohne Namen" : t.name) { starten(t.id) }
-            }
-            Button("Ohne Plan") { starten(nil) }
         }
         .sheet(item: $zeiten) { ZeitenBlatt(session: $0) }
         // The own plan's GIFs, ahead of time, so they play offline in the gym.
@@ -99,24 +80,10 @@ struct TrainingKarte: View {
         return modell.heutigerTag(p).map { "\(p.name) hat heute \($0.name)" }
     }
 
+    /// Ein Tipp, kein Fenster: sofort einchecken (Tag von heute, sonst im Training wählen),
+    /// dann öffnet sich der Plan mit "Training starten".
     private func einchecken() {
-        let fix = Standort.shared.positionen[ich]
-        if TrainingLogik.nichtImGym(orte: OrteModell.shared.orte, ich: ich, lat: fix?.lat, lon: fix?.lon, alter: fix?.sekundenAlt) {
-            Haptik.warnung()
-            ortWarnung = true
-        } else {
-            tagWaehlen()
-        }
-    }
-
-    private func tagWaehlen() {
-        if let t = modell.heutigerTag(ich) {
-            starten(t.id)
-        } else if modell.plan(ich).tage.isEmpty {
-            starten(nil)
-        } else {
-            tagWahl = true
-        }
+        starten(modell.heutigerTag(ich)?.id)
     }
 
     private func starten(_ tag: String?) {
@@ -274,6 +241,7 @@ struct GymAktionen {
     var zuruecksetzen: (PlanUebung) -> Void = { _ in }
     var video: (PlanUebung) -> Void = { _ in }
     var auschecken: () -> Void = {}
+    var tagWaehlen: (TrainingsTag) -> Void = { _ in }
 }
 
 /// The gym screen: the day's exercises in order, the next one highlighted, Start and Fertig,
@@ -320,7 +288,7 @@ struct GymSessionView: View {
         if let session = modell.sessions(ich).first(where: { $0.id == sessionId }) {
             ScrollView {
                 TimelineView(.periodic(from: .now, by: 30)) { kontext in
-                    GymSessionInhalt(session: session, tag: modell.tag(ich, id: session.tag), jetzt: kontext.date, aktionen: aktionen(session))
+                    GymSessionInhalt(session: session, tag: modell.tag(ich, id: session.tag), tage: modell.plan(ich).tage, jetzt: kontext.date, aktionen: aktionen(session))
                 }
             }
         } else {
@@ -345,7 +313,11 @@ struct GymSessionView: View {
                 Haptik.leicht()
             },
             video: { u in video = u.katalog },
-            auschecken: { auschecken(s) }
+            auschecken: { auschecken(s) },
+            tagWaehlen: { t in
+                modell.tagSetzen(s, t.id)
+                Haptik.leicht()
+            }
         )
     }
 
@@ -378,6 +350,7 @@ struct GymSessionView: View {
 struct GymSessionInhalt: View {
     let session: GymSession
     let tag: TrainingsTag?
+    var tage: [TrainingsTag] = []
     let jetzt: Date
     var aktionen = GymAktionen()
 
@@ -385,8 +358,28 @@ struct GymSessionInhalt: View {
         VStack(alignment: .leading, spacing: 14) {
             kopf
             if let tag {
+                if session.ende == nil, session.laeufe.isEmpty, let erste = TrainingLogik.naechste(tag, session) {
+                    Button { withAnimation(Feder.federnd) { aktionen.starten(erste) } } label: {
+                        Label("Training starten", systemImage: "play.fill")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity, minHeight: 56)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(HabitFarbe.mint.farbe)
+                    .transition(.scale(scale: 0.9).combined(with: .opacity))
+                }
                 ForEach(tag.uebungen) { u in
                     GymUebungKarte(uebung: u, stand: stand(u, tag), aktionen: aktionen)
+                }
+            } else if session.ende == nil, !tage.isEmpty {
+                Text("Welcher Trainingstag?").font(.headline)
+                ForEach(tage) { t in
+                    Button { withAnimation(Feder.federnd) { aktionen.tagWaehlen(t) } } label: {
+                        Text(t.name.isEmpty ? "Ohne Namen" : t.name)
+                            .frame(maxWidth: .infinity, minHeight: 50)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(HabitFarbe.mint.farbe)
                 }
             } else {
                 Text("Ohne Trainingstag eingecheckt. Leg im Plan Tage an, dann kannst du hier Übungen abhaken.")
