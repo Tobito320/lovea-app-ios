@@ -10,5 +10,6 @@ struct LoveaWidgetsBundle: WidgetBundle {
         PartnerWidget()
         PunkteChallengeWidget()
         FotoFrageWidget()
+        GymLiveWidget()
     }
 }

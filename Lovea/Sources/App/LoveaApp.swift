@@ -43,7 +43,10 @@ struct LoveaApp: App {
 
     private func phaseGewechselt(_ phase: ScenePhase) {
         Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
-        if phase == .active { WidgetPendingOpsMerge.abholen() }
+        if phase == .active {
+            WidgetPendingOpsMerge.abholen()
+            GymLive.abgleichen() // z. B. auf dem iPad eingecheckt, oder die Einheit ist abgelaufen
+        }
         if phase == .background { GalerieSync.shared.hintergrund() }
     }
 }

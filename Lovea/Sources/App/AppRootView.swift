@@ -63,6 +63,12 @@ struct AppRootView: View {
         // Screenshot/recording notices for whatever chat context is on screen (`ScreenshotKontext`).
         .modifier(ChatAufnahmeHinweise())
         .onChange(of: AppNavigation.shared.tabWunsch) { _, wunsch in
+            if wunsch == "gym" { // Live Activity: zurück ins laufende Training
+                AppNavigation.shared.tabWunsch = nil
+                AppNavigation.shared.healthSeite = "gym"
+                selectedTab = .health
+                return
+            }
             guard let wunsch, let tab = AppTab(rawValue: wunsch) else { return }
             AppNavigation.shared.tabWunsch = nil
             if [.heute, .koerper, .training, .verlauf].contains(tab) {

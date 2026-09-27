@@ -59,6 +59,7 @@ targets:
         NSCalendarsWriteOnlyAccessUsageDescription: "Lovea trägt gemeinsame Termine in deinen Kalender ein."
         NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte, Strecke, Etagen, Aktivität und euren Schlaf."
         NSHealthUpdateUsageDescription: "Lovea schreibt nichts in Health. Apple verlangt diesen Text trotzdem."
+        NSSupportsLiveActivities: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea

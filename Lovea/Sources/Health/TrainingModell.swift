@@ -9,7 +9,10 @@ final class TrainingModell {
     private var faltung = TrainingFaltung()
 
     private init() {
-        Raum.shared.beobachten(TrainingFaltung.arten) { [weak self] op in self?.faltung.anwenden(op) }
+        Raum.shared.beobachten(TrainingFaltung.arten) { [weak self] op in
+            self?.faltung.anwenden(op)
+            GymLive.abgleichen()
+        }
     }
 
     private var ich: Person { Raum.shared.ich ?? .ahmed }

@@ -449,6 +449,10 @@ struct HeuteView: View {
         case "training": pfad.append(HeuteZiel.training)
         case "koerper": pfad.append(HeuteZiel.koerper)
         case "verlauf": pfad.append(HeuteZiel.verlauf)
+        case "gym":
+            pfad = NavigationPath()
+            pfad.append(HeuteZiel.training)
+            if let s = TrainingModell.shared.laufende(ich) { pfad.append(HealthZiel.gymSession(s.id)) }
         default: break
         }
     }
