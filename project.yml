@@ -51,6 +51,8 @@ targets:
         NSLocationWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auf der Karte, solange du die App offen hast."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auch im Hintergrund und meldet Ankunft und Abfahrt an euren Orten."
         NSMotionUsageDescription: "Lovea erkennt Bewegung wie Laufen oder Fahren, damit eure Figuren euren Alltag zeigen."
+        LSApplicationQueriesSchemes:
+          - x-apple-health
         NSSpeechRecognitionUsageDescription: "Lovea wandelt deine Sprachnachrichten in Text um, wenn du das im Chat anforderst."
         NSFocusStatusUsageDescription: "Lovea zeigt deinem Partner, ob du gerade nicht gestört werden möchtest."
         NSCalendarsFullAccessUsageDescription: "Lovea liest deinen Kalender, um Termine mit deinem Partner abzugleichen."

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Last night of both plus week bars, in the Health card look (indigo tint, SF Rounded numbers).
-/// Only hand-entered times count (`HealthModell.schlafMinuten`).
+/// `HealthModell.schlafMinuten` resolves the source itself (own entry, Watch, iPhone, estimate).
 struct SchlafCard: View {
     private var health: HealthModell { HealthModell.shared }
 
@@ -25,7 +25,7 @@ struct SchlafCard: View {
 
     private func schlafPerson(_ person: Person, heute: String) -> some View {
         let minuten = health.schlafMinuten(person, heute)
-        let zeiten = minuten == nil ? nil : health.schlafZeitenAm(person, heute)
+        let zeiten = health.schlafBettZeiten(person, heute)
         return VStack(alignment: .leading, spacing: 2) {
             Text(person.name).font(.caption.weight(.semibold)).foregroundStyle(Color.person(person))
             Text(minuten.map(EnergieLogik.dauer) ?? "–")
@@ -76,17 +76,29 @@ private struct SchlafNachtWahl: Identifiable { let id: String }
 /// (Tipp = bearbeiten), eine ältere Nacht nachtragen, Schlaf gegen Leistung.
 struct SchlafDetailView: View {
     @State private var eintragen: SchlafNachtWahl?
+    @State private var zielMinuten: Int
+    @State private var extraMinuten: Int
+    @State private var extraTage: Int
 
     private var health: HealthModell { HealthModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
     private var heute: String { Datum.text(Date()) }
     private var farbe: Color { HabitFarbe.indigo.farbe }
 
+    init() {
+        let health = HealthModell.shared
+        _zielMinuten = State(initialValue: health.schlafZielMinuten())
+        _extraMinuten = State(initialValue: health.schlafZielExtraMinuten())
+        _extraTage = State(initialValue: health.schlafZielExtraTage())
+    }
+
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
                 letzteNacht
+                hinweisOhneAutomatik
                 SchlafCard()
+                schlafZielKarte
                 naechte
                 leistung
             }
@@ -103,12 +115,26 @@ struct SchlafDetailView: View {
         }
     }
 
+    // MARK: Bewegungs-Hinweis
+
+    /// Weder Watch noch iPhone-Schlafenszeit liefern etwas (letzte 7 Nächte): Hinweis, wie es genauer wird.
+    @ViewBuilder
+    private var hinweisOhneAutomatik: some View {
+        // `schlafNacht` (die Automatik allein), nicht `schlafQuelle` — sonst verdeckt ein eigener
+        // Eintrag, dass in Wahrheit weder Watch noch iPhone etwas melden.
+        let quellen: Set<String> = [SchlafLogik.Quelle.appleWatch.rawValue, SchlafLogik.Quelle.iphoneSchlafenszeit.rawValue]
+        let hatGenauereQuelle = (0..<7).contains { quellen.contains(health.schlafNacht(ich, Datum.addTage(heute, -$0))?.quelle ?? "") }
+        if !hatGenauereQuelle {
+            SchlafGenauerHinweis()
+        }
+    }
+
     // MARK: Letzte Nacht
 
     private var letzteNacht: some View {
         let minuten = health.schlafMinuten(ich, heute)
         let woche = (0..<7).compactMap { health.schlafMinuten(ich, Datum.addTage(heute, -$0)) }
-        let zeiten = minuten == nil ? nil : health.schlafZeitenAm(ich, heute)
+        let zeiten = health.schlafBettZeiten(ich, heute)
         return VStack(alignment: .leading, spacing: 12) {
             Label("Letzte Nacht", systemImage: "moon.zzz.fill")
                 .font(.headline)
@@ -123,6 +149,9 @@ struct SchlafDetailView: View {
                         .font(.subheadline)
                         .monospacedDigit()
                 }
+                if let quelle = health.schlafQuelle(ich, heute) {
+                    Text(quelle).font(.caption).foregroundStyle(.secondary)
+                }
                 Text(sollText(minuten)).font(.subheadline).foregroundStyle(.secondary)
             }
             .accessibilityElement(children: .combine)
@@ -132,7 +161,7 @@ struct SchlafDetailView: View {
                     .foregroundStyle(.secondary)
             }
             Button { eintragen = SchlafNachtWahl(id: heute) } label: {
-                Label(minuten == nil ? "Schlaf eintragen" : "Eintrag ändern", systemImage: "bed.double.fill")
+                Label(minuten == nil ? "Schlaf eintragen" : "Nacht korrigieren", systemImage: "bed.double.fill")
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
             .buttonStyle(.borderedProminent)
@@ -145,8 +174,10 @@ struct SchlafDetailView: View {
 
     private func sollText(_ minuten: Int?) -> String {
         guard let minuten else { return "Trag ein, wann du ins Bett bist und wann du aufgestanden bist." }
-        let fehlt = TagesformLogik.schlafSollMinuten - minuten
-        return fehlt > 0 ? "\(EnergieLogik.dauer(fehlt)) unter 8 h" : "8 h geschafft"
+        let ziel = health.schlafZiel(ich, tag: heute)
+        let zielText = EnergieLogik.dauer(ziel)
+        let fehlt = ziel - minuten
+        return fehlt > 0 ? "\(EnergieLogik.dauer(fehlt)) unter \(zielText)" : "\(zielText) geschafft"
     }
 
     // MARK: Letzte 30 Nächte
@@ -170,7 +201,8 @@ struct SchlafDetailView: View {
 
     private func nachtZeile(_ tag: String) -> some View {
         let minuten = health.schlafMinuten(ich, tag)
-        let zeiten = minuten == nil ? nil : health.schlafZeitenAm(ich, tag)
+        let zeiten = health.schlafBettZeiten(ich, tag)
+        let quelle = health.schlafQuelle(ich, tag)
         let teile = tag.split(separator: "-")
         let kurz = teile.count == 3 ? "\(teile[2]).\(teile[1])." : tag
         let wenig = (minuten ?? 480) < 360
@@ -182,6 +214,9 @@ struct SchlafDetailView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .monospacedDigit()
+                    if let quelle {
+                        Text(quelle).font(.caption2).foregroundStyle(.tertiary)
+                    }
                 }
                 Spacer(minLength: 8)
                 Text(minuten.map(EnergieLogik.dauer) ?? "–")
@@ -222,6 +257,75 @@ struct SchlafDetailView: View {
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .healthKarte(farbe)
+        }
+    }
+
+    // MARK: Schlafziel
+
+    /// Stepper und Wochentags-Knöpfe wie bei den Food-Zielen (`ErnaehrungZieleView.flexibleTageSection`).
+    /// Jede Änderung sendet sofort (keine eigene "Sichern"-Aktion auf dieser Seite).
+    private var schlafZielKarte: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Schlafziel").font(.title3.bold()).accessibilityAddTraits(.isHeader)
+            Stepper(value: $zielMinuten, in: 360...600, step: 15) {
+                LabeledContent("Ziel", value: EnergieLogik.dauer(zielMinuten))
+            }
+            .onChange(of: zielMinuten) { _, neu in health.setzeZiel("ziel.schlaf.minuten", neu) }
+            Stepper(value: $extraMinuten, in: -120...120, step: 15) {
+                LabeledContent("An diesen Tagen", value: extraMinuten == 0 ? "±0 min" : (extraMinuten > 0 ? "+\(extraMinuten) min" : "\(extraMinuten) min"))
+            }
+            .onChange(of: extraMinuten) { _, neu in health.setzeZiel("ziel.schlaf.extraMinuten", neu) }
+            HStack(spacing: 6) {
+                ForEach(1...7, id: \.self) { tag in
+                    let an = SchlafLogik.istExtraTag(extraTage, tag)
+                    Button {
+                        extraTage ^= 1 << (tag - 1)
+                        health.setzeZiel("ziel.schlaf.extraTage", extraTage)
+                        Haptik.auswahl()
+                    } label: {
+                        Text(HabitLogik.wochentagKuerzel[tag - 1])
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(an ? farbe.opacity(0.35) : Color(uiColor: .tertiarySystemFill),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(an ? .isSelected : [])
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .healthKarte(farbe)
+    }
+}
+
+/// Weder Watch noch iPhone-Schlafenszeit liefern Daten: Hinweis mit Knopf zu Health (`x-apple-health://`,
+/// in `project.yml` unter `LSApplicationQueriesSchemes` angemeldet). Klappt das Öffnen nicht, verschwindet der Knopf.
+private struct SchlafGenauerHinweis: View {
+    @Environment(\.openURL) private var openURL
+    @State private var verfuegbar = true
+
+    var body: some View {
+        if verfuegbar {
+            VStack(alignment: .leading, spacing: 8) {
+                Label("Genauer messen", systemImage: "heart.text.square")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(HabitFarbe.indigo.farbe)
+                Text("Für genaue Werte in Health unter Schlaf die Schlafenszeit einschalten. Dann nimmt das iPhone Zeiten heraus, in denen du nachts am Handy warst.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                Button("Health öffnen") {
+                    guard let url = URL(string: "x-apple-health://") else { return }
+                    // Task statt direkter Zuweisung: falls das SDK die Completion `@Sendable` macht,
+                    // ist sie nicht mehr Main-Actor-isoliert — so kompiliert es so oder so.
+                    openURL(url) { erfolg in if !erfolg { Task { @MainActor in verfuegbar = false } } }
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .healthKarte(HabitFarbe.indigo.farbe)
         }
     }
 }

@@ -15,15 +15,16 @@ struct Tagesform: Equatable, Sendable {
 enum TagesformLogik {
     static let schlafSollMinuten = 480
 
-    /// Schlaf / 8 h · 0,4, Wasser / Ziel · 0,2, Schritte / Ziel · 0,15, mittlere Erholung (0...1) · 0,25.
+    /// Schlaf / Ziel · 0,4, Wasser / Ziel · 0,2, Schritte / Ziel · 0,15, mittlere Erholung (0...1) · 0,25.
+    /// `schlafZiel` ist Minuten, Standard 480 (8 h) — Teil 6 übergibt das flexible Tagesziel.
     static func tagesform(schlafMinuten: Int?, wasser: Int, wasserZiel: Int, schritte: Int?, schritteZiel: Int,
-                          erholung: Double) -> Tagesform {
+                          erholung: Double, schlafZiel: Int = schlafSollMinuten) -> Tagesform {
         guard schlafMinuten != nil || schritte != nil || wasser > 0 else {
             return Tagesform(akku: nil, urteil: "Noch leer",
                              satz: "Trag Wasser ein oder erlaube Apple Health, dann rechne ich deine Tagesform aus.")
         }
         func anteil(_ ist: Int, _ soll: Int) -> Double { soll > 0 ? min(1, max(0, Double(ist) / Double(soll))) : 1 }
-        let schlaf = anteil(schlafMinuten ?? 0, schlafSollMinuten)
+        let schlaf = anteil(schlafMinuten ?? 0, schlafZiel)
         let trinken = anteil(wasser, wasserZiel)
         let gehen = anteil(schritte ?? 0, schritteZiel)
         let akku = Int((100 * (schlaf * 0.4 + trinken * 0.2 + gehen * 0.15 + min(1, max(0, erholung)) * 0.25)).rounded())
@@ -436,7 +437,7 @@ struct HeuteView: View {
     @ViewBuilder
     private func ansicht(_ ziel: HeuteZiel) -> some View {
         switch ziel {
-        case .schritte: SchritteUebersicht { pfad.append($0) }
+        case .schritte: SchritteDetailView(person: ich)
         case .schlaf: SchlafDetailView()
         case .habits:
             ScrollView {
@@ -499,7 +500,7 @@ struct HeuteView: View {
         return TagesformLogik.tagesform(
             schlafMinuten: health.schlafMinuten(ich, heute), wasser: health.wasserAnzahl(ich, heute),
             wasserZiel: health.zielWasser(ich), schritte: health.heuteSchritte(ich), schritteZiel: health.zielSchritte(ich),
-            erholung: TagesformLogik.erholungMittel(erholung))
+            erholung: TagesformLogik.erholungMittel(erholung), schlafZiel: health.schlafZiel(ich, tag: heute))
     }
 
     // MARK: Dein Tag
@@ -536,8 +537,10 @@ struct HeuteView: View {
 
     private var schlafKachel: some View {
         let minuten = health.schlafMinuten(ich, heute)
-        return FormKachel(form: .schlaf, titel: "Schlaf", wert: minuten.map { komma(Double($0) / 60) } ?? "–", einheit: "/8 h",
-                          fuellung: Double(minuten ?? 0) / Double(TagesformLogik.schlafSollMinuten)) { pfad.append(HeuteZiel.schlaf) }
+        let ziel = health.schlafZiel(ich, tag: heute)
+        let zielText = ziel % 60 == 0 ? "\(ziel / 60)" : komma(Double(ziel) / 60)
+        return FormKachel(form: .schlaf, titel: "Schlaf", wert: minuten.map { komma(Double($0) / 60) } ?? "–", einheit: "/\(zielText) h",
+                          fuellung: ziel > 0 ? Double(minuten ?? 0) / Double(ziel) : 0) { pfad.append(HeuteZiel.schlaf) }
     }
 
     private var habitsKachel: some View {

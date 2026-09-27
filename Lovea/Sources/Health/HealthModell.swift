@@ -1,3 +1,4 @@
+import CoreMotion
 import Foundation
 import HealthKit
 import Observation
@@ -15,7 +16,9 @@ final class HealthModell {
     static let shared = HealthModell()
 
     private(set) var schritte: [Person: [String: TagesEintrag<Int>]] = [:]
-    private(set) var schlaf: [Person: [String: (minuten: Int, von: Date, bis: Date)]] = [:]
+    /// Teil 6: die automatisch erkannte Nacht (Watch, iPhone-Schlafenszeit oder Bewegungs-Schätzung —
+    /// `quelle` sagt welche). Eigene Einträge (`schlafZeiten`) haben immer Vorrang, siehe `schlafMinuten`.
+    private(set) var schlaf: [Person: [String: (minuten: Int, von: Date, bis: Date, quelle: String?)]] = [:]
 
     private(set) var zielSchritteAenderungen: [Person: [ZielAenderung]] = [:]
     private(set) var zielGymAenderungen: [Person: [ZielAenderung]] = [:]
@@ -44,10 +47,18 @@ final class HealthModell {
     private let energieType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!
     private let bewegungType = HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!
     private let sleepType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)!
+    /// Teil 6: Bewegungs-Schätzung (d), nur wenn weder Watch noch iPhone-Schlafenszeit etwas liefern.
+    /// Gleiches Muster wie `Anwesenheit`/`Standort`: kein `requestAuthorization` nötig, iOS fragt beim
+    /// ersten `queryActivityStarting` selbst (`NSMotionUsageDescription` ist schon gesetzt).
+    private let bewegungsManager = CMMotionActivityManager()
+    private let schrittZaehler = CMPedometer()
 
     private var angewendeteOps: Set<String> = []
     private var beobachterGestartet = false
     private var nachtragLaeuft = false
+    /// Teil 6: verhindert, dass der Kaltstart-Observer und `sicherstellen()`s eigener Anstoß gleichzeitig
+    /// laufen (doppelte CoreMotion-Abfragen, evtl. doppelte `schlaf.setzen`).
+    private var schlafLaeuft = false
     private var zuletztGesendetSchritte: (datum: String, anzahl: Int)?
     private var zuletztGesendetUm = Date.distantPast
 
@@ -92,14 +103,25 @@ final class HealthModell {
     func extrasAm(_ person: Person, _ tag: String) -> SchritteExtra? { schritteExtras[person]?[tag]?.wert }
     /// All days with steps (backfilled ones too — display only).
     func schritteWerte(_ person: Person) -> [String: Int] { (schritte[person] ?? [:]).mapValues(\.wert) }
-    func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date)? { schlaf[person]?[tag] }
+    func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date, quelle: String?)? { schlaf[person]?[tag] }
     func schlafZeitenAm(_ person: Person, _ tag: String) -> SchlafZeitenD? { schlafZeiten[person]?[tag] }
-    /// Only the hand-entered time in bed counts (Ahmed, 26.09.: "nur Daten, die ich gebe"). Apple Health
-    /// stays synced in `schlaf` but is not shown. 0 minutes = deleted entry (`SchlafZeitenD.geloescht`).
+    /// Teil 6: eigener Eintrag (auch gelöscht = 0 min, dann `nil`) vor Watch vor iPhone-Schlafenszeit
+    /// vor Bewegungs-Schätzung — siehe `SchlafLogik.minuten`. `schlafQuelle` sagt, welche das war.
     func schlafMinuten(_ person: Person, _ tag: String) -> Int? {
-        guard let z = schlafZeitenAm(person, tag) else { return nil }
-        let minuten = EnergieLogik.imBett(z)
-        return minuten > 0 ? minuten : nil
+        let eintrag = schlafZeitenAm(person, tag).map(EnergieLogik.imBett)
+        return SchlafLogik.minuten(eintrag: eintrag, automatik: schlaf[person]?[tag]?.minuten)
+    }
+    /// "eingetragen" | "Apple Watch" | "iPhone Schlafenszeit" | "geschätzt (Bewegung)", `nil` ohne Daten.
+    func schlafQuelle(_ person: Person, _ tag: String) -> String? {
+        let eintrag = schlafZeitenAm(person, tag).map(EnergieLogik.imBett)
+        return SchlafLogik.quelle(eintrag: eintrag, automatikQuelle: schlaf[person]?[tag]?.quelle)
+    }
+    /// Effektive Bett-/Aufsteh-Zeit nach demselben Vorrang wie `schlafMinuten` — eigener Eintrag,
+    /// sonst die automatisch erkannte Nacht, `nil` bei gesperrtem (gelöschtem) oder fehlendem Wert.
+    func schlafBettZeiten(_ person: Person, _ tag: String) -> (bett: Date, auf: Date)? {
+        guard schlafMinuten(person, tag) != nil else { return nil }
+        if let z = schlafZeitenAm(person, tag), EnergieLogik.imBett(z) > 0 { return (z.bett, z.auf) }
+        return schlaf[person]?[tag].map { ($0.von, $0.bis) }
     }
     func wasserZeiten(_ person: Person, _ tag: String) -> [Date] {
         EnergieLogik.wasserZeiten(Array((wasserOps[person]?[tag] ?? [:]).values))
@@ -137,6 +159,24 @@ final class HealthModell {
 
     func zielWasser(_ person: Person? = nil) -> Int {
         HealthLogik.zielAmTag(heute, zielWasserAenderungen[person ?? Raum.shared.ich ?? .ahmed] ?? [], standard: 8)
+    }
+
+    /// Teil 6: Basis-Schlafziel in Minuten, Standard 480 (8 h).
+    func schlafZielMinuten(_ person: Person? = nil) -> Int {
+        ziel("ziel.schlaf.minuten", person ?? Raum.shared.ich ?? .ahmed) ?? 480
+    }
+    /// ± Minuten an den `schlafZielExtraTage`-Tagen (z. B. Wochenende länger schlafen).
+    func schlafZielExtraMinuten(_ person: Person? = nil) -> Int {
+        ziel("ziel.schlaf.extraMinuten", person ?? Raum.shared.ich ?? .ahmed) ?? 0
+    }
+    /// Bitmaske Montag = Bit 0 … Sonntag = Bit 6, wie `ErnaehrungsZiele.extraTage`.
+    func schlafZielExtraTage(_ person: Person? = nil) -> Int {
+        ziel("ziel.schlaf.extraTage", person ?? Raum.shared.ich ?? .ahmed) ?? 0
+    }
+    /// Das für `tag` geltende Schlafziel in Minuten (Basis, an flexiblen Tagen plus/minus die Extra-Minuten).
+    func schlafZiel(_ p: Person, tag: String) -> Int {
+        SchlafLogik.ziel(basis: schlafZielMinuten(p), extraMinuten: schlafZielExtraMinuten(p),
+                        extraTage: schlafZielExtraTage(p), wochentag: Datum.wochentag(tag))
     }
 
     /// Generisch für `ziel.saetze.<gruppe>` und `ziel.prio.<gruppe>`: der neueste Wert, nil wenn nie gesetzt.
@@ -179,7 +219,8 @@ final class HealthModell {
         Raum.shared.senden("schritte.setzen", SchritteD(datum: datum, anzahl: max(0, anzahl)))
     }
 
-    /// `schluessel` ist eines von `ziel.schritte`, `ziel.gym`, `ziel.wasser`, `ziel.gemeinsamWoche`.
+    /// `schluessel` ist eines von `ziel.schritte`, `ziel.gym`, `ziel.wasser`, `ziel.gemeinsamWoche`,
+    /// oder `ziel.schlaf.minuten`/`.extraMinuten`/`.extraTage` (Teil 6, generisch über `zielOpAnwenden`).
     func setzeZiel(_ schluessel: String, _ wert: Int) {
         EinstellungenModell.shared.setzen(schluessel, .number(Double(wert)))
     }
@@ -200,7 +241,8 @@ final class HealthModell {
     private func schlafOpAnwenden(_ op: Op) {
         guard angewendeteOps.insert(op.id).inserted, let d = op.daten(SchlafD.self) else { return }
         guard let von = Self.isoDatum(d.von), let bis = Self.isoDatum(d.bis) else { return }
-        schlaf[op.von, default: [:]][d.datum] = (minuten: d.minuten, von: von, bis: bis)
+        // Ältere Ops ohne `quelle` kamen ausschließlich aus den asleep-Werten (vor Teil 6) — als Watch lesen.
+        schlaf[op.von, default: [:]][d.datum] = (minuten: d.minuten, von: von, bis: bis, quelle: d.quelle ?? SchlafLogik.Quelle.appleWatch.rawValue)
     }
 
     private func schlafZeitenAnwenden(_ op: Op) {
@@ -224,7 +266,8 @@ final class HealthModell {
         case "ziel.wasser": HealthLogik.zielAufnehmen(&zielWasserAenderungen[op.von, default: []], aenderung)
         case "ziel.gemeinsamWoche": HealthLogik.zielAufnehmen(&zielGemeinsamWocheAenderungen, aenderung)
         default:
-            guard d.schluessel.hasPrefix("ziel.saetze.") || d.schluessel.hasPrefix("ziel.prio.") || d.schluessel.hasPrefix("ziel.ernaehrung.") else { break }
+            guard d.schluessel.hasPrefix("ziel.saetze.") || d.schluessel.hasPrefix("ziel.prio.") || d.schluessel.hasPrefix("ziel.ernaehrung.")
+                || d.schluessel.hasPrefix("ziel.schlaf.") else { break }
             HealthLogik.zielAufnehmen(&zielAndere[op.von, default: [:]][d.schluessel, default: []], aenderung)
         }
     }
@@ -239,12 +282,23 @@ final class HealthModell {
         guard !berechtigungAngefragt else {
             beobachtenStartenFallsErlaubt()
             Task { await nachtragenFallsNoetig() }
+            // Teil 6: ohne echte Watch-/iPhone-Schlafdaten feuert der HK-Observer nie von selbst (kein
+            // neues Sample ändert sich) — die Bewegungs-Schätzung braucht also einen eigenen Anstoß.
+            // Hier: jedes Öffnen des Health-Tabs, kein Hintergrund-Trigger (siehe Bericht). `leer()`
+            // zuerst, sonst wirkt vor der eigenen Replay jeder Tag "geändert" (wie beim Observer-Pfad).
+            Task {
+                await Raum.shared.leer()
+                await schlafAktualisierenUndSenden()
+            }
             return
         }
         UserDefaults.standard.set(true, forKey: Self.angefragtSchluessel)
         berechtigungAngefragt = true
         Task {
             _ = await berechtigungAnfragen()
+            // beobachtenStartenFallsErlaubt() startet den Schlaf-Observer zum ersten Mal, der wie jede
+            // HKObserverQuery beim `execute()` sofort einmal feuert — ruft `schlafAktualisierenUndSenden`
+            // hier schon mit auf, ein zweiter expliziter Aufruf wäre nur doppelt.
             beobachtenStartenFallsErlaubt()
             await nachtragenFallsNoetig()
         }
@@ -385,17 +439,27 @@ final class HealthModell {
     }
 
     private func schlafAktualisierenUndSenden() async {
-        guard Geraet.wirdGetragen, let ich = Raum.shared.ich else { return }
+        guard Geraet.wirdGetragen, let ich = Raum.shared.ich, !schlafLaeuft else { return }
+        schlafLaeuft = true
+        defer { schlafLaeuft = false }
         for tag in letzteAchtTage() {
-            guard let ergebnis = await schlafAn(tag), schlaf[ich]?[tag]?.minuten != ergebnis.minuten else { continue }
-            Raum.shared.senden("schlaf.setzen", SchlafD(datum: tag, minuten: ergebnis.minuten, von: Self.isoText(ergebnis.von), bis: Self.isoText(ergebnis.bis)))
+            guard let ergebnis = await schlafAn(tag),
+                  schlaf[ich]?[tag]?.minuten != ergebnis.minuten || schlaf[ich]?[tag]?.quelle != ergebnis.quelle.rawValue
+            else { continue }
+            Raum.shared.senden("schlaf.setzen", SchlafD(datum: tag, minuten: ergebnis.minuten, von: Self.isoText(ergebnis.von), bis: Self.isoText(ergebnis.bis), quelle: ergebnis.quelle.rawValue))
         }
     }
 
     /// Nacht wird dem Aufwach-Tag zugeordnet (Spec 3.1). Das Fenster (30 h vor `tag` bis Ende `tag`)
     /// ist absichtlich großzügig; welche Intervalle wirklich die Nacht von `tag` sind, entscheidet
     /// `HealthLogik.schlafNacht` (I-4: die Vornacht endet am Vortag und fällt dort raus).
-    private func schlafAn(_ tag: String) async -> (minuten: Int, von: Date, bis: Date)? {
+    ///
+    /// Teil 6, Vorrang b) Watch vor c) iPhone-Schlafenszeit vor d) Bewegungs-Schätzung
+    /// (`SchlafLogik.automatikVorrang`). Watch und andere Geräte, die echte Schlafphasen schreiben,
+    /// benutzen die asleep-Werte; nur das iPhone selbst (mit eingeschalteter Schlafenszeit) schreibt
+    /// `inBed`, ohne je asleep zu setzen — deshalb reicht "asleep vorhanden?" als Watch-Erkennung,
+    /// ohne die Quelle jedes Samples einzeln zu prüfen.
+    private func schlafAn(_ tag: String) async -> (minuten: Int, von: Date, bis: Date, quelle: SchlafLogik.Quelle)? {
         let tagStart = Calendar.berlin.startOfDay(for: Datum.datum(tag))
         guard let fensterStart = Calendar.berlin.date(byAdding: .hour, value: -30, to: tagStart),
               let fensterEnde = Calendar.berlin.date(byAdding: .day, value: 1, to: tagStart)
@@ -407,10 +471,61 @@ final class HealthModell {
             }
             store.execute(abfrage)
         }
-        let intervalle = samples
+        let watchIntervalle = samples
             .filter { Self.asleepWerte.contains($0.value) }
             .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
-        return HealthLogik.schlafNacht(intervalle, tag: tag)
+        let iphoneIntervalle = samples
+            .filter { $0.value == HKCategoryValueSleepAnalysis.inBed.rawValue }
+            .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
+        let watch = HealthLogik.schlafNacht(watchIntervalle, tag: tag)
+        let iphone = SchlafLogik.imBettSchaetzung(iphoneIntervalle, tag: tag)
+        // Die Bewegungs-Schätzung braucht CoreMotion-Abfragen (teurer) — nur versuchen, wenn a/b/c nichts haben.
+        let geschaetzt = (watch == nil && iphone == nil) ? await schlafGeschaetzt(tag) : nil
+        return SchlafLogik.automatikVorrang(watch: watch, iphone: iphone, geschaetzt: geschaetzt)
+    }
+
+    /// d) Bewegungs-Schätzung: Fenster 18 Uhr Vortag bis 14 Uhr (nie in die Zukunft), Aktivität via
+    /// `CMMotionActivityManager`, Schritte pro fraglicher Lücke via `CMPedometer` (liefert nur eine
+    /// Summe pro Zeitraum, deshalb einzeln je Lücke statt einmal fürs ganze Fenster).
+    private func schlafGeschaetzt(_ tag: String) async -> (minuten: Int, von: Date, bis: Date)? {
+        guard Geraet.wirdGetragen, CMMotionActivityManager.isActivityAvailable() else { return nil }
+        let tagStart = Calendar.berlin.startOfDay(for: Datum.datum(tag))
+        guard let fensterStart = Calendar.berlin.date(byAdding: .hour, value: -6, to: tagStart),
+              let fensterEndeRoh = Calendar.berlin.date(byAdding: .hour, value: 14, to: tagStart)
+        else { return nil }
+        let fensterEnde = min(fensterEndeRoh, Date())
+        guard fensterEnde > fensterStart else { return nil }
+        let aktivitaeten: [SchlafLogik.Aktivitaet] = await withCheckedContinuation { fortsetzung in
+            bewegungsManager.queryActivityStarting(from: fensterStart, to: fensterEnde, to: .main) { taetigkeiten, _ in
+                let liste = (taetigkeiten ?? []).map {
+                    SchlafLogik.Aktivitaet(zeit: $0.startDate, stationaer: $0.stationary,
+                                          konfidenz: SchlafLogik.Konfidenz(rawValue: $0.confidence.rawValue) ?? .niedrig)
+                }
+                fortsetzung.resume(returning: liste)
+            }
+        }
+        guard !aktivitaeten.isEmpty else { return nil }
+        var schrittIntervalle: [HealthLogik.SchlafIntervall] = []
+        let sortiert = aktivitaeten.sorted { $0.zeit < $1.zeit }
+        for i in sortiert.indices where !sortiert[i].stationaer || sortiert[i].konfidenz < .mittel {
+            let von = sortiert[i].zeit
+            let bis = i + 1 < sortiert.count ? sortiert[i + 1].zeit : fensterEnde
+            guard bis > von, bis.timeIntervalSince(von) < 600 else { continue } // nur kurze Lücken interessieren
+            if await schritteVorhanden(von: von, bis: bis) { schrittIntervalle.append(.init(von: von, bis: bis)) }
+        }
+        return SchlafLogik.bewegungsSchaetzung(aktivitaeten, schritte: schrittIntervalle, fensterEnde: fensterEnde, tag: tag)
+    }
+
+    /// `@Sendable`, weil `CMPedometer` den Handler auf einer eigenen Queue aufruft, nicht dem Main-Actor
+    /// — ohne die Markierung würde Swift 6 die Closure als main-actor-isoliert einstufen und beim
+    /// Aufruf aus dem Hintergrund zur Laufzeit abstürzen (gleicher Grund wie `Anwesenheit.schritteBeobachten`).
+    private func schritteVorhanden(von: Date, bis: Date) async -> Bool {
+        guard CMPedometer.isStepCountingAvailable() else { return false }
+        return await withCheckedContinuation { fortsetzung in
+            schrittZaehler.queryPedometerData(from: von, to: bis) { @Sendable daten, _ in
+                fortsetzung.resume(returning: (daten?.numberOfSteps.intValue ?? 0) > 0)
+            }
+        }
     }
 
     /// UNSICHER (Bericht): `HKCategoryValueSleepAnalysis.allAsleepValues` (iOS 16+) deckt vermutlich
@@ -462,7 +577,8 @@ private extension SchritteD {
         self.init(datum: datum, anzahl: anzahl, km: extra.km, etagen: extra.etagen, kcal: extra.kcal, aktivMinuten: extra.aktivMinuten)
     }
 }
-private struct SchlafD: Codable { var datum: String; var minuten: Int; var von: String; var bis: String }
+/// `quelle` optional, ältere Builds ignorieren es (siehe `schlafOpAnwenden`).
+private struct SchlafD: Codable { var datum: String; var minuten: Int; var von: String; var bis: String; var quelle: String? = nil }
 private struct EinstellungD: Codable { var schluessel: String; var wert: JSONValue }
 
 /// HealthKit's observer completion handler is not `Sendable`; calling it from any thread is fine.

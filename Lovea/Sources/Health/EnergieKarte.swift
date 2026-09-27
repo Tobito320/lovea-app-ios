@@ -166,8 +166,8 @@ struct EnergieAnsicht: View {
     }
 }
 
-/// Hand-entered bed and wake-up times, the only sleep data the app counts. `tag` = the wake-up day;
-/// any past night can be entered, changed or deleted.
+/// Hand-entered bed and wake-up times — a correction that always wins over the automatic detection
+/// (Teil 6, `SchlafLogik.minuten`). `tag` = the wake-up day; any past night can be entered, changed or deleted.
 struct SchlafEintragenView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var tag: String
@@ -182,19 +182,28 @@ struct SchlafEintragenView: View {
         _auf = State(initialValue: start.auf)
     }
 
-    /// Saved times of that night, else 23:00 to 07:00.
+    /// Eigener Eintrag, sonst die automatisch erkannte Nacht (Watch/iPhone/Bewegung), sonst 23:00 bis
+    /// 07:00 — "Nacht korrigieren" startet mit den erkannten Zeiten, statt sie zu verwerfen.
     private static func start(_ tag: String) -> (bett: Date, auf: Date) {
         let ich = Raum.shared.ich ?? .ahmed
         let health = HealthModell.shared
-        if health.schlafMinuten(ich, tag) != nil, let vorhanden = health.schlafZeitenAm(ich, tag) {
+        if let vorhanden = health.schlafZeitenAm(ich, tag), EnergieLogik.imBett(vorhanden) > 0 {
             return (vorhanden.bett, vorhanden.auf)
+        }
+        if let automatik = health.schlafNacht(ich, tag) {
+            return (automatik.von, automatik.bis)
         }
         let tagDatum = Datum.datum(tag)
         return (Datum.kalender.date(byAdding: .hour, value: -1, to: tagDatum) ?? tagDatum,
                 Datum.kalender.date(byAdding: .hour, value: 7, to: tagDatum) ?? tagDatum)
     }
 
-    private var vorhanden: Bool { HealthModell.shared.schlafMinuten(Raum.shared.ich ?? .ahmed, tag) != nil }
+    /// Nur ein eigener Eintrag MIT Minuten zählt als "vorhanden" (Löschen-Knopf betrifft die eigene
+    /// Korrektur; ein schon gelöschter Eintrag — gleiche Bett-/Aufsteh-Zeit — bietet sich nicht erneut an).
+    private var vorhanden: Bool {
+        HealthModell.shared.schlafZeitenAm(Raum.shared.ich ?? .ahmed, tag).map { EnergieLogik.imBett($0) > 0 } ?? false
+    }
+    private var automatikVorhanden: Bool { HealthModell.shared.schlafNacht(Raum.shared.ich ?? .ahmed, tag) != nil }
 
     private var tagDatum: Binding<Date> {
         Binding(get: { Datum.datum(tag) }, set: { tag = Datum.text($0) })
@@ -204,6 +213,14 @@ struct SchlafEintragenView: View {
         EnergieLogik.imBett(SchlafZeitenD(datum: tag, bett: bett, auf: auf))
     }
 
+    private var footerErsterAbschnitt: String {
+        if vorhanden { return "Für diese Nacht gibt es schon einen Eintrag. Sichern ersetzt ihn." }
+        if let quelle = HealthModell.shared.schlafQuelle(Raum.shared.ich ?? .ahmed, tag) {
+            return "Für diese Nacht gibt es eine automatische Erkennung (\(quelle)). Sichern ersetzt sie."
+        }
+        return "Für diese Nacht ist noch nichts eingetragen."
+    }
+
     var body: some View {
         NavigationStack {
             Form {
@@ -211,7 +228,7 @@ struct SchlafEintragenView: View {
                     DatePicker("Aufgewacht am", selection: tagDatum, in: ...Date(), displayedComponents: .date)
                         .environment(\.locale, Locale(identifier: "de_DE"))
                 } footer: {
-                    Text(vorhanden ? "Für diese Nacht gibt es schon einen Eintrag. Sichern ersetzt ihn." : "Für diese Nacht ist noch nichts eingetragen.")
+                    Text(footerErsterAbschnitt)
                 }
                 Section {
                     DatePicker("Ins Bett", selection: $bett, displayedComponents: .hourAndMinute)
@@ -220,7 +237,7 @@ struct SchlafEintragenView: View {
                         Text(EnergieLogik.dauer(minuten)).monospacedDigit()
                     }
                 } footer: {
-                    Text("Nur was du hier einträgst, zählt. Apple Health wird dafür nicht benutzt.")
+                    Text("Was du hier einträgst, ersetzt die automatische Erkennung für diese Nacht.")
                 }
                 if vorhanden {
                     Section {
@@ -228,7 +245,7 @@ struct SchlafEintragenView: View {
                     }
                 }
             }
-            .navigationTitle("Schlaf eintragen")
+            .navigationTitle(vorhanden || automatikVorhanden ? "Nacht korrigieren" : "Schlaf eintragen")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
@@ -236,6 +253,8 @@ struct SchlafEintragenView: View {
             }
             .confirmationDialog("Eintrag für diese Nacht löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
                 Button("Löschen", role: .destructive) { loeschen() }
+            } message: {
+                Text("Die Nacht bleibt leer, auch wenn Watch oder iPhone etwas erkannt haben.")
             }
             .onChange(of: tag) { _, neu in
                 let start = Self.start(neu)
@@ -251,7 +270,8 @@ struct SchlafEintragenView: View {
         dismiss()
     }
 
-    /// Same bed and wake-up time = 0 minutes, which `HealthModell.schlafMinuten` reads as no entry.
+    /// Same bed and wake-up time = 0 minutes: `SchlafLogik.minuten` reads that as a lock, not as "no
+    /// entry" — the night stays empty instead of falling back to the automatic detection.
     private func loeschen() {
         let jetzt = Datum.datum(tag)
         HealthModell.shared.schlafEintragen(SchlafZeitenD(datum: tag, bett: jetzt, auf: jetzt))
