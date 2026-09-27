@@ -15,6 +15,12 @@ final class GalerieImportTests: XCTestCase {
         XCTAssertEqual(size.height, 1200)
     }
 
+    func testLargePhotoKeepsAspectRatio() {
+        let size = GalerieImport.canvasSize(pixelWidth: 8_064, pixelHeight: 6_048, orientation: 1)
+        XCTAssertEqual(size.width, 4_096)
+        XCTAssertEqual(size.height, 3_072)
+    }
+
     func testResultIsClampedToSafeRange() {
         let size = GalerieImport.canvasSize(pixelWidth: 9_000, pixelHeight: 10, orientation: 1)
         XCTAssertEqual(size.width, 4_096)
