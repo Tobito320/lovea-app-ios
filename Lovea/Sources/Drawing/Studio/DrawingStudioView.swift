@@ -95,6 +95,7 @@ struct DrawingStudioView: View {
         }
         .onAppear {
             session.live.betreten()
+            if !session.fremd { GalerieSync.shared.studioBetreten(session.document.id) }
             if session.nurAnsehen { session.show("Nur ansehen – Werkzeuge sind gesperrt") }
             session.onColorUsed = { [weak palette] in palette?.use($0) }
             if let templateData {
@@ -113,6 +114,7 @@ struct DrawingStudioView: View {
         .onDisappear {
             session.saveNow()
             session.live.verlassen()
+            if !session.fremd { GalerieSync.shared.studioVerlassen(session.document.id) }
         }
         .onChange(of: Raum.shared.verbunden) { _, an in if an { session.live.ankuendigen() } }
         .onChange(of: Raum.shared.partnerDa) { _, da in if da { session.live.ankuendigen() } }

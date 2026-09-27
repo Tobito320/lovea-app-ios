@@ -44,6 +44,7 @@ struct LoveaApp: App {
     private func phaseGewechselt(_ phase: ScenePhase) {
         Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
         if phase == .active { WidgetPendingOpsMerge.abholen() }
+        if phase == .background { GalerieSync.shared.hintergrund() }
     }
 }
 
@@ -65,6 +66,7 @@ enum AppStart {
         _ = KalenderModell.shared; _ = WirModell.shared; _ = SpieleModell.shared; _ = EinstellungenModell.shared
         _ = TeilenModell.shared; _ = LiveZeichnung.shared; _ = UmzugImport.shared; _ = HealthModell.shared
         _ = PunkteModell.shared; _ = UmzugAufraeumen.shared; _ = WetterModell.shared; _ = TrainingModell.shared
+        GalerieSync.shared.start()
         // Kein Prompt hier (nur `sicherstellen()` vom Health-Tab darf fragen) — startet HealthKit-
         // Observer/Background-Delivery erneut, falls die Berechtigung früher schon erteilt wurde.
         // Die Replay-Kette existiert schon (Registrierung oben); `Raum.shared.leer()` im Handler wartet darauf.
