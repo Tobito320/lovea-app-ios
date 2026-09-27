@@ -38,6 +38,13 @@ export function initSchema(sql) {
     person TEXT PRIMARY KEY,
     token TEXT
   )`);
+  // 27.09.: ein Token pro Gerät (Annika hat iPhone + iPad). `geraete` bleibt als Altlast stehen,
+  // sein eines Token pro Person wird einmalig übernommen.
+  sql.exec(`CREATE TABLE IF NOT EXISTS geraet_token (
+    token TEXT PRIMARY KEY,
+    person TEXT NOT NULL
+  )`);
+  sql.exec(`INSERT OR IGNORE INTO geraet_token (token, person) SELECT token, person FROM geraete WHERE token IS NOT NULL`);
   sql.exec(`CREATE TABLE IF NOT EXISTS standort (
     person TEXT PRIMARY KEY,
     d TEXT NOT NULL,
@@ -104,6 +111,10 @@ export function verbindungIstLebendig(letzterKontaktMs, jetztMs) {
 // Minor 2 (Spec 7/12: `entwurf.setzen` "nur für den Absender"): geht nie an den Partner, weder live
 // noch beim Nachholen -- auch getippter und wieder gelöschter Text landet so nicht auf seinem Gerät.
 export const NUR_FUER_ABSENDER = "entwurf.setzen";
+// 27.09.: auch die private Galerie (`galerie.*`) -- sie syncht nur zwischen den Geräten ihres Besitzers.
+export function nurFuerAbsender(art) {
+  return art === NUR_FUER_ABSENDER || art.startsWith("galerie.");
+}
 
 // Speichert eine Op. Doppelte id -> vorhandene seq zurück (INSERT OR IGNORE).
 export function opEinfuegen(sql, op) {
@@ -144,7 +155,7 @@ export function opsSeit(sql, seit, limit = SEITE, maxBytes = SEITE_BYTES, fuer =
   let bytes = 0;
   const zeilen = sql.exec(
     `SELECT seq, id, art, von, zeit, d FROM ops
-     WHERE seq > ? AND (? IS NULL OR NOT (art = ? AND von != ?))
+     WHERE seq > ? AND (? IS NULL OR NOT ((art = ? OR art LIKE 'galerie.%') AND von != ?))
      ORDER BY seq ASC LIMIT ?`,
     seit,
     fuer,
@@ -408,21 +419,22 @@ export function letzterZustand(sql, person) {
 // --- Geräte (Push-Token) ---------------------------------------------------
 
 export function geraetSpeichern(sql, person, token) {
+  if (typeof token !== "string" || token.length === 0) return;
   sql.exec(
-    `INSERT INTO geraete (person, token) VALUES (?, ?)
-     ON CONFLICT(person) DO UPDATE SET token = excluded.token`,
-    person,
-    token
+    `INSERT INTO geraet_token (token, person) VALUES (?, ?)
+     ON CONFLICT(token) DO UPDATE SET person = excluded.person`,
+    token,
+    person
   );
 }
 
-export function geraetToken(sql, person) {
-  const rows = sql.exec(`SELECT token FROM geraete WHERE person = ?`, person).toArray();
-  return rows[0]?.token ?? null;
+export function geraetTokens(sql, person) {
+  return sql.exec(`SELECT token FROM geraet_token WHERE person = ?`, person).toArray().map((r) => r.token);
 }
 
-export function geraetLoeschen(sql, person) {
-  sql.exec(`DELETE FROM geraete WHERE person = ?`, person);
+export function geraetLoeschen(sql, token) {
+  sql.exec(`DELETE FROM geraet_token WHERE token = ?`, token);
+  sql.exec(`DELETE FROM geraete WHERE token = ?`, token); // sonst holt initSchema es beim nächsten Start zurück
 }
 
 // Letzter Zeitpunkt (ms) einer "Zufällig nah"-Meldung, für die 6h-Drossel --

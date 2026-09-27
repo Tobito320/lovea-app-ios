@@ -11,7 +11,7 @@ import {
   opsSeit,
   SEITE,
   SEITE_BYTES,
-  NUR_FUER_ABSENDER,
+  nurFuerAbsender,
   medienTeilSpeichern,
   medienFertig,
   medienFehlend,
@@ -24,7 +24,7 @@ import {
   zufaelligNah,
   einstellung,
   geraetSpeichern,
-  geraetToken,
+  geraetTokens,
   geraetLoeschen,
   offeneTreffen,
   offeneAngeheftet,
@@ -174,7 +174,7 @@ export class Raum {
       // Wiederholung nach Funkloch, damit die Op die Warteschlange verlässt.
       ws.send(JSON.stringify({ t: "ops", ops: [bestaetigt], mehr: false }));
       if (neu) {
-        if (bestaetigt.art !== NUR_FUER_ABSENDER) this.#sendeAnPartner(person, { t: "ops", ops: [bestaetigt], mehr: false });
+        this.#verteilen(ws, bestaetigt);
         await this.#pushFuerOp(bestaetigt).catch((err) => this.#log("push für Op fehlgeschlagen", bestaetigt.art, err));
         await this.#alarmAktualisieren();
       }
@@ -186,6 +186,7 @@ export class Raum {
       ws.send(JSON.stringify({ t: "pong", zeit: new Date().toISOString() }));
     } else if (msg.t === "geraet") {
       geraetSpeichern(this.sql, person, msg.token);
+      this.#anhaengen(ws, { token: msg.token });
     } else if (msg.t === "fl") {
       await this.#flVerarbeiten(person, msg.art, msg.d);
     }
@@ -212,11 +213,55 @@ export class Raum {
   }
 
   #kontaktAktualisieren(ws) {
+    this.#anhaengen(ws, { letzterKontakt: Date.now() });
+  }
+
+  // Attachment = {letzterKontakt, token}; überlebt Hibernation. Das Token sagt, welches Gerät
+  // hinter dem Socket steckt (#pushAn).
+  #anhaengen(ws, felder) {
     try {
-      ws.serializeAttachment({ letzterKontakt: Date.now() });
+      ws.serializeAttachment({ ...(ws.deserializeAttachment?.() ?? {}), ...felder });
     } catch {
       // Fake-Sockets in Tests haben kein serializeAttachment -- dann bleibt
       // #letzterKontakt() null, was verbindungIstLebendig() als "verbunden" wertet.
+    }
+  }
+
+  // 27.09.: eine Op geht an alle anderen Geräte des Absenders (iPhone + iPad = ein Profil) und,
+  // außer private Arten (Entwurf, Galerie), an den Partner. Der Absender-Socket hat sein Echo schon.
+  #verteilen(absenderWs, op) {
+    const eigene = this.ctx.getWebSockets(op.von).filter((s) => s !== absenderWs);
+    const partner = nurFuerAbsender(op.art) ? [] : this.ctx.getWebSockets(partnerVon(op.von));
+    this.#sendeAn([...eigene, ...partner], { t: "ops", ops: [op], mehr: false });
+  }
+
+  // Push an jedes Gerät der Person, das gerade keine lebende Verbindung hat -- ein offenes iPad
+  // zu Hause darf dem iPhone in der Tasche keine Mitteilung wegnehmen.
+  async #pushAn(person, nachricht, { auchVerbunden = false } = {}) {
+    const jetzt = Date.now();
+    const verbunden = new Set(
+      this.ctx
+        .getWebSockets(person)
+        .filter((ws) => verbindungIstLebendig(this.#letzterKontakt(ws), jetzt))
+        .map((ws) => this.#tokenVon(ws))
+        .filter(Boolean)
+    );
+    for (const token of geraetTokens(this.sql, person)) {
+      if (!auchVerbunden && verbunden.has(token)) continue;
+      const res = await push(this.env, token, nachricht).catch((err) => {
+        this.#log("push fehlgeschlagen", person, err);
+        return null;
+      });
+      if (res && !res.ok) this.#log("APNs-Antwort", person, "->", res.status);
+      if (res?.expired) geraetLoeschen(this.sql, token);
+    }
+  }
+
+  #tokenVon(ws) {
+    try {
+      return ws.deserializeAttachment?.()?.token ?? null;
+    } catch {
+      return null;
     }
   }
 
@@ -284,15 +329,9 @@ export class Raum {
   // ponytail: Drossel nur im Speicher, nach Hibernation darf eine Push extra rausgehen.
   #karteWeckMs = 0;
   async #karteWecken(partner) {
-    if (this.#istVerbunden(partner) || Date.now() - this.#karteWeckMs < 60_000) return;
-    const token = geraetToken(this.sql, partner);
-    if (!token) return;
+    if (Date.now() - this.#karteWeckMs < 60_000) return;
     this.#karteWeckMs = Date.now();
-    const res = await push(this.env, token, { stufe: "still", daten: { art: "karte.offen", an: true } }).catch((err) => {
-      this.#log("karte.offen-Push fehlgeschlagen", err);
-      return null;
-    });
-    if (res?.expired) geraetLoeschen(this.sql, partner);
+    await this.#pushAn(partner, { stufe: "still", daten: { art: "karte.offen", an: true } });
   }
 
   async #standort(person, d) {
@@ -345,10 +384,6 @@ export class Raum {
     if (einstellung(this.sql, empfaenger, `mitteilungen.${r.kategorie}`) === false) return;
 
     const immer = op.art === "ort.ereignis"; // Ankunft/Verlassen gehen immer.
-    if (!immer && this.#istVerbunden(empfaenger)) return;
-
-    const token = geraetToken(this.sql, empfaenger);
-    if (!token) return;
     // Z-32.1: Antippen springt im Chat zur Nachricht, die App liest `userInfo["nachrichtId"]`.
     // 25.09.: Kuss/Anstupsen/Herz (art "geste") schicken `art` mit, die App öffnet damit das Partnerprofil.
     const daten = op.art.startsWith("nachricht.") && typeof op.d.id === "string"
@@ -359,9 +394,7 @@ export class Raum {
     const jetzt = Date.now();
     const ton = jetzt - (this.#letzterTon[empfaenger] ?? 0) < 3000 ? undefined : r.ton;
     if (ton) this.#letzterTon[empfaenger] = jetzt;
-    const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton, daten });
-    if (!res.ok) this.#log("APNs-Antwort", op.art, "->", res.status);
-    if (res.expired) geraetLoeschen(this.sql, empfaenger);
+    await this.#pushAn(empfaenger, { stufe: r.stufe, titel: r.titel, text: r.text, ton, daten }, { auchVerbunden: immer });
   }
 
   // --- Zufällig nah (Z-1.8) --------------------------------------------------
@@ -405,7 +438,7 @@ export class Raum {
       }
       const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
       letzteSeq = seq;
-      if (neu && op.art !== NUR_FUER_ABSENDER) this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
+      if (neu) this.#verteilen(null, { ...op, seq });
     }
     await this.#alarmAktualisieren();
     return Response.json({ seq: letzteSeq, uebersprungen });
@@ -617,16 +650,8 @@ export class Raum {
 
   async #pushBeide(nachricht, kategorie) {
     for (const person of PERSONEN) {
-      if (this.#istVerbunden(person)) continue;
       if (kategorie && einstellung(this.sql, person, `mitteilungen.${kategorie}`) === false) continue;
-      const token = geraetToken(this.sql, person);
-      if (!token) continue;
-      const res = await push(this.env, token, nachricht).catch((err) => {
-        this.#log("push (beide) fehlgeschlagen", err);
-        return null;
-      });
-      if (res && !res.ok) this.#log("APNs-Antwort (beide)", "->", res.status);
-      if (res?.expired) geraetLoeschen(this.sql, person);
+      await this.#pushAn(person, nachricht);
     }
   }
 

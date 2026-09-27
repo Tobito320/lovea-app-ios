@@ -594,3 +594,79 @@ test("laute Pushes an denselben Empfänger binnen 3 s: nur die erste mit Ton", a
   assert.equal(bodies[1].aps.sound, undefined);
   assert.ok(bodies[1].aps.alert);
 });
+
+// 27.09. Ein Profil auf mehreren Geräten (Annika: iPhone + iPad).
+function zweitesGeraet(ctx, person) {
+  const ws = new FakeWs();
+  ctx.acceptWebSocket(ws, [person]);
+  return ws;
+}
+const opNachricht = (id, art, von, d = { text: "x" }) =>
+  JSON.stringify({ t: "op", op: { id, art, von, zeit: new Date().toISOString(), d } });
+
+test("mehrere Geräte: neue Op geht live auch an die anderen Geräte derselben Person", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "annika");
+  await raum.webSocketMessage(ipad, opNachricht("g1", "zeichnung.stand", "annika", { zeichnungId: "z" }));
+  assert.ok(websockets.annika.gesendet.some((m) => m.t === "ops" && m.ops[0].id === "g1"), "iPhone bekommt es live");
+  assert.ok(websockets.ahmed.gesendet.some((m) => m.t === "ops" && m.ops[0].id === "g1"), "Partner auch");
+  assert.equal(ipad.gesendet.filter((m) => m.t === "ops" && m.ops[0].id === "g1").length, 1, "Absender nur das Echo");
+});
+
+test("mehrere Geräte: galerie.* und entwurf.setzen gehen an eigene Geräte, nie an den Partner", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "annika");
+  await raum.webSocketMessage(ipad, opNachricht("p1", "galerie.stand", "annika", { artworkId: "a" }));
+  await raum.webSocketMessage(ipad, opNachricht("p2", "entwurf.setzen", "annika", { text: "hi" }));
+  const beimIphone = websockets.annika.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.deepEqual(beimIphone.sort(), ["p1", "p2"]);
+  assert.ok(!websockets.ahmed.gesendet.some((m) => m.t === "ops"), "Partner bekommt nichts live");
+  // Und beim Nachholen auch nicht.
+  const neu = new FakeWs();
+  ctx.acceptWebSocket(neu, ["ahmed"]);
+  await raum.webSocketMessage(neu, JSON.stringify({ t: "nachholen", seit: 0 }));
+  const nachgeholt = neu.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.ok(!nachgeholt.includes("p1") && !nachgeholt.includes("p2"));
+});
+
+test("mehrere Geräte: jedes Gerät hat sein Push-Token, Push nur an Geräte ohne lebende Verbindung", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "annika");
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "a".repeat(64) }));
+  await raum.webSocketMessage(ipad, JSON.stringify({ t: "geraet", token: "b".repeat(64) }));
+  // iPhone ist weg (Hintergrund, Socket zu), iPad liegt offen zu Hause.
+  ctx._trennen(websockets.annika);
+
+  const urls = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { urls.push(url); return new Response(null, { status: 200 }); };
+  try {
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("n1", "nachricht.neu", "ahmed", { id: "m1", text: "hi" }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(urls.length, 1, "nur das iPhone bekommt eine Push");
+  assert.match(urls[0], /a{64}$/);
+});
+
+test("mehrere Geräte: abgelaufenes Token löscht nur dieses Gerät", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "annika");
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "a".repeat(64) }));
+  await raum.webSocketMessage(ipad, JSON.stringify({ t: "geraet", token: "b".repeat(64) }));
+  ctx._trennen(websockets.annika);
+  ctx._trennen(ipad);
+  const echterFetch = globalThis.fetch;
+  const urls = [];
+  globalThis.fetch = async (url) => { urls.push(url); return new Response(null, { status: /a{64}$/.test(url) ? 410 : 200 }); };
+  try {
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("n1", "nachricht.neu", "ahmed", { id: "m1", text: "1" }));
+    urls.length = 0;
+    await new Promise((r) => setTimeout(r, 5)); // Ton-Drossel egal, es geht nur um die Tokens
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("n2", "nachricht.neu", "ahmed", { id: "m2", text: "2" }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /b{64}$/);
+});
