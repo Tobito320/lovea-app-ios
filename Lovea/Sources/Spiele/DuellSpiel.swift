@@ -146,6 +146,8 @@ struct DuellSpiel: View {
         .sensoryFeedback(.selection, trigger: r)
     }
 
+    @State private var rueckblick = false
+
     private var galerie: some View {
         ScrollView {
             VStack(spacing: 18) {
@@ -156,28 +158,20 @@ struct DuellSpiel: View {
                         Text("Runde \(r + 1): \(wort(r) ?? "")").font(.headline)
                         HStack(spacing: 10) {
                             ForEach([k.ich, k.partner], id: \.self) { p in
-                                let herzen = stimmen.values.filter { $0 == p }.count
-                                SpielBild(medienId: bilder[p] ?? "")
-                                    .aspectRatio(1, contentMode: .fit)
-                                    .clipShape(RoundedRectangle(cornerRadius: 16))
-                                    .overlay(alignment: .bottomTrailing) {
-                                        if herzen > 0 {
-                                            Label("\(herzen)", systemImage: "heart.fill")
-                                                .font(.caption.bold())
-                                                .padding(6)
-                                                .background(.regularMaterial, in: Capsule())
-                                                .foregroundStyle(Color.loveaRose)
-                                                .padding(6)
-                                        }
-                                    }
+                                DuellBildKachel(medienId: bilder[p] ?? "", name: p == k.ich ? "Deins" : "\(p.name)s",
+                                                herzen: stimmen.values.filter { $0 == p }.count)
                             }
                         }
                     }
                 }
+                Button("Alle Runden ansehen") { rueckblick = true }
+                    .buttonStyle(.bordered)
+                    .tint(.loveaRose)
             }
             .padding(20)
             .padding(.bottom, 320)
         }
+        .sheet(isPresented: $rueckblick) { DuellRueckblick(spiel: k.spiel) }
     }
 }
 

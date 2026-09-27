@@ -7,6 +7,7 @@ import UIKit
 struct SpielKarte: View {
     let nachricht: ChatModell.Nachricht
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    @State private var rueckblick = false
 
     private var modell: SpieleModell { .shared }
 
@@ -75,15 +76,20 @@ struct SpielKarte: View {
                     }
                 }
                 if spiel.art == .duell, let bilder = letzteBilder(spiel), !bilder.isEmpty {
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 6) {
-                            ForEach(bilder, id: \.self) { id in
-                                SpielBild(medienId: id)
-                                    .frame(width: 64, height: 64)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                    Button { rueckblick = true } label: {
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                ForEach(bilder, id: \.self) { id in
+                                    SpielBild(medienId: id)
+                                        .frame(width: 64, height: 64)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                }
                             }
                         }
                     }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Alle Runden ansehen")
+                    .sheet(isPresented: $rueckblick) { DuellRueckblick(spiel: spiel) }
                 }
             }
         }
