@@ -70,6 +70,7 @@ struct ErnaehrungZieleView: View {
                 }
                 vorschauSection
                 eigeneWerteSection
+                flexibleTageSection
             }
             .navigationTitle("Ziele")
             .navigationBarTitleDisplayMode(.inline)
@@ -134,6 +135,36 @@ struct ErnaehrungZieleView: View {
                     TextField("g", value: $z.fett, format: .number).keyboardType(.numberPad).multilineTextAlignment(.trailing)
                 }
             }
+        }
+    }
+
+    /// YAZIO Pro "Wochenend-Kalorien": an gewählten Wochentagen mehr (oder weniger) kcal.
+    private var flexibleTageSection: some View {
+        Section {
+            Stepper(value: $z.extraKcal, in: -1000...1500, step: 50) {
+                LabeledContent("An diesen Tagen", value: z.extraKcal >= 0 ? "+\(z.extraKcal) kcal" : "\(z.extraKcal) kcal")
+            }
+            HStack(spacing: 6) {
+                ForEach(1...7, id: \.self) { tag in
+                    let an = z.istExtraTag(tag)
+                    Button {
+                        z.extraTage ^= 1 << (tag - 1)
+                        Haptik.auswahl()
+                    } label: {
+                        Text(HabitLogik.wochentagKuerzel[tag - 1])
+                            .font(.subheadline.weight(.semibold))
+                            .frame(maxWidth: .infinity, minHeight: 44)
+                            .background(an ? ErnaehrungStil.akzent.opacity(0.35) : Color(uiColor: .tertiarySystemFill),
+                                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(an ? .isSelected : [])
+                }
+            }
+        } header: {
+            Text("Flexible Tage")
+        } footer: {
+            Text("Zum Beispiel am Wochenende 300 kcal mehr. Die Makros wachsen im selben Verhältnis.")
         }
     }
 

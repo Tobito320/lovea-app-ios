@@ -28,6 +28,10 @@ struct ErnaehrungView: View {
     @State private var kalenderOffen = false
     @State private var zieleOffen = false
     @State private var koerperOffen = false
+    @State private var fastenOffen = false
+    @State private var einkaufOffen = false
+    @State private var naehrwerteOffen = false
+    @State private var anpassenOffen = false
     @Environment(\.accessibilityReduceMotion) private var ruhig
 
     private var modell: ErnaehrungModell { ErnaehrungModell.shared }
@@ -60,6 +64,10 @@ struct ErnaehrungView: View {
                 Menu {
                     Button("Ziele", systemImage: "target") { zieleOffen = true }
                     Button("Auswertung", systemImage: "chart.bar") { analyseOffen = true }
+                    Button("Nährwerte des Tages", systemImage: "list.bullet.rectangle") { naehrwerteOffen = true }
+                    Button("Intervallfasten", systemImage: "timer") { fastenOffen = true }
+                    Button("Einkaufsliste", systemImage: "cart") { einkaufOffen = true }
+                    Button("Tagebuch anpassen", systemImage: "slider.horizontal.3") { anpassenOffen = true }
                     Button(partnerAnsicht ? "Mein Tag" : "Tag von \(ich.partner.name)", systemImage: "person.2") {
                         partnerAnsicht.toggle()
                         Haptik.auswahl()
@@ -75,6 +83,10 @@ struct ErnaehrungView: View {
         }
         .navigationDestination(isPresented: $uebersichtOffen) { MahlzeitenUebersicht(tag: tag, person: person) }
         .navigationDestination(isPresented: $analyseOffen) { ErnaehrungAnalyseView() }
+        .navigationDestination(isPresented: $naehrwerteOffen) { TagesNaehrwerteView(tag: tag, person: person) }
+        .navigationDestination(isPresented: $fastenOffen) { FastenView() }
+        .navigationDestination(isPresented: $einkaufOffen) { EinkaufView() }
+        .sheet(isPresented: $anpassenOffen) { TagebuchAnpassenBlatt() }
         .sheet(item: $neu) { m in HinzufuegenBlatt(mahlzeit: m, datum: tag) }
         .sheet(item: $scannen) { m in HinzufuegenBlatt(mahlzeit: m, datum: tag, scannen: true) }
         .sheet(isPresented: $zieleOffen) { ErnaehrungZieleView() }
@@ -85,16 +97,21 @@ struct ErnaehrungView: View {
     private var stand: TagebuchStand {
         let alle = modell.eintraege(person, tag)
         let koerper: [KoerperwertD] = KoerperArt.allCases.compactMap { modell.koerperwert(person, $0, bis: tag) }
+        let anpassung = modell.anpassung(person)
+        var namen: [Mahlzeit: String] = [:]
+        for m in Mahlzeit.allCases { namen[m] = anpassung.name(m) }
         return TagebuchStand(
             tag: tag, heute: heute, person: person, partnerAnsicht: partnerAnsicht,
-            ziele: modell.ziele(person), zieleEingerichtet: modell.ziele(person).eingerichtet,
+            ziele: modell.ziele(person, tag: tag), zieleEingerichtet: modell.ziele(person).eingerichtet,
             eintraege: Dictionary(grouping: alle, by: \.mahlzeit),
             verbrannt: modell.verbrannt(person, tag),
             wasserGlaeser: HealthModell.shared.wasserAnzahl(person, tag),
             wasserZielGlaeser: HealthModell.shared.zielWasser(person),
             wasserAusEssenMl: Int(ErnaehrungLogik.wasserAusLebensmitteln(alle).rounded()),
             gewicht: modell.gewicht(person, bis: tag).map { GewichtStand(zehntel: $0.zehntel, datum: $0.datum) },
-            koerperwerte: koerper
+            koerperwerte: koerper,
+            abschnitte: anpassung.sichtbar,
+            mahlzeitNamen: namen
         )
     }
 
@@ -112,7 +129,8 @@ struct ErnaehrungView: View {
                 Haptik.leicht()
             },
             gewichtAendern: { schritt in gewichtAendern(schritt) },
-            koerperMehr: { koerperOffen = true }
+            koerperMehr: { koerperOffen = true },
+            naehrwerteOeffnen: { naehrwerteOffen = true }
         )
     }
 
@@ -192,8 +210,12 @@ struct TagebuchStand {
     var wasserAusEssenMl = 0
     var gewicht: GewichtStand? = nil
     var koerperwerte: [KoerperwertD] = []
+    /// Sichtbare Abschnitte in Reihenfolge (`TagebuchAnpassung.sichtbar`).
+    var abschnitte: [String] = TagebuchAnpassung.alleAbschnitte
+    var mahlzeitNamen: [Mahlzeit: String] = [:]
 
     var bearbeitbar: Bool { !partnerAnsicht }
+    func name(_ m: Mahlzeit) -> String { mahlzeitNamen[m] ?? m.name }
 }
 
 struct TagebuchAktionen {
@@ -208,6 +230,7 @@ struct TagebuchAktionen {
     /// Schritt in Zehntel-kg, +1 oder -1.
     var gewichtAendern: (Int) -> Void = { _ in }
     var koerperMehr: () -> Void = {}
+    var naehrwerteOeffnen: () -> Void = {}
 }
 
 struct TagebuchAnsicht: View {
@@ -222,25 +245,40 @@ struct TagebuchAnsicht: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 28) {
             kopf
+            ForEach(stand.abschnitte, id: \.self) { abschnitt($0) }
+        }
+        .fontDesign(.rounded)
+    }
+
+    @ViewBuilder
+    private func abschnitt(_ id: String) -> some View {
+        switch id {
+        case "uebersicht":
             VStack(alignment: .leading, spacing: 12) {
                 ueberschrift("Übersicht")
-                uebersicht
+                Button(action: aktionen.naehrwerteOeffnen) { uebersicht }
+                    .buttonStyle(.plain)
+                    .accessibilityHint("Zeigt alle Nährwerte des Tages")
                 if stand.bearbeitbar && !stand.zieleEingerichtet { zielHinweis }
             }
+        case "ernaehrung":
             VStack(alignment: .leading, spacing: 12) {
                 abschnittKopf("Ernährung", aktion: aktionen.mehr)
                 mahlzeiten
             }
+        case "wasser":
             VStack(alignment: .leading, spacing: 12) {
                 ueberschrift("Wasserzähler")
                 wasserKarte
             }
+        case "koerper":
             VStack(alignment: .leading, spacing: 12) {
                 abschnittKopf("Körperwerte", aktion: stand.bearbeitbar ? aktionen.koerperMehr : nil)
                 koerperKarte
             }
+        default:
+            EmptyView()
         }
-        .fontDesign(.rounded)
     }
 
     private func ueberschrift(_ text: String) -> some View {
@@ -418,7 +456,7 @@ struct TagebuchAnsicht: View {
                     .frame(width: 46, height: 46)
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 4) {
-                            Text(m.name).font(.headline.weight(.bold))
+                            Text(stand.name(m)).font(.headline.weight(.bold))
                             Image(systemName: "arrow.right").font(.footnote.weight(.bold))
                         }
                         Text("\(ernaehrungZahl(kcal)) / \(ernaehrungZahl(richtwert)) kcal").font(.subheadline).monospacedDigit()
@@ -442,7 +480,7 @@ struct TagebuchAnsicht: View {
                         .frame(width: 44, height: 44)
                 }
                 .buttonStyle(.federnd)
-                .accessibilityLabel("Zu \(m.name) hinzufügen")
+                .accessibilityLabel("Zu \(stand.name(m)) hinzufügen")
             }
         }
         .padding(.horizontal, 16)
@@ -560,5 +598,79 @@ struct TagebuchAnsicht: View {
         }
         .buttonStyle(.federnd)
         .accessibilityLabel(titel)
+    }
+}
+
+/// YAZIO Pro "Tagebuch anpassen": Abschnitte sortieren und ausblenden, Mahlzeiten umbenennen.
+struct TagebuchAnpassenBlatt: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var reihenfolge: [String]
+    @State private var ausgeblendet: Set<String>
+    @State private var namen: [String: String]
+
+    init() {
+        let a = ErnaehrungModell.shared.anpassung(ErnaehrungModell.shared.ich)
+        let bekannt = a.reihenfolge.filter { TagebuchAnpassung.alleAbschnitte.contains($0) }
+        _reihenfolge = State(initialValue: bekannt + TagebuchAnpassung.alleAbschnitte.filter { !bekannt.contains($0) })
+        _ausgeblendet = State(initialValue: Set(a.ausgeblendet))
+        _namen = State(initialValue: a.mahlzeitNamen)
+    }
+
+    private func titel(_ id: String) -> String {
+        switch id {
+        case "uebersicht": "Übersicht"
+        case "ernaehrung": "Ernährung"
+        case "wasser": "Wasserzähler"
+        default: "Körperwerte"
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(reihenfolge, id: \.self) { id in
+                        Toggle(titel(id), isOn: Binding(
+                            get: { !ausgeblendet.contains(id) },
+                            set: { an in
+                                if an { _ = ausgeblendet.remove(id) } else { _ = ausgeblendet.insert(id) }
+                            }))
+                    }
+                    .onMove { reihenfolge.move(fromOffsets: $0, toOffset: $1) }
+                } header: {
+                    Text("Abschnitte")
+                } footer: {
+                    Text("Ziehen zum Sortieren, Schalter zum Ausblenden.")
+                }
+                Section("Mahlzeiten") {
+                    ForEach(Mahlzeit.allCases) { m in
+                        HStack {
+                            Image(systemName: m.symbol).foregroundStyle(.secondary).frame(width: 28)
+                            TextField(m.name, text: Binding(
+                                get: { namen[m.rawValue] ?? "" },
+                                set: { namen[m.rawValue] = $0 }))
+                        }
+                    }
+                }
+            }
+            .environment(\.editMode, .constant(.active))
+            .fontDesign(.rounded)
+            .navigationTitle("Tagebuch anpassen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        let leer = namen.filter { !$0.value.trimmingCharacters(in: .whitespaces).isEmpty }
+                        ErnaehrungModell.shared.anpassungSichern(TagebuchAnpassung(
+                            reihenfolge: reihenfolge,
+                            ausgeblendet: reihenfolge.filter { ausgeblendet.contains($0) },
+                            mahlzeitNamen: leer))
+                        Haptik.erfolg()
+                        dismiss()
+                    }
+                }
+            }
+        }
     }
 }

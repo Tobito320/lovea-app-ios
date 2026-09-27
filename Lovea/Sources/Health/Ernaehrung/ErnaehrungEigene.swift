@@ -145,6 +145,7 @@ struct RezeptEditor: View {
     @State private var gewaehlt: Lebensmittel?
     @State private var bearbeiteZutat: Zutat?
     @State private var loeschenFragen = false
+    @State private var aufEinkaufslisteOffen = false
 
     init(start: Rezept? = nil) {
         self.start = start
@@ -175,6 +176,9 @@ struct RezeptEditor: View {
                 }
                 if !zutaten.isEmpty {
                     Section("Pro Portion") { naehrwerteListe }
+                    Section {
+                        Button("Auf die Einkaufsliste", systemImage: "cart") { aufEinkaufslisteOffen = true }
+                    }
                 }
                 if start != nil {
                     Section {
@@ -209,6 +213,9 @@ struct RezeptEditor: View {
             }
             .confirmationDialog("Rezept löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
                 Button("Löschen", role: .destructive) { loeschen() }
+            }
+            .sheet(isPresented: $aufEinkaufslisteOffen) {
+                EinkaufListeWahlBlatt(zutaten: zutaten)
             }
         }
     }

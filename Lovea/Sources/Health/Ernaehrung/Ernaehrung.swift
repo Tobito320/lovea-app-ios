@@ -234,9 +234,27 @@ struct ErnaehrungsZiele: Equatable, Sendable {
     var fastenStunden: Int = 16
     /// Wurden die Ziele schon einmal eingerichtet?
     var eingerichtet: Bool = false
+    /// Flexible Tage (YAZIO Pro "Wochenend-Kalorien"): so viele kcal mehr an den Tagen in `extraTage`.
+    var extraKcal: Int = 0
+    /// Bitmaske der Wochentage, Bit 0 = Montag … Bit 6 = Sonntag.
+    var extraTage: Int = 0
 
     static let felder = ["kcal", "protein", "kohlenhydrate", "fett", "geschlecht", "alter", "groesseCm", "aktivitaet",
-                         "richtung", "tempo", "makroProfil", "fastenStunden", "eingerichtet"]
+                         "richtung", "tempo", "makroProfil", "fastenStunden", "eingerichtet", "extraKcal", "extraTage"]
+
+    func istExtraTag(_ wochentag: Int) -> Bool { extraTage & (1 << (wochentag - 1)) != 0 }
+
+    /// Die Ziele für einen bestimmten Tag: an flexiblen Tagen mehr kcal, Makros im selben Verhältnis.
+    func fuer(tag: String) -> ErnaehrungsZiele {
+        guard extraKcal != 0, istExtraTag(Datum.wochentag(tag)), kcal > 0 else { return self }
+        var z = self
+        let faktor = Double(kcal + extraKcal) / Double(kcal)
+        z.kcal = kcal + extraKcal
+        z.protein = Int((Double(protein) * faktor).rounded())
+        z.kohlenhydrate = Int((Double(kohlenhydrate) * faktor).rounded())
+        z.fett = Int((Double(fett) * faktor).rounded())
+        return z
+    }
 
     func wert(_ feld: String) -> Int {
         switch feld {
@@ -252,6 +270,8 @@ struct ErnaehrungsZiele: Equatable, Sendable {
         case "tempo": tempo
         case "makroProfil": makroProfil
         case "fastenStunden": fastenStunden
+        case "extraKcal": extraKcal
+        case "extraTage": extraTage
         default: eingerichtet ? 1 : 0
         }
     }
@@ -270,6 +290,8 @@ struct ErnaehrungsZiele: Equatable, Sendable {
         case "tempo": tempo = w
         case "makroProfil": makroProfil = w
         case "fastenStunden": fastenStunden = w
+        case "extraKcal": extraKcal = w
+        case "extraTage": extraTage = w
         default: eingerichtet = w > 0
         }
     }
@@ -302,11 +324,34 @@ struct KoerperwertD: Codable, Equatable, Sendable {
     var geloescht: Bool?
 }
 
+/// Op `food.anpassung` (YAZIO Pro "Tagebuch anpassen"), pro Person, neueste gewinnt.
+struct TagebuchAnpassung: Codable, Equatable, Sendable {
+    static let alleAbschnitte = ["uebersicht", "ernaehrung", "wasser", "koerper"]
+    static let standard = TagebuchAnpassung(reihenfolge: alleAbschnitte, ausgeblendet: [], mahlzeitNamen: [:])
+
+    var reihenfolge: [String]
+    var ausgeblendet: [String]
+    /// `Mahlzeit.rawValue` -> eigener Name.
+    var mahlzeitNamen: [String: String]
+
+    /// Sichtbare Abschnitte in Reihenfolge; neue, noch unbekannte hinten angehängt.
+    var sichtbar: [String] {
+        let bekannt = reihenfolge.filter { Self.alleAbschnitte.contains($0) }
+        let voll = bekannt + Self.alleAbschnitte.filter { !bekannt.contains($0) }
+        return voll.filter { !ausgeblendet.contains($0) }
+    }
+
+    func name(_ m: Mahlzeit) -> String {
+        let eigen = mahlzeitNamen[m.rawValue]?.trimmingCharacters(in: .whitespaces) ?? ""
+        return eigen.isEmpty ? m.name : eigen
+    }
+}
+
 // MARK: - Faltung
 
 struct ErnaehrungFaltung: Sendable {
     static let arten: Set<String> = ["essen.setzen", "lebensmittel.setzen", "lebensmittel.favorit", "rezept.setzen", "fasten.setzen",
-                                     "koerper.setzen"]
+                                     "koerper.setzen", "food.anpassung"]
 
     private struct Stand<T: Sendable>: Sendable {
         var zeit: Date
@@ -314,17 +359,22 @@ struct ErnaehrungFaltung: Sendable {
     }
 
     private var essen: [Person: [String: Stand<EssenEintrag>]] = [:]
+    /// Eintrags-ids je Tag, damit Auswertungen über Monate nicht jedes Mal alle Einträge durchsuchen.
+    private var tagIndex: [Person: [String: Set<String>]] = [:]
     private var eigene: [String: Stand<LebensmittelD>] = [:]
     private var favoriten: [Person: [String: Stand<FavoritD>]] = [:]
     private var rezepteStand: [String: Stand<Rezept>] = [:]
     private var fastenStand: [Person: Stand<FastenD>] = [:]
     private var koerper: [Person: [String: Stand<KoerperwertD>]] = [:]
+    private var anpassungen: [Person: Stand<TagebuchAnpassung>] = [:]
 
     mutating func anwenden(_ op: Op) {
         switch op.art {
         case "essen.setzen":
             guard let e = op.daten(EssenEintrag.self), (essen[op.von]?[e.id]?.zeit ?? .distantPast) <= op.zeit else { return }
+            if let alt = essen[op.von]?[e.id]?.wert.datum, alt != e.datum { tagIndex[op.von]?[alt]?.remove(e.id) }
             essen[op.von, default: [:]][e.id] = Stand(zeit: op.zeit, wert: e)
+            tagIndex[op.von, default: [:]][e.datum, default: []].insert(e.id)
         case "lebensmittel.setzen":
             guard let d = op.daten(LebensmittelD.self), (eigene[d.lebensmittel.id]?.zeit ?? .distantPast) <= op.zeit else { return }
             eigene[d.lebensmittel.id] = Stand(zeit: op.zeit, wert: d)
@@ -337,6 +387,9 @@ struct ErnaehrungFaltung: Sendable {
         case "fasten.setzen":
             guard let d = op.daten(FastenD.self), (fastenStand[op.von]?.zeit ?? .distantPast) <= op.zeit else { return }
             fastenStand[op.von] = Stand(zeit: op.zeit, wert: d)
+        case "food.anpassung":
+            guard let d = op.daten(TagebuchAnpassung.self), (anpassungen[op.von]?.zeit ?? .distantPast) <= op.zeit else { return }
+            anpassungen[op.von] = Stand(zeit: op.zeit, wert: d)
         case "koerper.setzen":
             guard let d = op.daten(KoerperwertD.self) else { return }
             let schluessel = d.art.rawValue + "|" + d.datum
@@ -349,7 +402,8 @@ struct ErnaehrungFaltung: Sendable {
 
     /// Einträge eines Tages in der Reihenfolge, in der sie zuletzt geändert wurden.
     func eintraege(_ p: Person, _ tag: String) -> [EssenEintrag] {
-        (essen[p] ?? [:]).values
+        let alle = essen[p] ?? [:]
+        return (tagIndex[p]?[tag] ?? []).compactMap { alle[$0] }
             .filter { $0.wert.datum == tag && $0.wert.geloescht != true }
             .sorted { $0.zeit < $1.zeit }
             .map(\.wert)
@@ -399,6 +453,8 @@ struct ErnaehrungFaltung: Sendable {
     }
 
     func fasten(_ p: Person) -> FastenD? { fastenStand[p]?.wert }
+
+    func anpassung(_ p: Person) -> TagebuchAnpassung { anpassungen[p]?.wert ?? .standard }
 
     /// Neuester Körperwert dieser Art bis einschließlich `tag`.
     func koerperwert(_ p: Person, _ art: KoerperArt, bis tag: String) -> KoerperwertD? {

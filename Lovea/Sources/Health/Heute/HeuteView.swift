@@ -578,7 +578,7 @@ struct HeuteView: View {
 
     private var proteinKachel: some View {
         let ernaehrung = ErnaehrungModell.shared
-        let ziel = ernaehrung.ziele(ich).kcal
+        let ziel = ernaehrung.ziele(ich, tag: heute).kcal
         let summe = ernaehrung.summe(ich, heute)
         let kcal = Int(summe.kcal.rounded())
         let protein = Int(summe.protein.rounded())

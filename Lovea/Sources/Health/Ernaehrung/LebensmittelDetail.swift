@@ -87,11 +87,11 @@ struct LebensmittelDetailView: View {
     private var mahlzeitMenu: some View {
         Menu {
             ForEach(Mahlzeit.allCases) { m in
-                Button { mahlzeit = m } label: { Label(m.name, systemImage: m.symbol) }
+                Button { mahlzeit = m } label: { Label(modell.mahlzeitName(m), systemImage: m.symbol) }
             }
         } label: {
             HStack(spacing: 4) {
-                Text(mahlzeit.name).font(.headline)
+                Text(modell.mahlzeitName(mahlzeit)).font(.headline)
                 Image(systemName: "chevron.down").font(.caption.weight(.bold))
             }
             .foregroundStyle(Color.primary)
@@ -124,6 +124,8 @@ struct LebensmittelDetailView: View {
                     .frame(maxWidth: .infinity)
             }
             kopfText
+            let schilder = FoodRating.schilder(lebensmittel)
+            if !schilder.isEmpty { FoodSchilder(schilder: schilder) }
         }
     }
 

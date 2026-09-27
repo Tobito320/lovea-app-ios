@@ -245,4 +245,62 @@ final class ErnaehrungTests: XCTestCase {
         XCTAssertEqual(Mikro.vitaminC.referenz, 80)
         XCTAssertEqual(Mikro.allCases.filter { $0.gruppe == .vitamine }.count, 12)
     }
+    // MARK: - Smart Food Rating
+
+    private func texte(_ l: Lebensmittel) -> [String] { FoodRating.schilder(l).map(\.text) }
+
+    func testRatingSkyrVielEiweissZuckerarmFettarm() {
+        let t = texte(skyr)
+        XCTAssertTrue(t.contains("Viel Eiweiß"))
+        XCTAssertFalse(t.contains("Stark zuckerhaltig"))
+        XCTAssertTrue(t.contains("Fettarm"))
+    }
+
+    func testRatingSchokoladeHinweise() {
+        let schoko = Lebensmittel(id: "s", name: "Schokolade",
+                                  pro100: Naehrwerte(kcal: 540, protein: 6, kohlenhydrate: 57, fett: 31, zucker: 55, salz: 0.2, gesFett: 19))
+        let t = texte(schoko)
+        XCTAssertEqual(Array(t.prefix(3)), ["Stark zuckerhaltig", "Viel Fett", "Viele gesättigte Fettsäuren"])
+        XCTAssertTrue(t.contains("Salzarm"))
+        XCTAssertFalse(t.contains("Eiweißquelle"))
+    }
+
+    func testRatingGetraenkeGrenzenHalbiert() {
+        let cola = Lebensmittel(id: "c", name: "Cola", fluessig: true, pro100: Naehrwerte(kcal: 42, protein: 0, kohlenhydrate: 10.6, fett: 0, zucker: 10.6))
+        XCTAssertFalse(texte(cola).contains("Stark zuckerhaltig"))
+        let saft = Lebensmittel(id: "o", name: "Saft", fluessig: true, pro100: Naehrwerte(kcal: 50, protein: 0.7, kohlenhydrate: 12, fett: 0.2, zucker: 12))
+        XCTAssertTrue(texte(saft).contains("Stark zuckerhaltig"))
+    }
+
+    func testRatingReichAnVitaminen() {
+        let paprika = Lebensmittel(id: "p", name: "Paprika", pro100: Naehrwerte(kcal: 31, protein: 1, kohlenhydrate: 6, fett: 0.3,
+                                   mikro: ["vitaminC": 128, "vitaminA": 157, "kalium": 211]))
+        let t = texte(paprika)
+        XCTAssertTrue(t.contains("Reich an Vitamin C"))
+        XCTAssertFalse(t.contains("Reich an Kalium"))
+        XCTAssertEqual(FoodRating.kurzName(.vitaminB1), "Vitamin B1")
+    }
+    // MARK: - Flexible Tage und Tagebuch anpassen
+
+    func testFlexibleTageNurAnGewaehltenWochentagen() {
+        var z = ErnaehrungsZiele()
+        z.kcal = 2000
+        z.protein = 150
+        z.extraKcal = 500
+        z.extraTage = (1 << 5) | (1 << 6)  // Samstag, Sonntag
+        // 2026-09-26 ist ein Samstag, 2026-09-28 ein Montag.
+        XCTAssertEqual(z.fuer(tag: "2026-09-26").kcal, 2500)
+        XCTAssertEqual(z.fuer(tag: "2026-09-26").protein, 188)
+        XCTAssertEqual(z.fuer(tag: "2026-09-28").kcal, 2000)
+        XCTAssertTrue(z.istExtraTag(7))
+        XCTAssertFalse(z.istExtraTag(1))
+    }
+
+    func testTagebuchAnpassungReihenfolgeUndNamen() {
+        let a = TagebuchAnpassung(reihenfolge: ["wasser", "uebersicht"], ausgeblendet: ["koerper"], mahlzeitNamen: ["snack": "Naschen", "abend": " "])
+        XCTAssertEqual(a.sichtbar, ["wasser", "uebersicht", "ernaehrung"])
+        XCTAssertEqual(a.name(.snack), "Naschen")
+        XCTAssertEqual(a.name(.abend), "Abendessen")
+        XCTAssertEqual(TagebuchAnpassung.standard.sichtbar, TagebuchAnpassung.alleAbschnitte)
+    }
 }

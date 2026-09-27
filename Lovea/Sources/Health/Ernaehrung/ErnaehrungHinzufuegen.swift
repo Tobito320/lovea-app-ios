@@ -135,10 +135,10 @@ struct HinzufuegenBlatt: View {
     private var mahlzeitAuswahl: some View {
         Menu {
             ForEach(Mahlzeit.allCases) { m in
-                Button { mahlzeit = m } label: { Label(m.name, systemImage: m.symbol) }
+                Button { mahlzeit = m } label: { Label(modell.mahlzeitName(m), systemImage: m.symbol) }
             }
         } label: {
-            Label(mahlzeit.name, systemImage: mahlzeit.symbol).font(.subheadline.weight(.semibold))
+            Label(modell.mahlzeitName(mahlzeit), systemImage: mahlzeit.symbol).font(.subheadline.weight(.semibold))
         }
     }
 

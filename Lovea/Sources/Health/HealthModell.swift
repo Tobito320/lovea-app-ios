@@ -167,6 +167,12 @@ final class HealthModell {
     func setzeWasser(datum: String, anzahl: Int) { setzeHabit(Habit.wasser.id, datum: datum, wert: anzahl) }
     func schlafEintragen(_ d: SchlafZeitenD) { Raum.shared.senden("schlaf.zeiten", d) }
 
+    /// Schritte von Hand (YAZIO Pro "manuelle Schritte", ohne Tracker). Gleiche Op wie Apple Health,
+    /// der neuere Wert gewinnt; schickt Apple Health später einen anderen Wert, gilt der.
+    func schritteEintragen(_ anzahl: Int, datum: String) {
+        Raum.shared.senden("schritte.setzen", SchritteD(datum: datum, anzahl: max(0, anzahl)))
+    }
+
     /// `schluessel` ist eines von `ziel.schritte`, `ziel.gym`, `ziel.wasser`, `ziel.gemeinsamWoche`.
     func setzeZiel(_ schluessel: String, _ wert: Int) {
         EinstellungenModell.shared.setzen(schluessel, .number(Double(wert)))

@@ -42,7 +42,7 @@ struct MahlzeitView: View {
             }
         }
         .fontDesign(.rounded)
-        .navigationTitle(mahlzeit.name)
+        .navigationTitle(modell.mahlzeitName(mahlzeit, person))
         .navigationBarTitleDisplayMode(.large)
         .toolbar {
             if bearbeitbar {
@@ -105,7 +105,7 @@ struct MahlzeitenUebersicht: View {
                     }
                 } header: {
                     HStack {
-                        Label(m.name, systemImage: m.symbol).font(.headline)
+                        Label(modell.mahlzeitName(m, person), systemImage: m.symbol).font(.headline)
                         Spacer()
                         Text("\(Int(ErnaehrungLogik.summe(liste).kcal.rounded())) kcal").font(.subheadline.weight(.semibold)).monospacedDigit()
                     }

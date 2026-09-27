@@ -27,6 +27,10 @@ final class ErnaehrungModell {
     func istFavorit(_ l: Lebensmittel) -> Bool { faltung.istFavorit(ich, l.id) }
     var rezepte: [Rezept] { faltung.rezepte }
     func fasten(_ p: Person) -> FastenD? { faltung.fasten(p) }
+    func anpassung(_ p: Person) -> TagebuchAnpassung { faltung.anpassung(p) }
+    /// Name der Mahlzeit, wie `p` sie genannt hat.
+    func mahlzeitName(_ m: Mahlzeit, _ p: Person? = nil) -> String { anpassung(p ?? ich).name(m) }
+    func anpassungSichern(_ a: TagebuchAnpassung) { Raum.shared.senden("food.anpassung", a) }
     func koerperwert(_ p: Person, _ art: KoerperArt, bis tag: String) -> KoerperwertD? { faltung.koerperwert(p, art, bis: tag) }
 
     /// Gewicht (Zehntel-kg) an diesem Tag, sonst das letzte davor, mit Datum.
@@ -47,6 +51,9 @@ final class ErnaehrungModell {
         if p == .annika && HealthModell.shared.ziel("ziel.ernaehrung.geschlecht", p) == nil { z.geschlecht = 1 }
         return ErnaehrungLogik.berechnet(z, kg: gewichtKg(p) ?? (z.geschlecht == 1 ? 62 : 78))
     }
+
+    /// Ziele an einem bestimmten Tag (flexible Tage eingerechnet).
+    func ziele(_ p: Person, tag: String) -> ErnaehrungsZiele { ziele(p).fuer(tag: tag) }
 
     /// Neuestes Gewicht aus dem Gewicht-Habit, nil wenn nie eingetragen.
     func gewichtKg(_ p: Person) -> Double? {
@@ -122,7 +129,7 @@ final class ErnaehrungModell {
 
     /// Hakt das Protein-Habit ab, sobald das Protein-Ziel des Tages erreicht ist. Nie wieder ab.
     private func proteinPruefen(_ datum: String, protein: Double) {
-        guard protein >= Double(ziele(ich).protein), HealthModell.shared.habitWert(Habit.protein.id, ich, datum) == 0 else { return }
+        guard protein >= Double(ziele(ich, tag: datum).protein), HealthModell.shared.habitWert(Habit.protein.id, ich, datum) == 0 else { return }
         HealthModell.shared.setzeHabit(Habit.protein.id, datum: datum, wert: 1)
     }
 }

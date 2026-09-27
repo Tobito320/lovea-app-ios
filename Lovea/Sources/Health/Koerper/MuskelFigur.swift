@@ -44,6 +44,11 @@ enum MuskelPfade {
                 MuskelGruppe.allCases.compactMap { g in
                     let punkte = stuecke.filter { $0.gruppe == g }.flatMap(\.punkte)
                     guard !punkte.isEmpty else { return nil }
+                    // Bauch, Rücken und Nacken liegen auf der Mitte: eine Fläche über beide Hälften, ohne Mittellinie.
+                    if MuskelPfade.mittig.contains(g) {
+                        let beide = punkte + punkte.map(MuskelPfade.spiegel)
+                        return Flaeche(gruppe: g, seite: seite, pfad: pfad(MuskelPfade.hulle(beide)))
+                    }
                     return flaeche(g, seite, [MuskelPfade.hulle(punkte)])
                 }
             }
@@ -75,6 +80,9 @@ enum MuskelPfade {
 
     static func figur(_ p: Person) -> Figur { p == .annika ? annika : ahmed }
 
+    /// Gruppen, die als eine Fläche über die Körpermitte gezeichnet werden.
+    static let mittig: Set<MuskelGruppe> = [.bauch, .ruecken, .nacken]
+
     /// The drawn area (SVG viewBox `8 -4 224 428` of the draft).
     static let rahmen = CGRect(x: 8, y: -4, width: 224, height: 428)
 
@@ -82,7 +90,8 @@ enum MuskelPfade {
 
     static func spiegel(_ p: CGPoint) -> CGPoint { P(240 - p.x, p.y) }
 
-    /// Chibi: torso 0.86, legs 0.5 (from y 250 on), 1.1 wider, whole figure moved down by 48.
+    /// Proportionen des ersten Entwurfs (`erholung.html`, `kurz`): Rumpf 0,86, Beine 0,5 ab y 250, 1,1 breiter,
+    /// alles 48 nach unten. So sah die Figur aus, die Ahmed gefallen hat.
     static func kurz(_ p: CGPoint) -> CGPoint {
         let y = p.y <= 90 ? p.y : p.y <= 250 ? 90 + (p.y - 90) * 0.86 : 227.6 + (p.y - 250) * 0.5
         return P(120 + (p.x - 120) * 1.1, y + 48)

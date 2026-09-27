@@ -85,6 +85,7 @@ struct TrainingSeite: View {
 struct SchritteUebersicht: View {
     let oeffnen: (HealthZiel) -> Void
     @Namespace private var zoom
+    @State private var eintragenOffen = false
 
     var body: some View {
         ScrollView {
@@ -95,5 +96,45 @@ struct SchritteUebersicht: View {
             .padding(16)
         }
         .navigationTitle("Schritte")
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Schritte eintragen", systemImage: "plus") { eintragenOffen = true }
+            }
+        }
+        .sheet(isPresented: $eintragenOffen) { SchritteEintragenBlatt() }
+    }
+}
+
+/// Schritte für einen Tag von Hand, wenn kein Tracker zählt.
+private struct SchritteEintragenBlatt: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var datum = Date()
+    @State private var text = ""
+
+    private var anzahl: Int? { Int(text.filter(\.isNumber)) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                DatePicker("Tag", selection: $datum, in: ...Date(), displayedComponents: .date)
+                    .environment(\.locale, Locale(identifier: "de_DE"))
+                TextField("Schritte", text: $text)
+                    .keyboardType(.numberPad)
+            }
+            .navigationTitle("Schritte eintragen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        if let anzahl { HealthModell.shared.schritteEintragen(anzahl, datum: Datum.text(datum)) }
+                        Haptik.erfolg()
+                        dismiss()
+                    }
+                    .disabled(anzahl == nil)
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
