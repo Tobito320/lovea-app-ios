@@ -3,6 +3,8 @@ import SwiftUI
 /// A person's plan: the week and the training days. Only the owner edits; the partner reads.
 struct TrainingsPlanView: View {
     let person: Person
+    /// Aus Health: öffnet die Gym-Einheit oder den Verlauf im selben Stapel.
+    var oeffnen: (HealthZiel) -> Void = { _ in }
     @State private var bearbeiten: TrainingsTag?
 
     private var modell: TrainingModell { TrainingModell.shared }
@@ -11,6 +13,7 @@ struct TrainingsPlanView: View {
     var body: some View {
         let plan = modell.plan(person)
         List {
+            if eigener { gymSektion }
             Section {
                 WochenLeiste(plan: plan, setzen: eigener ? setzenAktion(plan) : nil)
             } header: {
@@ -46,6 +49,47 @@ struct TrainingsPlanView: View {
             }
         }
         .sheet(item: $bearbeiten) { TagEditor(tag: $0, bearbeitbar: eigener) }
+        // Die GIFs des eigenen Plans vorab, damit sie im Gym offline laufen.
+        .task(id: plan) { if eigener { await UebungsMedien.vorladen(plan.tage.flatMap(\.uebungen).map(\.uebung)) } }
+    }
+
+    /// Einchecken, oder laufend: weiter trainieren und mit einem Tipp auschecken (Ahmed, 27.09.).
+    @ViewBuilder
+    private var gymSektion: some View {
+        Section {
+            if let s = modell.laufende(person) {
+                Button { oeffnen(.gymSession(s.id)) } label: {
+                    Label("Weiter trainieren · seit \(Datum.uhrzeit(s.start))", systemImage: "figure.strengthtraining.traditional")
+                }
+                Button(role: .destructive) {
+                    modell.auschecken(s.id)
+                    Haptik.erfolg()
+                } label: {
+                    Label("Auschecken", systemImage: "door.left.hand.open")
+                }
+            } else {
+                if let v = modell.vergessene(person) {
+                    Button {
+                        modell.auschecken(v.id)
+                        Haptik.erfolg()
+                    } label: {
+                        Label("Auschecken vergessen? Jetzt auschecken", systemImage: "exclamationmark.triangle.fill")
+                    }
+                    .tint(.orange)
+                }
+                Button {
+                    let id = modell.einchecken(tag: modell.heutigerTag(person)?.id)
+                    Haptik.erfolg()
+                    oeffnen(.gymSession(id))
+                } label: {
+                    Label("Im Gym einchecken", systemImage: "figure.strengthtraining.traditional")
+                        .font(.headline)
+                }
+            }
+            Button { oeffnen(.gymVerlauf) } label: {
+                Label("Verlauf", systemImage: "clock.arrow.circlepath")
+            }
+        }
     }
 
     @ViewBuilder

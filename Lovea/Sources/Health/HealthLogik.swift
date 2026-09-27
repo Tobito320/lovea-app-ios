@@ -185,3 +185,18 @@ enum HealthLogik {
         return abs(anzahl - zuletzt.anzahl) >= 50 || vergangen >= 15 * 60
     }
 }
+
+// MARK: - Gewicht
+
+enum GewichtLogik {
+    /// Das angezeigte Gewicht (Ahmed, 27.09.): Schnitt aller Einträge aus den 7 Tagen bis zum neuesten
+    /// Eintrag, in Zehntel-kg. Ein einzelner Tageswert verschiebt es nur anteilig. Fenster endet am
+    /// neuesten Eintrag, nicht heute, damit eine Wiege-Pause nicht "–" zeigt.
+    static func berechnet(_ werte: [String: Int]) -> Int? {
+        let gueltig = werte.filter { $0.value > 0 }
+        guard let neuester = gueltig.keys.max() else { return nil }
+        let ab = Datum.addTage(neuester, -6)
+        let fenster = gueltig.filter { $0.key >= ab }.map(\.value)
+        return Int((Double(fenster.reduce(0, +)) / Double(fenster.count)).rounded())
+    }
+}

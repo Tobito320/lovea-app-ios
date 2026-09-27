@@ -104,6 +104,9 @@ struct TagesformKarte: View {
     let person: Person
     let form: Tagesform
     var animiert = true
+    /// Energie-Rat (früher eigene Karte auf der Training-Seite): Urteil, Gym/Cardio, Gründe, Partner.
+    var energie: EnergieRat? = nil
+    var partner: (person: Person, rat: EnergieRat)? = nil
     @ScaledMetric(relativeTo: .largeTitle) private var akkuGroesse = 46.0
 
     var body: some View {
@@ -123,11 +126,42 @@ struct TagesformKarte: View {
                     Text(form.satz).font(.footnote).foregroundStyle(.secondary)
                 }
             }
+            if let energie { energieTeil(energie) }
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
         .heuteKarte()
         .accessibilityElement(children: .combine)
+    }
+}
+
+private extension TagesformKarte {
+    func energieTeil(_ rat: EnergieRat) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Divider()
+            Label(rat.titel, systemImage: "bolt.heart.fill").font(.subheadline.weight(.semibold)).foregroundStyle(HabitFarbe.amber.farbe)
+            HStack(spacing: 8) {
+                energieChip(rat.gym, "dumbbell.fill")
+                energieChip(rat.cardioText, "figure.run")
+            }
+            ForEach(rat.gruende, id: \.self) { Text($0).font(.footnote).foregroundStyle(.secondary) }
+            if let partner {
+                HStack(spacing: 4) {
+                    Text("\(partner.person.name):").foregroundStyle(Color.person(partner.person))
+                    Text("\(partner.rat.titel.lowercased()), \(partner.rat.gym.lowercased())").foregroundStyle(.secondary)
+                }
+                .font(.footnote)
+            }
+        }
+    }
+
+    func energieChip(_ text: String, _ symbol: String) -> some View {
+        Label(text, systemImage: symbol)
+            .font(.footnote.weight(.semibold))
+            .foregroundStyle(HabitFarbe.amber.farbe)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 5)
+            .background(HabitFarbe.amber.farbe.opacity(0.15), in: .capsule)
     }
 }
 
@@ -381,7 +415,8 @@ struct HeuteView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     kopf
-                    TagesformKarte(person: ich, form: tagesform)
+                    TagesformKarte(person: ich, form: tagesform, energie: EnergieLogik.rat(EnergieQuelle.eingabe(ich)),
+                                   partner: (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))))
                     abschnitt("Dein Tag") { raster }
                     abschnitt("Training und Körper") { kaesten }
                     abschnitt("Das fällt mir auf") { hinweisListe }
@@ -447,7 +482,7 @@ struct HeuteView: View {
         case .habit(let id): HabitDetailView(habitId: id)
         case .punkte: PunkteVerlaufView()
         case .ernaehrung: ErnaehrungView()
-        case .training: TrainingSeite { pfad.append($0) }
+        case .training: TrainingsPlanView(person: ich, oeffnen: { pfad.append($0) })
         case .koerper: KoerperView()
         case .verlauf: VerlaufView { pfad.append($0) }
         }
@@ -597,16 +632,12 @@ struct HeuteView: View {
             .map { (tag: $0.key, zehntel: $0.value) }
     }
 
+    /// Groß der berechnete Wert (`GewichtLogik`, Schnitt der letzten 7 Tage), klein der letzte Eintrag.
     private var gewichtKachel: some View {
-        let alle = gewichte
-        let letztes = alle.last?.zehntel
-        var trend: String?
-        if alle.count > 1, let letztes {
-            let diff = letztes - alle[alle.count - 2].zehntel
-            trend = diff == 0 ? "±0" : "\(diff > 0 ? "+" : "−")\(komma(Double(abs(diff)) / 10)) kg"
-        }
-        return FormKachel(form: .gewicht, titel: "Gewicht", wert: letztes.map { komma(Double($0) / 10) } ?? "–", einheit: "kg",
-                          fuellung: 0, zusatz: trend) { gewichtOffen = true }
+        let berechnet = GewichtLogik.berechnet(health.habitWerte(Habit.gewicht.id, ich))
+        let zuletzt = gewichte.last.map { "zuletzt \(komma(Double($0.zehntel) / 10))" }
+        return FormKachel(form: .gewicht, titel: "Gewicht", wert: berechnet.map { komma(Double($0) / 10) } ?? "–", einheit: "kg",
+                          fuellung: 0, zusatz: zuletzt) { gewichtOffen = true }
     }
 
     private var trainingKachel: some View {

@@ -10,6 +10,7 @@ struct SchritteDetailView: View {
     @State private var zeitraum: SchritteZeitraum = .tag
     @State private var anker = Datum.text(Date())
     @State private var eintragenOffen = false
+    @State private var zeigtKonfetti = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(person: Person) { _person = State(initialValue: person) }
@@ -28,9 +29,13 @@ struct SchritteDetailView: View {
                 verlauf
                 if zeitraum == .tag { CardioSektion(person: person, tag: anker) }
                 SchritteChallengeKarte()
+                LaufendeChallengesCard()
             }
             .padding(16)
         }
+        .overlay { if zeigtKonfetti { SpielKonfetti() } }
+        .onAppear(perform: pruefeKonfetti)
+        .onChange(of: PunkteModell.shared.stand) { _, _ in pruefeKonfetti() }
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .principal) { zeitraumWahl }
@@ -158,6 +163,16 @@ struct SchritteDetailView: View {
         withAnimation(bewegung) {
             zeitraum = .tag
             anker = tag
+        }
+    }
+
+    /// Feiert einen frisch abgeschlossenen Meilenstein genau einmal (`ChallengeKonfetti`, Z-22.2).
+    private func pruefeKonfetti() {
+        guard ChallengeKonfetti.neuAbgeschlossen() else { return }
+        zeigtKonfetti = true
+        Task {
+            try? await Task.sleep(for: .seconds(5))
+            zeigtKonfetti = false
         }
     }
 }

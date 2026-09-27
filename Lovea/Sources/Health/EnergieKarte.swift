@@ -23,33 +23,6 @@ enum EnergieQuelle {
     }
 }
 
-/// Health tab card (Teil 5): each person's own advice in full, the partner's in one line.
-struct EnergieKarte: View {
-    @State private var eintragen = false
-
-    private var ich: Person { Raum.shared.ich ?? .ahmed }
-    private var health: HealthModell { HealthModell.shared }
-    private var heute: String { Datum.text(Date()) }
-
-    var body: some View {
-        let wasser = health.wasserAnzahl(ich, heute)
-        EnergieAnsicht(
-            ich: ich,
-            rat: EnergieLogik.rat(EnergieQuelle.eingabe(ich)),
-            partner: ich.partner,
-            partnerRat: EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner)),
-            wasser: wasser,
-            wasserZiel: health.zielWasser(ich),
-            wasserZeiten: health.wasserZeiten(ich, heute),
-            schlafEintragen: { eintragen = true },
-            wasserPlus: { health.setzeWasser(datum: heute, anzahl: wasser + 1) }
-        )
-        .sheet(isPresented: $eintragen) {
-            SchlafEintragenView().presentationDetents([.medium, .large])
-        }
-    }
-}
-
 /// Pure view, no singletons — so the render board can draw it with fixed data.
 struct EnergieAnsicht: View {
     var ich: Person

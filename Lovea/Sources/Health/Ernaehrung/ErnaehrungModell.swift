@@ -55,11 +55,9 @@ final class ErnaehrungModell {
     /// Ziele an einem bestimmten Tag (flexible Tage eingerechnet).
     func ziele(_ p: Person, tag: String) -> ErnaehrungsZiele { ziele(p).fuer(tag: tag) }
 
-    /// Neuestes Gewicht aus dem Gewicht-Habit, nil wenn nie eingetragen.
+    /// Berechnetes Gewicht (`GewichtLogik`, wie die Health-Kachel), nil wenn nie eingetragen.
     func gewichtKg(_ p: Person) -> Double? {
-        HealthModell.shared.habitWerte(Habit.gewicht.id, p).filter { $0.value > 0 }
-            .max { $0.key < $1.key }
-            .map { Double($0.value) / 10 }
+        GewichtLogik.berechnet(HealthModell.shared.habitWerte(Habit.gewicht.id, p)).map { Double($0) / 10 }
     }
 
     /// Aktive Kalorien aus Apple Health (nur Anzeige, zählt nicht zum Ziel).
