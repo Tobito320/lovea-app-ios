@@ -18,6 +18,15 @@ struct StandortDaten: Codable, Sendable, Equatable {
     let zeit: String
 }
 
+/// 27.09.: one profile can run on iPhone and iPad (Annika). Only the phone is carried, so only it
+/// reports sensor data — location, steps, sleep, presence state. An iPad lying at home would
+/// otherwise overwrite them with "at home, idle".
+// ponytail: idiom check, not a per-device server model. Upgrade path: tag `standort`/`zustand` with
+// a device id and let the server pick the freshest carried device.
+enum Geraet {
+    @MainActor static var wirdGetragen: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+}
+
 /// Always-on location sharing (Z-8.1). Broadcasts the own position as `fl standort` and keeps
 /// the partner's (and, after the first fix, the own) last position for the map to read.
 /// `start()` is safe to call repeatedly — call it from `KarteTab.task` and once more from
@@ -62,6 +71,7 @@ final class Standort: NSObject {
 
     /// Idempotent: safe to call from every screen's `.task` and from app launch.
     func start() {
+        guard Geraet.wirdGetragen else { return }
         switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
             manager.startMonitoringSignificantLocationChanges()
@@ -107,6 +117,7 @@ final class Standort: NSObject {
     /// The partner opened (or closed) the map — via socket, or a silent push while we're in the
     /// background. One immediate fix so the partner doesn't wait for the live stream's first update.
     func karteOffen(_ an: Bool) {
+        guard Geraet.wirdGetragen else { return }
         liveSetzen(an)
         if an { fixAnfordern(dringend: true) }
     }
@@ -156,7 +167,7 @@ final class Standort: NSObject {
     private func melden(lat: Double, lon: Double, genau: Double, tempo: CLLocationSpeed?, richtung: CLLocationDirection?, zeit: Date) async {
         // Throttle: live mode already paces itself via CLLocationUpdate; this only guards the
         // spar/visit paths from firing twice in the same second.
-        guard Date().timeIntervalSince(letzteMeldung) > 2 else { return }
+        guard Geraet.wirdGetragen, Date().timeIntervalSince(letzteMeldung) > 2 else { return }
         letzteMeldung = Date()
         let bewegung = await bewegungsart()
         let d = StandortDaten(

@@ -297,7 +297,7 @@ final class HealthModell {
     /// Heute + letzte 7 Tage, nur bei Änderung (Z-20.1); km, Etagen, kcal und Aktivzeit reisen mit.
     // ponytail: only the step observer triggers — the other values are written while walking too.
     private func schritteAktualisierenUndSenden() async {
-        guard let ich = Raum.shared.ich else { return }
+        guard Geraet.wirdGetragen, let ich = Raum.shared.ich else { return }
         for tag in letzteAchtTage() {
             guard let neu = await tageswerte(tag) else { continue }
             guard schritte[ich]?[tag]?.wert != neu.anzahl || schritteExtras[ich]?[tag]?.wert != neu.extra else { continue }
@@ -321,7 +321,7 @@ final class HealthModell {
     /// that already earned points. The flag is set only after the loop, so a kill mid-way retries —
     /// already sent days are then in `schritte` and skipped.
     private func nachtragenFallsNoetig() async {
-        guard let ich = Raum.shared.ich, Raum.shared.nachgeholt, berechtigungAngefragt, !nachtragLaeuft,
+        guard Geraet.wirdGetragen, let ich = Raum.shared.ich, Raum.shared.nachgeholt, berechtigungAngefragt, !nachtragLaeuft,
               !UserDefaults.standard.bool(forKey: Self.nachgetragenSchluessel) else { return }
         nachtragLaeuft = true
         defer { nachtragLaeuft = false }
@@ -373,7 +373,7 @@ final class HealthModell {
     }
 
     private func schlafAktualisierenUndSenden() async {
-        guard let ich = Raum.shared.ich else { return }
+        guard Geraet.wirdGetragen, let ich = Raum.shared.ich else { return }
         for tag in letzteAchtTage() {
             guard let ergebnis = await schlafAn(tag), schlaf[ich]?[tag]?.minuten != ergebnis.minuten else { continue }
             Raum.shared.senden("schlaf.setzen", SchlafD(datum: tag, minuten: ergebnis.minuten, von: Self.isoText(ergebnis.von), bis: Self.isoText(ergebnis.bis)))

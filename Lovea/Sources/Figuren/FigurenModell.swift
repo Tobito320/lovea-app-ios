@@ -189,6 +189,7 @@ final class FigurenModell {
     /// touches `Raum` for `zustand`.
     func zustandVeroeffentlichen(_ z: Zustand) {
         if let ich = Raum.shared.ich { zustand[ich] = z }
+        guard Geraet.wirdGetragen else { return } // the iPhone speaks for the person, see `Geraet`
         Raum.shared.fluechtig("zustand", z)
     }
 }
