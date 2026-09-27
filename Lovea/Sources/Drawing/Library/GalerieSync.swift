@@ -18,6 +18,9 @@ final class GalerieSync {
     private static let backfillKey = "galerie.sync.backfill"
     private static let projekteSeqKey = "galerie.sync.projekteSeq"
     private static let stickerSeqKey = "galerie.sync.stickerSeq"
+    /// Deleted drawing id -> deletion time. The full log is replayed at every launch; without this an
+    /// old `galerie.stand` (async download) lands after its sync `galerie.geloescht` and resurrects it.
+    private static let geloeschtKey = "galerie.sync.geloescht"
 
     private let library: ArtworkLibrary
     /// Own drawing currently open in the Studio -- an incoming stand for it is held back until the
@@ -27,6 +30,8 @@ final class GalerieSync {
     /// Chains every upload attempt (studio-close, background, backfill) so drawings go out one at a
     /// time, never in parallel (design: Erststart-Backfill "nacheinander").
     private var hochladeKette: Task<Void, Never>?
+    /// Newest known incoming stand per drawing, not yet applied (see `eingehend`).
+    private var wartend: [UUID: GalerieStandD] = [:]
 
     init(library: ArtworkLibrary = ArtworkLibrary()) {
         self.library = library
@@ -50,6 +55,7 @@ final class GalerieSync {
     /// Design: "Löschen sendet sofort galerie.geloescht", no dirty-marking detour.
     func artworkGeloescht(_ id: UUID) {
         schmutzigEntfernen(id)
+        grabsteinSetzen(id, zeit: Date())
         Raum.shared.senden("galerie.geloescht", GalerieGeloeschtD(artworkId: id.uuidString, zeit: Date()))
     }
 
@@ -71,7 +77,7 @@ final class GalerieSync {
     func studioVerlassen(_ id: UUID) {
         if offenesArtworkID == id { offenesArtworkID = nil }
         if let d = zurueckgestellt.removeValue(forKey: id) {
-            Task { @MainActor [weak self] in await self?.standEingegangen(d) }
+            reihen { [weak self] in await self?.standEingegangen(d) }
         }
         hochladenVersuchen(id)
     }
@@ -165,8 +171,13 @@ final class GalerieSync {
     private func eingehend(_ op: Op) {
         switch op.art {
         case "galerie.stand":
-            guard let d = op.daten(GalerieStandD.self) else { return }
-            Task { @MainActor [weak self] in await self?.standEingegangen(d) }
+            guard let d = op.daten(GalerieStandD.self), let id = UUID(uuidString: d.artworkId) else { return }
+            // The launch replay delivers every historical stand: keep only the newest per drawing and
+            // apply through the serial chain, so an older download can't finish after a newer one.
+            if let alt = wartend[id], alt.dokument.updatedAt >= d.dokument.updatedAt { return }
+            let neuPlanen = wartend[id] == nil
+            wartend[id] = d
+            if neuPlanen { reihen { [weak self] in await self?.wartendenAnwenden(id) } }
         case "galerie.geloescht":
             guard let d = op.daten(GalerieGeloeschtD.self) else { return }
             geloeschtEingegangen(d)
@@ -181,8 +192,14 @@ final class GalerieSync {
         }
     }
 
+    private func wartendenAnwenden(_ id: UUID) async {
+        guard let d = wartend.removeValue(forKey: id) else { return }
+        await standEingegangen(d)
+    }
+
     private func standEingegangen(_ d: GalerieStandD) async {
         guard let artworkId = UUID(uuidString: d.artworkId) else { return }
+        if Self.vonLoeschungUeberholt(geloeschtAm: grabstein(artworkId), updatedAt: d.dokument.updatedAt) { return }
         library.load() // see the note in `hochladen` -- this instance's own copy can be stale
         let vorhanden = library.document(artworkId)
         if vorhanden == nil, let duplikat = duplikatID(fuer: d, artworkId: artworkId) {
@@ -240,7 +257,10 @@ final class GalerieSync {
     }
 
     private func geloeschtEingegangen(_ d: GalerieGeloeschtD) {
-        guard let id = UUID(uuidString: d.artworkId), let lokal = library.document(id), d.zeit >= lokal.updatedAt else { return }
+        guard let id = UUID(uuidString: d.artworkId) else { return }
+        grabsteinSetzen(id, zeit: d.zeit)
+        // Open in the Studio: keep it for now; the next launch's replay deletes it via the tombstone.
+        guard offenesArtworkID != id, let lokal = library.document(id), d.zeit >= lokal.updatedAt else { return }
         library.removeWithoutSync(id)
         NotificationCenter.default.post(name: .artworkLibraryGeaendert, object: nil)
     }
@@ -278,7 +298,26 @@ final class GalerieSync {
         return nil
     }
 
+    private func grabstein(_ id: UUID) -> Date? {
+        (UserDefaults.standard.dictionary(forKey: Self.geloeschtKey)?[id.uuidString] as? Double)
+            .map(Date.init(timeIntervalSince1970:))
+    }
+
+    private func grabsteinSetzen(_ id: UUID, zeit: Date) {
+        var alle = UserDefaults.standard.dictionary(forKey: Self.geloeschtKey) ?? [:]
+        let bisher = alle[id.uuidString] as? Double ?? 0
+        alle[id.uuidString] = max(bisher, zeit.timeIntervalSince1970)
+        UserDefaults.standard.set(alle, forKey: Self.geloeschtKey)
+    }
+
     // MARK: - Pure logic (XCTest-covered without Raum/Medien/disk)
+
+    /// A stand older than (or as old as) the drawing's deletion must not bring it back. A newer one
+    /// (edited offline on the other device after the delete) does -- last write wins, as designed.
+    nonisolated static func vonLoeschungUeberholt(geloeschtAm: Date?, updatedAt: Date) -> Bool {
+        guard let geloeschtAm else { return false }
+        return geloeschtAm >= updatedAt
+    }
 
     enum AnwendenEntscheidung: Equatable { case anwenden, ueberspringen, zurueckstellen }
 

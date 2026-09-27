@@ -59,6 +59,14 @@ final class GalerieSyncTests: XCTestCase {
 
     // MARK: - Duplikat-Erkennung (alter Umzugs-Import, ein Gerät pro eigene UUID)
 
+    func testDeletionBlocksOlderAndEqualStandsButNotNewerOnes() {
+        let geloescht = Date(timeIntervalSince1970: 1_000)
+        XCTAssertTrue(GalerieSync.vonLoeschungUeberholt(geloeschtAm: geloescht, updatedAt: Date(timeIntervalSince1970: 900)))
+        XCTAssertTrue(GalerieSync.vonLoeschungUeberholt(geloeschtAm: geloescht, updatedAt: geloescht))
+        XCTAssertFalse(GalerieSync.vonLoeschungUeberholt(geloeschtAm: geloescht, updatedAt: Date(timeIntervalSince1970: 1_100)))
+        XCTAssertFalse(GalerieSync.vonLoeschungUeberholt(geloeschtAm: nil, updatedAt: geloescht))
+    }
+
     func testDuplikatErkennungMatchesOnNameAndExactLayerHashSet() {
         XCTAssertTrue(GalerieSync.istDuplikat(
             lokalerName: "Herbst", lokaleHashes: ["a", "b"],
