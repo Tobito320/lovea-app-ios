@@ -106,7 +106,9 @@ struct SchritteKarte: View {
             HStack(alignment: .top, spacing: 8) {
                 ForEach(Person.allCases, id: \.self) { person in spalte(person) }
             }
-            if health.heuteSchritte(ich) == nil { HealthNichtErlaubtHinweis() }
+            // Nur wenn von diesem Handy noch nie Schritte kamen. Heute noch nichts gezählt (kurz nach
+            // Mitternacht) heißt nicht, dass Health aus ist.
+            if !health.schritteVerbunden(ich) { HealthNichtErlaubtHinweis() }
         }
         .padding(16)
         .healthKarte()
@@ -117,7 +119,7 @@ struct SchritteKarte: View {
         let ziel = HealthZiel.schritte(person)
         return Button { oeffnen(ziel) } label: {
             SchritteSpalte(
-                person: person, anzahl: health.heuteSchritte(person), ziel: health.zielSchritte(person),
+                person: person, anzahl: health.heuteSchritteAnzeige(person), ziel: health.zielSchritte(person),
                 km: health.kmAm(person, heute), etagen: health.etagenAm(person, heute)
             )
             .contentShape(Rectangle())

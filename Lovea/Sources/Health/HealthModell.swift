@@ -80,6 +80,12 @@ final class HealthModell {
     // MARK: - Lesen (UI-API)
 
     func heuteSchritte(_ person: Person) -> Int? { schritte[person]?[heute]?.wert }
+    /// Kamen von `person` schon einmal Schritte an (egal welcher Tag)? Dann ist Health dort erlaubt.
+    func schritteVerbunden(_ person: Person) -> Bool { !(schritte[person]?.isEmpty ?? true) }
+    /// Für die Anzeige: heute noch nichts gezählt, aber verbunden = 0 statt "–".
+    func heuteSchritteAnzeige(_ person: Person) -> Int? {
+        heuteSchritte(person) ?? (schritteVerbunden(person) ? 0 : nil)
+    }
     func schritteAm(_ person: Person, _ tag: String) -> Int? { schritte[person]?[tag]?.wert }
     func kmAm(_ person: Person, _ tag: String) -> Double? { schritteExtras[person]?[tag]?.wert.km }
     func etagenAm(_ person: Person, _ tag: String) -> Int? { schritteExtras[person]?[tag]?.wert.etagen }
