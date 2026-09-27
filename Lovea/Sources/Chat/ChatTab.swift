@@ -609,9 +609,10 @@ private struct NachrichtenListe: View {
                 guard alt.sichtbar != neu.sichtbar, alt.amEnde, zielID == nil, let letzte = modell.nachrichten.last?.id else { return }
                 withAnimation(Feder.schnell) { proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom) }
             }
-            // Own send: jump to the bottom like Snapchat, even when scrolled up.
+            // Own send: jump to the bottom like Snapchat, even when scrolled up. Not for grey
+            // system rows ("hat in Aufnahmen gespeichert"): saving must leave the list where it was.
             .onChange(of: modell.nachrichten.last?.id) { _, id in
-                guard let id, modell.nachrichten.last?.von == ich else { return }
+                guard let id, let letzte = modell.nachrichten.last, letzte.von == ich, letzte.system == nil else { return }
                 let ziel = gruppeID(fuer: id)
                 withAnimation(Feder.schnell) { proxy.scrollTo(ziel, anchor: .bottom) }
             }
