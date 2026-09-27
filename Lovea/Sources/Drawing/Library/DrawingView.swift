@@ -1,9 +1,11 @@
 import PhotosUI
 import SwiftUI
 import UIKit
+import UniformTypeIdentifiers
 
 private enum GalleryRoute: Hashable {
-    case artwork(UUID, templateData: Data? = nil)
+    /// `alsEbene`: the image goes in as a normal layer instead of a template (galerie import).
+    case artwork(UUID, templateData: Data? = nil, alsEbene: Bool = false)
     case project(UUID)
     /// A partner drawing, by `zeichnungId`.
     case geteilt(String)
@@ -19,6 +21,10 @@ struct DrawingView: View {
     @State private var showsNewProject = false
     @State private var newProjectName = ""
     @State private var templateItem: PhotosPickerItem?
+    // A PhotosPicker inside a Menu never presents on iOS 26; the menu button flips this instead (ToolRail.swift).
+    @State private var importFotosOffen = false
+    @State private var importItem: PhotosPickerItem?
+    @State private var importDateiOffen = false
     @State private var teilenProjekt: ArtworkProject?
     /// Selection mode ("Auswählen"): nil = off.
     @State private var auswahl: Set<UUID>?
@@ -116,8 +122,8 @@ struct DrawingView: View {
             .navigationTitle("Meine Galerie")
             .navigationDestination(for: GalleryRoute.self) { route in
                 switch route {
-                case .artwork(let id, let templateData):
-                    DrawingStudioView(artworkID: id, library: library, person: person, templateData: templateData)
+                case .artwork(let id, let templateData, let alsEbene):
+                    DrawingStudioView(artworkID: id, library: library, person: person, templateData: templateData, templateAlsEbene: alsEbene)
                 case .project(let id):
                     ProjectGalleryView(projectID: id, library: library, sort: $sort) { artworkID in
                         path.append(.artwork(artworkID))
@@ -149,6 +155,17 @@ struct DrawingView: View {
                     if !library.artworks.isEmpty { GalerieMenuKnopf(auswahl: $auswahl) }
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Menu {
+                        Button { importFotosOffen = true } label: {
+                            Label("Aus Fotos", systemImage: "photo")
+                        }
+                        Button { importDateiOffen = true } label: {
+                            Label("Aus Dateien", systemImage: "folder")
+                        }
+                    } label: {
+                        Image(systemName: "square.and.arrow.down")
+                    }
+                    .accessibilityLabel("Zeichnung importieren")
                     Button { duellOffen = true } label: { Image(systemName: "timer") }
                         .accessibilityLabel("Kritzel-Duell")
                     Text(person.name)
@@ -179,7 +196,43 @@ struct DrawingView: View {
                     path.append(.artwork(artwork.id, templateData: data))
                 }
             }
+            .photosPicker(isPresented: $importFotosOffen, selection: $importItem, matching: .images)
+            .onChange(of: importItem) { _, item in
+                guard let item else { return }
+                importItem = nil
+                Task { @MainActor in
+                    guard let data = try? await item.loadTransferable(type: Data.self) else { return }
+                    importAsDrawing(data, name: "Import")
+                }
+            }
+            .fileImporter(
+                isPresented: $importDateiOffen,
+                allowedContentTypes: [.png, .jpeg, .heic, .image],
+                allowsMultipleSelection: false
+            ) { result in
+                guard case .success(let urls) = result, let url = urls.first else { return }
+                guard url.startAccessingSecurityScopedResource() else { return }
+                defer { url.stopAccessingSecurityScopedResource() }
+                guard let data = try? Data(contentsOf: url) else { return }
+                let name = url.deletingPathExtension().lastPathComponent
+                Task { @MainActor in importAsDrawing(data, name: name) }
+            }
         }
+    }
+
+    /// Galerie import (Fotos/Dateien): new drawing whose canvas matches the image's pixel size,
+    /// image inserted as a normal layer (`alsEbene: true`), not a template.
+    @MainActor
+    private func importAsDrawing(_ data: Data, name: String) {
+        guard let pixelSize = GalerieImport.pixelSize(of: data) else { return }
+        let size = GalerieImport.canvasSize(
+            pixelWidth: pixelSize.width, pixelHeight: pixelSize.height, orientation: pixelSize.orientation
+        )
+        let artwork = library.createArtwork(
+            name: name, projectID: nil, format: .custom,
+            customWidth: size.width, customHeight: size.height, background: .white
+        )
+        path.append(.artwork(artwork.id, templateData: data, alsEbene: true))
     }
 
     private var emptyState: some View {

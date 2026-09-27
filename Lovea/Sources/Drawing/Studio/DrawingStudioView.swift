@@ -19,10 +19,12 @@ struct DrawingStudioView: View {
     @State private var imageItem: PhotosPickerItem?
     @State private var templateItem: PhotosPickerItem?
     @State private var templateData: Data?
+    /// Galerie import: the image goes in as a normal layer instead of a template.
+    private let templateAlsEbene: Bool
 
     /// `fremd`: a partner drawing from the shared library, `stand` the stand it was loaded from.
     init(artworkID: UUID, library: ArtworkLibrary, person: Person, templateData: Data? = nil,
-         fremd: Bool = false, stand: ZeichnungStand? = nil) {
+         templateAlsEbene: Bool = false, fremd: Bool = false, stand: ZeichnungStand? = nil) {
         _session = StateObject(wrappedValue: { () -> DrawingSession in
             let session = DrawingSession(artworkID: artworkID, library: library, fremd: fremd)
             session.live.geladen = stand
@@ -30,6 +32,7 @@ struct DrawingStudioView: View {
         }())
         _palette = StateObject(wrappedValue: ColorPaletteStore(person: person.rawValue))
         _templateData = State(initialValue: templateData)
+        self.templateAlsEbene = templateAlsEbene
     }
 
     private var compact: Bool { sizeClass == .compact }
@@ -96,7 +99,7 @@ struct DrawingStudioView: View {
             session.onColorUsed = { [weak palette] in palette?.use($0) }
             if let templateData {
                 self.templateData = nil
-                Task { await session.importPhoto(templateData, asTemplate: true) }
+                Task { await session.importPhoto(templateData, asTemplate: !templateAlsEbene) }
             }
         }
         .onChange(of: imageItem) { _, item in load(item, asTemplate: false) }
