@@ -67,6 +67,12 @@ final class TrainingModell {
         Anwesenheit.shared.anstossen()
     }
 
+    /// Auschecken rückgängig: die Einheit läuft weiter (`TrainingLogik.session`, status "wieder").
+    func auscheckenRueckgaengig(_ session: String) {
+        Raum.shared.senden("gym.checkout", GymD(session: session, status: "wieder"))
+        Anwesenheit.shared.anstossen()
+    }
+
     /// Later correction: resends check-in and/or checkout for the session (newest wins).
     func zeitenAendern(_ s: GymSession, start: Date, ende: Date?) {
         if start != s.start { Raum.shared.senden("gym.checkin", GymD(session: s.id, tag: s.tag, start: start)) }

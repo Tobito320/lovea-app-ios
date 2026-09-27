@@ -67,7 +67,26 @@ struct TrainingsPlanView: View {
                 } label: {
                     Label("Auschecken", systemImage: "door.left.hand.open")
                 }
+                if s.laeufe.isEmpty {
+                    Button("Einchecken rückgängig", systemImage: "arrow.uturn.backward") {
+                        modell.loeschen(s)
+                        Haptik.leicht()
+                    }
+                    .foregroundStyle(.secondary)
+                }
             } else {
+                // Gerade ausgecheckt (letzte 2 h): mit einem Tipp zurück ins Training.
+                // Nur solange die Einheit danach noch als laufend gilt (`TrainingLogik.langNach`).
+                if let zuletzt = modell.sessions(person).first, let ende = zuletzt.ende,
+                   Date().timeIntervalSince(ende) < 2 * 3600, Date().timeIntervalSince(zuletzt.start) < TrainingLogik.langNach {
+                    Button {
+                        modell.auscheckenRueckgaengig(zuletzt.id)
+                        Haptik.erfolg()
+                        oeffnen(.gymSession(zuletzt.id))
+                    } label: {
+                        Label("Ausgecheckt um \(Datum.uhrzeit(ende)) · Rückgängig", systemImage: "arrow.uturn.backward")
+                    }
+                }
                 if let v = modell.vergessene(person) {
                     Button {
                         modell.auschecken(v.id)

@@ -122,7 +122,8 @@ enum TrainingLogik {
         guard !liste.contains(where: { $0.art == "gym.loeschen" }),
               let checkin = liste.last(where: { $0.art == "gym.checkin" && $0.d.start != nil }),
               let start = checkin.d.start else { return nil }
-        let ende = liste.last(where: { $0.art == "gym.checkout" && $0.d.ende != nil })?.d.ende
+        // Checkout mit status "wieder" = Auschecken rückgängig, die Einheit läuft weiter.
+        let ende = liste.last(where: { $0.art == "gym.checkout" && ($0.d.ende != nil || $0.d.status == "wieder") })?.d.ende
         var s = GymSession(id: id, tag: checkin.d.tag, start: start, ende: ende, laeufe: [])
         for e in liste where e.art == "gym.uebung" {
             guard let plan = e.d.plan else { continue }

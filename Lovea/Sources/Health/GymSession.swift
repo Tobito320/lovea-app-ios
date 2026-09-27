@@ -173,6 +173,7 @@ struct GymAktionen {
     var video: (PlanUebung) -> Void = { _ in }
     var auschecken: () -> Void = {}
     var tagWaehlen: (TrainingsTag) -> Void = { _ in }
+    var wiederEinchecken: () -> Void = {}
 }
 
 /// The gym screen: the day's exercises in order, the next one highlighted, Start and Fertig,
@@ -248,6 +249,10 @@ struct GymSessionView: View {
             tagWaehlen: { t in
                 modell.tagSetzen(s, t.id)
                 Haptik.leicht()
+            },
+            wiederEinchecken: {
+                modell.auscheckenRueckgaengig(s.id)
+                Haptik.erfolg()
             }
         )
     }
@@ -361,7 +366,12 @@ struct GymSessionInhalt: View {
             .buttonStyle(.bordered)
             .padding(.top, 8)
         } else {
-            Label("Ausgecheckt", systemImage: "checkmark.seal.fill").font(.headline).foregroundStyle(HabitFarbe.mint.farbe)
+            HStack {
+                Label("Ausgecheckt", systemImage: "checkmark.seal.fill").font(.headline).foregroundStyle(HabitFarbe.mint.farbe)
+                Spacer()
+                Button("Rückgängig", systemImage: "arrow.uturn.backward", action: aktionen.wiederEinchecken)
+                    .buttonStyle(.bordered)
+            }
         }
     }
 }

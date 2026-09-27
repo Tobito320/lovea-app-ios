@@ -79,6 +79,15 @@ final class TrainingTests: XCTestCase {
         XCTAssertTrue(f.sessions(.annika).isEmpty)
     }
 
+    func testAuscheckenRueckgaengig() {
+        let checkin = op("gym.checkin", GymD(session: "s", tag: "push", start: t0), zeit: t0, id: "c1")
+        let raus = op("gym.checkout", GymD(session: "s", ende: t0 + 3600), zeit: t0 + 3600, id: "o1")
+        let zurueck = op("gym.checkout", GymD(session: "s", status: "wieder"), zeit: t0 + 3700, id: "o2")
+        XCTAssertNil(faltung([checkin, raus, zurueck]).sessions(.ahmed)[0].ende, "Rückgängig: läuft wieder")
+        let nochmal = op("gym.checkout", GymD(session: "s", ende: t0 + 5400), zeit: t0 + 5400, id: "o3")
+        XCTAssertEqual(faltung([checkin, raus, zurueck, nochmal]).sessions(.ahmed)[0].ende, t0 + 5400)
+    }
+
     func testRunningAndForgotten() {
         let s = GymSession(id: "s", tag: nil, start: t0, ende: nil, laeufe: [])
         XCTAssertTrue(TrainingLogik.laufend(s, jetzt: t0 + 2 * 3600))
