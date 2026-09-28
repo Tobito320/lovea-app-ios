@@ -55,6 +55,24 @@ struct Termin: Codable, Hashable, Identifiable {
     var datum: String
     var start: String?
     var ende: String?
+    /// Letzter Tag bei mehrtägigen Terminen (Urlaub 19.–23.10.). `nil` = nur `datum`. `start` gilt
+    /// am ersten, `ende` am letzten Tag.
+    var bisDatum: String? = nil
+
+    /// Liegt `tag` in diesem Termin?
+    func umfasst(_ tag: String) -> Bool {
+        guard let bisDatum, bisDatum > datum else { return tag == datum }
+        return datum <= tag && tag <= bisDatum
+    }
+
+    /// Uhrzeiten an einem Tag des Termins: erster Tag ab `start`, letzter Tag bis `ende`,
+    /// Tage dazwischen ganztägig. Ein ganztägiger Termin bleibt an jedem Tag ganztägig.
+    func zeiten(am tag: String) -> (start: String?, ende: String?) {
+        guard let bisDatum, bisDatum > datum, start != nil else { return (start, ende) }
+        if tag == datum { return (start, "23:59") }
+        if tag == bisDatum { return ("00:00", ende) }
+        return (nil, nil)
+    }
 }
 
 struct Treffen: Codable, Hashable {

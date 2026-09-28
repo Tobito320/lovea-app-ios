@@ -99,7 +99,10 @@ extension IPhoneKalenderExportBlatt {
     /// Z-9.6: ein Lovea-Termin als Vorlage. Ohne Uhrzeit ganztägig, ohne Ende eine Stunde.
     init(termin: Termin) {
         let start = IPhoneKalenderDatum.kombiniert(termin.datum, termin.start)
-        let ende = termin.ende.map { IPhoneKalenderDatum.kombiniert(termin.datum, $0) } ?? start
+        let letzterTag = termin.bisDatum ?? termin.datum
+        let ende = termin.start == nil
+            ? IPhoneKalenderDatum.kombiniert(letzterTag, "10:00")
+            : termin.ende.map { IPhoneKalenderDatum.kombiniert(letzterTag, $0) } ?? start
         self.init(titel: termin.titel, start: start, ende: ende > start ? ende : start.addingTimeInterval(60 * 60), ganztaegig: termin.start == nil)
     }
 }
@@ -201,6 +204,13 @@ struct IPhoneKalenderImport: View {
         }
     }
 
+    /// Mehrtägig? Ganztägige `EKEvent`s enden um Mitternacht NACH dem letzten Tag.
+    private static func bisDatum(_ eintrag: Eintrag) -> String? {
+        let letzter = eintrag.ganztaegig ? eintrag.ende.addingTimeInterval(-1) : eintrag.ende
+        let tag = Datum.text(max(letzter, eintrag.start))
+        return tag > Datum.text(eintrag.start) ? tag : nil
+    }
+
     private func uebernehmen(_ eintrag: Eintrag) {
         let termin = Termin(
             id: "iphone-\(eintrag.id)",
@@ -209,7 +219,8 @@ struct IPhoneKalenderImport: View {
             typ: "sonstiges",
             datum: Datum.text(eintrag.start),
             start: eintrag.ganztaegig ? nil : Datum.uhrzeit(eintrag.start),
-            ende: eintrag.ganztaegig ? nil : Datum.uhrzeit(eintrag.ende)
+            ende: eintrag.ganztaegig ? nil : Datum.uhrzeit(eintrag.ende),
+            bisDatum: Self.bisDatum(eintrag)
         )
         Raum.shared.senden("termin.setzen", termin)
         Haptik.erfolg()

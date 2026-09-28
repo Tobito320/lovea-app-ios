@@ -187,4 +187,23 @@ final class KalenderLogikTests: XCTestCase {
         XCTAssertNil(b(nil, nil).arbeitNetto)
         XCTAssertNil(b("08:00", "16:00", typ: "schule").arbeitNetto)
     }
+
+    // MARK: - Mehrtägige Termine
+
+    func testMehrtaegigerTerminUmfasstAlleTage() {
+        let urlaub = Termin(id: "u", fuer: ["ahmed"], titel: "Urlaub", typ: "sonstiges", datum: "2026-10-19", start: nil, ende: nil, bisDatum: "2026-10-23")
+        XCTAssertTrue(urlaub.umfasst("2026-10-19"))
+        XCTAssertTrue(urlaub.umfasst("2026-10-21"))
+        XCTAssertTrue(urlaub.umfasst("2026-10-23"))
+        XCTAssertFalse(urlaub.umfasst("2026-10-24"))
+        XCTAssertNil(urlaub.zeiten(am: "2026-10-21").start, "ganztägig an jedem Tag")
+    }
+
+    func testMehrtaegigerTerminMitUhrzeit() {
+        let reise = Termin(id: "r", fuer: ["ahmed"], titel: "Reise", typ: "sonstiges", datum: "2026-10-19", start: "14:00", ende: "11:00", bisDatum: "2026-10-23")
+        XCTAssertEqual(reise.zeiten(am: "2026-10-19").start, "14:00")
+        XCTAssertNil(reise.zeiten(am: "2026-10-20").start)
+        XCTAssertEqual(reise.zeiten(am: "2026-10-23").start, "00:00")
+        XCTAssertEqual(reise.zeiten(am: "2026-10-23").ende, "11:00")
+    }
 }

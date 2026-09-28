@@ -36,7 +36,7 @@ struct MonatsRaster {
         let anfang = Datum.datum(erster)
         let anzahl = Datum.kalender.range(of: .day, in: .month, for: anfang)?.count ?? 30
         let feiertage = Feiertage.nrw(jahr: Int(erster.prefix(4)) ?? 0)
-        let termine = Set(daten.termine.map(\.datum))
+        let termine = daten.termine
         let treffen = Set(daten.treffen.map(\.datum))
         var zellen: [Zelle?] = Array(repeating: nil, count: Datum.wochentag(erster) - 1)
         for i in 0..<anzahl {
@@ -45,7 +45,7 @@ struct MonatsRaster {
                 tag: tag,
                 ahmed: Self.routine(tag, person: "ahmed", daten: daten, feiertage: feiertage),
                 annika: Self.routine(tag, person: "annika", daten: daten, feiertage: feiertage),
-                termin: termine.contains(tag),
+                termin: termine.contains { $0.umfasst(tag) },
                 treffen: treffen.contains(tag),
                 anzeige: Datum.anzeige(tag)
             ))

@@ -9,20 +9,26 @@ struct TerminEditor: View {
     @State private var titel: String
     @State private var typ: String
     @State private var fuer: Set<Person>
-    @State private var tag: Date
-    @State private var start: String?
-    @State private var ende: String?
+    @State private var ganztaegig: Bool
+    @State private var von: Date
+    @State private var bis: Date
 
     private static let typen = ["schule", "arbeit", "fahrschule", "sonstiges"]
+    private static let dauern = [30, 60, 120, 180]
 
     init(datum: String, termin: Termin? = nil) {
         bestehend = termin
         _titel = State(initialValue: termin?.titel ?? "")
         _typ = State(initialValue: termin?.typ ?? "sonstiges")
         _fuer = State(initialValue: termin.map { Set($0.fuer.compactMap(Person.init(rawValue:))) } ?? [Raum.shared.ich ?? .ahmed])
-        _tag = State(initialValue: Datum.datum(termin?.datum ?? datum))
-        _start = State(initialValue: termin?.start)
-        _ende = State(initialValue: termin?.ende)
+        let ersterTag = termin?.datum ?? datum
+        let beginn = IPhoneKalenderDatum.kombiniert(ersterTag, termin?.start ?? "10:00")
+        let letzterTag = termin?.bisDatum ?? ersterTag
+        let ende = termin?.ende.map { IPhoneKalenderDatum.kombiniert(letzterTag, $0) }
+            ?? IPhoneKalenderDatum.kombiniert(letzterTag, Datum.uhrzeit(termin?.start ?? "10:00", plus: 60))
+        _ganztaegig = State(initialValue: termin.map { $0.start == nil } ?? true)
+        _von = State(initialValue: beginn)
+        _bis = State(initialValue: max(ende, beginn))
     }
 
     var body: some View {
@@ -43,9 +49,19 @@ struct TerminEditor: View {
                     }
                 }
                 Section("Wann") {
-                    DatePicker("Datum", selection: $tag, displayedComponents: .date)
-                        .environment(\.timeZone, Datum.kalender.timeZone)
-                    ZeitWahl(datum: Datum.text(tag), start: $start, ende: $ende, ohneZeit: "Ganztägig")
+                    Toggle("Ganztägig", isOn: $ganztaegig.animation())
+                    DatePicker("Beginn", selection: $von, displayedComponents: ganztaegig ? .date : [.date, .hourAndMinute])
+                    DatePicker("Ende", selection: $bis, in: von..., displayedComponents: ganztaegig ? .date : [.date, .hourAndMinute])
+                    if !ganztaegig {
+                        HStack(spacing: 8) {
+                            ForEach(Self.dauern, id: \.self) { dauerChip($0) }
+                        }
+                    }
+                }
+                .environment(\.timeZone, Datum.kalender.timeZone)
+                .onChange(of: von) { alt, neu in
+                    // Ende rückt mit, die Länge bleibt (19.–23.10. verschoben bleibt 5 Tage).
+                    bis = max(neu, bis.addingTimeInterval(neu.timeIntervalSince(alt)))
                 }
             }
             .navigationTitle(bestehend == nil ? "Neuer Termin" : "Termin bearbeiten")
@@ -60,15 +76,38 @@ struct TerminEditor: View {
         }
     }
 
+    private func dauerChip(_ minuten: Int) -> some View {
+        let titel = minuten < 60 ? "\(minuten) min" : "\(minuten / 60) h"
+        let an = Int(bis.timeIntervalSince(von) / 60) == minuten
+        return Button {
+            bis = von.addingTimeInterval(TimeInterval(minuten * 60))
+            Haptik.auswahl()
+        } label: {
+            Text(titel)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundStyle(an ? Color.white : Color.primary)
+                .background(an ? Color.loveaRose : Color(uiColor: .tertiarySystemFill), in: .capsule)
+                .contentShape(.capsule)
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(minuten < 60 ? "\(minuten) Minuten" : (minuten == 60 ? "1 Stunde" : "\(minuten / 60) Stunden"))
+        .accessibilityAddTraits(an ? .isSelected : [])
+    }
+
     private func sichern() {
+        let ersterTag = Datum.text(von)
+        let letzterTag = Datum.text(max(bis, von))
         let termin = Termin(
             id: bestehend?.id ?? UUID().uuidString,
             fuer: Person.allCases.filter(fuer.contains).map(\.rawValue),
             titel: titel.trimmingCharacters(in: .whitespaces),
             typ: typ,
-            datum: Datum.text(tag),
-            start: start,
-            ende: start == nil ? nil : ende
+            datum: ersterTag,
+            start: ganztaegig ? nil : Datum.uhrzeit(von),
+            ende: ganztaegig ? nil : Datum.uhrzeit(max(bis, von)),
+            bisDatum: letzterTag > ersterTag ? letzterTag : nil
         )
         Raum.shared.senden("termin.setzen", termin)
         Haptik.erfolg()
