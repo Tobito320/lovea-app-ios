@@ -53,7 +53,9 @@ Drei Datenquellen, eine Oberfläche.
 - Tempo-Sicherungen (Ahmed: "muss blitzschnell sein"):
   - Das Import-Skript schreibt die Suchschlüssel (klein, ohne Umlaute, Wörter) schon ins JSON.
     Das Handy rechnet nichts vor.
-  - Laden im Hintergrund direkt beim App-Start, nicht beim Öffnen der Suche.
+  - Laden im Hintergrund, sobald die Ernährung geöffnet wird (nicht beim App-Start, spart Speicher
+    und Akku, Ahmed 01.10.). Bis zum ersten Tippen ins Suchfeld ist der Index fertig. Ist er es noch
+    nicht, zeigt die Suche zuerst Verlauf und Favoriten.
   - Suche außerhalb des Haupt-Threads, jeder Tastendruck bricht die vorige Suche ab.
   - Erst Verlauf und Favoriten (wenige hundert), dann BLS und eigene.
   - Höchstens 50 Treffer, Liste als `LazyVStack`, nur sichtbare Karten werden gebaut.
