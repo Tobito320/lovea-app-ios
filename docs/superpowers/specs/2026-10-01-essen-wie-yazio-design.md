@@ -49,8 +49,15 @@ Drei Datenquellen, eine Oberfläche.
   Ohne Regel gibt es nur Gramm bzw. ml.
 - Quellenangabe in der App: "Nährwerte: Max Rubner-Institut, BLS 4.0 (CC BY 4.0)" auf der
   Lebensmittel-Seite eines BLS-Eintrags und unter Einstellungen.
-- Suche: Beim Start einmal einen Index bauen (Name klein, ohne Umlaute, in Wörter zerlegt).
-  Trefferreihenfolge: Wortanfang vor Teilwort, häufig gegessen vor selten, kurz vor lang.
+- Suche: Trefferreihenfolge Wortanfang vor Teilwort, häufig gegessen vor selten, kurz vor lang.
+- Tempo-Sicherungen (Ahmed: "muss blitzschnell sein"):
+  - Das Import-Skript schreibt die Suchschlüssel (klein, ohne Umlaute, Wörter) schon ins JSON.
+    Das Handy rechnet nichts vor.
+  - Laden im Hintergrund direkt beim App-Start, nicht beim Öffnen der Suche.
+  - Suche außerhalb des Haupt-Threads, jeder Tastendruck bricht die vorige Suche ab.
+  - Erst Verlauf und Favoriten (wenige hundert), dann BLS und eigene.
+  - Höchstens 50 Treffer, Liste als `LazyVStack`, nur sichtbare Karten werden gebaut.
+  - Test als Wächter: Suche über alle BLS-Einträge muss in der CI unter 16 ms bleiben (ein Bild bei 60 Hz).
 
 ### 2. Eigene Produkt-Datenbank auf dem Server (Marken und Barcodes)
 
