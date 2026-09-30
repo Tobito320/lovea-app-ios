@@ -119,10 +119,6 @@ struct LebensmittelDetailView: View {
 
     private var kopf: some View {
         VStack(alignment: .leading, spacing: 16) {
-            if let gross = lebensmittel.bildGross {
-                LebensmittelBild(url: gross, groesse: 220)
-                    .frame(maxWidth: .infinity)
-            }
             kopfText
             let schilder = FoodRating.schilder(lebensmittel)
             if !schilder.isEmpty { FoodSchilder(schilder: schilder) }

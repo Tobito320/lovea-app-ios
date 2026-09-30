@@ -199,28 +199,6 @@ final class ErnaehrungTests: XCTestCase {
         XCTAssertNil(f.koerperwert(.ahmed, .koerperfett, bis: "2026-09-27"))
         XCTAssertNil(f.koerperwert(.annika, .taille, bis: "2026-09-27"))
     }
-    // MARK: - Bilder
-
-    func testBildNurWennAdresseZumBarcodePasst() {
-        let lang = "https://images.openfoodfacts.org/images/products/431/626/862/7979/front_de.25.200.jpg"
-        XCTAssertTrue(ErnaehrungLogik.offBildPasst(lang, barcode: "4316268627979"))
-        XCTAssertFalse(ErnaehrungLogik.offBildPasst(lang, barcode: "4316268627978"))
-        let kurz = "https://images.openfoodfacts.org/images/products/000/002/072/4696/front_en.384.200.jpg"
-        XCTAssertTrue(ErnaehrungLogik.offBildPasst(kurz, barcode: "20724696"))
-        XCTAssertFalse(ErnaehrungLogik.offBildPasst("https://images.openfoodfacts.org/images/products/431/626/862/7979/ingredients_de.3.200.jpg", barcode: "4316268627979"))
-        XCTAssertFalse(ErnaehrungLogik.offBildPasst("https://example.com/images/products/431/626/862/7979/front_de.25.200.jpg", barcode: "4316268627979"))
-        XCTAssertFalse(ErnaehrungLogik.offBildPasst(lang, barcode: nil))
-    }
-
-    func testBildGrossIstDasselbeFotoIn400() {
-        let l = Lebensmittel(id: "off-4316268627979", name: "Skyr", barcode: "4316268627979", pro100: .null,
-                             bild: "https://images.openfoodfacts.org/images/products/431/626/862/7979/front_de.25.200.jpg")
-        XCTAssertEqual(l.bildGross?.absoluteString, "https://images.openfoodfacts.org/images/products/431/626/862/7979/front_de.25.400.jpg")
-        var fremd = l
-        fremd.barcode = "4000417025005"
-        XCTAssertNil(fremd.bildKlein)
-        XCTAssertNil(fremd.bildGross)
-    }
     // MARK: - Vitamine und Mineralstoffe
 
     func testMikroAusOpenFoodFactsInMgUndMikrogramm() throws {

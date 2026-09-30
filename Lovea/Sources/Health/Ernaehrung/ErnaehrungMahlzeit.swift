@@ -182,7 +182,6 @@ private struct EssenZeile: View {
     var body: some View {
         Button(action: oeffnen) {
             HStack(spacing: 12) {
-                LebensmittelBild(url: eintrag.lebensmittel.bildKlein, groesse: 40)
                 VStack(alignment: .leading, spacing: 2) {
                     Text(eintrag.lebensmittel.anzeigeName).font(.body.weight(.semibold)).foregroundStyle(Color.primary)
                     Text(ErnaehrungLogik.mengeText(eintrag.menge, eintrag.einheit, eintrag.lebensmittel))
@@ -214,43 +213,3 @@ func tagTitel(_ tag: String) -> String {
 
 /// Ganze Zahl mit deutschem Tausenderpunkt.
 func ernaehrungZahl(_ n: Int) -> String { n.formatted(.number.locale(Locale(identifier: "de_DE"))) }
-
-/// Produktfoto aus Open Food Facts; ohne geprüftes Foto ein neutrales Feld, nie ein geratenes Bild.
-struct LebensmittelBild: View {
-    let url: URL?
-    var groesse: CGFloat = 44
-
-    var body: some View {
-        let form = RoundedRectangle(cornerRadius: groesse * 0.22, style: .continuous)
-        Group {
-            if let url {
-                AsyncImage(url: url) { phase in
-                    if let bild = phase.image {
-                        bild.resizable().scaledToFit()
-                    } else {
-                        platzhalter(laedt: phase.error == nil)
-                    }
-                }
-            } else {
-                platzhalter(laedt: false)
-            }
-        }
-        .frame(width: groesse, height: groesse)
-        .background(Color.white, in: form)
-        .clipShape(form)
-        .overlay(form.strokeBorder(Color.primary.opacity(0.08)))
-        .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private func platzhalter(laedt: Bool) -> some View {
-        ZStack {
-            Color(uiColor: .tertiarySystemFill)
-            if laedt {
-                ProgressView()
-            } else {
-                Image(systemName: "fork.knife").font(.body).foregroundStyle(.secondary)
-            }
-        }
-    }
-}

@@ -97,18 +97,6 @@ struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
 
     var basisEinheit: Einheit { fluessig ? .ml : .g }
 
-    /// Offizielles Vorderseiten-Foto dieses Barcodes bei Open Food Facts, 200 px. nil, wenn die Adresse
-    /// nicht zu genau diesem Barcode gehört: lieber kein Bild als ein falsches.
-    var bildKlein: URL? {
-        guard let bild, ErnaehrungLogik.offBildPasst(bild, barcode: barcode) else { return nil }
-        return URL(string: bild)
-    }
-
-    /// Dasselbe Foto in 400 px (Open Food Facts liefert jede Größe unter derselben Adresse mit anderer Endung).
-    var bildGross: URL? {
-        guard let bild, ErnaehrungLogik.offBildPasst(bild, barcode: barcode) else { return nil }
-        return URL(string: bild.replacingOccurrences(of: ".200.jpg", with: ".400.jpg"))
-    }
     var istRezept: Bool { id.hasPrefix("rezept-") }
     var anzeigeName: String { marke.map { "\(name) · \($0)" } ?? name }
 }
@@ -639,7 +627,7 @@ enum ErnaehrungLogik {
 
     // MARK: Open Food Facts
 
-    static let offFelder = "code,product_name,product_name_de,brands,quantity,serving_size,serving_quantity,product_quantity,product_quantity_unit,nutriments,nutriscore_grade,image_front_small_url"
+    static let offFelder = "code,product_name,product_name_de,brands,quantity,serving_size,serving_quantity,product_quantity,product_quantity_unit,nutriments,nutriscore_grade"
 
     /// `/api/v2/product/<code>.json`. nil bei `status: 0` (unbekannt) oder ohne Kalorien.
     static func offProdukt(_ data: Data) -> Lebensmittel? {
@@ -686,8 +674,7 @@ enum ErnaehrungLogik {
         return Lebensmittel(id: "off-\(barcode ?? UUID().uuidString)", name: name, marke: marke?.isEmpty == true ? nil : marke,
                             barcode: barcode, fluessig: fluessig, pro100: werte, portionMenge: portion,
                             portionName: portionName, packungMenge: packung,
-                            nutriscore: ["a", "b", "c", "d", "e"].contains(grade ?? "") ? grade : nil,
-                            bild: p["image_front_small_url"] as? String)
+                            nutriscore: ["a", "b", "c", "d", "e"].contains(grade ?? "") ? grade : nil)
     }
 
     /// "1 Riegel (45 g)" -> "Riegel", "30g" -> nil. Nur ein Wort ohne Zahl und Klammer taugt als Name.
@@ -701,20 +688,6 @@ enum ErnaehrungLogik {
         guard !t.isEmpty, !einheiten.contains(t.lowercased()) else { return nil }
         return t
     }
-
-    /// Nur `https://images.openfoodfacts.org/images/products/<Barcode in Stücken>/front_...jpg` zählt, und die
-    /// Ziffern im Pfad müssen genau der Barcode sein (Open Food Facts füllt kurze Codes vorne mit Nullen auf).
-    static func offBildPasst(_ adresse: String, barcode: String?) -> Bool {
-        guard let barcode, !barcode.isEmpty, adresse.hasPrefix("https://images.openfoodfacts.org/images/products/") else { return false }
-        let pfad = adresse.dropFirst("https://images.openfoodfacts.org/images/products/".count)
-        let teile = pfad.split(separator: "/")
-        guard let datei = teile.last, datei.hasPrefix("front") else { return false }
-        let ziffern = teile.dropLast().joined()
-        guard !ziffern.isEmpty, ziffern.allSatisfy(\.isNumber) else { return false }
-        return ohneFuehrendeNullen(ziffern) == ohneFuehrendeNullen(barcode)
-    }
-
-    private static func ohneFuehrendeNullen(_ s: String) -> String { String(s.drop { $0 == "0" }) }
 
     /// Zahl aus JSON, die als Zahl oder als Text ("496", "12,5") kommen kann.
     static func zahlWert(_ wert: Any?) -> Double? {

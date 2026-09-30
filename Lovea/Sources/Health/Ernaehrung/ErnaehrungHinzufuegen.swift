@@ -230,7 +230,6 @@ struct HinzufuegenBlatt: View {
         HStack(spacing: 8) {
             Button { pfad.append(l) } label: {
                 HStack(spacing: 12) {
-                    LebensmittelBild(url: l.bildKlein, groesse: 44)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(l.name).foregroundStyle(.primary)
                         if let marke = l.marke { Text(marke).font(.caption).foregroundStyle(.secondary) }
