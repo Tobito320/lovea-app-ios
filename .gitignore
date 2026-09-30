@@ -21,3 +21,7 @@ render-galerie/
 
 # ExerciseDB GIFs, only for tools/uebungen-katalog.sh (the app loads them on demand)
 tools/gifs/
+
+# BLS-Excel, Lizenz erlaubt keine Weitergabe im Repo (Import-Quelle fuer Task 2)
+tools/bls-import/*.xlsx
+.firecrawl/
