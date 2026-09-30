@@ -1,7 +1,7 @@
 import SwiftUI
 
 // Mengen-Auswahl der Produktseite (`LebensmittelDetailView`): eine Portion oder Gramm/Milliliter,
-// dazu das Rad-Blatt zum Einstellen und das Portionsbeispiele-Blatt (Ahmed, 27.09., YAZIO-Kopie).
+// dazu die Mengen-Leiste zum Einstellen und das Portionsbeispiele-Blatt (Ahmed, 27.09./01.10., YAZIO-Kopie).
 
 /// Eine wählbare Menge: eine bestimmte Portion, oder Gramm/Milliliter direkt.
 enum MengenOption: Hashable {
@@ -49,81 +49,106 @@ enum MengenOption: Hashable {
         case .milliliter: "Milliliter"
         }
     }
+}
 
-    /// Zahlen im Mengen-Rad: Portionen in Vierteln bis 1, dann ganze bis 50; Gramm/Milliliter 1 bis 2000.
-    var zahlStufen: [Double] {
-        switch self {
-        case .portion: [0.25, 0.5, 0.75] + (1...50).map(Double.init)
-        case .gramm, .milliliter: (1...2000).map(Double.init)
-        }
+/// Drei Spalten wie YAZIO: Ganzzahl, Bruch, Einheit. Das Feld darüber nimmt jede Zahl, das Rad klemmt am Rand.
+enum MengenRad {
+    static let maxGanz = 2000
+    static let brueche: [(text: String, wert: Double)] = [
+        ("–", 0), ("⅛", 0.125), ("¼", 0.25), ("⅓", 1.0 / 3), ("½", 0.5), ("⅔", 2.0 / 3), ("¾", 0.75), ("⅞", 0.875),
+    ]
+
+    static func zahl(ganz: Int, bruch: Int) -> Double { Double(ganz) + brueche[min(max(bruch, 0), brueche.count - 1)].wert }
+
+    static func zerlegen(_ zahl: Double) -> (ganz: Int, bruch: Int) {
+        let z = max(0, zahl)
+        let ganz = min(Int(z.rounded(.down)), maxGanz)
+        let rest = ganz == maxGanz ? 0 : z - Double(ganz)
+        let bruch = brueche.indices.min { abs(brueche[$0].wert - rest) < abs(brueche[$1].wert - rest) } ?? 0
+        return (ganz, bruch)
     }
 
-    /// Gramm/Milliliter, die eine Zahl in dieser Option bedeutet.
-    static func gramm(_ o: MengenOption, zahl: Double) -> Double {
-        if case .portion(let p) = o { return zahl * p.gramm }
-        return zahl
-    }
-
-    /// Zahl in der neuen Option, die den alten Gramm/Milliliter am nächsten kommt, auf die nächste Stufe gerundet.
-    static func zahlNeu(fuer o: MengenOption, alteGramm: Double) -> Double {
-        let ziel: Double
-        if case .portion(let p) = o, p.gramm > 0 { ziel = alteGramm / p.gramm } else { ziel = alteGramm }
-        return o.zahlStufen.min(by: { abs($0 - ziel) < abs($1 - ziel) }) ?? o.zahlStufen[0]
-    }
-
-    /// ¼, ½, ¾ als Bruch, sonst eine normale deutsche Zahl.
-    static func bruchText(_ x: Double) -> String {
-        switch x {
-        case 0.25: "¼"
-        case 0.5: "½"
-        case 0.75: "¾"
-        default: ErnaehrungLogik.zahl(x)
-        }
+    /// Bis 3 Nachkommastellen, deutsches Komma, ohne Nullen am Ende: 721,875 / 500 / 0,5.
+    static func feldText(_ zahl: Double) -> String {
+        var t = String(format: "%.3f", zahl)
+        while t.hasSuffix("0") { t.removeLast() }
+        if t.hasSuffix(".") { t.removeLast() }
+        return t.replacingOccurrences(of: ".", with: ",")
     }
 }
 
-/// Zwei Räder nebeneinander: Zahl links, Einheit rechts. Wechsel der Einheit rechnet die Zahl um.
-struct MengenRadBlatt: View {
+/// Feste Leiste unten auf `LebensmittelDetailView`: Zahlenfeld + Einheit oben, Speichern-Knopf, darunter
+/// das Dreier-Rad (Ahmed, 01.10., YAZIO 1:1). Tippt jemand ins Feld, verschwindet das Rad für die Tastatur.
+struct MengenLeiste: View {
     let lebensmittel: Lebensmittel
     @Binding var auswahl: MengenOption
     @Binding var zahl: Double
-    @Environment(\.dismiss) private var dismiss
+    let knopf: String
+    let aktion: () -> Void
+
+    @State private var feld = ""
+    @State private var ganz = 1
+    @State private var bruch = 0
+    @FocusState private var tippt: Bool
 
     private var optionen: [MengenOption] { MengenOption.optionen(lebensmittel) }
 
     var body: some View {
-        NavigationStack {
-            HStack(spacing: 0) {
-                Picker("Menge", selection: $zahl) {
-                    ForEach(auswahl.zahlStufen, id: \.self) { z in
-                        Text(MengenOption.bruchText(z)).tag(z)
-                    }
+        VStack(spacing: 14) {
+            Capsule().fill(.secondary.opacity(0.5)).frame(width: 40, height: 5).padding(.top, 8)
+            HStack(spacing: 2) {
+                TextField("0", text: $feld)
+                    .keyboardType(.decimalPad)
+                    .multilineTextAlignment(.trailing)
+                    .focused($tippt)
+                    .frame(width: 96)
+                    .padding(.horizontal, 14).padding(.vertical, 12)
+                    .background(Color(uiColor: .tertiarySystemFill), in: UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22))
+                HStack {
+                    Text(auswahl.anzeige(lebensmittel)).lineLimit(1)
+                    Spacer()
+                    Image(systemName: "chevron.down")
+                }
+                .padding(.horizontal, 14).padding(.vertical, 12)
+                .background(Color(uiColor: .tertiarySystemFill), in: UnevenRoundedRectangle(bottomTrailingRadius: 22, topTrailingRadius: 22))
+                .allowsHitTesting(false)
+            }
+            .font(.title3)
+            Button(action: aktion) {
+                Text(knopf).font(.title3.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 16)
+            }
+            .buttonStyle(.borderedProminent)
+            .buttonBorderShape(.capsule)
+            .disabled(zahl <= 0)
+            if !tippt {
+                HStack(spacing: 0) {
+                    Picker("Ganz", selection: $ganz) { ForEach(0...MengenRad.maxGanz, id: \.self) { Text("\($0)").tag($0) } }
+                        .frame(width: 80)
+                    Picker("Bruch", selection: $bruch) { ForEach(MengenRad.brueche.indices, id: \.self) { Text(MengenRad.brueche[$0].text).tag($0) } }
+                        .frame(width: 60)
+                    Picker("Einheit", selection: $auswahl) { ForEach(optionen, id: \.self) { Text($0.anzeige(lebensmittel)).tag($0) } }
+                        .frame(maxWidth: .infinity)
                 }
                 .pickerStyle(.wheel)
                 .labelsHidden()
-                .frame(maxWidth: .infinity)
-
-                Picker("Einheit", selection: $auswahl) {
-                    ForEach(optionen, id: \.self) { o in
-                        Text(o.anzeige(lebensmittel)).tag(o)
-                    }
-                }
-                .pickerStyle(.wheel)
-                .labelsHidden()
-                .frame(maxWidth: .infinity)
-            }
-            .navigationTitle("Menge")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
-            }
-            .onChange(of: auswahl) { alt, neu in
-                guard alt != neu else { return }
-                zahl = MengenOption.zahlNeu(fuer: neu, alteGramm: MengenOption.gramm(alt, zahl: zahl))
+                .frame(height: 200)
             }
         }
-        .presentationDetents([.height(320)])
-        .presentationDragIndicator(.visible)
+        .padding(.horizontal, 16).padding(.bottom, 8)
+        .background(Color(uiColor: .secondarySystemBackground), in: UnevenRoundedRectangle(topLeadingRadius: 24, topTrailingRadius: 24))
+        .onAppear { vonZahl() }
+        .onChange(of: feld) { _, neu in if tippt, let z = ErnaehrungLogik.eingabe(neu) { zahl = z } else if tippt { zahl = 0 } }
+        .onChange(of: tippt) { _, an in if !an { vonZahl() } }
+        .onChange(of: ganz) { _, _ in if !tippt { zahl = MengenRad.zahl(ganz: ganz, bruch: bruch); feld = MengenRad.feldText(zahl) } }
+        .onChange(of: bruch) { _, _ in if !tippt { zahl = MengenRad.zahl(ganz: ganz, bruch: bruch); feld = MengenRad.feldText(zahl) } }
+        .toolbar { ToolbarItemGroup(placement: .keyboard) { Spacer(); Button("Fertig") { tippt = false } } }
+    }
+
+    private func vonZahl() {
+        feld = MengenRad.feldText(zahl)
+        let z = MengenRad.zerlegen(zahl)
+        ganz = z.ganz
+        bruch = z.bruch
     }
 }
 
