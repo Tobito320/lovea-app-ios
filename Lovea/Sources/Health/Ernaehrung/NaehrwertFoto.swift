@@ -186,6 +186,7 @@ private struct NaehrwertKamera: UIViewControllerRepresentable {
 
     func makeCoordinator() -> Coordinator { Coordinator(aufgenommen: aufgenommen) }
 
+    @MainActor
     final class Coordinator: NSObject, UIImagePickerControllerDelegate, UINavigationControllerDelegate {
         let aufgenommen: (UIImage?) -> Void
         init(aufgenommen: @escaping (UIImage?) -> Void) { self.aufgenommen = aufgenommen }
