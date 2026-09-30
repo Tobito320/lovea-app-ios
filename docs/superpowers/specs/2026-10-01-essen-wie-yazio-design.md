@@ -157,6 +157,17 @@ Neues Rezept. Die Editoren gibt es schon (`SchnellEintragenBlatt`, `EigenesLeben
 `bildKlein`, `bildGross`, `offBildPasst`, `ohneFuehrendeNullen`, `LebensmittelBild` und alle vier
 Anzeigeorte werden gelöscht. Die Felder `images`/`image_*` fallen aus `ErnaehrungLogik.offFelder`.
 
+## Akku
+
+Lovea soll so akkuschonend wie möglich sein (Ahmed, 01.10.).
+- Schwere Arbeit liegt nicht auf dem Handy: BLS-Aufbereitung im Import-Skript, Produkt-Import und
+  nächtliche Aktualisierung auf GitHub/Cloudflare.
+- BLS-Index erst beim Öffnen der Ernährung, wird nach Verlassen der Ernährung wieder freigegeben.
+- Server-Suche erst nach 150 ms Tipp-Pause, alte Anfragen werden abgebrochen, keine Anfrage pro Buchstabe.
+- Gemerkte Barcodes laufen nur beim nächsten Öffnen der Ernährung nach, nie im Hintergrund.
+- Kamera (Scanner, Nährwert-Foto) läuft nur, solange das Blatt offen ist.
+- Keine Bilder mehr: weniger Downloads.
+
 ## Fehlerfälle
 
 - Server nicht erreichbar: Suche nur lokal, Barcode springt direkt zu Schritt 4.
