@@ -197,6 +197,8 @@ struct Zutat: Codable, Equatable, Sendable, Identifiable {
     var einheit: Einheit
 }
 
+enum RezeptArt: String, Codable, Sendable { case mahlzeit, rezept }
+
 /// Op `rezept.setzen`: eigenes Rezept, für beide sichtbar. Wird als Lebensmittel mit Portionen eingetragen.
 struct Rezept: Codable, Equatable, Sendable, Identifiable {
     var id: String
@@ -204,6 +206,16 @@ struct Rezept: Codable, Equatable, Sendable, Identifiable {
     var portionen: Int
     var zutaten: [Zutat]
     var geloescht: Bool?
+    /// nil = altes Rezept, zählt als `.rezept`.
+    var art: RezeptArt?
+    var anleitung: String?
+
+    init(id: String, name: String, portionen: Int, zutaten: [Zutat], geloescht: Bool? = nil, art: RezeptArt? = nil, anleitung: String? = nil) {
+        self.id = id; self.name = name; self.portionen = portionen; self.zutaten = zutaten
+        self.geloescht = geloescht; self.art = art; self.anleitung = anleitung
+    }
+
+    var istMahlzeit: Bool { art == .mahlzeit }
 }
 
 /// Op `fasten.setzen`: `start` gesetzt = Fasten läuft, nil = beendet (`ende` = wann).
@@ -368,6 +380,19 @@ struct ErnaehrungFaltung: Sendable {
     private var koerper: [Person: [String: Stand<KoerperwertD>]] = [:]
     private var anpassungen: [Person: Stand<TagebuchAnpassung>] = [:]
 
+    private var erstellerLebensmittel: [String: Person] = [:]
+    private var erstellerRezept: [String: Person] = [:]
+    private var erstellerZeit: [String: Date] = [:]
+
+    /// Wer eine ID zuerst angelegt hat, unabhängig von der Reihenfolge, in der die Ops eintreffen.
+    private mutating func ersteller(merken id: String, _ von: Person, _ zeit: Date, rezept: Bool) {
+        guard zeit < (erstellerZeit[id] ?? .distantFuture) else { return }
+        erstellerZeit[id] = zeit
+        if rezept { erstellerRezept[id] = von } else { erstellerLebensmittel[id] = von }
+    }
+    func ersteller(lebensmittel id: String) -> Person? { erstellerLebensmittel[id] }
+    func ersteller(rezept id: String) -> Person? { erstellerRezept[id] }
+
     mutating func anwenden(_ op: Op) {
         switch op.art {
         case "essen.setzen":
@@ -376,13 +401,17 @@ struct ErnaehrungFaltung: Sendable {
             essen[op.von, default: [:]][e.id] = Stand(zeit: op.zeit, wert: e)
             tagIndex[op.von, default: [:]][e.datum, default: []].insert(e.id)
         case "lebensmittel.setzen":
-            guard let d = op.daten(LebensmittelD.self), (eigene[d.lebensmittel.id]?.zeit ?? .distantPast) <= op.zeit else { return }
+            guard let d = op.daten(LebensmittelD.self) else { return }
+            ersteller(merken: d.lebensmittel.id, op.von, op.zeit, rezept: false)
+            guard (eigene[d.lebensmittel.id]?.zeit ?? .distantPast) <= op.zeit else { return }
             eigene[d.lebensmittel.id] = Stand(zeit: op.zeit, wert: d)
         case "lebensmittel.favorit":
             guard let d = op.daten(FavoritD.self), (favoriten[op.von]?[d.lebensmittel.id]?.zeit ?? .distantPast) <= op.zeit else { return }
             favoriten[op.von, default: [:]][d.lebensmittel.id] = Stand(zeit: op.zeit, wert: d)
         case "rezept.setzen":
-            guard let r = op.daten(Rezept.self), (rezepteStand[r.id]?.zeit ?? .distantPast) <= op.zeit else { return }
+            guard let r = op.daten(Rezept.self) else { return }
+            ersteller(merken: r.id, op.von, op.zeit, rezept: true)
+            guard (rezepteStand[r.id]?.zeit ?? .distantPast) <= op.zeit else { return }
             rezepteStand[r.id] = Stand(zeit: op.zeit, wert: r)
         case "fasten.setzen":
             guard let d = op.daten(FastenD.self), (fastenStand[op.von]?.zeit ?? .distantPast) <= op.zeit else { return }

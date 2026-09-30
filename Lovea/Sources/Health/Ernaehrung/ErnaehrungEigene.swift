@@ -134,11 +134,13 @@ struct EigenesLebensmittelEditor: View {
 /// Eigenes Rezept: Name, Portionen, Zutaten mit Menge/Einheit, Nährwerte pro Portion live.
 struct RezeptEditor: View {
     let start: Rezept?
+    let art: RezeptArt
 
     @Environment(\.dismiss) private var dismiss
     @State private var name: String
     @State private var portionen: Int
     @State private var zutaten: [Zutat]
+    @State private var anleitung: String
     @State private var zutatSucheOffen = false
     @State private var mengeFuer: Lebensmittel?
     /// Gewählt in der Suche; das Mengen-Blatt geht erst auf, wenn die Suche ganz zu ist.
@@ -147,17 +149,19 @@ struct RezeptEditor: View {
     @State private var loeschenFragen = false
     @State private var aufEinkaufslisteOffen = false
 
-    init(start: Rezept? = nil) {
+    init(start: Rezept? = nil, art: RezeptArt = .rezept) {
         self.start = start
+        self.art = start?.art ?? art
         _name = State(initialValue: start?.name ?? "")
-        _portionen = State(initialValue: start?.portionen ?? 4)
+        _portionen = State(initialValue: start?.portionen ?? (art == .mahlzeit ? 1 : 4))
         _zutaten = State(initialValue: start?.zutaten ?? [])
+        _anleitung = State(initialValue: start?.anleitung ?? "")
     }
 
     private var kannSichern: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty && !zutaten.isEmpty }
 
     private var naehrwertePortion: Naehrwerte {
-        let rezept = Rezept(id: start?.id ?? "neu", name: name, portionen: portionen, zutaten: zutaten, geloescht: nil)
+        let rezept = Rezept(id: start?.id ?? "neu", name: name, portionen: portionen, zutaten: zutaten, geloescht: nil, art: art)
         let lebensmittel = ErnaehrungLogik.alsLebensmittel(rezept)
         return ErnaehrungLogik.naehrwerte(lebensmittel, menge: 1, einheit: .portion)
     }
@@ -167,7 +171,15 @@ struct RezeptEditor: View {
             Form {
                 Section {
                     TextField("Name", text: $name)
-                    Stepper("Portionen: \(portionen)", value: $portionen, in: 1...20)
+                    if art == .rezept {
+                        Stepper("Portionen: \(portionen)", value: $portionen, in: 1...20)
+                    }
+                }
+                if art == .rezept {
+                    Section {
+                        TextField("Anleitung (optional)", text: $anleitung, axis: .vertical)
+                            .lineLimit(3...8)
+                    }
                 }
                 Section("Zutaten") {
                     ForEach(zutaten) { z in zutatZeile(z) }
@@ -186,7 +198,8 @@ struct RezeptEditor: View {
                     }
                 }
             }
-            .navigationTitle(start == nil ? "Neues Rezept" : "Rezept bearbeiten")
+            .navigationTitle(start != nil ? (art == .mahlzeit ? "Mahlzeit bearbeiten" : "Rezept bearbeiten")
+                             : (art == .mahlzeit ? "Neue Mahlzeit" : "Neues Rezept"))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
@@ -242,8 +255,9 @@ struct RezeptEditor: View {
 
     private func sichern() {
         let id = start?.id ?? UUID().uuidString
-        let r = Rezept(id: id, name: name.trimmingCharacters(in: .whitespacesAndNewlines), portionen: portionen,
-                       zutaten: zutaten, geloescht: nil)
+        let anleitungText = anleitung.trimmingCharacters(in: .whitespacesAndNewlines)
+        let r = Rezept(id: id, name: name.trimmingCharacters(in: .whitespacesAndNewlines), portionen: art == .mahlzeit ? 1 : portionen,
+                       zutaten: zutaten, geloescht: nil, art: art, anleitung: anleitungText.isEmpty ? nil : anleitungText)
         ErnaehrungModell.shared.rezeptSichern(r)
         Haptik.erfolg()
         dismiss()

@@ -23,9 +23,34 @@ final class ErnaehrungModell {
     func zuletzt(_ p: Person) -> [Lebensmittel] { faltung.zuletzt(p) }
     func letzteMenge(_ p: Person, _ l: Lebensmittel) -> (menge: Double, einheit: Einheit)? { faltung.letzteMenge(p, l.id) }
     var eigene: [Lebensmittel] { faltung.eigeneLebensmittel }
-    func favoriten(_ p: Person) -> [Lebensmittel] { faltung.favoritenListe(p) }
+    /// Rezept-Favoriten zeigen immer die aktuelle Fassung, gelöschte Rezepte fallen weg.
+    func favoriten(_ p: Person) -> [Lebensmittel] {
+        faltung.favoritenListe(p).compactMap { l in l.istRezept ? rezeptAktuell(l.id) : l }
+    }
     func istFavorit(_ l: Lebensmittel) -> Bool { faltung.istFavorit(ich, l.id) }
     var rezepte: [Rezept] { faltung.rezepte }
+    func ersteller(_ l: Lebensmittel) -> Person? { faltung.ersteller(lebensmittel: l.id) }
+    func ersteller(_ r: Rezept) -> Person? { faltung.ersteller(rezept: r.id) }
+    func eigene(von p: Person) -> [Lebensmittel] { eigene.filter { (ersteller($0) ?? p) == p } }
+    func rezepte(von p: Person, art: RezeptArt?) -> [Rezept] {
+        rezepte.filter { (ersteller($0) ?? p) == p && (art == nil || ($0.art ?? .rezept) == art) }
+    }
+    /// Für `rezept-…`-IDs die neueste Fassung als Lebensmittel, sonst nil.
+    func rezeptAktuell(_ lebensmittelId: String) -> Lebensmittel? {
+        guard lebensmittelId.hasPrefix("rezept-") else { return nil }
+        let id = String(lebensmittelId.dropFirst("rezept-".count))
+        return rezepte.first { $0.id == id }.map(ErnaehrungLogik.alsLebensmittel)
+    }
+    func kopieren(_ r: Rezept) {
+        var neu = r
+        neu.id = UUID().uuidString
+        rezeptSichern(neu)
+    }
+    func kopieren(_ l: Lebensmittel) {
+        var neu = l
+        neu.id = "eigen-\(UUID().uuidString)"
+        eigenesSichern(neu)
+    }
     func fasten(_ p: Person) -> FastenD? { faltung.fasten(p) }
     func anpassung(_ p: Person) -> TagebuchAnpassung { faltung.anpassung(p) }
     /// Name der Mahlzeit, wie `p` sie genannt hat.
