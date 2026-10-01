@@ -45,7 +45,7 @@ enum FreitextLogik {
 
     /// "23 uhr", "23:30", "23.30", "halb 12", "um 5". Reihenfolge wie im Text.
     static func uhrzeiten(_ text: String) -> [(h: Int, m: Int)] {
-        let muster = #"halb\s+(\d{1,2})|(\d{1,2})[:.](\d{2})(?!\d)|(\d{1,2})\s*uhr|\bum\s+(\d{1,2})(?![\d,.:]|\s*(?:kg|kilo|l\b|liter|ml|g\b))"#
+        let muster = #"halb\s+(\d{1,2})|(\d{1,2})[.:](\d{2})(?!\d)|(\d{1,2})\s*uhr|\bum\s+(\d{1,2})(?![\d,.:]|\s*(?:kg|kilo|l\b|liter|ml|g\b))"#
         guard let re = try? NSRegularExpression(pattern: muster) else { return [] }
         let ns = text as NSString
         return re.matches(in: text, range: NSRange(location: 0, length: ns.length)).compactMap { m in
