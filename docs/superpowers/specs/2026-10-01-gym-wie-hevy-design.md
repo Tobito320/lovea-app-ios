@@ -74,3 +74,23 @@ Was gerade läuft (Satz oder Pause, seit wann) liegt nur auf dem Gerät in `Work
 - Einchecken von Hand mit Uhrzeit nachtragen.
 - Aussehen am Gerät nachschärfen. Beim Bauen gilt der Skill `impeccable` mit den iOS-Regeln.
 - Ob die Vibration bei gesperrtem Handy wirklich ohne Ton kommt, muss am Gerät geprüft werden.
+
+## Teil 2 und 3 (gebaut am 01.10. nachmittags)
+
+Ahmed: "Mach weiter mit allem, bis du fertig bist." Die offenen Fragen habe ich selbst entschieden.
+
+- **Übungen wie Hevy:** Suchfeld, darunter zwei Filter-Knöpfe (Gerät, Muskel). Jeder öffnet ein Blatt mit Kacheln, unten "Filter löschen" und die laufende Trefferzahl. Oben "Erstellen" für eine eigene Übung.
+- **Übung im Detail:** Animation, dann drei Reiter. Übersicht (Diagramm mit wählbarem Wert, vier persönliche Rekorde), Historie (jede Einheit mit ihren Sätzen), So geht's (Zielmuskel, Gerät, Hilfsmuskeln).
+- **Rekorde:** Schwerstes Gewicht, One-Rep-Max (Epley), bestes Satzvolumen, bestes Sitzungsvolumen. Aufwärmsätze zählen nicht. Das erste Mal ist kein Rekord.
+- **Rekord live:** Bricht ein abgehakter Satz einen Rekord, steht unter der Zeile "Rekord: …". Die Mitteilung beim Beenden nennt die Zahl ("· 2 Rekorde").
+- **Verlauf:** oben "Diese Woche", "Serie" in Wochen und "Gesamt".
+- **Messungen:** Gewicht (dasselbe wie überall in Health), Taille, Brust, Schulter, Bizeps, Oberschenkel, Körperfett. Letzter Wert, Diagramm, Historie, Plus zum Erfassen. Für beide lesbar. Gespeichert als Tageswerte in den vorhandenen Habit-Ops unter `mass.<art>`.
+
+Nicht gebaut, mit Grund:
+- **Schritt-für-Schritt-Texte** ("So geht's" als nummerierte Liste): Der Katalog hat keine Texte. Sie müssten einmal vorab importiert und übersetzt werden.
+- **Muskelbilder in den Filter-Kacheln:** Es gibt keine Bilder dafür im Projekt.
+- **Ordner für Routinen:** Die Trainingstage im Plan sind die Routinen. Ordner lohnen sich erst bei vielen Plänen.
+- **Fortschrittsfotos:** eigener Speicherweg für Bilder nötig, später.
+- **Supersätze:** wie entschieden später.
+
+Alles wird aus vorhandenen Ops gerechnet. Akku: nur beim Öffnen der jeweiligen Seite, nichts im Hintergrund.

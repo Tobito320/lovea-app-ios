@@ -417,7 +417,8 @@ struct WorkoutUebungView: View {
     }
 
     private func seite(_ u: WorkoutUebung, _ liste: [WorkoutUebung]) -> some View {
-        List {
+        let frueher = fruehereTage(u)
+        return List {
             Section {
                 kopf(u)
                 if !u.extra {
@@ -428,7 +429,7 @@ struct WorkoutUebungView: View {
             .listRowSeparator(.hidden)
             Section {
                 tabellenKopf.listRowSeparator(.hidden)
-                ForEach(saetze.indices, id: \.self) { i in zeile(u, i) }
+                ForEach(saetze.indices, id: \.self) { i in zeile(u, i, frueher) }
                 Button { satzDazu() } label: {
                     Label("Satz hinzufügen", systemImage: "plus").font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 32)
                 }
@@ -513,7 +514,20 @@ struct WorkoutUebungView: View {
         .accessibilityHidden(true)
     }
 
-    private func zeile(_ u: WorkoutUebung, _ i: Int) -> some View {
+    /// Diese Übung in allen Einheiten vor dieser (für die Rekord-Marke).
+    private func fruehereTage(_ u: WorkoutUebung) -> [UebungTag] {
+        let alle = modell.sessions(ich)
+        guard let jetzt = alle.first(where: { $0.id == sessionId }) else { return [] }
+        return RekordLogik.tage(katalogId: u.planUebung.uebung, planId: planId, in: alle.filter { $0.start < jetzt.start })
+    }
+
+    /// Bricht dieser eine Satz einen Rekord (Gewicht, One-Rep-Max oder Satzvolumen)?
+    private func rekord(_ i: Int, _ frueher: [UebungTag]) -> String? {
+        guard saetze.indices.contains(i), saetze[i].zaehlt else { return nil }
+        return RekordLogik.neue([saetze[i]], gegen: frueher, arten: [.gewicht, .e1rm, .satzVolumen]).first?.titel
+    }
+
+    private func zeile(_ u: WorkoutUebung, _ i: Int, _ frueher: [UebungTag]) -> some View {
         let fertig = saetze.indices.contains(i) && saetze[i].ok == true
         return WorkoutSatzZeile(
             nummer: WorkoutLogik.nummer(saetze, i),
@@ -521,6 +535,7 @@ struct WorkoutUebungView: View {
             vorher: u.vorher.indices.contains(i) ? u.vorher[i] : nil,
             rpe: rpeAn,
             laeuft: laufenderSatz == i,
+            rekord: rekord(i, frueher),
             typ: { t in
                 if saetze.indices.contains(i) { saetze[i].setzeTyp(t) }
                 Haptik.auswahl()
@@ -674,6 +689,8 @@ struct WorkoutSatzZeile: View {
     let vorher: PlanSatz?
     var rpe = true
     var laeuft = false
+    /// "Schwerstes Gewicht": dieser Satz bricht einen persönlichen Rekord.
+    var rekord: String? = nil
     var typ: (String) -> Void = { _ in }
     var haken: () -> Void = {}
 
@@ -710,6 +727,12 @@ struct WorkoutSatzZeile: View {
             }
             if let zeiten {
                 Text(zeiten).font(.caption).foregroundStyle(Color.primary.opacity(0.75)).padding(.leading, 50)
+            }
+            if fertig, let rekord {
+                Label("Rekord: \(rekord)", systemImage: "medal.fill")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color.orange)
+                    .padding(.leading, 50)
             }
         }
     }

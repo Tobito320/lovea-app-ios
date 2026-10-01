@@ -53,8 +53,9 @@ struct UebungsSuche: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
-    @State private var koerper: String?
+    @State private var geraet: String?
     @State private var muskel: String?
+    @State private var filterOffen: FilterArt?
     @State private var hinzugefuegt: Set<String> = []
     @State private var eigeneOffen = false
     @State private var eigenerName = ""
@@ -62,8 +63,8 @@ struct UebungsSuche: View {
     var body: some View {
         NavigationStack {
             liste
-                .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "z. B. Bankdrücken")
-                .navigationTitle("Übung hinzufügen")
+                .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Übung suchen")
+                .navigationTitle("Übungen")
                 .navigationBarTitleDisplayMode(.inline)
                 .navigationDestination(for: String.self) { id in
                     if let u = UebungsKatalog.nachId[id] { UebungDetail(uebung: u) { waehlen(u) } }
@@ -71,7 +72,7 @@ struct UebungsSuche: View {
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
                     ToolbarItem(placement: .topBarLeading) {
-                        Button("Eigene Übung", systemImage: "square.and.pencil") { eigeneOffen = true }
+                        Button("Erstellen") { eigeneOffen = true }
                     }
                 }
                 .alert("Eigene Übung", isPresented: $eigeneOffen) {
@@ -82,75 +83,57 @@ struct UebungsSuche: View {
         }
     }
 
+    private func passt(_ u: Uebung, geraet: String?, muskel: String?) -> Bool {
+        (geraet.map { u.geraet == $0 } ?? true) && (muskel.map { u.muskel == $0 } ?? true)
+    }
+
     private var liste: some View {
-        let basis = UebungsKatalog.alle.filter { u in
-            (koerper.map { u.koerper == $0 } ?? true) && (muskel.map { u.muskel == $0 } ?? true)
-        }
+        let basis = UebungsKatalog.alle.filter { passt($0, geraet: geraet, muskel: muskel) }
         let treffer = UebungsKatalog.suchen(text, in: basis)
         let vorschlaege = text.isEmpty ? UebungsKatalog.vorschlaege(in: basis) : []
         return List {
             Section {
-                filter.listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
-                if let koerper {
-                    muskelFilter(koerper).listRowInsets(EdgeInsets()).listRowBackground(Color.clear)
-                }
+                filter.listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)).listRowBackground(Color.clear).listRowSeparator(.hidden)
             }
             if !vorschlaege.isEmpty {
-                Section("Vorschläge") {
+                Section("Beliebte Übungen") {
                     ForEach(vorschlaege) { u in zeile(u) }
                 }
             }
-            Section(treffer.isEmpty ? "Nichts gefunden" : "\(treffer.count) Übungen") {
+            Section(treffer.isEmpty ? "Nichts gefunden" : text.isEmpty ? "\(treffer.count) Übungen" : "Suchergebnisse") {
                 ForEach(treffer) { u in zeile(u) }
             }
         }
+        .sheet(item: $filterOffen) { art in
+            switch art {
+            case .geraet:
+                FilterBlatt(titel: "Gerät", gruppen: [("", UebungsKatalog.geraete)], auswahl: $geraet) { g in
+                    UebungsKatalog.alle.filter { passt($0, geraet: g, muskel: muskel) }.count
+                }
+            case .muskel:
+                FilterBlatt(titel: "Muskelgruppe", gruppen: UebungsKatalog.koerperteile.map { ($0, UebungsKatalog.muskeln($0)) }, auswahl: $muskel) { m in
+                    UebungsKatalog.alle.filter { passt($0, geraet: geraet, muskel: m) }.count
+                }
+            }
+        }
     }
 
+    /// Wie in Hevy: zwei gleich breite Knöpfe, jeder öffnet ein Blatt mit Kacheln.
     private var filter: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip("Alle", an: koerper == nil) {
-                    koerper = nil
-                    muskel = nil
-                }
-                ForEach(UebungsKatalog.koerperteile, id: \.self) { k in
-                    chip(k, an: koerper == k) {
-                        koerper = k
-                        muskel = nil
-                    }
-                }
-            }
-            .padding(.horizontal, 16)
+        HStack(spacing: 10) {
+            filterKnopf(geraet ?? "Alle Geräte", an: geraet != nil) { filterOffen = .geraet }
+            filterKnopf(muskel ?? "Alle Muskeln", an: muskel != nil) { filterOffen = .muskel }
         }
     }
 
-    /// Zweite Ebene: Zielmuskeln des gewählten Körperteils (Beine → Po, Quadrizeps, Beinbeuger …).
-    @ViewBuilder
-    private func muskelFilter(_ koerper: String) -> some View {
-        let muskeln = UebungsKatalog.muskeln(koerper)
-        if muskeln.count > 1 {
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 8) {
-                    chip("Alle \(koerper)", an: muskel == nil) { muskel = nil }
-                    ForEach(muskeln, id: \.self) { m in chip(m, an: muskel == m) { muskel = m } }
-                }
-                .padding(.horizontal, 16)
-            }
-        }
-    }
-
-    private func chip(_ titel: String, an: Bool, _ aktion: @escaping () -> Void) -> some View {
-        Button {
-            Haptik.auswahl()
-            aktion()
-        } label: {
+    private func filterKnopf(_ titel: String, an: Bool, _ aktion: @escaping () -> Void) -> some View {
+        Button(action: aktion) {
             Text(titel)
-                .font(.subheadline.weight(.medium))
-                .padding(.horizontal, 14)
-                .frame(minHeight: 36)
-                .background(Capsule().fill(an ? Color.accentColor : Color(uiColor: .tertiarySystemFill)))
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(an ? Color.accentColor : Color(uiColor: .tertiarySystemFill), in: .rect(cornerRadius: 12, style: .continuous))
                 .foregroundStyle(an ? Color.white : Color.primary)
-                .frame(minHeight: 44)
         }
         .buttonStyle(.federnd)
         .accessibilityAddTraits(an ? .isSelected : [])
@@ -188,60 +171,6 @@ struct UebungsSuche: View {
     }
 }
 
-/// The silent looping GIF (grey body, working muscle red), name and muscles.
-struct UebungDetail: View {
-    let uebung: Uebung
-    var hinzufuegen: (() -> Void)? = nil
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 16) {
-                video
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(uebung.name).font(.title2.bold())
-                    Text(uebung.en.capitalized).font(.subheadline).foregroundStyle(.secondary)
-                }
-                fakten
-                if let hinzufuegen {
-                    Button(action: hinzufuegen) {
-                        Label("Zum Plan hinzufügen", systemImage: "plus").frame(maxWidth: .infinity, minHeight: 44)
-                    }
-                    .buttonStyle(.borderedProminent)
-                }
-            }
-            .padding(16)
-        }
-        .navigationTitle(uebung.name)
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var video: some View {
-        UebungGif(id: uebung.id)
-            .aspectRatio(1, contentMode: .fit)
-            .frame(maxWidth: .infinity)
-            .clipShape(.rect(cornerRadius: 20, style: .continuous))
-            .accessibilityLabel("Animation: \(uebung.name)")
-    }
-
-    private var fakten: some View {
-        VStack(spacing: 0) {
-            fakt("Zielmuskel", uebung.muskel)
-            Divider()
-            fakt("Gerät", uebung.geraet)
-            if !uebung.neben.isEmpty {
-                Divider()
-                fakt("Hilft mit", uebung.neben.joined(separator: ", "))
-            }
-        }
-        .padding(.horizontal, 14)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 16, style: .continuous))
-    }
-
-    private func fakt(_ titel: String, _ wert: String) -> some View {
-        LabeledContent(titel, value: wert).padding(.vertical, 12)
-    }
-}
-
 /// The looping GIF of one exercise on white; loads it on first view (`UebungsMedien`).
 struct UebungGif: View {
     let id: String
@@ -266,5 +195,79 @@ struct UebungGif: View {
             url = await UebungsMedien.datei(id)
             fehlt = url == nil
         }
+    }
+}
+
+enum FilterArt: String, Identifiable {
+    case geraet, muskel
+    var id: String { rawValue }
+}
+
+/// Das Filter-Blatt aus Hevy: Kacheln in zwei Spalten, unten "Filter löschen" und die laufende
+/// Trefferzahl. Ein Tipp wählt, noch ein Tipp wählt ab.
+struct FilterBlatt: View {
+    let titel: String
+    /// Überschrift (leer = keine) und ihre Einträge.
+    let gruppen: [(String, [String])]
+    @Binding var auswahl: String?
+    let zahl: (String?) -> Int
+
+    @Environment(\.dismiss) private var dismiss
+    private static let spalten = [GridItem(.flexible(), spacing: 10), GridItem(.flexible(), spacing: 10)]
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    ForEach(gruppen, id: \.0) { gruppe in
+                        VStack(alignment: .leading, spacing: 10) {
+                            if !gruppe.0.isEmpty {
+                                Text(gruppe.0).font(.subheadline).foregroundStyle(.secondary)
+                            }
+                            LazyVGrid(columns: Self.spalten, spacing: 10) {
+                                ForEach(gruppe.1, id: \.self) { eintrag in kachel(eintrag) }
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+            }
+            .navigationTitle(titel)
+            .navigationBarTitleDisplayMode(.inline)
+            .safeAreaInset(edge: .bottom, spacing: 0) {
+                HStack(spacing: 10) {
+                    Button { auswahl = nil } label: {
+                        Text("Filter löschen").frame(maxWidth: .infinity, minHeight: 36)
+                    }
+                    .buttonStyle(.bordered)
+                    Button { dismiss() } label: {
+                        Text("\(zahl(auswahl)) Ergebnisse anzeigen").monospacedDigit().frame(maxWidth: .infinity, minHeight: 36)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(.bar)
+            }
+        }
+        .presentationDetents([.large])
+    }
+
+    private func kachel(_ eintrag: String) -> some View {
+        let an = auswahl == eintrag
+        return Button {
+            auswahl = an ? nil : eintrag
+            Haptik.auswahl()
+        } label: {
+            Text(eintrag)
+                .font(.body.weight(.medium))
+                .multilineTextAlignment(.leading)
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                .padding(.horizontal, 14)
+                .background(an ? Color.accentColor : Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 14, style: .continuous))
+                .foregroundStyle(an ? Color.white : Color.primary)
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(an ? .isSelected : [])
     }
 }

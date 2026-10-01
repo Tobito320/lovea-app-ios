@@ -85,10 +85,12 @@ final class TrainingModell {
     /// Das Training beenden. Status "ende" löst die Mitteilung an den Partner aus; eine spätere
     /// Zeitkorrektur (`zeitenAendern`) sendet ihn nicht.
     func auschecken(_ session: String, ende: Date = Date()) {
-        let start = sessions(ich).first { $0.id == session }?.start
+        let alle = sessions(ich)
+        let start = alle.first { $0.id == session }?.start
         let minuten = start.map { max(1, Int(ende.timeIntervalSince($0) / 60)) }
-        let zahl = WorkoutLogik.saetzeZahl(workout(session))
-        Raum.shared.senden("gym.checkout", GymD(session: session, ende: ende, status: "ende", minuten: minuten, zahl: zahl))
+        let liste = workout(session)
+        let rekorde = start.map { s in RekordLogik.anzahl(liste, frueher: alle.filter { $0.start < s }) }
+        Raum.shared.senden("gym.checkout", GymD(session: session, ende: ende, status: "ende", minuten: minuten, zahl: WorkoutLogik.saetzeZahl(liste), rekorde: rekorde))
         Anwesenheit.shared.anstossen()
     }
 

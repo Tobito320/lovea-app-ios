@@ -113,6 +113,7 @@ struct GymD: Codable, Equatable, Sendable {
     /// Mitteilung an den Partner (`server/regeln.js`).
     var minuten: Int? = nil
     var zahl: Int? = nil
+    var rekorde: Int? = nil
 }
 
 struct GymEintrag: Equatable, Sendable {
@@ -285,6 +286,26 @@ enum TrainingLogik {
             }
         }
         return p
+    }
+
+    /// Wie viele Wochen in Folge (Mo bis So) mindestens ein Training hatten. Die laufende Woche
+    /// zählt mit, wenn schon trainiert wurde; ist sie noch leer, bricht sie die Serie nicht.
+    static func serieWochen(_ sessions: [GymSession], heute: String) -> Int {
+        let wochen = Set(sessions.map { Datum.montagDerWoche(Datum.text($0.start)) })
+        var montag = Datum.montagDerWoche(heute)
+        if !wochen.contains(montag) { montag = Datum.addTage(montag, -7) }
+        var serie = 0
+        while wochen.contains(montag) {
+            serie += 1
+            montag = Datum.addTage(montag, -7)
+        }
+        return serie
+    }
+
+    /// Trainings in der laufenden Woche (Mo bis So).
+    static func dieseWoche(_ sessions: [GymSession], heute: String) -> Int {
+        let montag = Datum.montagDerWoche(heute)
+        return sessions.filter { Datum.montagDerWoche(Datum.text($0.start)) == montag }.count
     }
 
     /// Eine Plan-Übung ändern (Notiz, Pausenzeit), egal in welchem Tag sie steht.

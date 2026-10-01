@@ -107,3 +107,9 @@ test("gym.checkout: Push nur beim echten Beenden, nicht bei Zeitkorrektur oder R
   assert.equal(regel("gym.checkout", "ahmed", { session: "s", ende: "2026-10-01T17:00:00Z" }), null); // Zeiten korrigiert
   assert.equal(regel("gym.checkout", "ahmed", { session: "s", status: "wieder" }), null); // Auschecken rückgängig
 });
+
+test("gym.checkout: Rekorde stehen am Ende des Textes", () => {
+  assert.equal(regel("gym.checkout", "ahmed", { status: "ende", minuten: 58, zahl: 12, rekorde: 2 }).text, "Ahmed war 58 min im Gym · 12 Sätze · 2 Rekorde");
+  assert.equal(regel("gym.checkout", "ahmed", { status: "ende", minuten: 58, zahl: 12, rekorde: 1 }).text, "Ahmed war 58 min im Gym · 12 Sätze · 1 Rekord");
+  assert.equal(regel("gym.checkout", "ahmed", { status: "ende", minuten: 58, zahl: 12, rekorde: 0 }).text, "Ahmed war 58 min im Gym · 12 Sätze");
+});
