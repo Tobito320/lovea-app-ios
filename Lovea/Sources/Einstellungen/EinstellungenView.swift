@@ -11,6 +11,7 @@ struct EinstellungenView: View {
     @AppStorage(TabWischLogik.schluessel) private var tabWischen = true
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
+    @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
 
     var body: some View {
         List {
@@ -40,6 +41,7 @@ struct EinstellungenView: View {
             Section {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
                 Toggle("Chat-Tempo (Test)", isOn: $chatTempo)
+                Toggle("Videos schneller senden (Test)", isOn: $videoSchnell)
             } header: {
                 Text("Chat")
             } footer: {
