@@ -119,18 +119,21 @@ final class ErnaehrungModell {
         let vorher = summe(ich, datum).protein
         Raum.shared.senden("essen.setzen", e)
         proteinPruefen(datum, protein: vorher + e.naehrwerte.protein)
+        EssenLive.abgleichen()
     }
 
     func aendern(_ e: EssenEintrag) {
         let ohne = eintraege(ich, e.datum).filter { $0.id != e.id }
         Raum.shared.senden("essen.setzen", e)
         proteinPruefen(e.datum, protein: ErnaehrungLogik.summe(ohne).protein + e.naehrwerte.protein)
+        EssenLive.abgleichen()
     }
 
     func loeschen(_ e: EssenEintrag) {
         var weg = e
         weg.geloescht = true
         Raum.shared.senden("essen.setzen", weg)
+        EssenLive.abgleichen()
     }
 
     /// Alle Einträge einer Mahlzeit von einem anderen Tag noch einmal eintragen.
