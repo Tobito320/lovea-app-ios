@@ -73,18 +73,30 @@ enum EssenLive {
         }
     }
 
-    /// Schalter aus -> beenden. Läuft schon eine für `heute` -> aktualisieren. Läuft keine oder eine
-    /// vom Vortag -> (die alte beenden und) neu starten.
-    nonisolated static func aktion(laufendTag: String?, heute: String, an: Bool) -> Aktion {
+    /// Schalter aus -> beenden. Läuft schon eine für `heute`, mit Mahlzeitendaten -> aktualisieren.
+    /// Läuft keine, eine vom Vortag, oder eine veraltete (altes Format, siehe `istVeraltet`) ->
+    /// (die alte beenden und) neu starten.
+    nonisolated static func aktion(laufendTag: String?, heute: String, an: Bool, laufendVeraltet: Bool = false) -> Aktion {
         guard an else { return .beenden }
+        if laufendVeraltet { return .neuStarten }
         return laufendTag == heute ? .aktualisieren : .neuStarten
+    }
+
+    /// R8 (Review, Critical): eine von einer älteren App-Version gestartete Aktivität erkennen, statt
+    /// sie mit `update()` einfach weiterlaufen zu lassen. `ContentState.init(from:)` füllt ein
+    /// fehlendes `mahlzeitenKcal` mit `[0, 0, 0, 0]` — läuft trotzdem schon kcal > 0, kann das Feld
+    /// nur fehlen, nicht wirklich leer sein (eine nagelneue, echte Aktivität startet ohnehin frisch
+    /// über `neuStarten`, landet also nie hier mit kcal > 0 und leeren Mahlzeiten).
+    nonisolated static func istVeraltet(_ s: EssenAktivitaet.ContentState) -> Bool {
+        s.kcal > 0 && s.mahlzeitenKcal == [0, 0, 0, 0]
     }
 
     private nonisolated static func anwenden(_ ziel: Ziel, an: Bool) async {
         let laufend = Activity<EssenAktivitaet>.activities.first
         let mitternacht = Calendar.current.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime)
             ?? Date().addingTimeInterval(86400)
-        switch aktion(laufendTag: laufend?.content.state.tag, heute: ziel.stand.tag, an: an) {
+        let veraltet = laufend.map { istVeraltet($0.content.state) } ?? false
+        switch aktion(laufendTag: laufend?.content.state.tag, heute: ziel.stand.tag, an: an, laufendVeraltet: veraltet) {
         case .beenden:
             for a in Activity<EssenAktivitaet>.activities { await a.end(nil, dismissalPolicy: .immediate) }
         case .neuStarten:

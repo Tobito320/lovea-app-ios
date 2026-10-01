@@ -18,6 +18,34 @@ struct EssenAktivitaet: ActivityAttributes {
         var mahlzeitenKcal: [Int]
         /// Tag im Tagebuch ("yyyy-MM-dd"), für den dieser Stand gilt — erkennt den Tageswechsel.
         var tag: String
+
+        init(kcal: Int, kcalZiel: Int, proteinG: Int, proteinZiel: Int, kohlenhydrateG: Int,
+             kohlenhydrateZiel: Int, fettG: Int, fettZiel: Int, mahlzeitenKcal: [Int], tag: String) {
+            self.kcal = kcal; self.kcalZiel = kcalZiel
+            self.proteinG = proteinG; self.proteinZiel = proteinZiel
+            self.kohlenhydrateG = kohlenhydrateG; self.kohlenhydrateZiel = kohlenhydrateZiel
+            self.fettG = fettG; self.fettZiel = fettZiel
+            self.mahlzeitenKcal = mahlzeitenKcal; self.tag = tag
+        }
+
+        /// R8 (Review, Critical): abwärtskompatibel zu einer Aktivität, die eine ältere App-Version
+        /// gestartet hat — vor R8 ganz ohne `mahlzeitenKcal`, vor dem R7-Fix sogar ohne `tag`.
+        /// ActivityKit decodiert deren persistiertes JSON weiter gegen diesen Typ; ohne Fallback
+        /// würde das crashen. Fehlende Felder bekommen neutrale Defaults, `EssenLive.anwenden`
+        /// erkennt die fehlenden Mahlzeitendaten danach (`istVeraltet`) und startet neu.
+        init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            kcal = try c.decode(Int.self, forKey: .kcal)
+            kcalZiel = try c.decode(Int.self, forKey: .kcalZiel)
+            proteinG = try c.decode(Int.self, forKey: .proteinG)
+            proteinZiel = try c.decode(Int.self, forKey: .proteinZiel)
+            kohlenhydrateG = try c.decode(Int.self, forKey: .kohlenhydrateG)
+            kohlenhydrateZiel = try c.decode(Int.self, forKey: .kohlenhydrateZiel)
+            fettG = try c.decode(Int.self, forKey: .fettG)
+            fettZiel = try c.decode(Int.self, forKey: .fettZiel)
+            mahlzeitenKcal = try c.decodeIfPresent([Int].self, forKey: .mahlzeitenKcal) ?? [0, 0, 0, 0]
+            tag = try c.decodeIfPresent(String.self, forKey: .tag) ?? ""
+        }
     }
 
     var name: String

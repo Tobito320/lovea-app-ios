@@ -60,4 +60,67 @@ final class EssenLiveTests: XCTestCase {
         XCTAssertEqual(EssenLive.aktion(laufendTag: "2026-10-01", heute: "2026-10-01", an: false), .beenden)
         XCTAssertEqual(EssenLive.aktion(laufendTag: nil, heute: "2026-10-01", an: false), .beenden)
     }
+
+    // MARK: - R8 Review (Critical): alte Aktivität ohne Mahlzeitendaten
+
+    func testAktionVeralteteAktivitaetStartetNeuTrotzGleichemTag() {
+        XCTAssertEqual(
+            EssenLive.aktion(laufendTag: "2026-10-01", heute: "2026-10-01", an: true, laufendVeraltet: true),
+            .neuStarten)
+    }
+
+    func testIstVeraltetErkenntFehlendeMahlzeitenDaten() {
+        let alt = EssenAktivitaet.ContentState(
+            kcal: 930, kcalZiel: 2630, proteinG: 16, proteinZiel: 138, kohlenhydrateG: 90, kohlenhydrateZiel: 300,
+            fettG: 30, fettZiel: 80, mahlzeitenKcal: [0, 0, 0, 0], tag: "2026-10-01")
+        XCTAssertTrue(EssenLive.istVeraltet(alt))
+    }
+
+    func testIstVeraltetFalseWennLeereMahlzeitenEchtSind() {
+        // Frisch gestartete Aktivität an einem Tag ganz ohne Einträge: kcal 0, Mahlzeiten auch 0 —
+        // das ist kein altes Format, sondern ein echter leerer Tag.
+        let leer = EssenAktivitaet.ContentState(
+            kcal: 0, kcalZiel: 2000, proteinG: 0, proteinZiel: 120, kohlenhydrateG: 0, kohlenhydrateZiel: 220,
+            fettG: 0, fettZiel: 70, mahlzeitenKcal: [0, 0, 0, 0], tag: "2026-10-01")
+        XCTAssertFalse(EssenLive.istVeraltet(leer))
+    }
+
+    // MARK: - R8 Review (Critical): Decodieren eines ContentState im alten Format
+
+    func testDecodeAltesFormatOhneMahlzeitenKcalUndOhneTag() throws {
+        // Format von d8ef816 (R7, erster TestFlight-Stand): weder `mahlzeitenKcal` noch `tag`.
+        let json = """
+        {"kcal":930,"kcalZiel":2630,"proteinG":16,"proteinZiel":138,"kohlenhydrateG":90,
+         "kohlenhydrateZiel":300,"fettG":30,"fettZiel":80}
+        """.data(using: .utf8)!
+        let stand = try JSONDecoder().decode(EssenAktivitaet.ContentState.self, from: json)
+        XCTAssertEqual(stand.kcal, 930)
+        XCTAssertEqual(stand.kcalZiel, 2630)
+        XCTAssertEqual(stand.mahlzeitenKcal, [0, 0, 0, 0])
+        XCTAssertEqual(stand.tag, "")
+        XCTAssertTrue(EssenLive.istVeraltet(stand))
+    }
+
+    func testDecodeAltesFormatMitTagOhneMahlzeitenKcal() throws {
+        // Format von edf2f2d (R7-Fix, der TestFlight-Stand mit Tageswechsel-Erkennung): hat `tag`,
+        // aber noch kein `mahlzeitenKcal`.
+        let json = """
+        {"kcal":930,"kcalZiel":2630,"proteinG":16,"proteinZiel":138,"kohlenhydrateG":90,
+         "kohlenhydrateZiel":300,"fettG":30,"fettZiel":80,"tag":"2026-10-01"}
+        """.data(using: .utf8)!
+        let stand = try JSONDecoder().decode(EssenAktivitaet.ContentState.self, from: json)
+        XCTAssertEqual(stand.tag, "2026-10-01")
+        XCTAssertEqual(stand.mahlzeitenKcal, [0, 0, 0, 0])
+        XCTAssertTrue(EssenLive.istVeraltet(stand))
+    }
+
+    func testDecodeNeuesFormatRoundtrip() throws {
+        let original = EssenAktivitaet.ContentState(
+            kcal: 930, kcalZiel: 2630, proteinG: 16, proteinZiel: 138, kohlenhydrateG: 90, kohlenhydrateZiel: 300,
+            fettG: 30, fettZiel: 80, mahlzeitenKcal: [200, 400, 300, 30], tag: "2026-10-01")
+        let daten = try JSONEncoder().encode(original)
+        let zurueck = try JSONDecoder().decode(EssenAktivitaet.ContentState.self, from: daten)
+        XCTAssertEqual(zurueck, original)
+        XCTAssertFalse(EssenLive.istVeraltet(zurueck))
+    }
 }
