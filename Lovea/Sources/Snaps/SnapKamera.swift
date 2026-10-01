@@ -599,7 +599,14 @@ struct SnapKameraView: View {
             VStack {
                 obereLeiste
                 Spacer()
-                KameraLinsenPille(werte: steuerung.linsenWerte, aktuellerZoom: steuerung.zoom, onWahl: steuerung.linseWaehlen)
+                KameraLinsenPille(werte: steuerung.linsenWerte, aktuellerZoom: steuerung.zoom, onWahl: { wert in
+                    // Review Important fix (2026-10-01): without this, `zoomStart` (the pinch
+                    // baseline) stayed at the lens we left — the next pinch's first frame would jump
+                    // relative to that stale value. Also replaces the bare `steuerung.linseWaehlen`
+                    // method reference with an explicit closure (Review Minor fix).
+                    steuerung.linseWaehlen(wert)
+                    zoomStart = wert
+                })
                     .padding(.bottom, 14)
                 untereLeiste
             }
