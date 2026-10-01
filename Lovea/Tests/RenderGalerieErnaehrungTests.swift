@@ -79,4 +79,56 @@ final class RenderGalerieErnaehrungTests: XCTestCase {
         }
         RenderTafel.speichern("ernaehrung", spalten: 4, zellen: zellen)
     }
+
+    /// Für die Tafel: hält die Bindings, die `MengenLeiste` braucht, mit einem festen Startwert.
+    private struct MengenLeisteSchau: View {
+        let lebensmittel: Lebensmittel
+        let start: MengenOption
+        let zahl: Double
+
+        @State private var auswahl: MengenOption
+        @State private var zahlWert: Double
+
+        init(lebensmittel: Lebensmittel, start: MengenOption, zahl: Double) {
+            self.lebensmittel = lebensmittel
+            self.start = start
+            self.zahl = zahl
+            _auswahl = State(initialValue: start)
+            _zahlWert = State(initialValue: zahl)
+        }
+
+        var body: some View {
+            MengenLeiste(lebensmittel: lebensmittel, auswahl: $auswahl, zahl: $zahlWert, knopf: "Hinzufügen", aktion: {})
+        }
+    }
+
+    func testMengenLeiste() {
+        let banane = Lebensmittel(id: "bls-banane", name: "Banane (ohne Schale), frisch",
+                                   pro100: Naehrwerte(kcal: 93, protein: 1.1, kohlenhydrate: 20, fett: 0.2),
+                                   portionen: [LebensmittelPortion(name: "Frucht, klein", gramm: 75),
+                                               LebensmittelPortion(name: "Frucht, mittelgroß", gramm: 150),
+                                               LebensmittelPortion(name: "Frucht, groß", gramm: 200)])
+        let huehnerei = Lebensmittel(id: "bls-huehnerei", name: "Hühnerei, Eier, gekocht",
+                                      pro100: Naehrwerte(kcal: 137, protein: 11.8, kohlenhydrate: 1.5, fett: 9.3),
+                                      portionen: [LebensmittelPortion(name: "Ei, mittelgroß", gramm: 60),
+                                                  LebensmittelPortion(name: "Ei, groß", gramm: 70)])
+        let mittelgross = MengenOption.portion(LebensmittelPortion(name: "Frucht, mittelgroß", gramm: 150))
+        let klein = MengenOption.portion(LebensmittelPortion(name: "Frucht, klein", gramm: 75))
+        let eiMittelgross = MengenOption.portion(LebensmittelPortion(name: "Ei, mittelgroß", gramm: 60))
+
+        let staende: [(String, Lebensmittel, MengenOption, Double)] = [
+            ("Banane, 1 × mittelgroß", banane, mittelgross, 1),
+            ("Banane, 721 ⅞ × klein", banane, klein, 721.875),
+            ("Hühnerei, 1 × mittelgroß", huehnerei, eiMittelgross, 1),
+        ]
+
+        var zellen: [(titel: String, ansicht: AnyView)] = []
+        for schema in [ColorScheme.light, .dark] {
+            for (titel, l, start, zahl) in staende {
+                zellen.append(zelle("\(titel), \(schema == .light ? "hell" : "dunkel")",
+                                     MengenLeisteSchau(lebensmittel: l, start: start, zahl: zahl), schema))
+            }
+        }
+        RenderTafel.speichern("mengen", spalten: 3, zellen: zellen)
+    }
 }
