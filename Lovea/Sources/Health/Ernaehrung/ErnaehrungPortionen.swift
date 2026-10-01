@@ -101,11 +101,15 @@ struct MengenLeiste: View {
                     .keyboardType(.decimalPad)
                     .multilineTextAlignment(.trailing)
                     .focused($tippt)
-                    .frame(width: 96)
+                    .font(.title3)
+                    .frame(width: 70)
                     .padding(.horizontal, 14).padding(.vertical, 12)
                     .background(Color(uiColor: .tertiarySystemFill), in: UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22))
                 HStack {
-                    Text(auswahl.anzeige(lebensmittel)).lineLimit(1)
+                    Text(auswahl.anzeige(lebensmittel))
+                        .font(.body)
+                        .minimumScaleFactor(0.75)
+                        .lineLimit(1)
                     Spacer()
                     Image(systemName: "chevron.down")
                 }
@@ -113,7 +117,6 @@ struct MengenLeiste: View {
                 .background(Color(uiColor: .tertiarySystemFill), in: UnevenRoundedRectangle(bottomTrailingRadius: 22, topTrailingRadius: 22))
                 .allowsHitTesting(false)
             }
-            .font(.title3)
             Button(action: aktion) {
                 Text(knopf).font(.title3.weight(.semibold)).frame(maxWidth: .infinity).padding(.vertical, 16)
             }
