@@ -81,11 +81,11 @@ Das zeigt nur, dass Actions eingeschaltet ist, nicht ob Läufe tatsächlich durc
 Billing-Sperre würde Jobs trotzdem sofort abbrechen lassen). Deshalb zusätzlich die echte Lauf-Historie
 geprüft, ebenfalls nur lesend: `gh run list -R Tobito320/lovea-app-ios --limit 10`. Ergebnis: die
 letzten 10 Läufe (TestFlight, iOS CI) sind durchgelaufen, acht davon `ok`. Zwei ältere `FAIL`
-(`36341630101` iOS CI, `36335965760` iOS CI) – die Logs dazu sind bei GitHub bereits abgelaufen
-(`gh run view --log-failed` meldet "log not found"), ich kann also nicht belegen, woran sie genau
-lagen. Entscheidend ist: der jüngste Lauf `36341732612` (TestFlight) danach ist wieder `ok` – ein
-andauernder Billing-Stopp hätte auch diesen und alle folgenden Läufe blockiert. Das ist der Beleg,
-dass Jobs auf diesem privaten Repo laufend ausgeführt werden, keine Billing-Sperre.
+(`36341630101` TestFlight, `36335965760` iOS CI) – `gh run view --log-failed` meldet dazu
+"log not found", Ursache unbekannt. Entscheidend ist: der jüngste Lauf `36341732612` (TestFlight)
+danach ist wieder `ok` – ein andauernder Billing-Stopp hätte auch diesen und alle folgenden Läufe
+blockiert. Das ist der Beleg, dass Jobs auf diesem privaten Repo laufend ausgeführt werden, keine
+Billing-Sperre.
 
 Der Billing-Endpunkt (`/users/Tobito320/settings/billing/actions`) ist mit dem vorhandenen
 `gh`-Token nicht lesbar (braucht den `user`-Scope, den ich nicht angefordert habe, um den
@@ -102,7 +102,7 @@ Basis-Branch der Design-Spec).
 
 Quelle: `https://blsdb.de/download` verlinkt eine Token-URL zu einem ZIP
 (`BLS_4_0_2025_DE.zip`, 13,6 MB), keine direkte Excel-Datei. Enthält:
-`BLS_4_0_Daten_2025_DE.xlsx` (Daten, 418 Spalten, ein Blatt `BLS_4_0_2025_DE`) und
+`BLS_4_0_Daten_2025_DE.xlsx` (Daten, 418 Spalten, ein Blatt `BLS_4_0_Daten_2025_DE`) und
 `BLS_4_0_Components_DE_EN.xlsx` (Spaltenerklärung, zur Referenz behalten, nicht für den Import
 gebraucht). Das Daten-Blatt liegt jetzt unter `tools/bls-import/BLS_4_0.xlsx` (gitignored) und in
 `.superpowers/sdd/2026-10-01-essen-wie-yazio/BLS_4_0.xlsx` für Task 2.
