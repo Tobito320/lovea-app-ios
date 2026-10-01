@@ -1,4 +1,5 @@
 import AVKit
+import CoreImage
 import SwiftUI
 import UIKit
 
@@ -48,6 +49,19 @@ struct SnapEditor: View {
     @State private var bleibt = false
     @State private var sendetGerade = false
     @State private var videoSpieler: AVPlayer?
+
+    @State private var ausgewaehlterFilter: SnapFilter = .original
+    @State private var ausgewaehlterFilterID: SnapFilter? = .original
+    @State private var filterThumbnails: [SnapFilter: UIImage] = [:]
+    /// Nur fürs Foto live gerendert (Video filtert sich über `videoSpieler`s eigene
+    /// `AVVideoComposition`, siehe `vorschauAktualisieren`). `nil` = Originalbild zeigen.
+    @State private var filterVorschauBild: UIImage?
+    @State private var filterNameSichtbar = false
+    @State private var filterNameTask: Task<Void, Never>?
+    /// Bricht einen noch laufenden Vorschau-Render ab, wenn während eines schnellen Karussell-Flings
+    /// schon der nächste Filter ausgewählt wird — sonst rendert ein Fling über mehrere Chips mehrfach
+    /// statt nur den zuletzt gewählten Filter zu zeigen (R9-Review: "render on filter change only").
+    @State private var vorschauTask: Task<Void, Never>?
     /// The photo's/video's own aspect ratio — the content box below is locked to this, so the same
     /// (fraction, fraction) numbers land on the same spot live and in `SnapExport`'s flatten pass.
     /// Without this the box defaulted to the *screen's* aspect, `.scaledToFill` silently cropped
@@ -70,7 +84,7 @@ struct SnapEditor: View {
                 }
                 .frame(width: geo.size.width, height: geo.size.height)
                 .contentShape(Rectangle())
-                .gesture(doodleGeste(groesse: geo.size))
+                .gesture(inhaltGeste(groesse: geo.size))
             }
             .aspectRatio(inhaltAspekt, contentMode: .fit)
 
@@ -78,6 +92,7 @@ struct SnapEditor: View {
                 obereLeiste
                 if zeichnenAktiv { farbAuswahl }
                 Spacer()
+                filterKarussell
                 untereLeiste
             }
         }
@@ -101,8 +116,13 @@ struct SnapEditor: View {
         .task {
             if case .video(let url) = inhalt { videoSpieler = AVPlayer(url: url) }
             await aspektErmitteln()
+            await thumbnailsErzeugen()
         }
-        .onDisappear { videoSpieler?.pause() }
+        .onChange(of: ausgewaehlterFilterID) { _, neu in
+            guard let neu, neu != ausgewaehlterFilter else { return }
+            waehleFilter(neu)
+        }
+        .onDisappear { videoSpieler?.pause(); filterNameTask?.cancel(); vorschauTask?.cancel() }
     }
 
     /// Same source of truth `SnapExport.video` uses for `upright` — keeps the editor's aspect and
@@ -131,7 +151,7 @@ struct SnapEditor: View {
     @ViewBuilder private var basisInhalt: some View {
         switch inhalt {
         case .foto(let bild):
-            Image(uiImage: bild).resizable().scaledToFit()
+            Image(uiImage: filterVorschauBild ?? bild).resizable().scaledToFit()
         case .video:
             if let videoSpieler {
                 VideoPlayer(player: videoSpieler).disabled(true)
@@ -184,20 +204,36 @@ struct SnapEditor: View {
 
     // MARK: - Gestures
 
-    /// Doodle drawing (Z-6.2): active only while `zeichnenAktiv`; a no-op drag otherwise. Attached
-    /// to the whole content area, so `.highPriorityGesture` on stickers/text (above) is what keeps
-    /// dragging one of those from also being read as a doodle stroke underneath it.
-    private func doodleGeste(groesse: CGSize) -> some Gesture {
+    /// Doodle drawing (Z-6.2) while `zeichnenAktiv`; sonst liest derselbe Drag einen horizontalen
+    /// Wisch als Filterwechsel (R9 — nur wenn nicht gezeichnet wird, sonst würde jeder Strich auch
+    /// den Filter verstellen). Ein Gesture auf dem ganzen Inhaltsbereich, `.highPriorityGesture` auf
+    /// Stickern/Text (oben) sorgt dafür, dass deren Drag weiterhin gewinnt statt hier gelesen zu werden.
+    private func inhaltGeste(groesse: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { wert in
                 guard zeichnenAktiv, groesse.width > 0, groesse.height > 0 else { return }
                 aktuelleLinie.append(CGPoint(x: wert.location.x / groesse.width, y: wert.location.y / groesse.height))
             }
-            .onEnded { _ in
-                guard zeichnenAktiv, aktuelleLinie.count > 1 else { aktuelleLinie = []; return }
-                linien.append(SnapLinie(punkte: aktuelleLinie, farbe: doodleFarbe))
-                aktuelleLinie = []
+            .onEnded { wert in
+                if zeichnenAktiv {
+                    guard aktuelleLinie.count > 1 else { aktuelleLinie = []; return }
+                    linien.append(SnapLinie(punkte: aktuelleLinie, farbe: doodleFarbe))
+                    aktuelleLinie = []
+                    return
+                }
+                guard abs(wert.translation.width) > 40, abs(wert.translation.width) > abs(wert.translation.height) else { return }
+                filterWechseln(vorwaerts: wert.translation.width < 0)
             }
+    }
+
+    /// Ein Filter weiter/zurück in `SnapFilter.allCases` — Wisch auf dem Bild selbst (R9), neben
+    /// dem Tippen auf einen Chip im Karussell.
+    private func filterWechseln(vorwaerts: Bool) {
+        let alle = SnapFilter.allCases
+        guard let index = alle.firstIndex(of: ausgewaehlterFilter) else { return }
+        let neuerIndex = vorwaerts ? min(index + 1, alle.count - 1) : max(index - 1, 0)
+        guard neuerIndex != index else { return }
+        waehleFilter(alle[neuerIndex])
     }
 
     /// One shared "drag anchor" for all stickers (only one finger drags at a time in practice) —
@@ -277,6 +313,167 @@ struct SnapEditor: View {
         .background(.thinMaterial, in: Capsule())
     }
 
+    // MARK: - Filterkarussell (R9)
+
+    private static let chipGroesse: CGFloat = 58
+
+    /// Horizontal scrollbar, einrastend (`.viewAligned`), der ausgewählte Chip über
+    /// `safeAreaPadding` auf die Mitte zentriert — gleiche Rezepte wie die Thumbnails, nur klein.
+    private var filterKarussell: some View {
+        VStack(spacing: 6) {
+            Text(ausgewaehlterFilter.anzeigename)
+                .font(.caption.bold())
+                .foregroundStyle(.white)
+                .padding(.horizontal, 10).padding(.vertical, 4)
+                .background(.black.opacity(0.35), in: Capsule())
+                .opacity(filterNameSichtbar ? 1 : 0)
+                .animation(.easeInOut(duration: 0.2), value: filterNameSichtbar)
+
+            GeometryReader { geo in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    LazyHStack(spacing: 14) {
+                        ForEach(SnapFilter.allCases) { filter in
+                            filterChip(filter).id(filter)
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .safeAreaPadding(.horizontal, max(0, (geo.size.width - Self.chipGroesse) / 2))
+                }
+                .scrollPosition(id: $ausgewaehlterFilterID, anchor: .center)
+                .scrollTargetBehavior(.viewAligned)
+            }
+            .frame(height: Self.chipGroesse + 6)
+        }
+        .padding(.bottom, 10)
+    }
+
+    private func filterChip(_ filter: SnapFilter) -> some View {
+        let ausgewaehlt = filter == ausgewaehlterFilter
+        return Button { waehleFilter(filter) } label: {
+            ZStack {
+                Circle().fill(Color.black.opacity(0.25))
+                if let thumbnail = filterThumbnails[filter] {
+                    Image(uiImage: thumbnail).resizable().scaledToFill()
+                } else {
+                    ProgressView().tint(.white)
+                }
+            }
+            .frame(width: Self.chipGroesse, height: Self.chipGroesse)
+            .clipShape(Circle())
+            .overlay(Circle().strokeBorder(.white, lineWidth: ausgewaehlt ? 3 : 0))
+            .scaleEffect(ausgewaehlt ? 1.1 : 1)
+        }
+        .animation(.easeInOut(duration: 0.15), value: ausgewaehlt)
+        .accessibilityLabel(filter.anzeigename)
+        .accessibilityAddTraits(ausgewaehlt ? .isSelected : [])
+    }
+
+    private func waehleFilter(_ filter: SnapFilter) {
+        guard filter != ausgewaehlterFilter else { return }
+        UISelectionFeedbackGenerator().selectionChanged()
+        ausgewaehlterFilter = filter
+        ausgewaehlterFilterID = filter
+        vorschauAktualisieren(fuer: filter)
+        filterNameAnzeigen()
+    }
+
+    private func filterNameAnzeigen() {
+        filterNameSichtbar = true
+        filterNameTask?.cancel()
+        filterNameTask = Task {
+            try? await Task.sleep(for: .seconds(1.2))
+            guard !Task.isCancelled else { return }
+            filterNameSichtbar = false
+        }
+    }
+
+    /// Live-Vorschau: Foto wird einmal neu gerendert (nicht pro Frame), Video bekommt dieselbe
+    /// `AVVideoComposition` wie der Export auf seinen Player gesetzt (Akku-Regel: nur bei Wechsel).
+    private func vorschauAktualisieren(fuer filter: SnapFilter) {
+        vorschauTask?.cancel()
+        switch inhalt {
+        case .foto(let bild):
+            vorschauTask = Task {
+                let ergebnis = await Self.gefiltertesVorschauBild(quelle: bild, filter: filter)
+                guard !Task.isCancelled else { return }
+                filterVorschauBild = ergebnis
+            }
+        case .video(let url):
+            vorschauTask = Task {
+                let komposition = await filter.videoKomposition(fuer: AVURLAsset(url: url))
+                guard !Task.isCancelled else { return }
+                videoSpieler?.currentItem?.videoComposition = komposition
+            }
+        }
+    }
+
+    /// Nur `SnapFilter` (Sendable) und ein gewickeltes `CGImage` queren die `Task.detached`-Grenze —
+    /// `CIImage`/`CIFilter` werden bewusst erst innerhalb von `SnapFilter.gefiltertesCGBild` gebaut
+    /// (R9-Review: kein von außen hineingereichtes `CIImage`, kein unmarkiertes `CIContext`).
+    private static func gefiltertesVorschauBild(quelle: UIImage, filter: SnapFilter) async -> UIImage? {
+        guard filter != .original, let cgQuelle = Self.aufrechtesCGBild(quelle) else { return nil }
+        let eingabe = SendableCGImage(bild: cgQuelle)
+        let ergebnis = await Task.detached(priority: .userInitiated) { () -> SendableCGImage? in
+            guard let cgBild = SnapFilter.gefiltertesCGBild(aus: eingabe.bild, filter: filter) else { return nil }
+            return SendableCGImage(bild: cgBild)
+        }.value
+        return ergebnis.map { UIImage(cgImage: $0.bild) }
+    }
+
+    /// `UIImage.imageOrientation` in die Pixel backen (gleiche Wirkung wie vorher
+    /// `CIImage(image:options:[.applyOrientationProperty: true])`), synchron auf dem aufrufenden Actor —
+    /// danach reicht nur noch das fertige `CGImage` über die `Task.detached`-Grenze, nie das `UIImage`.
+    private static func aufrechtesCGBild(_ bild: UIImage) -> CGImage? {
+        guard bild.imageOrientation != .up else { return bild.cgImage }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = bild.scale
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: bild.size, format: format).image { _ in bild.draw(at: .zero) }.cgImage
+    }
+
+    /// Einmal pro Snap: eine kleine (~96px) Thumbnail-CIImage, für alle 15 Filter gerendert und
+    /// gecached — nicht pro Chip/Frame neu (Akku-Regel). Lebt off-main in `Task.detached`.
+    private func thumbnailsErzeugen() async {
+        let quellBild: UIImage?
+        switch inhalt {
+        case .foto(let bild): quellBild = bild
+        case .video(let url): quellBild = await Self.erstesVideoBild(url: url)
+        }
+        guard let quellBild else { return }
+        filterThumbnails = await Self.filterThumbnails(aus: quellBild)
+    }
+
+    private static func erstesVideoBild(url: URL) async -> UIImage? {
+        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
+        generator.appliesPreferredTrackTransform = true
+        guard let ergebnis = try? await generator.image(at: .zero) else { return nil }
+        return UIImage(cgImage: ergebnis.image)
+    }
+
+    /// Wie `gefiltertesVorschauBild`: nur `SendableCGImage`/`SnapFilter`/`CGSize` queren die
+    /// `Task.detached`-Grenze, `CIImage` wird innerhalb des Closures aus dem `CGImage` neu gebaut.
+    private static func filterThumbnails(aus quellBild: UIImage) async -> [SnapFilter: UIImage] {
+        guard let cgQuelle = Self.aufrechtesCGBild(quellBild), cgQuelle.width > 0, cgQuelle.height > 0 else { return [:] }
+        let klein = MedienKodierung.skaliert(CGSize(width: cgQuelle.width, height: cgQuelle.height), langeKante: 96)
+        guard klein.width > 0, klein.height > 0 else { return [:] }
+        let eingabe = SendableCGImage(bild: cgQuelle)
+
+        let ergebnis: [SnapFilter: SendableCGImage] = await Task.detached(priority: .utility) {
+            let ciBasis = CIImage(cgImage: eingabe.bild)
+            guard ciBasis.extent.width > 0, ciBasis.extent.height > 0 else { return [:] }
+            let skaliert = ciBasis.transformed(by: CGAffineTransform(scaleX: klein.width / ciBasis.extent.width, y: klein.height / ciBasis.extent.height))
+            var ergebnis: [SnapFilter: SendableCGImage] = [:]
+            for filter in SnapFilter.allCases {
+                let gefiltert = filter.anwenden(auf: skaliert)
+                guard let cgBild = SnapFilterKontext.shared.context.createCGImage(gefiltert, from: CGRect(origin: .zero, size: klein)) else { continue }
+                ergebnis[filter] = SendableCGImage(bild: cgBild)
+            }
+            return ergebnis
+        }.value
+
+        return ergebnis.mapValues { UIImage(cgImage: $0.bild) }
+    }
+
     private var untereLeiste: some View {
         HStack {
             if onUebernehmen == nil {
@@ -317,7 +514,7 @@ struct SnapEditor: View {
             // ponytail: tray mode edits photos only (videos in the tray aren't editable yet).
             guard case .foto(let bild) = inhalt else { onFertig(); return }
             Task {
-                if let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text) { onUebernehmen(jpeg) }
+                if let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: ausgewaehlterFilter) { onUebernehmen(jpeg) }
                 onFertig()
             }
             return
@@ -325,14 +522,14 @@ struct SnapEditor: View {
         switch inhalt {
         case .foto(let bild):
             Task {
-                let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text)
+                let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: ausgewaehlterFilter)
                 onFertig()
                 if let jpeg { await ChatMedien.snapFotoSenden(jpeg: jpeg, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
         case .video(let url):
             Task {
                 defer { onFertig() }
-                guard let exportURL = await SnapExport.video(quelle: url, linien: linien, sticker: sticker, text: text) else { return }
+                guard let exportURL = await SnapExport.video(quelle: url, linien: linien, sticker: sticker, text: text, filter: ausgewaehlterFilter) else { return }
                 Task { await ChatMedien.snapVideoSenden(quelle: exportURL, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
         }
