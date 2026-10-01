@@ -66,59 +66,28 @@ enum FoodRating {
     }
 }
 
-/// Die Schilder als umbrechende Reihe: Hinweise orange, Positives im Food-Mint.
+/// Die Schilder in einer Zeile: Hinweise orange, Positives im Food-Mint. Seitlich scrollbar statt
+/// umbrechend – ein Umbruch-`Layout` meldet VStack/ScrollView manchmal eine zu kleine Höhe zurück
+/// (andere Breite bei `sizeThatFits` als beim Platzieren), dann überlappt die nächste Überschrift
+/// (Ahmed, 01.10., Feedback-Screenshot "Fettarm" unter "Nährwerte"). Eine Zeile hat diese Zweideutigkeit nicht.
 struct FoodSchilder: View {
     let schilder: [FoodSchild]
 
     var body: some View {
-        FlussLayout(abstand: 6) {
-            ForEach(schilder) { s in
-                Label(s.text, systemImage: s.positiv ? "plus.circle.fill" : "minus.circle.fill")
-                    .font(.footnote.weight(.semibold))
-                    .labelStyle(.titleAndIcon)
-                    .foregroundStyle(s.positiv ? Color.primary : Color.orange)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 6)
-                    .background((s.positiv ? ErnaehrungStil.akzent : Color.orange).opacity(0.18), in: Capsule())
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(schilder) { s in
+                    Label(s.text, systemImage: s.positiv ? "plus.circle.fill" : "minus.circle.fill")
+                        .font(.footnote.weight(.semibold))
+                        .labelStyle(.titleAndIcon)
+                        .foregroundStyle(s.positiv ? Color.primary : Color.orange)
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background((s.positiv ? ErnaehrungStil.akzent : Color.orange).opacity(0.18), in: Capsule())
+                        .fixedSize()
+                }
             }
         }
         .accessibilityElement(children: .combine)
-    }
-}
-
-/// Einfaches Umbruch-Layout: Kinder nebeneinander, bei Platzmangel in die nächste Zeile.
-struct FlussLayout: Layout {
-    var abstand: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let breite = proposal.width ?? .infinity
-        var x: CGFloat = 0, y: CGFloat = 0, zeile: CGFloat = 0, maxX: CGFloat = 0
-        for s in subviews {
-            let g = s.sizeThatFits(.unspecified)
-            if x > 0 && x + g.width > breite {
-                y += zeile + abstand
-                x = 0
-                zeile = 0
-            }
-            x += g.width + abstand
-            zeile = max(zeile, g.height)
-            maxX = max(maxX, x - abstand)
-        }
-        return CGSize(width: min(maxX, breite), height: y + zeile)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, zeile: CGFloat = 0
-        for s in subviews {
-            let g = s.sizeThatFits(.unspecified)
-            if x > bounds.minX && x + g.width > bounds.maxX {
-                y += zeile + abstand
-                x = bounds.minX
-                zeile = 0
-            }
-            s.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(g))
-            x += g.width + abstand
-            zeile = max(zeile, g.height)
-        }
     }
 }
