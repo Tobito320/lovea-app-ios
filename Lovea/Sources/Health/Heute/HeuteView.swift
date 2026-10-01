@@ -50,6 +50,28 @@ enum TagesformLogik {
     }
 }
 
+/// Koffein-Kachel ↔ Ernährungs-Tagebuch (Ahmed, 01.10.: ein Tipp soll auch im Essen auftauchen).
+enum KoffeinLogik {
+    static let mgProTasse = 80
+
+    /// Nur falls das BLS "Kaffee (Getränk)" (`LebensmittelIndex`) noch nicht geladen ist.
+    static let fallbackKaffee = Lebensmittel(id: "koffein-fallback", name: "Kaffee, schwarz", fluessig: true,
+                                             pro100: Naehrwerte(kcal: 2, protein: 0, kohlenhydrate: 0, fett: 0),
+                                             portionMenge: 200, portionName: "Tasse, mittelgroß")
+
+    static func lebensmittel() -> Lebensmittel { LebensmittelIndex.shared.kaffee() ?? fallbackKaffee }
+
+    /// Deterministisch pro Tag und Tassen-Nummer, damit das Löschen im Bearbeiten-Blatt den
+    /// passenden Tagebuch-Eintrag wiederfindet.
+    static func eintragId(_ datum: String, _ n: Int) -> String { "koffein-\(datum)-\(n)" }
+
+    /// Hand-Eingabe im Bearbeiten-Blatt verringert den Wert: welche Tassen-Nummern wegfallen.
+    static func indizesLoeschen(alt: Int, neu: Int) -> [Int] { neu < alt ? Array((neu + 1)...alt) : [] }
+
+    /// Hand-Eingabe erhöht den Wert: welche Tassen-Nummern neu entstehen.
+    static func indizesAnlegen(alt: Int, neu: Int) -> [Int] { neu > alt ? Array((alt + 1)...neu) : [] }
+}
+
 private func deZahl(_ n: Int) -> String { n.formatted(.number.locale(Locale(identifier: "de_DE"))) }
 
 private func komma(_ x: Double) -> String { String(format: "%.1f", x).replacingOccurrences(of: ".", with: ",") }
@@ -414,6 +436,7 @@ struct HeuteView: View {
     @State private var gewichtOffen = false
     @State private var freitextOffen = false
     @State private var offeneHinweise: Set<String> = []
+    @State private var kachelBearbeiten: KachelBearbeiten?
     @Namespace private var zoom
     @Environment(\.dynamicTypeSize) private var schrift
     @Environment(\.accessibilityReduceMotion) private var ruhig
@@ -478,6 +501,7 @@ struct HeuteView: View {
                     health.setzeHabit(Habit.gewicht.id, datum: heute, wert: $0)
                 }
             }
+            .sheet(item: $kachelBearbeiten) { bearbeitenBlatt($0) }
         }
         .onAppear {
             health.sicherstellen()
@@ -713,7 +737,7 @@ struct HeuteView: View {
         let ziel = health.zielWasser(ich)
         let n = health.wasserAnzahl(ich, heute)
         return FormKachel(form: .wasser, titel: "Wasser", wert: "\(n)", einheit: "/\(ziel) Gl.",
-                          fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0) {
+                          fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0, bearbeiten: { kachelBearbeiten = .wasser }) {
             health.setzeWasser(datum: heute, anzahl: n + 1)
         }
     }
@@ -756,10 +780,16 @@ struct HeuteView: View {
         }
     }
 
+    /// Ein Tipp = "Kaffee getrunken": zeigt Zeit und ~mg der letzten Tasse, trägt dieselbe Tasse ins
+    /// Ernährungs-Tagebuch ein (Ahmed, 01.10.).
     private var koffeinKachel: some View {
         let n = health.habitWert(Habit.koffein.id, ich, heute)
+        let letztes = health.koffeinZeiten(ich, heute).last
+        let zusatz = letztes.map { "~\(n * KoffeinLogik.mgProTasse) mg · Kaffee um \(Datum.uhrzeit($0))" }
         return FormKachel(form: .koffein, titel: "Koffein", wert: "\(n)", einheit: n == 1 ? "Tasse" : "Tassen",
-                          fuellung: Double(n) / 4) { health.setzeHabit(Habit.koffein.id, datum: heute, wert: n + 1) }
+                          fuellung: Double(n) / 4, zusatz: zusatz, bearbeiten: { kachelBearbeiten = .koffein }) {
+            koffeinEintragen()
+        }
     }
 
     /// Ein Tipp = ein Klick = 3,5 g, Ziel 2 Klicks (Ahmed, 27.09.).
@@ -767,9 +797,64 @@ struct HeuteView: View {
         let n = health.habitWert(Habit.creatin.id, ich, heute)
         let ziel = Habit.creatin.tagesziel ?? 2
         return FormKachel(form: .creatin, titel: "Creatin", wert: komma(Double(n) * Habit.creatinGramm), einheit: "g",
-                          fuellung: Double(n) / Double(ziel), zusatz: "\(n)/\(ziel) Klicks") {
+                          fuellung: Double(n) / Double(ziel), zusatz: "\(n)/\(ziel) Klicks", bearbeiten: { kachelBearbeiten = .creatin }) {
             health.setzeHabit(Habit.creatin.id, datum: heute, wert: n + 1)
         }
+    }
+
+    // MARK: Kacheln bearbeiten
+
+    private enum KachelBearbeiten: String, Identifiable { case wasser, koffein, creatin; var id: String { rawValue } }
+
+    @ViewBuilder
+    private func bearbeitenBlatt(_ ziel: KachelBearbeiten) -> some View {
+        switch ziel {
+        case .wasser:
+            ZaehlerBlatt(titel: "Wasser", wert: health.wasserAnzahl(ich, heute), bereich: 0...30,
+                        zeiten: health.wasserZeiten(ich, heute), anzeige: { "\($0) \($0 == 1 ? "Glas" : "Gläser")" }) {
+                health.setzeWasser(datum: heute, anzahl: $0)
+            }
+        case .koffein:
+            ZaehlerBlatt(titel: "Koffein", wert: health.habitWert(Habit.koffein.id, ich, heute), bereich: 0...20,
+                        zeiten: health.koffeinZeiten(ich, heute), anzeige: { "\($0) \($0 == 1 ? "Tasse" : "Tassen")" }) {
+                koffeinWertSetzen($0)
+            }
+        case .creatin:
+            ZaehlerBlatt(titel: "Creatin", wert: health.habitWert(Habit.creatin.id, ich, heute), bereich: 0...10,
+                        anzeige: { "\($0) \($0 == 1 ? "Klick" : "Klicks")" }) {
+                health.setzeHabit(Habit.creatin.id, datum: heute, wert: $0)
+            }
+        }
+    }
+
+    /// Neue Tasse: Zähler hoch und derselbe Tipp als Tagebuch-Eintrag (Ziel 1.2 — Kaffee macht sich
+    /// auch im Essen bemerkbar).
+    private func koffeinEintragen() {
+        let n = health.habitWert(Habit.koffein.id, ich, heute) + 1
+        health.setzeHabit(Habit.koffein.id, datum: heute, wert: n)
+        koffeinDiaryEintragen(n)
+    }
+
+    /// `stunde` ist die echte Uhrzeit des Tipps, nicht die des gezeigten (evtl. vergangenen) Tages.
+    private func koffeinDiaryEintragen(_ n: Int) {
+        let stunde = Datum.kalender.component(.hour, from: Date())
+        ErnaehrungModell.shared.eintragen(KoffeinLogik.lebensmittel(), menge: 200, einheit: .ml,
+                                         mahlzeit: Mahlzeit.zurZeit(stunde: stunde), datum: heute,
+                                         id: KoffeinLogik.eintragId(heute, n))
+    }
+
+    private func koffeinDiaryLoeschen(_ id: String) {
+        guard let eintrag = ErnaehrungModell.shared.eintraege(ich, heute).first(where: { $0.id == id }) else { return }
+        ErnaehrungModell.shared.loeschen(eintrag)
+    }
+
+    /// Bearbeiten-Blatt setzt den Wert per Hand: die Differenz zum alten Wert räumt die passenden
+    /// Tagebuch-Einträge weg oder legt sie nach.
+    private func koffeinWertSetzen(_ neu: Int) {
+        let alt = health.habitWert(Habit.koffein.id, ich, heute)
+        health.setzeHabit(Habit.koffein.id, datum: heute, wert: neu)
+        for i in KoffeinLogik.indizesLoeschen(alt: alt, neu: neu) { koffeinDiaryLoeschen(KoffeinLogik.eintragId(heute, i)) }
+        for i in KoffeinLogik.indizesAnlegen(alt: alt, neu: neu) { koffeinDiaryEintragen(i) }
     }
 
     /// Schmale Zeile statt Karte (Ahmed, 01.10.: Training starten muss ohne Scrollen sichtbar bleiben,
