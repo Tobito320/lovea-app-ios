@@ -170,16 +170,14 @@ final class KalenderModell {
 
     // MARK: - Z-9.4 Startmuster
 
-    /// Ohne Uhrzeiten, „ab“ 2026-09-21 (Woche A). Annika: Schule Mo–Fr. Ahmed: vier Muster
-    /// (Schule Di+Mi Woche A, Mi Woche B, Arbeit Mo/Do/Fr A, Mo/Di/Do/Fr B) — 1:1 wie die
-    /// bestehenden Wochenplan-Tests. Gesendet nur einmal pro Person, siehe `startmusterNoetig`.
+    /// Ahmed ohne Uhrzeiten, „ab“ 2026-09-21 (Woche A): vier Muster (Schule Di+Mi Woche A, Mi Woche B,
+    /// Arbeit Mo/Do/Fr A, Mo/Di/Do/Fr B) — 1:1 wie die bestehenden Wochenplan-Tests. Annika: ihr
+    /// fester Stundenplan (`Stundenplan`). Gesendet nur einmal pro Person, siehe `startmusterNoetig`.
     nonisolated static func standardMuster(fuer person: Person) -> [Muster] {
         let ab = "2026-09-21"
         switch person {
         case .annika:
-            return [
-                Muster(id: "start-annika-schule", person: "annika", typ: "schule", titel: "Schule", wochentage: [1, 2, 3, 4, 5], wochen: "alle", start: nil, ende: nil, ab: ab),
-            ]
+            return Stundenplan.annika()
         case .ahmed:
             return [
                 Muster(id: "start-ahmed-schule-a", person: "ahmed", typ: "schule", titel: "Schule", wochentage: [2, 3], wochen: "A", start: nil, ende: nil, ab: ab),
@@ -215,8 +213,15 @@ final class KalenderModell {
             )
             // Auch ohne Senden setzen: wer schon eigene Muster hat, bekommt nie wieder Startmuster.
             UserDefaults.standard.set(true, forKey: schluessel)
-            guard noetig else { return }
-            for muster in Self.standardMuster(fuer: ich) { Raum.shared.senden("muster.setzen", muster) }
+            if noetig {
+                for muster in Self.standardMuster(fuer: ich) { Raum.shared.senden("muster.setzen", muster) }
+            } else if let um = Stundenplan.umstellung(fuer: ich, muster: self.zustand.daten.muster) {
+                // Annika mit unverändertem altem Startmuster: ersetzt durch den Stundenplan. Wer eigene
+                // Muster hat, bekommt nichts (`umstellung` ist dann nil). Jeder Start prüft das, ohne Flag:
+                // nach der Umstellung stimmt die Bedingung nie wieder.
+                Raum.shared.senden("muster.loeschen", ["id": um.loeschen])
+                for muster in um.setzen { Raum.shared.senden("muster.setzen", muster) }
+            }
         }
     }
 
