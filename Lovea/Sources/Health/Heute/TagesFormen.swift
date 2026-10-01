@@ -342,6 +342,8 @@ struct FormKachel: View {
     let fuellung: Double
     var zusatz: String?
     var stimmung: Int?
+    /// Zählende Kacheln (Wasser, Koffein, Creatin): öffnet das Bearbeiten-Blatt, Stift oben rechts.
+    var bearbeiten: (() -> Void)?
     var aktion: (() -> Void)?
 
     @State private var hopp = false
@@ -349,17 +351,30 @@ struct FormKachel: View {
     @Environment(\.accessibilityReduceMotion) private var ruhig
 
     var body: some View {
-        if let aktion {
-            Button {
-                tipp += 1
-                hopp = true
-                aktion()
-            } label: { inhalt }
-                .buttonStyle(.federnd)
-                .accessibilityHint("Antippen zum Eintragen")
-                .sensoryFeedback(.increase, trigger: tipp)
-        } else {
-            inhalt
+        ZStack(alignment: .topTrailing) {
+            if let aktion {
+                Button {
+                    tipp += 1
+                    hopp = true
+                    aktion()
+                } label: { inhalt }
+                    .buttonStyle(.federnd)
+                    .accessibilityHint("Antippen zum Eintragen")
+                    .sensoryFeedback(.increase, trigger: tipp)
+            } else {
+                inhalt
+            }
+            if let bearbeiten {
+                Button(action: bearbeiten) {
+                    Image(systemName: "pencil")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.secondary)
+                        .frame(width: 32, height: 32)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(titel) bearbeiten")
+            }
         }
     }
 
@@ -389,5 +404,93 @@ struct FormKachel: View {
             try? await Task.sleep(for: .milliseconds(200))
             hopp = false
         }
+    }
+}
+
+// MARK: - Bearbeiten-Blatt
+
+enum ZaehlerLogik {
+    /// Hält `wert` innerhalb `bereich`.
+    static func geklemmt(_ wert: Int, in bereich: ClosedRange<Int>) -> Int { min(max(wert, bereich.lowerBound), bereich.upperBound) }
+
+    /// Review-Fix R10: beim Verringern per Stepper (kein bestimmter Eintrag angetippt) fallen die
+    /// `alt - neu` jüngsten bekannten Einträge weg, älteste zuerst stehen lassen — reine Auswahl, kein
+    /// Senden. `bekannt` ist älteste-zuerst sortiert (wie `HealthModell.habitEintraege`).
+    static func zuStreichen<T>(_ bekannt: [T], alt: Int, neu: Int) -> [T] {
+        guard neu < alt, neu >= 0 else { return [] }
+        return Array(bekannt.reversed().prefix(alt - neu))
+    }
+}
+
+/// Bearbeiten-Blatt für zählende Kacheln (Wasser, Koffein, Creatin): Stepper setzt den Tageswert exakt,
+/// "Zurücksetzen" auf 0 (beides staged, erst "Fertig" sendet — wie `GewichtBlatt`), bei `zeiten`
+/// zusätzlich eine Zeile pro heutigem Eintrag mit eigener Id, per Swipe sofort einzeln löschbar.
+/// Review-Fix R10: swipe trifft jetzt die angetippte Zeile (`entfernen(id, neuerWert)`), nicht mehr
+/// blind die jüngste — möglich, weil `HealthModell.habitEintraege` jedem Tipp seine echte Op-Id gibt.
+struct ZaehlerBlatt: View {
+    let titel: String
+    let bereich: ClosedRange<Int>
+    let anzeige: (Int) -> String
+    /// Eine Zeile per Swipe löschen: `(ihre Id, der Wert danach)`. `nil` = keine Zeilenliste (Creatin).
+    var entfernen: ((String, Int) -> Void)?
+    let setzen: (Int) -> Void
+
+    @State private var wert: Int
+    @State private var zeiten: [(id: String, zeit: Date)]
+    @Environment(\.dismiss) private var dismiss
+
+    init(titel: String, wert: Int, bereich: ClosedRange<Int> = 0...99, zeiten: [(id: String, zeit: Date)] = [],
+         anzeige: @escaping (Int) -> String, entfernen: ((String, Int) -> Void)? = nil, setzen: @escaping (Int) -> Void) {
+        self.titel = titel
+        self.bereich = bereich
+        self.anzeige = anzeige
+        self.entfernen = entfernen
+        self.setzen = setzen
+        _wert = State(initialValue: wert)
+        _zeiten = State(initialValue: zeiten)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    // `onIncrement`/`onDecrement` statt `value:` + `in:`, damit nur der eigene Minus-
+                    // Tipp die Liste mitzieht (Minor, Review: live nachziehen) — ein `.onChange(of:
+                    // wert)` würde auch beim Swipe-Löschen unten erneut feuern und zusätzlich zur
+                    // angetippten Zeile noch eine zweite streichen.
+                    Stepper(onIncrement: { wert = min(wert + 1, bereich.upperBound) }, onDecrement: {
+                        wert = max(wert - 1, bereich.lowerBound)
+                        if zeiten.count > wert { zeiten.removeLast() }
+                    }) {
+                        Text(anzeige(wert)).font(.title2.bold()).monospacedDigit()
+                    }
+                    Button("Zurücksetzen", role: .destructive) {
+                        wert = bereich.lowerBound
+                        zeiten = []
+                    }
+                }
+                if !zeiten.isEmpty {
+                    Section("Heute") {
+                        ForEach(Array(zeiten.enumerated()), id: \.offset) { _, eintrag in
+                            Text(Datum.uhrzeit(eintrag.zeit)).monospacedDigit()
+                        }
+                        .onDelete { indizes in
+                            for offset in indizes.sorted(by: >) {
+                                wert = ZaehlerLogik.geklemmt(wert - 1, in: bereich)
+                                entfernen?(zeiten[offset].id, wert)
+                                zeiten.remove(at: offset)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(titel)
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { setzen(wert); dismiss() } }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }

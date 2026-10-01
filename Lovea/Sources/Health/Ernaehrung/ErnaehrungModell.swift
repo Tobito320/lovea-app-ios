@@ -113,8 +113,10 @@ final class ErnaehrungModell {
 
     // MARK: - Schreiben (eigene Person)
 
-    func eintragen(_ l: Lebensmittel, menge: Double, einheit: Einheit, mahlzeit: Mahlzeit, datum: String) {
-        let e = EssenEintrag(id: UUID().uuidString, datum: datum, mahlzeit: mahlzeit, menge: menge, einheit: einheit,
+    /// `id` fest vorgeben, wenn ein anderer Teil der App diesen Eintrag später wiederfinden muss
+    /// (R10: die Koffein-Kachel verknüpft so ihren Tipp mit genau diesem Tagebuch-Eintrag).
+    func eintragen(_ l: Lebensmittel, menge: Double, einheit: Einheit, mahlzeit: Mahlzeit, datum: String, id: String = UUID().uuidString) {
+        let e = EssenEintrag(id: id, datum: datum, mahlzeit: mahlzeit, menge: menge, einheit: einheit,
                              lebensmittel: l, geloescht: nil)
         let vorher = summe(ich, datum).protein
         Raum.shared.senden("essen.setzen", e)

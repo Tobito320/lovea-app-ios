@@ -35,8 +35,9 @@ final class HealthModell {
     /// Teil 5: hand-entered bed and wake-up times per person and wake-up day (newest op wins).
     private(set) var schlafZeiten: [Person: [String: SchlafZeitenD]] = [:]
     private var schlafZeitenZeit: [Person: [String: Date]] = [:]
-    /// Teil 5: every Wasser `habit.setzen` by op id, for the times of the glasses.
-    private var wasserOps: [Person: [String: [String: (zeit: Date, wert: Int)]]] = [:]
+    /// Teil 5/R10: every `habit.setzen` by habit id, person, day and op id, for the times of the
+    /// taps (Wasser-Gläser, Koffein-Tassen). Habit id first, so `zeiten(_:_:_:)` stays generic.
+    private var habitOps: [String: [Person: [String: [String: (zeit: Date, wert: Int)]]]] = [:]
     /// When each person's steps last came in (live ops only, not the backfill) — "vor 3 Std.".
     private(set) var schritteZuletzt: [Person: Date] = [:]
 
@@ -79,7 +80,7 @@ final class HealthModell {
         Raum.shared.beobachten(["schlaf.setzen"]) { [weak self] op in self?.schlafOpAnwenden(op) }
         Raum.shared.beobachten(["habit.setzen", "habit.anlegen", "habit.aendern", "habit.ausblenden"]) { [weak self] op in
             self?.habitFaltung.anwenden(op)
-            self?.wasserOpMerken(op)
+            self?.habitOpMerken(op)
         }
         Raum.shared.beobachten(["einstellung.setzen"]) { [weak self] op in self?.zielOpAnwenden(op) }
         Raum.shared.beobachten(["schlaf.zeiten"]) { [weak self] op in self?.schlafZeitenAnwenden(op) }
@@ -122,8 +123,19 @@ final class HealthModell {
         if let z = schlafZeitenAm(person, tag), EnergieLogik.imBett(z) > 0 { return (z.bett, z.auf) }
         return schlaf[person]?[tag].map { ($0.von, $0.bis) }
     }
-    func wasserZeiten(_ person: Person, _ tag: String) -> [Date] {
-        EnergieLogik.wasserZeiten(Array((wasserOps[person]?[tag] ?? [:]).values))
+    func wasserZeiten(_ person: Person, _ tag: String) -> [Date] { wasserEintraege(person, tag).map(\.zeit) }
+    /// R10: Zeiten der Koffein-Tassen fürs Bearbeiten-Blatt, gleiche Regel wie Wasser.
+    func koffeinZeiten(_ person: Person, _ tag: String) -> [Date] { koffeinEintraege(person, tag).map(\.zeit) }
+
+    func wasserEintraege(_ person: Person, _ tag: String) -> [(id: String, zeit: Date)] { habitEintraege(Habit.wasser.id, person, tag) }
+    func koffeinEintraege(_ person: Person, _ tag: String) -> [(id: String, zeit: Date)] { habitEintraege(Habit.koffein.id, person, tag) }
+
+    /// Jeder bekannte Tipp mit seiner eigenen Op-Id und Zeit, älteste zuerst — Review-Fund 1: anders
+    /// als der alte `EnergieLogik.wasserZeiten`-Nachbau (nur Zeit, per Positions-Auf/Abbau rekonstruiert)
+    /// kennt das hier die echte Identität jedes Tipps, damit ein Bearbeiten-Blatt genau EINEN stornieren
+    /// kann, nicht nur "den jüngsten". `EnergieLogik.wasserZeiten` bleibt unberührt (eigene Tests).
+    func habitEintraege(_ habitId: String, _ person: Person, _ tag: String) -> [(id: String, zeit: Date)] {
+        (habitOps[habitId]?[person]?[tag] ?? [:]).map { (id: $0.key, zeit: $0.value.zeit) }.sorted { $0.zeit < $1.zeit }
     }
 
     /// Every habit incl. Gym and Wasser; `ausgeblendet` = hidden by this device's person.
@@ -200,8 +212,18 @@ final class HealthModell {
 
     // MARK: - Schreiben
 
-    func setzeHabit(_ id: String, datum: String, wert: Int) {
-        Raum.shared.senden("habit.setzen", HabitSetzenD(art: id, datum: datum, wert: max(0, wert)))
+    /// `storniert`: Op-Id eines früheren Tipps desselben Tages, der damit zurückgenommen wird (R10,
+    /// Review-Fix) — fürs genaue Löschen einer einzelnen Zeile statt nur des Tageswerts.
+    func setzeHabit(_ id: String, datum: String, wert: Int, storniert: String? = nil) {
+        Raum.shared.senden("habit.setzen", HabitSetzenD(art: id, datum: datum, wert: max(0, wert), storniert: storniert))
+    }
+
+    /// Eigene Op-Id statt der zufälligen aus `senden` (wie `WidgetPendingOpsMerge.op(aus:)`), damit
+    /// ein späterer Tipp sie gezielt stornieren kann. Nur für Taps, die sich merken sollen, wer sie
+    /// waren (Koffein, verknüpft mit einem Tagebuch-Eintrag gleicher Id).
+    func setzeHabitMitId(_ opId: String, _ habitId: String, datum: String, wert: Int) {
+        guard let ich = Raum.shared.ich, let d = try? JSONEncoder().encode(HabitSetzenD(art: habitId, datum: datum, wert: max(0, wert))) else { return }
+        Raum.shared.einreihen(Op(id: opId, seq: nil, art: "habit.setzen", von: ich, zeit: Date(), d: d))
     }
 
     func anlegen(_ habit: Habit) { Raum.shared.senden("habit.anlegen", habit) }
@@ -250,9 +272,22 @@ final class HealthModell {
         schlafZeitenZeit[op.von, default: [:]][d.datum] = op.zeit
     }
 
-    private func wasserOpMerken(_ op: Op) {
-        guard op.art == "habit.setzen", let d = op.daten(HabitSetzenD.self), d.art == Habit.wasser.id else { return }
-        wasserOps[op.von, default: [:]][d.datum, default: [:]][op.id] = (zeit: op.zeit, wert: d.wert)
+    private func habitOpMerken(_ op: Op) {
+        guard op.art == "habit.setzen", let d = op.daten(HabitSetzenD.self) else { return }
+        if let storniert = d.storniert {
+            habitOps[d.art]?[op.von]?[d.datum]?.removeValue(forKey: storniert)
+            return
+        }
+        habitOps[d.art, default: [:]][op.von, default: [:]][d.datum, default: [:]][op.id] = (zeit: op.zeit, wert: d.wert)
+        habitOpsAufraeumen(d.art, op.von)
+    }
+
+    /// Minor (Review): ohne Grenze wächst `habitOps` jetzt für jeden Habit unbegrenzt (vorher nur bei
+    /// Wasser gefiltert). Die Zeitenlisten sind fürs Bearbeiten-Blatt gedacht, nicht fürs Archiv — eine
+    /// Woche deckt "ich hab's gestern vergessen einzutragen" ab, ohne für jeden Tag ewig mitzuwachsen.
+    private func habitOpsAufraeumen(_ habitId: String, _ person: Person) {
+        let aeltesteNoch = Datum.addTage(heute, -6)
+        habitOps[habitId]?[person] = habitOps[habitId]?[person]?.filter { $0.key >= aeltesteNoch }
     }
 
     private func zielOpAnwenden(_ op: Op) {

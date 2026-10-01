@@ -1,5 +1,6 @@
 import Charts
 import SwiftUI
+import UIKit
 
 // Tab "Heute" (Plan Task 8): Tagesform-Karte, "Dein Tag" mit neun Formen, "Das fällt mir auf", Punkte-Zeile.
 
@@ -48,6 +49,18 @@ enum TagesformLogik {
         let alle = MuskelTeil.allCases
         return Double(alle.map { werte[$0] ?? 100 }.reduce(0, +)) / Double(alle.count * 100)
     }
+}
+
+/// Koffein-Kachel ↔ Ernährungs-Tagebuch (Ahmed, 01.10.: ein Tipp soll auch im Essen auftauchen).
+enum KoffeinLogik {
+    static let mgProTasse = 80
+
+    /// Nur falls das BLS "Kaffee (Getränk)" (`LebensmittelIndex`) noch nicht geladen ist.
+    static let fallbackKaffee = Lebensmittel(id: "koffein-fallback", name: "Kaffee, schwarz", fluessig: true,
+                                             pro100: Naehrwerte(kcal: 2, protein: 0, kohlenhydrate: 0, fett: 0),
+                                             portionMenge: 200, portionName: "Tasse, mittelgroß")
+
+    static func lebensmittel() -> Lebensmittel { LebensmittelIndex.shared.kaffee() ?? fallbackKaffee }
 }
 
 private func deZahl(_ n: Int) -> String { n.formatted(.number.locale(Locale(identifier: "de_DE"))) }
@@ -414,6 +427,7 @@ struct HeuteView: View {
     @State private var gewichtOffen = false
     @State private var freitextOffen = false
     @State private var offeneHinweise: Set<String> = []
+    @State private var kachelBearbeiten: KachelBearbeiten?
     @Namespace private var zoom
     @Environment(\.dynamicTypeSize) private var schrift
     @Environment(\.accessibilityReduceMotion) private var ruhig
@@ -423,6 +437,14 @@ struct HeuteView: View {
     /// Alle Kacheln und die Tagesform zeigen den gewählten Tag (Name bleibt, damit der Rest gleich liest).
     private var heute: String { gewaehlt }
     private var echtHeute: String { Datum.text(Date()) }
+
+    /// Echte Statusleisten-/Dynamic-Island-Höhe der aktiven Szene, bewusst NICHT aus `safeAreaInsets`
+    /// gelesen (siehe Overlay unten) — `0`, falls (Vorschau/Test) keine `UIWindowScene` da ist.
+    private var statusleistenHoehe: CGFloat {
+        let szenen = UIApplication.shared.connectedScenes
+        let szene = (szenen.first { $0.activationState == .foregroundActive } ?? szenen.first) as? UIWindowScene
+        return szene?.statusBarManager?.statusBarFrame.height ?? 0
+    }
 
     var body: some View {
         NavigationStack(path: $pfad) {
@@ -448,6 +470,19 @@ struct HeuteView: View {
                 .padding(16)
             }
             .toolbar(.hidden, for: .navigationBar)
+            // Ahmed, 01.10.: ohne Navigationsleiste rutschen die Kacheln beim Scrollen unter die
+            // Statusleiste/Dynamic Island. Eine Fläche in Hintergrundfarbe deckt das ab.
+            // Review-Fix R10: NICHT mehr über `geo.safeAreaInsets.top` — die Gym-Leiste hängt als
+            // eigenes `safeAreaInset(edge: .top)` am App-Root (`AppRootView.swift`) und würde darin
+            // mitgerechnet, ein darauf basierendes Overlay also potenziell auch über der Gym-Leiste
+            // liegen statt nur über der echten Statusleiste. `statusleistenHoehe` liest stattdessen
+            // die tatsächliche Gerätehöhe direkt von der `UIWindowScene` — unabhängig von jedem
+            // SwiftUI-`safeAreaInset`, egal ob die Gym-Leiste gerade sichtbar ist oder nicht.
+            .overlay(alignment: .top) {
+                Color(uiColor: .systemBackground)
+                    .frame(height: statusleistenHoehe)
+                    .ignoresSafeArea(edges: .top)
+            }
             // R6: nur die Heute-Wurzel, nicht Training/Körper/Verlauf dahinter. Konkurriert mit dem
             // Wochenstreifen (`tagesWahl`) nicht normalerweise — der braucht nur 30 pt und reagiert
             // schon vor den hier nötigen 60 pt; nur bei einem sehr schnellen, weiten Wisch genau dort
@@ -469,6 +504,7 @@ struct HeuteView: View {
                     health.setzeHabit(Habit.gewicht.id, datum: heute, wert: $0)
                 }
             }
+            .sheet(item: $kachelBearbeiten) { bearbeitenBlatt($0) }
         }
         .onAppear {
             health.sicherstellen()
@@ -704,7 +740,7 @@ struct HeuteView: View {
         let ziel = health.zielWasser(ich)
         let n = health.wasserAnzahl(ich, heute)
         return FormKachel(form: .wasser, titel: "Wasser", wert: "\(n)", einheit: "/\(ziel) Gl.",
-                          fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0) {
+                          fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0, bearbeiten: { kachelBearbeiten = .wasser }) {
             health.setzeWasser(datum: heute, anzahl: n + 1)
         }
     }
@@ -747,10 +783,16 @@ struct HeuteView: View {
         }
     }
 
+    /// Ein Tipp = "Kaffee getrunken": zeigt Zeit und ~mg der letzten Tasse, trägt dieselbe Tasse ins
+    /// Ernährungs-Tagebuch ein (Ahmed, 01.10.).
     private var koffeinKachel: some View {
         let n = health.habitWert(Habit.koffein.id, ich, heute)
+        let letztes = health.koffeinZeiten(ich, heute).last
+        let zusatz = letztes.map { "~\(n * KoffeinLogik.mgProTasse) mg · Kaffee um \(Datum.uhrzeit($0))" }
         return FormKachel(form: .koffein, titel: "Koffein", wert: "\(n)", einheit: n == 1 ? "Tasse" : "Tassen",
-                          fuellung: Double(n) / 4) { health.setzeHabit(Habit.koffein.id, datum: heute, wert: n + 1) }
+                          fuellung: Double(n) / 4, zusatz: zusatz, bearbeiten: { kachelBearbeiten = .koffein }) {
+            koffeinEintragen()
+        }
     }
 
     /// Ein Tipp = ein Klick = 3,5 g, Ziel 2 Klicks (Ahmed, 27.09.).
@@ -758,9 +800,99 @@ struct HeuteView: View {
         let n = health.habitWert(Habit.creatin.id, ich, heute)
         let ziel = Habit.creatin.tagesziel ?? 2
         return FormKachel(form: .creatin, titel: "Creatin", wert: komma(Double(n) * Habit.creatinGramm), einheit: "g",
-                          fuellung: Double(n) / Double(ziel), zusatz: "\(n)/\(ziel) Klicks") {
+                          fuellung: Double(n) / Double(ziel), zusatz: "\(n)/\(ziel) Klicks", bearbeiten: { kachelBearbeiten = .creatin }) {
             health.setzeHabit(Habit.creatin.id, datum: heute, wert: n + 1)
         }
+    }
+
+    // MARK: Kacheln bearbeiten
+
+    private enum KachelBearbeiten: String, Identifiable { case wasser, koffein, creatin; var id: String { rawValue } }
+
+    @ViewBuilder
+    private func bearbeitenBlatt(_ ziel: KachelBearbeiten) -> some View {
+        switch ziel {
+        case .wasser:
+            ZaehlerBlatt(titel: "Wasser", wert: health.wasserAnzahl(ich, heute), bereich: 0...30,
+                        zeiten: health.wasserEintraege(ich, heute), anzeige: { "\($0) \($0 == 1 ? "Glas" : "Gläser")" },
+                        entfernen: { id, neu in health.setzeHabit(Habit.wasser.id, datum: heute, wert: neu, storniert: id) }) {
+                wasserBulkSetzen($0)
+            }
+        case .koffein:
+            ZaehlerBlatt(titel: "Koffein", wert: health.habitWert(Habit.koffein.id, ich, heute), bereich: 0...20,
+                        zeiten: health.koffeinEintraege(ich, heute), anzeige: { "\($0) \($0 == 1 ? "Tasse" : "Tassen")" },
+                        entfernen: { id, neu in koffeinEntfernen(id: id, neu: neu) }) {
+                koffeinBulkSetzen($0)
+            }
+        case .creatin:
+            ZaehlerBlatt(titel: "Creatin", wert: health.habitWert(Habit.creatin.id, ich, heute), bereich: 0...10,
+                        anzeige: { "\($0) \($0 == 1 ? "Klick" : "Klicks")" }) {
+                health.setzeHabit(Habit.creatin.id, datum: heute, wert: $0)
+            }
+        }
+    }
+
+    /// Neue Tasse: eigene Op-Id fürs Habit **und** für den Tagebuch-Eintrag (`setzeHabitMitId`,
+    /// `HealthModell`), damit ein späteres gezieltes Löschen (Bearbeiten-Blatt) exakt diese eine Tasse
+    /// trifft, nicht nur "die neueste" (Review-Fund 1 — vorher aus Tag+Position abgeleitet, das hat
+    /// sich beim Löschen einer mittleren Tasse verschoben).
+    private func koffeinEintragen() {
+        let tasseId = UUID().uuidString
+        let n = health.habitWert(Habit.koffein.id, ich, heute) + 1
+        health.setzeHabitMitId(tasseId, Habit.koffein.id, datum: heute, wert: n)
+        koffeinDiaryEintragen(tasseId)
+    }
+
+    /// `stunde` ist die echte Uhrzeit des Tipps, nicht die des gezeigten (evtl. vergangenen) Tages.
+    private func koffeinDiaryEintragen(_ id: String) {
+        let stunde = Datum.kalender.component(.hour, from: Date())
+        ErnaehrungModell.shared.eintragen(KoffeinLogik.lebensmittel(), menge: 200, einheit: .ml,
+                                         mahlzeit: Mahlzeit.zurZeit(stunde: stunde), datum: heute, id: id)
+    }
+
+    private func koffeinDiaryLoeschen(_ id: String) {
+        guard let eintrag = ErnaehrungModell.shared.eintraege(ich, heute).first(where: { $0.id == id }) else { return }
+        ErnaehrungModell.shared.loeschen(eintrag)
+    }
+
+    /// Bearbeiten-Blatt, eine bestimmte Tasse per Swipe weg: Zähler runter, ihre Op storniert
+    /// (`habitOps` vergisst sie), ihr Tagebuch-Eintrag gelöscht — alles über dieselbe Tassen-Id.
+    private func koffeinEntfernen(id: String, neu: Int) {
+        health.setzeHabit(Habit.koffein.id, datum: heute, wert: neu, storniert: id)
+        koffeinDiaryLoeschen(id)
+    }
+
+    /// Stepper/"Zurücksetzen" ohne bestimmte Zeile: steigt der Wert, entstehen neue Tassen inkl.
+    /// Tagebuch (wie ein Tipp); sinkt er, storniert `bulkSetzen` die jüngsten bekannten Tassen und
+    /// räumt hier zusätzlich ihre Tagebuch-Einträge weg.
+    private func koffeinBulkSetzen(_ neu: Int) {
+        let alt = health.habitWert(Habit.koffein.id, ich, heute)
+        if neu > alt {
+            for _ in alt..<neu { koffeinEintragen() }
+        } else {
+            bulkSetzen(Habit.koffein.id, neu: neu) { koffeinDiaryLoeschen($0) }
+        }
+    }
+
+    private func wasserBulkSetzen(_ neu: Int) { bulkSetzen(Habit.wasser.id, neu: neu) }
+
+    /// Gemeinsamer Weg für Wasser/Koffein, wenn das Bearbeiten-Blatt ohne bestimmte Zeile (Stepper,
+    /// "Zurücksetzen") auf `neu` setzt: storniert die `alt - neu` jüngsten BEKANNTEN Tipps zuerst
+    /// (`ZaehlerLogik.zuStreichen`, älteste bleiben stehen) und ruft `zusatz` für jede — bei Koffein
+    /// löscht das den verknüpften Tagebuch-Eintrag, bei Wasser passiert nichts. Reicht das nicht aus
+    /// (mehr gestrichen als bekannte Tipps da sind, z. B. alte Daten ohne Zeit), setzt ein letzter Op
+    /// einfach die reine Zahl.
+    private func bulkSetzen(_ habitId: String, neu: Int, zusatz entfernen: (String) -> Void = { _ in }) {
+        let alt = health.habitWert(habitId, ich, heute)
+        let bekannt = health.habitEintraege(habitId, ich, heute).map(\.id)
+        let storno = ZaehlerLogik.zuStreichen(bekannt, alt: alt, neu: neu)
+        var rest = alt
+        for id in storno {
+            rest -= 1
+            health.setzeHabit(habitId, datum: heute, wert: rest, storniert: id)
+            entfernen(id)
+        }
+        if rest != neu { health.setzeHabit(habitId, datum: heute, wert: neu) }
     }
 
     /// Schmale Zeile statt Karte (Ahmed, 01.10.: Training starten muss ohne Scrollen sichtbar bleiben,

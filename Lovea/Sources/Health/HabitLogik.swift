@@ -139,8 +139,12 @@ enum HabitLogik {
 
 // MARK: - Faltung (Z-35.1)
 
-/// `habit.setzen {art, datum, wert}` — `art` is the habit id (`"gym"`, `"wasser"`, `"h-<uuid>"`).
-struct HabitSetzenD: Codable, Sendable { var art: String; var datum: String; var wert: Int }
+/// `habit.setzen {art, datum, wert, storniert?}` — `art` is the habit id (`"gym"`, `"wasser"`,
+/// `"h-<uuid>"`). `storniert` (R10, Review-Fix): optional Op-Id eines früheren `habit.setzen` dieses
+/// Habits/Tages, das dieser Op zurücknimmt — für "genau diesen einen Tipp löschen" statt nur den
+/// Tageswert zu ändern. `nil` bei alten Ops (rückwärtskompatibel), der Tageswert selbst kommt immer
+/// aus `wert`, egal ob `storniert` gesetzt ist.
+struct HabitSetzenD: Codable, Sendable { var art: String; var datum: String; var wert: Int; var storniert: String? = nil }
 
 /// `habit.ausblenden {id, aus}`
 struct HabitAusblendenD: Codable, Sendable { var id: String; var aus: Bool }
