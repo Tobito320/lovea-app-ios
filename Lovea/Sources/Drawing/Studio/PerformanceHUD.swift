@@ -1,5 +1,6 @@
 import os
 import SwiftUI
+import UIKit
 
 /// Frame budgets from the masterplan. Values above them show in red.
 enum PerformanceTarget {
@@ -18,6 +19,9 @@ enum PerformanceTarget {
 struct PerformanceHUD: View {
     let session: DrawingSession
     @AppStorage("studio.glass") private var glass = true
+    /// Q-R10: seltene Zeichen-Ereignisse (verschwundener Strich, unerwartetes Undo) überleben auch
+    /// TestFlight/Release, wo os.Logger für Ahmed nicht erreichbar ist.
+    @State private var showsProtokoll = false
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 0.5)) { _ in
@@ -42,11 +46,49 @@ struct PerformanceHUD: View {
                 Toggle("Glas", isOn: $glass)
                     .toggleStyle(.switch)
                     .controlSize(.mini)
+                Button("Zeichen-Protokoll (\(ZeichenProtokoll.eintraege.count))") { showsProtokoll = true }
+                    .font(.caption2)
             }
             .font(.caption2.monospacedDigit())
             .padding(8)
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 10))
             .fixedSize()
+        }
+        .sheet(isPresented: $showsProtokoll) { ZeichenProtokollView() }
+    }
+}
+
+/// Liste der seltenen Zeichen-Ereignisse mit "Kopieren", damit Ahmed sie bei einem verschwundenen
+/// Strich direkt an uns weitergeben kann, ohne an einen Mac/Console.app angeschlossen zu sein.
+private struct ZeichenProtokollView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var kopiert = false
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if ZeichenProtokoll.eintraege.isEmpty {
+                    Text("Noch keine auffälligen Ereignisse.")
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(Array(ZeichenProtokoll.eintraege.enumerated()), id: \.offset) { _, eintrag in
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(eintrag.zeit, style: .time).font(.caption2).foregroundStyle(.secondary)
+                            Text(eintrag.text).font(.caption)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Zeichen-Protokoll")
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) { Button("Fertig") { dismiss() } }
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(kopiert ? "Kopiert" : "Kopieren") {
+                        UIPasteboard.general.string = ZeichenProtokoll.copyText()
+                        kopiert = true
+                    }
+                }
+            }
         }
     }
 }

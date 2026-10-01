@@ -119,6 +119,11 @@ final class CanvasViewState: ObservableObject {
     func setMirrored(_ value: Bool) { canvas?.setMirrored(value) }
 }
 
+/// Q-R10 Review-Fix: Ergebnis von `CanvasView.strichBeiZweiterBeruehrung`.
+enum ZweiteBeruehrungEntscheidung: Equatable {
+    case landen, verwerfen
+}
+
 struct CanvasRepresentable: UIViewRepresentable {
     let session: DrawingSession
 
@@ -148,6 +153,27 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     private var tapCandidate = false
     private var tapStart: CGPoint?
     private var lastEyedropperSample: CFTimeInterval = 0
+    /// Q-R10 Kandidat 1 / Review-Fix: wie alt der laufende Strich ist und wie weit er schon gewandert
+    /// ist (Bildschirmpunkte), für `strichBeiZweiterBeruehrung`.
+    private var strokeStartTime: CFTimeInterval?
+    private var strokePathLength: CGFloat = 0
+    private var strokeLastPoint: CGPoint?
+    private var strokeIsPencil = false
+    /// Q-R10 Kandidat 3: wann zuletzt ein Strich wirklich gelandet ist, als Sperrzeit für die
+    /// Zwei-/Drei-Finger-Tipp-Gesten (Undo/Redo).
+    private var lastStrokeLandTime: CFTimeInterval = 0
+    /// Für die Undo/Redo-Gesten-Prüfung: Kennzahlen der gerade unten liegenden Touch-Gruppe (nicht nur
+    /// `activeTouch`). Bleiben nach `touchesEnded` absichtlich stehen, bis die nächste Gruppe beginnt –
+    /// die Reihenfolge von `touchesEnded` und `gestureRecognizerShouldBegin` ist zwischen View und
+    /// Gesture Recognizer nicht festgelegt, Löschen in `touchesEnded` könnte die Prüfung zu früh leeren.
+    private var groupTouchCount = 0
+    private var groupFirstStart: CFTimeInterval = 0
+    private var groupLastStart: CFTimeInterval = 0
+    private var groupMaxTravel: CGFloat = 0
+    private var groupOrigins: [ObjectIdentifier: CGPoint] = [:]
+    private var multiTouchGroupHadPencilStroke = false
+    private weak var undoTapRecognizer: UITapGestureRecognizer?
+    private weak var redoTapRecognizer: UITapGestureRecognizer?
 
     init(session: DrawingSession) {
         self.session = session
@@ -245,11 +271,13 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
+        trackTouchesBegan(touches, wasPencilActive: activeTouch?.type == .pencil)
         guard let session, !session.nurAnsehen else { return }
         let live = event?.allTouches?.filter { $0.phase != .ended && $0.phase != .cancelled } ?? touches
         if activeTouch != nil, live.count > 1 {
-            // A second finger during a stroke means "I want to zoom", not "draw".
-            cancelActive()
+            // A second finger during a stroke usually means "I want to zoom" – but a palm resting
+            // mid-stroke must not silently erase what is already on the canvas (Q-R10 Kandidat 1).
+            resolveSecondTouch()
             return
         }
         guard activeTouch == nil, touches.count == 1, live.count == 1,
@@ -263,6 +291,10 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
             activeTouch = touch
             session.engine?.beginStroke(input(touch), settings: session.brushSettings, layerID: session.activeLayerID)
             if let engine = session.engine, engine.isStroking {
+                strokeStartTime = CACurrentMediaTime()
+                strokePathLength = 0
+                strokeLastPoint = touch.location(in: self)
+                strokeIsPencil = touch.type == .pencil
                 session.live.strichBeginnen(
                     input(touch), settings: session.brushSettings, ebene: session.activeLayerID,
                     spiegel: engine.mirrorX, auswahl: engine.selection != nil
@@ -287,6 +319,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+        trackTouchesMoved(touches)
         guard let touch = activeTouch, touches.contains(touch), let session else { return }
         let point = viewport.documentPoint(touch.location(in: self))
         switch session.tool {
@@ -295,6 +328,11 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
             let predicted = (event?.predictedTouches(for: touch) ?? []).map(input)
             session.engine?.continueStroke(samples, predicted: predicted)
             session.live.strichWeiter(samples)
+            // Bildschirmpunkte, nicht Dokumentpixel: die Länge geht in `strichBeiZweiterBeruehrung`,
+            // deren 40-pt-Schwelle an echte Fingerbewegung auf dem Glas gedacht ist, nicht an Zoom.
+            let screenPoint = touch.location(in: self)
+            if let last = strokeLastPoint { strokePathLength += hypot(screenPoint.x - last.x, screenPoint.y - last.y) }
+            strokeLastPoint = screenPoint
         case .lasso:
             state.lasso.append(point)
         case .shape:
@@ -321,6 +359,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+        trackTouchesEnded(touches)
         guard let touch = activeTouch, touches.contains(touch), let session else { return }
         activeTouch = nil
         let point = viewport.documentPoint(touch.location(in: self))
@@ -328,6 +367,9 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         case .brush, .eraser:
             session.engine?.continueStroke([input(touch)], predicted: [])
             session.engine?.endStroke()
+            strokeStartTime = nil
+            strokeLastPoint = nil
+            lastStrokeLandTime = CACurrentMediaTime()
             session.live.strichWeiter([input(touch)])
             session.live.strichEnde()
         case .lasso:
@@ -357,11 +399,14 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     }
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
+        trackTouchesEnded(touches)
         cancelActive()
     }
 
     private func cancelActive() {
         activeTouch = nil
+        strokeStartTime = nil
+        strokeLastPoint = nil
         shapeStart = nil
         tapCandidate = false
         tapStart = nil
@@ -370,6 +415,103 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         session?.engine?.cancelStroke()
         session?.live.strichEnde(abbruch: true)
         setNeedsDisplay()
+    }
+
+    /// Q-R10 Review-Fix: reine Entscheidung, ob ein zweiter Touch während eines Strichs ihn landet oder
+    /// verwirft. Pencil: ein zweiter Touch ist praktisch immer ein Handballen – man zoomt nicht mit der
+    /// Hand, die gerade den Stift hält – also immer landen. Finger: nur landen, wenn der Strich schon
+    /// "substanziell" ist (alt UND lang genug); sonst ist "kurz zeichnen, dann zoomen" ein ganz normaler
+    /// Ablauf, der keinen ungewollten Teilstrich festschreiben darf. Schwellen bewusst beide nötig
+    /// (UND, nicht ODER): ein langsamer, kurzer Tupfer ist genauso wenig "fertig gezeichnet" wie ein
+    /// schneller, langer Wisch, der nach 50 ms schon über die Schwelle rauscht.
+    nonisolated static func strichBeiZweiterBeruehrung(alterMs: Double, laengePunkte: Double, istStift: Bool) -> ZweiteBeruehrungEntscheidung {
+        if istStift { return .landen }
+        return alterMs >= 300 && laengePunkte >= 40 ? .landen : .verwerfen
+    }
+
+    private func resolveSecondTouch() {
+        guard let session, let engine = session.engine, engine.isStroking, let start = strokeStartTime else {
+            cancelActive()
+            return
+        }
+        let alterMs = (CACurrentMediaTime() - start) * 1000
+        guard Self.strichBeiZweiterBeruehrung(alterMs: alterMs, laengePunkte: strokePathLength, istStift: strokeIsPencil) == .landen else {
+            cancelActive()
+            return
+        }
+        activeTouch = nil
+        strokeStartTime = nil
+        strokeLastPoint = nil
+        engine.endStroke()
+        lastStrokeLandTime = CACurrentMediaTime()
+        session.live.strichEnde()
+        ZeichenProtokoll.log("Palm-Schutz: zweiter Touch, Strich gelandet statt verworfen (alter=\(Int(alterMs))ms länge=\(Int(strokePathLength))pt stift=\(strokeIsPencil))")
+        setNeedsDisplay()
+    }
+
+    // MARK: Mehr-Finger-Erkennung für Undo/Redo (Q-R10 Kandidat 3)
+
+    private func trackTouchesBegan(_ touches: Set<UITouch>, wasPencilActive: Bool) {
+        let now = CACurrentMediaTime()
+        if groupTouchCount == 0 {
+            groupFirstStart = now
+            groupMaxTravel = 0
+            groupOrigins = [:]
+            multiTouchGroupHadPencilStroke = wasPencilActive
+        } else if wasPencilActive {
+            multiTouchGroupHadPencilStroke = true
+        }
+        groupLastStart = now
+        groupTouchCount += touches.count
+        for touch in touches { groupOrigins[ObjectIdentifier(touch)] = touch.location(in: self) }
+    }
+
+    private func trackTouchesMoved(_ touches: Set<UITouch>) {
+        for touch in touches {
+            guard let origin = groupOrigins[ObjectIdentifier(touch)] else { continue }
+            let point = touch.location(in: self)
+            groupMaxTravel = max(groupMaxTravel, hypot(point.x - origin.x, point.y - origin.y))
+        }
+    }
+
+    private func trackTouchesEnded(_ touches: Set<UITouch>) {
+        // Zahlen bewusst stehen lassen (siehe Kommentar bei den gespeicherten Properties); nur den
+        // Zähler senken, damit die nächste Gruppe korrekt bei 0 neu beginnt.
+        groupTouchCount = max(0, groupTouchCount - touches.count)
+    }
+
+    /// Ein Zwei- oder Drei-Finger-Tipp ist eine bewusste Geste – ein nachlässiger Handballen beim
+    /// schnellen Zeichnen kann dieselbe Form erzeugen. Deshalb nur zulassen, wenn jeder beteiligte
+    /// Touch innerhalb von 100 ms nach dem ersten begonnen hat und unter 10 pt gewandert ist (ein
+    /// echtes Tippen schafft das mühelos, ein absetzender Handballen meist nicht alle Finger gleich-
+    /// zeitig), wenn dabei kein Pencil-Strich lief, und erst 300 ms nachdem der letzte Strich gelandet
+    /// ist (ein Strich braucht einen Moment, um zu committen, bevor ein Tipp ihn rückgängig machen darf).
+    /// Reine Funktion (Q-R10 Review-Fix): nimmt `now` statt `CACurrentMediaTime()` selbst zu lesen, damit
+    /// sie ohne echte Uhr testbar ist. Jede Regel ist ein eigenes `guard`, damit ein Test gezielt genau
+    /// eine Regel brechen kann.
+    nonisolated static func erlaubtMehrFingerGeste(
+        hadPencilStroke: Bool,
+        now: CFTimeInterval,
+        lastStrokeLandTime: CFTimeInterval,
+        groupFirstStart: CFTimeInterval,
+        groupLastStart: CFTimeInterval,
+        groupMaxTravel: CGFloat
+    ) -> Bool {
+        guard !hadPencilStroke else { return false }
+        guard now - lastStrokeLandTime > 0.3 else { return false }
+        guard groupLastStart - groupFirstStart < 0.1 else { return false }
+        return groupMaxTravel < 10
+    }
+
+    private func allowsAccidentalUndoGesture() -> Bool {
+        Self.erlaubtMehrFingerGeste(
+            hadPencilStroke: multiTouchGroupHadPencilStroke,
+            now: CACurrentMediaTime(),
+            lastStrokeLandTime: lastStrokeLandTime,
+            groupFirstStart: groupFirstStart,
+            groupLastStart: groupLastStart,
+            groupMaxTravel: groupMaxTravel
+        )
     }
 
     // MARK: Gestures
@@ -384,6 +526,8 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         undoTap.numberOfTouchesRequired = 2
         let redoTap = UITapGestureRecognizer(target: self, action: #selector(didRedoTap(_:)))
         redoTap.numberOfTouchesRequired = 3
+        undoTapRecognizer = undoTap
+        redoTapRecognizer = redoTap
         let fitTap = UITapGestureRecognizer(target: self, action: #selector(didFitTap(_:)))
         fitTap.numberOfTouchesRequired = 2
         fitTap.numberOfTapsRequired = 2
@@ -405,6 +549,9 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
         if gestureRecognizer is UILongPressGestureRecognizer, gestureRecognizer.numberOfTouches < 2 {
             return !fingerDraws && activeTouch?.type != .pencil
+        }
+        if gestureRecognizer === undoTapRecognizer || gestureRecognizer === redoTapRecognizer {
+            return allowsAccidentalUndoGesture()
         }
         return super.gestureRecognizerShouldBegin(gestureRecognizer)
     }
@@ -452,13 +599,13 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     @objc private func didUndoTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
         cancelActive()
-        session?.undo(fromGesture: true)
+        session?.undo(source: .geste)
     }
 
     @objc private func didRedoTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
         cancelActive()
-        session?.redo(fromGesture: true)
+        session?.redo(source: .geste)
     }
 
     @objc private func didFitTap(_ gesture: UITapGestureRecognizer) {

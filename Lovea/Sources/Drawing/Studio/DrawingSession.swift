@@ -1,6 +1,25 @@
 import Combine
 import UIKit
 
+/// Q-R10 Review-Fix: woher ein Undo/Redo kam. Der Toast ist nur für die Fälle gedacht, in denen ein
+/// Auslösen nicht offensichtlich ist (Gesten) – ein bewusster Knopfdruck braucht keine Bestätigung.
+/// `pencilDoppeltipp`/`schuetteln` sind noch an keine echte Quelle angeschlossen, stehen aber schon
+/// bereit, falls so ein Auslöser dazukommt.
+enum UndoQuelle: Equatable {
+    case knopf, geste, pencilDoppeltipp, schuetteln
+
+    var zeigtToast: Bool { self != .knopf }
+
+    var protokollText: String {
+        switch self {
+        case .knopf: "Knopf"
+        case .geste: "Mehr-Finger-Geste"
+        case .pencilDoppeltipp: "Pencil-Doppeltipp"
+        case .schuetteln: "Schütteln"
+        }
+    }
+}
+
 /// UI model of the studio: tool, brush, colors, active layer. All pixel work goes to `CanvasEngine`.
 @MainActor
 final class DrawingSession: ObservableObject {
@@ -305,7 +324,7 @@ final class DrawingSession: ObservableObject {
         }
     }
 
-    func undo(fromGesture: Bool = false) {
+    func undo(source: UndoQuelle = .knopf) {
         guard canUndo, !nurAnsehen else { return }
         if live.verlauf != nil {
             engine?.cancelStroke()
@@ -313,10 +332,15 @@ final class DrawingSession: ObservableObject {
         } else {
             engine?.performUndo()
         }
-        if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        if source != .knopf { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        // Q-R10 Review-Fix: der Toast ist nur für nicht offensichtliche Auslöser gedacht (Gesten) –
+        // ein bewusster Knopfdruck braucht keine Bestätigung und würde beim schnellen Rückgängig-
+        // Klicken nur flackern. Der Ring-Puffer hält die Quelle aber immer fest.
+        ZeichenProtokoll.log("undo ausgelöst via \(source.protokollText)")
+        if source.zeigtToast { show("Rückgängig") }
     }
 
-    func redo(fromGesture: Bool = false) {
+    func redo(source: UndoQuelle = .knopf) {
         guard canRedo, !nurAnsehen else { return }
         if live.verlauf != nil {
             engine?.cancelStroke()
@@ -324,7 +348,9 @@ final class DrawingSession: ObservableObject {
         } else {
             engine?.performRedo()
         }
-        if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        if source != .knopf { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        ZeichenProtokoll.log("redo ausgelöst via \(source.protokollText)")
+        if source.zeigtToast { show("Wiederholen") }
     }
 
     // MARK: Selection

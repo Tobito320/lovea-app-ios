@@ -213,4 +213,35 @@ final class CompositorTests: XCTestCase {
         XCTAssertEqual(pixel[2], 128, accuracy: 3)
         XCTAssertEqual(pixel[3], 255, accuracy: 1)
     }
+
+    // MARK: Q-R10 Kandidat 2 – liveSplit ist pure, kein Metal nötig
+
+    func testLiveSplitFindsActiveLayerAndClippedLayersAbove() {
+        var clip = ArtworkLayer.paint(name: "Clip")
+        clip.clipping = true
+        let layers = [ArtworkLayer.paint(name: "Unten"), ArtworkLayer.paint(name: "Aktiv"), clip, ArtworkLayer.paint(name: "Oben")]
+        let split = Compositor.liveSplit(layers: layers, activeLayerID: layers[1].id)
+        XCTAssertTrue(split.foundActive)
+        XCTAssertEqual(split.active, 1)
+        XCTAssertEqual(split.live, 1..<3, "aktive Ebene plus die darauf geclippte Ebene")
+        XCTAssertEqual(split.above, 3..<4)
+    }
+
+    /// Wenn `activeLayerID` keine Ebene trifft, muss irgendeine Ebene live bleiben – nie alle in den
+    /// below-Cache rutschen, sonst kann ein frisch gezeichneter Strich dort unsichtbar hängen bleiben.
+    func testLiveSplitFallsBackToTopLayerWhenActiveMissing() {
+        let layers = [ArtworkLayer.paint(name: "A"), ArtworkLayer.paint(name: "B"), ArtworkLayer.paint(name: "C")]
+        let split = Compositor.liveSplit(layers: layers, activeLayerID: UUID())
+        XCTAssertFalse(split.foundActive)
+        XCTAssertEqual(split.active, 2, "oberste Ebene als Ersatz")
+        XCTAssertEqual(split.live, 2..<3)
+        XCTAssertFalse(split.live.contains(0), "die unteren Ebenen dürfen nicht leer ausgehen, aber auch nicht alles verschlucken")
+    }
+
+    func testLiveSplitHandlesEmptyLayers() {
+        let split = Compositor.liveSplit(layers: [], activeLayerID: UUID())
+        XCTAssertFalse(split.foundActive)
+        XCTAssertEqual(split.live, 0..<0)
+        XCTAssertEqual(split.above, 0..<0)
+    }
 }

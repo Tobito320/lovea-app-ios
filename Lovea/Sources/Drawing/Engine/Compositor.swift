@@ -113,6 +113,24 @@ final class Compositor {
         maskTemp = nil
     }
 
+    /// Which layers recomposite fresh every frame ("live": the active layer plus layers clipped onto
+    /// it) vs. the cached below/above groups. Pure so it is unit-testable without a Metal device.
+    /// `foundActive == false` means `activeLayerID` matched no layer (Q-R10 Kandidat 2): the top layer
+    /// is kept live as a safe fallback instead of letting every layer fall into the `below` cache.
+    static func liveSplit(layers: [ArtworkLayer], activeLayerID: UUID) -> (active: Int, live: Range<Int>, above: Range<Int>, foundActive: Bool) {
+        // Review-Hinweis (Minor): `foundActive` wäre hier auch bei jedem Aufruf `false`, was `encodeFrame`
+        // bei jedem Frame `invalidateCaches()` auslösen ließe. Unerreichbar in der Praxis – `CanvasEngine.
+        // deleteLayer` verweigert das Löschen der letzten Ebene, eine leere `document.layers` kommt nie vor.
+        guard !layers.isEmpty else { return (0, 0..<0, 0..<0, false) }
+        let found = layers.firstIndex(where: { $0.id == activeLayerID })
+        let active = found ?? layers.count - 1
+        var end = active
+        while end + 1 < layers.count, layers[end + 1].clipping { end += 1 }
+        let live = active..<min(end + 1, layers.count)
+        let above = min(end + 1, layers.count)..<layers.count
+        return (active, live, above, found != nil)
+    }
+
     /// `remote`: strokes of other people in progress, per layer.
     func encodeFrame(
         document: ArtworkDocument,
@@ -127,11 +145,17 @@ final class Compositor {
         let layers = document.layers
         guard ensureTextures(width: store.width, height: store.height),
               let below, let above, let activeTemp else { return }
-        let active = layers.firstIndex(where: { $0.id == activeLayerID }) ?? layers.count
-        var end = active
-        while end + 1 < layers.count, layers[end + 1].clipping { end += 1 }
-        let liveRange = active..<min(end + 1, layers.count)
-        let aboveRange = min(end + 1, layers.count)..<layers.count
+        let split = Self.liveSplit(layers: layers, activeLayerID: activeLayerID)
+        let active = split.active
+        let liveRange = split.live
+        let aboveRange = split.above
+        if !split.foundActive {
+            // Q-R10 Kandidat 2: activeLayerID passt (kurz) auf keine Ebene mehr. liveSplit hält
+            // trotzdem eine Ebene frisch statt alles in den below-Cache rutschen zu lassen; zusätzlich
+            // hier beide Caches verwerfen, damit dieses eine Frame garantiert neu zusammengesetzt wird.
+            invalidateCaches()
+            ZeichenProtokoll.log("encodeFrame: activeLayerID \(activeLayerID) nicht in document.layers – oberste Ebene live gehalten")
+        }
 
         var overrides: [UUID: MTLTexture] = [:]
         if let override { overrides[override.layerID] = override.texture }
