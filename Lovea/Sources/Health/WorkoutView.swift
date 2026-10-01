@@ -229,7 +229,8 @@ struct GymSessionView: View {
             hinzufuegen: { sucheOffen = true },
             verwerfen: { verwerfenFrage = true },
             tagWaehlen: { t in
-                modell.tagSetzen(s, t.id)
+                guard t.id != s.tag else { return }
+                modell.tagWechseln(s, zu: t.id)
                 Haptik.leicht()
             },
             wiederEinchecken: {
@@ -318,7 +319,7 @@ struct WorkoutInhalt: View {
 
     private var werte: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(tag?.name ?? "Training").font(.largeTitle.bold())
+            titel
             HStack(alignment: .top, spacing: 22) {
                 wert("Dauer") { dauer.foregroundStyle(Color.blue) }
                 wert("Volumen") { Text("\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg") }
@@ -327,6 +328,34 @@ struct WorkoutInhalt: View {
                 if let kcal { wert("kcal") { Text("\(kcal)") } }
             }
             Divider()
+        }
+    }
+
+    /// Der Name des Tages. Solange nichts abgehakt ist, öffnet ein Tipp die anderen Tage.
+    @ViewBuilder
+    private var titel: some View {
+        let name = tag?.name ?? "Training"
+        if session.ende == nil, tag != nil, tage.count > 1, WorkoutLogik.tagWechselbar(liste) {
+            Menu {
+                ForEach(tage) { t in
+                    Button { aktionen.tagWaehlen(t) } label: {
+                        if t.id == tag?.id {
+                            Label(t.name.isEmpty ? "Ohne Namen" : t.name, systemImage: "checkmark")
+                        } else {
+                            Text(t.name.isEmpty ? "Ohne Namen" : t.name)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(name).font(.largeTitle.bold())
+                    Image(systemName: "chevron.down.circle.fill").font(.title3).foregroundStyle(.secondary)
+                }
+                .foregroundStyle(Color.primary)
+            }
+            .accessibilityHint("Anderen Trainingstag wählen")
+        } else {
+            Text(name).font(.largeTitle.bold())
         }
     }
 

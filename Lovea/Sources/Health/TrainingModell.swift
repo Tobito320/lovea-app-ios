@@ -51,6 +51,15 @@ final class TrainingModell {
         Raum.shared.senden("gym.checkin", GymD(session: s.id, tag: tag, start: s.start))
     }
 
+    /// Anderen Trainingstag wählen, solange nichts abgehakt ist (`WorkoutLogik.tagWechselbar`): die
+    /// Läufe der Übungen des alten Tages werden herausgenommen, dann gilt der neue Tag.
+    func tagWechseln(_ s: GymSession, zu neu: String) {
+        for l in WorkoutLogik.laeufeDesTages(s, tag(ich, id: s.tag)) {
+            Raum.shared.senden("gym.uebung", GymD(session: s.id, plan: l.plan, uebung: l.uebung, status: "weg"))
+        }
+        tagSetzen(s, neu)
+    }
+
     func starten(_ session: String, _ u: PlanUebung) {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "start"))
     }

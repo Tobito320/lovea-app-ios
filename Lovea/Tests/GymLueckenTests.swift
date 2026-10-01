@@ -26,4 +26,22 @@ final class GymLueckenTests: XCTestCase {
         let zuFrueh = frueh.addingTimeInterval(-61)
         XCTAssertFalse(TrainingLogik.laufend(GymSession(id: "s", tag: nil, start: zuFrueh, ende: nil, laeufe: []), jetzt: t0))
     }
+
+    func testDayCanOnlyBeSwitchedBeforeAnySetIsTicked() {
+        let tag = TrainingsTag(id: "t", name: "Push", wochentage: [], uebungen: [uebung("a", saetze: [satz(10, 50), satz(10, 50)])])
+        var liste = WorkoutLogik.uebungen(leereSession(), tag: tag, frueher: [])
+        XCTAssertTrue(WorkoutLogik.tagWechselbar(liste))
+        liste[0].saetze[0].ok = true
+        XCTAssertFalse(WorkoutLogik.tagWechselbar(liste))
+    }
+
+    func testSwitchingDayTakesOutOnlyRunsOfTheOldDay() {
+        let alt = TrainingsTag(id: "t", name: "Push", wochentage: [], uebungen: [uebung("a"), uebung("b")])
+        let s = leereSession(laeufe: [
+            UebungsLauf(plan: "a", uebung: "xa", start: t0, ende: nil, fertig: false, saetze: nil),
+            UebungsLauf(plan: "z", uebung: "eigen", start: t0, ende: nil, fertig: false, saetze: nil, name: "Dips"),
+        ])
+        XCTAssertEqual(WorkoutLogik.laeufeDesTages(s, alt).map(\.plan), ["a"])
+        XCTAssertTrue(WorkoutLogik.laeufeDesTages(s, nil).isEmpty)
+    }
 }

@@ -120,6 +120,18 @@ enum WorkoutLogik {
         return anders ? neu : nil
     }
 
+    /// Den Trainingstag darf man wechseln, solange nichts abgehakt ist. Sonst blieben abgehakte
+    /// Übungen des alten Tages als Extras im neuen und "Plan aktualisieren" hängte sie an.
+    static func tagWechselbar(_ liste: [WorkoutUebung]) -> Bool {
+        liste.allSatisfy { $0.fertigZahl == 0 }
+    }
+
+    /// Die Läufe der Übungen dieses Tages in der Einheit (beim Wechseln werden sie entfernt).
+    static func laeufeDesTages(_ s: GymSession, _ tag: TrainingsTag?) -> [UebungsLauf] {
+        let ids = Set(tag?.uebungen.map(\.id) ?? [])
+        return s.laeufe.filter { ids.contains($0.plan) }
+    }
+
     /// "1", "2" für normale Sätze (Aufwärmsätze zählen nicht mit), sonst "W", "D", "F".
     static func nummer(_ saetze: [PlanSatz], _ i: Int) -> String {
         guard saetze.indices.contains(i) else { return "" }
