@@ -16,25 +16,44 @@ private final class PulsSitzung: NSObject, HKLiveWorkoutBuilderDelegate, @unchec
     private let builder: HKLiveWorkoutBuilder
     private let melden: @Sendable (_ puls: Int?, _ schnitt: Int?, _ kcal: Int?) -> Void
 
-    init(store: HKHealthStore, melden: @escaping @Sendable (Int?, Int?, Int?) -> Void) throws {
+    /// Fragt die Erlaubnis an (nur hier, also erst beim Einschalten, nie beim App-Start) und startet
+    /// die Sitzung. Lief noch eine von vor einem App-Ende, wird sie fortgesetzt statt eine zweite
+    /// daneben zu starten.
+    static func starten(melden: @escaping @Sendable (Int?, Int?, Int?) -> Void) async throws -> PulsSitzung {
+        let store = HKHealthStore()
+        let lesen: Set<HKObjectType> = [HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned)]
+        let schreiben: Set<HKSampleType> = [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned)]
+        try await store.requestAuthorization(toShare: schreiben, read: lesen)
         let einstellung = HKWorkoutConfiguration()
         einstellung.activityType = .traditionalStrengthTraining
         einstellung.locationType = .indoor
-        let neu = try HKWorkoutSession(healthStore: store, configuration: einstellung)
-        let sammler = neu.associatedWorkoutBuilder()
-        sammler.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: einstellung)
-        session = neu
-        builder = sammler
-        self.melden = melden
-        super.init()
-        sammler.delegate = self
+        let alt = try? await store.recoverActiveWorkoutSession()
+        let session = try alt ?? HKWorkoutSession(healthStore: store, configuration: einstellung)
+        let sitzung = PulsSitzung(session: session, melden: melden)
+        if alt == nil {
+            sitzung.builder.dataSource = HKLiveWorkoutDataSource(healthStore: store, workoutConfiguration: einstellung)
+            let jetzt = Date()
+            session.prepare()
+            session.startActivity(with: jetzt)
+            try await sitzung.builder.beginCollection(at: jetzt)
+        }
+        return sitzung
     }
 
-    func starten() async throws {
-        let jetzt = Date()
-        session.prepare()
-        session.startActivity(with: jetzt)
-        try await builder.beginCollection(at: jetzt)
+    /// Eine Sitzung, die ein App-Ende überlebt hat, obwohl kein Training mehr läuft: beenden und
+    /// verwerfen, damit der Sensor nicht weiterläuft (Akku-Regel).
+    static func verwaisteBeenden() async {
+        guard let alt = try? await HKHealthStore().recoverActiveWorkoutSession() else { return }
+        alt.associatedWorkoutBuilder().discardWorkout()
+        alt.end()
+    }
+
+    private init(session: HKWorkoutSession, melden: @escaping @Sendable (Int?, Int?, Int?) -> Void) {
+        self.session = session
+        builder = session.associatedWorkoutBuilder()
+        self.melden = melden
+        super.init()
+        builder.delegate = self
     }
 
     /// `speichern` schreibt das Training nach Apple Health, sonst wird es verworfen.
@@ -76,6 +95,9 @@ final class WorkoutPuls {
 
     private var sitzung: PulsSitzung?
     private var startet = false
+    /// Beenden kam, während die Sitzung noch startete.
+    private var abbruch = false
+    private var aufgeraeumt = false
 
     private init() {}
 
@@ -91,31 +113,36 @@ final class WorkoutPuls {
     }
 
     /// Startet die Messung, wenn sie eingeschaltet ist und noch nicht läuft. Fragt beim ersten Mal
-    /// nach der Erlaubnis für Apple Health.
+    /// nach der Erlaubnis für Apple Health. Nur auf dem iPhone (`Geraet.wirdGetragen`), nie auf dem iPad.
     func starten() {
-        guard an, sitzung == nil, !startet, HKHealthStore.isHealthDataAvailable() else { return }
+        guard an, Geraet.wirdGetragen, sitzung == nil, !startet, HKHealthStore.isHealthDataAvailable() else { return }
         startet = true
+        abbruch = false
         Task {
             defer { startet = false }
-            let store = HKHealthStore()
-            let lesen: Set<HKObjectType> = [HKQuantityType(.heartRate), HKQuantityType(.activeEnergyBurned)]
-            let schreiben: Set<HKSampleType> = [HKObjectType.workoutType(), HKQuantityType(.activeEnergyBurned)]
             do {
-                try await store.requestAuthorization(toShare: schreiben, read: lesen)
-                let neu = try PulsSitzung(store: store) { puls, schnitt, kcal in
+                let neu = try await PulsSitzung.starten { puls, schnitt, kcal in
                     Task { @MainActor in WorkoutPuls.shared.uebernehmen(puls, schnitt, kcal) }
                 }
-                try await neu.starten()
-                // Inzwischen ausgeschaltet oder das Training beendet: gleich wieder verwerfen.
-                if an { sitzung = neu } else { await neu.beenden(speichern: false) }
+                // Während des Startens ausgeschaltet oder das Training beendet: gleich wieder verwerfen.
+                if an, !abbruch { sitzung = neu } else { await neu.beenden(speichern: false) }
             } catch {
                 // Keine Erlaubnis oder kein Workout möglich: das Training läuft ohne Puls weiter.
             }
         }
     }
 
+    /// Kein Training läuft mehr, aber die Messung ist eingeschaltet: eine Sitzung, die ein App-Ende
+    /// überlebt hat, beenden. Einmal pro App-Start, und nur wenn der Schalter an ist.
+    func verwaisteBeenden() {
+        guard an, Geraet.wirdGetragen, sitzung == nil, !startet, !aufgeraeumt else { return }
+        aufgeraeumt = true
+        Task { await PulsSitzung.verwaisteBeenden() }
+    }
+
     /// Beendet die Messung. Die Werte bleiben stehen, bis das nächste Training startet.
     func beenden(speichern: Bool) {
+        abbruch = true
         guard let alt = sitzung else { return }
         sitzung = nil
         puls = nil
