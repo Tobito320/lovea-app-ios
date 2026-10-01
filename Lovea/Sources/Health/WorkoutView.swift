@@ -495,7 +495,7 @@ struct WorkoutUebungView: View {
 
     private var tabellenKopf: some View {
         HStack(spacing: 6) {
-            Text("SATZ").frame(width: 40)
+            Text("SATZ").frame(width: 44)
             Text("VORHER").frame(maxWidth: .infinity, alignment: .leading)
             Text("KG").frame(width: 62)
             Text("WDH").frame(width: 50)
@@ -675,7 +675,7 @@ struct WorkoutSatzZeile: View {
                 typMenue
                 Text(vorher.map(WorkoutLogik.satzText) ?? "–")
                     .font(.subheadline)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(fertig ? Color.primary.opacity(0.75) : Color.secondary)
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -691,14 +691,14 @@ struct WorkoutSatzZeile: View {
                     Image(systemName: "checkmark")
                         .font(.headline)
                         .foregroundStyle(fertig ? Color.white : Color.secondary)
-                        .frame(width: 44, height: 40)
+                        .frame(width: 44, height: 44)
                         .background(fertig ? Color.green : Color(uiColor: .tertiarySystemFill), in: Self.kachel)
                 }
                 .buttonStyle(.borderless)
                 .accessibilityLabel(fertig ? "Haken entfernen" : "Satz abhaken")
             }
             if let zeiten {
-                Text(zeiten).font(.caption).foregroundStyle(.secondary).padding(.leading, 46)
+                Text(zeiten).font(.caption).foregroundStyle(Color.primary.opacity(0.75)).padding(.leading, 50)
             }
         }
     }
@@ -713,9 +713,10 @@ struct WorkoutSatzZeile: View {
             Text(nummer)
                 .font(.headline)
                 .foregroundStyle(satz.kuerzel == nil ? Color.primary : Color.orange)
-                .frame(width: 40, height: 40)
+                .frame(width: 44, height: 44)
                 .background(Color(uiColor: .tertiarySystemFill), in: Self.kachel)
         }
+        .buttonStyle(.borderless)
         .accessibilityLabel("Satztyp, jetzt \(nummer)")
     }
 
@@ -723,7 +724,7 @@ struct WorkoutSatzZeile: View {
         eingabe
             .multilineTextAlignment(.center)
             .font(.headline.monospacedDigit())
-            .frame(width: breite, height: 40)
+            .frame(width: breite, height: 44)
             .overlay {
                 Self.kachel.strokeBorder(fertig ? Color.clear : laeuft ? Color.blue : Color(uiColor: .separator), lineWidth: 1)
             }

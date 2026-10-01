@@ -143,7 +143,14 @@ struct GymSession: Identifiable, Equatable, Sendable {
     var ende: Date?
     var laeufe: [UebungsLauf]
 
-    func erledigt(_ plan: String) -> Bool { laeufe.contains { $0.plan == plan && $0.fertig } }
+    /// Mit Satzzeilen (wie Hevy) erst, wenn alle abgehakt sind; alte Einheiten über `fertig`.
+    func erledigt(_ plan: String) -> Bool {
+        laeufe.contains { l in
+            guard l.plan == plan else { return false }
+            if let stand = l.stand { return !stand.isEmpty && stand.allSatisfy { $0.ok == true } }
+            return l.fertig
+        }
+    }
 
     /// The exercise started and not ended yet (nil once checked out).
     var aktiv: UebungsLauf? {
