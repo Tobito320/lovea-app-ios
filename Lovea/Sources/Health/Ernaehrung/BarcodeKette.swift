@@ -6,6 +6,13 @@ enum BarcodeLogik {
         let z = roh.filter(\.isNumber)
         return z.count == 12 ? "0" + z : z
     }
+
+    /// Text im Suchfeld sieht wie ein getippter/eingefügter Barcode aus: nur Ziffern, plausible Länge
+    /// (EAN-8, UPC-A oder EAN-13). Alles andere bleibt normale Textsuche.
+    static func istBarcodeEingabe(_ text: String) -> Bool {
+        guard text.allSatisfy(\.isNumber) else { return false }
+        return [8, 12, 13].contains(text.count)
+    }
 }
 
 enum BarcodeErgebnis: Equatable {

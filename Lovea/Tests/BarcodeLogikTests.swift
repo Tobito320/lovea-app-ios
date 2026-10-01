@@ -11,6 +11,16 @@ final class BarcodeLogikTests: XCTestCase {
         XCTAssertEqual(BarcodeLogik.normal("20123456"), "20123456")
     }
 
+    func testIstBarcodeEingabe() {
+        XCTAssertTrue(BarcodeLogik.istBarcodeEingabe("20123456")) // EAN-8
+        XCTAssertTrue(BarcodeLogik.istBarcodeEingabe("012345678905")) // UPC-A
+        XCTAssertTrue(BarcodeLogik.istBarcodeEingabe("4311501679715")) // EAN-13
+        XCTAssertFalse(BarcodeLogik.istBarcodeEingabe("2012345")) // zu kurz (7)
+        XCTAssertFalse(BarcodeLogik.istBarcodeEingabe("201234567")) // keine plausible Länge (9)
+        XCTAssertFalse(BarcodeLogik.istBarcodeEingabe("Skyr Natur")) // Text, keine Ziffern
+        XCTAssertFalse(BarcodeLogik.istBarcodeEingabe("4311 501679715")) // Leerzeichen, kein reiner Ziffernstring
+    }
+
     private func quellen(lokal: Lebensmittel? = nil, server: Result<Lebensmittel?, any Error & Sendable> = .success(nil),
                          off: Result<Lebensmittel?, any Error & Sendable> = .success(nil), name: (String, String?)? = nil,
                          aufrufe: Protokoll = Protokoll()) -> BarcodeQuellen {

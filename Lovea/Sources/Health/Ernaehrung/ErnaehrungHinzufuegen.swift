@@ -296,17 +296,22 @@ struct HinzufuegenBlatt: View {
     // MARK: - Suche
 
     /// Lokale Suche läuft synchron (unter 16 ms laut Task 3), die Server-Suche folgt mit 150 ms
-    /// Debounce und wird verworfen, wenn seither erneut getippt wurde.
+    /// Debounce und wird verworfen, wenn seither erneut getippt wurde. Eine Barcode-Zahl läuft durch
+    /// dieselbe Debounce+Abbruch-Kette, damit Tippen/Einfügen keinen Treffer pro Tastendruck auslöst.
     private func suchtextGeaendert(_ neu: String) {
         suchAufgabe?.cancel()
         serverFehlt = false
         suche.nummer += 1
         let nummer = suche.nummer
         let t = neu.trimmingCharacters(in: .whitespaces)
-        if t.count >= 8, t.allSatisfy(\.isNumber) {
+        if BarcodeLogik.istBarcodeEingabe(t) {
             suche.sichtbar = []
             scanZweck = .suchen
-            barcodeSuchen(t)
+            suchAufgabe = Task {
+                try? await Task.sleep(for: .milliseconds(150))
+                guard !Task.isCancelled, nummer == suche.nummer else { return }
+                await barcodeSuchen(t, nummer: nummer)
+            }
             return
         }
         suche.lokal = LebensmittelIndex.shared.suchen(t, vorne: suchVorne)
@@ -373,24 +378,25 @@ struct HinzufuegenBlatt: View {
         if scanZweck == .erstellen {
             fotoBarcode = BarcodeVorlage(id: BarcodeLogik.normal(code))
         } else {
-            barcodeSuchen(code)
+            Task { await barcodeSuchen(code) }
         }
     }
 
     /// Lokal -> Server -> Open Food Facts live -> Namens-Vorschläge -> unbekannt (Task 6).
-    private func barcodeSuchen(_ code: String) {
+    /// `nummer`: aus dem Suchfeld gesetzt; ist seither erneut getippt worden, wird das Ergebnis
+    /// verworfen (kein `pfad.append`/Sheet aus einer überholten Eingabe).
+    private func barcodeSuchen(_ code: String, nummer: Int? = nil) async {
         barcodeLaedt = true
-        Task {
-            let ergebnis = await BarcodeKette.suchen(code, .echt)
-            barcodeLaedt = false
-            switch ergebnis {
-            case .gefunden(let l): pfad.append(l)
-            case .vorschlaege(let name, let liste): vorschlaege = (name, liste, BarcodeLogik.normal(code))
-            case .unbekannt(let c): fotoBarcode = BarcodeVorlage(id: c)
-            case .offline(let c):
-                modell.merken(c)
-                zeigeText("Kein Netz. Barcode gemerkt, wir suchen, sobald du online bist.")
-            }
+        let ergebnis = await BarcodeKette.suchen(code, .echt)
+        barcodeLaedt = false
+        if let nummer, nummer != suche.nummer { return }
+        switch ergebnis {
+        case .gefunden(let l): pfad.append(l)
+        case .vorschlaege(let name, let liste): vorschlaege = (name, liste, BarcodeLogik.normal(code))
+        case .unbekannt(let c): fotoBarcode = BarcodeVorlage(id: c)
+        case .offline(let c):
+            modell.merken(c)
+            zeigeText("Kein Netz. Barcode gemerkt, wir suchen, sobald du online bist.")
         }
     }
 
