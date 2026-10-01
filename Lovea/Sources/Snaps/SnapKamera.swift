@@ -126,6 +126,16 @@ final class SnapKameraSteuerung: NSObject {
     private var videoContinuation: CheckedContinuation<URL?, Never>?
     private var fortschrittTask: Task<Void, Never>?
     private var aufnahmeStart: Date?
+    /// Set by `KameraVorschau` once its layer exists (Z-R7: WYSIWYG-Zuschnitt). Weak: the view, not
+    /// this shared singleton, owns the layer's lifetime.
+    private weak var vorschauEbene: AVCaptureVideoPreviewLayer?
+    /// The preview's visible rect for the photo currently in flight, read right before
+    /// `capturePhoto` while the layer's bounds still match what Ahmed framed.
+    private var zuschnittAusstehend: CGRect?
+
+    func vorschauEbeneSetzen(_ ebene: AVCaptureVideoPreviewLayer) {
+        vorschauEbene = ebene
+    }
 
     /// Shared instance (Z-26.5): the conversation configures it ahead of time, `SnapKameraView`
     /// reuses that session and only has to start it running.
@@ -260,6 +270,9 @@ final class SnapKameraSteuerung: NSObject {
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
         // Mirroring left at its default (see `aufnehmen(nach:delegate:)`): the saved photo should
         // match the preview Ahmed framed, mirrored on the front camera, not on the back.
+        // Visible rect the preview showed (aspectFill crops the sensor image to the screen) —
+        // captured now, while the layer's bounds are still the ones Ahmed framed by.
+        zuschnittAusstehend = vorschauEbene.map { $0.metadataOutputRectConverted(fromLayerRect: $0.bounds) }
         return await withCheckedContinuation { continuation in
             fotoContinuation = continuation
             let einstellungen = AVCapturePhotoSettings()
@@ -318,8 +331,13 @@ final class SnapKameraSteuerung: NSObject {
 
 extension SnapKameraSteuerung: AVCapturePhotoCaptureDelegate {
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        let bild = photo.fileDataRepresentation().flatMap(UIImage.init(data:))
+        let roh = photo.fileDataRepresentation().flatMap(UIImage.init(data:))
         Task { @MainActor in
+            // Crop to what the preview actually showed (aspectFill) — the full sensor image is
+            // wider/taller than the screen, so uncropped it reopened in the editor letterboxed
+            // and framed differently than what Ahmed saw and tapped the shutter on.
+            let bild = zuschnittAusstehend.flatMap { roh?.zugeschnitten(auf: $0) } ?? roh
+            zuschnittAusstehend = nil
             fotoContinuation?.resume(returning: bild)
             fotoContinuation = nil
         }
@@ -344,15 +362,44 @@ private final class KameraVorschauUIView: UIView {
 
 private struct KameraVorschau: UIViewRepresentable {
     let session: AVCaptureSession
+    /// Hands the layer to the steuerung once, so a capture can read its visible rect (Z-R7).
+    let aufEbene: (AVCaptureVideoPreviewLayer) -> Void
 
     func makeUIView(context: Context) -> KameraVorschauUIView {
         let view = KameraVorschauUIView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        aufEbene(view.videoPreviewLayer)
         return view
     }
 
     func updateUIView(_ uiView: KameraVorschauUIView, context: Context) {}
+}
+
+/// Pure crop math (Z-R7): AVFoundation's `metadataOutputRectConverted` gives a unit rect (0...1,
+/// origin top-left) of the captured image that the preview actually showed under `resizeAspectFill`
+/// — this turns it into pixel bounds on that image, clamped so a rounding edge never asks
+/// `CGImage.cropping` for a rect outside the image (which returns nil).
+enum SnapZuschnitt {
+    static func pixelRechteck(einheitsRechteck: CGRect, bildGroesse: CGSize) -> CGRect {
+        guard bildGroesse.width > 0, bildGroesse.height > 0 else { return .zero }
+        let roh = CGRect(
+            x: einheitsRechteck.minX * bildGroesse.width,
+            y: einheitsRechteck.minY * bildGroesse.height,
+            width: einheitsRechteck.width * bildGroesse.width,
+            height: einheitsRechteck.height * bildGroesse.height
+        )
+        return roh.integral.intersection(CGRect(origin: .zero, size: bildGroesse))
+    }
+}
+
+private extension UIImage {
+    func zugeschnitten(auf einheitsRechteck: CGRect) -> UIImage {
+        guard let cg = cgImage else { return self }
+        let rechteck = SnapZuschnitt.pixelRechteck(einheitsRechteck: einheitsRechteck, bildGroesse: CGSize(width: cg.width, height: cg.height))
+        guard rechteck.width > 0, rechteck.height > 0, let zugeschnitten = cg.cropping(to: rechteck) else { return self }
+        return UIImage(cgImage: zugeschnitten, scale: scale, orientation: imageOrientation)
+    }
 }
 
 /// Full-screen camera (Z-6.1): tap for a photo, hold (≥0.3s) for video up to 30s with a progress
@@ -376,7 +423,7 @@ struct SnapKameraView: View {
 
     var body: some View {
         ZStack {
-            KameraVorschau(session: steuerung.session)
+            KameraVorschau(session: steuerung.session, aufEbene: { steuerung.vorschauEbeneSetzen($0) })
                 .ignoresSafeArea()
                 .opacity(steuerung.bildDa ? 1 : 0) // fades in with the first frames, no black flash
                 .animation(Feder.weich, value: steuerung.bildDa)
