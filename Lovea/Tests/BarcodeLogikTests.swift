@@ -43,7 +43,8 @@ final class BarcodeLogikTests: XCTestCase {
     }
 
     func testNichtsGefunden() async {
-        XCTAssertEqual(await BarcodeKette.suchen("4311501679715", quellen()), .unbekannt("4311501679715"))
+        let r = await BarcodeKette.suchen("4311501679715", quellen())
+        XCTAssertEqual(r, .unbekannt("4311501679715"))
     }
 
     func testAllesOffline() async {
