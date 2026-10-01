@@ -104,6 +104,46 @@ final class ChatMedienTests: XCTestCase {
         XCTAssertFalse(MedienNachrichtView.istHoch(breite: 0, hoehe: 0))
     }
 
+    // MARK: - TransparenzKarte.auswerten (Z-35: transparent drawings get a paper card)
+
+    func testOpakesBildBrauchtKeineKarte() {
+        var rgba: [UInt8] = []
+        for _ in 0..<16 { rgba += [10, 10, 10, 255] } // fully opaque
+        let ergebnis = TransparenzKarte.auswerten(rgba: rgba)
+        XCTAssertFalse(ergebnis.brauchtKarte)
+    }
+
+    func testUeberwiegendTransparentesBildBrauchtKarte() {
+        var rgba: [UInt8] = []
+        for _ in 0..<100 { rgba += [20, 20, 20, 0] } // fully transparent
+        for _ in 0..<10 { rgba += [20, 20, 20, 255] } // dark strokes
+        let ergebnis = TransparenzKarte.auswerten(rgba: rgba)
+        XCTAssertTrue(ergebnis.brauchtKarte)
+        XCTAssertFalse(ergebnis.dunkleKarte, "dark strokes get the default light paper card")
+    }
+
+    func testHelleStricheAufTransparentBrauchenDunkleKarte() {
+        var rgba: [UInt8] = []
+        for _ in 0..<100 { rgba += [20, 20, 20, 0] } // fully transparent
+        for _ in 0..<10 { rgba += [240, 240, 240, 255] } // light strokes
+        let ergebnis = TransparenzKarte.auswerten(rgba: rgba)
+        XCTAssertTrue(ergebnis.brauchtKarte)
+        XCTAssertTrue(ergebnis.dunkleKarte)
+    }
+
+    func testEinzelnesAntialiasiertesPixelBrauchtKeineKarte() {
+        var rgba: [UInt8] = []
+        for _ in 0..<199 { rgba += [20, 20, 20, 255] }
+        rgba += [20, 20, 20, 200] // one soft edge pixel among 200
+        let ergebnis = TransparenzKarte.auswerten(rgba: rgba)
+        XCTAssertFalse(ergebnis.brauchtKarte, "a stray antialiased pixel isn't a transparent background")
+    }
+
+    func testLeereOderUngueltigeDatenBrauchenKeineKarte() {
+        XCTAssertEqual(TransparenzKarte.auswerten(rgba: []), TransparenzKarte.keineKarte)
+        XCTAssertEqual(TransparenzKarte.auswerten(rgba: [1, 2, 3]), TransparenzKarte.keineKarte, "not a multiple of 4")
+    }
+
     // MARK: - GIF masonry (fix round 2)
 
     func testMasonryFuelltDieKuerzereSpalte() {

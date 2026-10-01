@@ -585,6 +585,17 @@ private struct NachrichtenListe: View {
                 }
                 .padding(.vertical, 8)
             }
+            // Z-35: `scrollEdgeEffectHidden` above means no blur band under the header, so an
+            // overscrolled bubble used to slide straight up under the status bar and collide with
+            // the clock, and show through the glass header capsule. A static top fade (no per-frame
+            // work — GPU composites the mask once) hides content before it reaches that zone.
+            .mask(alignment: .top) {
+                VStack(spacing: 0) {
+                    LinearGradient(colors: [.clear, .black], startPoint: .top, endPoint: .bottom)
+                        .frame(height: 70)
+                    Color.black
+                }
+            }
             .defaultScrollAnchor(.bottom)
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .scrollDismissesKeyboard(.interactively)
