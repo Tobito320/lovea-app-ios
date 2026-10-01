@@ -32,6 +32,40 @@ final class LebensmittelIndexTests: XCTestCase {
         for q in ["griess", "Grieß"] { XCTAssertEqual(LebensmittelBasis.treffer(liste, q).first?.id, "2", q) }
     }
 
+    /// Deutsche Komposita hängen das Hauptwort hinten an ("Hühner-ei"): "ei" muss das auch über das
+    /// Wortende finden, aber ein Name, der mit "Ei" beginnt, steht davor (Rang 1 vor Rang 3).
+    func testSuffixSucheFindetHuehnereiUndRanktNamensanfangZuerst() {
+        let liste = [l("1", "Hühnerei, gekocht"), l("2", "Ei, gekocht")]
+        let treffer = LebensmittelBasis.treffer(liste, "ei")
+        XCTAssertEqual(treffer.map(\.id), ["2", "1"], "Ei, gekocht (Namensanfang) muss vor Hühnerei (nur Suffix) stehen")
+    }
+
+    /// Edge Cases aus den globalen Vorgaben, gegen die echte `suchschluessel()` in
+    /// `tools/bls-import/bls_import.py` gerechnet (siehe Fix-Report): Akzente wie `è`/`î` fallen weg,
+    /// ein Apostroph zählt wie jedes andere Satzzeichen als Worttrenner.
+    func testCremeFraicheUndApostroph() {
+        XCTAssertEqual(LebensmittelBasis.normal("Crème fraîche"), "creme fraiche")
+        XCTAssertEqual(LebensmittelBasis.normal("Kellogg's Cornflakes"), "kellogg s cornflakes")
+    }
+
+    /// Verlässt der Nutzer den Bildschirm (`freigeben()`), während ein `laden()` noch im Hintergrund
+    /// läuft, darf das spät eintreffende Ergebnis die Daten nicht wieder befüllen (Generation-Zähler).
+    func testFreigebenWaehrendLadenVerwirftErgebnis() {
+        let index = LebensmittelIndex()
+        let spaeteDaten = [l("x", "Testlebensmittel")]
+        let fertig = expectation(description: "Ladevorgang abgeschlossen")
+        index.laden(lader: {
+            Thread.sleep(forTimeInterval: 0.05)
+            return spaeteDaten
+        })
+        index.freigeben()
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            XCTAssertFalse(index.bereit, "freigeben() waehrend des Ladens darf die alten Daten nicht zurueckholen")
+            fertig.fulfill()
+        }
+        wait(for: [fertig], timeout: 2)
+    }
+
     func testVorneKommtZuerstUndOhneDoppelte() {
         let ei = l("bls-1", "Hühnerei, gekocht")
         let index = LebensmittelIndex(testDaten: [ei, l("bls-2", "Eierlikör")])

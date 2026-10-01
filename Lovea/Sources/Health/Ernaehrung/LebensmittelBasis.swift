@@ -10,31 +10,49 @@ enum LebensmittelBasis {
         return liste
     }
 
-    /// Gleiche Regel wie `suchschluessel` in `tools/bls-import/bls_import.py`.
+    /// Gleiche Regel wie `suchschluessel` in `tools/bls-import/bls_import.py`: Python behält nach dem
+    /// Falten nur `[a-z0-9]+` (ASCII), ein Zeichen ohne NFKD-Zerlegung (z. B. Kyrillisch) fällt dort
+    /// komplett weg – deshalb hier zusätzlich `isASCII`, sonst würden Swift und Python unterschiedliche
+    /// Schlüssel für exotische Namen bauen.
     static func normal(_ text: String) -> String {
         let t = text.lowercased().replacingOccurrences(of: "ß", with: "ss")
             .folding(options: [.diacriticInsensitive], locale: Locale(identifier: "de_DE"))
-        return t.split(whereSeparator: { !$0.isLetter && !$0.isNumber }).joined(separator: " ")
+        return t.split(whereSeparator: { !$0.isASCII || !($0.isLetter || $0.isNumber) }).joined(separator: " ")
     }
 
     static func schluessel(_ l: Lebensmittel) -> String { l.suche ?? normal(l.name + " " + (l.marke ?? "")) }
 
-    /// Jedes Wort im Suchtext muss als Wortanfang vorkommen. Name beginnt mit dem Suchtext zuerst, dann kürzere Namen.
+    /// YAZIO-artige Suche: ein Suchwort trifft ein Namenswort als Präfix ODER als Suffix (deutsche
+    /// Komposita hängen das Hauptwort hinten an: "Hühner-ei", "Grieß-brei"). Rang 1: der ganze Name
+    /// beginnt mit dem Suchtext. Rang 2: jedes Suchwort trifft mindestens ein Namenswort als Präfix.
+    /// Rang 3: mindestens ein Suchwort trifft nur über das Suffix. Innerhalb eines Rangs kürzere Namen
+    /// zuerst (Länge einmal pro Treffer berechnet, nicht im Sortier-Vergleich).
     static func treffer(_ liste: [Lebensmittel], _ text: String, anzahl: Int = 50) -> [Lebensmittel] {
         let t = normal(text)
-        guard !t.isEmpty else { return [] }
+        guard t.count >= 2 else { return [] }
         let woerter = t.split(separator: " ")
-        var vorn: [Lebensmittel] = [], sonst: [Lebensmittel] = []
+        var namensanfang: [Lebensmittel] = [], allePraefix: [Lebensmittel] = [], nurSuffix: [Lebensmittel] = []
         for l in liste {
             let s = schluessel(l)
-            guard woerter.allSatisfy({ w in s.hasPrefix(w) || s.contains(" " + w) }) else { continue }
-            if s.hasPrefix(t) { vorn.append(l) } else { sonst.append(l) }
+            let sWoerter = s.split(separator: " ")
+            var nurUeberSuffix = false
+            var trifftAlle = true
+            for w in woerter {
+                let praefix = sWoerter.contains { $0.hasPrefix(w) }
+                let suffix = sWoerter.contains { $0.hasSuffix(w) }
+                guard praefix || suffix else { trifftAlle = false; break }
+                if !praefix { nurUeberSuffix = true }
+            }
+            guard trifftAlle else { continue }
+            if s.hasPrefix(t) { namensanfang.append(l) }
+            else if !nurUeberSuffix { allePraefix.append(l) }
+            else { nurSuffix.append(l) }
         }
         // String.count ist O(n); Länge einmal pro Treffer rechnen statt bei jedem Vergleich.
         func kurzZuerst(_ liste: [Lebensmittel]) -> [Lebensmittel] {
             liste.map { ($0, $0.name.utf8.count) }.sorted { $0.1 < $1.1 }.map(\.0)
         }
-        return Array((kurzZuerst(vorn) + kurzZuerst(sonst)).prefix(anzahl))
+        return Array((kurzZuerst(namensanfang) + kurzZuerst(allePraefix) + kurzZuerst(nurSuffix)).prefix(anzahl))
     }
 }
 
@@ -44,26 +62,38 @@ final class LebensmittelIndex: @unchecked Sendable {
     private let sperre = NSLock()
     private var daten: [Lebensmittel] = []
     private var laedt = false
+    /// Zählt jedes `freigeben()` mit. Ein Ladevorgang schreibt sein Ergebnis nur, wenn die Generation
+    /// seit seinem Start unverändert ist – sonst hat der Nutzer die Ernährung schon wieder verlassen,
+    /// und ein verspätetes `laden()` darf die Daten nicht erneut befüllen (Akku/Speicher-Vorgabe).
+    private var generation = 0
 
     init() {}
     init(testDaten: [Lebensmittel]) { daten = testDaten }
 
     var bereit: Bool { sperre.withLock { !daten.isEmpty } }
 
-    func laden() {
-        let starten = sperre.withLock { () -> Bool in
-            guard daten.isEmpty, !laedt else { return false }
+    func laden() { laden(lader: { LebensmittelBasis.laden(.main) }) }
+
+    /// Testbarer Einstieg: `lader` ersetzt den echten Bundle-Zugriff, damit sich das `freigeben()`-
+    /// Wettrennen ohne das App-Bundle nachstellen lässt.
+    func laden(lader: @escaping @Sendable () -> [Lebensmittel]) {
+        let (starten, meineGeneration) = sperre.withLock { () -> (Bool, Int) in
+            guard daten.isEmpty, !laedt else { return (false, generation) }
             laedt = true
-            return true
+            return (true, generation)
         }
         guard starten else { return }
         Task.detached(priority: .utility) { [weak self] in
-            let liste = LebensmittelBasis.laden(.main)
-            self?.sperre.withLock { self?.daten = liste; self?.laedt = false }
+            let liste = lader()
+            guard let self else { return }
+            self.sperre.withLock {
+                if self.generation == meineGeneration { self.daten = liste }
+                self.laedt = false
+            }
         }
     }
 
-    func freigeben() { sperre.withLock { daten = [] } }
+    func freigeben() { sperre.withLock { daten = []; generation += 1; laedt = false } }
 
     /// `vorne` (Verlauf, Favoriten, eigene) zuerst, dann BLS, ohne doppelte IDs, höchstens `anzahl`.
     func suchen(_ text: String, vorne: [Lebensmittel], anzahl: Int = 50) -> [Lebensmittel] {
