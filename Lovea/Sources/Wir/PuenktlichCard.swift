@@ -34,7 +34,12 @@ struct PuenktlichCard: View {
             .onChange(of: kandidat.datum, initial: true) { versatz = 0 }
             .gesture(
                 DragGesture()
-                    .onChanged { versatz = $0.translation.width }
+                    .onChanged { wert in
+                        versatz = wert.translation.width
+                        // R6-Fix (Review 01.10.): beansprucht die Berührung, damit der Home-Tab-Wisch
+                        // nicht zugleich mit dem Wegwischen feuert (das sendet eine echte Op).
+                        TabWischSperre.shared.beanspruchen()
+                    }
                     .onEnded { wert in
                         if abs(wert.translation.width) > 100 {
                             wegwischen(kandidat)

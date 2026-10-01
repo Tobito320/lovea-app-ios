@@ -46,4 +46,18 @@ final class TabWischLogikTests: XCTestCase {
     func testGenauAnDerMindeststreckeReagiertNochNicht() {
         XCTAssertNil(TabWischLogik.richtung(dx: 60, dy: 0, startX: 200, breite: breite))
     }
+
+    /// R6-Fix (Review 01.10.): eine innere horizontale Geste (Wochenstreifen, Kalendermonat,
+    /// Pünktlich-Karte) hat die Berührung schon beansprucht — dann kein Tab-Wechsel, obwohl Strecke
+    /// und Richtung sonst passen würden.
+    func testBeanspruchtReagiertNicht() {
+        XCTAssertNil(TabWischLogik.richtung(dx: -100, dy: 0, startX: 200, breite: breite, beansprucht: true))
+    }
+
+    func testNichtBeanspruchtReagiertWieVorher() {
+        XCTAssertEqual(
+            TabWischLogik.richtung(dx: -100, dy: 0, startX: 200, breite: breite, beansprucht: false),
+            .naechsterTab
+        )
+    }
 }
