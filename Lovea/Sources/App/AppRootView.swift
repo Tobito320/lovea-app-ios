@@ -69,6 +69,12 @@ struct AppRootView: View {
                 selectedTab = .health
                 return
             }
+            if wunsch == "essen" { // Live Activity: zurück ins Ernährungstagebuch
+                AppNavigation.shared.tabWunsch = nil
+                AppNavigation.shared.healthSeite = "ernaehrung"
+                selectedTab = .health
+                return
+            }
             guard let wunsch, let tab = AppTab(rawValue: wunsch) else { return }
             AppNavigation.shared.tabWunsch = nil
             if [.heute, .koerper, .training, .verlauf].contains(tab) {

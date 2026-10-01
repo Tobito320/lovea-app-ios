@@ -77,6 +77,7 @@ struct ErnaehrungView: View {
                 EssenLiveVorschlagCard {
                     EssenLiveEinstellungen.vorschlagEntschieden(an: $0)
                     liveVorschlagZeigen = false
+                    EssenLive.abgleichen()
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -689,7 +690,10 @@ struct TagebuchAnpassenBlatt: View {
                 }
                 Section {
                     Toggle("Kalorien als Live-Aktivität anzeigen", isOn: $liveAktivitaetAn)
-                        .onChange(of: liveAktivitaetAn) { _, an in EssenLiveEinstellungen.an = an }
+                        .onChange(of: liveAktivitaetAn) { _, an in
+                            EssenLiveEinstellungen.an = an
+                            EssenLive.abgleichen()
+                        }
                 } footer: {
                     Text("Zeigt Kalorien und Eiweiß auf dem Sperrbildschirm. Aktualisiert sich nur bei eigenen Einträgen.")
                 }

@@ -13,6 +13,8 @@ struct EssenAktivitaet: ActivityAttributes {
         var kohlenhydrateZiel: Int
         var fettG: Int
         var fettZiel: Int
+        /// Tag im Tagebuch ("yyyy-MM-dd"), für den dieser Stand gilt — erkennt den Tageswechsel.
+        var tag: String
     }
 
     var name: String
