@@ -70,6 +70,7 @@ final class Compositor {
     private var belowState: ([ArtworkLayer], CanvasBackground)?
     private var aboveState: [ArtworkLayer]?
 
+    private var ohneArbeitstexturen = false
     private(set) var belowBuilds = 0
     private(set) var aboveBuilds = 0
     /// Screen pixels per point of the drawable.
@@ -144,7 +145,13 @@ final class Compositor {
     ) {
         let layers = document.layers
         guard ensureTextures(width: store.width, height: store.height),
-              let below, let above, let activeTemp else { return }
+              let below, let above, let activeTemp else {
+            // Kein Zeichnen in dieses Frame: der Drawable zeigt dann einen alten Inhalt. Nur beim Wechsel loggen, nicht pro Frame.
+            if !ohneArbeitstexturen { ZeichenProtokoll.log("encodeFrame: Arbeitstexturen fehlen (GPU-Speicher), Frame bleibt unbezeichnet") }
+            ohneArbeitstexturen = true
+            return
+        }
+        ohneArbeitstexturen = false
         let split = Self.liveSplit(layers: layers, activeLayerID: activeLayerID)
         let active = split.active
         let liveRange = split.live

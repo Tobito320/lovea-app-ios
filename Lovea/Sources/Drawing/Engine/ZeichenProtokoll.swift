@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 import os
 
@@ -7,6 +8,21 @@ import os
 /// schicken kann, wenn ein Strich wieder verschwindet. os.Logger bleibt zusätzlich bestehen (sichtbar
 /// über Console.app an einem angeschlossenen Gerät), ist aber für Ahmed selbst nicht erreichbar.
 let strokeLogger = Logger(subsystem: "app.lovea.drawing", category: "stroke")
+
+/// Der zuletzt gelandete Strich, ein einziger überschriebener Wert (kein Ring-Eintrag pro Strich).
+/// Die Undo-Zeile im Protokoll nutzt ihn: trifft Rückgängig diesen Strich, oder einen anderen Schritt?
+struct LandungsSpur: Equatable {
+    var layerID: UUID
+    var rect: CGRect
+    var zeit: CFTimeInterval
+
+    static func urteil(layerID: UUID, rect: CGRect, letzte: LandungsSpur?) -> String {
+        guard let letzte else { return "kein Strich in dieser Sitzung gelandet" }
+        guard letzte.layerID == layerID else { return "andere Ebene als der letzte Strich" }
+        if letzte.rect == rect { return "genau der letzte Strich" }
+        return rect.intersects(letzte.rect) ? "überlappt den letzten Strich" : "trifft den letzten Strich nicht"
+    }
+}
 
 @MainActor
 enum ZeichenProtokoll {
