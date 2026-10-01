@@ -3,12 +3,12 @@ import Foundation
 /// Build 78 (Ahmed, neue Spur): weder Absturz- noch JetsamEvent-Log auf dem Gerät, obwohl die App
 /// sofort schließt — vermutlich killt das System den Prozess (Speicher-Limit, Watchdog-Hänger),
 /// etwas, das ein Signal-Handler nie sieht. Für die ersten 30 Sekunden im Vordergrund schreibt dieser
-/// Herzschlag alle 500 ms eine Breadcrumb-Zeile mit freiem Speicher und wie lange der Hauptthread
+/// StartPuls alle 500 ms eine Breadcrumb-Zeile mit freiem Speicher und wie lange der Hauptthread
 /// zuletzt geantwortet hat — zeigt im nächsten Start, ob der Prozess hing oder der Speicher vor dem
 /// Tod hochlief. Danach (und beim Hintergrund-Wechsel) stoppt der Timer wieder (Akku-Regel: kein
 /// Dauer-Timer, nur die ersten 30 s nach jedem Start).
-final class Herzschlag: @unchecked Sendable {
-    static let shared = Herzschlag()
+final class StartPuls: @unchecked Sendable {
+    static let shared = StartPuls()
     private let sperre = NSLock()
     private var letzteMainAntwort = Date()
     private var timer: DispatchSourceTimer?

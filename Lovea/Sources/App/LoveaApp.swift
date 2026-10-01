@@ -65,7 +65,7 @@ struct LoveaApp: App {
                     // und erst jetzt eine Szene zeigt — `unsauberZaehlen()` zählt höchstens einmal
                     // pro Prozess, ist also ein no-op, wenn `didFinishLaunching` schon zählte.
                     StartProtokoll.unsauberZaehlen()
-                    Herzschlag.shared.starten()
+                    StartPuls.shared.starten()
                     if bericht != nil { berichtGezeigt = true }
                 }
                 .onChange(of: session.person, initial: true) { _, person in starten(person) }
@@ -127,7 +127,7 @@ struct LoveaApp: App {
             StartProtokoll.marke("workoutuhr.mitteilungPlanen.vor")
             WorkoutUhr.shared.mitteilungPlanen()
             StartProtokoll.marke("workoutuhr.mitteilungPlanen.nach")
-            Herzschlag.shared.stoppen()
+            StartPuls.shared.stoppen()
             // Normaler Hintergrund-Wechsel, kein Absturz: der nächste Start soll nicht fälschlich
             // als Absturz zählen.
             StartProtokoll.sauber()
