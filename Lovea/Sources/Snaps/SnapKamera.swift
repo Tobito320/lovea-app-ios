@@ -90,12 +90,10 @@ private final class KameraSitzung: @unchecked Sendable {
         mikroDazu()
         // App is portrait-only but a connection defaults to landscape (angle 0).
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
-        // The preview layer mirrors the front camera on its own (automaticallyAdjustsVideoMirroring,
-        // default true) so it feels like a mirror — but that same default also mirrors this OUTPUT
-        // connection, so a front-camera video came out flipped (text backwards). The saved video
-        // should look true-to-life, like the system Camera app's default.
-        verbindung.automaticallyAdjustsVideoMirroring = false
-        verbindung.isVideoMirrored = false
+        // `automaticallyAdjustsVideoMirroring` (default true) mirrors this OUTPUT connection the
+        // same way the preview mirrors the front camera. Ahmed wants WYSIWYG (Snapchat-style): the
+        // saved video should look exactly like the mirror-like preview he saw, so this is left at
+        // its default — front camera mirrored, back camera (never mirrored by default) untouched.
         film.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
         film.startRecording(to: ziel, recordingDelegate: delegate)
         return true
@@ -260,10 +258,8 @@ final class SnapKameraSteuerung: NSObject {
         // `capturePhoto`; a second tap while one is in flight would drop its continuation.
         guard fotoContinuation == nil, let verbindung = sitzung.foto.connection(with: .video), verbindung.isActive else { return nil }
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
-        // Same fix as the video connection in `aufnehmen(nach:delegate:)`: the preview stays mirrored
-        // (its own connection, untouched), only the captured photo should not be.
-        verbindung.automaticallyAdjustsVideoMirroring = false
-        verbindung.isVideoMirrored = false
+        // Mirroring left at its default (see `aufnehmen(nach:delegate:)`): the saved photo should
+        // match the preview Ahmed framed, mirrored on the front camera, not on the back.
         return await withCheckedContinuation { continuation in
             fotoContinuation = continuation
             let einstellungen = AVCapturePhotoSettings()
