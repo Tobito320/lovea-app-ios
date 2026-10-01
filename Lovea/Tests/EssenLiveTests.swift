@@ -6,8 +6,8 @@ final class EssenLiveTests: XCTestCase {
     private let skyr = Lebensmittel(id: "off-1", name: "Skyr", pro100: Naehrwerte(kcal: 62, protein: 11, kohlenhydrate: 4, fett: 0.2),
                                     portionMenge: 150, packungMenge: 450)
 
-    private func eintrag(_ menge: Double) -> EssenEintrag {
-        EssenEintrag(id: UUID().uuidString, datum: "2026-10-01", mahlzeit: .fruehstueck, menge: menge, einheit: .g,
+    private func eintrag(_ menge: Double, _ mahlzeit: Mahlzeit = .fruehstueck) -> EssenEintrag {
+        EssenEintrag(id: UUID().uuidString, datum: "2026-10-01", mahlzeit: mahlzeit, menge: menge, einheit: .g,
                     lebensmittel: skyr, geloescht: nil)
     }
 
@@ -30,6 +30,16 @@ final class EssenLiveTests: XCTestCase {
         XCTAssertEqual(stand.kcal, 0)
         XCTAssertEqual(stand.proteinG, 0)
         XCTAssertEqual(stand.kcalZiel, 1800)
+        XCTAssertEqual(stand.mahlzeitenKcal, [0, 0, 0, 0])
+    }
+
+    func testStandMahlzeitenKcalProMahlzeit() {
+        let z = ErnaehrungsZiele(kcal: 2000, protein: 120, kohlenhydrate: 220, fett: 70)
+        let eintraege = [eintrag(200, .fruehstueck), eintrag(100, .mittag), eintrag(100, .mittag), eintrag(50, .snack)]
+        let stand = EssenLiveLogik.stand(eintraege, ziele: z, tag: "2026-10-01")
+        // Reihenfolge: fruehstueck, mittag, abend, snack. 100 g Skyr = 62 kcal.
+        XCTAssertEqual(stand.mahlzeitenKcal, [124, 124, 0, 31])
+        XCTAssertEqual(stand.kcal, 124 + 124 + 31)
     }
 
     // MARK: - Aktion (Mitternacht-Entscheidung, ohne ActivityKit)

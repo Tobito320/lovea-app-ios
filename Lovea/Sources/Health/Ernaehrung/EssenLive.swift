@@ -6,11 +6,17 @@ import Foundation
 enum EssenLiveLogik {
     static func stand(_ eintraege: [EssenEintrag], ziele: ErnaehrungsZiele, tag: String) -> EssenAktivitaet.ContentState {
         let summe = ErnaehrungLogik.summe(eintraege)
+        // Reihenfolge fest wie `Mahlzeit.allCases` (fruehstueck, mittag, abend, snack) — muss zu
+        // `EssenMahlzeitAnzeige.allCases` im Widget-Ziel passen.
+        let mahlzeitenKcal = Mahlzeit.allCases.map { m in
+            Int(ErnaehrungLogik.summe(eintraege.filter { $0.mahlzeit == m }).kcal.rounded())
+        }
         return EssenAktivitaet.ContentState(
             kcal: Int(summe.kcal.rounded()), kcalZiel: ziele.kcal,
             proteinG: Int(summe.protein.rounded()), proteinZiel: ziele.protein,
             kohlenhydrateG: Int(summe.kohlenhydrate.rounded()), kohlenhydrateZiel: ziele.kohlenhydrate,
-            fettG: Int(summe.fett.rounded()), fettZiel: ziele.fett, tag: tag)
+            fettG: Int(summe.fett.rounded()), fettZiel: ziele.fett,
+            mahlzeitenKcal: mahlzeitenKcal, tag: tag)
     }
 }
 

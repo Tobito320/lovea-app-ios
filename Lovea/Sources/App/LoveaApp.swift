@@ -25,7 +25,13 @@ struct LoveaApp: App {
             .onChange(of: scenePhase) { _, phase in phaseGewechselt(phase) }
             // Z-28.3: `widgetURL` der Widgets, z. B. `lovea://health`. `AppNavigation.tabWunsch`
             // ignoriert selbst jeden unbekannten Host (siehe `AppRootView`s `onChange`).
-            .onOpenURL { url in AppNavigation.shared.tabWunsch = url.host }
+            // R8: `lovea://essen?mahlzeit=…` (Live-Activity-Mahlzeitenzeile) trägt zusätzlich die
+            // Mahlzeit in der Query — `essenMahlzeitWunsch` öffnet dafür direkt das Hinzufügen-Blatt.
+            .onOpenURL { url in
+                AppNavigation.shared.tabWunsch = url.host
+                let teile = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                AppNavigation.shared.essenMahlzeitWunsch = teile?.queryItems?.first { $0.name == "mahlzeit" }?.value
+            }
         }
     }
 
