@@ -87,7 +87,12 @@ final class LebensmittelIndex: @unchecked Sendable {
             let liste = lader()
             guard let self else { return }
             self.sperre.withLock {
-                if self.generation == meineGeneration { self.daten = liste }
+                // Nur der Ladevorgang der noch gültigen Generation darf `laedt` freigeben – sonst
+                // räumt ein verspätetes, bereits verworfenes `laden()` das Flag ab, während ein
+                // danach gestartetes (gültiges) `laden()` noch läuft, und ein dritter Aufruf
+                // startet fälschlich einen weiteren, parallelen Ladevorgang.
+                guard self.generation == meineGeneration else { return }
+                self.daten = liste
                 self.laedt = false
             }
         }

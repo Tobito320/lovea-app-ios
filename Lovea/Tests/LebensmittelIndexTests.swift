@@ -66,6 +66,60 @@ final class LebensmittelIndexTests: XCTestCase {
         wait(for: [fertig], timeout: 2)
     }
 
+    /// Thread-sicherer Aufruf-Zähler für die Race-Tests unten: `Task.detached` läuft auf einem
+    /// Hintergrund-Thread, ein simples `var` wäre eine Datenrennen-Warnung unter Swift 6.
+    private final class Aufrufzaehler: @unchecked Sendable {
+        private let lock = NSLock()
+        private var wert = 0
+        func zaehlen() -> Int { lock.withLock { wert += 1; return wert } }
+        var anzahl: Int { lock.withLock { wert } }
+    }
+
+    /// A (Generation 0) startet, dann `freigeben()` (Generation 1), dann B (Generation 1) startet,
+    /// dann wird A durchgelassen (stale) und darf `laedt` NICHT löschen – sonst hält ein drittes
+    /// `laden()` fälschlich für frei und startet einen zweiten, parallel laufenden Ladevorgang,
+    /// während B noch lädt. Gezählt wird über den Loader-Aufrufzähler.
+    func testLaedtBleibtGesetztBisZurPassendenGeneration() {
+        let aufrufe = Aufrufzaehler()
+        let aGestartet = DispatchSemaphore(value: 0)
+        let aWeiter = DispatchSemaphore(value: 0)
+        let bGestartet = DispatchSemaphore(value: 0)
+        let bWeiter = DispatchSemaphore(value: 0)
+
+        let index = LebensmittelIndex()
+
+        index.laden(lader: {
+            _ = aufrufe.zaehlen()
+            aGestartet.signal()
+            aWeiter.wait()
+            return []
+        })
+        XCTAssertEqual(aGestartet.wait(timeout: .now() + 2), .success, "Ladevorgang A nie gestartet")
+
+        index.freigeben()
+
+        index.laden(lader: {
+            _ = aufrufe.zaehlen()
+            bGestartet.signal()
+            bWeiter.wait()
+            return []
+        })
+        XCTAssertEqual(bGestartet.wait(timeout: .now() + 2), .success, "Ladevorgang B nie gestartet")
+
+        // A (stale Generation 0) durchlassen, kurz warten bis seine Abschluss-Klausel gelaufen ist.
+        aWeiter.signal()
+        Thread.sleep(forTimeInterval: 0.1)
+
+        // Dritter Versuch, während B (Generation 1) noch lädt: darf keinen weiteren Loader starten.
+        index.laden(lader: { _ = aufrufe.zaehlen(); return [] })
+        Thread.sleep(forTimeInterval: 0.05)
+        XCTAssertEqual(aufrufe.anzahl, 2, "Nur A und B durften den Loader aufrufen, kein dritter paralleler Ladevorgang")
+
+        // Aufräumen: B durchlassen, damit kein Hintergrund-Task über das Testende hinausläuft.
+        bWeiter.signal()
+        Thread.sleep(forTimeInterval: 0.05)
+    }
+
     func testVorneKommtZuerstUndOhneDoppelte() {
         let ei = l("bls-1", "Hühnerei, gekocht")
         let index = LebensmittelIndex(testDaten: [ei, l("bls-2", "Eierlikör")])
