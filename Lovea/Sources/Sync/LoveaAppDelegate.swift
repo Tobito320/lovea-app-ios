@@ -7,6 +7,19 @@ import UserNotifications
 /// class only wires the plumbing once permission exists.
 final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // R3 (Coordinator-Korrektur, Ahmed: die App stirbt oft VOR jeder UI): nicht auf eine Szene
+        // warten, sondern HIER zählen, wenn der Nutzer die App wirklich geöffnet hat (`!= .background`
+        // -- ein Silent-Push-/HealthKit-Relaunch bleibt im Hintergrund und zählt hier nicht, sondern
+        // erst über `LoveaApp`s Szene-`onAppear`, falls er doch noch in den Vordergrund kommt). VOR
+        // dem Zählen lesen, damit dieser Start denselben Sicherheitsmodus-Stand sieht wie `LoveaApp.
+        // init` (das vorher lief) — ein Zählen davor könnte ihn mitten in dieser Funktion umkippen.
+        let abgesichert = StartProtokoll.abgesichert
+        if application.applicationState != .background {
+            StartProtokoll.unsauberZaehlen()
+        }
+        // R3 (Build 78, Sicherheitsmodus): nach >= 2 Abstürzen in Folge WIRKLICH NICHTS starten,
+        // auch nicht Push-Registrierung/-Kategorien — sonst crasht ein Hintergrund-Relaunch weiter.
+        guard !abgesichert else { return true }
         UNUserNotificationCenter.current().delegate = self
         let namen = ["chat", "snap", "geste", "kalender", "orte", "zeichnen", "spiele"]
         let kategorien = Set(namen.map { UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [], options: []) })
@@ -15,9 +28,7 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         // I-7: HealthKit observers + background delivery must exist on EVERY launch, including a
         // background relaunch that never connects a scene. Keychain item is AfterFirstUnlock, so it
         // is readable in a locked background launch too.
-        // R3 (Build 78, Sicherheitsmodus): nach >= 2 Abstürzen in Folge NICHTS Launch-Seitiges
-        // starten, auch nicht von hier — sonst crasht ein Hintergrund-Relaunch genauso weiter.
-        if !StartProtokoll.abgesichert, let person = Schluesselbund.shared.get().flatMap(Person.init(rawValue:)) {
+        if let person = Schluesselbund.shared.get().flatMap(Person.init(rawValue:)) {
             AppStart.falten(person)
         }
         return true

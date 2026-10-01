@@ -1,9 +1,12 @@
 import XCTest
 @testable import Lovea
 
-/// Build 78: Absturz-Zähler-Logik ohne echten Prozess-Neustart testbar — `neuerStart()` muss einen
-/// Lauf nur dann als Absturz zählen, wenn er eine Szene erreichte und nie `sauber()` wurde (sonst
-/// zählt ein reiner Hintergrund-Start durch Silent-Push/HealthKit fälschlich als Absturz).
+/// Build 78: zwei getrennte Mechanismen in `StartProtokoll`.
+/// 1. `neuerStart()` entscheidet NUR, ob der Absturz-Bericht gezeigt wird (vorige Szene erreicht,
+///    nie `sauber()`).
+/// 2. `unsauberZaehlen()`/`sauber()`/`zaehlerZuruecksetzenNachSichtbar()` steuern den
+///    Sicherheitsmodus-Zähler direkt — unabhängig davon, ob je eine Szene erreicht wurde (Ahmed:
+///    die App stirbt oft VOR jeder UI).
 final class StartProtokollTests: XCTestCase {
     private let schluessel = ["start.breadcrumbs", "start.vorher", "start.sauber", "start.szeneErreicht", "start.unsauber.zaehler", "start.stufe"]
 
@@ -17,42 +20,41 @@ final class StartProtokollTests: XCTestCase {
         super.tearDown()
     }
 
-    func testErsterLaufJeZaehltNichtAlsAbsturz() {
+    func testErsterLaufJeZeigtKeinenBericht() {
         XCTAssertFalse(StartProtokoll.neuerStart())
-        XCTAssertFalse(StartProtokoll.abgesichert)
     }
 
-    func testSzeneOhneSauberZaehltAlsAbsturz() {
+    func testSzeneOhneSauberLoestBerichtAus() {
         _ = StartProtokoll.neuerStart()
         StartProtokoll.szeneErreicht()
         // Prozess "stirbt" hier, ohne `sauber()` — nächster Start erkennt das.
         XCTAssertTrue(StartProtokoll.neuerStart())
     }
 
-    func testHintergrundLaufOhneSzeneAendertZaehlerNicht() {
-        _ = StartProtokoll.neuerStart()
-        StartProtokoll.szeneErreicht()
-        XCTAssertTrue(StartProtokoll.neuerStart()) // 1. Absturz
-        XCTAssertFalse(StartProtokoll.neuerStart()) // 2. reiner Hintergrund-Start: keine Szene
-        XCTAssertFalse(StartProtokoll.abgesichert) // Zähler blieb bei 1, kein Absturz gezählt
-    }
-
-    func testZweiAbstuerzeInFolgeSichern() {
-        for _ in 0..<2 {
-            _ = StartProtokoll.neuerStart()
-            StartProtokoll.szeneErreicht()
-        }
-        XCTAssertTrue(StartProtokoll.neuerStart())
-        XCTAssertTrue(StartProtokoll.abgesichert)
+    func testUnsauberZaehlenErhoehtNurEinmalProProzess() {
+        StartProtokoll.unsauberZaehlen()
+        StartProtokoll.unsauberZaehlen() // zweiter Aufruf im selben Prozess: no-op
+        XCTAssertFalse(StartProtokoll.abgesichert) // 1 reicht nicht
+        _ = StartProtokoll.neuerStart() // neuer Prozess-"Start": Flag zurück
+        StartProtokoll.unsauberZaehlen()
+        XCTAssertTrue(StartProtokoll.abgesichert) // 2 in Folge -> Sicherheitsmodus
     }
 
     func testSaubererLaufSetztZaehlerZurueck() {
+        StartProtokoll.unsauberZaehlen()
         _ = StartProtokoll.neuerStart()
-        StartProtokoll.szeneErreicht()
-        _ = StartProtokoll.neuerStart() // 1 Absturz
-        StartProtokoll.szeneErreicht()
+        StartProtokoll.unsauberZaehlen()
+        XCTAssertTrue(StartProtokoll.abgesichert)
         StartProtokoll.sauber()
-        XCTAssertFalse(StartProtokoll.neuerStart())
+        XCTAssertFalse(StartProtokoll.abgesichert)
+    }
+
+    func testFuenfSekundenSichtbarSetztZaehlerZurueck() {
+        StartProtokoll.unsauberZaehlen()
+        _ = StartProtokoll.neuerStart()
+        StartProtokoll.unsauberZaehlen()
+        XCTAssertTrue(StartProtokoll.abgesichert)
+        StartProtokoll.zaehlerZuruecksetzenNachSichtbar()
         XCTAssertFalse(StartProtokoll.abgesichert)
     }
 

@@ -61,6 +61,10 @@ struct LoveaApp: App {
                 .onAppear {
                     guard !Self.istTest else { return }
                     StartProtokoll.szeneErreicht()
+                    // R3: deckt einen Start ab, der im Hintergrund begann (Silent-Push/HealthKit)
+                    // und erst jetzt eine Szene zeigt — `unsauberZaehlen()` zählt höchstens einmal
+                    // pro Prozess, ist also ein no-op, wenn `didFinishLaunching` schon zählte.
+                    StartProtokoll.unsauberZaehlen()
                     Herzschlag.shared.starten()
                     if bericht != nil { berichtGezeigt = true }
                 }

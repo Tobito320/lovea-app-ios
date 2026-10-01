@@ -16,6 +16,10 @@ final class StartProtokoll: @unchecked Sendable {
     static let shared = StartProtokoll()
     private let sperre = NSLock()
     private var liste: [String] = []
+    /// `unsauberZaehlen()` darf nur einmal pro Prozess zählen (Vordergrund-`didFinishLaunching`
+    /// UND späteres Szene-Connect können beide feuern) — dieses Flag lebt nur im Speicher, ist also
+    /// automatisch pro Prozess frisch.
+    private var zaehlerErhoehtDiesenProzess = false
     private let start = Date()
     private init() {}
 
@@ -30,10 +34,10 @@ final class StartProtokoll: @unchecked Sendable {
     private static let alteStufeSchluessel = "start.stufe" // Build 77: altes Einzel-Feld.
 
     /// Dreht die Liste für einen neuen Prozessstart: alte Liste nach `start.vorher`, neue Liste leer.
-    /// Entscheidet, ob der vorige Lauf als Absturz zählt — NUR wenn er wirklich eine Szene erreicht
-    /// hatte (sonst zählt ein reiner Hintergrund-Start durch Silent-Push/HealthKit fälschlich als
-    /// Absturz) und dabei nie `sauber()` erreichte. Ein Lauf ohne Szene ändert den Zähler gar nicht
-    /// (weder rauf noch runter) — er beweist weder Absturz noch sauberen Lauf.
+    /// Entscheidet NUR, ob der Absturz-Bericht angezeigt wird (vorige Szene erreicht, nie `sauber()`)
+    /// — der Sicherheitsmodus-Zähler hängt NICHT mehr daran, siehe `unsauberZaehlen()`: Ahmed
+    /// berichtet, die App stirbt oft VOR jeder UI, ein "Szene erreicht"-Gate hätte den Zähler dann
+    /// nie erhöht und der Sicherheitsmodus nie ausgelöst.
     @discardableResult
     static func neuerStart() -> Bool {
         let d = UserDefaults.standard
@@ -46,14 +50,27 @@ final class StartProtokoll: @unchecked Sendable {
         d.set([String](), forKey: breadcrumbsSchluessel)
         d.set(false, forKey: sauberSchluessel)
         d.set(false, forKey: szeneSchluessel)
-        if vorherCrash {
-            d.set(d.integer(forKey: zaehlerSchluessel) + 1, forKey: zaehlerSchluessel)
-        } else if warSauber {
-            d.set(0, forKey: zaehlerSchluessel)
-        }
         d.synchronize()
-        shared.sperre.withLock { shared.liste = [] }
+        shared.sperre.withLock { shared.liste = []; shared.zaehlerErhoehtDiesenProzess = false }
         return vorherCrash
+    }
+
+    /// R3 (Coordinator-Korrektur, Ahmed): zählt einen Start direkt, statt auf eine erreichte Szene
+    /// zu warten — ruft `LoveaAppDelegate.didFinishLaunching` auf, wenn `UIApplication.shared.
+    /// applicationState != .background` (Nutzer hat die App wirklich geöffnet), UND `LoveaApp`s
+    /// Szene-`onAppear` (deckt einen Start ab, der im Hintergrund begann — Silent-Push/HealthKit —
+    /// und erst danach in den Vordergrund geholt wird). Höchstens EINMAL pro Prozess (Flag oben) und
+    /// sofort synchronisiert: der Prozess kann binnen Millisekunden sterben.
+    static func unsauberZaehlen() {
+        let schonGezaehlt = shared.sperre.withLock { () -> Bool in
+            if shared.zaehlerErhoehtDiesenProzess { return true }
+            shared.zaehlerErhoehtDiesenProzess = true
+            return false
+        }
+        guard !schonGezaehlt else { return }
+        let d = UserDefaults.standard
+        d.set(d.integer(forKey: zaehlerSchluessel) + 1, forKey: zaehlerSchluessel)
+        d.synchronize()
     }
 
     static func marke(_ stufe: String) {
@@ -74,18 +91,24 @@ final class StartProtokoll: @unchecked Sendable {
     /// Irgendeine UI sichtbar geworden — Voraussetzung dafür, dass ein fehlendes `sauber()`
     /// überhaupt als Absturz zählt (siehe `neuerStart`).
     static func szeneErreicht() {
-        UserDefaults.standard.set(true, forKey: szeneSchluessel)
+        let d = UserDefaults.standard
+        d.set(true, forKey: szeneSchluessel)
+        d.synchronize()
     }
 
-    /// Lauf sauber beendet (Szene in den Hintergrund) ODER normal weitergelaufen (5 s sichtbar) —
-    /// in beiden Fällen kein Absturz. `zaehlerZuruecksetzenNachSichtbar` setzt zusätzlich sofort den
-    /// Zähler zurück, ohne auf `.background` zu warten.
+    /// Lauf sauber beendet (Szene in den Hintergrund): kein Absturz, Sicherheitsmodus-Zähler zurück.
     static func sauber() {
-        UserDefaults.standard.set(true, forKey: sauberSchluessel)
+        let d = UserDefaults.standard
+        d.set(true, forKey: sauberSchluessel)
+        d.set(0, forKey: zaehlerSchluessel)
+        d.synchronize()
     }
 
+    /// 5 s sichtbar ohne Absturz: Zähler zurück, ohne auf `.background` zu warten.
     static func zaehlerZuruecksetzenNachSichtbar() {
-        UserDefaults.standard.set(0, forKey: zaehlerSchluessel)
+        let d = UserDefaults.standard
+        d.set(0, forKey: zaehlerSchluessel)
+        d.synchronize()
     }
 
     static var abgesichert: Bool { UserDefaults.standard.integer(forKey: zaehlerSchluessel) >= 2 }
