@@ -29,7 +29,8 @@ struct LebensmittelDetailView: View {
         _zahl = State(initialValue: start.zahl)
     }
 
-    /// Menge des Eintrags, sonst die letzte Menge, sonst 1 × erste Portion, sonst 100 in der Basis-Einheit.
+    /// Menge des Eintrags, sonst die letzte Menge, sonst 1 Teelöffel bei löffelbaren Lebensmitteln,
+    /// sonst 1 × erste Portion, sonst 100 in der Basis-Einheit.
     private static func start(_ l: Lebensmittel, bearbeiten: EssenEintrag?) -> (auswahl: MengenOption, zahl: Double) {
         if let e = bearbeiten {
             return (MengenOption.auswahl(einheit: e.einheit, portionName: e.lebensmittel.portionName, l: l), e.menge)
@@ -38,6 +39,7 @@ struct LebensmittelDetailView: View {
             return (MengenOption.auswahl(einheit: letzte.einheit, portionName: l.portionName, l: l), letzte.menge)
         }
         let portionen = ErnaehrungLogik.portionsAuswahl(l)
+        if let teelöffel = portionen.first(where: { $0.name == "Teelöffel, gestrichen" }) { return (.portion(teelöffel), 1) }
         if let erste = portionen.first(where: { $0.name.contains("mittel") }) ?? portionen.first { return (.portion(erste), 1) }
         return (l.fluessig ? .milliliter : .gramm, 100)
     }
