@@ -314,6 +314,10 @@ final class DrawingSession: ObservableObject {
             engine?.performUndo()
         }
         if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        // Q-R10 Kandidat 3: ein unbeabsichtigtes Zwei-Finger-Tippen würde sonst lautlos rückgängig
+        // machen. Kurzer Hinweis macht es sichtbar, der Ring-Puffer hält die Quelle fest.
+        ZeichenProtokoll.log("undo ausgelöst via \(fromGesture ? "Zwei-Finger-Geste" : "Knopf")")
+        show("Rückgängig")
     }
 
     func redo(fromGesture: Bool = false) {
@@ -325,6 +329,8 @@ final class DrawingSession: ObservableObject {
             engine?.performRedo()
         }
         if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        ZeichenProtokoll.log("redo ausgelöst via \(fromGesture ? "Drei-Finger-Geste" : "Knopf")")
+        show("Wiederholen")
     }
 
     // MARK: Selection
