@@ -1,5 +1,6 @@
 import CoreGraphics
 import ImageIO
+import SwiftUI
 
 /// Z-35: a drawing exported as PNG with a transparent background shows straight on the chat
 /// wallpaper, barely visible. Detect that once per image and give the bubble a paper card instead.
@@ -79,5 +80,30 @@ enum TransparenzCache {
             return true
         }
         return gezeichnet ? bytes : nil
+    }
+}
+
+/// Shared paper-card look (Review r10-chatbild #1): padding + a rounded, colour-matched background
+/// when `karte.brauchtKarte`, nothing otherwise. One wrapper so the single-image bubble, the
+/// photo-stack tile and both full-screen viewers render the exact same card.
+private struct TransparenteBildKarte: ViewModifier {
+    let karte: TransparenzKarte.Ergebnis
+    var eckenradius: CGFloat = 18
+
+    func body(content: Content) -> some View {
+        content
+            .padding(karte.brauchtKarte ? 12 : 0)
+            .background {
+                if karte.brauchtKarte {
+                    RoundedRectangle(cornerRadius: eckenradius, style: .continuous)
+                        .fill(karte.dunkleKarte ? Color(white: 0.12) : Color(white: 0.97))
+                }
+            }
+    }
+}
+
+extension View {
+    func transparenzKarte(_ karte: TransparenzKarte.Ergebnis, eckenradius: CGFloat = 18) -> some View {
+        modifier(TransparenteBildKarte(karte: karte, eckenradius: eckenradius))
     }
 }

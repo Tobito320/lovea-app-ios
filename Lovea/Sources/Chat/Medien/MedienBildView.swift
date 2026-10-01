@@ -48,15 +48,14 @@ struct MedienNachrichtView: View {
                 LadePlatzhalter(istVideo: istVideo)
             }
         }
+        // Review r10-chatbild #2: the card's padding goes *inside* the already-maxed bubble frame
+        // (the image shrinks by 24pt), not on top of it — otherwise the bubble grows past
+        // `groesse`, which is already `bildGroesse`'s max for the 70%-of-column cap.
+        .frame(width: innenGroesse.width, height: innenGroesse.height)
+        .clipShape(.rect(cornerRadius: 18))
+        .transparenzKarte(karte)
         .frame(width: groesse.width, height: groesse.height)
         .clipShape(.rect(cornerRadius: 18))
-        .padding(karte.brauchtKarte ? 12 : 0)
-        .background {
-            if karte.brauchtKarte {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(karte.dunkleKarte ? Color(white: 0.12) : Color(white: 0.97))
-            }
-        }
         .task(id: medium.id) {
             guard let gefunden = await MedienDatei.url(medium, eigene: eigene) else { return }
             localURL = gefunden
@@ -77,6 +76,12 @@ struct MedienNachrichtView: View {
 
     private var groesse: CGSize {
         Self.bildGroesse(breite: medium.breite, hoehe: medium.hoehe, maxBreite: chatBreite * 0.7)
+    }
+
+    /// `groesse` minus the card's 12pt padding on each side, so the outer bubble stays at `groesse`.
+    private var innenGroesse: CGSize {
+        guard karte.brauchtKarte else { return groesse }
+        return CGSize(width: max(groesse.width - 24, 40), height: max(groesse.height - 24, 40))
     }
 
     /// Taller than 3:4 (portrait screenshots, long scrolls).
@@ -127,17 +132,25 @@ struct MedienKachel: View {
     let medium: ChatModell.MedienEintrag
     let eigene: Bool
     @State private var url: URL?
+    @State private var karte = TransparenzKarte.keineKarte
 
     var body: some View {
         ZStack {
             if let url {
+                // Review r10-chatbild #1: a drawing can sit in a multi-select stack too (picker
+                // allows up to 20 items) — same cached detection, same card as the single bubble.
                 MedienVorschau(url: url, istVideo: medium.typ == "video")
+                    .transparenzKarte(karte)
             } else {
                 Rectangle().fill(.thinMaterial)
                 ProgressView()
             }
         }
-        .task(id: medium.id) { if let gefunden = await MedienDatei.url(medium, eigene: eigene) { url = gefunden } }
+        .task(id: medium.id) {
+            guard let gefunden = await MedienDatei.url(medium, eigene: eigene) else { return }
+            url = gefunden
+            if medium.typ != "video" { karte = await TransparenzCache.ermitteln(id: medium.id, url: gefunden) }
+        }
     }
 }
 
@@ -250,13 +263,7 @@ private struct MedienVollbild: View {
         Image(uiImage: bild)
             .resizable()
             .scaledToFit()
-            .padding(karte.brauchtKarte ? 12 : 0)
-            .background {
-                if karte.brauchtKarte {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(karte.dunkleKarte ? Color(white: 0.12) : Color(white: 0.97))
-                }
-            }
+            .transparenzKarte(karte)
             .scaleEffect(zoom)
             .offset(x: versatz.width, y: versatz.height + zieh)
             .gesture(

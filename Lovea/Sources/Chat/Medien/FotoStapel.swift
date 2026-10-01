@@ -125,6 +125,7 @@ private struct GalerieSeite: View {
     @State private var bild: UIImage?
     @State private var spieler: AVPlayer?
     @State private var zoom: CGFloat = 1
+    @State private var karte = TransparenzKarte.keineKarte
 
     var body: some View {
         ZStack {
@@ -134,6 +135,9 @@ private struct GalerieSeite: View {
                 Image(uiImage: bild)
                     .resizable()
                     .scaledToFit()
+                    // Review r10-chatbild #1: this gallery is the stack's own full-screen viewer,
+                    // a second render path from MedienVollbild — same card there too.
+                    .transparenzKarte(karte)
                     .scaleEffect(zoom)
                     .onTapGesture(count: 2) {
                         ChatHaptik.leicht()
@@ -156,6 +160,7 @@ private struct GalerieSeite: View {
                 spieler = AVPlayer(url: Videobild.abspielbar(geladen))
             } else {
                 bild = await Bilddatei.laden(geladen)
+                karte = await TransparenzCache.ermitteln(id: medium.id, url: geladen)
             }
         }
         .onDisappear { spieler?.pause() }
