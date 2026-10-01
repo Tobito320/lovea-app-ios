@@ -439,11 +439,14 @@ struct HeuteView: View {
     private var echtHeute: String { Datum.text(Date()) }
 
     /// Echte Statusleisten-/Dynamic-Island-Höhe der aktiven Szene, bewusst NICHT aus `safeAreaInsets`
-    /// gelesen (siehe Overlay unten) — `0`, falls (Vorschau/Test) keine `UIWindowScene` da ist.
+    /// gelesen (siehe Overlay unten). `@MainActor`, damit `UIApplication.shared` nie von einem
+    /// Hintergrund-Executor aus angefasst wird (Absturzverdacht Build 76) — `54` als konstanter
+    /// Rückfall, falls (Vorschau/Test) keine `UIWindowScene` da ist, statt `0` (sichtbarer Sprung).
+    @MainActor
     private var statusleistenHoehe: CGFloat {
         let szenen = UIApplication.shared.connectedScenes
         let szene = (szenen.first { $0.activationState == .foregroundActive } ?? szenen.first) as? UIWindowScene
-        return szene?.statusBarManager?.statusBarFrame.height ?? 0
+        return szene?.statusBarManager?.statusBarFrame.height ?? 54
     }
 
     var body: some View {
