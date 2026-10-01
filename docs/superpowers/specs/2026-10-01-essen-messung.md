@@ -6,8 +6,9 @@ Stand: 01.10.2026. Ergebnis der Klärungen aus dem Design-Dokument, Abschnitt "I
 
 Skript: `tools/essen-import/messen.py`, gegen den offiziellen CSV-Export
 (`https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz`, gestreamt, kein
-Download im Speicher). Erster Versuch brach ohne Daten ab (Open Food Facts war heute laut Design-Doc
-schon zweimal instabil), zweiter Versuch lief durch.
+Download im Speicher). Erster Versuch lieferte keine Ausgabe – eigener Fehler beim Hintergrund-Start
+(Shell-`&` kombiniert mit Ausgabe-Umleitung hat den Prozess sofort beendet), nicht Open Food Facts.
+Zweiter Versuch mit korrektem Hintergrund-Aufruf lief sauber durch.
 
 - Zeilen im CSV gesamt: **4.532.767**
 - DACH-Produkte mit `energy-kcal_100g` und Name: **309.361**
@@ -26,10 +27,10 @@ sein, siehe Abschnitt 3.
 
 **Der genaue Workers-Plan (Free oder Paid) ließ sich nicht automatisch bestimmen**: Der OAuth-Token
 von `wrangler login` hat keinen Billing-Scope, die Cloudflare-API lehnt `/accounts/{id}/subscriptions`
-und `/accounts/{id}/workers/subscription` mit "Authentication error" ab. Das Chrome-Erweiterungs-Tool
-für das Dashboard war in dieser Sitzung nicht erreichbar (Erweiterung nicht verbunden). **Ahmed:
-bitte im Dashboard (dash.cloudflare.com → Workers & Pages → Plans) nachsehen, ob der Account "Free"
-oder "Paid" ist** – das ändert die Empfehlung in Abschnitt 3.
+und `/accounts/{id}/workers/subscription` mit "Authentication error" ab. Vault durchsucht (keine
+Notiz nennt den aktuellen Plan), Chrome-Erweiterungs-Tool zweimal probiert (nicht verbunden).
+**Ahmed: bitte im Dashboard (dash.cloudflare.com → Workers & Pages → Plans) nachsehen, ob der
+Account "Free" oder "Paid" ist** – das ändert die Empfehlung in Abschnitt 3.
 
 D1-Grenzen (developers.cloudflare.com/d1/platform/limits, Stand 21.04.2026):
 
@@ -66,8 +67,7 @@ Ahmed:**
    die nächtlichen Delta-Updates haben viel Luft (50 Mio. Zeilen/Monat inklusive statt 100.000/Tag
    = 3 Mio./Monat).
 
-Ahmed entscheidet, Task 5 richtet sich danach. Ohne Entscheidung: Task 5 nimmt vorsichtshalber Weg 1
-(funktioniert auf beiden Plänen) und Ahmed kann später auf Weg 2 wechseln.
+Ahmed entscheidet, Task 5 richtet sich danach.
 
 ## 4. Geplanter Nachtjob auf dem privaten Repo
 
@@ -77,15 +77,21 @@ Geprüft mit `gh api repos/Tobito320/lovea-app-ios/actions/permissions` (nur les
 {"enabled":true,"allowed_actions":"all","sha_pinning_required":false}
 ```
 
-**GitHub Actions ist für das private Repo `Tobito320/lovea-app-ios` aktiv, mit "allowed_actions":
-"all".** Ein `schedule`-Workflow (nächtlicher Delta-Import) kann dort laufen. Der Billing-Endpunkt
-(`/users/Tobito320/settings/billing/actions`) ist mit dem vorhandenen `gh`-Token nicht lesbar (braucht
-den `user`-Scope, den ich nicht angefordert habe, um den Auth-Status nicht zu verändern). Da Actions
-bereits aktiv und uneingeschränkt erlaubt ist, wurde kein Test-Workflow angelegt – das hätte nur die
-gleiche Antwort geliefert und einen Extra-Branch gebraucht.
+Das zeigt nur, dass Actions eingeschaltet ist, nicht ob Läufe tatsächlich durchkommen (eine
+Billing-Sperre würde Jobs trotzdem sofort abbrechen lassen). Deshalb zusätzlich die echte Lauf-Historie
+geprüft, ebenfalls nur lesend: `gh run list -R Tobito320/lovea-app-ios --limit 10`. Ergebnis: die
+letzten 10 Läufe (TestFlight, iOS CI) sind durchgelaufen (acht `ok`, zwei `FAIL` – das sind
+Job-Ergebnisse, also Code-/Test-Fehler, keine Infrastruktur- oder Abrechnungsfehler). Das ist der
+Beleg, dass Jobs auf diesem privaten Repo tatsächlich ausgeführt werden, keine Billing-Sperre.
+
+Der Billing-Endpunkt (`/users/Tobito320/settings/billing/actions`) ist mit dem vorhandenen
+`gh`-Token nicht lesbar (braucht den `user`-Scope, den ich nicht angefordert habe, um den
+Auth-Status nicht zu verändern) – war wegen der Lauf-Historie auch nicht mehr nötig. Kein
+Test-Workflow angelegt, da die vorhandenen Läufe schon die Antwort liefern.
 
 **Ergebnis: Task 5 kann den Nachtjob als GitHub-Action-`schedule` planen, keine Windows-Aufgabe
-(`schtasks`) nötig.**
+(`schtasks`) nötig.** Ein Hinweis für Task 5: `schedule`-Workflows laufen nur vom Standard-Branch
+(`main`) aus, der Workflow muss also dort liegen.
 
 ## 5. BLS-Excel: Spalten und Portionen
 
@@ -102,49 +108,54 @@ aus der Design-Spec: Portionen kommen nur aus der Regel-Tabelle pro Lebensmittel
 122 vorhandenen Einträgen.
 
 Jeder Nährwert hat 3 Spalten: Wert, "Datenherkunft", "Referenz". Unten stehen nur die Wert-Spalten.
+Feldnamen aus dem echten Code: `struct Naehrwerte` (`Lovea/Sources/Health/Ernaehrung/Ernaehrung.swift:10`,
+Felder `kcal`, `protein`, `kohlenhydrate`, `fett`, `zucker`, `ballaststoffe`, `salz`, `gesFett`,
+dazu `mikro: [String: Double]`) und `enum Mikro` (`Mikronaehrstoffe.swift`, Schlüssel = `rawValue`).
 
 | BLS-Spalte (Kürzel) | Bedeutung | Einheit | → Feld |
 |---|---|---|---|
 | BLS Code | ID | – | `id` (`bls-<code>`) |
 | Lebensmittelbezeichnung | Name | – | `name` |
 | ENERCC | Energie, Kilokalorien | kcal/100g | `pro100.kcal` |
-| PROT625 | Protein (Nx6,25) | g/100g | `pro100.proteine` |
+| PROT625 | Protein (Nx6,25) | g/100g | `pro100.protein` |
 | FAT | Fett | g/100g | `pro100.fett` |
 | CHO | Kohlenhydrate, verfügbar | g/100g | `pro100.kohlenhydrate` |
 | SUGAR | Zucker (Mono-/Disaccharide) | g/100g | `pro100.zucker` |
 | FIBT | Ballaststoffe, gesamt | g/100g | `pro100.ballaststoffe` |
 | NACL | Salz (Natriumchlorid) | g/100g | `pro100.salz` |
-| FASAT | Fettsäuren, gesättigt, gesamt | g/100g | `pro100.gesaettigteFettsaeuren` |
-| WATER | Wasser | g/100g | `Mikro.wasser` |
-| ALC | Alkohol (Ethanol) | g/100g | `Mikro.alkohol` |
-| CHORL | Cholesterin | mg/100g | `Mikro.cholesterin` |
-| FAMS | Fettsäure, einfach ungesättigt, gesamt | g/100g | `Mikro.einfachUngesaettigt` |
-| FAPU | Fettsäuren, mehrfach ungesättigt, gesamt | g/100g | `Mikro.mehrfachUngesaettigt` |
-| VITA | Vitamin A, Retinol-Äquivalent | µg/100g | `Mikro.vitaminA` |
-| VITD | Vitamin D | µg/100g | `Mikro.vitaminD` |
-| VITE | Vitamin E (Alpha-Tocopherol) | mg/100g | `Mikro.vitaminE` |
-| VITK | Vitamin K | µg/100g | `Mikro.vitaminK` |
-| VITC | Vitamin C | mg/100g | `Mikro.vitaminC` |
-| THIA | Vitamin B1 (Thiamin) | mg/100g | `Mikro.vitaminB1` |
-| RIBF | Vitamin B2 (Riboflavin) | mg/100g | `Mikro.vitaminB2` |
-| NIA | Niacin | mg/100g | `Mikro.niacin` |
-| PANTAC | Pantothensäure | mg/100g | `Mikro.pantothensaeure` |
-| VITB6 | Vitamin B6 | **µg**/100g | `Mikro.vitaminB6` (BLS liefert µg, App speichert mg → ÷1000) |
-| FOL | Folat-Äquivalent | µg/100g | `Mikro.folat` |
-| VITB12 | Vitamin B12 (Cobalamine) | µg/100g | `Mikro.vitaminB12` |
-| K | Kalium | mg/100g | `Mikro.kalium` |
-| CA | Calcium | mg/100g | `Mikro.calcium` |
-| MG | Magnesium | mg/100g | `Mikro.magnesium` |
-| P | Phosphor | mg/100g | `Mikro.phosphor` |
-| FE | Eisen | mg/100g | `Mikro.eisen` |
-| ZN | Zink | mg/100g | `Mikro.zink` |
-| CU | Kupfer | **µg**/100g | `Mikro.kupfer` (App speichert mg → ÷1000) |
-| MN | Mangan | **µg**/100g | `Mikro.mangan` (App speichert mg → ÷1000) |
-| NA | Natrium | mg/100g | `Mikro.natrium` |
-| ID | Iodid | µg/100g | `Mikro.jod` |
+| FASAT | Fettsäuren, gesättigt, gesamt | g/100g | `pro100.gesFett` |
+| WATER | Wasser | g/100g | `pro100.mikro["wasser"]` |
+| ALC | Alkohol (Ethanol) | g/100g | `pro100.mikro["alkohol"]` |
+| CHORL | Cholesterin | mg/100g | `pro100.mikro["cholesterin"]` |
+| FAMS | Fettsäure, einfach ungesättigt, gesamt | g/100g | `pro100.mikro["einfachUngesaettigt"]` |
+| FAPU | Fettsäuren, mehrfach ungesättigt, gesamt | g/100g | `pro100.mikro["mehrfachUngesaettigt"]` |
+| VITA | Vitamin A, Retinol-Äquivalent | µg/100g | `pro100.mikro["vitaminA"]` |
+| VITD | Vitamin D | µg/100g | `pro100.mikro["vitaminD"]` |
+| VITE | Vitamin E (Alpha-Tocopherol) | mg/100g | `pro100.mikro["vitaminE"]` |
+| VITK | Vitamin K | µg/100g | `pro100.mikro["vitaminK"]` |
+| VITC | Vitamin C | mg/100g | `pro100.mikro["vitaminC"]` |
+| THIA | Vitamin B1 (Thiamin) | mg/100g | `pro100.mikro["vitaminB1"]` |
+| RIBF | Vitamin B2 (Riboflavin) | mg/100g | `pro100.mikro["vitaminB2"]` |
+| NIA | Niacin | mg/100g | `pro100.mikro["niacin"]` |
+| PANTAC | Pantothensäure | mg/100g | `pro100.mikro["pantothensaeure"]` |
+| VITB6 | Vitamin B6 | **µg**/100g | `pro100.mikro["vitaminB6"]` (Mikro.einheit ist "mg" → BLS-Wert ÷1000) |
+| FOL | Folat-Äquivalent | µg/100g | `pro100.mikro["folat"]` |
+| VITB12 | Vitamin B12 (Cobalamine) | µg/100g | `pro100.mikro["vitaminB12"]` |
+| K | Kalium | mg/100g | `pro100.mikro["kalium"]` |
+| CA | Calcium | mg/100g | `pro100.mikro["calcium"]` |
+| MG | Magnesium | mg/100g | `pro100.mikro["magnesium"]` |
+| P | Phosphor | mg/100g | `pro100.mikro["phosphor"]` |
+| FE | Eisen | mg/100g | `pro100.mikro["eisen"]` |
+| ZN | Zink | mg/100g | `pro100.mikro["zink"]` |
+| CU | Kupfer | **µg**/100g | `pro100.mikro["kupfer"]` (Mikro.einheit ist "mg" → BLS-Wert ÷1000) |
+| MN | Mangan | **µg**/100g | `pro100.mikro["mangan"]` (Mikro.einheit ist "mg" → BLS-Wert ÷1000) |
+| NA | Natrium | mg/100g | `pro100.mikro["natrium"]` |
+| ID | Iodid | µg/100g | `pro100.mikro["jod"]` |
 
-**Fehlen in BLS 4.0 (keine Spalte gefunden):** Selen (`Mikro.selen`), Koffein (`Mikro.koffein`). Task 2
-lässt diese beiden Felder bei BLS-Einträgen leer, wie bei Produkten ohne diesen Wert schon heute.
+**Fehlen in BLS 4.0 (keine Spalte gefunden, Suche über alle 418 Spaltennamen):** `Mikro.selen` und
+`Mikro.koffein` sind gültige Fälle in `enum Mikro`, aber keine BLS-Spalte liefert dafür einen Wert.
+Task 2 lässt `mikro["selen"]` und `mikro["koffein"]` bei BLS-Einträgen einfach weg (wie bei jedem
+Produkt ohne diesen Wert schon heute, `mikro` ist ein optionales Dictionary).
 
 ## 6. opengtindb: Nutzer-ID
 
@@ -154,8 +165,11 @@ lässt diese beiden Felder bei BLS-Einträgen leer, wie bei Produkten ohne diese
 - **Öffentliche Test-ID `400000000`**: frei nutzbar, aber von allen geteilt – laut FAQ schnell
   ausgeschöpft, liefert dann nur noch Fehlercode 5 ("Tageslimit erreicht"). Nur zum Ausprobieren
   der Schnittstelle geeignet, nicht für den Live-Betrieb.
-- **Private ID für Privatanwender**: maximal 500 Abfragen/Tag mit Abfrageverzögerung, **setzt eine
-  Spende von mindestens 35 Euro voraus** (einmalig, laut `userid.php`).
+- **Private ID für Privatanwender**: maximal 500 Abfragen/Tag mit Abfrageverzögerung. Ablauf laut
+  `userid.php`: (1) einmalige Spende von mindestens 35 Euro an "Küste gegen Plastik" (in Deutschland
+  steuerlich absetzbar, Überweisungsbeleg genügt als Spendennachweis), (2) den Zahlungsbeleg per
+  Mail an den Betreiber schicken, (3) die UserID kommt dann typischerweise innerhalb einer Woche
+  per Mail. Achtung: wird die ID länger nicht genutzt, wird sie wieder gelöscht.
 
 **Das ist eine Geld-Entscheidung, die Ahmed treffen muss** (35 € Spende für eine private ID, oder
 die Kette in Schritt 5 der Barcode-Kette (`opengtindb.org`) vorerst mit der öffentlichen Test-ID
