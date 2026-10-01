@@ -183,11 +183,10 @@ private struct Unterhaltung: View {
     @State private var fokus: ChatFokus?
     @State private var blatt = ChatBlaetter()
     @State private var sucheAktiv = false
-    @State private var flaeche = CGSize(width: 390, height: 900)
+    @State private var flaeche = ChatFlaeche(breite: 390, ursprung: .zero)
     /// Left-edge swipe back to the list: the finger's rightward distance and height (local).
     @State private var randWeg: CGFloat = 0
     @State private var randY: CGFloat = 0
-    @State private var ursprung: CGPoint = .zero
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     private static let randZone: CGFloat = 32
     private static let randSchwelle: CGFloat = 80
@@ -209,12 +208,17 @@ private struct Unterhaltung: View {
             // reads the whole published dictionary and resolves exactly the pressed bubble's
             // anchor, once, inside `NachrichtFokusEbene`'s own `GeometryReader`.
             .overlayPreferenceValue(BubbleAnkerKey.self) { anker in fokusEbene(anker) }
-            .environment(\.chatVerlaufHoehe, flaeche.height)
-            .environment(\.chatBreite, flaeche.width)
-            .onGeometryChange(for: CGRect.self) { geo in geo.frame(in: .global) } action: { rahmen in
-                flaeche = CGSize(width: rahmen.width, height: rahmen.maxY)
-                ursprung = rahmen.origin
-            }
+            // Chat-Tempo: one backdrop lookup for the whole list instead of 3-4 per bubble, each of
+            // which also watched every shared setting. nil (switch off) = every bubble looks it up.
+            .environment(\.chatBackdrop, ChatTempo.an ? Backdrops.aktuell : nil)
+            .environment(\.chatBreite, flaeche.breite)
+            // Width and origin only: the old rect also carried `maxY`, which moves with every
+            // frame of the keyboard, so every keyboard frame rebuilt the conversation and all rows
+            // (nothing read the height any more).
+            .onGeometryChange(for: ChatFlaeche.self) { geo in
+                let rahmen = geo.frame(in: .global)
+                return ChatFlaeche(breite: rahmen.width, ursprung: rahmen.origin)
+            } action: { flaeche = $0 }
             .offset(x: reduceMotion ? 0 : min(randWeg, 120) * 0.35)
             .overlay(alignment: .topLeading) { if randWeg > 0 { randPfeil } }
             // Simultaneous: taps (chevron, camera, bubbles) and the list's scrolling pass through;
@@ -256,13 +260,13 @@ private struct Unterhaltung: View {
     private var randGeste: some Gesture {
         DragGesture(minimumDistance: 12, coordinateSpace: .global)
             .onChanged { wert in
-                guard wert.startLocation.x - ursprung.x < Self.randZone,
+                guard wert.startLocation.x - flaeche.ursprung.x < Self.randZone,
                       wert.translation.width > abs(wert.translation.height) || randWeg > 0
                 else { return }
                 let weg = max(0, wert.translation.width)
                 if randWeg < Self.randSchwelle, weg >= Self.randSchwelle { Haptik.leicht() }
                 randWeg = weg
-                randY = wert.location.y - ursprung.y
+                randY = wert.location.y - flaeche.ursprung.y
             }
             .onEnded { wert in
                 guard randWeg > 0 else { return }
@@ -605,7 +609,12 @@ private struct NachrichtenListe: View {
             // R7: interactive keyboard dismiss is a drag on this same list — `.tracking`/
             // `.interacting` cover it. Only `.idle`/`.decelerating`/`.animating` count as "not the
             // user's own gesture right now" for `ListenAutoScroll` below.
-            .onScrollPhaseChange { _, neu in nutzerZiehtGerade = neu == .tracking || neu == .interacting }
+            .onScrollPhaseChange { _, neu in
+                nutzerZiehtGerade = neu == .tracking || neu == .interacting
+                // Chat-Tempo: the leaf views that animate (particles, figures, GIFs) calm down while it moves.
+                if ChatTempo.an { ChatTempo.shared.phase(neu) }
+            }
+            .onDisappear { ChatTempo.shared.zuruecksetzen() }
             // Captures only the two main-actor objects, not the view, in the `@Sendable` action.
             .refreshable { [fenster, modell] in await fenster.mehr(modell) }
             .onChange(of: zielID) { _, id in
@@ -675,16 +684,23 @@ private struct NachrichtenListe: View {
             let vorher = index > 0 ? gruppen[index - 1].letzte : vorFenster
             let nachher = index + 1 < gruppen.count ? gruppen[index + 1].nachrichten[0] : nil
             let ids = gruppe.nachrichten.map(\.id)
-            ChatNachrichtRow(
+            let reihe = ChatNachrichtRow(
                 nachricht: erste, ich: ich, stapel: gruppe.nachrichten,
                 layout: ZeilenLayout(vorher: vorher, erste: erste, letzte: gruppe.letzte, nachher: nachher),
                 gelesenAm: status.gelesenID.map { ids.contains($0) } == true ? modell.gelesenBis[ich.partner] : nil,
                 zustellText: status.offen.map { ids.contains($0.id) } == true ? zustellText(status.offen) : nil,
                 aktionen: aktionen
             )
-            .background(hervorID == gruppe.id ? Color.loveaRose.opacity(0.18) : Color.clear)
-            .id(gruppe.id)
+            gleichBleibend(reihe)
+                .background(hervorID == gruppe.id ? Color.loveaRose.opacity(0.18) : Color.clear)
+                .id(gruppe.id)
         }
+    }
+
+    /// Chat-Tempo: a row whose message, neighbours and receipts are unchanged is not rebuilt when the
+    /// list is (new message, read receipt, reaction elsewhere). Off = every row is rebuilt as before.
+    @ViewBuilder private func gleichBleibend(_ reihe: ChatNachrichtRow) -> some View {
+        if ChatTempo.an { reihe.equatable() } else { reihe }
     }
 
     /// "Zugestellt" once the server has it; while offline "Wartet auf Netz" (Z-33.5).
@@ -712,6 +728,12 @@ private struct NachrichtenListe: View {
     private func gruppeID(fuer id: String) -> String {
         ChatStapel.gruppieren(Array(modell.nachrichten.suffix(fenster.anzahl))).first { gruppe in gruppe.nachrichten.contains { $0.id == id } }?.id ?? id
     }
+}
+
+/// Width and window origin of the conversation (the photo cap and the left-edge swipe need them).
+private struct ChatFlaeche: Equatable, Sendable {
+    var breite: CGFloat
+    var ursprung: CGPoint
 }
 
 /// Visible height between the bars, and whether the list sits at its bottom.

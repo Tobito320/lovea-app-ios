@@ -225,7 +225,9 @@ struct KopfFigur: View {
 
     var body: some View {
         let anzeige = FigurenModell.shared.anzeige(person)
-        FigurView(FigurenModell.shared.aussehen(person), zustand: anzeige.haupt, abzeichen: anzeige.abzeichen, groesse: groesse * 1.35, animiert: animiert, bildrate: 20)
+        // Chat-Tempo: slower while the message list moves; a still head never reads the flag.
+        let bildrate = ChatTempo.bildrate(normal: 20, an: ChatTempo.an, scrollt: animiert && ChatTempo.shared.scrollt)
+        FigurView(FigurenModell.shared.aussehen(person), zustand: anzeige.haupt, abzeichen: anzeige.abzeichen, groesse: groesse * 1.35, animiert: animiert, bildrate: bildrate)
             .frame(width: groesse, height: groesse, alignment: .top)
             .clipShape(.circle)
             .background(Color.person(person).opacity(0.18), in: .circle)
