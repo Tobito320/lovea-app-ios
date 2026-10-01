@@ -583,14 +583,17 @@ private struct NachrichtenListe: View {
                 zielID = nil
                 springen(zu: id, proxy: proxy)
             }
-            // Open at the very bottom. `defaultScrollAnchor` alone lands mid-chat in a LazyVStack while
-            // photos still grow; re-pin a few times as they lay out, unless a jump target is pending.
+            // Open at the very bottom. `defaultScrollAnchor(.bottom)` sets that position from the
+            // first frame; `for: .sizeChanges` (added later, below) keeps re-anchoring to the
+            // bottom as photos reserve/load their space, which is what the old triple re-pin
+            // (0/150/500 ms, chat-tempo-befund.md #2) used to paper over by brute-force polling —
+            // that cost up to 650 ms of visible re-settling on every open. One immediate,
+            // non-animated scroll covers the very first layout pass, before the anchor modifiers
+            // have anything to anchor to; new messages arriving later are handled separately by
+            // `onScrollGeometryChange`/`onChange(of: modell.nachrichten.last?.id)` below.
             .task {
-                for warte in [0, 150, 500] {
-                    try? await Task.sleep(for: .milliseconds(warte))
-                    guard zielID == nil, AppNavigation.shared.chatZiel == nil, let letzte = modell.nachrichten.last?.id else { return }
-                    proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom)
-                }
+                guard zielID == nil, AppNavigation.shared.chatZiel == nil, let letzte = modell.nachrichten.last?.id else { return }
+                proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom)
             }
             // Voice autoplay moved on: bring that bubble into view.
             .onChange(of: SprachSpieler.shared.autoWeiterNachricht) { _, id in
