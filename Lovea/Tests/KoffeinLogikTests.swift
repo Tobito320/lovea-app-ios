@@ -1,34 +1,41 @@
 import XCTest
 @testable import Lovea
 
-/// R10 "Dein Tag" bearbeiten: reine Logik der Koffein-Kachel (Tagebuch-Verknüpfung) und des
-/// generischen Bearbeiten-Blatts (`ZaehlerBlatt`).
+/// R10 "Dein Tag" bearbeiten: reine Logik des Bearbeiten-Blatts (`ZaehlerBlatt`/`ZaehlerLogik`) und
+/// der Koffein-Kachel (Tagebuch-Verknüpfung).
+///
+/// Review-Fix: das alte Id-Schema `"koffein-<datum>-<n>"` leitete jede Tasse aus ihrer Position ab —
+/// löschte man Tasse 1 von 3, verschob sich die Id von Tasse 2 und 3 unter der Haube. Jede Tasse
+/// bekommt jetzt ihre eigene, zufällige Op-Id (`HeuteView.koffeinEintragen`, `HealthModell.
+/// setzeHabitMitId`), deshalb testet hier nur noch die positionslose Auswahl-Logik
+/// (`ZaehlerLogik.zuStreichen`), nicht mehr ein Id-Format.
 final class KoffeinLogikTests: XCTestCase {
 
-    // MARK: - Id-Schema
+    // MARK: - Welche bekannten Einträge beim Verringern (Stepper, kein bestimmter Tipp) wegfallen
 
-    func testEintragIdIstDeterministischProTagUndTasse() {
-        XCTAssertEqual(KoffeinLogik.eintragId("2026-10-01", 1), "koffein-2026-10-01-1")
-        XCTAssertEqual(KoffeinLogik.eintragId("2026-10-01", 2), "koffein-2026-10-01-2")
-        XCTAssertNotEqual(KoffeinLogik.eintragId("2026-10-01", 1), KoffeinLogik.eintragId("2026-10-02", 1))
+    func testZuStreichenNimmtDieJuengstenZuerst() {
+        // älteste zuerst, wie `HealthModell.habitEintraege`.
+        let bekannt = ["09:00", "12:00", "18:00"]
+        XCTAssertEqual(ZaehlerLogik.zuStreichen(bekannt, alt: 3, neu: 1), ["18:00", "12:00"])
     }
 
-    // MARK: - Differenz beim Bearbeiten-Blatt
-
-    func testIndizesLoeschenBeiVerringerung() {
-        XCTAssertEqual(KoffeinLogik.indizesLoeschen(alt: 5, neu: 2), [3, 4, 5])
-        XCTAssertEqual(KoffeinLogik.indizesLoeschen(alt: 3, neu: 3), [])
-        XCTAssertEqual(KoffeinLogik.indizesLoeschen(alt: 2, neu: 5), [])
+    func testZuStreichenOhneAenderung() {
+        XCTAssertEqual(ZaehlerLogik.zuStreichen(["a", "b"], alt: 2, neu: 2), [])
     }
 
-    func testIndizesAnlegenBeiErhoehung() {
-        XCTAssertEqual(KoffeinLogik.indizesAnlegen(alt: 2, neu: 5), [3, 4, 5])
-        XCTAssertEqual(KoffeinLogik.indizesAnlegen(alt: 3, neu: 3), [])
-        XCTAssertEqual(KoffeinLogik.indizesAnlegen(alt: 5, neu: 2), [])
+    func testZuStreichenBeiErhoehungLeer() {
+        XCTAssertEqual(ZaehlerLogik.zuStreichen(["a"], alt: 1, neu: 5), [])
     }
 
-    func testZuruecksetzenLoeschtAlleBisherigenTassen() {
-        XCTAssertEqual(KoffeinLogik.indizesLoeschen(alt: 4, neu: 0), [1, 2, 3, 4])
+    func testZuStreichenAufNullNimmtAlleBekannten() {
+        XCTAssertEqual(ZaehlerLogik.zuStreichen(["a", "b", "c"], alt: 3, neu: 0), ["c", "b", "a"])
+    }
+
+    func testZuStreichenKapptAnDenBekanntenWennWenigerAlsDieDifferenz() {
+        // 5 insgesamt, aber nur 2 mit bekannter Zeit (Rest kam von anderswo/alten Daten) — mehr als
+        // die zwei kann die Auswahl nicht liefern, der Aufrufer (`HeuteView.bulkSetzen`) setzt den
+        // Rest dann über die reine Zahl.
+        XCTAssertEqual(ZaehlerLogik.zuStreichen(["a", "b"], alt: 5, neu: 1), ["b", "a"])
     }
 
     // MARK: - Mahlzeit nach Uhrzeit (brauchts für den Tagebuch-Eintrag beim Tippen)

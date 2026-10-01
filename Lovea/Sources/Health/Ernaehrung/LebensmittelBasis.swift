@@ -103,6 +103,8 @@ final class LebensmittelIndex: @unchecked Sendable {
     /// Das BLS "Kaffee (Getränk)" für die Koffein-Kachel (Heute), nur wenn die Basis schon geladen ist
     /// — kein synchrones Parsen der 5-MB-Datei auf einen Tipp hin. `nil` stößt `laden()` an, der nächste
     /// Tipp findet es dann; bis dahin greift die eingebaute Notlösung (`KoffeinLogik.fallbackKaffee`).
+    /// Entprellt: `laden()` selbst prüft `laedt` unter der Sperre, ein zweiter Tipp während des
+    /// Ladens startet also keinen zweiten parallelen Ladevorgang (Review-Minor, hier verifiziert).
     func kaffee() -> Lebensmittel? {
         guard bereit else { laden(); return nil }
         return sperre.withLock { daten.first { $0.name.hasPrefix("Kaffee (Getränk)") } }

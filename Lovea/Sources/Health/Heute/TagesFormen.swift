@@ -410,31 +410,41 @@ struct FormKachel: View {
 // MARK: - Bearbeiten-Blatt
 
 enum ZaehlerLogik {
-    /// Hält `wert` innerhalb `bereich` (Ahmed, 01.10.: Stepper im Bearbeiten-Blatt darf nicht negativ werden).
+    /// Hält `wert` innerhalb `bereich`.
     static func geklemmt(_ wert: Int, in bereich: ClosedRange<Int>) -> Int { min(max(wert, bereich.lowerBound), bereich.upperBound) }
+
+    /// Review-Fix R10: beim Verringern per Stepper (kein bestimmter Eintrag angetippt) fallen die
+    /// `alt - neu` jüngsten bekannten Einträge weg, älteste zuerst stehen lassen — reine Auswahl, kein
+    /// Senden. `bekannt` ist älteste-zuerst sortiert (wie `HealthModell.habitEintraege`).
+    static func zuStreichen<T>(_ bekannt: [T], alt: Int, neu: Int) -> [T] {
+        guard neu < alt, neu >= 0 else { return [] }
+        return Array(bekannt.reversed().prefix(alt - neu))
+    }
 }
 
 /// Bearbeiten-Blatt für zählende Kacheln (Wasser, Koffein, Creatin): Stepper setzt den Tageswert exakt,
-/// "Zurücksetzen" auf 0, bei `zeiten` zusätzlich die heutigen Einträge einzeln per Swipe löschbar.
-/// Nichts wird gesendet, bevor "Fertig" fällt — wie bei `GewichtBlatt`.
-/// ponytail: eine Uhrzeit lässt sich nicht gezielt einer Kachel-Zeile zuordnen (die Faltung kennt nur
-/// die Tagessumme), jedes Löschen nimmt darum den jüngsten Eintrag. Passt zu `EnergieLogik.wasserZeiten`,
-/// das beim Verringern genauso den letzten Posten abzieht.
+/// "Zurücksetzen" auf 0 (beides staged, erst "Fertig" sendet — wie `GewichtBlatt`), bei `zeiten`
+/// zusätzlich eine Zeile pro heutigem Eintrag mit eigener Id, per Swipe sofort einzeln löschbar.
+/// Review-Fix R10: swipe trifft jetzt die angetippte Zeile (`entfernen(id, neuerWert)`), nicht mehr
+/// blind die jüngste — möglich, weil `HealthModell.habitEintraege` jedem Tipp seine echte Op-Id gibt.
 struct ZaehlerBlatt: View {
     let titel: String
     let bereich: ClosedRange<Int>
     let anzeige: (Int) -> String
+    /// Eine Zeile per Swipe löschen: `(ihre Id, der Wert danach)`. `nil` = keine Zeilenliste (Creatin).
+    var entfernen: ((String, Int) -> Void)?
     let setzen: (Int) -> Void
 
     @State private var wert: Int
-    @State private var zeiten: [Date]
+    @State private var zeiten: [(id: String, zeit: Date)]
     @Environment(\.dismiss) private var dismiss
 
-    init(titel: String, wert: Int, bereich: ClosedRange<Int> = 0...99, zeiten: [Date] = [],
-         anzeige: @escaping (Int) -> String, setzen: @escaping (Int) -> Void) {
+    init(titel: String, wert: Int, bereich: ClosedRange<Int> = 0...99, zeiten: [(id: String, zeit: Date)] = [],
+         anzeige: @escaping (Int) -> String, entfernen: ((String, Int) -> Void)? = nil, setzen: @escaping (Int) -> Void) {
         self.titel = titel
         self.bereich = bereich
         self.anzeige = anzeige
+        self.entfernen = entfernen
         self.setzen = setzen
         _wert = State(initialValue: wert)
         _zeiten = State(initialValue: zeiten)
@@ -444,10 +454,16 @@ struct ZaehlerBlatt: View {
         NavigationStack {
             Form {
                 Section {
-                    Stepper(value: $wert, in: bereich) {
+                    // `onIncrement`/`onDecrement` statt `value:` + `in:`, damit nur der eigene Minus-
+                    // Tipp die Liste mitzieht (Minor, Review: live nachziehen) — ein `.onChange(of:
+                    // wert)` würde auch beim Swipe-Löschen unten erneut feuern und zusätzlich zur
+                    // angetippten Zeile noch eine zweite streichen.
+                    Stepper(onIncrement: { wert = min(wert + 1, bereich.upperBound) }, onDecrement: {
+                        wert = max(wert - 1, bereich.lowerBound)
+                        if zeiten.count > wert { zeiten.removeLast() }
+                    }) {
                         Text(anzeige(wert)).font(.title2.bold()).monospacedDigit()
                     }
-                    .onChange(of: wert) { _, neu in if neu < zeiten.count { zeiten = Array(zeiten.prefix(neu)) } }
                     Button("Zurücksetzen", role: .destructive) {
                         wert = bereich.lowerBound
                         zeiten = []
@@ -455,12 +471,15 @@ struct ZaehlerBlatt: View {
                 }
                 if !zeiten.isEmpty {
                     Section("Heute") {
-                        ForEach(Array(zeiten.enumerated()), id: \.offset) { _, zeit in
-                            Text(Datum.uhrzeit(zeit)).monospacedDigit()
+                        ForEach(Array(zeiten.enumerated()), id: \.offset) { _, eintrag in
+                            Text(Datum.uhrzeit(eintrag.zeit)).monospacedDigit()
                         }
                         .onDelete { indizes in
-                            zeiten.remove(atOffsets: indizes)
-                            wert = ZaehlerLogik.geklemmt(zeiten.count, in: bereich)
+                            for offset in indizes.sorted(by: >) {
+                                wert = ZaehlerLogik.geklemmt(wert - 1, in: bereich)
+                                entfernen?(zeiten[offset].id, wert)
+                                zeiten.remove(at: offset)
+                            }
                         }
                     }
                 }
