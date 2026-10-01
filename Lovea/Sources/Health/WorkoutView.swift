@@ -102,6 +102,7 @@ struct WorkoutAktionen {
     var tagWaehlen: (TrainingsTag) -> Void = { _ in }
     var wiederEinchecken: () -> Void = {}
     var zeiten: () -> Void = {}
+    var startzeit: () -> Void = {}
 }
 
 /// Das laufende Training: Starten hat eingecheckt, "Beenden" checkt aus.
@@ -113,6 +114,7 @@ struct GymSessionView: View {
     @State private var sucheOffen = false
     @State private var cardio: CardioEintrag?
     @State private var zeiten: GymSession?
+    @State private var startBlatt: GymSession?
     @State private var langFrage: GymSession?
     @State private var planFrage: TrainingsTag?
     @State private var verwerfenFrage = false
@@ -175,6 +177,7 @@ struct GymSessionView: View {
                     }
                 }
             }
+            .sheet(item: $startBlatt) { StartzeitBlatt(session: $0) }
         } else {
             ContentUnavailableView("Einheit nicht gefunden", systemImage: "dumbbell")
         }
@@ -233,7 +236,8 @@ struct GymSessionView: View {
                 modell.auscheckenRueckgaengig(s.id)
                 Haptik.erfolg()
             },
-            zeiten: { zeiten = s }
+            zeiten: { zeiten = s },
+            startzeit: { startBlatt = s }
         )
     }
 
@@ -397,6 +401,11 @@ struct WorkoutInhalt: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.blue)
+            Button(action: aktionen.startzeit) {
+                Label("Startzeit ändern", systemImage: "clock").font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
             Button(role: .destructive, action: aktionen.verwerfen) {
                 Text("Training verwerfen").frame(maxWidth: .infinity, minHeight: 32)
             }

@@ -211,6 +211,45 @@ struct ZeitenBlatt: View {
     }
 }
 
+/// Nur die Startzeit eines laufenden Trainings ändern ("ich habe schon vor 20 Minuten angefangen").
+/// Sendet nur den Check-in neu, das Training läuft weiter (`zeitenAendern` ohne Ende).
+struct StartzeitBlatt: View {
+    let session: GymSession
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var start: Date
+
+    init(session: GymSession) {
+        self.session = session
+        _start = State(initialValue: session.start)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker("Gestartet", selection: $start, in: min(session.start, TrainingLogik.fruehesterStart(jetzt: Date()))...Date())
+                } footer: {
+                    Text("Das Training läuft weiter. Nur die Startzeit ändert sich, höchstens drei Stunden zurück.")
+                }
+            }
+            .navigationTitle("Startzeit")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Sichern") {
+                        TrainingModell.shared.zeitenAendern(session, start: start, ende: nil)
+                        Haptik.erfolg()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
 /// Welche Einheit von wem der Verlauf öffnet.
 struct GymVerlaufZiel: Hashable {
     var person: Person

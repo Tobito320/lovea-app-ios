@@ -247,6 +247,9 @@ enum TrainingLogik {
 
     static func zuLang(start: Date, ende: Date) -> Bool { ende.timeIntervalSince(start) > langNach }
 
+    /// Frühester Start, bei dem eine laufende Einheit noch als laufend gilt (`laufend`).
+    static func fruehesterStart(jetzt: Date) -> Date { jetzt.addingTimeInterval(-langNach + 60) }
+
     /// The day planned for `datum`, nil on a rest day.
     static func tag(_ plan: TrainingsPlan, datum: String) -> TrainingsTag? {
         let w = Datum.wochentag(datum)
