@@ -342,8 +342,6 @@ struct FormKachel: View {
     let fuellung: Double
     var zusatz: String?
     var stimmung: Int?
-    /// Zählende Kacheln (Wasser, Koffein, Creatin): öffnet das Bearbeiten-Blatt, Stift oben rechts.
-    var bearbeiten: (() -> Void)?
     var aktion: (() -> Void)?
 
     @State private var hopp = false
@@ -351,30 +349,17 @@ struct FormKachel: View {
     @Environment(\.accessibilityReduceMotion) private var ruhig
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
-            if let aktion {
-                Button {
-                    tipp += 1
-                    hopp = true
-                    aktion()
-                } label: { inhalt }
-                    .buttonStyle(.federnd)
-                    .accessibilityHint("Antippen zum Eintragen")
-                    .sensoryFeedback(.increase, trigger: tipp)
-            } else {
-                inhalt
-            }
-            if let bearbeiten {
-                Button(action: bearbeiten) {
-                    Image(systemName: "pencil")
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 32, height: 32)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("\(titel) bearbeiten")
-            }
+        if let aktion {
+            Button {
+                tipp += 1
+                hopp = true
+                aktion()
+            } label: { inhalt }
+                .buttonStyle(.federnd)
+                .accessibilityHint("Antippen zum Eintragen")
+                .sensoryFeedback(.increase, trigger: tipp)
+        } else {
+            inhalt
         }
     }
 

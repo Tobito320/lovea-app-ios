@@ -464,7 +464,7 @@ struct HeuteView: View {
                                        partner: heute == echtHeute ? (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))) : nil)
                     }
                     .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute)) { raster }
+                    abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute), rechts: { bearbeitenMenue }) { raster }
                     abschnitt("Das fällt mir auf") { hinweisListe }
                     punkteZeile
                     abschnitt("Körper") { koerper }
@@ -656,10 +656,34 @@ struct HeuteView: View {
     }
 
     private func abschnitt<Inhalt: View>(_ titel: String, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
+        abschnitt(titel, rechts: { EmptyView() }, inhalt)
+    }
+
+    private func abschnitt<Rechts: View, Inhalt: View>(_ titel: String, @ViewBuilder rechts: () -> Rechts, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(titel).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+            HStack {
+                Text(titel).font(.title2.bold()).accessibilityAddTraits(.isHeader)
+                Spacer()
+                rechts()
+            }
             inhalt()
         }
+    }
+
+    /// Ein Stift rechts neben "Dein Tag" statt auf jeder Kachel (Ahmed, 01.10.): nur die zählenden
+    /// Kacheln lassen sich korrigieren.
+    private var bearbeitenMenue: some View {
+        Menu {
+            Button("Wasser") { kachelBearbeiten = .wasser }
+            Button("Koffein") { kachelBearbeiten = .koffein }
+            Button("Creatin") { kachelBearbeiten = .creatin }
+        } label: {
+            Image(systemName: "pencil")
+                .font(.body.weight(.semibold))
+                .frame(width: 44, height: 32, alignment: .trailing)
+                .contentShape(Rectangle())
+        }
+        .accessibilityLabel("Wasser, Koffein oder Creatin bearbeiten")
     }
 
     @ViewBuilder
@@ -744,7 +768,7 @@ struct HeuteView: View {
         let ziel = health.zielWasser(ich)
         let n = health.wasserAnzahl(ich, heute)
         return FormKachel(form: .wasser, titel: "Wasser", wert: "\(n)", einheit: "/\(ziel) Gl.",
-                          fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0, bearbeiten: { kachelBearbeiten = .wasser }) {
+                          fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0) {
             health.setzeWasser(datum: heute, anzahl: n + 1)
         }
     }
@@ -794,7 +818,7 @@ struct HeuteView: View {
         let letztes = health.koffeinZeiten(ich, heute).last
         let zusatz = letztes.map { "~\(n * KoffeinLogik.mgProTasse) mg · Kaffee um \(Datum.uhrzeit($0))" }
         return FormKachel(form: .koffein, titel: "Koffein", wert: "\(n)", einheit: n == 1 ? "Tasse" : "Tassen",
-                          fuellung: Double(n) / 4, zusatz: zusatz, bearbeiten: { kachelBearbeiten = .koffein }) {
+                          fuellung: Double(n) / 4, zusatz: zusatz) {
             koffeinEintragen()
         }
     }
@@ -804,7 +828,7 @@ struct HeuteView: View {
         let n = health.habitWert(Habit.creatin.id, ich, heute)
         let ziel = Habit.creatin.tagesziel ?? 2
         return FormKachel(form: .creatin, titel: "Creatin", wert: komma(Double(n) * Habit.creatinGramm), einheit: "g",
-                          fuellung: Double(n) / Double(ziel), zusatz: "\(n)/\(ziel) Klicks", bearbeiten: { kachelBearbeiten = .creatin }) {
+                          fuellung: Double(n) / Double(ziel), zusatz: "\(n)/\(ziel) Klicks") {
             health.setzeHabit(Habit.creatin.id, datum: heute, wert: n + 1)
         }
     }
