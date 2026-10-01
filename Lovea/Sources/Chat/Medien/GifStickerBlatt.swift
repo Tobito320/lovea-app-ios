@@ -410,32 +410,85 @@ private struct WirStickerAnsicht: View {
     var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
+    @State private var werFilter: WirWer?
+    @State private var kontextFilter: String?
+
     var body: some View {
         // Nur Namen, deren Bild im Bundle liegt: eine Liste, die dem Katalog voraus ist, zeigt keine Lücken.
         let namen = MitgelieferteSticker.alle.filter { UIImage(named: $0) != nil }
-        if namen.isEmpty {
-            ContentUnavailableView("Noch keine Sticker", systemImage: "heart.text.square")
-        } else {
-            ScrollView {
-                LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 12) {
-                    ForEach(namen, id: \.self) { name in
-                        StickerKachel(medienId: MitgelieferteSticker.medienId(name))
-                            .frame(width: 100, height: 100)
-                            .contentShape(Rectangle())
-                            .onTapGesture { senden(name) }
-                            .accessibilityElement()
-                            .accessibilityLabel("Sticker \(name.replacingOccurrences(of: "-", with: " "))")
-                            .accessibilityAddTraits(.isButton)
-                            .contextMenu {
-                                Button("Zu Favoriten", systemImage: "star") {
-                                    ChatEinstellungen.shared.favoritSchalten(.init(art: .sticker, wert: MitgelieferteSticker.medienId(name), breite: nil, hoehe: nil), ich: ich)
+        let gefiltert = WirStickerFilter.gefiltert(namen, wer: werFilter, kontext: kontextFilter)
+        VStack(spacing: 0) {
+            werLeiste
+            kontextLeiste
+            if gefiltert.isEmpty {
+                ContentUnavailableView("Noch keine Sticker", systemImage: "heart.text.square")
+            } else {
+                ScrollView {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 12) {
+                        ForEach(gefiltert, id: \.self) { name in
+                            StickerKachel(medienId: MitgelieferteSticker.medienId(name))
+                                .frame(width: 100, height: 100)
+                                .contentShape(Rectangle())
+                                .onTapGesture { senden(name) }
+                                .accessibilityElement()
+                                .accessibilityLabel("Sticker \(name.replacingOccurrences(of: "-", with: " "))")
+                                .accessibilityAddTraits(.isButton)
+                                .contextMenu {
+                                    Button("Zu Favoriten", systemImage: "star") {
+                                        ChatEinstellungen.shared.favoritSchalten(.init(art: .sticker, wert: MitgelieferteSticker.medienId(name), breite: nil, hoehe: nil), ich: ich)
+                                    }
                                 }
-                            }
+                        }
                     }
+                    .padding()
                 }
-                .padding()
             }
         }
+    }
+
+    private var werLeiste: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                chip("Alle", aktiv: werFilter == nil) { werFilter = nil }
+                ForEach(WirWer.allCases) { wer in
+                    chip(wer.titel, aktiv: werFilter == wer) { werFilter = wer }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, 8)
+    }
+
+    private var kontextLeiste: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 8) {
+                chip("Alle", aktiv: kontextFilter == nil) { kontextFilter = nil }
+                ForEach(WirStickerMeta.alleKontexte, id: \.self) { kontext in
+                    chip(kontext, aktiv: kontextFilter == kontext) { kontextFilter = kontext }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
+    }
+
+    private func chip(_ titel: String, aktiv: Bool, wahl: @escaping () -> Void) -> some View {
+        Button {
+            Haptik.auswahl()
+            wahl()
+        } label: {
+            Text(titel)
+                .font(.subheadline.weight(.medium))
+                .padding(.horizontal, 14)
+                .frame(minHeight: 36)
+                .foregroundStyle(aktiv ? Color.white : Color.primary)
+                .background(aktiv ? Color.loveaRose : Color(uiColor: .tertiarySystemFill), in: .capsule)
+        }
+        .buttonStyle(.federnd)
+        .accessibilityAddTraits(aktiv ? .isSelected : [])
     }
 
     private func senden(_ name: String) {
