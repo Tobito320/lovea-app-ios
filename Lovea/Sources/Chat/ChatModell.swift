@@ -10,7 +10,8 @@ import UserNotifications
 final class ChatModell {
     static let shared = ChatModell()
 
-    struct Nachricht: Identifiable, Sendable {
+    /// Equatable so `ChatNachrichtRow` can skip a rebuild when its message did not change (Chat-Tempo).
+    struct Nachricht: Identifiable, Sendable, Equatable {
         let id: String
         let von: Person
         let zeit: Date

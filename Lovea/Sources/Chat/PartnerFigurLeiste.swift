@@ -13,6 +13,9 @@ struct PartnerFigurLeiste: View {
         return Self.sichtbareZustaende.contains(z.haupt) ? z : nil
     }
 
+    /// Chat-Tempo: slower while the message list moves.
+    private var bildrate: Double { ChatTempo.bildrate(normal: 20, an: ChatTempo.an, scrollt: ChatTempo.shared.scrollt) }
+
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     /// Tap on the figure: a sweet "mhm", a pout and a wagging finger ("hands off").
     @State private var schimpft = false
@@ -22,7 +25,7 @@ struct PartnerFigurLeiste: View {
         VStack(spacing: 0) {
             if let zustand {
                 HStack(spacing: 8) {
-                    FigurView(FigurenModell.shared.aussehen(partner), zustand: schimpft ? .schmollt : zustand.haupt, abzeichen: zustand.abzeichen, groesse: 44, bildrate: 20)
+                    FigurView(FigurenModell.shared.aussehen(partner), zustand: schimpft ? .schmollt : zustand.haupt, abzeichen: zustand.abzeichen, groesse: 44, bildrate: bildrate)
                         .keyframeAnimator(initialValue: 0.0, trigger: wackeln) { figur, winkel in
                             figur.rotationEffect(.degrees(reduceMotion ? 0 : winkel * 0.25), anchor: .bottom)
                         } keyframes: { _ in wackelSpur() }

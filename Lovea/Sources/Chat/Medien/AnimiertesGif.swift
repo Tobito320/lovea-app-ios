@@ -26,7 +26,8 @@ struct AnimiertesGif: View {
         Group {
             if let quelle {
                 // Reduce Motion (Z-16.3): the first frame stands still instead of looping forever.
-                GifSpieler(quelle: quelle, fuellen: fuellen, still: reduceMotion)
+                // Chat-Tempo: holds on the current frame while the message list moves.
+                GifSpieler(quelle: quelle, fuellen: fuellen, still: reduceMotion, haelt: ChatTempo.pausiert())
             } else if fuellen {
                 LadeSchimmer()
             } else {
@@ -59,8 +60,11 @@ private struct GifQuelle: Sendable {
     let erstesBild: UIImage
 
     init?(url: URL, daten: Data) {
+        // Decode now, on this (detached) thread: without it the first frame decodes on the main
+        // thread at the first draw, as every GIF row scrolls in.
         guard let quelle = CGImageSourceCreateWithData(daten as CFData, nil),
-              let bild = CGImageSourceCreateImageAtIndex(quelle, 0, nil) else { return nil }
+              let bild = CGImageSourceCreateImageAtIndex(quelle, 0, [kCGImageSourceShouldCacheImmediately: true] as CFDictionary)
+        else { return nil }
         self.url = url
         self.daten = daten
         erstesBild = UIImage(cgImage: bild)
@@ -74,6 +78,7 @@ private struct GifSpieler: UIViewRepresentable {
     let quelle: GifQuelle
     let fuellen: Bool
     let still: Bool
+    let haelt: Bool
 
     func makeUIView(context: Context) -> GifAnsicht {
         let view = GifAnsicht()
@@ -87,6 +92,7 @@ private struct GifSpieler: UIViewRepresentable {
 
     func updateUIView(_ uiView: GifAnsicht, context: Context) {
         uiView.contentMode = fuellen ? .scaleAspectFill : .scaleAspectFit
+        uiView.haelt = haelt
         uiView.zeigen(quelle, still: still)
     }
 
@@ -114,6 +120,13 @@ private final class GifAnsicht: UIImageView {
     private var still = false
     /// Bumped on every (re)start and stop; a running player sees the change on its next frame and ends.
     private var lauf = 0
+    /// Chat-Tempo: stops the player on the frame it shows; false starts it again from the first frame.
+    var haelt = false {
+        didSet {
+            guard haelt != oldValue else { return }
+            if haelt { lauf += 1 } else { starten() }
+        }
+    }
 
     func zeigen(_ neu: GifQuelle, still: Bool) {
         guard neu.url != quelle?.url || still != self.still else { return }
@@ -130,7 +143,7 @@ private final class GifAnsicht: UIImageView {
 
     private func starten() {
         lauf += 1
-        guard let quelle, !still, window != nil else { return }
+        guard let quelle, !still, !haelt, window != nil else { return }
         let meiner = lauf
         _ = CGAnimateImageDataWithBlock(quelle.daten as CFData, nil) { [weak self] _, bild, stop in
             let frame = UIImage(cgImage: bild)

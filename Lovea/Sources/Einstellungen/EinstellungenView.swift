@@ -7,8 +7,11 @@ struct EinstellungenView: View {
     @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
     @AppStorage(SnapBildAusrichtung.schluessel) private var selfieSpiegeln = false
+    @AppStorage(ChatTempo.schluessel) private var chatTempo = true // same key `ChatTempo.an` reads
+    @AppStorage(TabWischLogik.schluessel) private var tabWischen = true
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
+    @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
 
     var body: some View {
         List {
@@ -35,8 +38,14 @@ struct EinstellungenView: View {
                     .foregroundStyle(.primary)
                 }
             }
-            Section("Chat") {
+            Section {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
+                Toggle("Chat-Tempo (Test)", isOn: $chatTempo)
+                Toggle("Videos schneller senden (Test)", isOn: $videoSchnell)
+            } header: {
+                Text("Chat")
+            } footer: {
+                Text("Schont das Scrollen im Chat. Gilt ab dem nächsten Öffnen des Chats. Aus: wie vorher.")
             }
             Section("Wir") {
                 NavigationLink("Orte") { OrteListeView() }
@@ -45,6 +54,11 @@ struct EinstellungenView: View {
             }
             Section("Spotify") {
                 SpotifyVerbindenRow()
+            }
+            Section {
+                Toggle("Zwischen Tabs wischen", isOn: $tabWischen)
+            } footer: {
+                Text("Nach links oder rechts wischen wechselt zwischen Home, Chat, Zeichnen, Health und Profil.")
             }
             Section {
                 Toggle("Haptik", isOn: $haptik)

@@ -222,7 +222,8 @@ enum TrainingLogik {
                 s.laeufe[i].saetze = gezaehlt.isEmpty ? nil : gezaehlt
                 s.laeufe[i].fertig = !gezaehlt.isEmpty
                 if s.laeufe[i].start == nil { s.laeufe[i].start = e.zeit }
-                s.laeufe[i].ende = !stand.isEmpty && stand.allSatisfy({ $0.ok == true }) ? e.zeit : nil
+                // Leerer Stand = ausgelassen: die Übung endet hier und läuft nicht als aktive weiter.
+                s.laeufe[i].ende = stand.allSatisfy({ $0.ok == true }) ? e.zeit : nil
             case "weg":
                 s.laeufe.removeAll { $0.plan == plan }
             default:
@@ -246,6 +247,9 @@ enum TrainingLogik {
     }
 
     static func zuLang(start: Date, ende: Date) -> Bool { ende.timeIntervalSince(start) > langNach }
+
+    /// Frühester Start, bei dem eine laufende Einheit noch als laufend gilt (`laufend`).
+    static func fruehesterStart(jetzt: Date) -> Date { jetzt.addingTimeInterval(-langNach + 60) }
 
     /// The day planned for `datum`, nil on a rest day.
     static func tag(_ plan: TrainingsPlan, datum: String) -> TrainingsTag? {

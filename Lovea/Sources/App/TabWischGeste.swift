@@ -27,7 +27,8 @@ private struct TabWischModifier: ViewModifier {
                         guard let richtung = TabWischLogik.richtung(
                             dx: wert.translation.width, dy: wert.translation.height,
                             startX: wert.startLocation.x, breite: breite,
-                            beansprucht: TabWischSperre.shared.istBeansprucht
+                            beansprucht: TabWischSperre.shared.istBeansprucht,
+                            aktiv: TabWischLogik.aktiv()
                         ) else { return }
                         guard let ziel = richtung == .naechsterTab ? naechster : vorheriger else { return }
                         Haptik.auswahl()

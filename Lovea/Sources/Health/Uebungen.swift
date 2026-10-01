@@ -80,6 +80,21 @@ enum UebungsKatalog {
     ]
     private static let beliebtRang: [String: Int] = Dictionary(beliebt.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
 
+    /// Die zuletzt gemachten Katalog-Übungen: neueste Einheit zuerst, darin die zuletzt gemachte zuerst,
+    /// ohne Doppelte. Nur Übungen mit gezählten Sätzen.
+    static func zuletzt(_ sessions: [GymSession], in katalog: [String: Uebung] = nachId, limit: Int = 8) -> [Uebung] {
+        var gesehen = Set<String>()
+        var liste: [Uebung] = []
+        for s in sessions.sorted(by: { $0.start > $1.start }) {
+            for l in s.laeufe.reversed() where l.fertig {
+                guard gesehen.insert(l.uebung).inserted, let u = katalog[l.uebung] else { continue }
+                liste.append(u)
+                if liste.count == limit { return liste }
+            }
+        }
+        return liste
+    }
+
     /// Alle Geräte, häufigste zuerst (Körpergewicht, Kurzhantel, Kabelzug …).
     static let geraete: [String] = {
         var zahl: [String: Int] = [:]
