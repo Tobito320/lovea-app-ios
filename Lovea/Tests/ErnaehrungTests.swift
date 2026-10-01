@@ -70,6 +70,31 @@ final class ErnaehrungTests: XCTestCase {
         XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).map(\.name).contains("Teelöffel, gestrichen"))
     }
 
+    /// Reines Nährwerte-Dummy, nur der Name zählt für `HaushaltsMasse`.
+    private func hatLoeffel(_ name: String, fluessig: Bool = false) -> Bool {
+        let l = Lebensmittel(id: "t-\(name)", name: name, fluessig: fluessig, pro100: Naehrwerte(kcal: 100, protein: 1, kohlenhydrate: 1, fett: 1))
+        return !ErnaehrungLogik.portionsAuswahl(l).isEmpty
+    }
+
+    /// Wortabgleich darf nicht auf bloßem Wortanfang beruhen: Komposita, bei denen das Stichwort nur
+    /// der Anfang eines längeren Wortes ist ("Zuckermais"), dürfen nicht treffen; Komposita, bei denen
+    /// das Stichwort als Kopf hinten steht ("Rohrzucker"), müssen treffen (Review R9, Critical #1).
+    func testKompositaTreffenRichtig() {
+        for name in ["Zucker", "Rohrzucker", "Puderzucker", "Salz", "Meersalz", "Honig", "Blütenhonig",
+                     "Mehl Type 405", "Weizenmehl", "Kakaopulver", "Whey Protein Pulver"] {
+            XCTAssertTrue(hatLoeffel(name), "\(name) sollte Löffel-Portionen bekommen")
+        }
+        for name in ["Zuckermais", "Salzstangen", "Honigmelone", "Mehlwurm", "Cola zuckerfrei", "Reiswaffel", "Banane"] {
+            XCTAssertFalse(hatLoeffel(name), "\(name) sollte keine Löffel-Portionen bekommen")
+        }
+        for name in ["Olivenöl", "Rapsöl"] {
+            XCTAssertTrue(hatLoeffel(name, fluessig: true), "\(name) sollte Löffel-Portionen bekommen")
+        }
+        // fluessig: true testet den Wortabgleich selbst, nicht nur das `l.fluessig`-Gate (das Ölsardinen
+        // in der Praxis ohnehin schon ausschließt, siehe Review Minor #1).
+        XCTAssertFalse(hatLoeffel("Ölsardinen", fluessig: true), "Ölsardinen sollte keine Löffel-Portionen bekommen")
+    }
+
     // MARK: - Ziele
 
     func testKalorienzielHaltenUndAbnehmen() {

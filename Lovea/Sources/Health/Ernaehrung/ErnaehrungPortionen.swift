@@ -7,14 +7,20 @@ import SwiftUI
 /// für Open-Food-Facts-Importe ohne eigene Portionen. Küchen-Richtwerte, keine Laborwerte
 /// (Ahmed, 01.10.: "sollten doch mit Teelöffeln, Esslöffeln gemessen werden").
 enum HaushaltsMasse {
-    /// Eine Gruppe trifft, wenn jede ihrer Wortgruppen durch mindestens ein Namenswort als Wortanfang
-    /// erfüllt ist (UND zwischen den Gruppen, ODER innerhalb einer Gruppe) – z. B. "reis" UND "roh".
+    /// Eine Gruppe trifft, wenn jede ihrer Wortgruppen durch mindestens ein Namenswort erfüllt ist (UND
+    /// zwischen den Gruppen, ODER innerhalb einer Gruppe) – z. B. "reis" UND "roh". Ein Namenswort erfüllt
+    /// ein Stichwort nur, wenn es GENAU dem Stichwort entspricht oder darauf ENDET ("Rohrzucker" passt zu
+    /// "zucker", das Stichwort steht als Kompositum-Kopf hinten). Nie bei bloßem Wortanfang: deutsche
+    /// Komposita bleiben nach `LebensmittelBasis.normal` ein Token, "zuckermais"/"zuckerfrei" dürfen nicht
+    /// auf "zucker" treffen, nur weil sie damit anfangen (Review R9, Critical #1, 01.10.).
     private struct Gruppe {
         let woerter: [[String]]
         let portionen: [(name: String, gramm: Double)]
 
         func trifft(_ namensWoerter: [Substring]) -> Bool {
-            woerter.allSatisfy { stichwoerter in stichwoerter.contains { s in namensWoerter.contains { $0.hasPrefix(s) } } }
+            woerter.allSatisfy { stichwoerter in
+                stichwoerter.contains { s in namensWoerter.contains { $0 == s || $0.hasSuffix(s) } }
+            }
         }
     }
 
@@ -26,13 +32,17 @@ enum HaushaltsMasse {
         Gruppe(woerter: [["mehl"]], portionen: [("Teelöffel, gestrichen", 3), ("Teelöffel, gehäuft", 5), ("Esslöffel, gestrichen", 10), ("Esslöffel, gehäuft", 15)]),
         Gruppe(woerter: [["starke"]], portionen: [("Teelöffel, gestrichen", 3), ("Teelöffel, gehäuft", 5), ("Esslöffel, gestrichen", 8), ("Esslöffel, gehäuft", 12)]),
         Gruppe(woerter: [["griess"]], portionen: [("Teelöffel, gestrichen", 4), ("Teelöffel, gehäuft", 7), ("Esslöffel, gestrichen", 12), ("Esslöffel, gehäuft", 18)]),
-        Gruppe(woerter: [["kakao"]], portionen: [("Teelöffel, gestrichen", 3), ("Teelöffel, gehäuft", 5), ("Esslöffel, gestrichen", 6), ("Esslöffel, gehäuft", 9)]),
+        // "kakaopulver" steht als eigenes Stichwort daneben: "kakao" ist dort der Kompositum-ANFANG
+        // ("Pulver" der Kopf am Ende), die reine Endungsregel würde das sonst verfehlen.
+        Gruppe(woerter: [["kakao", "kakaopulver"]], portionen: [("Teelöffel, gestrichen", 3), ("Teelöffel, gehäuft", 5), ("Esslöffel, gestrichen", 6), ("Esslöffel, gehäuft", 9)]),
         Gruppe(woerter: [["backpulver"]], portionen: [("Teelöffel, gestrichen", 5), ("Teelöffel, gehäuft", 8), ("Esslöffel, gestrichen", 15), ("Esslöffel, gehäuft", 22)]),
         Gruppe(woerter: [["haferflocken"]], portionen: [("Teelöffel, gestrichen", 2), ("Teelöffel, gehäuft", 3), ("Esslöffel, gestrichen", 8), ("Esslöffel, gehäuft", 12)]),
         Gruppe(woerter: [["reis"], ["roh"]], portionen: [("Teelöffel, gestrichen", 4), ("Teelöffel, gehäuft", 6), ("Esslöffel, gestrichen", 12), ("Esslöffel, gehäuft", 18)]),
         Gruppe(woerter: [["chia"]], portionen: [("Teelöffel, gestrichen", 4), ("Teelöffel, gehäuft", 6), ("Esslöffel, gestrichen", 12), ("Esslöffel, gehäuft", 18)]),
         Gruppe(woerter: [["leinsamen"]], portionen: [("Teelöffel, gestrichen", 4), ("Teelöffel, gehäuft", 6), ("Esslöffel, gestrichen", 12), ("Esslöffel, gehäuft", 18)]),
-        Gruppe(woerter: [["nuss"], ["gemahlen"]], portionen: [("Teelöffel, gestrichen", 3), ("Teelöffel, gehäuft", 5), ("Esslöffel, gestrichen", 8), ("Esslöffel, gehäuft", 12)]),
+        // "nusse" zusätzlich zu "nuss": "Nüsse" normalisiert zu "nusse" (Plural-e), die Endungsregel
+        // allein träfe das nicht (kein Suffix von "nuss").
+        Gruppe(woerter: [["nuss", "nusse"], ["gemahlen"]], portionen: [("Teelöffel, gestrichen", 3), ("Teelöffel, gehäuft", 5), ("Esslöffel, gestrichen", 8), ("Esslöffel, gehäuft", 12)]),
         Gruppe(woerter: [["gewurz", "zimt"]], portionen: [("Prise", 0.3), ("Teelöffel, gestrichen", 2), ("Teelöffel, gehäuft", 3), ("Esslöffel, gestrichen", 6), ("Esslöffel, gehäuft", 9)]),
         Gruppe(woerter: [["kaffee"], ["pulver"]], portionen: [("Teelöffel, gestrichen", 3), ("Teelöffel, gehäuft", 4), ("Esslöffel, gestrichen", 7), ("Esslöffel, gehäuft", 10)]),
         Gruppe(woerter: [["protein", "eiweiss"], ["pulver"]], portionen: [("Messlöffel", 30)]),
