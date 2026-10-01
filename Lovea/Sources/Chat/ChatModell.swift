@@ -104,7 +104,21 @@ final class ChatModell {
         var beruehrt: Set<String> = []
         for op in ops { if let id = anwendenEins(op) { beruehrt.insert(id) } }
         if !beruehrt.isEmpty { einordnen(beruehrt) }
-        if registrieren { badgeAktualisieren() }
+        if registrieren, Self.badgeBetroffen(ops.map(\.art)) { badgeAktualisieren() }
+    }
+
+    /// Op-Arten, die `ungelesen(fuer:)` tatsächlich beeinflussen können: eine neue/gelöschte
+    /// Nachricht oder Systemzeile, oder eine Lesebestätigung, die `gelesenBis` verschiebt.
+    /// Tippen löst `entwurf.setzen` aus (eigenes optimistisches Echo alle ~1 s) — das ist weder
+    /// eine Nachricht noch eine Status-Änderung, darf also keinen vollen Filter-Durchlauf über die
+    /// komplette Historie plus einen XPC-Aufruf an den Notification-Daemon auslösen (Befund 1).
+    static let badgeRelevanteArten: Set<String> = [
+        "nachricht.neu", "nachricht.geloescht", "nachricht.gelesen",
+        "snap.wiederholt", "snap.aufnahme", "zeichnung.einladung",
+    ]
+
+    static func badgeBetroffen(_ arten: [String]) -> Bool {
+        arten.contains { badgeRelevanteArten.contains($0) }
     }
 
     private static func vorher(_ a: Nachricht, _ b: Nachricht) -> Bool {

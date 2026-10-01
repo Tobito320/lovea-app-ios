@@ -471,10 +471,14 @@ final class Raum {
     /// the whole page even if some ops in it failed to decode (I-3), so one malformed op can't
     /// stall pagination.
     private func opsVerarbeiten(_ ops: [Op], mehr: Bool, seite: Bool, hoechsteSeq: Int?) async {
-        await log.anhaengen(ops)
-        for op in ops { await warteschlange.raus(id: op.id) }
-        await wartetAktualisieren()
+        // UI first, persistence right after (Chat-Tempo-Befund 3): the folds are idempotent by
+        // `Op.id` (see `beobachten`'s contract above), and the paging cursor below only ever moves
+        // AFTER `log.anhaengen` — so a crash between these two lines just means the same ops get
+        // redelivered (log) or re-sent (queue) next time, never lost, never double-shown.
         liefereBatch(ops)
+        await log.anhaengen(ops)
+        await warteschlange.rausBatch(ids: ops.map(\.id))
+        await wartetAktualisieren()
         guard seite else { return }
         if let hoechsteSeq {
             empfangenBisSeq = hoechsteSeq

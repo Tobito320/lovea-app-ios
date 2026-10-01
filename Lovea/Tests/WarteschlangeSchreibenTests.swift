@@ -37,6 +37,33 @@ final class WarteschlangeSchreibenTests: XCTestCase {
         XCTAssertEqual(neu.map(\.id), ["a", "b"])
     }
 
+    /// Chat-Tempo-Befund 3: eingehende Seiten raeumen die Warteschlange in einem Actor-Hop auf
+    /// statt einem `raus(id:)`-Aufruf pro Op.
+    func testRausBatchEntferntMehrereUndSchreibtEinmal() async {
+        let dir = ordner()
+        let queue = Warteschlange(rootURL: dir)
+        for i in 1...5 { await queue.rein(op("op-\(i)")) }
+        await queue.rausBatch(ids: ["op-2", "op-4", "unbekannt"])
+        await queue.sichern()
+
+        let neu = await Warteschlange(rootURL: dir).offen
+        XCTAssertEqual(neu.map(\.id), ["op-1", "op-3", "op-5"])
+    }
+
+    /// Ein leerer oder wirkungsloser Batch (nichts davon in der Warteschlange) darf nichts schreiben.
+    func testRausBatchOhneTreffer() async {
+        let dir = ordner()
+        let queue = Warteschlange(rootURL: dir)
+        await queue.rein(op("op-1"))
+        await queue.sichern()
+
+        await queue.rausBatch(ids: [])
+        await queue.rausBatch(ids: ["unbekannt"])
+
+        let neu = await Warteschlange(rootURL: dir).offen
+        XCTAssertEqual(neu.map(\.id), ["op-1"])
+    }
+
     /// A second instance that changed nothing must never overwrite the file with its stale copy.
     func testUnchangedInstanceDoesNotOverwrite() async {
         let dir = ordner()
