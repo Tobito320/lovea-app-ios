@@ -21,3 +21,7 @@ render-galerie/
 
 # ExerciseDB GIFs, only for tools/uebungen-katalog.sh (the app loads them on demand)
 tools/gifs/
+
+# BLS-Excel, gross (13+ MB), Import-Quelle fuer Task 2, liegt auch im Plan-Ordner
+tools/bls-import/*.xlsx
+.firecrawl/
