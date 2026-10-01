@@ -35,8 +35,9 @@ final class HealthModell {
     /// Teil 5: hand-entered bed and wake-up times per person and wake-up day (newest op wins).
     private(set) var schlafZeiten: [Person: [String: SchlafZeitenD]] = [:]
     private var schlafZeitenZeit: [Person: [String: Date]] = [:]
-    /// Teil 5: every Wasser `habit.setzen` by op id, for the times of the glasses.
-    private var wasserOps: [Person: [String: [String: (zeit: Date, wert: Int)]]] = [:]
+    /// Teil 5/R10: every `habit.setzen` by habit id, person, day and op id, for the times of the
+    /// taps (Wasser-Gläser, Koffein-Tassen). Habit id first, so `zeiten(_:_:_:)` stays generic.
+    private var habitOps: [String: [Person: [String: [String: (zeit: Date, wert: Int)]]]] = [:]
     /// When each person's steps last came in (live ops only, not the backfill) — "vor 3 Std.".
     private(set) var schritteZuletzt: [Person: Date] = [:]
 
@@ -79,7 +80,7 @@ final class HealthModell {
         Raum.shared.beobachten(["schlaf.setzen"]) { [weak self] op in self?.schlafOpAnwenden(op) }
         Raum.shared.beobachten(["habit.setzen", "habit.anlegen", "habit.aendern", "habit.ausblenden"]) { [weak self] op in
             self?.habitFaltung.anwenden(op)
-            self?.wasserOpMerken(op)
+            self?.habitOpMerken(op)
         }
         Raum.shared.beobachten(["einstellung.setzen"]) { [weak self] op in self?.zielOpAnwenden(op) }
         Raum.shared.beobachten(["schlaf.zeiten"]) { [weak self] op in self?.schlafZeitenAnwenden(op) }
@@ -122,8 +123,12 @@ final class HealthModell {
         if let z = schlafZeitenAm(person, tag), EnergieLogik.imBett(z) > 0 { return (z.bett, z.auf) }
         return schlaf[person]?[tag].map { ($0.von, $0.bis) }
     }
-    func wasserZeiten(_ person: Person, _ tag: String) -> [Date] {
-        EnergieLogik.wasserZeiten(Array((wasserOps[person]?[tag] ?? [:]).values))
+    func wasserZeiten(_ person: Person, _ tag: String) -> [Date] { zeiten(Habit.wasser.id, person, tag) }
+    /// R10: Zeiten der Koffein-Tassen fürs Bearbeiten-Blatt, gleiche Regel wie Wasser.
+    func koffeinZeiten(_ person: Person, _ tag: String) -> [Date] { zeiten(Habit.koffein.id, person, tag) }
+
+    private func zeiten(_ habitId: String, _ person: Person, _ tag: String) -> [Date] {
+        EnergieLogik.wasserZeiten(Array((habitOps[habitId]?[person]?[tag] ?? [:]).values))
     }
 
     /// Every habit incl. Gym and Wasser; `ausgeblendet` = hidden by this device's person.
@@ -250,9 +255,9 @@ final class HealthModell {
         schlafZeitenZeit[op.von, default: [:]][d.datum] = op.zeit
     }
 
-    private func wasserOpMerken(_ op: Op) {
-        guard op.art == "habit.setzen", let d = op.daten(HabitSetzenD.self), d.art == Habit.wasser.id else { return }
-        wasserOps[op.von, default: [:]][d.datum, default: [:]][op.id] = (zeit: op.zeit, wert: d.wert)
+    private func habitOpMerken(_ op: Op) {
+        guard op.art == "habit.setzen", let d = op.daten(HabitSetzenD.self) else { return }
+        habitOps[d.art, default: [:]][op.von, default: [:]][d.datum, default: [:]][op.id] = (zeit: op.zeit, wert: d.wert)
     }
 
     private func zielOpAnwenden(_ op: Op) {
