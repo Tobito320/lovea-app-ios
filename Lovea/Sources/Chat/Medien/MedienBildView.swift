@@ -15,6 +15,7 @@ struct MedienNachrichtView: View {
 
     @State private var localURL: URL?
     @State private var vollbild = false
+    @State private var karte = TransparenzKarte.keineKarte
     @Namespace private var zoomRaum
     @Environment(\.chatBreite) private var chatBreite
 
@@ -40,7 +41,7 @@ struct MedienNachrichtView: View {
                     .accessibilityAction { vollbild = true }
                     .matchedTransitionSource(id: medium.id, in: zoomRaum)
                     .fullScreenCover(isPresented: $vollbild) {
-                        MedienVollbild(url: localURL, istVideo: istVideo, eigene: eigene)
+                        MedienVollbild(url: localURL, id: medium.id, istVideo: istVideo, eigene: eigene)
                             .navigationTransition(.zoom(sourceID: medium.id, in: zoomRaum))
                     }
             } else {
@@ -49,7 +50,18 @@ struct MedienNachrichtView: View {
         }
         .frame(width: groesse.width, height: groesse.height)
         .clipShape(.rect(cornerRadius: 18))
-        .task(id: medium.id) { if let gefunden = await MedienDatei.url(medium, eigene: eigene) { localURL = gefunden } }
+        .padding(karte.brauchtKarte ? 12 : 0)
+        .background {
+            if karte.brauchtKarte {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(karte.dunkleKarte ? Color(white: 0.12) : Color(white: 0.97))
+            }
+        }
+        .task(id: medium.id) {
+            guard let gefunden = await MedienDatei.url(medium, eigene: eigene) else { return }
+            localURL = gefunden
+            if !istVideo { karte = await TransparenzCache.ermitteln(id: medium.id, url: gefunden) }
+        }
     }
 
     private var ganzesBildHinweis: some View {
@@ -182,6 +194,7 @@ private struct MedienVorschau: View {
 /// closes (the zoom transition carries it back into the bubble), `VideoPlayer` for videos.
 private struct MedienVollbild: View {
     let url: URL
+    let id: String
     let istVideo: Bool
     let eigene: Bool
     @Environment(\.dismiss) private var dismiss
@@ -191,6 +204,7 @@ private struct MedienVollbild: View {
     @State private var versatzStart: CGSize = .zero
     @State private var zieh: CGFloat = 0
     @State private var bild: UIImage?
+    @State private var karte = TransparenzKarte.keineKarte
     /// Held in state: a player built in `body` restarted the video on every redraw.
     @State private var spieler: AVPlayer?
 
@@ -218,7 +232,12 @@ private struct MedienVollbild: View {
         .statusBarHidden()
         .screenshotKontext(.medium(video: istVideo, eigen: eigene))
         .task {
-            if istVideo { spieler = AVPlayer(url: Videobild.abspielbar(url)) } else { bild = await Bilddatei.laden(url) }
+            if istVideo {
+                spieler = AVPlayer(url: Videobild.abspielbar(url))
+            } else {
+                bild = await Bilddatei.laden(url)
+                karte = await TransparenzCache.ermitteln(id: id, url: url)
+            }
             FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild))
         }
         .onDisappear {
@@ -231,6 +250,13 @@ private struct MedienVollbild: View {
         Image(uiImage: bild)
             .resizable()
             .scaledToFit()
+            .padding(karte.brauchtKarte ? 12 : 0)
+            .background {
+                if karte.brauchtKarte {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(karte.dunkleKarte ? Color(white: 0.12) : Color(white: 0.97))
+                }
+            }
             .scaleEffect(zoom)
             .offset(x: versatz.width, y: versatz.height + zieh)
             .gesture(
