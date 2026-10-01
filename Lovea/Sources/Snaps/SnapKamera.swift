@@ -354,8 +354,14 @@ final class SnapKameraSteuerung: NSObject {
         ausrichtungAusstehend = SnapBildAusrichtung.fuer(position: position)
         schoenheitAusstehend = schoenheitAn && position == .front
         // Front has no flash hardware, so `supportedFlashModes` never includes `.on` there — the
-        // ring light is the front's stand-in, triggered here instead.
+        // ring light is the front's stand-in, triggered here instead. Review Important fix
+        // (2026-10-01): a real flash is effectively instant, but raising `UIScreen.main.brightness`
+        // and fading `KameraRinglichtRahmen` in (`Feder.schnell`) are not — without a wait,
+        // `capturePhoto` below could fire before the screen has actually brightened, so the photo
+        // would show little to no extra light. Only wait when the ring light actually turned on
+        // (back camera / flash off: `ringlichtAktiv` stays false, no wasted 250ms per photo).
         ringlichtSetzen(an: blitzAn)
+        if ringlichtAktiv { try? await Task.sleep(for: .milliseconds(250)) }
         return await withCheckedContinuation { continuation in
             fotoContinuation = continuation
             let einstellungen = AVCapturePhotoSettings()
