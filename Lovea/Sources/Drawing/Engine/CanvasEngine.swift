@@ -3,19 +3,13 @@
 import MetalPerformanceShaders
 import UIKit
 import UniformTypeIdentifiers
-#if DEBUG
-import os
-#endif
 
 enum EngineError: Error {
     case memoryBudget, deviceUnavailable, decode
 }
 
-#if DEBUG
-/// Q-R10: traces the touch-end → commit → undo-snapshot → compositor chain, to catch the rare
-/// "fertiger Strich verschwindet, Undo holt ihn zurück" bug live on a device. Debug builds only.
-let strokeLogger = Logger(subsystem: "app.lovea.drawing", category: "stroke")
-#endif
+// `strokeLogger` (os.Logger) und `ZeichenProtokoll` (Release-fähiger Ring-Puffer der seltenen
+// Ereignisse) sind in ZeichenProtokoll.swift definiert – Q-R10.
 
 enum FillReference: String, CaseIterable, Identifiable {
     case activeLayer, allVisible
@@ -259,6 +253,10 @@ final class CanvasEngine {
         command.commit()
         if let region, let before, let after {
             undo.push(.pixels(layerID: layerID, region: region, before: before, after: after), autor: autor)
+        } else {
+            // Rar: ein Strich landet auf dem Layer, aber ohne Undo-Eintrag (bounds leer/null). Die
+            // Pixel sind da, aber Rückgängig trifft dann den davorliegenden Schritt – Kandidat für A.
+            ZeichenProtokoll.log("land ohne Undo-Eintrag layer=\(layerID)")
         }
         #if DEBUG
         strokeLogger.debug("land layer=\(layerID) region=\(region.map(String.init(describing:)) ?? "nil") undoGespeichert=\(region != nil)")
@@ -326,12 +324,11 @@ final class CanvasEngine {
     }
 
     func cancelStroke() {
-        #if DEBUG
         if let sampler, !sampler.bounds.isNull {
-            // Verwirft sichtbare, nie gelandete Pixel (z. B. zweiter Finger während des Strichs). Kein Undo-Eintrag.
-            strokeLogger.warning("cancelStroke verwirft Strich layer=\(self.strokeLayerID.map(String.init(describing:)) ?? "nil") bounds=\(String(describing: sampler.bounds))")
+            // Rar: verwirft sichtbare, nie gelandete Pixel (z. B. zweiter Finger während des Strichs
+            // ohne Palm-Schutz-Landung, siehe CanvasView.resolveSecondTouch). Kein Undo-Eintrag.
+            ZeichenProtokoll.log("cancelStroke verwirft Strich layer=\(self.strokeLayerID.map(String.init(describing:)) ?? "nil") bounds=\(String(describing: sampler.bounds))")
         }
-        #endif
         resetStroke()
         onChange?()
     }
@@ -466,9 +463,9 @@ final class CanvasEngine {
         switch entry {
         case let .pixels(layerID, region, before, after):
             guard let target = store.texture(for: layerID), let command = queue.makeCommandBuffer() else { return }
-            #if DEBUG
-            strokeLogger.debug("apply pixels forward=\(forward) layer=\(layerID) region=\(String(describing: region))")
-            #endif
+            // Rar genug (nur bei echtem Undo/Redo, nie pro Frame): im Ring-Puffer, damit Ahmed die
+            // Reihenfolge rund um einen verschwundenen Strich nachliefern kann.
+            ZeichenProtokoll.log("apply \(forward ? "redo" : "undo") layer=\(layerID) region=\(String(describing: region))")
             GPU.copy(forward ? after : before, to: target, at: region.origin, command: command)
             command.commit()
             dirtyLayers.insert(layerID)
