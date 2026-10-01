@@ -1,11 +1,23 @@
 import SwiftUI
 import UIKit
 
-/// A long-pressed bubble: its message, the ids of its photo stack and its global frame.
+/// A long-pressed bubble: its message and the ids of its photo stack. Its frame is resolved
+/// separately, live, from `BubbleAnkerKey` — not stored here (R6: a stored `CGRect` snapshot would
+/// need the same continuous `.global` tracking per row this preference key replaces).
 struct ChatFokus: Equatable {
     let id: String
     let stapel: [String]
-    let rahmen: CGRect
+}
+
+/// One entry per currently-rendered bubble (`ChatNachrichtRow`), keyed by `Nachricht.id`. Publishing
+/// an anchor is cheap — SwiftUI does no coordinate-space conversion until something resolves it via
+/// `geo[anchor]` — unlike the `.global` `onGeometryChange` this replaces, which converted every
+/// visible row's frame on every layout pass (R6, chat-tempo scroll report, cause 2).
+struct BubbleAnkerKey: PreferenceKey {
+    static var defaultValue: [String: Anchor<CGRect>] = [:]
+    static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
+        value.merge(nextValue()) { _, neu in neu }
+    }
 }
 
 /// Menu items that need the conversation's own state.
@@ -56,6 +68,9 @@ enum FokusLayout {
 /// reaction bar above it and the glass menu below it. The bubble itself stays where it is.
 struct NachrichtFokusEbene: View {
     let fokus: ChatFokus
+    /// The pressed bubble's anchor (`BubbleAnkerKey`), resolved below into this view's own
+    /// `GeometryReader` — already in its local coordinate space, no manual origin offset needed.
+    let anker: Anchor<CGRect>
     let nachricht: ChatModell.Nachricht
     let ich: Person
     let onWunsch: (FokusWunsch) -> Void
@@ -73,8 +88,7 @@ struct NachrichtFokusEbene: View {
 
     var body: some View {
         GeometryReader { geo in
-            let ursprung = geo.frame(in: .global).origin
-            let r = fokus.rahmen.offsetBy(dx: -ursprung.x, dy: -ursprung.y)
+            let r = geo[anker]
             let punkte = menuePunkte
             let hm = menueHoehe > 0 ? menueHoehe : CGFloat(punkte.count) * 45 + 8
             let lage = FokusLayout.positionen(
