@@ -59,8 +59,11 @@ struct Habit: Codable, Equatable, Sendable, Identifiable {
     static let protein = Habit(id: "protein", name: "Protein", symbol: "fork.knife", farbe: HabitFarbe.koralle.rawValue, zaehlen: false, tagesziel: nil, haeufigkeit: .taeglich, fuer: "beide")
     /// Wert = Zehntel-Kilo (784 = 78,4 kg), siehe `GewichtText`.
     static let gewicht = Habit(id: "gewicht", name: "Gewicht", symbol: "scalemass.fill", farbe: HabitFarbe.grau.rawValue, zaehlen: true, tagesziel: nil, haeufigkeit: .taeglich, fuer: "beide")
-    static let eingebaut = [gym, wasser, koffein, protein, gewicht]
-    static let nurHeute: Set<String> = [koffein.id, protein.id, gewicht.id]
+    /// Wert = Klicks, ein Klick = 3,5 g (`gramm`), Ziel 2 am Tag (Ahmed, 27.09.).
+    static let creatin = Habit(id: "creatin", name: "Creatin", symbol: "pills.fill", farbe: HabitFarbe.indigo.rawValue, zaehlen: true, tagesziel: 2, haeufigkeit: .taeglich, fuer: "beide")
+    static let creatinGramm = 3.5
+    static let eingebaut = [gym, wasser, koffein, protein, gewicht, creatin]
+    static let nurHeute: Set<String> = [koffein.id, protein.id, gewicht.id, creatin.id]
 
     var istEingebaut: Bool { Habit.eingebaut.contains { $0.id == id } }
 }
