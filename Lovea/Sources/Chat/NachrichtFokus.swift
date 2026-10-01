@@ -14,7 +14,7 @@ struct ChatFokus: Equatable {
 /// `geo[anchor]` — unlike the `.global` `onGeometryChange` this replaces, which converted every
 /// visible row's frame on every layout pass (R6, chat-tempo scroll report, cause 2).
 struct BubbleAnkerKey: PreferenceKey {
-    static var defaultValue: [String: Anchor<CGRect>] = [:]
+    static var defaultValue: [String: Anchor<CGRect>] { [:] }
     static func reduce(value: inout [String: Anchor<CGRect>], nextValue: () -> [String: Anchor<CGRect>]) {
         value.merge(nextValue()) { _, neu in neu }
     }
