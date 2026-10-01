@@ -6,6 +6,7 @@ struct EinstellungenView: View {
     @ObservedObject var session: PersonSession
     @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
+    @AppStorage(SnapBildAusrichtung.schluessel) private var selfieSpiegeln = false
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
 
@@ -47,6 +48,9 @@ struct EinstellungenView: View {
             }
             Section {
                 Toggle("Haptik", isOn: $haptik)
+                Toggle("Selfie spiegeln", isOn: $selfieSpiegeln)
+            } footer: {
+                Text("Aus: Selfie-Foto und -Video sind nicht gespiegelt, wie in der iPhone-Kamera. Die Vorschau bleibt gespiegelt.")
             }
             Section {
                 Text("Version \(Bundle.main.appVersion)")

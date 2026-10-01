@@ -58,8 +58,20 @@ final class SnapZuschnittTests: XCTestCase {
         XCTAssertEqual(hinten, CGRect(x: 800, y: 0, width: 2400, height: 3000))
     }
 
-    func testAusrichtungHintenUndVorne() {
-        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back), .right)
-        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .front), .leftMirrored)
+    /// Schalter "Selfie spiegeln": AUS (Standard) = vorne wie hinten aufrecht und ungespiegelt,
+    /// AN = das alte Verhalten (vorne spiegelverkehrt wie die Vorschau). Hinten ändert der Schalter nichts.
+    func testAusrichtungJeKameraUndSchalter() {
+        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .front, spiegeln: false), .right)
+        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .front, spiegeln: true), .leftMirrored)
+        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back, spiegeln: false), .right)
+        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back, spiegeln: true), .right)
+    }
+
+    /// Standard ohne gesetzten Wert ist AUS: das Foto kommt ungespiegelt.
+    func testSchalterStandardIstAus() {
+        let suite = UserDefaults(suiteName: "SnapZuschnittTests.\(UUID().uuidString)")!
+        XCTAssertFalse(SnapBildAusrichtung.spiegeln(suite))
+        suite.set(true, forKey: SnapBildAusrichtung.schluessel)
+        XCTAssertTrue(SnapBildAusrichtung.spiegeln(suite))
     }
 }
