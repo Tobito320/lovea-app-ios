@@ -20,6 +20,9 @@ final class AppNavigation {
     var tabWunsch: String?
     /// Page inside Health to open ("training", "koerper", "verlauf"); the Health tab clears it.
     var healthSeite: String?
+    /// Live Activity, Mahlzeiten-Zeile angetippt: `Mahlzeit.rawValue` aus `lovea://essen?mahlzeit=…`.
+    /// `ErnaehrungView` öffnet direkt das Hinzufügen-Blatt dafür und löscht den Wunsch wieder.
+    var essenMahlzeitWunsch: String?
     /// Profile → "Kamera": ChatTab opens the snap camera and clears it.
     var kameraOeffnen = false
     /// Profile → "Chat": the Chat tab skips its list and opens the conversation.

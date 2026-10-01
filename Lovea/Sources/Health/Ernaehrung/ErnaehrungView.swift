@@ -133,9 +133,19 @@ struct ErnaehrungView: View {
         .onAppear {
             LebensmittelIndex.shared.laden()
             EssenLive.abgleichen()
+            mahlzeitWunschUebernehmen()
         }
         .onDisappear { LebensmittelIndex.shared.freigeben() }
         .onChange(of: phase) { _, neu in if neu == .active { EssenLive.abgleichen() } }
+        .onChange(of: AppNavigation.shared.essenMahlzeitWunsch) { _, _ in mahlzeitWunschUebernehmen() }
+    }
+
+    /// Live-Activity-Mahlzeitenzeile angetippt (`lovea://essen?mahlzeit=…`): direkt das
+    /// Hinzufügen-Blatt für diese Mahlzeit öffnen, statt nur das Tagebuch.
+    private func mahlzeitWunschUebernehmen() {
+        guard let roh = AppNavigation.shared.essenMahlzeitWunsch, let m = Mahlzeit(rawValue: roh) else { return }
+        AppNavigation.shared.essenMahlzeitWunsch = nil
+        neu = m
     }
 
     private var stand: TagebuchStand {
