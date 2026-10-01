@@ -42,7 +42,6 @@ struct ChatNachrichtRow: View {
 
     @State private var wischOffset: CGFloat = 0
     @State private var herzSichtbar = false
-    @State private var rahmen = RahmenBox()
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private static let antwortSchwelle: CGFloat = 56
@@ -144,7 +143,13 @@ struct ChatNachrichtRow: View {
                 ReaktionsAbzeichen(nachricht: nachricht, ich: ich)
                     .offset(x: eigene ? -12 : 12, y: -18)
             }
-            .onGeometryChange(for: CGRect.self) { geo in geo.frame(in: .global) } action: { rahmen.wert = $0 }
+            // R6: used to be `.onGeometryChange(for: CGRect.self) { geo.frame(in: .global) }`,
+            // which converted this bubble's window-global frame on every layout pass — every
+            // visible row, own and partner, every scroll frame (chat-tempo scroll report, cause 2,
+            // the costlier of the two: twice the row count of cause 1's own-bubble-only tracker).
+            // Publishing an anchor instead does no conversion until something resolves it — nothing
+            // does, except `NachrichtFokusEbene`, once, when this row is actually long-pressed.
+            .anchorPreference(key: BubbleAnkerKey.self, value: .bounds) { [nachricht.id: $0] }
             .onTapGesture(count: 2) { herzReaktion() }
             .onTapGesture { if !LangDruck.geradeEben { effektNochmal(); merkenTippen() } }
             // Fix round 3: simultaneous, not `.onLongPressGesture`. Photos, videos, snaps and letters
@@ -249,14 +254,8 @@ struct ChatNachrichtRow: View {
         LangDruck.merken()
         Haptik.leicht()
         let ids = (stapel.isEmpty ? [nachricht] : stapel).map(\.id)
-        aktionen.fokussieren(ChatFokus(id: nachricht.id, stapel: ids, rahmen: rahmen.wert))
+        aktionen.fokussieren(ChatFokus(id: nachricht.id, stapel: ids))
     }
-}
-
-/// The bubble's global frame, written on every layout change without re-rendering the row.
-@MainActor
-final class RahmenBox {
-    var wert: CGRect = .zero
 }
 
 /// Z-32.4 "Senden: Die Blase steigt aus dem Feld an ihren Platz" — a fresh own row rises with the

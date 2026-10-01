@@ -36,27 +36,22 @@ struct BlasenForm: Shape {
     }
 }
 
-/// Fill of a text bubble. Own: the backdrop gradient laid over the whole screen and cut out by the
-/// bubble, so the colour wanders while scrolling (Instagram). Partner: calm `partnerBlase`.
+/// Fill of a text bubble. Own: the backdrop gradient, fixed per bubble (R6: the earlier version cut
+/// it out of a screen-tall gradient via `visualEffect { geo.frame(in: .global) }`, so the colour
+/// wandered while scrolling (Instagram) — but that re-read every own bubble's window-global frame on
+/// every scroll frame, one of the two per-row global-geometry reads behind the scroll hangs
+/// (chat-tempo report, "GeometryReader/preference keys per row"; the ponytail comment it replaces
+/// already named this exact fallback). Partner: calm `partnerBlase`, unchanged.
 struct BlasenHintergrund: View {
     let eigene: Bool
     let schwanz: Bool
-    @Environment(\.chatVerlaufHoehe) private var hoehe
     @Environment(\.chatBackdrop) private var festerBackdrop
 
     var body: some View {
         let backdrop = festerBackdrop ?? Backdrops.aktuell
         let form = BlasenForm(schwanz: schwanz, rechts: eigene)
         if eigene {
-            // ponytail: one `visualEffect` offset per own bubble. If this costs frames at 120 Hz,
-            // drop the overlay/offset and fill `form` with the gradient directly (fixed per bubble).
-            Color.clear
-                .overlay(alignment: .top) {
-                    LinearGradient(colors: backdrop.verlauf, startPoint: .top, endPoint: .bottom)
-                        .frame(height: max(hoehe, 1))
-                        .visualEffect { inhalt, geo in inhalt.offset(y: -geo.frame(in: .global).minY) }
-                }
-                .clipShape(form)
+            form.fill(LinearGradient(colors: backdrop.verlauf, startPoint: .top, endPoint: .bottom))
         } else {
             form.fill(backdrop.partnerBlase)
         }

@@ -202,7 +202,12 @@ private struct Unterhaltung: View {
             .safeAreaBar(edge: .bottom, spacing: 0) { unten }
             .background { ChatHintergrundAnsicht(ich: ich) }
             .overlay { ChatEffektEbene() }
-            .overlay { fokusEbene }
+            // R6: the per-row bubble frame used to be tracked continuously via `.global`
+            // `onGeometryChange` (every visible row, every scroll frame). Rows now publish an
+            // `Anchor<CGRect>` instead (cheap — no coordinate-space walk until resolved); this
+            // reads the whole published dictionary and resolves exactly the pressed bubble's
+            // anchor, once, inside `NachrichtFokusEbene`'s own `GeometryReader`.
+            .overlayPreferenceValue(BubbleAnkerKey.self) { anker in fokusEbene(anker) }
             .environment(\.chatVerlaufHoehe, flaeche.height)
             .environment(\.chatBreite, flaeche.width)
             .onGeometryChange(for: CGRect.self) { geo in geo.frame(in: .global) } action: { rahmen in
@@ -326,9 +331,11 @@ private struct Unterhaltung: View {
         .tastaturWischen()
     }
 
-    @ViewBuilder private var fokusEbene: some View {
-        if let fokus, let nachricht = modell.nachricht(fokus.id) {
-            NachrichtFokusEbene(fokus: fokus, nachricht: nachricht, ich: ich) { wunsch in
+    /// `anker` only has entries for bubbles currently in the `LazyVStack` — guards the rare case a
+    /// scrolled-away row's anchor vanished right as the long press fired.
+    @ViewBuilder private func fokusEbene(_ anker: [String: Anchor<CGRect>]) -> some View {
+        if let fokus, let nachricht = modell.nachricht(fokus.id), let bubbleAnker = anker[fokus.id] {
+            NachrichtFokusEbene(fokus: fokus, anker: bubbleAnker, nachricht: nachricht, ich: ich) { wunsch in
                 erfuellen(wunsch, nachricht)
             } onSchliessen: {
                 self.fokus = nil
