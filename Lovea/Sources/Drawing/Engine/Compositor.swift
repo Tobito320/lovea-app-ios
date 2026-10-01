@@ -128,6 +128,11 @@ final class Compositor {
         guard ensureTextures(width: store.width, height: store.height),
               let below, let above, let activeTemp else { return }
         let active = layers.firstIndex(where: { $0.id == activeLayerID }) ?? layers.count
+        #if DEBUG
+        // Q-R10: wenn activeLayerID gerade keiner Ebene entspricht, rutscht die aktive Ebene fürs
+        // komplette Frame in den gecachten "below"-Block statt frisch neu zusammengesetzt zu werden.
+        if active == layers.count { strokeLogger.warning("encodeFrame: activeLayerID \(activeLayerID) nicht in document.layers – below übernimmt alles") }
+        #endif
         var end = active
         while end + 1 < layers.count, layers[end + 1].clipping { end += 1 }
         let liveRange = active..<min(end + 1, layers.count)

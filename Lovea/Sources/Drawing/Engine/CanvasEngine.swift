@@ -3,10 +3,19 @@
 import MetalPerformanceShaders
 import UIKit
 import UniformTypeIdentifiers
+#if DEBUG
+import os
+#endif
 
 enum EngineError: Error {
     case memoryBudget, deviceUnavailable, decode
 }
+
+#if DEBUG
+/// Q-R10: traces the touch-end → commit → undo-snapshot → compositor chain, to catch the rare
+/// "fertiger Strich verschwindet, Undo holt ihn zurück" bug live on a device. Debug builds only.
+let strokeLogger = Logger(subsystem: "app.lovea.drawing", category: "stroke")
+#endif
 
 enum FillReference: String, CaseIterable, Identifiable {
     case activeLayer, allVisible
@@ -181,7 +190,12 @@ final class CanvasEngine {
 
     func beginStroke(_ input: StrokeInput, settings: BrushSettings, layerID: UUID) {
         guard let layer = layer(layerID), layer.kind == .paint, !layer.isLocked,
-              store.texture(for: layerID) != nil, let command = queue.makeCommandBuffer() else { return }
+              store.texture(for: layerID) != nil, let command = queue.makeCommandBuffer() else {
+            #if DEBUG
+            strokeLogger.debug("beginStroke abgelehnt: layer=\(layerID) aktiv=\(self.activeLayerID)")
+            #endif
+            return
+        }
         GPU.fill(scratch, command: command)
         command.commit()
         var sampler = StrokeSampler(settings: settings)
@@ -193,6 +207,9 @@ final class CanvasEngine {
         liveChanged = .null
         lastPredicted = .null
         liveSerial += 1
+        #if DEBUG
+        strokeLogger.debug("beginStroke layer=\(layerID) serial=\(self.liveSerial)")
+        #endif
     }
 
     var isStroking: Bool { sampler != nil }
@@ -213,6 +230,9 @@ final class CanvasEngine {
         }
         pending += sampler.finish()
         flushStamps(command: command)
+        #if DEBUG
+        strokeLogger.debug("endStroke layer=\(layerID) aktiv=\(self.activeLayerID) bounds=\(String(describing: sampler.bounds))")
+        #endif
         land(scratch, sampler: sampler, into: target, layerID: layerID, mirrorX: mirrorX, autor: nil, command: command)
         resetStroke()
         didEditPixels(of: layerID)
@@ -232,12 +252,17 @@ final class CanvasEngine {
         let region = pixelRegion(bounds.insetBy(dx: -2, dy: -2))
         let before = region.flatMap { snapshot(target, region: $0, command: command) }
         let kind: BlendKind = settings.isEraser ? .erase : (alphaLock ? .atop : .over)
-        compositor.draw(scratch, into: target, blend: kind, opacity: settings.strokeOpacity, command: command)
+        // ponytail: scissor to the same region the undo snapshot already bounds, so landing a small
+        // stroke on a 2048er Leinwand nicht jedes Mal die volle Fläche shadet.
+        compositor.draw(scratch, into: target, blend: kind, opacity: settings.strokeOpacity, scissor: region, command: command)
         let after = region.flatMap { snapshot(target, region: $0, command: command) }
         command.commit()
         if let region, let before, let after {
             undo.push(.pixels(layerID: layerID, region: region, before: before, after: after), autor: autor)
         }
+        #if DEBUG
+        strokeLogger.debug("land layer=\(layerID) region=\(region.map(String.init(describing:)) ?? "nil") undoGespeichert=\(region != nil)")
+        #endif
     }
 
     // MARK: Remote strokes
@@ -301,6 +326,12 @@ final class CanvasEngine {
     }
 
     func cancelStroke() {
+        #if DEBUG
+        if let sampler, !sampler.bounds.isNull {
+            // Verwirft sichtbare, nie gelandete Pixel (z. B. zweiter Finger während des Strichs). Kein Undo-Eintrag.
+            strokeLogger.warning("cancelStroke verwirft Strich layer=\(self.strokeLayerID.map(String.init(describing:)) ?? "nil") bounds=\(String(describing: sampler.bounds))")
+        }
+        #endif
         resetStroke()
         onChange?()
     }
@@ -435,6 +466,9 @@ final class CanvasEngine {
         switch entry {
         case let .pixels(layerID, region, before, after):
             guard let target = store.texture(for: layerID), let command = queue.makeCommandBuffer() else { return }
+            #if DEBUG
+            strokeLogger.debug("apply pixels forward=\(forward) layer=\(layerID) region=\(String(describing: region))")
+            #endif
             GPU.copy(forward ? after : before, to: target, at: region.origin, command: command)
             command.commit()
             dirtyLayers.insert(layerID)
