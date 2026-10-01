@@ -527,6 +527,9 @@ struct WorkoutUebungView: View {
     let planId: String
     /// Zur nächsten Übung wechseln, nil = zurück zur Übersicht.
     var wechseln: (String?) -> Void = { _ in }
+    /// Eine beendete Einheit korrigieren oder nachtragen (Rückblick): ohne Uhr und ohne untere Leiste,
+    /// jede Änderung wird gleich gesendet.
+    var nachtrag = false
 
     @State private var saetze: [PlanSatz] = []
     @State private var notiz = ""
@@ -536,6 +539,7 @@ struct WorkoutUebungView: View {
     @AppStorage("gym.rpe") private var rpeAn = true
     @FocusState private var fokus: Bool
     @Environment(\.scenePhase) private var phase
+    @Environment(\.dismiss) private var dismiss
 
     private var modell: TrainingModell { TrainingModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
@@ -582,7 +586,9 @@ struct WorkoutUebungView: View {
                 Button("Fertig") { fokus = false }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { leiste(u, liste) }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !nachtrag { leiste(u, liste) }
+        }
         .sheet(item: $animation) { a in
             NavigationStack { UebungDetail(uebung: a) }.presentationDetents([.medium, .large])
         }
@@ -771,7 +777,8 @@ struct WorkoutUebungView: View {
     private func sichern() {
         guard geladen, let u = modell.workout(sessionId).first(where: { $0.id == planId }) else { return }
         let laeuft = modell.sessions(ich).first { $0.id == sessionId }?.ende == nil
-        if laeuft, saetze != u.saetze { modell.saetzeSenden(sessionId, u.planUebung, saetze) }
+        let darf = nachtrag || laeuft
+        if darf, saetze != u.saetze { modell.saetzeSenden(sessionId, u.planUebung, saetze) }
         let neu = notiz.trimmingCharacters(in: .whitespacesAndNewlines)
         if !u.extra, neu != (u.planUebung.notiz ?? "") {
             modell.planSichern(TrainingLogik.aendern(modell.plan(ich), planUebung: planId) { $0.notiz = neu.isEmpty ? nil : neu })
@@ -780,7 +787,12 @@ struct WorkoutUebungView: View {
 
     private func haken(_ u: WorkoutUebung, _ i: Int) {
         let vorher = saetze.indices.contains(i) && saetze[i].ok == true
-        saetze = WorkoutAktion.haken(sessionId, u.planUebung, saetze, i)
+        if nachtrag {
+            saetze = WorkoutLogik.hakenNachtrag(saetze, i)
+            modell.saetzeSenden(sessionId, u.planUebung, saetze)
+        } else {
+            saetze = WorkoutAktion.haken(sessionId, u.planUebung, saetze, i)
+        }
         if vorher { Haptik.leicht() } else { Haptik.erfolg() }
     }
 
@@ -793,7 +805,14 @@ struct WorkoutUebungView: View {
 
     /// Die Uhr merkt sich Satznummern: verschieben sich die Zeilen, hört sie auf.
     private func uhrAus() {
-        if WorkoutUhr.shared.stand?.plan == planId { WorkoutUhr.shared.aus() }
+        // Beendete Einheit: die Uhr gehört zum laufenden Training, nicht anfassen.
+        guard !nachtrag, WorkoutUhr.shared.stand?.plan == planId else { return }
+        WorkoutUhr.shared.aus()
+    }
+
+    /// Zurück zur Übersicht, oder aus dem Rückblick heraus.
+    private func zurueck() {
+        if nachtrag { dismiss() } else { wechseln(nil) }
     }
 
     private func loeschen(_ u: WorkoutUebung, _ i: Int) {
@@ -815,7 +834,7 @@ struct WorkoutUebungView: View {
         uhrAus()
         geladen = false // nichts mehr nachsenden
         modell.entfernen(sessionId, u.planUebung)
-        wechseln(nil)
+        zurueck()
     }
 
     /// Ein leerer Stand wird gesendet (`sichern`); die Plan-Sätze bleiben im Plan.
@@ -824,7 +843,7 @@ struct WorkoutUebungView: View {
         saetze = []
         sichern()
         Haptik.leicht()
-        wechseln(nil)
+        zurueck()
     }
 
     /// "weg" nimmt den leeren Stand zurück: die Zeilen kommen wieder aus dem Plan.

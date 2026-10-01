@@ -113,6 +113,22 @@ final class GymLueckenTests: XCTestCase {
         XCTAssertEqual(WorkoutLogik.alsTag([gemacht], name: " ")?.name, "Freies Training")
     }
 
+    func testManualTickInFinishedSessionHasNoTimes() {
+        var fertig = satz(10, 50, ok: true)
+        fertig.sek = 40
+        fertig.pause = 90
+        let saetze = [fertig, satz(8, 50)]
+        let weg = WorkoutLogik.hakenNachtrag(saetze, 0)
+        XCTAssertNil(weg[0].ok)
+        XCTAssertNil(weg[0].sek) // der Haken weg: auch die Zeiten weg, wie beim Training
+        XCTAssertNil(weg[0].pause)
+        let da = WorkoutLogik.hakenNachtrag(saetze, 1)
+        XCTAssertEqual(da[1].ok, true)
+        XCTAssertNil(da[1].sek) // von Hand: es gibt keine gemessene Zeit
+        XCTAssertTrue(da[1].zaehlt)
+        XCTAssertEqual(WorkoutLogik.hakenNachtrag(saetze, 5), saetze) // Index außerhalb: nichts ändert sich
+    }
+
     func testEarliestStartKeepsSessionRunning() {
         let frueh = TrainingLogik.fruehesterStart(jetzt: t0)
         XCTAssertTrue(TrainingLogik.laufend(GymSession(id: "s", tag: nil, start: frueh, ende: nil, laeufe: []), jetzt: t0))

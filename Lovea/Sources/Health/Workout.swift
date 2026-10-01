@@ -123,6 +123,21 @@ enum WorkoutLogik {
         return anders ? neu : nil
     }
 
+    /// Haken von Hand in einer beendeten Einheit (nachtragen, Tippfehler korrigieren): ohne Uhr und
+    /// ohne Pause. Der Haken weg nimmt auch die Zeiten mit, wie beim laufenden Training.
+    static func hakenNachtrag(_ saetze: [PlanSatz], _ i: Int) -> [PlanSatz] {
+        guard saetze.indices.contains(i) else { return saetze }
+        var neu = saetze
+        if neu[i].ok == true {
+            neu[i].ok = nil
+            neu[i].sek = nil
+            neu[i].pause = nil
+        } else {
+            neu[i].ok = true
+        }
+        return neu
+    }
+
     /// Ein ohne Trainingstag gemachtes Training als neuer, flexibler Tag (ohne Wochentag). Nur Übungen
     /// mit etwas Abgehaktem, Sätze ohne Haken; die Plan-ids bleiben, damit "Vorher" und Rekorde
     /// weiter zu denselben Übungen gehören. nil, wenn nichts abgehakt ist.
