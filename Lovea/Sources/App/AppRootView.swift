@@ -83,7 +83,13 @@ struct AppRootView: View {
         // audit-chat #2: voice round (app-wide voice playback outside the conversation) and the
         // Z-7.3 in-app banner (partner online / drawing invite / Anstupsen & Kuss) both dock to the
         // top — stacked in one overlay so a banner pushes the player down instead of covering it.
+        // Those two are meant to float briefly over content (capsules with their own top padding).
         .overlay(alignment: .top) { topOverlay }
+        // R7 (Review): die Gym-Leiste ist dagegen dauerhaft/oft sichtbar und soll Navigationstitel
+        // (Home, Chat, …) nicht verdecken — darum `safeAreaInset` statt `overlay`, wie
+        // `SyncStatusZeile` in `ChatTab.swift`: verdrängt den Inhalt, statt ihn zu überdecken, und
+        // bleibt leer (keine Höhe), wenn `GymLeisteView` gerade nichts zeigt.
+        .safeAreaInset(edge: .top, spacing: 0) { GymLeisteView() }
     }
 }
 
@@ -120,7 +126,6 @@ private extension AppRootView {
 
     var topOverlay: some View {
         VStack(spacing: 0) {
-            GymLeisteView()
             SprachMiniPlayer()
             InAppBannerView(aufZeichnungGetippt: { id in
                 AppNavigation.shared.geteilteZeichnung = id

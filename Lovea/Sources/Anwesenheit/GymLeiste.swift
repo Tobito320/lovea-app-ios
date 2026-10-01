@@ -47,6 +47,9 @@ struct GymLeisteView: View {
             }
         }
         .onChange(of: atGym) { _, neu in if !neu { weggewischt = false } }
+        // Review: `safeAreaInset` verdrängt statt überdeckt, soll den Inhalt aber weich schieben,
+        // nicht hart springen lassen.
+        .animation(.easeInOut(duration: 0.25), value: zustand)
     }
 
     private var vorschlagLeiste: some View {
