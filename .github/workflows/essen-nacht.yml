@@ -1,0 +1,31 @@
+name: Essen Nacht-Import
+
+on:
+  schedule:
+    - cron: "30 2 * * *"
+  workflow_dispatch:
+
+jobs:
+  delta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Wrangler
+        run: cd server && npm ci
+      - name: Delta live
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python tools/essen-import/importieren.py delta --db lovea-essen-live
+      - name: Delta test
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: python tools/essen-import/importieren.py delta --db lovea-essen-test
