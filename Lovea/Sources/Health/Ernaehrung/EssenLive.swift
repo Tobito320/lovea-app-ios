@@ -66,17 +66,21 @@ enum EssenLive {
             attribute: EssenAktivitaet(name: ich.name),
             stand: EssenLiveLogik.stand(modell.eintraege(ich, heute), ziele: modell.ziele(ich, tag: heute), tag: heute))
         let an = EssenLiveEinstellungen.an
+        // R10 (Ahmed, 01.10.: "nur Gym, wenn gestartet" in der Dynamic Island) — läuft ein Training,
+        // darf Essen gar nicht erst anfordern, sonst teilt iOS die Insel zwischen beiden auf.
+        let gymLaeuft = !Activity<GymAktivitaet>.activities.isEmpty
         let vorher = letzter
         letzter = Task {
             await vorher?.value
-            await anwenden(ziel, an: an)
+            await anwenden(ziel, an: an, gymLaeuft: gymLaeuft)
         }
     }
 
-    /// Schalter aus -> beenden. Läuft schon eine für `heute`, mit Mahlzeitendaten -> aktualisieren.
-    /// Läuft keine, eine vom Vortag, oder eine veraltete (altes Format, siehe `istVeraltet`) ->
-    /// (die alte beenden und) neu starten.
-    nonisolated static func aktion(laufendTag: String?, heute: String, an: Bool, laufendVeraltet: Bool = false) -> Aktion {
+    /// Gym läuft -> beenden (geht vor allem anderen). Sonst: Schalter aus -> beenden. Läuft schon eine
+    /// für `heute`, mit Mahlzeitendaten -> aktualisieren. Läuft keine, eine vom Vortag, oder eine
+    /// veraltete (altes Format, siehe `istVeraltet`) -> (die alte beenden und) neu starten.
+    nonisolated static func aktion(laufendTag: String?, heute: String, an: Bool, laufendVeraltet: Bool = false, gymLaeuft: Bool = false) -> Aktion {
+        guard !gymLaeuft else { return .beenden }
         guard an else { return .beenden }
         if laufendVeraltet { return .neuStarten }
         return laufendTag == heute ? .aktualisieren : .neuStarten
@@ -91,12 +95,12 @@ enum EssenLive {
         s.kcal > 0 && s.mahlzeitenKcal == [0, 0, 0, 0]
     }
 
-    private nonisolated static func anwenden(_ ziel: Ziel, an: Bool) async {
+    private nonisolated static func anwenden(_ ziel: Ziel, an: Bool, gymLaeuft: Bool) async {
         let laufend = Activity<EssenAktivitaet>.activities.first
         let mitternacht = Calendar.current.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime)
             ?? Date().addingTimeInterval(86400)
         let veraltet = laufend.map { istVeraltet($0.content.state) } ?? false
-        switch aktion(laufendTag: laufend?.content.state.tag, heute: ziel.stand.tag, an: an, laufendVeraltet: veraltet) {
+        switch aktion(laufendTag: laufend?.content.state.tag, heute: ziel.stand.tag, an: an, laufendVeraltet: veraltet, gymLaeuft: gymLaeuft) {
         case .beenden:
             for a in Activity<EssenAktivitaet>.activities { await a.end(nil, dismissalPolicy: .immediate) }
         case .neuStarten:

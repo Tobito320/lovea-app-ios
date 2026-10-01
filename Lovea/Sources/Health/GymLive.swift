@@ -40,12 +40,19 @@ enum GymLive {
         for a in Activity<GymAktivitaet>.activities where a.attributes.sessionId != ziel?.attribute.sessionId {
             await a.end(nil, dismissalPolicy: .immediate)
         }
-        guard let ziel else { return }
-        if let a = Activity<GymAktivitaet>.activities.first(where: { $0.attributes.sessionId == ziel.attribute.sessionId }) {
-            if a.content.state != ziel.stand { await a.update(ActivityContent(state: ziel.stand, staleDate: nil)) }
-        } else if ActivityAuthorizationInfo().areActivitiesEnabled {
-            // Klappt nur im Vordergrund; sonst holt der nächste Abgleich beim Öffnen es nach.
-            _ = try? Activity.request(attributes: ziel.attribute, content: ActivityContent(state: ziel.stand, staleDate: nil))
+        if let ziel {
+            if let a = Activity<GymAktivitaet>.activities.first(where: { $0.attributes.sessionId == ziel.attribute.sessionId }) {
+                if a.content.state != ziel.stand { await a.update(ActivityContent(state: ziel.stand, staleDate: nil)) }
+            } else if ActivityAuthorizationInfo().areActivitiesEnabled {
+                // Klappt nur im Vordergrund; sonst holt der nächste Abgleich beim Öffnen es nach.
+                _ = try? Activity.request(attributes: ziel.attribute, content: ActivityContent(state: ziel.stand, staleDate: nil))
+            }
         }
+        // R10 (Ahmed, 01.10.: "nur Gym, wenn gestartet" in der Dynamic Island) — nach jedem
+        // Gym-Abgleich (Start, Update, Ende) auch Essen neu bewerten: `EssenLive.aktion` beendet
+        // Essen von selbst, solange eine Gym-Aktivität läuft, und startet es hier wieder, sobald
+        // keine mehr läuft. Kein neuer Timer, läuft nur mit, wenn `GymLive.abgleichen()` ohnehin
+        // schon lief.
+        await EssenLive.abgleichen()
     }
 }
