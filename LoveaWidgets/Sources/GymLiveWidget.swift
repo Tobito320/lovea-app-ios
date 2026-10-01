@@ -1,4 +1,5 @@
 import ActivityKit
+import AppIntents
 import SwiftUI
 import WidgetKit
 
@@ -30,6 +31,7 @@ struct GymLiveWidget: Widget {
                     }
                     Spacer(minLength: 8)
                     uhr(kontext.state).font(.title.bold().monospacedDigit())
+                    knopf(kontext.state)
                 }
             }
             .padding(16)
@@ -44,7 +46,11 @@ struct GymLiveWidget: Widget {
                     uhr(kontext.state, sonst: kontext.attributes.start).font(.headline.monospacedDigit())
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text([kontext.state.uebung, zeile(kontext.state)].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).lineLimit(1)
+                    HStack(spacing: 10) {
+                        Text([kontext.state.uebung, zeile(kontext.state)].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).lineLimit(2)
+                        Spacer(minLength: 4)
+                        knopf(kontext.state)
+                    }
                 }
             } compactLeading: {
                 Image(systemName: "dumbbell.fill").foregroundStyle(Self.gruen)
@@ -64,6 +70,24 @@ struct GymLiveWidget: Widget {
         }
         let pause = s.pause == true ? "Pause · " : ""
         return "\(pause)Satz \(satz) von \(saetze) · \(zeile)"
+    }
+
+    /// Ein Tipp macht den nächsten Schritt, ohne die App zu öffnen: läuft ein Satz, hakt er ihn ab,
+    /// sonst startet er den Satz, der dran ist. Kein Knopf bei Cardio oder wenn alles fertig ist.
+    @ViewBuilder
+    private func knopf(_ s: GymAktivitaet.ContentState) -> some View {
+        if s.satz != nil {
+            let laeuft = s.seit != nil && s.pause != true
+            Button(intent: GymSchrittIntent()) {
+                Image(systemName: laeuft ? "checkmark" : "play.fill")
+                    .font(.headline)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(Color.black)
+            .background(Self.gruen, in: .rect(cornerRadius: 12, style: .continuous))
+            .accessibilityLabel(laeuft ? "Satz fertig" : "Satz starten")
+        }
     }
 
     /// Satzzeit zählt hoch, eine Pause mit Ziel rückwärts. Ohne laufende Uhr `sonst` (die Zeit im Gym) oder nichts.
