@@ -99,6 +99,20 @@ final class GymLueckenTests: XCTestCase {
         XCTAssertTrue(UebungsKatalog.zuletzt([], in: katalog).isEmpty)
     }
 
+    func testFreeTrainingBecomesFlexibleDayKeepingExerciseIds() {
+        let gemacht = WorkoutUebung(planUebung: uebung("a"), saetze: [satz(10, 50, ok: true), satz(8, 50)], vorher: [], extra: true)
+        let offen = WorkoutUebung(planUebung: uebung("b"), saetze: [satz(10, 20)], vorher: [], extra: true)
+        let tag = WorkoutLogik.alsTag([gemacht, offen], name: "  Freitag  ", id: "neu")
+        XCTAssertEqual(tag?.id, "neu")
+        XCTAssertEqual(tag?.name, "Freitag")
+        XCTAssertEqual(tag?.wochentage, []) // flexibel: an jedem Tag trainierbar
+        XCTAssertEqual(tag?.uebungen.map(\.id), ["a"]) // gleiche id: Vorher und Rekorde bleiben verbunden
+        XCTAssertEqual(tag?.uebungen[0].saetze.count, 2)
+        XCTAssertEqual(tag?.uebungen[0].saetze.allSatisfy { $0.ok == nil }, true) // wie im Plan, ohne Haken
+        XCTAssertNil(WorkoutLogik.alsTag([offen], name: "Leer")) // nichts abgehakt: nichts zu speichern
+        XCTAssertEqual(WorkoutLogik.alsTag([gemacht], name: " ")?.name, "Freies Training")
+    }
+
     func testEarliestStartKeepsSessionRunning() {
         let frueh = TrainingLogik.fruehesterStart(jetzt: t0)
         XCTAssertTrue(TrainingLogik.laufend(GymSession(id: "s", tag: nil, start: frueh, ende: nil, laeufe: []), jetzt: t0))

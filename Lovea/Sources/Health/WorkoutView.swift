@@ -119,6 +119,9 @@ struct GymSessionView: View {
     @State private var startBlatt: GymSession?
     @State private var langFrage: GymSession?
     @State private var planFrage: TrainingsTag?
+    /// Training ohne Trainingstag fertig: "Als Trainingstag speichern?" mit den Übungen von eben.
+    @State private var freiListe: [WorkoutUebung]?
+    @State private var freiName = ""
     @State private var verwerfenFrage = false
 
     private var modell: TrainingModell { TrainingModell.shared }
@@ -180,6 +183,13 @@ struct GymSessionView: View {
                 }
             }
             .sheet(item: $startBlatt) { StartzeitBlatt(session: $0) }
+            .alert("Als Trainingstag speichern?", isPresented: freiFrageOffen, presenting: freiListe) { liste in
+                TextField("Name", text: $freiName)
+                Button("Speichern") { alsTagSpeichern(liste) }
+                Button("Nein", role: .cancel) { dismiss() }
+            } message: { _ in
+                Text("Du hast ohne Trainingstag trainiert. Beim nächsten Mal steht es als Vorlage bereit.")
+            }
         } else {
             ContentUnavailableView("Einheit nicht gefunden", systemImage: "dumbbell")
         }
@@ -221,6 +231,10 @@ struct GymSessionView: View {
 
     private var planFrageOffen: Binding<Bool> {
         Binding { planFrage != nil } set: { if !$0 { planFrage = nil } }
+    }
+
+    private var freiFrageOffen: Binding<Bool> {
+        Binding { freiListe != nil } set: { if !$0 { freiListe = nil } }
     }
 
     private func aktionen(_ s: GymSession) -> WorkoutAktionen {
@@ -282,11 +296,23 @@ struct GymSessionView: View {
         let liste = modell.workout(s.id)
         modell.auschecken(s.id)
         Haptik.erfolg()
-        if let tag = modell.tag(ich, id: s.tag), let neu = WorkoutLogik.neuerTag(tag, liste) {
+        let tag = modell.tag(ich, id: s.tag)
+        if let tag, let neu = WorkoutLogik.neuerTag(tag, liste) {
             planFrage = neu
+        } else if tag == nil, WorkoutLogik.alsTag(liste, name: "") != nil {
+            freiListe = liste
         } else {
             dismiss()
         }
+    }
+
+    /// Der neue Tag kommt in den Plan, die Einheit gehört danach zu ihm (gleiche Übungs-ids).
+    private func alsTagSpeichern(_ liste: [WorkoutUebung]) {
+        if let neu = WorkoutLogik.alsTag(liste, name: freiName) {
+            modell.planSichern(TrainingLogik.tagSetzen(modell.plan(ich), neu))
+            if let s = modell.sessions(ich).first(where: { $0.id == sessionId }) { modell.tagSetzen(s, neu.id) }
+        }
+        dismiss()
     }
 
     private func verwerfen() {

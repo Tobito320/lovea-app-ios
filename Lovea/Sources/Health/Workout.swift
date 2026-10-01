@@ -123,6 +123,20 @@ enum WorkoutLogik {
         return anders ? neu : nil
     }
 
+    /// Ein ohne Trainingstag gemachtes Training als neuer, flexibler Tag (ohne Wochentag). Nur Übungen
+    /// mit etwas Abgehaktem, Sätze ohne Haken; die Plan-ids bleiben, damit "Vorher" und Rekorde
+    /// weiter zu denselben Übungen gehören. nil, wenn nichts abgehakt ist.
+    static func alsTag(_ liste: [WorkoutUebung], name: String, id: String = UUID().uuidString) -> TrainingsTag? {
+        let gemacht = liste.filter { $0.fertigZahl > 0 }.map { u -> PlanUebung in
+            var p = u.planUebung
+            if !p.istCardio { p.saetze = u.saetze.map(\.alsPlan) }
+            return p
+        }
+        guard !gemacht.isEmpty else { return nil }
+        let titel = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return TrainingsTag(id: id, name: titel.isEmpty ? "Freies Training" : titel, wochentage: [], uebungen: gemacht)
+    }
+
     /// Den Trainingstag darf man wechseln, solange nichts abgehakt ist. Sonst blieben abgehakte
     /// Übungen des alten Tages als Extras im neuen und "Plan aktualisieren" hängte sie an.
     static func tagWechselbar(_ liste: [WorkoutUebung]) -> Bool {
