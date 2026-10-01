@@ -193,7 +193,7 @@ enum OFFClient {
               let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(ziffern).json?fields=\(ErnaehrungLogik.offFelder)")
         else { return nil }
         for versuch in 0..<2 {
-            let (data, status) = try await laden(url)
+            let (data, status) = try await laden(url, timeout: 8)
             if status == 404 { return nil }
             if (200..<300).contains(status) { return ErnaehrungLogik.offProdukt(data) }
             if versuch == 0, status == 429 || status >= 500 { try await Task.sleep(for: .seconds(1)); continue }
@@ -216,10 +216,10 @@ enum OFFClient {
         return ErnaehrungLogik.offSuche(data)
     }
 
-    private static func laden(_ url: URL) async throws -> (Data, Int) {
+    private static func laden(_ url: URL, timeout: TimeInterval = 15) async throws -> (Data, Int) {
         var anfrage = URLRequest(url: url)
         anfrage.setValue(agent, forHTTPHeaderField: "User-Agent")
-        anfrage.timeoutInterval = 8
+        anfrage.timeoutInterval = timeout
         let (data, antwort) = try await URLSession.shared.data(for: anfrage)
         return (data, (antwort as? HTTPURLResponse)?.statusCode ?? 0)
     }

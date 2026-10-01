@@ -11,15 +11,16 @@ final class BarcodeLogikTests: XCTestCase {
         XCTAssertEqual(BarcodeLogik.normal("20123456"), "20123456")
     }
 
-    private func quellen(lokal: Lebensmittel? = nil, server: Result<Lebensmittel?, Error> = .success(nil),
-                         off: Result<Lebensmittel?, Error> = .success(nil), name: (String, String?)? = nil,
+    private func quellen(lokal: Lebensmittel? = nil, server: Result<Lebensmittel?, any Error & Sendable> = .success(nil),
+                         off: Result<Lebensmittel?, any Error & Sendable> = .success(nil), name: (String, String?)? = nil,
                          aufrufe: Protokoll = Protokoll()) -> BarcodeQuellen {
-        BarcodeQuellen(
+        let treffer = skyr // lokale Kopie statt `self` im @Sendable-Closure
+        return BarcodeQuellen(
             lokal: { _ in aufrufe.add("lokal"); return lokal },
             server: { _ in aufrufe.add("server"); return try server.get() },
             offLive: { _ in aufrufe.add("off"); return try off.get() },
             name: { _ in aufrufe.add("name"); return name.map { (name: $0.0, marke: $0.1) } },
-            namensSuche: { text in aufrufe.add("suche:\(text)"); return [self.skyr] })
+            namensSuche: { text in aufrufe.add("suche:\(text)"); return [treffer] })
     }
 
     func testReihenfolgeUndStopp() async {
