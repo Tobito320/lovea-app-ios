@@ -37,6 +37,18 @@ actor Warteschlange {
         persist()
     }
 
+    /// Same as `raus(id:)` but for a whole batch in one actor hop (a page of up to 500 echoes) —
+    /// one array filter and at most one persist instead of one actor call per op.
+    func rausBatch(ids: [String]) {
+        laden()
+        guard !ids.isEmpty else { return }
+        let idSet = Set(ids)
+        let vorher = ops.count
+        ops.removeAll { idSet.contains($0.id) }
+        guard ops.count != vorher else { return }
+        persist()
+    }
+
     /// Audit #7: a burst (chat, offline strokes, a page of echoes) rewrites the file once, 0.3 s
     /// after its first change, instead of once per op. `Raum.leer()` and leaving the foreground
     /// call `sichern()`, so "leer() means on disk" still holds.

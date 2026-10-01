@@ -148,6 +148,51 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(logAfterDuplicate.count, 3)
     }
 
+    /// Chat-Tempo-Befund 3: die UI muss eingehende Ops sehen, BEVOR das Nachbearbeiten (Platte,
+    /// Warteschlange-Aufraeumen, `wartet`) fertig ist — nicht erst danach. Geprueft ohne in die
+    /// Actors hineinzusehen: `raum.wartet` wird synchron erst NACH `liefereBatch` aktualisiert, also
+    /// muss der `beobachtenStapel`-Callback, der synchron innerhalb von `liefereBatch` feuert, noch
+    /// den alten Stand sehen.
+    func testEingehendeOpsErreichenDieUIVorDemAufraeumenDerWarteschlange() async {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let raum = Raum(
+            transport: transport,
+            log: OpLog(rootURL: dir),
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!,
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+
+        raum.senden("nachricht.neu", ["text": "eins"])
+        raum.senden("nachricht.neu", ["text": "zwei"])
+        await raum.leer()
+        XCTAssertEqual(raum.wartet, 2)
+
+        var wartetBeimEmpfang: Int?
+        var batchGroesseBeimEmpfang: Int?
+        raum.beobachtenStapel(["nachricht.neu"]) { ops in
+            // Erster Aufruf ist der Replay beim Registrieren (die zwei optimistischen Sends) —
+            // der uns interessierende ist der Echo-Batch mit `seq` gesetzt.
+            guard ops.contains(where: { $0.seq != nil }) else { return }
+            wartetBeimEmpfang = raum.wartet
+            batchGroesseBeimEmpfang = ops.count
+        }
+        await raum.leer()
+
+        let offeneIDs = await Warteschlange(rootURL: dir).offen.map(\.id)
+        let echo = makeOpsMessage(ops: offeneIDs.enumerated().map { (id: $0.element, seq: $0.offset + 1) }, mehr: false)
+        await transport.receive(echo)
+
+        XCTAssertEqual(batchGroesseBeimEmpfang, 2, "der Callback muss beide Ops im selben Batch sehen")
+        XCTAssertEqual(wartetBeimEmpfang, 2, "wartet darf im Moment der UI-Zustellung noch nicht runtergezaehlt sein")
+        XCTAssertEqual(raum.wartet, 0, "nach dem Aufraeumen muss wartet aber auf 0 stehen")
+    }
+
     // MARK: - Watchdog (27.09. Performance)
 
     func testDeadSocketReconnectsAndAnsweredPingStays() async throws {
