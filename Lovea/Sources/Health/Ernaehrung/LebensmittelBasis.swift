@@ -72,19 +72,23 @@ final class LebensmittelIndex: @unchecked Sendable {
 
     var bereit: Bool { sperre.withLock { !daten.isEmpty } }
 
-    func laden() { laden(lader: { LebensmittelBasis.laden(.main) }) }
+    func laden() { laden(lader: { LebensmittelBasis.laden(.main) }, prioritaet: .utility) }
 
-    /// Testbarer Einstieg: `lader` ersetzt den echten Bundle-Zugriff, damit sich das `freigeben()`-
-    /// Wettrennen ohne das App-Bundle nachstellen lässt.
-    func laden(lader: @escaping @Sendable () -> [Lebensmittel]) {
+    /// Testbarer Einstieg: `lader` ersetzt den echten Bundle-Zugriff, `prioritaet` die feste
+    /// `.utility`-Hintergrundpriorität (Tests geben `.userInitiated`, damit der Task auf einem
+    /// überlasteten CI-Simulator zuverlässig startet; `laden()` selbst bleibt bei `.utility`,
+    /// das Produktionsverhalten ändert sich nicht). `lader` ist `async`, damit Tests mit
+    /// `await`-Signalen genau auf den Start/Abschluss des Ladevorgangs warten können statt mit
+    /// Semaphoren einen Thread zu blockieren.
+    func laden(lader: @escaping @Sendable () async -> [Lebensmittel], prioritaet: TaskPriority = .utility) {
         let (starten, meineGeneration) = sperre.withLock { () -> (Bool, Int) in
             guard daten.isEmpty, !laedt else { return (false, generation) }
             laedt = true
             return (true, generation)
         }
         guard starten else { return }
-        Task.detached(priority: .utility) { [weak self] in
-            let liste = lader()
+        Task.detached(priority: prioritaet) { [weak self] in
+            let liste = await lader()
             guard let self else { return }
             self.sperre.withLock {
                 // Nur der Ladevorgang der noch gültigen Generation darf `laedt` freigeben – sonst

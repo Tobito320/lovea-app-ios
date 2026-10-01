@@ -48,25 +48,60 @@ final class LebensmittelIndexTests: XCTestCase {
         XCTAssertEqual(LebensmittelBasis.normal("Kellogg's Cornflakes"), "kellogg s cornflakes")
     }
 
-    /// Verlässt der Nutzer den Bildschirm (`freigeben()`), während ein `laden()` noch im Hintergrund
-    /// läuft, darf das spät eintreffende Ergebnis die Daten nicht wieder befüllen (Generation-Zähler).
-    func testFreigebenWaehrendLadenVerwirftErgebnis() {
-        let index = LebensmittelIndex()
-        let spaeteDaten = [l("x", "Testlebensmittel")]
-        let fertig = expectation(description: "Ladevorgang abgeschlossen")
-        index.laden(lader: {
-            Thread.sleep(forTimeInterval: 0.05)
-            return spaeteDaten
-        })
-        index.freigeben()
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-            XCTAssertFalse(index.bereit, "freigeben() waehrend des Ladens darf die alten Daten nicht zurueckholen")
-            fertig.fulfill()
+    /// Nicht-blockierendes An/Aus-Signal für die Race-Tests unten: `warten()` hängt sich per
+    /// `withCheckedContinuation` ein, statt (wie ein `DispatchSemaphore`) einen Thread zu belegen.
+    /// Das ist der eigentliche Fix gegen die CI-Flakiness: ein blockierter Test-Thread konnte auf
+    /// einem ausgelasteten Simulator dem `.utility`-`Task.detached` die Ausführung streitig machen,
+    /// ein `await` dagegen gibt den Thread sofort zurück an den Scheduler.
+    private actor AsyncSignal {
+        private var ausgeloest = false
+        private var wartende: [CheckedContinuation<Void, Never>] = []
+
+        func signalisieren() {
+            guard !ausgeloest else { return }
+            ausgeloest = true
+            wartende.forEach { $0.resume() }
+            wartende.removeAll()
         }
-        wait(for: [fertig], timeout: 2)
+
+        func warten() async {
+            if ausgeloest { return }
+            await withCheckedContinuation { wartende.append($0) }
+        }
     }
 
-    /// Thread-sicherer Aufruf-Zähler für die Race-Tests unten: `Task.detached` läuft auf einem
+    /// Wartet über eine `XCTestExpectation` (großzügiges Timeout statt Hängenbleiben) auf ein
+    /// `AsyncSignal`, ohne dabei selbst zu blockieren.
+    private func warte(auf signal: AsyncSignal, _ beschreibung: String) async {
+        let erwartung = expectation(description: beschreibung)
+        Task { await signal.warten(); erwartung.fulfill() }
+        await fulfillment(of: [erwartung], timeout: 30)
+    }
+
+    /// Verlässt der Nutzer den Bildschirm (`freigeben()`), während ein `laden()` noch im Hintergrund
+    /// läuft, darf das spät eintreffende Ergebnis die Daten nicht wieder befüllen (Generation-Zähler).
+    func testFreigebenWaehrendLadenVerwirftErgebnis() async {
+        let index = LebensmittelIndex()
+        let spaeteDaten = [l("x", "Testlebensmittel")]
+        let gestartet = AsyncSignal()
+        let weiter = AsyncSignal()
+
+        index.laden(lader: {
+            await gestartet.signalisieren()
+            await weiter.warten()
+            return spaeteDaten
+        }, prioritaet: .userInitiated)
+        await warte(auf: gestartet, "Ladevorgang gestartet")
+
+        index.freigeben()
+        await weiter.signalisieren()
+
+        // Nicht-blockierend abwarten, bis der Abschlussblock (Generation-Prüfung) gelaufen ist.
+        try? await Task.sleep(nanoseconds: 200_000_000)
+        XCTAssertFalse(index.bereit, "freigeben() waehrend des Ladens darf die alten Daten nicht zurueckholen")
+    }
+
+    /// Thread-sicherer Aufruf-Zähler für den Race-Test unten: `Task.detached` läuft auf einem
     /// Hintergrund-Thread, ein simples `var` wäre eine Datenrennen-Warnung unter Swift 6.
     private final class Aufrufzaehler: @unchecked Sendable {
         private let lock = NSLock()
@@ -79,45 +114,44 @@ final class LebensmittelIndexTests: XCTestCase {
     /// dann wird A durchgelassen (stale) und darf `laedt` NICHT löschen – sonst hält ein drittes
     /// `laden()` fälschlich für frei und startet einen zweiten, parallel laufenden Ladevorgang,
     /// während B noch lädt. Gezählt wird über den Loader-Aufrufzähler.
-    func testLaedtBleibtGesetztBisZurPassendenGeneration() {
+    func testLaedtBleibtGesetztBisZurPassendenGeneration() async {
         let aufrufe = Aufrufzaehler()
-        let aGestartet = DispatchSemaphore(value: 0)
-        let aWeiter = DispatchSemaphore(value: 0)
-        let bGestartet = DispatchSemaphore(value: 0)
-        let bWeiter = DispatchSemaphore(value: 0)
+        let aGestartet = AsyncSignal(), aWeiter = AsyncSignal()
+        let bGestartet = AsyncSignal(), bWeiter = AsyncSignal()
 
         let index = LebensmittelIndex()
 
         index.laden(lader: {
             _ = aufrufe.zaehlen()
-            aGestartet.signal()
-            aWeiter.wait()
+            await aGestartet.signalisieren()
+            await aWeiter.warten()
             return []
-        })
-        XCTAssertEqual(aGestartet.wait(timeout: .now() + 2), .success, "Ladevorgang A nie gestartet")
+        }, prioritaet: .userInitiated)
+        await warte(auf: aGestartet, "Ladevorgang A gestartet")
 
         index.freigeben()
 
         index.laden(lader: {
             _ = aufrufe.zaehlen()
-            bGestartet.signal()
-            bWeiter.wait()
+            await bGestartet.signalisieren()
+            await bWeiter.warten()
             return []
-        })
-        XCTAssertEqual(bGestartet.wait(timeout: .now() + 2), .success, "Ladevorgang B nie gestartet")
+        }, prioritaet: .userInitiated)
+        await warte(auf: bGestartet, "Ladevorgang B gestartet")
 
-        // A (stale Generation 0) durchlassen, kurz warten bis seine Abschluss-Klausel gelaufen ist.
-        aWeiter.signal()
-        Thread.sleep(forTimeInterval: 0.1)
+        // A (stale Generation 0) durchlassen, nicht-blockierend warten, bis seine Abschluss-Klausel
+        // gelaufen ist.
+        await aWeiter.signalisieren()
+        try? await Task.sleep(nanoseconds: 200_000_000)
 
         // Dritter Versuch, während B (Generation 1) noch lädt: darf keinen weiteren Loader starten.
-        index.laden(lader: { _ = aufrufe.zaehlen(); return [] })
-        Thread.sleep(forTimeInterval: 0.05)
+        index.laden(lader: { _ = aufrufe.zaehlen(); return [] }, prioritaet: .userInitiated)
+        try? await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(aufrufe.anzahl, 2, "Nur A und B durften den Loader aufrufen, kein dritter paralleler Ladevorgang")
 
         // Aufräumen: B durchlassen, damit kein Hintergrund-Task über das Testende hinausläuft.
-        bWeiter.signal()
-        Thread.sleep(forTimeInterval: 0.05)
+        await bWeiter.signalisieren()
+        try? await Task.sleep(nanoseconds: 100_000_000)
     }
 
     func testVorneKommtZuerstUndOhneDoppelte() {
