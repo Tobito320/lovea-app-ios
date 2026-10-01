@@ -8,7 +8,7 @@ enum TransparenzKarte {
     /// `brauchtKarte`: the image has real transparent area, not just a stray antialiased edge pixel.
     /// `dunkleKarte`: the opaque pixels are light overall (e.g. white paper exported with alpha), so a
     /// dark card keeps them readable; otherwise the default light paper card.
-    struct Ergebnis: Equatable { let brauchtKarte: Bool; let dunkleKarte: Bool }
+    struct Ergebnis: Equatable, Sendable { let brauchtKarte: Bool; let dunkleKarte: Bool }
 
     static let keineKarte = Ergebnis(brauchtKarte: false, dunkleKarte: false)
 
@@ -58,12 +58,12 @@ enum TransparenzCache {
                   kCGImageSourceShouldCacheImmediately: true,
                   kCGImageSourceThumbnailMaxPixelSize: 32,
               ] as CFDictionary)
-        else { return .keineKarte }
+        else { return TransparenzKarte.keineKarte }
         switch bild.alphaInfo {
-        case .none, .noneSkipFirst, .noneSkipLast: return .keineKarte
+        case .none, .noneSkipFirst, .noneSkipLast: return TransparenzKarte.keineKarte
         default: break
         }
-        guard let rgba = rgbaBytes(bild) else { return .keineKarte }
+        guard let rgba = rgbaBytes(bild) else { return TransparenzKarte.keineKarte }
         return TransparenzKarte.auswerten(rgba: rgba)
     }
 
