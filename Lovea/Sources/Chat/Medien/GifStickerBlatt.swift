@@ -43,7 +43,35 @@ struct GifStickerBlatt: View {
             .navigationTitle("Sticker & GIFs")
             .navigationBarTitleDisplayMode(.inline)
         }
+        .task { await GifSucheCache.trendingVorladen() }
         .presentationDetents([.medium, .large])
+    }
+}
+
+/// R8-Fix: der `switch reiter` in `GifStickerBlatt` verwirft `GifSuche` bei jedem Tab-Wechsel
+/// komplett (andere Case = neue View-Identität) — ohne Cache lief bei jedem Wechsel zu GIFs ein
+/// neuer Netzwerk-Request an und der Lade-Schimmer blitzte kurz auf, bevor die Treffer kamen.
+/// Ein Treffer pro Suchtext reicht fürs Leben der App (Akku: nie mehr als nötig anfragen).
+/// Begrenzt auf 20 Suchtexte (älteste zuerst raus), damit er nicht unbegrenzt wächst.
+@MainActor
+private enum GifSucheCache {
+    private static let limit = 20
+    private static var reihenfolge: [String] = []
+    static var ergebnisse: [String: [KlipyClient.Gif]] = [:]
+
+    static func speichern(_ text: String, _ treffer: [KlipyClient.Gif]) {
+        if ergebnisse[text] == nil { reihenfolge.append(text) }
+        ergebnisse[text] = treffer
+        while reihenfolge.count > limit {
+            ergebnisse.removeValue(forKey: reihenfolge.removeFirst())
+        }
+    }
+
+    /// Einmal pro App-Lauf Trending (leerer Suchtext) vorladen, wenn das Blatt erscheint —
+    /// dann ist auch der allererste Wechsel zu GIFs sofort da, ohne Lade-Schimmer.
+    static func trendingVorladen() async {
+        guard ergebnisse[""] == nil, let treffer = try? await KlipyClient.suchen("") else { return }
+        speichern("", treffer)
     }
 }
 
@@ -191,14 +219,22 @@ private struct GifSuche: View {
     }
 
     /// Klipy's test key allows 100 calls/hour — debounced so typing doesn't burn through it.
+    /// Ein Cache-Treffer (R8-Fix) zeigt sofort ohne Lade-Schimmer und ohne neue Anfrage.
     private func debounceSuche(_ text: String) {
         sucheTask?.cancel()
+        if let zwischengespeichert = GifSucheCache.ergebnisse[text] {
+            ergebnisse = zwischengespeichert
+            zustand = .ok
+            return
+        }
         sucheTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             zustand = .laden
             do {
-                ergebnisse = try await KlipyClient.suchen(text)
+                let treffer = try await KlipyClient.suchen(text)
+                ergebnisse = treffer
+                GifSucheCache.speichern(text, treffer)
                 zustand = .ok
             } catch KlipyClient.Fehler.nichtEingerichtet {
                 zustand = .nichtEingerichtet
