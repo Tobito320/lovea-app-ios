@@ -185,7 +185,7 @@ final class SyncTests: XCTestCase {
         await raum.leer()
 
         let offeneIDs = await Warteschlange(rootURL: dir).offen.map(\.id)
-        let echo = makeOpsMessage(ops: offeneIDs.enumerated().map { (id: $0.element, seq: $0.offset + 1) }, mehr: false)
+        let echo = makeOpsMessage(ops: offeneIDs.enumerated().map { (id: $0.element, seq: $0.offset + 1) }, mehr: false, art: "nachricht.neu")
         await transport.receive(echo)
 
         XCTAssertEqual(batchGroesseBeimEmpfang, 2, "der Callback muss beide Ops im selben Batch sehen")
@@ -427,9 +427,9 @@ final class SyncTests: XCTestCase {
         Op(id: UUID().uuidString, seq: seq, art: "test.art", von: .ahmed, zeit: Date(), d: Data("{}".utf8))
     }
 
-    private func makeOpsMessage(ops: [(id: String, seq: Int)], mehr: Bool, seite: Bool = false) -> String {
+    private func makeOpsMessage(ops: [(id: String, seq: Int)], mehr: Bool, seite: Bool = false, art: String = "test.art") -> String {
         let entries = ops.map {
-            "{\"seq\":\($0.seq),\"id\":\"\($0.id)\",\"art\":\"test.art\",\"von\":\"annika\",\"zeit\":\"2026-09-23T12:00:00.000Z\",\"d\":{}}"
+            "{\"seq\":\($0.seq),\"id\":\"\($0.id)\",\"art\":\"\(art)\",\"von\":\"annika\",\"zeit\":\"2026-09-23T12:00:00.000Z\",\"d\":{}}"
         }
         return "{\"t\":\"ops\",\"ops\":[\(entries.joined(separator: ","))],\"mehr\":\(mehr),\"seite\":\(seite)}"
     }
