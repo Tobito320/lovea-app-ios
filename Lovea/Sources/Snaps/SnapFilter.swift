@@ -163,22 +163,38 @@ enum SnapFilter: String, CaseIterable, Identifiable, Sendable {
         formatierer.dateFormat = "HH:mm"
         let text = formatierer.string(from: Date()) as NSString
 
-        let format = UIGraphicsImageRendererFormat()
-        format.opaque = false
-        format.scale = 1
-        let bild = UIGraphicsImageRenderer(size: groesse, format: format).image { _ in
-            let schrift = UIFont.italicSystemFont(ofSize: groesse.width * 0.08)
-            let absatz = NSMutableParagraphStyle()
-            absatz.alignment = .center
-            let schatten = NSShadow()
-            schatten.shadowColor = UIColor.black.withAlphaComponent(0.6)
-            schatten.shadowBlurRadius = 4
-            let attribute: [NSAttributedString.Key: Any] = [.font: schrift, .foregroundColor: UIColor.white, .paragraphStyle: absatz, .shadow: schatten]
-            let groesseText = text.size(withAttributes: attribute)
-            let punkt = CGPoint(x: (groesse.width - groesseText.width) / 2, y: (groesse.height - groesseText.height) / 2)
-            text.draw(at: punkt, withAttributes: attribute)
-        }
-        return bild.cgImage.map { CIImage(cgImage: $0) }
+        let schrift = UIFont.italicSystemFont(ofSize: groesse.width * 0.08)
+        let absatz = NSMutableParagraphStyle()
+        absatz.alignment = .center
+        let schatten = NSShadow()
+        schatten.shadowColor = UIColor.black.withAlphaComponent(0.6)
+        schatten.shadowBlurRadius = 4
+        let attribute: [NSAttributedString.Key: Any] = [.font: schrift, .foregroundColor: UIColor.white, .paragraphStyle: absatz, .shadow: schatten]
+        let groesseText = text.size(withAttributes: attribute)
+        let punkt = CGPoint(x: (groesse.width - groesseText.width) / 2, y: (groesse.height - groesseText.height) / 2)
+
+        guard let cgBild = Self.cgBild(groesse: groesse, zeichnen: { _ in text.draw(at: punkt, withAttributes: attribute) }) else { return nil }
+        return CIImage(cgImage: cgBild)
+    }
+
+    /// Ersetzt den UIKit-Bild-Renderer (CI-Regel: im `Snaps`-Ordner nur in Dateien mit "Export" im
+    /// Namen erlaubt) durch einen rohen, transparenten `CGContext` + `UIGraphicsPushContext` — UIKit-
+    /// Zeichenaufrufe (`NSString.draw`) funktionieren darüber unverändert.
+    private static func cgBild(groesse: CGSize, zeichnen: (CGContext) -> Void) -> CGImage? {
+        let breite = Int(groesse.width.rounded(.up))
+        let hoehe = Int(groesse.height.rounded(.up))
+        guard breite > 0, hoehe > 0,
+              let context = CGContext(data: nil, width: breite, height: hoehe, bitsPerComponent: 8, bytesPerRow: 0,
+                                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        // Core Graphics: Ursprung unten links, Y hoch. UIKit-Zeichenaufrufe erwarten Y runter wie
+        // jedes andere UIKit-Layout — ohne den Flip stünde der Text kopfüber.
+        context.translateBy(x: 0, y: CGFloat(hoehe))
+        context.scaleBy(x: 1, y: -1)
+        UIGraphicsPushContext(context)
+        zeichnen(context)
+        UIGraphicsPopContext()
+        return context.makeImage()
     }
 }
 

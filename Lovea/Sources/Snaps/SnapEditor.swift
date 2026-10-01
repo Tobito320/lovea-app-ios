@@ -423,12 +423,26 @@ struct SnapEditor: View {
     /// `UIImage.imageOrientation` in die Pixel backen (gleiche Wirkung wie vorher
     /// `CIImage(image:options:[.applyOrientationProperty: true])`), synchron auf dem aufrufenden Actor —
     /// danach reicht nur noch das fertige `CGImage` über die `Task.detached`-Grenze, nie das `UIImage`.
+    /// Roher `CGContext` statt dem UIKit-Bild-Renderer — CI-Regel erlaubt den nur in `Snaps`-Dateien
+    /// mit "Export" im Namen.
     private static func aufrechtesCGBild(_ bild: UIImage) -> CGImage? {
         guard bild.imageOrientation != .up else { return bild.cgImage }
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = bild.scale
-        format.opaque = false
-        return UIGraphicsImageRenderer(size: bild.size, format: format).image { _ in bild.draw(at: .zero) }.cgImage
+        let skala = bild.scale
+        let breite = Int((bild.size.width * skala).rounded(.up))
+        let hoehe = Int((bild.size.height * skala).rounded(.up))
+        guard breite > 0, hoehe > 0,
+              let context = CGContext(data: nil, width: breite, height: hoehe, bitsPerComponent: 8, bytesPerRow: 0,
+                                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        // Core Graphics: Ursprung unten links, Y hoch. `UIImage.draw` erwartet Y runter wie jedes
+        // UIKit-Layout, und `skala` rechnet Punkte in Pixel um — ohne beides läge das Ergebnis
+        // gespiegelt/falsch skaliert.
+        context.translateBy(x: 0, y: CGFloat(hoehe))
+        context.scaleBy(x: skala, y: -skala)
+        UIGraphicsPushContext(context)
+        bild.draw(at: .zero)
+        UIGraphicsPopContext()
+        return context.makeImage()
     }
 
     /// Einmal pro Snap: eine kleine (~96px) Thumbnail-CIImage, für alle 15 Filter gerendert und
