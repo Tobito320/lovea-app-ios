@@ -83,6 +83,7 @@ final class DrawingSession: ObservableObject {
     private var noticeTask: Task<Void, Never>?
     private var thumbnailTasks: [UUID: Task<Void, Never>] = [:]
     private var opacityGestureStart: ArtworkDocument?
+    private var ladeSperreProtokolliert = false
 
     init(artworkID: UUID, library: ArtworkLibrary, fremd: Bool = false) {
         self.library = library
@@ -207,6 +208,15 @@ final class DrawingSession: ObservableObject {
 
     /// True if the active layer takes paint. Otherwise shows a short notice.
     func ensureDrawable() -> Bool {
+        // Beim ersten Laden überschreibt das Ergebnis die Ebene von der Platte: ein Strich davor ginge lautlos verloren.
+        guard engine?.isLoaded ?? true else {
+            show("Zeichnung lädt noch")
+            if !ladeSperreProtokolliert {
+                ladeSperreProtokolliert = true
+                ZeichenProtokoll.log("Sicherung Laden: Eingabe vor dem ersten Laden abgewiesen")
+            }
+            return false
+        }
         guard let layer = activeLayer else { return false }
         if layer.kind == .image {
             show("Bildebene – zum Bemalen rastern", rasterize: true)
