@@ -41,6 +41,11 @@ enum SnapExport {
     /// here blocks the main thread beyond waiting on that callback.
     @MainActor
     static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText) async -> URL? {
+        // Most snaps have no doodle/sticker/text — nothing to burn in, so skip the full-quality
+        // `AVAssetExportSession` pass entirely. For a 19s gallery video that pass alone was the
+        // biggest single delay before the Snap editor could dismiss (Z-Report Kamera).
+        guard !linien.isEmpty || !sticker.isEmpty || !text.text.isEmpty else { return quelle }
+
         let asset = AVURLAsset(url: quelle)
         guard let track = try? await asset.loadTracks(withMediaType: .video).first,
               let naturalSize = try? await track.load(.naturalSize),
