@@ -34,7 +34,17 @@ def test_weitere_regeln_wortgrenzen_und_verarbeitet():
     assert portionen_fuer("Milchpulver mit hohem Fettgehalt (Sahnepulver, Rahmpulver)", {}, regeln) == []
     assert portionen_fuer("Spaghetti gekocht", {}, regeln)[0]["gramm"] == 200
 
+def test_eiklar_und_eigelb_bekommen_eigene_portion_kein_ganzes_ei():
+    """Eiklar/Eigelb allein sind keine ganzen Eier (60/70 g), sondern eigene, kleinere Portionen;
+    das ganze Ei bleibt unveraendert."""
+    regeln = json.loads((Path(__file__).with_name("portionen.json")).read_text("utf-8"))
+    assert portionen_fuer("Hühnerei, Eiklar, roh", {}, regeln) == [{"name": "Eiklar von 1 Ei", "gramm": 33}]
+    assert portionen_fuer("Hühnerei, Eigelb, roh", {}, regeln) == [{"name": "Eigelb von 1 Ei", "gramm": 18}]
+    eier = portionen_fuer("Hühnerei, Eier, gekocht", {}, regeln)
+    assert eier[0]["gramm"] == 60 and eier[1]["gramm"] == 70
+
 if __name__ == "__main__":
     test_suchschluessel(); test_portionen_regel_und_alt(); test_banane_regel_nur_frisch_oder_gekocht()
     test_weitere_regeln_wortgrenzen_und_verarbeitet()
+    test_eiklar_und_eigelb_bekommen_eigene_portion_kein_ganzes_ei()
     print("ok")

@@ -1,5 +1,23 @@
 [
   {
+    "muster": "^(ei|huhnerei)\\b.*\\beiklar\\b",
+    "portionen": [
+      {
+        "name": "Eiklar von 1 Ei",
+        "gramm": 33
+      }
+    ]
+  },
+  {
+    "muster": "^(ei|huhnerei)\\b.*\\beigelb\\b",
+    "portionen": [
+      {
+        "name": "Eigelb von 1 Ei",
+        "gramm": 18
+      }
+    ]
+  },
+  {
     "muster": "^(ei|huhnerei)\\b(?!.*(getrocknet|pulver|konserve|einlauf|einlage|chips|saft|kompott|mus|konfiture|gefroren|gezuckert|kuchen|torte|teig|creme|salat|nektar|schorle|kraut|korn|auflauf|schmarren|waffeln|taschen|flammeri|kaltschale|biskuit|omelette|likor))",
     "portionen": [
       {
