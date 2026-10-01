@@ -244,6 +244,11 @@ struct GymVerlaufView: View {
                     kennzahl("Gesamt", "\(sessions.count)")
                 }
                 .listRowSeparator(.hidden)
+                let trainingstage = Set(sessions.map { Datum.text($0.start) })
+                MonatsPager { zurueck in
+                    GymMonat(tage: trainingstage, heute: heute, monateZurueck: zurueck).padding(.horizontal, 4)
+                }
+                .listRowSeparator(.hidden)
             }
             if sessions.isEmpty {
                 Text(wer == ich ? "Noch keine Einheit. Starte ein Training, dann steht es hier." : "\(wer.name) hat noch kein Training.")
@@ -264,6 +269,41 @@ struct GymVerlaufView: View {
         }
         .navigationDestination(item: $offen) { WorkoutRueckblick(person: $0.person, sessionId: $0.session) }
         .sheet(isPresented: $nachtragenOffen) { NachtragenBlatt() }
+    }
+}
+
+/// Ein Monat als Gitter, Trainingstage gefüllt. Wischen blättert zurück (`MonatsPager`).
+struct GymMonat: View {
+    let tage: Set<String>
+    let heute: String
+    let monateZurueck: Int
+
+    private static let spalten = Array(repeating: GridItem(.flexible(), spacing: 4), count: 7)
+
+    var body: some View {
+        let gitter = HealthLogik.monatsGitter(heute: heute, monateZurueck: monateZurueck)
+        VStack(alignment: .leading, spacing: 8) {
+            Text(HealthText.monat(gitter)).font(.subheadline.weight(.semibold))
+            WochentagsKopf()
+            LazyVGrid(columns: Self.spalten, spacing: 4) {
+                ForEach(gitter.indices, id: \.self) { i in zelle(gitter[i]) }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func zelle(_ tag: String?) -> some View {
+        if let tag {
+            let an = tage.contains(tag)
+            Text(HealthText.tagesnummer(tag))
+                .font(.footnote.weight(an ? .bold : .regular).monospacedDigit())
+                .foregroundStyle(an ? Color.white : tag == heute ? Color.primary : Color.secondary)
+                .frame(maxWidth: .infinity, minHeight: 32)
+                .background(an ? Color.blue : Color.clear, in: .circle)
+                .accessibilityLabel("\(Datum.anzeige(tag))\(an ? ", Training" : "")")
+        } else {
+            Color.clear.frame(minHeight: 32)
+        }
     }
 }
 
@@ -295,6 +335,8 @@ struct WorkoutRueckblick: View {
                     LabeledContent("Zeit", value: zeit(s))
                     LabeledContent("Volumen", value: "\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg")
                     LabeledContent("Sätze", value: "\(WorkoutLogik.saetzeZahl(liste))")
+                    if let kcal = s.kcal { LabeledContent("Aktive Kalorien", value: "\(kcal) kcal") }
+                    if let puls = s.puls { LabeledContent("Puls im Schnitt", value: "\(puls)") }
                 }
                 ForEach(liste) { u in
                     Section(u.planUebung.anzeigeName) { saetze(u) }

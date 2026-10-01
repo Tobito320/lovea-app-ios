@@ -38,6 +38,7 @@ final class TrainingModell {
     @discardableResult
     func einchecken(tag: String?) -> String {
         let id = UUID().uuidString
+        WorkoutPuls.shared.leeren()
         Raum.shared.senden("gym.checkin", GymD(session: id, tag: tag, start: Date()))
         let heute = Datum.text(Date())
         if !HealthModell.shared.gymAbgehakt(ich, heute) { HealthModell.shared.setzeGym(datum: heute, an: true) }
@@ -90,7 +91,9 @@ final class TrainingModell {
         let minuten = start.map { max(1, Int(ende.timeIntervalSince($0) / 60)) }
         let liste = workout(session)
         let rekorde = start.map { s in RekordLogik.anzahl(liste, frueher: alle.filter { $0.start < s }) }
-        Raum.shared.senden("gym.checkout", GymD(session: session, ende: ende, status: "ende", minuten: minuten, zahl: WorkoutLogik.saetzeZahl(liste), rekorde: rekorde))
+        let messung = WorkoutPuls.shared
+        Raum.shared.senden("gym.checkout", GymD(session: session, ende: ende, status: "ende", minuten: minuten, zahl: WorkoutLogik.saetzeZahl(liste), rekorde: rekorde, kcal: messung.kcal, puls: messung.schnitt))
+        messung.beenden(speichern: true)
         Anwesenheit.shared.anstossen()
     }
 
@@ -117,6 +120,7 @@ final class TrainingModell {
     }
 
     func loeschen(_ s: GymSession) {
+        if s.ende == nil { WorkoutPuls.shared.beenden(speichern: false) }
         Raum.shared.senden("gym.loeschen", GymD(session: s.id))
         Anwesenheit.shared.anstossen()
     }

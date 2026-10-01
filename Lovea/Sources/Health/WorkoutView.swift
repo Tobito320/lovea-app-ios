@@ -158,8 +158,13 @@ struct GymSessionView: View {
     private func inhalt(_ liste: [WorkoutUebung]) -> some View {
         if let session = modell.sessions(ich).first(where: { $0.id == sessionId }) {
             ScrollView {
-                WorkoutInhalt(session: session, tag: modell.tag(ich, id: session.tag), tage: modell.plan(ich).tage, liste: liste, aktionen: aktionen(session))
+                WorkoutInhalt(session: session, tag: modell.tag(ich, id: session.tag), tage: modell.plan(ich).tage, liste: liste,
+                              puls: session.ende == nil ? WorkoutPuls.shared.puls : session.puls,
+                              kcal: session.ende == nil ? WorkoutPuls.shared.kcal : session.kcal,
+                              aktionen: aktionen(session))
+                if session.ende == nil { pulsSchalter }
             }
+            .onAppear { if session.ende == nil { WorkoutPuls.shared.starten() } }
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if session.ende == nil, !liste.isEmpty { leiste(session, liste) }
             }
@@ -173,6 +178,23 @@ struct GymSessionView: View {
         } else {
             ContentUnavailableView("Einheit nicht gefunden", systemImage: "dumbbell")
         }
+    }
+
+    /// Puls und Kalorien: pro Gerät, aus bis man es einschaltet (Akku-Regel).
+    private var pulsSchalter: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Toggle("Puls und Kalorien messen", isOn: Binding {
+                WorkoutPuls.shared.an
+            } set: { neu in
+                WorkoutPuls.shared.an = neu
+                if neu { WorkoutPuls.shared.starten() } else { WorkoutPuls.shared.beenden(speichern: false) }
+            })
+            Text("Braucht AirPods Pro 3 oder einen Pulsgurt. Kostet Akku. Das Training steht danach in Apple Health.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.bottom, 16)
     }
 
     private func leiste(_ s: GymSession, _ liste: [WorkoutUebung]) -> WorkoutLeiste {
@@ -267,6 +289,9 @@ struct WorkoutInhalt: View {
     let tag: TrainingsTag?
     var tage: [TrainingsTag] = []
     let liste: [WorkoutUebung]
+    /// Nur mit Messung (AirPods Pro 3, Pulsgurt); ohne Wert bleibt die Spalte weg.
+    var puls: Int? = nil
+    var kcal: Int? = nil
     var aktionen = WorkoutAktionen()
 
     var body: some View {
@@ -290,10 +315,12 @@ struct WorkoutInhalt: View {
     private var werte: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(tag?.name ?? "Training").font(.largeTitle.bold())
-            HStack(alignment: .top, spacing: 28) {
+            HStack(alignment: .top, spacing: 22) {
                 wert("Dauer") { dauer.foregroundStyle(Color.blue) }
                 wert("Volumen") { Text("\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg") }
                 wert("Sätze") { Text("\(WorkoutLogik.saetzeZahl(liste))") }
+                if let puls { wert(session.ende == nil ? "Puls" : "Puls im Schnitt") { Text("\(puls)").foregroundStyle(Color.red) } }
+                if let kcal { wert("kcal") { Text("\(kcal)") } }
             }
             Divider()
         }

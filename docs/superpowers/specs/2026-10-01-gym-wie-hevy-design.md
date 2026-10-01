@@ -94,3 +94,21 @@ Nicht gebaut, mit Grund:
 - **Supersätze:** wie entschieden später.
 
 Alles wird aus vorhandenen Ops gerechnet. Akku: nur beim Öffnen der jeweiligen Seite, nichts im Hintergrund.
+
+## Teil 4: Puls und Kalorien (gebaut am 01.10., am Gerät ungeprüft)
+
+- Im laufenden Training gibt es den Schalter "Puls und Kalorien messen". Er ist pro Gerät und aus, bis man ihn einschaltet.
+- An: Lovea startet eine Workout-Sitzung auf dem iPhone (`HKWorkoutSession`, seit iOS 26). Puls kommt nur mit Sensor, also AirPods Pro 3 oder Pulsgurt. Kalorien rechnet iOS.
+- Oben im Training stehen dann "Puls" und "kcal". Ohne Wert bleiben die Spalten weg. Annika hat normale AirPods und sieht keinen Puls.
+- Beim Beenden gehen Kalorien und Puls im Schnitt in den Beenden-Op und stehen im Rückblick, für beide lesbar.
+- Das Training wird in Apple Health gespeichert. Der Hinweistext `NSHealthUpdateUsageDescription` in `project.yml` sagt das jetzt. iOS fragt beim ersten Einschalten nach der Erlaubnis.
+- Akku: Die Sitzung hält den Sensor wach. Deshalb aus als Standard und nur während ein Training läuft.
+
+Grenzen:
+- Bei gesperrtem iPhone gibt iOS Gesundheitsdaten nur nach einer eigenen Nachfrage frei. Ob der Puls dann weiterläuft, zeigt erst das Gerät.
+- Wird die App mitten im Training beendet, läuft die Messung nicht von selbst weiter. Apple sieht dafür eine Wiederherstellung beim App-Start vor. Die ist nicht gebaut, weil der Startpfad heute Abstürze hatte.
+- Puls und Kalorien stehen nicht in der Live-Aktivität. Jede Aktualisierung dort kostet Akku.
+
+## Kalender (Teil 3)
+
+Im Verlauf steht unter den Kennzahlen ein Monatsgitter. Trainingstage sind gefüllt, Wischen blättert zurück.

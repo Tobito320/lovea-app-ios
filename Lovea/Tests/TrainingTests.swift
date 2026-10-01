@@ -236,6 +236,14 @@ final class TrainingTests: XCTestCase {
             op("gym.checkout", GymD(session: "s", ende: t0 + 3480, status: "ende", minuten: 58, zahl: 12), zeit: t0 + 3480),
         ]).sessions(.ahmed)[0]
         XCTAssertEqual(s.ende, t0 + 3480)
+        XCTAssertNil(s.kcal)
+        // Mit Messung stehen Kalorien und Puls an der Einheit.
+        let mit = faltung([
+            op("gym.checkin", GymD(session: "s", start: t0), zeit: t0),
+            op("gym.checkout", GymD(session: "s", ende: t0 + 3480, status: "ende", kcal: 310, puls: 118), zeit: t0 + 3480),
+        ]).sessions(.ahmed)[0]
+        XCTAssertEqual(mit.kcal, 310)
+        XCTAssertEqual(mit.puls, 118)
     }
 
     /// Pläne und Ops aus älteren Builds haben die neuen Felder nicht und müssen weiter lesbar sein.
