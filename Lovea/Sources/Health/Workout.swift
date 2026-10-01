@@ -285,6 +285,25 @@ enum WorkoutAktion {
         return neu
     }
 
+    /// Der Knopf der Live-Aktivität (`GymSchrittIntent`): wie der große Knopf in der App. Läuft ein
+    /// Satz, wird er abgehakt, sonst startet der Satz, der dran ist. Erst den Op-Replay abwarten:
+    /// bei einem Hintergrundstart wäre der Stand sonst leer.
+    static func schritt() async {
+        await Raum.shared.leer()
+        let modell = TrainingModell.shared
+        guard let ich = Raum.shared.ich, let s = modell.laufende(ich) else { return }
+        let liste = modell.workout(s.id)
+        guard let d = WorkoutLogik.dran(liste) else { return }
+        let u = liste[d.uebung]
+        guard !u.planUebung.istCardio else { return }
+        if let lauf = WorkoutUhr.shared.stand, lauf.session == s.id, !lauf.pause, lauf.plan == u.id,
+           u.saetze.indices.contains(lauf.satz), u.saetze[lauf.satz].ok != true {
+            _ = haken(s.id, u.planUebung, u.saetze, lauf.satz)
+        } else {
+            _ = satzStarten(s.id, u.planUebung, u.saetze, d.satz)
+        }
+    }
+
     /// Schreibt die Länge der laufenden Pause an ihren Satz. Gehört er zu `u`, nur in die Zeilen
     /// (der Aufrufer sendet), sonst wird die andere Übung direkt gesendet.
     @discardableResult

@@ -402,6 +402,7 @@ struct WorkoutUebungView: View {
     @State private var scheibenOffen = false
     @AppStorage("gym.rpe") private var rpeAn = true
     @FocusState private var fokus: Bool
+    @Environment(\.scenePhase) private var phase
 
     private var modell: TrainingModell { TrainingModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
@@ -454,6 +455,9 @@ struct WorkoutUebungView: View {
         .sheet(isPresented: $scheibenOffen) { ScheibenBlatt(kg: arbeitsgewicht ?? 60) }
         .onAppear { laden(u) }
         .onDisappear { sichern() }
+        .onChange(of: phase) { _, neu in
+            if neu == .active { neuLaden() } else if neu == .background { sichern() }
+        }
     }
 
     private func kopf(_ u: WorkoutUebung) -> some View {
@@ -602,6 +606,12 @@ struct WorkoutUebungView: View {
         saetze = u.saetze
         notiz = u.planUebung.notiz ?? ""
         geladen = true
+    }
+
+    /// Zurück aus dem Hintergrund: der Knopf am Sperrbildschirm kann Sätze abgehakt haben.
+    private func neuLaden() {
+        guard geladen, let u = modell.workout(sessionId).first(where: { $0.id == planId }) else { return }
+        saetze = u.saetze
     }
 
     /// Beim Verlassen: getippte Werte senden und die Notiz in den Plan schreiben, falls geändert.

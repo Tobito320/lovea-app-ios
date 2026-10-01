@@ -20,6 +20,8 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         // R3 (Build 78, Sicherheitsmodus): nach >= 2 Abstürzen in Folge WIRKLICH NICHTS starten,
         // auch nicht Push-Registrierung/-Kategorien — sonst crasht ein Hintergrund-Relaunch weiter.
         guard !abgesichert else { return true }
+        // Knopf der Gym-Live-Aktivität: hier nur die Closure setzen, gearbeitet wird erst beim Tippen.
+        GymSchrittIntent.ausfuehren = { await WorkoutAktion.schritt() }
         UNUserNotificationCenter.current().delegate = self
         let namen = ["chat", "snap", "geste", "kalender", "orte", "zeichnen", "spiele"]
         let kategorien = Set(namen.map { UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [], options: []) })
