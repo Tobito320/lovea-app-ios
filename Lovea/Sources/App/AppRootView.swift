@@ -120,6 +120,7 @@ private extension AppRootView {
 
     var topOverlay: some View {
         VStack(spacing: 0) {
+            GymLeisteView()
             SprachMiniPlayer()
             InAppBannerView(aufZeichnungGetippt: { id in
                 AppNavigation.shared.geteilteZeichnung = id
