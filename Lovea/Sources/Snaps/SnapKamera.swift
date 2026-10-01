@@ -90,12 +90,10 @@ private final class KameraSitzung: @unchecked Sendable {
         mikroDazu()
         // App is portrait-only but a connection defaults to landscape (angle 0).
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
-        // The preview layer mirrors the front camera on its own (automaticallyAdjustsVideoMirroring,
-        // default true) so it feels like a mirror — but that same default also mirrors this OUTPUT
-        // connection, so a front-camera video came out flipped (text backwards). The saved video
-        // should look true-to-life, like the system Camera app's default.
-        verbindung.automaticallyAdjustsVideoMirroring = false
-        verbindung.isVideoMirrored = false
+        // `automaticallyAdjustsVideoMirroring` (default true) mirrors this OUTPUT connection the
+        // same way the preview mirrors the front camera. Ahmed wants WYSIWYG (Snapchat-style): the
+        // saved video should look exactly like the mirror-like preview he saw, so this is left at
+        // its default — front camera mirrored, back camera (never mirrored by default) untouched.
         film.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
         film.startRecording(to: ziel, recordingDelegate: delegate)
         return true
@@ -128,6 +126,20 @@ final class SnapKameraSteuerung: NSObject {
     private var videoContinuation: CheckedContinuation<URL?, Never>?
     private var fortschrittTask: Task<Void, Never>?
     private var aufnahmeStart: Date?
+    /// Set by `KameraVorschau` once its layer exists (Z-R7: WYSIWYG-Zuschnitt). Weak: the view, not
+    /// this shared singleton, owns the layer's lifetime. Stays set for the whole time the camera is
+    /// visible (`KameraVorschauUIView` isn't recreated while `SnapKameraView` is on screen, only its
+    /// `session`/`videoGravity` get re-applied), so it's non-nil by the time a tap can happen.
+    private weak var vorschauEbene: AVCaptureVideoPreviewLayer?
+    /// The preview's visible rect AND camera position for the photo currently in flight — both read
+    /// right before `capturePhoto`, not in the delegate, so the crop never depends on `vorschauEbene`
+    /// (or `position`) still being what they were at tap time once the delegate callback fires later.
+    private var zuschnittAusstehend: CGRect?
+    private var ausrichtungAusstehend: UIImage.Orientation = .up
+
+    func vorschauEbeneSetzen(_ ebene: AVCaptureVideoPreviewLayer) {
+        vorschauEbene = ebene
+    }
 
     /// Shared instance (Z-26.5): the conversation configures it ahead of time, `SnapKameraView`
     /// reuses that session and only has to start it running.
@@ -260,10 +272,18 @@ final class SnapKameraSteuerung: NSObject {
         // `capturePhoto`; a second tap while one is in flight would drop its continuation.
         guard fotoContinuation == nil, let verbindung = sitzung.foto.connection(with: .video), verbindung.isActive else { return nil }
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
-        // Same fix as the video connection in `aufnehmen(nach:delegate:)`: the preview stays mirrored
-        // (its own connection, untouched), only the captured photo should not be.
-        verbindung.automaticallyAdjustsVideoMirroring = false
-        verbindung.isVideoMirrored = false
+        // Mirroring left at its default (see `aufnehmen(nach:delegate:)`): the saved photo should
+        // match the preview Ahmed framed, mirrored on the front camera, not on the back.
+        // Visible rect the preview showed (aspectFill crops the sensor image to the screen) —
+        // captured now, while the layer's bounds are still the ones Ahmed framed by. This rect is in
+        // `metadataOutputRectConverted`'s coordinate space: the capture device's native SENSOR
+        // orientation (landscape, unrotated, unmirrored) — not the portrait/mirrored space the
+        // preview displays in. `photoOutput(didFinishProcessingPhoto:)` below crops the delegate's
+        // `cgImageRepresentation()` with it, which is that exact same sensor-native buffer, so no
+        // rect rotation is needed; only the final `UIImage` orientation tag (set from `position`,
+        // not the rect) turns it upright and mirrored for display.
+        zuschnittAusstehend = vorschauEbene.map { $0.metadataOutputRectConverted(fromLayerRect: $0.bounds) }
+        ausrichtungAusstehend = SnapBildAusrichtung.fuer(position: position)
         return await withCheckedContinuation { continuation in
             fotoContinuation = continuation
             let einstellungen = AVCapturePhotoSettings()
@@ -322,11 +342,32 @@ final class SnapKameraSteuerung: NSObject {
 
 extension SnapKameraSteuerung: AVCapturePhotoCaptureDelegate {
     nonisolated func photoOutput(_ output: AVCapturePhotoOutput, didFinishProcessingPhoto photo: AVCapturePhoto, error: Error?) {
-        let bild = photo.fileDataRepresentation().flatMap(UIImage.init(data:))
+        // `cgImageRepresentation()`, not `fileDataRepresentation()` + `UIImage(data:)`: the latter
+        // decodes a JPEG that already carries an EXIF orientation tag, i.e. an image whose *pixel*
+        // axes no longer match `zuschnittAusstehend`'s sensor-native coordinate space. This raw
+        // representation is the sensor buffer itself (unrotated, unmirrored) — the same space the
+        // preview-derived rect is in (see `fotoAufnehmen`), so cropping it needs no rect conversion.
+        let roh = photo.cgImageRepresentation()
         Task { @MainActor in
+            // Crop to what the preview actually showed (aspectFill) — the full sensor image is
+            // wider/taller than the screen, so uncropped it reopened in the editor letterboxed
+            // and framed differently than what Ahmed saw and tapped the shutter on. No live layer
+            // read here: both the rect and the orientation were captured at tap time in
+            // `fotoAufnehmen`, so a layer that's since gone can't silently drop the crop.
+            let bild = roh.map { zugeschnittenesBild(von: $0, zuschnitt: zuschnittAusstehend, ausrichtung: ausrichtungAusstehend) }
+            zuschnittAusstehend = nil
             fotoContinuation?.resume(returning: bild)
             fotoContinuation = nil
         }
+    }
+
+    private func zugeschnittenesBild(von sensorBild: CGImage, zuschnitt: CGRect?, ausrichtung: UIImage.Orientation) -> UIImage {
+        guard let zuschnitt else { return UIImage(cgImage: sensorBild, scale: 1, orientation: ausrichtung) }
+        let rechteck = SnapZuschnitt.pixelRechteck(einheitsRechteck: zuschnitt, bildGroesse: CGSize(width: sensorBild.width, height: sensorBild.height))
+        guard rechteck.width > 0, rechteck.height > 0, let zugeschnitten = sensorBild.cropping(to: rechteck) else {
+            return UIImage(cgImage: sensorBild, scale: 1, orientation: ausrichtung)
+        }
+        return UIImage(cgImage: zugeschnitten, scale: 1, orientation: ausrichtung)
     }
 }
 
@@ -348,15 +389,48 @@ private final class KameraVorschauUIView: UIView {
 
 private struct KameraVorschau: UIViewRepresentable {
     let session: AVCaptureSession
+    /// Hands the layer to the steuerung once, so a capture can read its visible rect (Z-R7).
+    let aufEbene: (AVCaptureVideoPreviewLayer) -> Void
 
     func makeUIView(context: Context) -> KameraVorschauUIView {
         let view = KameraVorschauUIView()
         view.videoPreviewLayer.session = session
         view.videoPreviewLayer.videoGravity = .resizeAspectFill
+        aufEbene(view.videoPreviewLayer)
         return view
     }
 
     func updateUIView(_ uiView: KameraVorschauUIView, context: Context) {}
+}
+
+/// Pure crop math (Z-R7): AVFoundation's `metadataOutputRectConverted` gives a unit rect (0...1,
+/// origin top-left) of the SENSOR-native image (landscape, unrotated, unmirrored — see
+/// `fotoAufnehmen`) that the preview actually showed under `resizeAspectFill` — this turns it into
+/// pixel bounds on that same sensor-native image, clamped so a rounding edge never asks
+/// `CGImage.cropping` for a rect outside the image (which returns nil).
+enum SnapZuschnitt {
+    static func pixelRechteck(einheitsRechteck: CGRect, bildGroesse: CGSize) -> CGRect {
+        guard bildGroesse.width > 0, bildGroesse.height > 0 else { return .zero }
+        let roh = CGRect(
+            x: einheitsRechteck.minX * bildGroesse.width,
+            y: einheitsRechteck.minY * bildGroesse.height,
+            width: einheitsRechteck.width * bildGroesse.width,
+            height: einheitsRechteck.height * bildGroesse.height
+        )
+        return roh.integral.intersection(CGRect(origin: .zero, size: bildGroesse))
+    }
+}
+
+/// Pure orientation mapping (Z-R7): turns the sensor-native `CGImage` from
+/// `AVCapturePhoto.cgImageRepresentation()` upright, exactly like `verbindung.videoRotationAngle =
+/// 90` (always set, for portrait) plus `automaticallyAdjustsVideoMirroring`'s default (mirrors only
+/// the front camera, see `aufnehmen(nach:delegate:)`) would tag the EXIF-oriented file. Since both
+/// of those are fixed per camera position in this app (portrait-only, no manual mirror override),
+/// the orientation only depends on `position` — no per-photo metadata lookup needed.
+enum SnapBildAusrichtung {
+    static func fuer(position: AVCaptureDevice.Position) -> UIImage.Orientation {
+        position == .front ? .leftMirrored : .right
+    }
 }
 
 /// Full-screen camera (Z-6.1): tap for a photo, hold (≥0.3s) for video up to 30s with a progress
@@ -380,7 +454,7 @@ struct SnapKameraView: View {
 
     var body: some View {
         ZStack {
-            KameraVorschau(session: steuerung.session)
+            KameraVorschau(session: steuerung.session, aufEbene: { steuerung.vorschauEbeneSetzen($0) })
                 .ignoresSafeArea()
                 .opacity(steuerung.bildDa ? 1 : 0) // fades in with the first frames, no black flash
                 .animation(Feder.weich, value: steuerung.bildDa)
