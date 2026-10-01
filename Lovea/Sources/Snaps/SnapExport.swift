@@ -36,8 +36,16 @@ enum SnapExport {
     /// Filter vor dem Overlay anwenden (Anforderung: Filter zuerst, Doodle/Text/Sticker obendrauf).
     /// `.original` übersprungen — identisch zum Quellbild, ein Render weniger.
     private static func gefiltertesBild(quelle: UIImage, filter: SnapFilter, groesse: CGSize) -> UIImage? {
-        guard filter != .original, let ciBasis = CIImage(image: quelle, options: [.applyOrientationProperty: true]) else { return nil }
-        let gefiltert = filter.anwenden(auf: ciBasis)
+        guard filter != .original else { return nil }
+        // Erst aufrecht in die Zielgröße zeichnen: `CIImage(image:)` ignoriert `imageOrientation`,
+        // das Kamerabild kam dann mit Filter um 90° gedreht und verzerrt an (Ahmed, 01.10., iPad).
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        let aufrecht = UIGraphicsImageRenderer(size: groesse, format: format).image { _ in
+            quelle.draw(in: CGRect(origin: .zero, size: groesse))
+        }
+        guard let cgAufrecht = aufrecht.cgImage else { return nil }
+        let gefiltert = filter.anwenden(auf: CIImage(cgImage: cgAufrecht))
         guard let cgBild = SnapFilterKontext.shared.context.createCGImage(gefiltert, from: gefiltert.extent) else { return nil }
         return UIImage(cgImage: cgBild)
     }
