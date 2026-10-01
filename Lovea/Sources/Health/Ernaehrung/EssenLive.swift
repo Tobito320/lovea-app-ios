@@ -45,6 +45,11 @@ enum EssenLiveEinstellungen {
 /// Hält die Live Activity passend zum heutigen Tagebuch (Ahmed, 01.10.): aktualisiert nur, wenn der
 /// Nutzer selbst etwas einträgt, ändert oder löscht, und wenn die App aktiv wird. Kein Timer, keine
 /// Hintergrund-Aktualisierung, kein Push — Akku-Kosten damit vernachlässigbar. Höchstens eine Aktivität.
+///
+/// Build 78 (Ahmed, Absturzverdacht): `ErnaehrungModell`s Op-Beobachter UND jeder Gym-Übergang rufen
+/// `abgleichen()` auf — beim Start-Replay können das sehr viele Aufrufe kurz hintereinander sein.
+/// Wie `GymLive`: bei einem laufenden Durchlauf wird kein weiterer Task gequeued, nur
+/// `AbgleichZustand.laeuftSchmutzig` markiert; `lauf()` wiederholt sich dann selbst noch einmal.
 @MainActor
 enum EssenLive {
     /// Was mit der laufenden Aktivität passieren soll. Reine Entscheidung ohne ActivityKit, testbar.
@@ -55,25 +60,37 @@ enum EssenLive {
         var stand: EssenAktivitaetV2.ContentState
     }
 
-    /// Abgleiche laufen nacheinander, wie bei `GymLive`.
-    private static var letzter: Task<Void, Never>?
+    private static var zustand: AbgleichZustand = .leer
+    private static var laufZaehler = 0
 
     static func abgleichen() {
+        let (starten, neu) = AbgleichZustand.aufruf(zustand)
+        zustand = neu
+        guard starten else { return }
+        Task { await lauf() }
+    }
+
+    private static func lauf() async {
+        while true {
+            // Replay erst fertig, dann den Zielzustand lesen — sonst zeigt ein Durchlauf mitten im
+            // Replay z. B. ein Ziel, das der Fold noch gar nicht angewendet hat (Build-77-Befund:
+            // "0 / 2.720 kcal" trotz echter Einträge, weil `abgleichen()` vor dem Replay lief).
+            await Raum.shared.leer()
+            laufZaehler += 1
+            await anwenden(zielJetzt(), an: EssenLiveEinstellungen.an, gymLaeuft: !Activity<GymAktivitaet>.activities.isEmpty, nummer: laufZaehler)
+            let (nochmal, neu) = AbgleichZustand.fertig(zustand)
+            zustand = neu
+            guard nochmal else { break }
+        }
+    }
+
+    private static func zielJetzt() -> Ziel {
         let modell = ErnaehrungModell.shared
         let ich = modell.ich
         let heute = Datum.text(Date())
-        let ziel = Ziel(
+        return Ziel(
             attribute: EssenAktivitaetV2(name: ich.name),
             stand: EssenLiveLogik.stand(modell.eintraege(ich, heute), ziele: modell.ziele(ich, tag: heute), tag: heute))
-        let an = EssenLiveEinstellungen.an
-        // R10 (Ahmed, 01.10.: "nur Gym, wenn gestartet" in der Dynamic Island) — läuft ein Training,
-        // darf Essen gar nicht erst anfordern, sonst teilt iOS die Insel zwischen beiden auf.
-        let gymLaeuft = !Activity<GymAktivitaet>.activities.isEmpty
-        let vorher = letzter
-        letzter = Task {
-            await vorher?.value
-            await anwenden(ziel, an: an, gymLaeuft: gymLaeuft)
-        }
     }
 
     /// Gym läuft -> beenden (geht vor allem anderen). Sonst: Schalter aus -> beenden. Läuft schon eine
@@ -95,8 +112,8 @@ enum EssenLive {
         s.kcal > 0 && s.mahlzeitenKcal == [0, 0, 0, 0]
     }
 
-    private nonisolated static func anwenden(_ ziel: Ziel, an: Bool, gymLaeuft: Bool) async {
-        StartProtokoll.marke("essenLive.anwenden.vor")
+    private nonisolated static func anwenden(_ ziel: Ziel, an: Bool, gymLaeuft: Bool, nummer: Int) async {
+        StartProtokoll.marke("essenLive.anwenden.vor #\(nummer)")
         // Build 77: eine Food-Live-Activity aus einem ÄLTEREN Build läuft eventuell noch mit dem
         // alten ContentState-Shape. Die neue App soll dessen JSON nie über `EssenAktivitaetV2`
         // dekodieren (Absturzverdacht Build 76) — stattdessen hier über den unveränderten alten

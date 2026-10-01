@@ -3,6 +3,11 @@ import Foundation
 
 /// Hält die Live Activity passend zur eigenen laufenden Einheit (Ahmed, 27.09.): Einchecken startet
 /// sie, eine neue Übung aktualisiert sie, Auschecken beendet sie. Nur auf dem iPhone.
+///
+/// Build 78 (Ahmed, Absturzverdacht): `TrainingModell`s Op-Beobachter ruft `abgleichen()` für JEDEN
+/// replizierten Op — beim Start können das hunderte sein. `abgleichen()` queued deshalb bei einem
+/// laufenden Durchlauf keinen weiteren Task, sondern markiert nur `AbgleichZustand.laeuftSchmutzig`;
+/// `lauf()` wiederholt sich dann selbst noch einmal, statt hunderte ActivityKit-Anfragen zu stapeln.
 @MainActor
 enum GymLive {
     private struct Ziel: Sendable {
@@ -10,15 +15,27 @@ enum GymLive {
         var stand: GymAktivitaet.ContentState
     }
 
-    /// Abgleiche laufen nacheinander: beim Start kommen viele Ops auf einmal, parallel gäbe es doppelte Aktivitäten.
-    private static var letzter: Task<Void, Never>?
+    private static var zustand: AbgleichZustand = .leer
+    private static var laufZaehler = 0
 
     static func abgleichen() {
-        let ziel = zielJetzt()
-        let vorher = letzter
-        letzter = Task {
-            await vorher?.value
-            await anwenden(ziel)
+        let (starten, neu) = AbgleichZustand.aufruf(zustand)
+        zustand = neu
+        guard starten else { return }
+        Task { await lauf() }
+    }
+
+    private static func lauf() async {
+        while true {
+            // Replay/ausstehende Schreibzugriffe erst fertig, bevor der Zielzustand gelesen wird —
+            // sonst läse ein früher Durchlauf z. B. ein Ernährungsziel, das der Fold noch gar nicht
+            // angewendet hat (R: "Zielzustand bei der Ausführung berechnen, nicht beim Aufruf").
+            await Raum.shared.leer()
+            laufZaehler += 1
+            await anwenden(zielJetzt(), nummer: laufZaehler)
+            let (nochmal, neu) = AbgleichZustand.fertig(zustand)
+            zustand = neu
+            guard nochmal else { break }
         }
     }
 
@@ -46,8 +63,9 @@ enum GymLive {
     }
 
     /// Nonisolated: die `Activity`-Objekte bleiben in diesem einen Ablauf (Swift 6, nicht Sendable).
-    private nonisolated static func anwenden(_ ziel: Ziel?) async {
-        StartProtokoll.marke("gymLive.anwenden.vor")
+    private nonisolated static func anwenden(_ ziel: Ziel?, nummer: Int) async {
+        StartProtokoll.marke("gymLive.anwenden.vor #\(nummer)")
+        let gymLiefVorher = !Activity<GymAktivitaet>.activities.isEmpty
         for a in Activity<GymAktivitaet>.activities where a.attributes.sessionId != ziel?.attribute.sessionId {
             StartProtokoll.marke("gymLive.anwenden.altBeenden.vor")
             await a.end(nil, dismissalPolicy: .immediate)
@@ -67,12 +85,13 @@ enum GymLive {
                 StartProtokoll.marke("gymLive.anwenden.request.nach")
             }
         }
-        // R10 (Ahmed, 01.10.: "nur Gym, wenn gestartet" in der Dynamic Island) — nach jedem
-        // Gym-Abgleich (Start, Update, Ende) auch Essen neu bewerten: `EssenLive.aktion` beendet
-        // Essen von selbst, solange eine Gym-Aktivität läuft, und startet es hier wieder, sobald
-        // keine mehr läuft. Kein neuer Timer, läuft nur mit, wenn `GymLive.abgleichen()` ohnehin
-        // schon lief.
+        let gymLaeuftJetzt = !Activity<GymAktivitaet>.activities.isEmpty
         StartProtokoll.marke("gymLive.anwenden.nach")
+        // R10 (Ahmed, 01.10.: "nur Gym, wenn gestartet" in der Dynamic Island) — Essen nur dann neu
+        // bewerten, wenn Gym diesen Durchlauf WIRKLICH gestartet oder beendet hat (Übergang), nicht
+        // bei jedem Update (sonst feuert ein laufendes Training bei jeder Satz-Änderung zusätzlich
+        // einen Essen-Abgleich — Teil desselben Absturzverdachts).
+        guard gymLiefVorher != gymLaeuftJetzt else { return }
         await EssenLive.abgleichen()
     }
 }
