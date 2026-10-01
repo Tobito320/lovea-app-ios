@@ -553,13 +553,15 @@ enum ErnaehrungLogik {
         return liste
     }
 
-    /// Alle Portionsgrößen zur Auswahl, ohne doppelte Namen: eigene Liste, Portion der Packung, ganze Packung.
+    /// Alle Portionsgrößen zur Auswahl, ohne doppelte Namen: eigene Liste, Portion der Packung, ganze
+    /// Packung, dann Haushaltsmaße aus dem Namen (Teelöffel, Esslöffel, …), auch für Importe ohne Portionen.
     static func portionsAuswahl(_ l: Lebensmittel) -> [LebensmittelPortion] {
         var liste = l.portionen ?? []
         if let menge = l.portionMenge, menge > 0 {
             liste.append(LebensmittelPortion(name: l.portionName ?? "Portion", gramm: menge))
         }
         if let menge = l.packungMenge, menge > 0 { liste.append(LebensmittelPortion(name: "Packung", gramm: menge)) }
+        liste += HaushaltsMasse.portionen(fuer: l)
         var gesehen: Set<String> = []
         return liste.filter { $0.gramm > 0 && gesehen.insert($0.name).inserted }
     }

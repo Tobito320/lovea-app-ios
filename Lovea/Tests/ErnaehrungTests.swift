@@ -32,6 +32,44 @@ final class ErnaehrungTests: XCTestCase {
         XCTAssertNil(ErnaehrungLogik.eingabe("abc"))
     }
 
+    // MARK: - Haushaltsmaße
+
+    func testZuckerBekommtLoeffel() {
+        let l = Lebensmittel(id: "off-2", name: "Zucker", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0))
+        let namen = ErnaehrungLogik.portionsAuswahl(l).map(\.name)
+        XCTAssertTrue(namen.contains("Teelöffel, gestrichen"))
+        XCTAssertTrue(namen.contains("Esslöffel, gestrichen"))
+    }
+
+    func testSalzBekommtPrise() {
+        let l = Lebensmittel(id: "off-3", name: "Salz", pro100: Naehrwerte(kcal: 0, protein: 0, kohlenhydrate: 0, fett: 0))
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).map(\.name).contains("Prise"))
+    }
+
+    func testOlivenoelBekommtEsslöffel() {
+        let l = Lebensmittel(id: "off-4", name: "Olivenöl", fluessig: true, pro100: Naehrwerte(kcal: 884, protein: 0, kohlenhydrate: 0, fett: 100))
+        let portionen = ErnaehrungLogik.portionsAuswahl(l)
+        XCTAssertTrue(portionen.contains { $0.name == "Esslöffel" && $0.gramm == 15 })
+    }
+
+    func testBananeBekommtKeineLoeffel() {
+        let l = Lebensmittel(id: "off-5", name: "Banane", pro100: Naehrwerte(kcal: 89, protein: 1.1, kohlenhydrate: 23, fett: 0.3))
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).isEmpty)
+    }
+
+    func testEigeneEsslöffelPortionWirdNichtVerdoppelt() {
+        let l = Lebensmittel(id: "off-6", name: "Zucker", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0),
+                             portionen: [LebensmittelPortion(name: "Esslöffel, gestrichen", gramm: 99)])
+        let treffer = ErnaehrungLogik.portionsAuswahl(l).filter { $0.name == "Esslöffel, gestrichen" }
+        XCTAssertEqual(treffer.count, 1)
+        XCTAssertEqual(treffer.first?.gramm, 99)
+    }
+
+    func testOFFZuckerOhnePortionenBekommtLoeffel() {
+        let l = Lebensmittel(id: "off-7", name: "Zucker", marke: "Fremdmarke", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0), quelle: "off")
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).map(\.name).contains("Teelöffel, gestrichen"))
+    }
+
     // MARK: - Ziele
 
     func testKalorienzielHaltenUndAbnehmen() {
