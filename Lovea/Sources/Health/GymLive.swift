@@ -26,13 +26,23 @@ enum GymLive {
         let modell = TrainingModell.shared
         let ich = Raum.shared.ich ?? .ahmed
         guard Geraet.wirdGetragen, let s = modell.laufende(ich) else { return nil }
-        let tag = modell.tag(ich, id: s.tag)
-        return Ziel(
-            attribute: GymAktivitaet(sessionId: s.id, start: s.start, tagName: tag?.name ?? "Training"),
-            stand: GymAktivitaet.ContentState(
-                uebung: s.aktiv.flatMap { a in tag?.uebungen.first { $0.id == a.plan }?.anzeigeName },
-                fertig: tag?.uebungen.filter { s.erledigt($0.id) }.count ?? 0,
-                gesamt: tag?.uebungen.count ?? 0))
+        let liste = modell.workout(s.id)
+        let dran = WorkoutLogik.dran(liste).map { (uebung: liste[$0.uebung], satz: $0.satz) }
+        var stand = GymAktivitaet.ContentState(
+            uebung: dran?.uebung.planUebung.anzeigeName,
+            fertig: liste.filter(\.fertig).count,
+            gesamt: liste.count)
+        if let dran, dran.uebung.saetze.indices.contains(dran.satz) {
+            stand.satz = dran.satz + 1
+            stand.saetze = dran.uebung.saetze.count
+            stand.zeile = WorkoutLogik.satzText(dran.uebung.saetze[dran.satz])
+        }
+        if let uhr = WorkoutUhr.shared.stand, uhr.session == s.id {
+            stand.pause = uhr.pause
+            stand.seit = uhr.seit
+            stand.bis = uhr.pauseEnde
+        }
+        return Ziel(attribute: GymAktivitaet(sessionId: s.id, start: s.start, tagName: modell.tag(ich, id: s.tag)?.name ?? "Training"), stand: stand)
     }
 
     /// Nonisolated: die `Activity`-Objekte bleiben in diesem einen Ablauf (Swift 6, nicht Sendable).

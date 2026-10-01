@@ -2,7 +2,8 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-/// Laufendes Training in der Dynamic Island und auf dem Sperrbildschirm: Zeit im Gym, aktuelle Übung.
+/// Laufendes Training in der Dynamic Island und auf dem Sperrbildschirm: Übung, Satz, Gewicht und die
+/// laufende Satz- oder Pausenzeit (wie Hevy).
 /// Tipp öffnet die Einheit (`lovea://gym`).
 struct GymLiveWidget: Widget {
     private static let gruen = Color(red: 0.36, green: 0.85, blue: 0.66)
@@ -10,19 +11,26 @@ struct GymLiveWidget: Widget {
 
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: GymAktivitaet.self) { kontext in
-            HStack(spacing: 14) {
-                Image(systemName: "dumbbell.fill")
-                    .font(.title2)
-                    .foregroundStyle(Self.gruen)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Im Gym · \(kontext.attributes.tagName)").font(.headline)
-                    Text(zeile(kontext.state)).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label(kontext.attributes.tagName, systemImage: "dumbbell.fill")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Self.gruen)
+                    Spacer(minLength: 8)
+                    Text(kontext.attributes.start, style: .timer)
+                        .font(.subheadline.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.trailing)
+                        .frame(maxWidth: 90, alignment: .trailing)
                 }
-                Spacer(minLength: 8)
-                Text(kontext.attributes.start, style: .timer)
-                    .font(.title2.bold().monospacedDigit())
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 110, alignment: .trailing)
+                HStack(alignment: .center, spacing: 12) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(kontext.state.uebung ?? "Training läuft").font(.headline).lineLimit(1)
+                        Text(zeile(kontext.state)).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    }
+                    Spacer(minLength: 8)
+                    uhr(kontext.state).font(.title.bold().monospacedDigit())
+                }
             }
             .padding(16)
             .activityBackgroundTint(Color.black.opacity(0.6))
@@ -33,21 +41,15 @@ struct GymLiveWidget: Widget {
                     Label("Gym", systemImage: "dumbbell.fill").font(.headline).foregroundStyle(Self.gruen)
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    Text(kontext.attributes.start, style: .timer)
-                        .font(.headline.monospacedDigit())
-                        .multilineTextAlignment(.trailing)
-                        .frame(maxWidth: 90, alignment: .trailing)
+                    uhr(kontext.state, sonst: kontext.attributes.start).font(.headline.monospacedDigit())
                 }
                 DynamicIslandExpandedRegion(.bottom) {
-                    Text("\(kontext.attributes.tagName) · \(zeile(kontext.state))").font(.subheadline).lineLimit(1)
+                    Text([kontext.state.uebung, zeile(kontext.state)].compactMap { $0 }.joined(separator: " · ")).font(.subheadline).lineLimit(1)
                 }
             } compactLeading: {
                 Image(systemName: "dumbbell.fill").foregroundStyle(Self.gruen)
             } compactTrailing: {
-                Text(kontext.attributes.start, style: .timer)
-                    .monospacedDigit()
-                    .multilineTextAlignment(.trailing)
-                    .frame(maxWidth: 56)
+                uhr(kontext.state, sonst: kontext.attributes.start, breite: 56).monospacedDigit()
             } minimal: {
                 Image(systemName: "dumbbell.fill").foregroundStyle(Self.gruen)
             }
@@ -55,9 +57,26 @@ struct GymLiveWidget: Widget {
         }
     }
 
+    /// "Satz 2 von 3 · 32 kg × 12", in der Pause mit "Pause" davor; sonst der Stand der Übungen.
     private func zeile(_ s: GymAktivitaet.ContentState) -> String {
-        let stand = s.gesamt > 0 ? "\(s.fertig) von \(s.gesamt) fertig" : "Training läuft"
-        guard let uebung = s.uebung else { return stand }
-        return "Jetzt: \(uebung) · \(stand)"
+        guard let satz = s.satz, let saetze = s.saetze, let zeile = s.zeile else {
+            return s.gesamt > 0 ? "\(s.fertig) von \(s.gesamt) Übungen fertig" : "Training läuft"
+        }
+        let pause = s.pause == true ? "Pause · " : ""
+        return "\(pause)Satz \(satz) von \(saetze) · \(zeile)"
+    }
+
+    /// Satzzeit zählt hoch, eine Pause mit Ziel rückwärts. Ohne laufende Uhr `sonst` (die Zeit im Gym) oder nichts.
+    @ViewBuilder
+    private func uhr(_ s: GymAktivitaet.ContentState, sonst: Date? = nil, breite: CGFloat = 96) -> some View {
+        Group {
+            if let seit = s.seit, let bis = s.bis, bis > seit {
+                Text(timerInterval: seit...bis, countsDown: true)
+            } else if let start = s.seit ?? sonst {
+                Text(start, style: .timer)
+            }
+        }
+        .multilineTextAlignment(.trailing)
+        .frame(maxWidth: breite, alignment: .trailing)
     }
 }

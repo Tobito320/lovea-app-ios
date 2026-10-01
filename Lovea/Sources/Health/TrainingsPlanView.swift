@@ -101,7 +101,7 @@ struct TrainingsPlanView: View {
                     Haptik.erfolg()
                     oeffnen(.gymSession(id))
                 } label: {
-                    Label("Im Gym einchecken", systemImage: "figure.strengthtraining.traditional")
+                    Label("Training starten", systemImage: "figure.strengthtraining.traditional")
                         .font(.headline)
                 }
             }

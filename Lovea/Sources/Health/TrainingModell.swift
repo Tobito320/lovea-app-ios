@@ -58,6 +58,24 @@ final class TrainingModell {
         if !u.istCardio, saetze != u.saetze { planSichern(TrainingLogik.uebernehmen(plan(ich), planUebung: u.id, saetze: saetze)) }
     }
 
+    /// Die Übungen einer Einheit mit ihren Satzzeilen (`WorkoutLogik.uebungen`); leer, wenn es sie nicht gibt.
+    func workout(_ session: String, _ person: Person? = nil) -> [WorkoutUebung] {
+        let p = person ?? ich
+        let alle = sessions(p)
+        guard let s = alle.first(where: { $0.id == session }) else { return [] }
+        return WorkoutLogik.uebungen(s, tag: tag(p, id: s.tag), frueher: alle.filter { $0.start < s.start })
+    }
+
+    /// Der ganze Stand der Satzzeilen einer Übung. Bei jedem Haken, nicht bei jedem Tastendruck.
+    func saetzeSenden(_ session: String, _ u: PlanUebung, _ saetze: [PlanSatz]) {
+        Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "satz", saetze: saetze, name: u.name))
+    }
+
+    /// Nimmt eine im Training dazugekommene Übung wieder heraus.
+    func entfernen(_ session: String, _ u: PlanUebung) {
+        Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "weg"))
+    }
+
     func zuruecksetzen(_ session: String, _ u: PlanUebung) {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "offen"))
     }

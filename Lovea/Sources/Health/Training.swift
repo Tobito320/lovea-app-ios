@@ -6,6 +6,27 @@ struct PlanSatz: Codable, Equatable, Sendable {
     var wdh: Int
     var kg: Double?
     var failure: Bool
+    /// "w" Aufwärmen, "d" Dropsatz, nil normal. Versagen bleibt `failure`, alte Builds lesen es so.
+    var typ: String? = nil
+    var rpe: Double? = nil
+    /// Nur im laufenden Training (`gym.uebung` mit status "satz"): abgehakt, Dauer des Satzes und
+    /// die Pause danach in Sekunden. Alles optional: alte Ops und Pläne haben die Felder nicht.
+    var ok: Bool? = nil
+    var sek: Double? = nil
+    var pause: Double? = nil
+
+    /// "W", "D", "F" statt der Satznummer; nil für einen normalen Satz.
+    var kuerzel: String? { typ == "w" ? "W" : typ == "d" ? "D" : failure ? "F" : nil }
+    /// Aufwärmsätze zählen nicht für Volumen, Rekorde und "Sätze diese Woche".
+    var zaehlt: Bool { ok == true && typ != "w" }
+    /// Ohne Haken und Zeiten, so wie der Satz im Plan steht.
+    var alsPlan: PlanSatz { PlanSatz(wdh: wdh, kg: kg, failure: failure, typ: typ) }
+
+    /// "" normal, "w", "d", "f".
+    mutating func setzeTyp(_ t: String) {
+        typ = t == "w" || t == "d" ? t : nil
+        failure = t == "f"
+    }
 }
 
 /// One exercise of a training day. `uebung` is a catalog id, or `eigen` with `name` set.
@@ -16,6 +37,10 @@ struct PlanUebung: Codable, Identifiable, Equatable, Sendable {
     var name: String?
     var saetze: [PlanSatz]
     var minuten: Int?
+    /// Bleibt an der Übung und steht beim nächsten Training wieder da ("Sitz auf Stufe 4").
+    var notiz: String? = nil
+    /// Pausenzeit in Sekunden; nil = `WorkoutLogik.standardPause`, 0 = ohne Ziel.
+    var pause: Int? = nil
 
     static let eigen = "eigen"
 
@@ -71,6 +96,9 @@ enum TagFarbe {
 /// Body of `gym.checkin` (`tag`, `start`), `gym.uebung` (`plan` = PlanUebung.id, `uebung` = catalog id,
 /// `status` "start" | "fertig" | "offen", `saetze` on "fertig"), `gym.checkout` (`ende`) and
 /// `gym.loeschen`. Sending check-in or checkout again for the same session corrects its times.
+/// Wie Hevy: status "satz" trägt den ganzen Stand der Satzzeilen einer Übung (neuester gilt, bei
+/// jedem Haken gesendet), "weg" nimmt eine im Training dazugekommene Übung wieder heraus. `name`
+/// gehört zu einer eigenen Übung, die nicht im Plantag steht.
 struct GymD: Codable, Equatable, Sendable {
     var session: String
     var tag: String? = nil
@@ -80,6 +108,7 @@ struct GymD: Codable, Equatable, Sendable {
     var uebung: String? = nil
     var status: String? = nil
     var saetze: [PlanSatz]? = nil
+    var name: String? = nil
 }
 
 struct GymEintrag: Equatable, Sendable {
@@ -95,7 +124,11 @@ struct UebungsLauf: Equatable, Sendable {
     var start: Date?
     var ende: Date?
     var fertig: Bool
+    /// Die gezählten Sätze (abgehakt, ohne Aufwärmen). Körper, Verlauf und Hinweise rechnen damit.
     var saetze: [PlanSatz]?
+    /// Alle Satzzeilen aus status "satz", auch offene und Aufwärmsätze; nil bei alten Einheiten.
+    var stand: [PlanSatz]? = nil
+    var name: String? = nil
 
     var dauer: TimeInterval? {
         guard let start, let ende else { return nil }
@@ -110,7 +143,14 @@ struct GymSession: Identifiable, Equatable, Sendable {
     var ende: Date?
     var laeufe: [UebungsLauf]
 
-    func erledigt(_ plan: String) -> Bool { laeufe.contains { $0.plan == plan && $0.fertig } }
+    /// Mit Satzzeilen (wie Hevy) erst, wenn alle abgehakt sind; alte Einheiten über `fertig`.
+    func erledigt(_ plan: String) -> Bool {
+        laeufe.contains { l in
+            guard l.plan == plan else { return false }
+            if let stand = l.stand { return !stand.isEmpty && stand.allSatisfy { $0.ok == true } }
+            return l.fertig
+        }
+    }
 
     /// The exercise started and not ended yet (nil once checked out).
     var aktiv: UebungsLauf? {
@@ -155,6 +195,25 @@ enum TrainingLogik {
                 }
             case "offen":
                 for i in s.laeufe.indices where s.laeufe[i].plan == plan { s.laeufe[i].fertig = false }
+            case "satz":
+                let stand = e.d.saetze ?? []
+                let gezaehlt = stand.filter(\.zaehlt)
+                let i: Int
+                if let da = s.laeufe.lastIndex(where: { $0.plan == plan }) {
+                    i = da
+                } else {
+                    s.laeufe.append(UebungsLauf(plan: plan, uebung: e.d.uebung ?? "", start: e.zeit, ende: nil, fertig: false, saetze: nil, name: e.d.name))
+                    i = s.laeufe.count - 1
+                }
+                // Nur eine Übung läuft: alle anderen offenen enden hier (die Figur zeigt `aktiv`).
+                for j in s.laeufe.indices where j != i && s.laeufe[j].start != nil && s.laeufe[j].ende == nil { s.laeufe[j].ende = e.zeit }
+                s.laeufe[i].stand = stand
+                s.laeufe[i].saetze = gezaehlt.isEmpty ? nil : gezaehlt
+                s.laeufe[i].fertig = !gezaehlt.isEmpty
+                if s.laeufe[i].start == nil { s.laeufe[i].start = e.zeit }
+                s.laeufe[i].ende = !stand.isEmpty && stand.allSatisfy({ $0.ok == true }) ? e.zeit : nil
+            case "weg":
+                s.laeufe.removeAll { $0.plan == plan }
             default:
                 break
             }
@@ -220,6 +279,15 @@ enum TrainingLogik {
             for u in p.tage[t].uebungen.indices where p.tage[t].uebungen[u].id == planUebung {
                 p.tage[t].uebungen[u].saetze = saetze
             }
+        }
+        return p
+    }
+
+    /// Eine Plan-Übung ändern (Notiz, Pausenzeit), egal in welchem Tag sie steht.
+    static func aendern(_ plan: TrainingsPlan, planUebung: String, _ f: (inout PlanUebung) -> Void) -> TrainingsPlan {
+        var p = plan
+        for t in p.tage.indices {
+            for u in p.tage[t].uebungen.indices where p.tage[t].uebungen[u].id == planUebung { f(&p.tage[t].uebungen[u]) }
         }
         return p
     }

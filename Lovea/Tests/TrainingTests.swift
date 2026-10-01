@@ -186,4 +186,100 @@ final class TrainingTests: XCTestCase {
         let d = try JSONDecoder().decode(GymD.self, from: Data(#"{"session":"s","neu":"egal"}"#.utf8))
         XCTAssertEqual(d, GymD(session: "s"))
     }
+
+    // MARK: - Wie Hevy: Satzzeilen
+
+    /// Pläne und Ops aus älteren Builds haben die neuen Felder nicht und müssen weiter lesbar sein.
+    func testOldSetAndPlanJsonStillDecode() throws {
+        let s = try JSONDecoder().decode(PlanSatz.self, from: Data(#"{"wdh":8,"kg":60,"failure":true}"#.utf8))
+        XCTAssertEqual(s, satz(8, 60, failure: true))
+        XCTAssertEqual(s.kuerzel, "F")
+        let u = try JSONDecoder().decode(PlanUebung.self, from: Data(#"{"id":"a","uebung":"eigen","name":"X","saetze":[]}"#.utf8))
+        XCTAssertNil(u.pause)
+        XCTAssertNil(u.notiz)
+    }
+
+    func testSetStateCountsTickedSetsWithoutWarmup() {
+        var warm = satz(10, 20)
+        warm.typ = "w"
+        warm.ok = true
+        var a = satz(10, 60)
+        a.ok = true
+        let b = satz(8, 60)
+        let ops = [
+            op("gym.checkin", GymD(session: "s", start: t0), zeit: t0),
+            op("gym.uebung", GymD(session: "s", plan: "a", uebung: "A", status: "satz", saetze: [warm, a, b]), zeit: t0 + 60),
+        ]
+        let lauf = faltung(ops).sessions(.ahmed)[0].laeufe[0]
+        XCTAssertEqual(lauf.stand?.count, 3)
+        XCTAssertEqual(lauf.saetze, [a])
+        XCTAssertTrue(lauf.fertig)
+        XCTAssertNil(lauf.ende)
+        // Der neueste Stand gilt; alle abgehakt beendet die Übung.
+        var b2 = b
+        b2.ok = true
+        let spaeter = op("gym.uebung", GymD(session: "s", plan: "a", uebung: "A", status: "satz", saetze: [warm, a, b2]), zeit: t0 + 120)
+        let s2 = faltung(ops + [spaeter]).sessions(.ahmed)[0]
+        XCTAssertEqual(s2.laeufe.count, 1)
+        XCTAssertEqual(s2.laeufe[0].saetze?.count, 2)
+        XCTAssertEqual(s2.laeufe[0].ende, t0 + 120)
+        // "weg" nimmt die Übung wieder heraus.
+        let weg = op("gym.uebung", GymD(session: "s", plan: "a", uebung: "A", status: "weg"), zeit: t0 + 180)
+        XCTAssertTrue(faltung(ops + [spaeter, weg]).sessions(.ahmed)[0].laeufe.isEmpty)
+    }
+
+    func testWorkoutRowsPreviousExtrasAndNext() {
+        let tag = TrainingsTag(id: "t", name: "Push", wochentage: [], uebungen: [
+            planUebung("a", saetze: [satz(10, 50), satz(10, 50)]),
+            planUebung("b", saetze: [satz(12, 20)]),
+        ])
+        var alt1 = satz(10, 55)
+        alt1.ok = true
+        var alt2 = satz(9, 55)
+        alt2.ok = true
+        let frueher = faltung([
+            op("gym.checkin", GymD(session: "alt", tag: "t", start: t0 - 86400), zeit: t0 - 86400),
+            op("gym.uebung", GymD(session: "alt", plan: "a", uebung: "xa", status: "satz", saetze: [alt1, alt2]), zeit: t0 - 86000),
+        ]).sessions(.ahmed)
+        var neu = satz(10, 57.5)
+        neu.ok = true
+        let jetzt = faltung([
+            op("gym.checkin", GymD(session: "s", tag: "t", start: t0), zeit: t0),
+            op("gym.uebung", GymD(session: "s", plan: "a", uebung: "xa", status: "satz", saetze: [neu, satz(9, 55)]), zeit: t0 + 60),
+            op("gym.uebung", GymD(session: "s", plan: "z", uebung: "eigen", status: "satz", saetze: [satz(10, nil)], name: "Dips"), zeit: t0 + 90),
+        ]).sessions(.ahmed)[0]
+        let liste = WorkoutLogik.uebungen(jetzt, tag: tag, frueher: frueher)
+        XCTAssertEqual(liste.map(\.id), ["a", "b", "z"])
+        XCTAssertEqual(liste[0].vorher, [alt1, alt2])
+        XCTAssertEqual(liste[0].fertigZahl, 1)
+        XCTAssertEqual(liste[1].saetze, [satz(12, 20)]) // nie gemacht: Planwerte
+        XCTAssertTrue(liste[2].extra)
+        XCTAssertEqual(liste[2].planUebung.anzeigeName, "Dips")
+        XCTAssertEqual(WorkoutLogik.dran(liste)?.uebung, 0)
+        XCTAssertEqual(WorkoutLogik.dran(liste)?.satz, 1)
+        XCTAssertEqual(WorkoutLogik.volumen(liste), 575)
+        XCTAssertEqual(WorkoutLogik.saetzeZahl(liste), 1)
+        // Noch nichts getippt: die Planzeilen mit den Werten vom letzten Mal.
+        let frisch = WorkoutLogik.uebungen(GymSession(id: "n", tag: "t", start: t0, ende: nil, laeufe: []), tag: tag, frueher: frueher)
+        XCTAssertEqual(frisch[0].saetze, [satz(10, 55), satz(9, 55)])
+    }
+
+    func testPlanQuestionOnlyOnStructureAndCalculators() {
+        let tag = TrainingsTag(id: "t", name: "Push", wochentage: [], uebungen: [planUebung("a", saetze: [satz(10, 50), satz(10, 50)])])
+        var liste = WorkoutLogik.uebungen(GymSession(id: "s", tag: "t", start: t0, ende: nil, laeufe: []), tag: tag, frueher: [])
+        liste[0].saetze[0].kg = 60
+        XCTAssertNil(WorkoutLogik.neuerTag(tag, liste)) // nur das Gewicht ist anders: keine Frage
+        liste[0].saetze.append(satz(8, 60))
+        XCTAssertEqual(WorkoutLogik.neuerTag(tag, liste)?.uebungen[0].saetze.count, 3)
+
+        XCTAssertEqual(WorkoutLogik.scheiben(kg: 80), [25, 5])
+        XCTAssertEqual(WorkoutLogik.scheiben(kg: 20), [])
+        let warm = WorkoutLogik.aufwaermen(arbeit: 60)
+        XCTAssertEqual(warm.map(\.kg), [25, 35, 47.5])
+        XCTAssertEqual(warm.map(\.kuerzel), ["W", "W", "W"])
+        let saetze = [warm[0], satz(10, 60), satz(8, 60, failure: true)]
+        XCTAssertEqual([0, 1, 2].map { WorkoutLogik.nummer(saetze, $0) }, ["W", "1", "F"])
+        XCTAssertEqual(WorkoutLogik.satzText(satz(12, 32)), "32 kg × 12")
+        XCTAssertEqual(WorkoutLogik.zeitText(118), "1:58")
+    }
 }
