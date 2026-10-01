@@ -32,6 +32,69 @@ final class ErnaehrungTests: XCTestCase {
         XCTAssertNil(ErnaehrungLogik.eingabe("abc"))
     }
 
+    // MARK: - Haushaltsmaße
+
+    func testZuckerBekommtLoeffel() {
+        let l = Lebensmittel(id: "off-2", name: "Zucker", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0))
+        let namen = ErnaehrungLogik.portionsAuswahl(l).map(\.name)
+        XCTAssertTrue(namen.contains("Teelöffel, gestrichen"))
+        XCTAssertTrue(namen.contains("Esslöffel, gestrichen"))
+    }
+
+    func testSalzBekommtPrise() {
+        let l = Lebensmittel(id: "off-3", name: "Salz", pro100: Naehrwerte(kcal: 0, protein: 0, kohlenhydrate: 0, fett: 0))
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).map(\.name).contains("Prise"))
+    }
+
+    func testOlivenoelBekommtEsslöffel() {
+        let l = Lebensmittel(id: "off-4", name: "Olivenöl", fluessig: true, pro100: Naehrwerte(kcal: 884, protein: 0, kohlenhydrate: 0, fett: 100))
+        let portionen = ErnaehrungLogik.portionsAuswahl(l)
+        XCTAssertTrue(portionen.contains { $0.name == "Esslöffel" && $0.gramm == 15 })
+    }
+
+    func testBananeBekommtKeineLoeffel() {
+        let l = Lebensmittel(id: "off-5", name: "Banane", pro100: Naehrwerte(kcal: 89, protein: 1.1, kohlenhydrate: 23, fett: 0.3))
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).isEmpty)
+    }
+
+    func testEigeneEsslöffelPortionWirdNichtVerdoppelt() {
+        let l = Lebensmittel(id: "off-6", name: "Zucker", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0),
+                             portionen: [LebensmittelPortion(name: "Esslöffel, gestrichen", gramm: 99)])
+        let treffer = ErnaehrungLogik.portionsAuswahl(l).filter { $0.name == "Esslöffel, gestrichen" }
+        XCTAssertEqual(treffer.count, 1)
+        XCTAssertEqual(treffer.first?.gramm, 99)
+    }
+
+    func testOFFZuckerOhnePortionenBekommtLoeffel() {
+        let l = Lebensmittel(id: "off-7", name: "Zucker", marke: "Fremdmarke", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0), quelle: "off")
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).map(\.name).contains("Teelöffel, gestrichen"))
+    }
+
+    /// Reines Nährwerte-Dummy, nur der Name zählt für `HaushaltsMasse`.
+    private func hatLoeffel(_ name: String, fluessig: Bool = false) -> Bool {
+        let l = Lebensmittel(id: "t-\(name)", name: name, fluessig: fluessig, pro100: Naehrwerte(kcal: 100, protein: 1, kohlenhydrate: 1, fett: 1))
+        return !ErnaehrungLogik.portionsAuswahl(l).isEmpty
+    }
+
+    /// Wortabgleich darf nicht auf bloßem Wortanfang beruhen: Komposita, bei denen das Stichwort nur
+    /// der Anfang eines längeren Wortes ist ("Zuckermais"), dürfen nicht treffen; Komposita, bei denen
+    /// das Stichwort als Kopf hinten steht ("Rohrzucker"), müssen treffen (Review R9, Critical #1).
+    func testKompositaTreffenRichtig() {
+        for name in ["Zucker", "Rohrzucker", "Puderzucker", "Salz", "Meersalz", "Honig", "Blütenhonig",
+                     "Mehl Type 405", "Weizenmehl", "Kakaopulver", "Whey Protein Pulver"] {
+            XCTAssertTrue(hatLoeffel(name), "\(name) sollte Löffel-Portionen bekommen")
+        }
+        for name in ["Zuckermais", "Salzstangen", "Honigmelone", "Mehlwurm", "Cola zuckerfrei", "Reiswaffel", "Banane"] {
+            XCTAssertFalse(hatLoeffel(name), "\(name) sollte keine Löffel-Portionen bekommen")
+        }
+        for name in ["Olivenöl", "Rapsöl"] {
+            XCTAssertTrue(hatLoeffel(name, fluessig: true), "\(name) sollte Löffel-Portionen bekommen")
+        }
+        // fluessig: true testet den Wortabgleich selbst, nicht nur das `l.fluessig`-Gate (das Ölsardinen
+        // in der Praxis ohnehin schon ausschließt, siehe Review Minor #1).
+        XCTAssertFalse(hatLoeffel("Ölsardinen", fluessig: true), "Ölsardinen sollte keine Löffel-Portionen bekommen")
+    }
+
     // MARK: - Ziele
 
     func testKalorienzielHaltenUndAbnehmen() {
