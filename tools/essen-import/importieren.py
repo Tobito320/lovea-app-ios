@@ -6,7 +6,7 @@
 (Cloudflare Free: 100.000 geschriebene Zeilen/Tag). --start ueberspringt die ersten N passenden
 Produkte (Zaehlung nach --nur-gescannt-Filter), --max schreibt hoechstens M. Am Ende wird der
 naechste Start-Index ausgegeben, damit der naechste Lauf direkt dort weitermachen kann."""
-import argparse, csv, gzip, io, json, subprocess, sys, urllib.request
+import argparse, csv, gzip, io, itertools, json, subprocess, sys, urllib.request
 from pathlib import Path
 
 CSV_URL = "https://static.openfoodfacts.org/data/en.openfoodfacts.org.products.csv.gz"
@@ -46,8 +46,13 @@ def zeile_zu_produkt(z):
         pro100.setdefault(f, 0)
     marken = z.get("brands") or ""
     marke = (marken[0] if isinstance(marken, list) and marken else str(marken).split(",")[0]).strip() or None
-    return {"code": code, "name": name[:200], "marke": marke, "menge": (z.get("quantity") or None),
-            "portion_g": zahl(z.get("serving_quantity")) or None, "portion_name": (z.get("serving_size") or None),
+    menge = z.get("quantity") or None
+    portion_name = z.get("serving_size") or None
+    # Laengen deckeln wie beim Namen: haelt die D1-Anweisungslaenge (100 KB-Grenze) im Griff.
+    return {"code": code, "name": name[:200], "marke": marke[:100] if marke else None,
+            "menge": str(menge)[:100] if menge else None,
+            "portion_g": zahl(z.get("serving_quantity")) or None,
+            "portion_name": str(portion_name)[:100] if portion_name else None,
             "pro100": pro100, "beliebtheit": int(zahl(z.get("unique_scans_n")) or 0)}
 
 def q(v):
@@ -81,43 +86,69 @@ def hochladen(db, produkte):
         datei.unlink()
 
 def csv_zeilen(quelle):
-    roh = urllib.request.urlopen(urllib.request.Request(quelle, headers=AGENT)) if quelle.startswith("http") else open(quelle, "rb")
+    ist_datei = not quelle.startswith("http")
+    roh = open(quelle, "rb") if ist_datei else urllib.request.urlopen(urllib.request.Request(quelle, headers=AGENT), timeout=60)
     csv.field_size_limit(2**31 - 1)  # sys.maxsize laeuft unter Windows ueber
-    return csv.DictReader(io.TextIOWrapper(gzip.GzipFile(fileobj=roh), encoding="utf-8"), delimiter="\t")
+    try:
+        yield from csv.DictReader(io.TextIOWrapper(gzip.GzipFile(fileobj=roh), encoding="utf-8"), delimiter="\t")
+    finally:
+        roh.close()
+
+# Reine Funktion (kein I/O): aus rohen Zeilen die passenden Produkte filtern, dabei Start
+# uebersrpingen und bei Max abbrechen. Zeilen, die zeile_zu_produkt oder nur_gescannt verwerfen,
+# zaehlen nicht zum Start-Index - nur tatsaechlich passende Produkte tun das. Deterministisch,
+# daher direkt mit kleinen Listen testbar, ohne CSV/Netz.
+def auswahl(zeilen, start=0, max_=None, nur_gescannt=False):
+    produkte, gesehen = [], 0
+    for z in zeilen:
+        p = zeile_zu_produkt(z)
+        if not p or (nur_gescannt and p["beliebtheit"] < 1):
+            continue
+        if gesehen >= start:
+            produkte.append(p)
+        gesehen += 1
+        if max_ is not None and len(produkte) >= max_:
+            break
+    return produkte, gesehen
+
+# ponytail: Rohzeilen-Abschnittsgroesse grob nach der Treffer-Quote aus Task 1 (ca. 6,8% DACH-Treffer)
+# gewaehlt, damit ein Abschnitt meist auf ~20.000 passende Produkte kommt. Kein Problem, wenn ein
+# Abschnitt mehr oder weniger liefert, hochladen() zerlegt ohnehin in 20.000er-Haeppchen.
+ROHZEILEN_PRO_ABSCHNITT = 300_000
 
 def voll(quelle, db, nur_gescannt=False, start=0, max_n=None):
-    puffer, gesamt, gesehen = [], 0, 0
-    for z in csv_zeilen(quelle):
-        p = zeile_zu_produkt(z)
-        if not p:
-            continue
-        if nur_gescannt and p["beliebtheit"] < 1:
-            continue
-        if gesehen < start:
-            gesehen += 1
-            continue
-        gesehen += 1
-        puffer.append(p)
-        gesamt += 1
-        if len(puffer) >= 20000:
-            hochladen(db, puffer); print(gesamt, flush=True); puffer = []
-        if max_n is not None and gesamt >= max_n:
+    rest_start, rest_max, gesamt, gesamt_gesehen = start, max_n, 0, 0
+    zeilen = csv_zeilen(quelle)
+    while True:
+        abschnitt = list(itertools.islice(zeilen, ROHZEILEN_PRO_ABSCHNITT))
+        if not abschnitt:
             break
-    if puffer:
-        hochladen(db, puffer)
-    print("fertig", gesamt, "naechster start", gesehen)
+        produkte, gezaehlt = auswahl(abschnitt, start=rest_start, max_=rest_max, nur_gescannt=nur_gescannt)
+        gesamt_gesehen += gezaehlt
+        rest_start = max(0, rest_start - gezaehlt)
+        if produkte:
+            hochladen(db, produkte)
+            gesamt += len(produkte)
+            print(gesamt, flush=True)
+            if rest_max is not None:
+                rest_max -= len(produkte)
+        if rest_max is not None and rest_max <= 0:
+            break
+    zeilen.close()  # schliesst bei vorzeitigem Abbruch (--max) auch das Datei-/Netz-Handle in csv_zeilen
+    print("fertig", gesamt, "naechster start", gesamt_gesehen)
 
 def delta(db):
-    index = urllib.request.urlopen(urllib.request.Request(DELTA + "index.txt", headers=AGENT)).read().decode().split()
+    index = urllib.request.urlopen(urllib.request.Request(DELTA + "index.txt", headers=AGENT), timeout=60).read().decode().split()
     produkte = []
     for datei in index[-2:]:
-        roh = urllib.request.urlopen(urllib.request.Request(DELTA + datei, headers=AGENT))
+        roh = urllib.request.urlopen(urllib.request.Request(DELTA + datei, headers=AGENT), timeout=60)
         for zeile in io.TextIOWrapper(gzip.GzipFile(fileobj=roh), encoding="utf-8"):
             j = json.loads(zeile)
             j.update(j.get("nutriments") or {})
             p = zeile_zu_produkt(j)
             if p:
                 produkte.append(p)
+        roh.close()
     hochladen(db, produkte); print("delta", len(produkte))
 
 if __name__ == "__main__":
