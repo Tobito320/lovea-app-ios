@@ -499,6 +499,9 @@ struct SaetzeEditor: View {
         .navigationTitle(entwurf.anzeigeName)
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(bearbeitbar)
+        // Entwurf wird erst mit "Fertig" übernommen (siehe oben): Zurück-Wischen während des
+        // Bearbeitens würde Änderungen stillschweigend verwerfen, deshalb hier gezielt aus.
+        .background { if bearbeitbar { ZurueckWischenAus().frame(width: 0, height: 0) } }
         .toolbar {
             if bearbeitbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
