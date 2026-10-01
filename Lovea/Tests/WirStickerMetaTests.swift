@@ -10,14 +10,6 @@ final class WirStickerMetaTests: XCTestCase {
         }
     }
 
-    /// Jeder Kontext in `alleKontexte` trägt mindestens einen Sticker (keine leeren Chips).
-    func testAlleKontexteHabenMindestensEinenSticker() {
-        for kontext in WirStickerMeta.alleKontexte {
-            let treffer = MitgelieferteSticker.alle.filter { WirStickerMeta.kontext($0).contains(kontext) }
-            XCTAssertFalse(treffer.isEmpty, "Kontext \(kontext) hat keinen Sticker")
-        }
-    }
-
     /// Jeder Tab-Kontext (`kontexte(fuer:)`) trägt mindestens einen Sticker mit genau diesem `wer`.
     func testKontexteFuerWerHabenMindestensEinenPassendenSticker() {
         for wer in WirWer.allCases {

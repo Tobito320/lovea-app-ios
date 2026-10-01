@@ -1,3 +1,4 @@
+import PhotosUI
 import SwiftUI
 import UIKit
 
@@ -19,7 +20,14 @@ struct GifStickerBlatt: View {
         NavigationStack {
             VStack(spacing: 0) {
                 Picker("Reiter", selection: $reiter) {
-                    ForEach(Reiter.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    // "Favoriten" ist das längste Label unter 5 Segmenten (390pt knapp) — Stern statt Text.
+                    ForEach(Reiter.allCases, id: \.self) { eintrag in
+                        if eintrag == .favoriten {
+                            Image(systemName: "star.fill").tag(eintrag).accessibilityLabel("Favoriten")
+                        } else {
+                            Text(eintrag.rawValue).tag(eintrag)
+                        }
+                    }
                 }
                 .pickerStyle(.segmented)
                 .padding()
@@ -214,20 +222,46 @@ private struct GifSuche: View {
     }
 }
 
+/// R7-Fix: "Favoriten" trägt jetzt zusätzlich "Eigene" (eigene Sticker — Foto-Freisteller + aus der
+/// Zeichnen-Bibliothek gespeicherte) als erste Zeile, weil der alte Reiter "Sticker" (mit seiner
+/// `EigeneSticker.alle(ich:)`-Liste) komplett entfernt wurde. Sonst gäbe es keinen Weg mehr, bereits
+/// erstellte eigene Sticker zu sehen oder zu senden.
 private struct FavoritenAnsicht: View {
     let ich: Person
     let antwortAuf: String?
     var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
+    @State private var fotoAuswahl: PhotosPickerItem?
+    @State private var laeuft = false
+
     var body: some View {
+        // Mitgelieferte (`asset:`) stehen schon in Wir/Ahmed/Annika, nicht doppelt hier.
+        let eigene = EigeneSticker.alle(ich: ich).filter { MitgelieferteSticker.assetName($0) == nil }
         let favoriten = ChatEinstellungen.shared.favoriten(ich)
-        Group {
-            if favoriten.isEmpty {
-                ContentUnavailableView("Keine Favoriten", systemImage: "star")
-            } else {
-                ScrollView {
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 8) {
+        ScrollView {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 8) {
+                Section {
+                    plusKachel
+                    ForEach(eigene, id: \.self) { id in
+                        StickerKachel(medienId: id)
+                            .frame(height: 100)
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                            .onTapGesture { sendenEigenerSticker(id) }
+                            .accessibilityElement()
+                            .accessibilityLabel("Eigener Sticker")
+                            .accessibilityAddTraits(.isButton)
+                            .contextMenu {
+                                Button("Zu Favoriten", systemImage: "star") {
+                                    ChatEinstellungen.shared.favoritSchalten(.init(art: .sticker, wert: id, breite: nil, hoehe: nil), ich: ich)
+                                }
+                            }
+                    }
+                } header: {
+                    kopfzeile("Eigene")
+                }
+                if !favoriten.isEmpty {
+                    Section {
                         ForEach(favoriten) { eintrag in
                             kachel(eintrag)
                                 .frame(height: 100)
@@ -242,11 +276,56 @@ private struct FavoritenAnsicht: View {
                                     }
                                 }
                         }
+                    } header: {
+                        kopfzeile("Favoriten")
                     }
-                    .padding()
                 }
             }
+            .padding()
         }
+        .onChange(of: fotoAuswahl) { _, neu in erstelleAusFoto(neu) }
+    }
+
+    private func kopfzeile(_ titel: String) -> some View {
+        Text(titel)
+            .font(.headline)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var plusKachel: some View {
+        PhotosPicker(selection: $fotoAuswahl, matching: .images) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10).fill(.thinMaterial)
+                if laeuft { ProgressView() } else { Image(systemName: "plus").font(.title2) }
+            }
+        }
+        .frame(height: 100)
+        .accessibilityLabel("Sticker aus Foto erstellen")
+    }
+
+    private func erstelleAusFoto(_ item: PhotosPickerItem?) {
+        guard let item else { return }
+        laeuft = true
+        Task {
+            defer { laeuft = false; fotoAuswahl = nil }
+            guard let daten = try? await item.loadTransferable(type: Data.self),
+                  let freigestellt = await StickerErstellung.freistellen(daten),
+                  let id = await ChatMedien.stickerHochladen(png: freigestellt)
+            else { return }
+            EigeneSticker.hinzufuegen(medienId: id)
+        }
+    }
+
+    private func sendenEigenerSticker(_ id: String) {
+        if let aufBildWahl {
+            Task {
+                if let bild = await SnapBildQuelle.medium(id) { aufBildWahl(bild) }
+                onGesendet()
+            }
+            return
+        }
+        ChatModell.shared.stickerSenden(medienId: id, antwortAuf: antwortAuf)
+        onGesendet()
     }
 
     @ViewBuilder private func kachel(_ eintrag: ChatEinstellungen.FavoritEintrag) -> some View {

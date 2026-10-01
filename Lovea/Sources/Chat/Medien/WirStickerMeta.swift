@@ -85,9 +85,6 @@ enum WirStickerMeta {
     static func wer(_ name: String) -> WirWer? { daten[name]?.wer }
     static func kontext(_ name: String) -> Set<String> { daten[name]?.kontext ?? [] }
 
-    /// Nur Tags, die mindestens ein Sticker trägt — keine leeren Chips.
-    static var alleKontexte: [String] { Set(daten.values.flatMap(\.kontext)).sorted() }
-
     /// R7: Tags nur unter den Stickern eines Tabs (`wer`) — Kontext-Leiste zeigt keine Lücken.
     static func kontexte(fuer wer: WirWer) -> [String] {
         Set(daten.values.filter { $0.wer == wer }.flatMap(\.kontext)).sorted()
