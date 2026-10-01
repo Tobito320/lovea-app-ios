@@ -66,6 +66,28 @@ final class ErnaehrungModell {
     }
     func offline(barcode: String) -> Lebensmittel? { faltung.lebensmittel(barcode: barcode, ich) }
 
+    // MARK: - Offene Barcodes (offline gescannt, laufen beim nächsten Öffnen der Ernährung nach, nie im Hintergrund)
+
+    private static let offeneSchluessel = "essen.offeneBarcodes"
+    var offeneBarcodes: [String] { UserDefaults.standard.stringArray(forKey: Self.offeneSchluessel) ?? [] }
+    func merken(_ code: String) {
+        UserDefaults.standard.set(Array(Set(offeneBarcodes + [code])), forKey: Self.offeneSchluessel)
+    }
+    /// Gefundene Produkte zurück; die Barcodes verschwinden aus der Liste, sobald die Kette etwas anderes als `.offline` liefert.
+    func nachholen() async -> [Lebensmittel] {
+        var gefunden: [Lebensmittel] = []
+        var bleiben: [String] = []
+        for code in offeneBarcodes {
+            switch await BarcodeKette.suchen(code, .echt) {
+            case .gefunden(let l): gefunden.append(l)
+            case .offline: bleiben.append(code)
+            default: break
+            }
+        }
+        UserDefaults.standard.set(bleiben, forKey: Self.offeneSchluessel)
+        return gefunden
+    }
+
     /// Nie eingerichtet: aus dem Gewicht geschätzt (Standardwerte für den Rest), ohne Fragebogen.
     func ziele(_ p: Person) -> ErnaehrungsZiele {
         var z = ErnaehrungsZiele()
@@ -158,7 +180,7 @@ final class ErnaehrungModell {
 }
 
 /// Open Food Facts: Produkt per Barcode (15 Anfragen/min) und Textsuche über search.openfoodfacts.org
-/// (10/min, deshalb nur auf Absenden, nie beim Tippen).
+/// (10/min, deshalb nur auf Absenden, nie beim Tippen). Fallback hinter dem eigenen Server.
 enum OFFClient {
     enum Fehler: Error { case netz }
 
@@ -166,14 +188,18 @@ enum OFFClient {
 
     /// nil = Produkt unbekannt oder ohne Nährwerte.
     static func produkt(_ barcode: String) async throws -> Lebensmittel? {
-        let ziffern = barcode.filter(\.isNumber)
+        let ziffern = BarcodeLogik.normal(barcode)
         guard !ziffern.isEmpty,
               let url = URL(string: "https://world.openfoodfacts.org/api/v2/product/\(ziffern).json?fields=\(ErnaehrungLogik.offFelder)")
         else { return nil }
-        let (data, status) = try await laden(url)
-        if status == 404 { return nil }
-        guard (200..<300).contains(status) else { throw Fehler.netz }
-        return ErnaehrungLogik.offProdukt(data)
+        for versuch in 0..<2 {
+            let (data, status) = try await laden(url, timeout: 8)
+            if status == 404 { return nil }
+            if (200..<300).contains(status) { return ErnaehrungLogik.offProdukt(data) }
+            if versuch == 0, status == 429 || status >= 500 { try await Task.sleep(for: .seconds(1)); continue }
+            throw Fehler.netz
+        }
+        throw Fehler.netz
     }
 
     static func suchen(_ text: String) async throws -> [Lebensmittel] {
@@ -190,10 +216,10 @@ enum OFFClient {
         return ErnaehrungLogik.offSuche(data)
     }
 
-    private static func laden(_ url: URL) async throws -> (Data, Int) {
+    private static func laden(_ url: URL, timeout: TimeInterval = 15) async throws -> (Data, Int) {
         var anfrage = URLRequest(url: url)
         anfrage.setValue(agent, forHTTPHeaderField: "User-Agent")
-        anfrage.timeoutInterval = 15
+        anfrage.timeoutInterval = timeout
         let (data, antwort) = try await URLSession.shared.data(for: anfrage)
         return (data, (antwort as? HTTPURLResponse)?.statusCode ?? 0)
     }
