@@ -485,6 +485,7 @@ struct HeuteView: View {
         case "training": pfad.append(HeuteZiel.training)
         case "koerper": pfad.append(HeuteZiel.koerper)
         case "verlauf": pfad.append(HeuteZiel.verlauf)
+        case "ernaehrung": pfad.append(HeuteZiel.ernaehrung)
         case "gym":
             pfad = NavigationPath()
             pfad.append(HeuteZiel.training)

@@ -6,6 +6,35 @@ import SwiftUI
 // Tage wechseln per Pfeilen oben oder Kalender, beliebig weit (Ahmed, 01.10.: kein Wischen mehr,
 // das stand dem Zurück-Wischen vom Rand im Weg).
 
+/// Einmaliger, wegwischbarer Vorschlag: Kalorien als Live Activity zeigen (Ahmed, 01.10.: nur wenn's
+/// den Akku nicht kostet, deshalb rein Opt-in, keine Hintergrund-Aktualisierung).
+private struct EssenLiveVorschlagCard: View {
+    let entschieden: (Bool) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top) {
+                Image(systemName: "chart.bar.xaxis").font(.title3).foregroundStyle(ErnaehrungStil.akzent)
+                Text("Kalorien als Live-Aktivität anzeigen?")
+                    .font(.subheadline.weight(.semibold))
+                Spacer(minLength: 0)
+            }
+            Text("Zeigt Kalorien und Eiweiß auf dem Sperrbildschirm, solange du isst. Aktualisiert sich nur, wenn du selbst etwas einträgst.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+            HStack {
+                Button("Nein danke") { entschieden(false) }
+                    .buttonStyle(.bordered)
+                Spacer()
+                Button("Anzeigen") { entschieden(true) }
+                    .buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(14)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: ErnaehrungStil.radius, style: .continuous))
+    }
+}
+
 enum ErnaehrungStil {
     /// YAZIO-Mint, nur für Ringe und Balken, nie für Text.
     static let akzent = Color(red: 0.13, green: 0.86, blue: 0.66)
@@ -33,7 +62,9 @@ struct ErnaehrungView: View {
     @State private var einkaufOffen = false
     @State private var naehrwerteOffen = false
     @State private var anpassenOffen = false
+    @State private var liveVorschlagZeigen = EssenLiveEinstellungen.vorschlagZeigen
     @Environment(\.accessibilityReduceMotion) private var ruhig
+    @Environment(\.scenePhase) private var phase
 
     private var modell: ErnaehrungModell { ErnaehrungModell.shared }
     private var ich: Person { modell.ich }
@@ -42,6 +73,15 @@ struct ErnaehrungView: View {
 
     var body: some View {
         ScrollView {
+            if liveVorschlagZeigen && !partnerAnsicht {
+                EssenLiveVorschlagCard {
+                    EssenLiveEinstellungen.vorschlagEntschieden(an: $0)
+                    liveVorschlagZeigen = false
+                    EssenLive.abgleichen()
+                }
+                .padding(.horizontal, 16)
+                .padding(.top, 8)
+            }
             TagebuchAnsicht(stand: stand, aktionen: aktionen)
                 .padding(.horizontal, 16)
                 .padding(.bottom, 32)
@@ -90,8 +130,12 @@ struct ErnaehrungView: View {
         .sheet(isPresented: $zieleOffen) { ErnaehrungZieleView() }
         .sheet(isPresented: $koerperOffen) { KoerperwerteBlatt(tag: tag) }
         .sheet(isPresented: $kalenderOffen) { kalenderBlatt }
-        .onAppear { LebensmittelIndex.shared.laden() }
+        .onAppear {
+            LebensmittelIndex.shared.laden()
+            EssenLive.abgleichen()
+        }
         .onDisappear { LebensmittelIndex.shared.freigeben() }
+        .onChange(of: phase) { _, neu in if neu == .active { EssenLive.abgleichen() } }
     }
 
     private var stand: TagebuchStand {
@@ -598,6 +642,7 @@ struct TagebuchAnpassenBlatt: View {
     @State private var reihenfolge: [String]
     @State private var ausgeblendet: Set<String>
     @State private var namen: [String: String]
+    @State private var liveAktivitaetAn = EssenLiveEinstellungen.an
 
     init() {
         let a = ErnaehrungModell.shared.anpassung(ErnaehrungModell.shared.ich)
@@ -642,6 +687,15 @@ struct TagebuchAnpassenBlatt: View {
                                 set: { namen[m.rawValue] = $0 }))
                         }
                     }
+                }
+                Section {
+                    Toggle("Kalorien als Live-Aktivität anzeigen", isOn: $liveAktivitaetAn)
+                        .onChange(of: liveAktivitaetAn) { _, an in
+                            EssenLiveEinstellungen.an = an
+                            EssenLive.abgleichen()
+                        }
+                } footer: {
+                    Text("Zeigt Kalorien und Eiweiß auf dem Sperrbildschirm. Aktualisiert sich nur bei eigenen Einträgen.")
                 }
             }
             .environment(\.editMode, .constant(.active))
