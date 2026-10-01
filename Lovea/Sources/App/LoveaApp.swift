@@ -46,8 +46,12 @@ struct LoveaApp: App {
         if phase == .active {
             WidgetPendingOpsMerge.abholen()
             GymLive.abgleichen() // z. B. auf dem iPad eingecheckt, oder die Einheit ist abgelaufen
+            WorkoutUhr.shared.mitteilungLoeschen() // im Vordergrund vibriert die Leiste selbst
         }
-        if phase == .background { GalerieSync.shared.hintergrund() }
+        if phase == .background {
+            GalerieSync.shared.hintergrund()
+            WorkoutUhr.shared.mitteilungPlanen()
+        }
     }
 }
 

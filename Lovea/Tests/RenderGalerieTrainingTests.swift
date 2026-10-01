@@ -57,14 +57,35 @@ final class RenderGalerieTrainingTests: XCTestCase {
         let fertig = GymSession(id: "s", tag: "push", start: t0, ende: t0 + 4800, laeufe: push.uebungen.map {
             UebungsLauf(plan: $0.id, uebung: "eigen", start: nil, ende: t0 + 4800, fertig: true, saetze: nil)
         })
-        let neu = GymSession(id: "s", tag: "push", start: t0, ende: nil, laeufe: [
-            UebungsLauf(plan: "a", uebung: "eigen", start: nil, ende: t0 + 900, fertig: true, saetze: nil),
+        var ok = PlanSatz(wdh: 10, kg: 60, failure: false)
+        ok.ok = true
+        ok.sek = 42
+        ok.pause = 118
+        let offen = PlanSatz(wdh: 10, kg: 14, failure: false)
+        let mitten = GymSession(id: "s", tag: "push", start: t0, ende: nil, laeufe: [
+            UebungsLauf(plan: "a", uebung: "eigen", start: t0 + 120, ende: t0 + 900, fertig: true, saetze: [ok, ok, ok], stand: [ok, ok, ok]),
+            UebungsLauf(plan: "b", uebung: "eigen", start: t0 + 960, ende: nil, fertig: true, saetze: [ok], stand: [ok, offen, PlanSatz(wdh: 8, kg: 14, failure: true)]),
         ])
+        let ohne = GymSession(id: "x", tag: nil, start: t0, ende: nil, laeufe: [])
+        let stand = { (s: GymSession) in WorkoutLogik.uebungen(s, tag: self.push, frueher: []) }
+        var warm = PlanSatz(wdh: 10, kg: 25, failure: false, typ: "w")
+        warm.ok = true
+        let vorher = PlanSatz(wdh: 9, kg: 57.5, failure: false)
+        let zeilen = VStack(spacing: 6) {
+            WorkoutSatzZeile(nummer: "W", satz: .constant(warm), vorher: nil)
+            WorkoutSatzZeile(nummer: "1", satz: .constant(ok), vorher: vorher)
+            WorkoutSatzZeile(nummer: "2", satz: .constant(PlanSatz(wdh: 10, kg: 60, failure: false)), vorher: vorher, laeuft: true)
+            WorkoutSatzZeile(nummer: "F", satz: .constant(PlanSatz(wdh: 8, kg: 60, failure: true)), vorher: nil)
+        }
+        let pause = WorkoutUhr.Stand(session: "s", plan: "b", satz: 0, seit: Date(), pause: true, ziel: 120)
         RenderTafel.speichern("training-session", spalten: 4, zellen: [
-            zelle("Übung läuft, hell", GymSessionInhalt(session: laufend, tag: push, jetzt: t0 + 1500)),
-            zelle("Nächste markiert, dunkel", GymSessionInhalt(session: neu, tag: push, jetzt: t0 + 1000), .dark),
-            zelle("Alles fertig, hell", GymSessionInhalt(session: fertig, tag: push, jetzt: t0 + 5000)),
-            zelle("Ohne Tag, dunkel", GymSessionInhalt(session: GymSession(id: "x", tag: nil, start: t0, ende: nil, laeufe: []), tag: nil, jetzt: t0 + 600), .dark),
+            zelle("Übersicht mitten drin, dunkel", WorkoutInhalt(session: mitten, tag: push, liste: stand(mitten)), .dark),
+            zelle("Übersicht mitten drin, hell", WorkoutInhalt(session: mitten, tag: push, liste: stand(mitten))),
+            zelle("Beendet, dunkel", WorkoutInhalt(session: fertig, tag: push, liste: stand(fertig)), .dark),
+            zelle("Ohne Tag, dunkel", WorkoutInhalt(session: ohne, tag: nil, tage: [push], liste: []), .dark),
+            zelle("Satzzeilen, dunkel", zeilen, .dark),
+            zelle("Satzzeilen, hell", zeilen),
+            zelle("Leiste in der Pause, dunkel", WorkoutLeiste(titel: "Bizeps-Curls mit Kurzhanteln", unter: "Satz 2 von 3 · 14 kg × 10", uhr: pause, knopf: "Nächster Satz", vibriert: false, aktion: {}), .dark),
         ])
     }
 
