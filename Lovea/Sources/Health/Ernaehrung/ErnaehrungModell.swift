@@ -21,6 +21,7 @@ final class ErnaehrungModell {
     func summe(_ p: Person, _ tag: String) -> Naehrwerte { ErnaehrungLogik.summe(eintraege(p, tag)) }
     func tage(_ p: Person) -> Set<String> { faltung.tage(p) }
     func zuletzt(_ p: Person) -> [Lebensmittel] { faltung.zuletzt(p) }
+    func haeufig(_ p: Person) -> [Lebensmittel] { faltung.haeufig(p) }
     func letzteMenge(_ p: Person, _ l: Lebensmittel) -> (menge: Double, einheit: Einheit)? { faltung.letzteMenge(p, l.id) }
     var eigene: [Lebensmittel] { faltung.eigeneLebensmittel }
     /// Rezept-Favoriten zeigen immer die aktuelle Fassung, gelöschte Rezepte fallen weg.
