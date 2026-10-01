@@ -9,6 +9,7 @@ struct EinstellungenView: View {
     @AppStorage(SnapBildAusrichtung.schluessel) private var selfieSpiegeln = false
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
+    @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
 
     var body: some View {
         List {
@@ -37,6 +38,7 @@ struct EinstellungenView: View {
             }
             Section("Chat") {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
+                Toggle("Videos schneller senden (Test)", isOn: $videoSchnell)
             }
             Section("Wir") {
                 NavigationLink("Orte") { OrteListeView() }
