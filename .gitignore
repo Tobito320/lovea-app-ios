@@ -21,3 +21,8 @@ render-galerie/
 
 # ExerciseDB GIFs, only for tools/uebungen-katalog.sh (the app loads them on demand)
 tools/gifs/
+
+# BLS 4.0 (Max Rubner-Institut), nur Rohdaten fuer tools/bls-import/bls_import.py, ~14 MB
+tools/bls-import/BLS_4_0.xlsx
+tools/bls-import/BLS_4_0_Components.xlsx
+tools/bls-import/BLS_4_0_Dokumentation.pdf

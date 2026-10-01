@@ -74,10 +74,15 @@ struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
     var bild: String?
     /// Weitere Portionsgrößen wie in YAZIO ("ganze, mittelgroß" = 120 g). Optional, damit alte Einträge lesbar bleiben.
     var portionen: [LebensmittelPortion]?
+    /// Vorberechneter Suchschlüssel aus dem Import (klein, ohne Umlaute), nur bei BLS-Einträgen.
+    var suche: String?
+    /// "bls" für Einträge aus dem Bundeslebensmittelschlüssel (Quellenangabe auf der Lebensmittel-Seite).
+    var quelle: String?
 
     init(id: String, name: String, marke: String? = nil, barcode: String? = nil, fluessig: Bool = false,
          pro100: Naehrwerte, portionMenge: Double? = nil, portionName: String? = nil, packungMenge: Double? = nil,
-         nutriscore: String? = nil, bild: String? = nil, portionen: [LebensmittelPortion]? = nil) {
+         nutriscore: String? = nil, bild: String? = nil, portionen: [LebensmittelPortion]? = nil,
+         suche: String? = nil, quelle: String? = nil) {
         self.id = id
         self.name = name
         self.marke = marke
@@ -90,6 +95,8 @@ struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
         self.nutriscore = nutriscore
         self.bild = bild
         self.portionen = portionen
+        self.suche = suche
+        self.quelle = quelle
     }
 
     static func == (a: Lebensmittel, b: Lebensmittel) -> Bool { a.id == b.id && a.name == b.name && a.pro100 == b.pro100 }

@@ -1,0 +1,18 @@
+[
+  {"muster": "^ei |^huhnerei", "portionen": [{"name": "Ei, mittelgroß", "gramm": 60}, {"name": "Ei, groß", "gramm": 70}]},
+  {"muster": "^banane", "portionen": [{"name": "Frucht, mittelgroß", "gramm": 150}, {"name": "Frucht, klein", "gramm": 75}, {"name": "Frucht, groß", "gramm": 200}]},
+  {"muster": "^apfel", "portionen": [{"name": "Frucht, mittelgroß", "gramm": 130}, {"name": "Frucht, klein", "gramm": 100}, {"name": "Frucht, groß", "gramm": 180}]},
+  {"muster": "^(birne|orange|pfirsich|nektarine|kiwi|mandarine)", "portionen": [{"name": "Frucht, mittelgroß", "gramm": 120}]},
+  {"muster": "brotchen|semmel", "portionen": [{"name": "Brötchen, ganz", "gramm": 60}]},
+  {"muster": "^brot|toast", "portionen": [{"name": "Scheibe", "gramm": 40}]},
+  {"muster": "^butter|margarine", "portionen": [{"name": "Aufstrich", "gramm": 10}]},
+  {"muster": "haferflocken|musli|cornflakes", "portionen": [{"name": "Portion", "gramm": 40}]},
+  {"muster": "^milch|kuhmilch|joghurt|kefir|buttermilch", "portionen": [{"name": "Glas", "gramm": 200}]},
+  {"muster": "quark|skyr", "portionen": [{"name": "Becher", "gramm": 250}, {"name": "Esslöffel", "gramm": 30}]},
+  {"muster": "kaffee|tee ", "portionen": [{"name": "Tasse, mittelgroß", "gramm": 200}, {"name": "Tasse, groß", "gramm": 300}]},
+  {"muster": "saft|limonade|cola|wasser", "portionen": [{"name": "Glas", "gramm": 200}]},
+  {"muster": "kase|gouda|emmentaler", "portionen": [{"name": "Scheibe", "gramm": 25}]},
+  {"muster": "reis|nudeln|spaghetti|kartoffel", "portionen": [{"name": "Portion, gekocht", "gramm": 200}]},
+  {"muster": "zucker|honig|marmelade|konfiture", "portionen": [{"name": "Teelöffel", "gramm": 7}, {"name": "Esslöffel", "gramm": 20}]},
+  {"muster": "ol |ol$|rapsol|olivenol", "portionen": [{"name": "Esslöffel", "gramm": 10}]}
+]
