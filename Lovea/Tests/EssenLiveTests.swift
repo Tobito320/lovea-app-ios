@@ -61,6 +61,28 @@ final class EssenLiveTests: XCTestCase {
         XCTAssertEqual(EssenLive.aktion(laufendTag: nil, heute: "2026-10-01", an: false), .beenden)
     }
 
+    // MARK: - R10: Gym blockt Essen in der Dynamic Island
+
+    func testAktionGymLaeuftBeendetTrotzLaufenderHeutigerAktivitaet() {
+        XCTAssertEqual(
+            EssenLive.aktion(laufendTag: "2026-10-01", heute: "2026-10-01", an: true, gymLaeuft: true),
+            .beenden)
+    }
+
+    func testAktionGymLaeuftBeendetAuchOhneLaufendeAktivitaet() {
+        XCTAssertEqual(EssenLive.aktion(laufendTag: nil, heute: "2026-10-01", an: true, gymLaeuft: true), .beenden)
+    }
+
+    func testAktionGymLaeuftGehtVorAnSchalter() {
+        // Schalter an, aber Gym läuft: trotzdem beenden, nicht neu starten.
+        XCTAssertEqual(EssenLive.aktion(laufendTag: nil, heute: "2026-10-01", an: true, gymLaeuft: true), .beenden)
+    }
+
+    func testAktionOhneGymUnveraendert() {
+        // Default-Parameter `gymLaeuft: false` lässt das bestehende Verhalten unberührt.
+        XCTAssertEqual(EssenLive.aktion(laufendTag: "2026-10-01", heute: "2026-10-01", an: true), .aktualisieren)
+    }
+
     // MARK: - R8 Review (Critical): alte Aktivität ohne Mahlzeitendaten
 
     func testAktionVeralteteAktivitaetStartetNeuTrotzGleichemTag() {

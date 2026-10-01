@@ -66,12 +66,15 @@ enum EssenMahlzeitAnzeige: String, CaseIterable, Hashable {
         }
     }
 
-    var symbol: String {
+    /// R10 (Ahmed, 01.10.: "dieselben Bilder wie YAZIO") — bewusst Emoji statt SF Symbol, nur hier in
+    /// der Mahlzeiten-Zeile der Live Activity. Die Nie-Emoji-Regel gilt für Chat/Notizen/Commits,
+    /// nicht für diese ausdrücklich verlangte Darstellung.
+    var emoji: String {
         switch self {
-        case .fruehstueck: "sunrise.fill"
-        case .mittag: "sun.max.fill"
-        case .abend: "moon.stars.fill"
-        case .snack: "carrot.fill"
+        case .fruehstueck: "☕"
+        case .mittag: "🍲"
+        case .abend: "🥗"
+        case .snack: "🍎"
         }
     }
 
