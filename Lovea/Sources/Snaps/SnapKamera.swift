@@ -712,15 +712,19 @@ struct SnapKameraView: View {
     /// Tap behaviour, shared by the drag gesture's tap path and the VoiceOver action. Freihand wins
     /// over Multi-Snap (both only make sense as the tap action, see `freihandAn`'s doc comment);
     /// a timer only delays a plain photo — Ahmed's spec doesn't ask for it on video/Multi-Snap too.
+    /// `freihandAn`/`multiSnapAn` are this view's own `@State` (Review Critical fix, 2026-10-01):
+    /// they're pure UI toggles with no AVFoundation link, `SnapKameraSteuerung` never declared them —
+    /// reading `steuerung.freihandAn`/`steuerung.multiSnapAn` here referenced members that don't
+    /// exist on that type and didn't build.
     private func ausloesen() {
-        if steuerung.freihandAn {
+        if freihandAn {
             if steuerung.nimmtVideoAuf {
                 steuerung.videoStoppen()
             } else {
                 Haptik.mittel()
                 Task { if let url = await steuerung.videoStarten() { onVideo(url) } }
             }
-        } else if steuerung.multiSnapAn {
+        } else if multiSnapAn {
             Haptik.mittel()
             Task {
                 let bilder = await steuerung.mehrfachAufnehmen()
@@ -753,7 +757,7 @@ struct SnapKameraView: View {
             .onChanged { wert in
                 // Freihand/Multi-Snap/Timer all act on tap (`onEnded`), not on a hold — skip the
                 // 300ms hold-to-record timer and the hold-drag-to-zoom entirely in that case.
-                guard !steuerung.freihandAn, !steuerung.multiSnapAn else { return }
+                guard !freihandAn, !multiSnapAn else { return }
                 if modus == .ruhe {
                     modus = .haltend
                     zoomStart = steuerung.zoom
@@ -769,7 +773,7 @@ struct SnapKameraView: View {
                 }
             }
             .onEnded { _ in
-                if steuerung.freihandAn || steuerung.multiSnapAn {
+                if freihandAn || multiSnapAn {
                     ausloesen()
                     return
                 }
