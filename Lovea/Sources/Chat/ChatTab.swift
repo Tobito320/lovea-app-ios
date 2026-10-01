@@ -564,6 +564,9 @@ private struct NachrichtenListe: View {
 
     @State private var fenster = ChatListenFenster()
     @State private var hervorID: String?
+    // R7: true while the user is actively dragging the list — including an interactive keyboard
+    // dismiss, which is the same drag. See `ListenAutoScroll`.
+    @State private var nutzerZiehtGerade = false
 
     var body: some View {
         let alle = modell.nachrichten
@@ -586,6 +589,10 @@ private struct NachrichtenListe: View {
             .defaultScrollAnchor(.bottom, for: .sizeChanges)
             .scrollDismissesKeyboard(.interactively)
             .simultaneousGesture(TapGesture().onEnded { ChatTastatur.schliessen() })
+            // R7: interactive keyboard dismiss is a drag on this same list — `.tracking`/
+            // `.interacting` cover it. Only `.idle`/`.decelerating`/`.animating` count as "not the
+            // user's own gesture right now" for `ListenAutoScroll` below.
+            .onScrollPhaseChange { _, neu in nutzerZiehtGerade = neu == .tracking || neu == .interacting }
             // Captures only the two main-actor objects, not the view, in the `@Sendable` action.
             .refreshable { [fenster, modell] in await fenster.mehr(modell) }
             .onChange(of: zielID) { _, id in
@@ -619,7 +626,9 @@ private struct NachrichtenListe: View {
                     amEnde: geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24
                 )
             } action: { alt, neu in
-                guard alt.sichtbar != neu.sichtbar, alt.amEnde, zielID == nil, let letzte = modell.nachrichten.last?.id else { return }
+                guard ListenAutoScroll.sollNachUntenSpringen(
+                    sichtbarGeaendert: alt.sichtbar != neu.sichtbar, warAmEnde: alt.amEnde, nutzerZiehtGerade: nutzerZiehtGerade
+                ), zielID == nil, let letzte = modell.nachrichten.last?.id else { return }
                 withAnimation(Feder.schnell) { proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom) }
             }
             // Own send: jump to the bottom like Snapchat, even when scrolled up. Not for grey
