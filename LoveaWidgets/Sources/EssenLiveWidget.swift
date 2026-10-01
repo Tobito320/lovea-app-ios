@@ -13,7 +13,7 @@ struct EssenLiveWidget: Widget {
     private static let link = URL(string: "lovea://essen")!
 
     var body: some WidgetConfiguration {
-        ActivityConfiguration(for: EssenAktivitaet.self) { kontext in
+        ActivityConfiguration(for: EssenAktivitaetV2.self) { kontext in
             VStack(alignment: .leading, spacing: 10) {
                 topZeile(kontext.state)
                 mahlzeitenZeile(kontext.state)
@@ -41,7 +41,7 @@ struct EssenLiveWidget: Widget {
 
     // MARK: - Kopfzeile (unverändert aus R8: Ring + kcal + Protein-Balken)
 
-    private func topZeile(_ s: EssenAktivitaet.ContentState) -> some View {
+    private func topZeile(_ s: EssenAktivitaetV2.ContentState) -> some View {
         HStack(spacing: 14) {
             ring(anteil: kcalAnteil(s), farbe: Self.akzent, durchmesser: 40, lineWidth: 4)
             VStack(alignment: .leading, spacing: 2) {
@@ -54,7 +54,7 @@ struct EssenLiveWidget: Widget {
 
     // MARK: - Mahlzeiten (1:1 wie YAZIO: Frühstück, Mittagessen, Abendessen | Snacks)
 
-    private func mahlzeitenZeile(_ s: EssenAktivitaet.ContentState) -> some View {
+    private func mahlzeitenZeile(_ s: EssenAktivitaetV2.ContentState) -> some View {
         HStack(spacing: 8) {
             mahlzeitLink(s, .fruehstueck)
             mahlzeitLink(s, .mittag)
@@ -64,7 +64,7 @@ struct EssenLiveWidget: Widget {
         }
     }
 
-    private func mahlzeitLink(_ s: EssenAktivitaet.ContentState, _ m: EssenMahlzeitAnzeige) -> some View {
+    private func mahlzeitLink(_ s: EssenAktivitaetV2.ContentState, _ m: EssenMahlzeitAnzeige) -> some View {
         Link(destination: URL(string: "lovea://essen?mahlzeit=\(m.rawValue)") ?? Self.link) {
             mahlzeitZelle(m, kcal: kcal(s, m), ziel: s.kcalZiel)
         }
@@ -97,16 +97,16 @@ struct EssenLiveWidget: Widget {
 
     // MARK: - Hilfen
 
-    private func kcal(_ s: EssenAktivitaet.ContentState, _ m: EssenMahlzeitAnzeige) -> Int {
+    private func kcal(_ s: EssenAktivitaetV2.ContentState, _ m: EssenMahlzeitAnzeige) -> Int {
         let i = EssenMahlzeitAnzeige.allCases.firstIndex(of: m) ?? 0
         return i < s.mahlzeitenKcal.count ? s.mahlzeitenKcal[i] : 0
     }
 
-    private func kcalAnteil(_ s: EssenAktivitaet.ContentState) -> Double {
+    private func kcalAnteil(_ s: EssenAktivitaetV2.ContentState) -> Double {
         s.kcalZiel > 0 ? min(1, Double(s.kcal) / Double(s.kcalZiel)) : 0
     }
 
-    private func proteinAnteil(_ s: EssenAktivitaet.ContentState) -> Double {
+    private func proteinAnteil(_ s: EssenAktivitaetV2.ContentState) -> Double {
         s.proteinZiel > 0 ? min(1, Double(s.proteinG) / Double(s.proteinZiel)) : 0
     }
 

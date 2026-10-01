@@ -4,14 +4,14 @@ import Foundation
 /// Reine Berechnung des Live-Activity-Stands aus den heutigen Einträgen und Zielen. Kein ActivityKit
 /// hier drin, deshalb ohne Gerät testbar.
 enum EssenLiveLogik {
-    static func stand(_ eintraege: [EssenEintrag], ziele: ErnaehrungsZiele, tag: String) -> EssenAktivitaet.ContentState {
+    static func stand(_ eintraege: [EssenEintrag], ziele: ErnaehrungsZiele, tag: String) -> EssenAktivitaetV2.ContentState {
         let summe = ErnaehrungLogik.summe(eintraege)
         // Reihenfolge fest wie `Mahlzeit.allCases` (fruehstueck, mittag, abend, snack) — muss zu
         // `EssenMahlzeitAnzeige.allCases` im Widget-Ziel passen.
         let mahlzeitenKcal = Mahlzeit.allCases.map { m in
             Int(ErnaehrungLogik.summe(eintraege.filter { $0.mahlzeit == m }).kcal.rounded())
         }
-        return EssenAktivitaet.ContentState(
+        return EssenAktivitaetV2.ContentState(
             kcal: Int(summe.kcal.rounded()), kcalZiel: ziele.kcal,
             proteinG: Int(summe.protein.rounded()), proteinZiel: ziele.protein,
             kohlenhydrateG: Int(summe.kohlenhydrate.rounded()), kohlenhydrateZiel: ziele.kohlenhydrate,
@@ -51,8 +51,8 @@ enum EssenLive {
     enum Aktion: Equatable { case aktualisieren, neuStarten, beenden }
 
     private struct Ziel: Sendable {
-        var attribute: EssenAktivitaet
-        var stand: EssenAktivitaet.ContentState
+        var attribute: EssenAktivitaetV2
+        var stand: EssenAktivitaetV2.ContentState
     }
 
     /// Abgleiche laufen nacheinander, wie bei `GymLive`.
@@ -63,7 +63,7 @@ enum EssenLive {
         let ich = modell.ich
         let heute = Datum.text(Date())
         let ziel = Ziel(
-            attribute: EssenAktivitaet(name: ich.name),
+            attribute: EssenAktivitaetV2(name: ich.name),
             stand: EssenLiveLogik.stand(modell.eintraege(ich, heute), ziele: modell.ziele(ich, tag: heute), tag: heute))
         let an = EssenLiveEinstellungen.an
         // R10 (Ahmed, 01.10.: "nur Gym, wenn gestartet" in der Dynamic Island) — läuft ein Training,
@@ -91,22 +91,27 @@ enum EssenLive {
     /// fehlendes `mahlzeitenKcal` mit `[0, 0, 0, 0]` — läuft trotzdem schon kcal > 0, kann das Feld
     /// nur fehlen, nicht wirklich leer sein (eine nagelneue, echte Aktivität startet ohnehin frisch
     /// über `neuStarten`, landet also nie hier mit kcal > 0 und leeren Mahlzeiten).
-    nonisolated static func istVeraltet(_ s: EssenAktivitaet.ContentState) -> Bool {
+    nonisolated static func istVeraltet(_ s: EssenAktivitaetV2.ContentState) -> Bool {
         s.kcal > 0 && s.mahlzeitenKcal == [0, 0, 0, 0]
     }
 
     private nonisolated static func anwenden(_ ziel: Ziel, an: Bool, gymLaeuft: Bool) async {
-        let laufend = Activity<EssenAktivitaet>.activities.first
+        // Build 77: eine Food-Live-Activity aus einem ÄLTEREN Build läuft eventuell noch mit dem
+        // alten ContentState-Shape. Die neue App soll dessen JSON nie über `EssenAktivitaetV2`
+        // dekodieren (Absturzverdacht Build 76) — stattdessen hier über den unveränderten alten
+        // Typnamen beenden, bevor überhaupt etwas mit `EssenAktivitaetV2` angefasst wird.
+        for a in Activity<EssenAktivitaet>.activities { await a.end(nil, dismissalPolicy: .immediate) }
+        let laufend = Activity<EssenAktivitaetV2>.activities.first
         let mitternacht = Calendar.current.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime)
             ?? Date().addingTimeInterval(86400)
         let veraltet = laufend.map { istVeraltet($0.content.state) } ?? false
         switch aktion(laufendTag: laufend?.content.state.tag, heute: ziel.stand.tag, an: an, laufendVeraltet: veraltet, gymLaeuft: gymLaeuft) {
         case .beenden:
-            for a in Activity<EssenAktivitaet>.activities { await a.end(nil, dismissalPolicy: .immediate) }
+            for a in Activity<EssenAktivitaetV2>.activities { await a.end(nil, dismissalPolicy: .immediate) }
         case .neuStarten:
             // Vom Vortag übrig (oder keine da): sauber beenden statt mit neuen Werten überschreiben,
             // dann frisch für heute anfordern.
-            for a in Activity<EssenAktivitaet>.activities { await a.end(nil, dismissalPolicy: .immediate) }
+            for a in Activity<EssenAktivitaetV2>.activities { await a.end(nil, dismissalPolicy: .immediate) }
             guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
             // Klappt nur im Vordergrund; sonst holt der nächste Abgleich beim Öffnen es nach.
             _ = try? Activity.request(attributes: ziel.attribute, content: ActivityContent(state: ziel.stand, staleDate: mitternacht))

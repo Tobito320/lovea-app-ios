@@ -3,7 +3,7 @@ import Foundation
 
 /// Live Activity der heutigen Ernährung (Dynamic Island und Sperrbildschirm). App startet,
 /// aktualisiert und beendet sie (`EssenLive`), das Widget-Ziel zeichnet sie (`EssenLiveWidget`).
-struct EssenAktivitaet: ActivityAttributes {
+struct EssenAktivitaetV2: ActivityAttributes {
     struct ContentState: Codable, Hashable {
         var kcal: Int
         var kcalZiel: Int
@@ -49,6 +49,19 @@ struct EssenAktivitaet: ActivityAttributes {
     }
 
     var name: String
+}
+
+/// Build 77 (Absturzverdacht Build 76): eine von einem ÄLTEREN Build gestartete Live Activity trägt
+/// weiter den Typnamen `EssenAktivitaet` und wird von iOS/ActivityKit beim Start der neuen App erneut
+/// gegen genau diesen Namen dekodiert. Die neue App soll deren (unbekanntes, eventuell inkompatibles)
+/// JSON nie mehr in den echten `EssenAktivitaetV2.ContentState` dekodieren müssen — darum bleibt dieser
+/// Name als reiner Rumpf bestehen, einzig um `Activity<EssenAktivitaet>.activities` lesen und sofort
+/// beenden zu können (`EssenLive.anwenden`). Keine Felder: ein leerer `Codable`-Typ dekodiert jedes
+/// JSON-Objekt, egal welche Keys es trägt (ponytail: kein `init(from:)` nötig, weil nichts angefragt wird).
+struct EssenAktivitaet: ActivityAttributes {
+    struct ContentState: Codable, Hashable {}
+
+    var name: String?
 }
 
 /// Die vier Mahlzeiten fürs Widget-Ziel, das `Lovea/Sources` (und damit den echten `Mahlzeit`-Typ)

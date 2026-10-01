@@ -92,7 +92,7 @@ final class EssenLiveTests: XCTestCase {
     }
 
     func testIstVeraltetErkenntFehlendeMahlzeitenDaten() {
-        let alt = EssenAktivitaet.ContentState(
+        let alt = EssenAktivitaetV2.ContentState(
             kcal: 930, kcalZiel: 2630, proteinG: 16, proteinZiel: 138, kohlenhydrateG: 90, kohlenhydrateZiel: 300,
             fettG: 30, fettZiel: 80, mahlzeitenKcal: [0, 0, 0, 0], tag: "2026-10-01")
         XCTAssertTrue(EssenLive.istVeraltet(alt))
@@ -101,7 +101,7 @@ final class EssenLiveTests: XCTestCase {
     func testIstVeraltetFalseWennLeereMahlzeitenEchtSind() {
         // Frisch gestartete Aktivität an einem Tag ganz ohne Einträge: kcal 0, Mahlzeiten auch 0 —
         // das ist kein altes Format, sondern ein echter leerer Tag.
-        let leer = EssenAktivitaet.ContentState(
+        let leer = EssenAktivitaetV2.ContentState(
             kcal: 0, kcalZiel: 2000, proteinG: 0, proteinZiel: 120, kohlenhydrateG: 0, kohlenhydrateZiel: 220,
             fettG: 0, fettZiel: 70, mahlzeitenKcal: [0, 0, 0, 0], tag: "2026-10-01")
         XCTAssertFalse(EssenLive.istVeraltet(leer))
@@ -115,7 +115,7 @@ final class EssenLiveTests: XCTestCase {
         {"kcal":930,"kcalZiel":2630,"proteinG":16,"proteinZiel":138,"kohlenhydrateG":90,
          "kohlenhydrateZiel":300,"fettG":30,"fettZiel":80}
         """.data(using: .utf8)!
-        let stand = try JSONDecoder().decode(EssenAktivitaet.ContentState.self, from: json)
+        let stand = try JSONDecoder().decode(EssenAktivitaetV2.ContentState.self, from: json)
         XCTAssertEqual(stand.kcal, 930)
         XCTAssertEqual(stand.kcalZiel, 2630)
         XCTAssertEqual(stand.mahlzeitenKcal, [0, 0, 0, 0])
@@ -130,19 +130,30 @@ final class EssenLiveTests: XCTestCase {
         {"kcal":930,"kcalZiel":2630,"proteinG":16,"proteinZiel":138,"kohlenhydrateG":90,
          "kohlenhydrateZiel":300,"fettG":30,"fettZiel":80,"tag":"2026-10-01"}
         """.data(using: .utf8)!
-        let stand = try JSONDecoder().decode(EssenAktivitaet.ContentState.self, from: json)
+        let stand = try JSONDecoder().decode(EssenAktivitaetV2.ContentState.self, from: json)
         XCTAssertEqual(stand.tag, "2026-10-01")
         XCTAssertEqual(stand.mahlzeitenKcal, [0, 0, 0, 0])
         XCTAssertTrue(EssenLive.istVeraltet(stand))
     }
 
     func testDecodeNeuesFormatRoundtrip() throws {
-        let original = EssenAktivitaet.ContentState(
+        let original = EssenAktivitaetV2.ContentState(
             kcal: 930, kcalZiel: 2630, proteinG: 16, proteinZiel: 138, kohlenhydrateG: 90, kohlenhydrateZiel: 300,
             fettG: 30, fettZiel: 80, mahlzeitenKcal: [200, 400, 300, 30], tag: "2026-10-01")
         let daten = try JSONEncoder().encode(original)
-        let zurueck = try JSONDecoder().decode(EssenAktivitaet.ContentState.self, from: daten)
+        let zurueck = try JSONDecoder().decode(EssenAktivitaetV2.ContentState.self, from: daten)
         XCTAssertEqual(zurueck, original)
         XCTAssertFalse(EssenLive.istVeraltet(zurueck))
+    }
+
+    // MARK: - Build 77: alter Typname bleibt ein reiner Rumpf (Isolation von einer Aktivität aus einem älteren Build)
+
+    func testLegacyEssenAktivitaetDecodiertBeliebigesJSON() throws {
+        // Irgendein ContentState-Shape, das ein viel älterer Build mal persistiert haben könnte —
+        // der Rumpftyp hat keine Felder und muss trotzdem erfolgreich dekodieren.
+        let json = """
+        {"kcal":930,"kcalZiel":2630,"irgendwas":"unbekannt","mahlzeitenKcal":[1,2,3,4],"tag":"2026-09-01"}
+        """.data(using: .utf8)!
+        _ = try JSONDecoder().decode(EssenAktivitaet.ContentState.self, from: json)
     }
 }
