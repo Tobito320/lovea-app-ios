@@ -80,6 +80,13 @@ enum UebungsKatalog {
     ]
     private static let beliebtRang: [String: Int] = Dictionary(beliebt.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
 
+    /// Alle Geräte, häufigste zuerst (Körpergewicht, Kurzhantel, Kabelzug …).
+    static let geraete: [String] = {
+        var zahl: [String: Int] = [:]
+        for u in alle { zahl[u.geraet, default: 0] += 1 }
+        return zahl.keys.sorted { (zahl[$0] ?? 0, $1) > (zahl[$1] ?? 0, $0) }
+    }()
+
     /// Zielmuskeln eines Körperteils, häufigste zuerst ("Beine" → Po, Quadrizeps, Beinbeuger …).
     static func muskeln(_ koerper: String, in liste: [Uebung] = alle) -> [String] {
         var zahl: [String: Int] = [:]

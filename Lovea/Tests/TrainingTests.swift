@@ -189,6 +189,46 @@ final class TrainingTests: XCTestCase {
 
     // MARK: - Wie Hevy: Satzzeilen
 
+    func testRecordsPerExerciseAndNewRecordDetection() {
+        var a = satz(10, 60)
+        a.ok = true
+        var b = satz(8, 70)
+        b.ok = true
+        var warm = satz(10, 100)
+        warm.typ = "w"
+        warm.ok = true
+        let sessions = faltung([
+            op("gym.checkin", GymD(session: "alt", start: t0 - 7 * 86400), zeit: t0 - 7 * 86400),
+            op("gym.uebung", GymD(session: "alt", plan: "p", uebung: "X", status: "satz", saetze: [warm, a]), zeit: t0 - 7 * 86400 + 60),
+            op("gym.checkin", GymD(session: "neu", start: t0), zeit: t0),
+            op("gym.uebung", GymD(session: "neu", plan: "q", uebung: "X", status: "satz", saetze: [a, b]), zeit: t0 + 60),
+        ]).sessions(.ahmed)
+        let tage = RekordLogik.tage(katalogId: "X", in: sessions)
+        XCTAssertEqual(tage.map(\.id), ["alt", "neu"]) // älteste zuerst, anderer Plantag zählt mit
+        XCTAssertEqual(tage[0].saetze, [a]) // Aufwärmsatz zählt nicht
+        XCTAssertEqual(RekordLogik.rekord(tage, .gewicht), 70)
+        XCTAssertEqual(RekordLogik.rekord(tage, .satzVolumen), 600)
+        XCTAssertEqual(RekordLogik.rekord(tage, .sitzungsVolumen), 1160)
+        XCTAssertEqual(RekordLogik.rekord(tage, .e1rm), 70 * (1 + 8.0 / 30))
+        XCTAssertEqual(RekordLogik.neue([b], gegen: [tage[0]]), [.gewicht, .e1rm])
+        XCTAssertEqual(RekordLogik.neue([a], gegen: [tage[0]]), [])
+        XCTAssertEqual(RekordLogik.neue([b], gegen: []), []) // das erste Mal ist kein Rekord
+        XCTAssertEqual(RekordLogik.text(1160), "1.160 kg")
+        XCTAssertEqual(RekordLogik.text(nil), "–")
+    }
+
+    func testWeekStreak() {
+        func s(_ tag: String) -> GymSession { GymSession(id: tag, tag: nil, start: Datum.datum(tag).addingTimeInterval(18 * 3600), ende: nil, laeufe: []) }
+        // 23.09.2026 ist ein Mittwoch. Trainings in den drei Wochen davor, diese Woche noch keins.
+        let liste = [s("2026-09-01"), s("2026-09-08"), s("2026-09-10"), s("2026-09-15")]
+        XCTAssertEqual(TrainingLogik.serieWochen(liste, heute: "2026-09-23"), 3)
+        XCTAssertEqual(TrainingLogik.dieseWoche(liste, heute: "2026-09-23"), 0)
+        XCTAssertEqual(TrainingLogik.serieWochen(liste + [s("2026-09-22")], heute: "2026-09-23"), 4)
+        XCTAssertEqual(TrainingLogik.dieseWoche(liste + [s("2026-09-21"), s("2026-09-22")], heute: "2026-09-23"), 2)
+        XCTAssertEqual(TrainingLogik.serieWochen([s("2026-09-01")], heute: "2026-09-23"), 0) // Lücke
+        XCTAssertEqual(TrainingLogik.serieWochen([], heute: "2026-09-23"), 0)
+    }
+
     /// Der Status "ende" (Mitteilung an den Partner) ändert nichts am Falten: die Einheit ist beendet.
     func testCheckoutWithEndStatusStillEndsTheSession() {
         let s = faltung([

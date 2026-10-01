@@ -236,6 +236,15 @@ struct GymVerlaufView: View {
             }
             .pickerStyle(.segmented)
             .listRowSeparator(.hidden)
+            if !sessions.isEmpty {
+                let heute = Datum.text(Date())
+                HStack(spacing: 28) {
+                    kennzahl("Diese Woche", "\(TrainingLogik.dieseWoche(sessions, heute: heute))")
+                    kennzahl("Serie", serieText(TrainingLogik.serieWochen(sessions, heute: heute)))
+                    kennzahl("Gesamt", "\(sessions.count)")
+                }
+                .listRowSeparator(.hidden)
+            }
             if sessions.isEmpty {
                 Text(wer == ich ? "Noch keine Einheit. Starte ein Training, dann steht es hier." : "\(wer.name) hat noch kein Training.")
                     .foregroundStyle(.secondary)
@@ -256,6 +265,18 @@ struct GymVerlaufView: View {
         .navigationDestination(item: $offen) { WorkoutRueckblick(person: $0.person, sessionId: $0.session) }
         .sheet(isPresented: $nachtragenOffen) { NachtragenBlatt() }
     }
+}
+
+private func kennzahl(_ titel: String, _ wert: String) -> some View {
+    VStack(alignment: .leading, spacing: 2) {
+        Text(titel).font(.caption).foregroundStyle(.secondary)
+        Text(wert).font(.title3.weight(.semibold).monospacedDigit())
+    }
+    .accessibilityElement(children: .combine)
+}
+
+private func serieText(_ wochen: Int) -> String {
+    wochen == 1 ? "1 Woche" : "\(wochen) Wochen"
 }
 
 /// Eine Einheit zum Nachlesen: Zeiten, Volumen und jeder abgehakte Satz. Die eigene lässt sich in

@@ -108,6 +108,11 @@ struct TrainingsPlanView: View {
             Button { oeffnen(.gymVerlauf) } label: {
                 Label("Verlauf", systemImage: "clock.arrow.circlepath")
             }
+            NavigationLink {
+                MessungenView()
+            } label: {
+                Label("Messungen", systemImage: "ruler")
+            }
         }
     }
 

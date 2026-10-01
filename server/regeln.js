@@ -81,7 +81,8 @@ function gymEndeRegel(von, d) {
   if (d.status !== "ende") return null;
   const dauer = Number.isFinite(d.minuten) && d.minuten > 0 ? ` war ${d.minuten} min im Gym` : " hat das Training beendet";
   const saetze = Number.isFinite(d.zahl) && d.zahl > 0 ? ` · ${d.zahl} ${d.zahl === 1 ? "Satz" : "Sätze"}` : "";
-  return { stufe: "leise", kategorie: "gym", titel: "Lovea", text: `${NAME[von]}${dauer}${saetze}` };
+  const rekorde = Number.isFinite(d.rekorde) && d.rekorde > 0 ? ` · ${d.rekorde} ${d.rekorde === 1 ? "Rekord" : "Rekorde"}` : "";
+  return { stufe: "leise", kategorie: "gym", titel: "Lovea", text: `${NAME[von]}${dauer}${saetze}${rekorde}` };
 }
 
 // art -> (von, d) => {stufe, kategorie, titel, text, ton?} | null (keine Push)
