@@ -22,7 +22,7 @@ enum SnapSchoenheit {
     static func angewendet(auf bild: UIImage, staerke: Double = Self.staerke) -> UIImage {
         let staerke = geklemmteStaerke(staerke)
         // Review Minor fix (2026-10-01): `CIImage(image:)` reads `bild`'s own orientation tag (here
-        // `.leftMirrored` for a front-camera photo, `SnapBildAusrichtung.fuer`) and it's not
+        // `.leftMirrored` or `.right` for a front-camera photo, `SnapBildAusrichtung.fuer`) and it's not
         // documented whether that rotation already lands in the pixels it hands back — if it does,
         // tagging the *output* with `bild.imageOrientation` again at the end would rotate/mirror it
         // a second time. `CIImage(cgImage:)` instead, which never reads orientation at all: the
