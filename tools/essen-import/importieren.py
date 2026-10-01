@@ -98,11 +98,11 @@ def csv_zeilen(quelle):
 # uebersrpingen und bei Max abbrechen. Zeilen, die zeile_zu_produkt oder nur_gescannt verwerfen,
 # zaehlen nicht zum Start-Index - nur tatsaechlich passende Produkte tun das. Deterministisch,
 # daher direkt mit kleinen Listen testbar, ohne CSV/Netz.
-def auswahl(zeilen, start=0, max_=None, nur_gescannt=False):
+def auswahl(zeilen, start=0, max_=None, nur_gescannt=False, nur_ungescannt=False):
     produkte, gesehen = [], 0
     for z in zeilen:
         p = zeile_zu_produkt(z)
-        if not p or (nur_gescannt and p["beliebtheit"] < 1):
+        if not p or (nur_gescannt and p["beliebtheit"] < 1) or (nur_ungescannt and p["beliebtheit"] >= 1):
             continue
         if gesehen >= start:
             produkte.append(p)
@@ -116,14 +116,15 @@ def auswahl(zeilen, start=0, max_=None, nur_gescannt=False):
 # Abschnitt mehr oder weniger liefert, hochladen() zerlegt ohnehin in 20.000er-Haeppchen.
 ROHZEILEN_PRO_ABSCHNITT = 300_000
 
-def voll(quelle, db, nur_gescannt=False, start=0, max_n=None):
+def voll(quelle, db, nur_gescannt=False, nur_ungescannt=False, start=0, max_n=None):
     rest_start, rest_max, gesamt, gesamt_gesehen = start, max_n, 0, 0
     zeilen = csv_zeilen(quelle)
     while True:
         abschnitt = list(itertools.islice(zeilen, ROHZEILEN_PRO_ABSCHNITT))
         if not abschnitt:
             break
-        produkte, gezaehlt = auswahl(abschnitt, start=rest_start, max_=rest_max, nur_gescannt=nur_gescannt)
+        produkte, gezaehlt = auswahl(abschnitt, start=rest_start, max_=rest_max, nur_gescannt=nur_gescannt,
+                                      nur_ungescannt=nur_ungescannt)
         gesamt_gesehen += gezaehlt
         rest_start = max(0, rest_start - gezaehlt)
         if produkte:
@@ -157,10 +158,12 @@ if __name__ == "__main__":
     a.add_argument("quelle", nargs="?", default=CSV_URL)
     a.add_argument("--db", required=True)
     a.add_argument("--nur-gescannt", action="store_true", help="nur Produkte mit unique_scans_n >= 1")
+    a.add_argument("--nur-ungescannt", action="store_true", help="nur Produkte mit unique_scans_n == 0")
     a.add_argument("--start", type=int, default=0, help="die ersten N passenden Produkte ueberspringen")
     a.add_argument("--max", type=int, default=None, help="hoechstens M Produkte schreiben")
     args = a.parse_args()
     if args.modus == "voll":
-        voll(args.quelle, args.db, nur_gescannt=args.nur_gescannt, start=args.start, max_n=args.max)
+        voll(args.quelle, args.db, nur_gescannt=args.nur_gescannt, nur_ungescannt=args.nur_ungescannt,
+             start=args.start, max_n=args.max)
     else:
         delta(args.db)

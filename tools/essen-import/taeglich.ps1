@@ -52,6 +52,7 @@ if ($stand.phase -eq "fertig") {
 
 $nurGescannt = @()
 if ($stand.phase -eq "gescannt") { $nurGescannt = @("--nur-gescannt") }
+elseif ($stand.phase -eq "dach") { $nurGescannt = @("--nur-ungescannt") }
 
 function RunImport($db, $start, $max) {
     $pyArgs = @("importieren.py", "voll", $csv, "--db", $db, "--start", $start, "--max", $max) + $nurGescannt
@@ -96,7 +97,7 @@ try {
     if ($geschrieben -lt $liveMax) {
         # Phase ausgeschoepft: weniger geschrieben als angefordert heisst, die CSV ist fuer diesen Filter zu Ende.
         if ($stand.phase -eq "gescannt") {
-            Log "Phase 'gescannt' ausgeschoepft ($geschrieben Produkte) - wechsle zu Phase 'dach'"
+            Log "Phase 'gescannt' ausgeschoepft ($geschrieben Produkte) - wechsle zu Phase 'dach' (nur ungescannte)"
             $stand.phase = "dach"
             $stand.start = 0
         } else {

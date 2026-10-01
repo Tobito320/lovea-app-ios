@@ -54,6 +54,10 @@ def test_auswahl_nur_gescannt():
     produkte, _ = auswahl(_zeilen(), nur_gescannt=True)
     assert [p["code"] for p in produkte] == ["3", "5"]
 
+def test_auswahl_nur_ungescannt():
+    produkte, _ = auswahl(_zeilen(), nur_ungescannt=True)
+    assert [p["code"] for p in produkte] == ["1"]
+
 def test_auswahl_deterministisch():
     assert auswahl(_zeilen(), start=1, max_=2) == auswahl(_zeilen(), start=1, max_=2)
 
@@ -66,6 +70,6 @@ def test_auswahl_verworfene_zeilen_zaehlen_nicht_zum_start():
 
 if __name__ == "__main__":
     test_zeile(); test_filter(); test_kj_statt_kcal(); test_delta_json(); test_sql_escape()
-    test_auswahl_start_und_max(); test_auswahl_ohne_grenzen(); test_auswahl_nur_gescannt()
+    test_auswahl_start_und_max(); test_auswahl_ohne_grenzen(); test_auswahl_nur_gescannt(); test_auswahl_nur_ungescannt()
     test_auswahl_deterministisch(); test_auswahl_verworfene_zeilen_zaehlen_nicht_zum_start()
     print("ok")
