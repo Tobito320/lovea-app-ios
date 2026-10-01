@@ -15,7 +15,9 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         // I-7: HealthKit observers + background delivery must exist on EVERY launch, including a
         // background relaunch that never connects a scene. Keychain item is AfterFirstUnlock, so it
         // is readable in a locked background launch too.
-        if let person = Schluesselbund.shared.get().flatMap(Person.init(rawValue:)) {
+        // R3 (Build 78, Sicherheitsmodus): nach >= 2 Abstürzen in Folge NICHTS Launch-Seitiges
+        // starten, auch nicht von hier — sonst crasht ein Hintergrund-Relaunch genauso weiter.
+        if !StartProtokoll.abgesichert, let person = Schluesselbund.shared.get().flatMap(Person.init(rawValue:)) {
             AppStart.falten(person)
         }
         return true
@@ -33,6 +35,7 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
     /// `userInfo["art"] == "karte.offen"` (server `#karteWecken`): the partner opened the map, so
     /// start live location here too, even from the background.
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+        guard !StartProtokoll.abgesichert else { return .noData } // R3: Sicherheitsmodus, nichts starten.
         if let art = userInfo["art"] as? String, art == "karte.offen" {
             let an = (userInfo["an"] as? Bool) ?? true
             Standort.shared.karteOffen(an)
@@ -57,8 +60,10 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         let fertig = AbschlussBox(completionHandler)
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
-                Raum.shared.start()
-                AppNavigation.shared.mitteilungGeoeffnet(nachrichtId: nachrichtId, art: art)
+                if !StartProtokoll.abgesichert { // R3: Sicherheitsmodus, nichts starten.
+                    Raum.shared.start()
+                    AppNavigation.shared.mitteilungGeoeffnet(nachrichtId: nachrichtId, art: art)
+                }
             }
             fertig.aufrufen()
         }

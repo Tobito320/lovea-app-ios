@@ -6,6 +6,11 @@ struct LoveaApp: App {
     @StateObject private var session = PersonSession()
     @AppStorage("lovea.ersterStartFertig") private var ersterStartFertig = false
     @Environment(\.scenePhase) private var scenePhase
+    /// R3 (Build 78): >= 2 Abstürze in Folge -> Sicherheitsmodus, siehe `StartProtokoll.abgesichert`.
+    /// Nur dieser eine Zustand entscheidet, was `body` zeigt — "Normal starten" setzt ihn auf false.
+    @State private var abgesichert: Bool
+    @State private var bericht: AbsturzBericht?
+    @State private var berichtGezeigt = false
 
     /// UI-Tests laufen oft über `XCUIApplication` (killt den Prozess ohne `.background` — sonst
     /// zählte jeder Testlauf als Absturz) oder über `-uiTestStudio` (kein echter Launch-Pfad).
@@ -15,9 +20,16 @@ struct LoveaApp: App {
     }
 
     init() {
-        guard !Self.istTest else { return }
+        guard !Self.istTest else {
+            _abgesichert = State(initialValue: false)
+            _bericht = State(initialValue: nil)
+            return
+        }
         AbsturzFaenger.installieren() // Allererstes: vor jeder anderen App-Logik.
-        StartProtokoll.neuerStart()
+        let vorherCrash = StartProtokoll.neuerStart()
+        let alteStufe = StartProtokoll.alteStufeEinmalLesen()
+        _bericht = State(initialValue: AbsturzBericht.erfassen(vorherCrash: vorherCrash, altesStufenFeld: alteStufe))
+        _abgesichert = State(initialValue: StartProtokoll.abgesichert)
         StartProtokoll.marke("loveaApp.init.start")
         StartProtokoll.marke("loveaApp.init.ende")
     }
@@ -25,33 +37,55 @@ struct LoveaApp: App {
     var body: some Scene {
         StartProtokoll.marke("loveaApp.body")
         return WindowGroup {
-            Group {
-                if ProcessInfo.processInfo.arguments.contains("-uiTestStudio") {
-                    UITestStudio()
-                } else if let person = session.person, ersterStartFertig {
-                    AppRootView(session: session, person: person)
-                } else {
-                    ErsterStart(vorausgewaehltePerson: session.person) { person in
-                        session.waehlen(person)
-                        ersterStartFertig = true
+            if abgesichert {
+                // R3: NUR der Absturz-Bericht — kein Raum/Sync, keine Modelle, keine Live
+                // Activities, kein WorkoutUhr, nichts Launch-Seitiges. "Normal starten" setzt den
+                // Zähler zurück und wechselt in den normalen Zweig unten, der alles selbst startet.
+                AbsturzBerichtAnsicht(bericht: bericht, zeigtSchliessen: false, zeigtNormalStarten: true) {
+                    StartProtokoll.zaehlerZuruecksetzenNachSichtbar()
+                    abgesichert = false
+                }
+            } else {
+                Group {
+                    if ProcessInfo.processInfo.arguments.contains("-uiTestStudio") {
+                        UITestStudio()
+                    } else if let person = session.person, ersterStartFertig {
+                        AppRootView(session: session, person: person)
+                    } else {
+                        ErsterStart(vorausgewaehltePerson: session.person) { person in
+                            session.waehlen(person)
+                            ersterStartFertig = true
+                        }
                     }
                 }
-            }
-            .onAppear {
-                guard !Self.istTest else { return }
-                StartProtokoll.szeneErreicht()
-                Herzschlag.shared.starten()
-            }
-            .onChange(of: session.person, initial: true) { _, person in starten(person) }
-            .onChange(of: scenePhase) { _, phase in phaseGewechselt(phase) }
-            // Z-28.3: `widgetURL` der Widgets, z. B. `lovea://health`. `AppNavigation.tabWunsch`
-            // ignoriert selbst jeden unbekannten Host (siehe `AppRootView`s `onChange`).
-            // R8: `lovea://essen?mahlzeit=…` (Live-Activity-Mahlzeitenzeile) trägt zusätzlich die
-            // Mahlzeit in der Query — `essenMahlzeitWunsch` öffnet dafür direkt das Hinzufügen-Blatt.
-            .onOpenURL { url in
-                AppNavigation.shared.tabWunsch = url.host
-                let teile = URLComponents(url: url, resolvingAgainstBaseURL: false)
-                AppNavigation.shared.essenMahlzeitWunsch = teile?.queryItems?.first { $0.name == "mahlzeit" }?.value
+                .onAppear {
+                    guard !Self.istTest else { return }
+                    StartProtokoll.szeneErreicht()
+                    Herzschlag.shared.starten()
+                    if bericht != nil { berichtGezeigt = true }
+                }
+                .onChange(of: session.person, initial: true) { _, person in starten(person) }
+                .onChange(of: scenePhase) { _, phase in phaseGewechselt(phase) }
+                // Z-28.3: `widgetURL` der Widgets, z. B. `lovea://health`. `AppNavigation.tabWunsch`
+                // ignoriert selbst jeden unbekannten Host (siehe `AppRootView`s `onChange`).
+                // R8: `lovea://essen?mahlzeit=…` (Live-Activity-Mahlzeitenzeile) trägt zusätzlich die
+                // Mahlzeit in der Query — `essenMahlzeitWunsch` öffnet dafür direkt das Hinzufügen-Blatt.
+                .onOpenURL { url in
+                    AppNavigation.shared.tabWunsch = url.host
+                    let teile = URLComponents(url: url, resolvingAgainstBaseURL: false)
+                    AppNavigation.shared.essenMahlzeitWunsch = teile?.queryItems?.first { $0.name == "mahlzeit" }?.value
+                }
+                // R3: einmalig (Sheet-Bindung, nicht erneut gesetzt), danach sind die Dateien schon
+                // gelöscht (`AbsturzBericht.erfassen`) — ein zweiter Start zeigt nichts mehr.
+                .sheet(isPresented: $berichtGezeigt) {
+                    AbsturzBerichtAnsicht(bericht: bericht)
+                }
+                // R3: 5 s sichtbar ohne Absturz -> Zähler zurück, ohne auf `.background` zu warten.
+                .task {
+                    guard !Self.istTest else { return }
+                    try? await Task.sleep(for: .seconds(5))
+                    StartProtokoll.zaehlerZuruecksetzenNachSichtbar()
+                }
             }
         }
     }
