@@ -44,10 +44,11 @@ struct WorkoutLeiste: View {
                 Text(titel).font(.subheadline.weight(.semibold)).lineLimit(1)
                 Text(unter).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
             }
-            Spacer(minLength: 8)
+            .layoutPriority(1)
+            Spacer(minLength: 4)
             zeit
             Button(action: aktion) {
-                Text(knopf).font(.headline).frame(minWidth: 108, minHeight: 36)
+                Text(knopf).font(.subheadline.weight(.semibold)).lineLimit(1).fixedSize().frame(minHeight: 36)
             }
             .buttonStyle(.borderedProminent)
             .tint(.blue)
@@ -75,7 +76,7 @@ struct WorkoutLeiste: View {
             }
             .font(.title2.bold().monospacedDigit())
             .multilineTextAlignment(.trailing)
-            .frame(maxWidth: 84, alignment: .trailing)
+            .fixedSize()
         }
     }
 
