@@ -374,7 +374,9 @@ struct FormKachel: View {
                 Text(wert).font(.body.bold()).monospacedDigit().foregroundStyle(.primary)
                 Text(einheit).font(.caption2).foregroundStyle(.tertiary)
             }
-            if let zusatz { Text(zusatz).font(.caption2).foregroundStyle(.tertiary) }
+            // Immer genau eine Zeile, auch leer: so sind alle Kacheln gleich hoch (Ahmed, 01.10.).
+            Text(zusatz ?? " ").font(.caption2).foregroundStyle(.tertiary).lineLimit(1).minimumScaleFactor(0.7)
+            .accessibilityHidden(zusatz == nil)
         }
         .multilineTextAlignment(.center)
         .padding(.vertical, 10)

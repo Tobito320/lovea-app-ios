@@ -795,10 +795,8 @@ struct HeuteView: View {
     /// Ernährungs-Tagebuch ein (Ahmed, 01.10.).
     private var koffeinKachel: some View {
         let n = health.habitWert(Habit.koffein.id, ich, heute)
-        let letztes = health.koffeinZeiten(ich, heute).last
-        let zusatz = letztes.map { "~\(n * KoffeinLogik.mgProTasse) mg · Kaffee um \(Datum.uhrzeit($0))" }
         return FormKachel(form: .koffein, titel: "Koffein", wert: "\(n)", einheit: n == 1 ? "Tasse" : "Tassen",
-                          fuellung: Double(n) / 4, zusatz: zusatz) {
+                          fuellung: Double(n) / 4) {
             koffeinEintragen()
         }
         .contextMenu {
