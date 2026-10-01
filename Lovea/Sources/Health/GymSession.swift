@@ -212,7 +212,7 @@ struct ZeitenBlatt: View {
 }
 
 /// Welche Einheit von wem der Verlauf öffnet.
-struct VerlaufZiel: Hashable {
+struct GymVerlaufZiel: Hashable {
     var person: Person
     var session: String
 }
@@ -221,7 +221,7 @@ struct VerlaufZiel: Hashable {
 /// die Einheit mit allen Sätzen, das Plus trägt ein Training von Hand nach.
 struct GymVerlaufView: View {
     @State private var person: Person?
-    @State private var offen: VerlaufZiel?
+    @State private var offen: GymVerlaufZiel?
     @State private var nachtragenOffen = false
     private var ich: Person { Raum.shared.ich ?? .ahmed }
 
@@ -241,7 +241,7 @@ struct GymVerlaufView: View {
                     .foregroundStyle(.secondary)
             }
             ForEach(sessions) { s in
-                Button { offen = VerlaufZiel(person: wer, session: s.id) } label: {
+                Button { offen = GymVerlaufZiel(person: wer, session: s.id) } label: {
                     GymVerlaufZeile(session: s, tag: modell.tag(wer, id: s.tag))
                 }
                 .buttonStyle(.plain)
