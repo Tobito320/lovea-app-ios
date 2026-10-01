@@ -154,6 +154,10 @@ enum AppStart {
         _ = KalenderModell.shared; _ = WirModell.shared; _ = SpieleModell.shared; _ = EinstellungenModell.shared
         _ = TeilenModell.shared; _ = LiveZeichnung.shared; _ = UmzugImport.shared; _ = HealthModell.shared
         _ = PunkteModell.shared; _ = UmzugAufraeumen.shared; _ = WetterModell.shared; _ = TrainingModell.shared
+        // Build 78 (Ahmed, Live-Activity-Befund): fehlte hier -- entstand erst lazy, wenn EssenLive
+        // es zum ersten Mal anfasste, dessen Fold-Beobachter war beim Replay also noch nicht
+        // registriert und frühe Ernährungs-Ops wurden verpasst (zeigte "0 kcal" trotz echter Einträge).
+        _ = ErnaehrungModell.shared
         GalerieSync.shared.start()
         // Kein Prompt hier (nur `sicherstellen()` vom Health-Tab darf fragen) — startet HealthKit-
         // Observer/Background-Delivery erneut, falls die Berechtigung früher schon erteilt wurde.
