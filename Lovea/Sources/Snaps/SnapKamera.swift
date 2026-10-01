@@ -577,6 +577,10 @@ struct SnapKameraView: View {
     /// could stop a running timer (a second tap started an overlapping one, `onDisappear` left it
     /// running and it still fired `fotoAufnehmen()` on an already-left camera).
     @State private var timerTask: Task<Void, Never>?
+    /// Review Minor fix (2026-10-01): without this, a second tap while a burst was still running
+    /// started a second `mehrfachAufnehmen()` — harmless (`fotoAufnehmen`'s own continuation guard
+    /// just dropped the overlapping calls as `nil`), but visibly unclean on a fast double-tap.
+    @State private var mehrfachLaeuft = false
 
     private enum Modus { case ruhe, haltend }
 
@@ -770,9 +774,12 @@ struct SnapKameraView: View {
                 Task { if let url = await steuerung.videoStarten() { onVideo(url) } }
             }
         } else if multiSnapAn {
+            guard !mehrfachLaeuft else { return }
+            mehrfachLaeuft = true
             Haptik.mittel()
             Task {
                 let bilder = await steuerung.mehrfachAufnehmen()
+                mehrfachLaeuft = false
                 if !bilder.isEmpty { onMultiFoto(bilder) }
             }
         } else if timer != .aus {

@@ -21,7 +21,16 @@ enum SnapSchoenheit {
     /// `CIPersonSegmentation`/Vision face mask if a real selfie shows smoothing where it shouldn't.
     static func angewendet(auf bild: UIImage, staerke: Double = Self.staerke) -> UIImage {
         let staerke = geklemmteStaerke(staerke)
-        guard staerke > 0, let eingabe = CIImage(image: bild) else { return bild }
+        // Review Minor fix (2026-10-01): `CIImage(image:)` reads `bild`'s own orientation tag (here
+        // `.leftMirrored` for a front-camera photo, `SnapBildAusrichtung.fuer`) and it's not
+        // documented whether that rotation already lands in the pixels it hands back — if it does,
+        // tagging the *output* with `bild.imageOrientation` again at the end would rotate/mirror it
+        // a second time. `CIImage(cgImage:)` instead, which never reads orientation at all: the
+        // blur/brightness/blend below are rotation- and mirror-invariant (symmetric operations), so
+        // it doesn't matter which orientation space they run in — orientation is applied exactly
+        // once, as the final `UIImage(cgImage:orientation:)` tag below.
+        guard staerke > 0, let cgEingabe = bild.cgImage else { return bild }
+        let eingabe = CIImage(cgImage: cgEingabe)
 
         let weichgezeichnet = eingabe.clampedToExtent()
             .applyingFilter("CIGaussianBlur", parameters: [kCIInputRadiusKey: 3.5])
