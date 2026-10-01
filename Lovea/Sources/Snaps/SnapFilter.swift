@@ -30,15 +30,13 @@ enum SnapFilter: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Ein Context für alle Renderings (Vorschau, Thumbnails, Export, Video-Filterung). Aufbau ist
-    /// teuer, laut Core-Image-Doku ist eine Instanz threadsicher für paralleles Rendern — Akku-Regel:
-    /// einmal bauen, überall wiederverwenden statt pro Aufruf neu.
-    static let context = CIContext()
-
     /// Reine Funktion: `bild` bleibt unverändert, nur das Ergebnis kommt zurück. Jeder Zweig croppt
     /// am Ende auf `bild.extent` — manche Bausteine (Rauschen, Vignette) liefern sonst eine andere
     /// Ausdehnung als der Input.
-    func anwenden(auf bild: CIImage) -> CIImage {
+    /// `video`: `true` lässt bei `.film` das Korn weg (R9-Review) — `CIRandomGenerator` liefert pro
+    /// Aufruf neues Rauschen; auf ein Einzelbild angewendet ist das "Filmkorn", pro Frame über
+    /// `videoKomposition` angewendet wäre es Flackern. Fürs Foto bleibt das Korn (Standardwert `false`).
+    func anwenden(auf bild: CIImage, video: Bool = false) -> CIImage {
         switch self {
         case .original:
             return bild
@@ -53,6 +51,7 @@ enum SnapFilter: String, CaseIterable, Identifiable, Sendable {
         case .film:
             let basis = Self.farbregler(bild, saettigung: 0.92, kontrast: 0.95)
             let verblasst = Self.photoEffect(basis, name: "CIPhotoEffectFade")
+            guard !video else { return verblasst.cropped(to: bild.extent) }
             return Self.koernung(verblasst, intensitaet: 0.04).cropped(to: bild.extent)
         case .vintage:
             let sepia = Self.sepia(bild, intensitaet: 0.35)
@@ -192,17 +191,49 @@ private extension CIImage {
     }
 }
 
+// MARK: - Sendable-Hüllen (R9-Review: CIContext/CGImage sind laut Apple-Doku threadsicher zu lesen bzw.
+// unveränderlich, aber nicht als `Sendable` deklariert — diese Session hat genau diese stillschweigende
+// Annahme schon dreimal den Build kosten lassen, deshalb hier explizit statt implizit.)
+
+/// Einmal gebaut, über die ganze App-Laufzeit wiederverwendet (teurer Aufbau, Akku-Regel) — für alle
+/// Renderings (Vorschau, Thumbnails, Export, Video-Filterung).
+final class SnapFilterKontext: @unchecked Sendable {
+    static let shared = SnapFilterKontext()
+    let context = CIContext()
+    private init() {}
+}
+
+/// `CGImage` ist unveränderlich (Core-Graphics-Doku), aber nicht offiziell `Sendable` — diese Hülle
+/// macht es dem Compiler explizit erlaubt, ein gerendertes Bild über eine `Task.detached`-Grenze zu
+/// reichen, statt es stillschweigend vorauszusetzen.
+struct SendableCGImage: @unchecked Sendable {
+    let bild: CGImage
+}
+
+extension SnapFilter {
+    /// Ganze Pipeline in einer Funktion — `CGImage` rein, `CGImage` raus, `CIImage`/`CIFilter` werden
+    /// bewusst INNERHALB gebaut statt von außen hineingereicht (R9-Review). Sicher aus einem
+    /// `Task.detached` heraus aufzurufen, weil nur `CGImage` (per `SendableCGImage`) und `SnapFilter`
+    /// (beide `Sendable`) die Grenze queren müssen.
+    static func gefiltertesCGBild(aus quelle: CGImage, filter: SnapFilter, zuschnitt: CGRect? = nil) -> CGImage? {
+        let ciBasis = CIImage(cgImage: quelle)
+        let gefiltert = filter.anwenden(auf: ciBasis)
+        return SnapFilterKontext.shared.context.createCGImage(gefiltert, from: zuschnitt ?? gefiltert.extent)
+    }
+}
+
 // MARK: - Video (Vorschau im Player & Export teilen sich diesen Aufbau)
 
 extension SnapFilter {
-    /// `AVVideoComposition(asset:applyingCIFiltersWithHandler:)` wendet `anwenden(auf:)` pro Frame an —
-    /// dieselbe Rezept-Funktion wie beim Foto. `nil` bei `.original`, ein Composition-Objekt weniger
-    /// zu bauen und zuzuweisen ist der einfachste "kein Filter"-Fall.
+    /// `AVVideoComposition(asset:applyingCIFiltersWithHandler:)` wendet `anwenden(auf:video: true)` pro
+    /// Frame an — dieselbe Rezept-Funktion wie beim Foto, nur ohne Filmkorn (Flacker-Gefahr, siehe
+    /// `anwenden(auf:video:)`). `nil` bei `.original`, ein Composition-Objekt weniger zu bauen und
+    /// zuzuweisen ist der einfachste "kein Filter"-Fall.
     @MainActor
     func videoKomposition(fuer asset: AVAsset) async -> AVVideoComposition? {
         guard self != .original else { return nil }
         return try? await AVVideoComposition(asset: asset, applyingCIFiltersWithHandler: { anfrage in
-            anfrage.finish(with: self.anwenden(auf: anfrage.sourceImage), context: SnapFilter.context)
+            anfrage.finish(with: self.anwenden(auf: anfrage.sourceImage, video: true), context: SnapFilterKontext.shared.context)
         })
     }
 }

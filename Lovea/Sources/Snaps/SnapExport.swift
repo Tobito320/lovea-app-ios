@@ -1,4 +1,5 @@
 import AVFoundation
+import CoreImage
 import CoreMedia
 import QuartzCore
 import SwiftUI
@@ -37,7 +38,7 @@ enum SnapExport {
     private static func gefiltertesBild(quelle: UIImage, filter: SnapFilter, groesse: CGSize) -> UIImage? {
         guard filter != .original, let ciBasis = CIImage(image: quelle, options: [.applyOrientationProperty: true]) else { return nil }
         let gefiltert = filter.anwenden(auf: ciBasis)
-        guard let cgBild = SnapFilter.context.createCGImage(gefiltert, from: gefiltert.extent) else { return nil }
+        guard let cgBild = SnapFilterKontext.shared.context.createCGImage(gefiltert, from: gefiltert.extent) else { return nil }
         return UIImage(cgImage: cgBild)
     }
 
@@ -57,13 +58,18 @@ enum SnapExport {
         guard !linien.isEmpty || !sticker.isEmpty || !text.text.isEmpty || filter != .original else { return quelle }
 
         // Filter zuerst, eigener einfacher Pass (CI-Filter pro Frame über `applyingCIFiltersWithHandler`).
-        // Der bestehende Overlay-Pass unten läuft danach unverändert auf dem gefilterten Clip weiter —
-        // zwei simple Pässe statt eines eigenen `AVVideoCompositing`, das CI-Filter UND CALayer-Overlay
-        // gleichzeitig pro Frame mischt.
+        // Der bestehende Overlay-Pass unten läuft danach unverändert auf dem gefilterten Clip weiter.
+        // ponytail: zwei einfache Pässe statt eines eigenen `AVVideoCompositing`, das CI-Filter und
+        // CALayer-Overlay in einem Durchgang mischt — kostet bei Filter+Overlay zusammen (selten: Filter
+        // UND Doodle/Text/Sticker) einen zweiten verlustbehafteten Encode. Upgrade-Pfad, falls das stört:
+        // eine eigene `AVVideoCompositing`-Klasse, die pro Frame erst den CI-Filter rendert und dann das
+        // Overlay zeichnet (ersetzt `applyingCIFiltersWithHandler` UND `AVVideoCompositionCoreAnimationTool`).
         var quelle = quelle
+        var zwischenDatei: URL?
         if filter != .original {
             guard let gefiltert = await Self.gefiltertesVideo(quelle: quelle, filter: filter) else { return nil }
             quelle = gefiltert
+            zwischenDatei = gefiltert
         }
         guard !linien.isEmpty || !sticker.isEmpty || !text.text.isEmpty else { return quelle }
 
@@ -115,6 +121,8 @@ enum SnapExport {
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             session.exportAsynchronously { continuation.resume() }
         }
+        // Zwischendatei des Filter-Passes wird nie wieder gebraucht, sobald der Overlay-Pass fertig ist.
+        if let zwischenDatei { try? FileManager.default.removeItem(at: zwischenDatei) }
         return session.status == .completed ? ziel : nil
     }
 

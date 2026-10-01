@@ -58,6 +58,10 @@ struct SnapEditor: View {
     @State private var filterVorschauBild: UIImage?
     @State private var filterNameSichtbar = false
     @State private var filterNameTask: Task<Void, Never>?
+    /// Bricht einen noch laufenden Vorschau-Render ab, wenn während eines schnellen Karussell-Flings
+    /// schon der nächste Filter ausgewählt wird — sonst rendert ein Fling über mehrere Chips mehrfach
+    /// statt nur den zuletzt gewählten Filter zu zeigen (R9-Review: "render on filter change only").
+    @State private var vorschauTask: Task<Void, Never>?
     /// The photo's/video's own aspect ratio — the content box below is locked to this, so the same
     /// (fraction, fraction) numbers land on the same spot live and in `SnapExport`'s flatten pass.
     /// Without this the box defaulted to the *screen's* aspect, `.scaledToFill` silently cropped
@@ -118,7 +122,7 @@ struct SnapEditor: View {
             guard let neu, neu != ausgewaehlterFilter else { return }
             waehleFilter(neu)
         }
-        .onDisappear { videoSpieler?.pause(); filterNameTask?.cancel() }
+        .onDisappear { videoSpieler?.pause(); filterNameTask?.cancel(); vorschauTask?.cancel() }
     }
 
     /// Same source of truth `SnapExport.video` uses for `upright` — keeps the editor's aspect and
@@ -386,26 +390,45 @@ struct SnapEditor: View {
     /// Live-Vorschau: Foto wird einmal neu gerendert (nicht pro Frame), Video bekommt dieselbe
     /// `AVVideoComposition` wie der Export auf seinen Player gesetzt (Akku-Regel: nur bei Wechsel).
     private func vorschauAktualisieren(fuer filter: SnapFilter) {
+        vorschauTask?.cancel()
         switch inhalt {
         case .foto(let bild):
-            Task {
-                filterVorschauBild = await Self.gefiltertesVorschauBild(quelle: bild, filter: filter)
+            vorschauTask = Task {
+                let ergebnis = await Self.gefiltertesVorschauBild(quelle: bild, filter: filter)
+                guard !Task.isCancelled else { return }
+                filterVorschauBild = ergebnis
             }
         case .video(let url):
-            Task {
-                videoSpieler?.currentItem?.videoComposition = await filter.videoKomposition(fuer: AVURLAsset(url: url))
+            vorschauTask = Task {
+                let komposition = await filter.videoKomposition(fuer: AVURLAsset(url: url))
+                guard !Task.isCancelled else { return }
+                videoSpieler?.currentItem?.videoComposition = komposition
             }
         }
     }
 
+    /// Nur `SnapFilter` (Sendable) und ein gewickeltes `CGImage` queren die `Task.detached`-Grenze —
+    /// `CIImage`/`CIFilter` werden bewusst erst innerhalb von `SnapFilter.gefiltertesCGBild` gebaut
+    /// (R9-Review: kein von außen hineingereichtes `CIImage`, kein unmarkiertes `CIContext`).
     private static func gefiltertesVorschauBild(quelle: UIImage, filter: SnapFilter) async -> UIImage? {
-        guard filter != .original else { return nil }
-        guard let ciBasis = CIImage(image: quelle, options: [.applyOrientationProperty: true]) else { return nil }
-        return await Task.detached(priority: .userInitiated) {
-            let gefiltert = filter.anwenden(auf: ciBasis)
-            guard let cgBild = SnapFilter.context.createCGImage(gefiltert, from: gefiltert.extent) else { return nil }
-            return UIImage(cgImage: cgBild)
+        guard filter != .original, let cgQuelle = Self.aufrechtesCGBild(quelle) else { return nil }
+        let eingabe = SendableCGImage(bild: cgQuelle)
+        let ergebnis = await Task.detached(priority: .userInitiated) { () -> SendableCGImage? in
+            guard let cgBild = SnapFilter.gefiltertesCGBild(aus: eingabe.bild, filter: filter) else { return nil }
+            return SendableCGImage(bild: cgBild)
         }.value
+        return ergebnis.map { UIImage(cgImage: $0.bild) }
+    }
+
+    /// `UIImage.imageOrientation` in die Pixel backen (gleiche Wirkung wie vorher
+    /// `CIImage(image:options:[.applyOrientationProperty: true])`), synchron auf dem aufrufenden Actor —
+    /// danach reicht nur noch das fertige `CGImage` über die `Task.detached`-Grenze, nie das `UIImage`.
+    private static func aufrechtesCGBild(_ bild: UIImage) -> CGImage? {
+        guard bild.imageOrientation != .up else { return bild.cgImage }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = bild.scale
+        format.opaque = false
+        return UIGraphicsImageRenderer(size: bild.size, format: format).image { _ in bild.draw(at: .zero) }.cgImage
     }
 
     /// Einmal pro Snap: eine kleine (~96px) Thumbnail-CIImage, für alle 15 Filter gerendert und
@@ -427,20 +450,28 @@ struct SnapEditor: View {
         return UIImage(cgImage: ergebnis.image)
     }
 
+    /// Wie `gefiltertesVorschauBild`: nur `SendableCGImage`/`SnapFilter`/`CGSize` queren die
+    /// `Task.detached`-Grenze, `CIImage` wird innerhalb des Closures aus dem `CGImage` neu gebaut.
     private static func filterThumbnails(aus quellBild: UIImage) async -> [SnapFilter: UIImage] {
-        guard let ciBasis = CIImage(image: quellBild, options: [.applyOrientationProperty: true]) else { return [:] }
-        let klein = MedienKodierung.skaliert(ciBasis.extent.size, langeKante: 96)
-        guard klein.width > 0, klein.height > 0, ciBasis.extent.width > 0, ciBasis.extent.height > 0 else { return [:] }
-        let skaliert = ciBasis.transformed(by: CGAffineTransform(scaleX: klein.width / ciBasis.extent.width, y: klein.height / ciBasis.extent.height))
-        return await Task.detached(priority: .utility) {
-            var ergebnis: [SnapFilter: UIImage] = [:]
+        guard let cgQuelle = Self.aufrechtesCGBild(quellBild), cgQuelle.width > 0, cgQuelle.height > 0 else { return [:] }
+        let klein = MedienKodierung.skaliert(CGSize(width: cgQuelle.width, height: cgQuelle.height), langeKante: 96)
+        guard klein.width > 0, klein.height > 0 else { return [:] }
+        let eingabe = SendableCGImage(bild: cgQuelle)
+
+        let ergebnis: [SnapFilter: SendableCGImage] = await Task.detached(priority: .utility) {
+            let ciBasis = CIImage(cgImage: eingabe.bild)
+            guard ciBasis.extent.width > 0, ciBasis.extent.height > 0 else { return [:] }
+            let skaliert = ciBasis.transformed(by: CGAffineTransform(scaleX: klein.width / ciBasis.extent.width, y: klein.height / ciBasis.extent.height))
+            var ergebnis: [SnapFilter: SendableCGImage] = [:]
             for filter in SnapFilter.allCases {
                 let gefiltert = filter.anwenden(auf: skaliert)
-                guard let cgBild = SnapFilter.context.createCGImage(gefiltert, from: CGRect(origin: .zero, size: klein)) else { continue }
-                ergebnis[filter] = UIImage(cgImage: cgBild)
+                guard let cgBild = SnapFilterKontext.shared.context.createCGImage(gefiltert, from: CGRect(origin: .zero, size: klein)) else { continue }
+                ergebnis[filter] = SendableCGImage(bild: cgBild)
             }
             return ergebnis
         }.value
+
+        return ergebnis.mapValues { UIImage(cgImage: $0.bild) }
     }
 
     private var untereLeiste: some View {

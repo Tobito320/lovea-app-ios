@@ -32,4 +32,20 @@ final class SnapFilterTests: XCTestCase {
         let ids = Set(SnapFilter.allCases.map(\.id))
         XCTAssertEqual(ids.count, SnapFilter.allCases.count)
     }
+
+    /// R9-Review: `.film`s Korn (`CIRandomGenerator`) pro Frame angewendet wäre Flackern im Video —
+    /// `video: true` lässt es weg. Zwei unabhängige Aufrufe müssen bitgenau gleich sein: ohne Korn gibt
+    /// es nichts Zufälliges mehr im Rezept, das zwei Aufrufe auseinanderlaufen lassen könnte.
+    func testFilmOhneKornImVideoModusIstDeterministisch() {
+        let context = CIContext()
+        let a = SnapFilter.film.anwenden(auf: testBild, video: true)
+        let b = SnapFilter.film.anwenden(auf: testBild, video: true)
+        guard let bildA = context.createCGImage(a, from: a.extent), let bildB = context.createCGImage(b, from: b.extent) else { return XCTFail("Rendern fehlgeschlagen") }
+        XCTAssertEqual(bildA.dataProvider?.data, bildB.dataProvider?.data)
+    }
+
+    func testFilmImVideoModusBehaeltEbenfallsDieAusdehnung() {
+        let ergebnis = SnapFilter.film.anwenden(auf: testBild, video: true)
+        XCTAssertEqual(ergebnis.extent, testBild.extent)
+    }
 }
