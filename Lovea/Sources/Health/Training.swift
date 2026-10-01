@@ -114,6 +114,9 @@ struct GymD: Codable, Equatable, Sendable {
     var minuten: Int? = nil
     var zahl: Int? = nil
     var rekorde: Int? = nil
+    /// Aktive Kalorien und Puls im Schnitt, wenn die Messung an war (`WorkoutPuls`).
+    var kcal: Int? = nil
+    var puls: Int? = nil
 }
 
 struct GymEintrag: Equatable, Sendable {
@@ -147,6 +150,9 @@ struct GymSession: Identifiable, Equatable, Sendable {
     var start: Date
     var ende: Date?
     var laeufe: [UebungsLauf]
+    /// Aktive Kalorien und Puls im Schnitt aus dem Beenden-Op; nil ohne Messung.
+    var kcal: Int? = nil
+    var puls: Int? = nil
 
     /// Mit Satzzeilen (wie Hevy) erst, wenn alle abgehakt sind; alte Einheiten über `fertig`.
     func erledigt(_ plan: String) -> Bool {
@@ -182,8 +188,8 @@ enum TrainingLogik {
               let checkin = liste.last(where: { $0.art == "gym.checkin" && $0.d.start != nil }),
               let start = checkin.d.start else { return nil }
         // Checkout mit status "wieder" = Auschecken rückgängig, die Einheit läuft weiter.
-        let ende = liste.last(where: { $0.art == "gym.checkout" && ($0.d.ende != nil || $0.d.status == "wieder") })?.d.ende
-        var s = GymSession(id: id, tag: checkin.d.tag, start: start, ende: ende, laeufe: [])
+        let aus = liste.last(where: { $0.art == "gym.checkout" && ($0.d.ende != nil || $0.d.status == "wieder") })?.d
+        var s = GymSession(id: id, tag: checkin.d.tag, start: start, ende: aus?.ende, laeufe: [], kcal: aus?.kcal, puls: aus?.puls)
         for e in liste where e.art == "gym.uebung" {
             guard let plan = e.d.plan else { continue }
             switch e.d.status {

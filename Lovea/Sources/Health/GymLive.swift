@@ -42,7 +42,10 @@ enum GymLive {
     private static func zielJetzt() -> Ziel? {
         let modell = TrainingModell.shared
         let ich = Raum.shared.ich ?? .ahmed
-        guard Geraet.wirdGetragen, let s = modell.laufende(ich) else { return nil }
+        guard Geraet.wirdGetragen, let s = modell.laufende(ich) else {
+            WorkoutPuls.shared.verwaisteBeenden()
+            return nil
+        }
         let liste = modell.workout(s.id)
         let dran = WorkoutLogik.dran(liste).map { (uebung: liste[$0.uebung], satz: $0.satz) }
         var stand = GymAktivitaet.ContentState(
