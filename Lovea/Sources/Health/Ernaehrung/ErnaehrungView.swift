@@ -92,6 +92,8 @@ struct ErnaehrungView: View {
         .sheet(isPresented: $zieleOffen) { ErnaehrungZieleView() }
         .sheet(isPresented: $koerperOffen) { KoerperwerteBlatt(tag: tag) }
         .sheet(isPresented: $kalenderOffen) { kalenderBlatt }
+        .onAppear { LebensmittelIndex.shared.laden() }
+        .onDisappear { LebensmittelIndex.shared.freigeben() }
     }
 
     private var stand: TagebuchStand {

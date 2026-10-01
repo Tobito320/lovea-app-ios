@@ -216,13 +216,7 @@ struct HinzufuegenBlatt: View {
     private var lokaleTreffer: [Lebensmittel] {
         let t = suchtext.trimmingCharacters(in: .whitespaces)
         guard !t.isEmpty else { return [] }
-        var gesehen: Set<String> = []
-        let eigeneUndZuletzt = (modell.eigene + modell.zuletzt(ich))
-            .filter { $0.name.localizedCaseInsensitiveContains(t) }
-            .filter { gesehen.insert($0.id).inserted }
-        let basis = LebensmittelBasis.suchen(t)
-            .filter { gesehen.insert($0.id).inserted }
-        return eigeneUndZuletzt + basis
+        return LebensmittelIndex.shared.suchen(t, vorne: modell.eigene + modell.zuletzt(ich))
     }
 
     /// Name, Marke, kcal, rechts ein Plus zum Direkt-Eintragen. Tipp öffnet das Detail.
