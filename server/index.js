@@ -2,6 +2,7 @@
 // Objekt "Raum" weiter, proxyt GET /gif zu Klipy. Reine fetch(request, env)
 // -Funktion ohne cloudflare:workers-Import -> unter Node testbar.
 export { Raum } from "./raum.js";
+import { handleEssen } from "./essen.js";
 
 const PERSONEN = new Set(["ahmed", "annika"]);
 
@@ -46,6 +47,7 @@ export async function handleFetch(request, env) {
   if (!person) return new Response("unauthorized", { status: 401 });
 
   if (url.pathname === "/gif") return gifProxy(url, env);
+  if (url.pathname.startsWith("/essen/")) return handleEssen(url, env);
 
   const id = env.RAUM.idFromName("wir");
   const stub = env.RAUM.get(id, { locationHint: "weur" });
