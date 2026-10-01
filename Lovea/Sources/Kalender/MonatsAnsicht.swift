@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Z-9.5 / Z-42.1: Monatsraster. Jede Zelle ist fein umrandet und senkrecht geteilt, links Ahmed,
 /// rechts Annika. Schule tönt die Hälfte kräftig, Arbeit hell, dazu Buch oder Koffer; Termin als
-/// Punkt, Treffen als Herz. Wischen wechselt den Monat, antippen ruft `onTagWaehlen` mit dem
-/// `yyyy-MM-dd`-String. Die Werte kommen fertig aus `KalenderModell.monatsRaster`.
+/// Punkt, Treffen als Herz. Monatswechsel nur über die Pfeile im Kopf, antippen einer Zelle ruft
+/// `onTagWaehlen` mit dem `yyyy-MM-dd`-String. Die Werte kommen fertig aus `KalenderModell.monatsRaster`.
 struct MonatsAnsicht: View {
     let kalender = KalenderModell.shared
     var onTagWaehlen: (String) -> Void
@@ -33,26 +33,6 @@ struct MonatsAnsicht: View {
         // Sieben Spalten (und der Monatsname zwischen den Pfeilen) passen ab AX-Größen nicht mehr;
         // wie der System-Kalender deckeln statt abschneiden. VoiceOver liest jeden Tag voll vor.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .contentShape(Rectangle())
-        // simultaneousGesture statt gesture: eine normale `.gesture` über die volle Breite würde das
-        // System-Zurück-Wischen vom linken Rand blockieren (Ahmed, 01.10.). Start in den linken 30 pt
-        // zählt hier gar nicht erst als Monatswechsel, damit beide Gesten nie gleichzeitig feuern –
-        // heute eingebettet nur als Teil von `HomeView.kalenderKarte` (unten gepusht wird nichts),
-        // die Sperre schützt aber auch, falls `MonatsAnsicht` später mal selbst gepusht wird.
-        .simultaneousGesture(
-            DragGesture(minimumDistance: 24, coordinateSpace: .global)
-                // R6-Fix (Review 01.10.): beansprucht die Berührung, sobald klar horizontal, damit
-                // der Tab-Wisch (60 pt) auf Home hier nicht zugleich feuert.
-                .onChanged { wert in
-                    guard wert.startLocation.x > 30 else { return }
-                    if abs(wert.translation.width) > abs(wert.translation.height) { TabWischSperre.shared.beanspruchen() }
-                }
-                .onEnded { wert in
-                    guard wert.startLocation.x > 30 else { return }
-                    if wert.translation.width < -30 { wechsleMonat(1) }
-                    else if wert.translation.width > 30 { wechsleMonat(-1) }
-                }
-        )
     }
 
     private func kopf(_ titel: String) -> some View {
