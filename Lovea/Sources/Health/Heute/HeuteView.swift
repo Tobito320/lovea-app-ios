@@ -449,6 +449,11 @@ struct HeuteView: View {
                 .padding(16)
             }
             .toolbar(.hidden, for: .navigationBar)
+            // R6: nur die Heute-Wurzel, nicht Training/Körper/Verlauf dahinter. Konkurriert mit dem
+            // Wochenstreifen (`tagesWahl`) nicht normalerweise — der braucht nur 30 pt und reagiert
+            // schon vor den hier nötigen 60 pt; nur bei einem sehr schnellen, weiten Wisch genau dort
+            // können beide einmal zugleich feuern (bekannter, seltener Randfall wie bei MonatsAnsicht).
+            .tabWischen(vorheriger: "drawing", naechster: "profile")
             .navigationDestination(for: HeuteZiel.self) { ansicht($0) }
             .navigationDestination(for: HealthZiel.self) { HealthZielAnsicht(ziel: $0) }
             .navigationDestination(for: VerlaufZiel.self) { ziel in VerlaufZielSeite(ziel: ziel) { pfad.append($0) } }
@@ -541,10 +546,19 @@ struct HeuteView: View {
                 withAnimation(Feder.weich) { gewaehlt = tag }
             }
         }
-        .simultaneousGesture(DragGesture(minimumDistance: 30).onEnded { g in
-            guard abs(g.translation.width) > abs(g.translation.height) else { return }
-            blaettern(g.translation.width < 0 ? 7 : -7)
-        })
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 30)
+                // R6-Fix (Review 01.10.): beansprucht die Berührung, sobald klar horizontal, damit
+                // der Tab-Wisch (60 pt) hier nicht zugleich feuert — die 30-pt-Schwelle hier wird bei
+                // jedem Tab-Wisch zuerst erreicht.
+                .onChanged { g in
+                    if abs(g.translation.width) > abs(g.translation.height) { TabWischSperre.shared.beanspruchen() }
+                }
+                .onEnded { g in
+                    guard abs(g.translation.width) > abs(g.translation.height) else { return }
+                    blaettern(g.translation.width < 0 ? 7 : -7)
+                }
+        )
     }
 
     private func pfeil(_ symbol: String, _ tage: Int, _ label: String) -> some View {

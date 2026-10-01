@@ -75,7 +75,9 @@ struct AppRootView: View {
                 if tab != .heute { AppNavigation.shared.healthSeite = wunsch }
                 selectedTab = .health
             } else if tab != .zurueck {
-                selectedTab = tab
+                // R6: animiert wie bei Snapchat/Instagram, auch wenn der Wunsch von einem
+                // Deep-Link statt der Wisch-Geste kommt — stört dort nicht.
+                withAnimation(Feder.weich) { selectedTab = tab }
             }
         }
         // audit-chat #2: voice round (app-wide voice playback outside the conversation) and the

@@ -41,6 +41,12 @@ struct MonatsAnsicht: View {
         // die Sperre schützt aber auch, falls `MonatsAnsicht` später mal selbst gepusht wird.
         .simultaneousGesture(
             DragGesture(minimumDistance: 24, coordinateSpace: .global)
+                // R6-Fix (Review 01.10.): beansprucht die Berührung, sobald klar horizontal, damit
+                // der Tab-Wisch (60 pt) auf Home hier nicht zugleich feuert.
+                .onChanged { wert in
+                    guard wert.startLocation.x > 30 else { return }
+                    if abs(wert.translation.width) > abs(wert.translation.height) { TabWischSperre.shared.beanspruchen() }
+                }
                 .onEnded { wert in
                     guard wert.startLocation.x > 30 else { return }
                     if wert.translation.width < -30 { wechsleMonat(1) }

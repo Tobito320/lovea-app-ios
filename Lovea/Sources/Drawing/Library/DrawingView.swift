@@ -119,6 +119,9 @@ struct DrawingView: View {
                 if auswahl != nil { AuswahlLeiste(library: library, auswahl: $auswahl) }
             }
             .sensoryFeedback(.selection, trigger: auswahl)
+            // R6: nur die Galerie-Wurzel, nicht Artwork/Projekt/geteilte Zeichnung dahinter
+            // (dort ist das eigentliche Zeichen-Canvas mit eigenen Gesten).
+            .tabWischen(vorheriger: "chat", naechster: "health")
             .navigationTitle("Meine Galerie")
             .navigationDestination(for: GalleryRoute.self) { route in
                 switch route {
