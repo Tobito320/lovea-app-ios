@@ -451,6 +451,17 @@ struct ErnaehrungFaltung: Sendable {
         return liste
     }
 
+    /// Am häufigsten gegessen in den letzten 90 Tagen, bei Gleichstand das zuletzt gegessene zuerst.
+    func haeufig(_ p: Person, anzahl: Int = 40) -> [Lebensmittel] {
+        let grenze = Datum.addTage(Datum.text(Date()), -90)
+        var zahl: [String: (n: Int, zeit: Date, l: Lebensmittel)] = [:]
+        for s in (essen[p] ?? [:]).values where s.wert.geloescht != true && s.wert.datum >= grenze && !s.wert.lebensmittel.id.hasPrefix("schnell-") {
+            let alt = zahl[s.wert.lebensmittel.id]
+            zahl[s.wert.lebensmittel.id] = ((alt?.n ?? 0) + 1, max(alt?.zeit ?? .distantPast, s.zeit), s.wert.lebensmittel)
+        }
+        return zahl.values.sorted { $0.n != $1.n ? $0.n > $1.n : $0.zeit > $1.zeit }.prefix(anzahl).map(\.l)
+    }
+
     /// Letzte Menge und Einheit, mit der `p` dieses Lebensmittel eingetragen hat.
     func letzteMenge(_ p: Person, _ lebensmittelId: String) -> (menge: Double, einheit: Einheit)? {
         (essen[p] ?? [:]).values

@@ -1,32 +1,45 @@
 import SwiftUI
 
-/// Hinzufügen-Blatt wie YAZIO: Barcode, Schnelleintrag, Suche (lokal + Open Food Facts) und die
-/// vier Listen Zuletzt/Favoriten/Eigene/Rezepte. Bleibt nach dem Eintragen offen.
+/// Hinzufügen-Blatt wie YAZIO: Kacheln (Suche/Kamera/Barcode/Sprache/Mehr), eigenes Suchfeld mit
+/// Such-Modus, Typ/Sortierung, Barcode-Kette (lokal -> Server -> Open Food Facts -> Vorschläge) und
+/// das Erstellen-Blatt. Bleibt nach dem Eintragen offen.
 struct HinzufuegenBlatt: View {
     let datum: String
     @State private var mahlzeit: Mahlzeit
     @Environment(\.dismiss) private var dismiss
 
+    @State private var typ: HinzuTyp = .lebensmittel
+    @State private var sortierung: HinzuSortierung = .haeufig
+    @State private var zaehler = 0
     @State private var suchtext = ""
-    @State private var offTreffer: [Lebensmittel] = []
-    @State private var suchLaedt = false
-    @State private var suchFehler = false
-    @State private var segment: Segment = .zuletzt
+    @State private var suche = SuchStand()
+    @State private var suchAufgabe: Task<Void, Never>?
+    @State private var suchModus = false
+    @State private var chip: SuchChip?
+    @State private var erstellenOffen = false
+    @State private var kommtBald: String?
+    @State private var vorschlaege: (name: String, liste: [Lebensmittel], code: String)?
+    @State private var fotoBarcode: BarcodeVorlage?
+    @State private var serverFehlt = false
+    @State private var geradeEingetragen: Set<String> = []
 
     @State private var pfad: [Lebensmittel] = []
     @State private var hinweis: String?
     @State private var barcodeOffen = false
     @State private var schnellOffen = false
-    @State private var barcodeVorgang: BarcodeVorgang?
-    @State private var eigenesZiel: EigenesBlattZiel?
-    @State private var eigenesNeuBarcode: BarcodeVorlage?
+    @State private var eigenesNeuOffen = false
+    @State private var eigenesBearbeiten: Lebensmittel?
     @State private var rezeptNeuOffen = false
     @State private var rezeptBearbeiten: Rezept?
-    /// Ein Blatt darf erst aufgehen, wenn das vorige ganz zu ist: Scanner und Barcode-Hinweis merken
-    /// sich hier, was danach passieren soll, `onDismiss` führt es aus.
+    @State private var rezeptArt: RezeptArt = .rezept
+    /// Einmal pro Erscheinen berechnet statt pro Tastendruck (Favoriten/Häufig/Eigene/Rezepte ändern
+    /// sich während des Tippens nicht).
+    @State private var suchVorne: [Lebensmittel] = []
+    /// Welcher Scan-Zweck gerade läuft: normale Suche (Barcode-Kette) oder "Neues Lebensmittel mit
+    /// Barcode" aus dem Erstellen-Blatt (direkt zu `NaehrwertFotoBlatt`, ohne Kette).
+    @State private var scanZweck: ScanZweck = .suchen
     @State private var gescannt: String?
     @State private var barcodeLaedt = false
-    @State private var folge: BarcodeFolge?
 
     private var modell: ErnaehrungModell { ErnaehrungModell.shared }
     private var ich: Person { modell.ich }
@@ -43,38 +56,65 @@ struct HinzufuegenBlatt: View {
 
     var body: some View {
         NavigationStack(path: $pfad) {
-            liste
-                .searchable(text: $suchtext, placement: .navigationBarDrawer(displayMode: .always), prompt: "Lebensmittel suchen")
-                .onSubmit(of: .search) { Task { await suchen() } }
-                .navigationTitle("Hinzufügen")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar {
-                    ToolbarItem(placement: .cancellationAction) { Button("Schließen") { dismiss() } }
+            VStack(spacing: 0) {
+                if suchModus {
+                    SuchKopf(text: $suchtext, abbrechen: suchBeenden)
+                    SuchChips(auswahl: $chip, partner: ich.partner)
+                } else {
+                    HinzuKopf(titel: modell.mahlzeitName(mahlzeit), zaehler: zaehler, schliessen: { dismiss() })
+                    KachelReihe(aktiv: .suche, tippen: kachel)
+                    SuchFeldKnopf(platzhalter: "Was hattest du zum \(modell.mahlzeitName(mahlzeit))?") { suchModus = true }
+                    HStack(spacing: 10) {
+                        AuswahlKnopf(wert: $typ)
+                        AuswahlKnopf(wert: $sortierung)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
                 }
-                .navigationDestination(for: Lebensmittel.self) { l in
-                    LebensmittelDetailView(lebensmittel: l, mahlzeit: mahlzeit, datum: datum) {
-                        zeigeHinweis(l.name)
-                        if !pfad.isEmpty { pfad.removeLast() }
+                ScrollView {
+                    LazyVStack(spacing: suchModus ? 12 : 0) { inhalt }
+                        .padding(.horizontal, suchModus ? 16 : 0)
+                        .padding(.top, suchModus ? 12 : 0)
+                    if suchModus, serverFehlt {
+                        Text("Markenprodukte gerade nicht erreichbar")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .padding(.top, 4)
                     }
                 }
-                .overlay(alignment: .top) {
-                    if let hinweis { hinweisBanner(hinweis) }
+            }
+            .safeAreaInset(edge: .bottom) { if !suchModus { FertigKnopf { dismiss() } } }
+            .toolbar(.hidden, for: .navigationBar)
+            .navigationDestination(for: Lebensmittel.self) { l in
+                LebensmittelDetailView(lebensmittel: l, mahlzeit: mahlzeit, datum: datum) {
+                    zeigeHinweis(l.name)
+                    if !pfad.isEmpty { pfad.removeLast() }
                 }
-                .overlay {
-                    if barcodeLaedt {
-                        ProgressView("Suche Produkt…")
-                            .padding(24)
-                            .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
+            }
+            .overlay(alignment: .top) { if let hinweis { hinweisBanner(hinweis) } }
+            .overlay {
+                if barcodeLaedt {
+                    ProgressView("Suche Produkt…")
+                        .padding(24)
+                        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
-                .animation(Feder.weich, value: hinweis)
+            }
+            .animation(Feder.weich, value: hinweis)
         }
         .fontDesign(.rounded)
         .onAppear {
-            guard sofortScannen, !sofortErledigt else { return }
-            sofortErledigt = true
-            barcodeOffen = true
+            suchVorne = modell.favoriten(ich) + modell.haeufig(ich) + modell.eigene + modell.rezepte.map(ErnaehrungLogik.alsLebensmittel)
+            if sofortScannen, !sofortErledigt {
+                sofortErledigt = true
+                scanZweck = .suchen
+                barcodeOffen = true
+            }
+            guard !modell.offeneBarcodes.isEmpty else { return }
+            Task {
+                for l in await modell.nachholen() { zeigeHinweis(l.name) }
+            }
         }
+        .onChange(of: suchtext) { _, neu in suchtextGeaendert(neu) }
         .sheet(isPresented: $barcodeOffen, onDismiss: scannerZu) {
             BarcodeScannerBlatt { code in gescannt = code }
         }
@@ -84,173 +124,142 @@ struct HinzufuegenBlatt: View {
                 zeigeHinweis(l.name)
             }
         }
-        .sheet(item: $barcodeVorgang, onDismiss: vorgangZu) { vorgang in
-            BarcodeVorgangBlatt(vorgang: vorgang, nochmal: { code in
-                folge = .nochmal(code)
-                barcodeVorgang = nil
-            }, selbstAnlegen: { code in
-                folge = .anlegen(code)
-                barcodeVorgang = nil
-            })
+        .sheet(isPresented: $eigenesNeuOffen) {
+            EigenesLebensmittelEditor()
         }
-        .sheet(item: $eigenesZiel) { ziel in
-            switch ziel {
-            case .neu: EigenesLebensmittelEditor()
-            case .bearbeiten(let l): EigenesLebensmittelEditor(start: l)
-            }
-        }
-        .sheet(item: $eigenesNeuBarcode) { vorlage in
-            EigenesLebensmittelEditor(barcode: vorlage.id) { l in pfad.append(l) }
+        .sheet(item: $eigenesBearbeiten) { l in
+            EigenesLebensmittelEditor(start: l)
         }
         .sheet(isPresented: $rezeptNeuOffen) {
-            RezeptEditor()
+            RezeptEditor(art: rezeptArt)
         }
         .sheet(item: $rezeptBearbeiten) { r in
             RezeptEditor(start: r)
         }
+        .sheet(isPresented: $erstellenOffen) {
+            ErstellenBlatt(tippen: erstellenGewaehlt)
+        }
+        .sheet(isPresented: Binding(get: { kommtBald != nil }, set: { if !$0 { kommtBald = nil } })) {
+            KommtBaldBlatt(titel: kommtBald ?? "")
+        }
+        .sheet(isPresented: Binding(get: { vorschlaege != nil }, set: { if !$0 { vorschlaege = nil } })) {
+            if let v = vorschlaege {
+                VorschlaegeBlatt(name: v.name, treffer: v.liste,
+                                 auswahl: { l in vorschlaegeAuswahl(l, code: v.code) },
+                                 keinesDavon: { fotoBarcode = BarcodeVorlage(id: v.code); vorschlaege = nil })
+            }
+        }
+        .sheet(item: $fotoBarcode) { vorlage in
+            NaehrwertFotoBlatt(barcode: vorlage.id) { l in pfad.append(l) }
+        }
     }
 
-    // MARK: - Liste
+    // MARK: - Inhalt
 
-    private var liste: some View {
-        List {
-            Section {
-                mahlzeitAuswahl
-                aktionsKnoepfe
+    @ViewBuilder private var inhalt: some View {
+        if suchModus {
+            ForEach(suchKarten) { l in
+                SuchKarte(lebensmittel: l, typLabel: typLabel(l),
+                          plus: { direktEintragenUndMarkieren(l) },
+                          tippen: { pfad.append(l) },
+                          kannKopieren: ersteller(l) == ich.partner,
+                          kopieren: { kopieren(l) },
+                          istFavorit: modell.istFavorit(l),
+                          favoritUmschalten: { modell.favoritSetzen(l, an: !modell.istFavorit(l)) },
+                          istEigen: ersteller(l) == ich,
+                          bearbeiten: { bearbeitenOeffnen(l) },
+                          loeschen: { loeschen(l) })
             }
-            if suchtext.trimmingCharacters(in: .whitespaces).isEmpty {
-                Section {
-                    Picker("Ansicht", selection: $segment) {
-                        ForEach(Segment.allCases) { s in Text(s.titel).tag(s) }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                segmentInhalt
-            } else {
-                sucheInhalt
+        } else {
+            ForEach(listeInhalt) { l in
+                HinzuZeile(lebensmittel: l, eingetragen: geradeEingetragen.contains(l.id),
+                           tippen: { pfad.append(l) }, plus: { direktEintragenUndMarkieren(l) },
+                           istEigen: ersteller(l) == ich,
+                           bearbeiten: { bearbeitenOeffnen(l) },
+                           loeschen: { loeschen(l) })
             }
         }
     }
 
-    private var mahlzeitAuswahl: some View {
-        Menu {
-            ForEach(Mahlzeit.allCases) { m in
-                Button { mahlzeit = m } label: { Label(modell.mahlzeitName(m), systemImage: m.symbol) }
+    /// Lebensmittel: Häufig/Zuletzt/Favoriten direkt. Mahlzeiten/Rezepte: dieselben Listen, nur auf
+    /// `rezept-`-IDs gefiltert, Rest alphabetisch hinten.
+    private var listeInhalt: [Lebensmittel] {
+        switch typ {
+        case .lebensmittel:
+            switch sortierung {
+            case .haeufig: return modell.haeufig(ich)
+            case .zuletzt: return modell.zuletzt(ich)
+            case .favoriten: return modell.favoriten(ich).filter { !$0.istRezept }
             }
-        } label: {
-            Label(modell.mahlzeitName(mahlzeit), systemImage: mahlzeit.symbol).font(.subheadline.weight(.semibold))
-        }
-    }
-
-    private var aktionsKnoepfe: some View {
-        VStack(spacing: 10) {
-            Button { barcodeOffen = true } label: {
-                Label("Barcode scannen", systemImage: "barcode.viewfinder").frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.borderedProminent)
-            Button { schnellOffen = true } label: {
-                Label("Schnell eintragen", systemImage: "bolt.fill").frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.bordered)
-        }
-        .padding(.vertical, 4)
-    }
-
-    @ViewBuilder private var segmentInhalt: some View {
-        switch segment {
-        case .zuletzt:
-            let liste = modell.zuletzt(ich)
-            Section {
-                if liste.isEmpty { Text("Noch nichts gegessen.").foregroundStyle(.secondary) }
-                ForEach(liste) { zeile($0) }
-            }
-        case .favoriten:
-            let liste = modell.favoriten(ich)
-            Section {
-                if liste.isEmpty { Text("Noch keine Favoriten.").foregroundStyle(.secondary) }
-                ForEach(liste) { zeile($0) }
-            }
-        case .eigene:
-            Section {
-                Button("Neues Lebensmittel", systemImage: "plus") { eigenesZiel = .neu }
-                ForEach(modell.eigene) { l in
-                    zeile(l)
-                        .swipeActions {
-                            Button("Löschen", role: .destructive) { modell.eigenesLoeschen(l) }
-                            Button("Bearbeiten") { eigenesZiel = .bearbeiten(l) }.tint(.blue)
-                        }
-                }
-            }
-        case .rezepte:
-            Section {
-                Button("Neues Rezept", systemImage: "plus") { rezeptNeuOffen = true }
-                ForEach(modell.rezepte) { r in
-                    zeile(ErnaehrungLogik.alsLebensmittel(r))
-                        .swipeActions {
-                            Button("Löschen", role: .destructive) { modell.rezeptLoeschen(r) }
-                            Button("Bearbeiten") { rezeptBearbeiten = r }.tint(.blue)
-                        }
-                }
+        case .mahlzeiten, .rezepte:
+            let art: RezeptArt = typ == .mahlzeiten ? .mahlzeit : .rezept
+            let alle = modell.rezepte(von: ich, art: art).map(ErnaehrungLogik.alsLebensmittel)
+            switch sortierung {
+            case .favoriten:
+                let favoritIds = Set(modell.favoriten(ich).filter(\.istRezept).map(\.id))
+                return alle.filter { favoritIds.contains($0.id) }
+            case .haeufig, .zuletzt:
+                let ids = Set(alle.map(\.id))
+                let basis = sortierung == .haeufig ? modell.haeufig(ich) : modell.zuletzt(ich)
+                let erst = basis.filter { ids.contains($0.id) }
+                let erstIds = Set(erst.map(\.id))
+                let rest = alle.filter { !erstIds.contains($0.id) }
+                    .sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+                return erst + rest
             }
         }
     }
 
-    @ViewBuilder private var sucheInhalt: some View {
-        let treffer = lokaleTreffer
-        if !treffer.isEmpty {
-            Section("Lebensmittel") { ForEach(treffer) { zeile($0) } }
+    /// Chip gewählt: filtert die Suchtreffer, bei leerer Suche zeigt er direkt die passende Grundliste.
+    private var suchKarten: [Lebensmittel] {
+        guard let chip else { return suche.sichtbar }
+        let basis: [Lebensmittel]
+        switch chip {
+        case .favoriten: basis = modell.favoriten(ich)
+        case .vonMir: basis = modell.eigene(von: ich) + modell.rezepte(von: ich, art: nil).map(ErnaehrungLogik.alsLebensmittel)
+        case .vonPartner: basis = modell.eigene(von: ich.partner) + modell.rezepte(von: ich.partner, art: nil).map(ErnaehrungLogik.alsLebensmittel)
         }
-        Section("Open Food Facts") {
-            if suchLaedt {
-                ProgressView()
-            } else if suchFehler {
-                Button("Keine Verbindung. Nochmal versuchen?") { Task { await suchen() } }
-            } else if offTreffer.isEmpty {
-                Text("Eingabetaste zum Suchen.").foregroundStyle(.secondary)
-            } else {
-                ForEach(offTreffer) { zeile($0) }
-            }
+        guard !suche.sichtbar.isEmpty else { return basis }
+        let ids = Set(suche.sichtbar.map(\.id))
+        return basis.filter { ids.contains($0.id) }
+    }
+
+    private func typLabel(_ l: Lebensmittel) -> String {
+        guard l.id.hasPrefix("rezept-") else { return "Lebensmittel" }
+        let id = String(l.id.dropFirst("rezept-".count))
+        return modell.rezepte.first { $0.id == id }?.istMahlzeit == true ? "Mahlzeit" : "Rezept"
+    }
+
+    private func ersteller(_ l: Lebensmittel) -> Person? {
+        if l.id.hasPrefix("rezept-"), let r = modell.rezepte.first(where: { $0.id == String(l.id.dropFirst("rezept-".count)) }) {
+            return modell.ersteller(r)
+        }
+        return modell.ersteller(l)
+    }
+
+    private func kopieren(_ l: Lebensmittel) {
+        if l.id.hasPrefix("rezept-"), let r = modell.rezepte.first(where: { $0.id == String(l.id.dropFirst("rezept-".count)) }) {
+            modell.kopieren(r)
+        } else {
+            modell.kopieren(l)
         }
     }
 
-    private var lokaleTreffer: [Lebensmittel] {
-        let t = suchtext.trimmingCharacters(in: .whitespaces)
-        guard !t.isEmpty else { return [] }
-        return LebensmittelIndex.shared.suchen(t, vorne: modell.eigene + modell.zuletzt(ich))
-    }
-
-    /// Name, Marke, kcal, rechts ein Plus zum Direkt-Eintragen. Tipp öffnet das Detail.
-    private func zeile(_ l: Lebensmittel) -> some View {
-        HStack(spacing: 8) {
-            Button { pfad.append(l) } label: {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(l.name).foregroundStyle(.primary)
-                        if let marke = l.marke { Text(marke).font(.caption).foregroundStyle(.secondary) }
-                        Text(kcalText(l)).font(.caption).foregroundStyle(.secondary)
-                    }
-                }
-            }
-            .buttonStyle(.plain)
-            Spacer()
-            Button { direktEintragen(l) } label: {
-                Image(systemName: "plus.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(Color.accentColor)
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("\(l.name) eintragen")
+    /// Eigenes Lebensmittel oder Rezept: öffnet den passenden Editor mit `start:` vorausgefüllt.
+    private func bearbeitenOeffnen(_ l: Lebensmittel) {
+        if l.id.hasPrefix("rezept-"), let r = modell.rezepte.first(where: { $0.id == String(l.id.dropFirst("rezept-".count)) }) {
+            rezeptBearbeiten = r
+        } else {
+            eigenesBearbeiten = l
         }
     }
 
-    private func kcalText(_ l: Lebensmittel) -> String {
-        if let portion = l.portionMenge {
-            let kcal = Int((l.pro100.kcal * portion / 100).rounded())
-            return "\(kcal) kcal pro \(ErnaehrungLogik.einheitName(.portion, l))"
+    private func loeschen(_ l: Lebensmittel) {
+        if l.id.hasPrefix("rezept-"), let r = modell.rezepte.first(where: { $0.id == String(l.id.dropFirst("rezept-".count)) }) {
+            modell.rezeptLoeschen(r)
+        } else {
+            modell.eigenesLoeschen(l)
         }
-        return "\(Int(l.pro100.kcal.rounded())) kcal pro 100 \(l.basisEinheit.rawValue)"
     }
 
     private func hinweisBanner(_ text: String) -> some View {
@@ -262,6 +271,70 @@ struct HinzufuegenBlatt: View {
             .padding(.top, 8)
     }
 
+    // MARK: - Kacheln und Erstellen
+
+    private func kachel(_ k: HinzuKachel) {
+        switch k {
+        case .suche: suchModus = true
+        case .kamera: kommtBald = "KI-Kalorien-Tracking"
+        case .barcode: scanZweck = .suchen; barcodeOffen = true
+        case .sprache: kommtBald = "Sprache und Text"
+        case .mehr: erstellenOffen = true
+        }
+    }
+
+    private func erstellenGewaehlt(_ e: ErstellenEintrag) {
+        switch e {
+        case .schnell: schnellOffen = true
+        case .mitBarcode: scanZweck = .erstellen; barcodeOffen = true
+        case .ohneBarcode: eigenesNeuOffen = true
+        case .mahlzeit: rezeptArt = .mahlzeit; rezeptNeuOffen = true
+        case .rezept: rezeptArt = .rezept; rezeptNeuOffen = true
+        }
+    }
+
+    // MARK: - Suche
+
+    /// Lokale Suche läuft synchron (unter 16 ms laut Task 3), die Server-Suche folgt mit 150 ms
+    /// Debounce und wird verworfen, wenn seither erneut getippt wurde.
+    private func suchtextGeaendert(_ neu: String) {
+        suchAufgabe?.cancel()
+        serverFehlt = false
+        suche.nummer += 1
+        let nummer = suche.nummer
+        let t = neu.trimmingCharacters(in: .whitespaces)
+        if t.count >= 8, t.allSatisfy(\.isNumber) {
+            suche.sichtbar = []
+            scanZweck = .suchen
+            barcodeSuchen(t)
+            return
+        }
+        suche.lokal = LebensmittelIndex.shared.suchen(t, vorne: suchVorne)
+        suche.sichtbar = suche.lokal
+        guard t.count >= 2 else { return }
+        suchAufgabe = Task {
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled else { return }
+            do {
+                let antwort = try await EssenServer.suchen(t)
+                guard !Task.isCancelled, nummer == suche.nummer else { return }
+                serverFehlt = false
+                suche = SuchZusammenfuehrung.server(suche, antwort: antwort, nummer: nummer)
+            } catch {
+                if !Task.isCancelled, nummer == suche.nummer { serverFehlt = true }
+            }
+        }
+    }
+
+    private func suchBeenden() {
+        suchAufgabe?.cancel()
+        suchModus = false
+        suchtext = ""
+        chip = nil
+        suche = SuchStand()
+        serverFehlt = false
+    }
+
     // MARK: - Aktionen
 
     private func direktEintragen(_ l: Lebensmittel) {
@@ -270,9 +343,18 @@ struct HinzufuegenBlatt: View {
         zeigeHinweis(l.name)
     }
 
-    private func zeigeHinweis(_ name: String) {
-        Haptik.erfolg()
-        let text = "\(name) eingetragen"
+    /// Direkt eintragen plus Zähler hoch und Plus wird 1 s lang zum Häkchen.
+    private func direktEintragenUndMarkieren(_ l: Lebensmittel) {
+        direktEintragen(l)
+        zaehler += 1
+        geradeEingetragen.insert(l.id)
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            geradeEingetragen.remove(l.id)
+        }
+    }
+
+    private func zeigeText(_ text: String) {
         hinweis = text
         Task {
             try? await Task.sleep(for: .seconds(2))
@@ -280,129 +362,54 @@ struct HinzufuegenBlatt: View {
         }
     }
 
-    private func suchen() async {
-        let t = suchtext.trimmingCharacters(in: .whitespaces)
-        guard !t.isEmpty else { return }
-        suchLaedt = true
-        suchFehler = false
-        do {
-            offTreffer = try await OFFClient.suchen(t)
-        } catch {
-            suchFehler = true
-        }
-        suchLaedt = false
+    private func zeigeHinweis(_ name: String) {
+        Haptik.erfolg()
+        zeigeText("\(name) eingetragen")
     }
 
     private func scannerZu() {
         guard let code = gescannt else { return }
         gescannt = nil
-        barcodeGefunden(code)
-    }
-
-    private func vorgangZu() {
-        guard let f = folge else { return }
-        folge = nil
-        switch f {
-        case .nochmal(let code): barcodeSuchen(code)
-        case .anlegen(let code): eigenesNeuBarcode = BarcodeVorlage(id: code)
+        if scanZweck == .erstellen {
+            fotoBarcode = BarcodeVorlage(id: BarcodeLogik.normal(code))
+        } else {
+            barcodeSuchen(code)
         }
     }
 
-    private func barcodeGefunden(_ code: String) {
-        if let l = modell.offline(barcode: code) {
-            pfad.append(l)
-            return
-        }
-        barcodeSuchen(code)
-    }
-
+    /// Lokal -> Server -> Open Food Facts live -> Namens-Vorschläge -> unbekannt (Task 6).
     private func barcodeSuchen(_ code: String) {
         barcodeLaedt = true
         Task {
-            do {
-                let l = try await OFFClient.produkt(code)
-                barcodeLaedt = false
-                if let l { pfad.append(l) } else { barcodeVorgang = .unbekannt(code) }
-            } catch {
-                barcodeLaedt = false
-                barcodeVorgang = .fehler(code)
+            let ergebnis = await BarcodeKette.suchen(code, .echt)
+            barcodeLaedt = false
+            switch ergebnis {
+            case .gefunden(let l): pfad.append(l)
+            case .vorschlaege(let name, let liste): vorschlaege = (name, liste, BarcodeLogik.normal(code))
+            case .unbekannt(let c): fotoBarcode = BarcodeVorlage(id: c)
+            case .offline(let c):
+                modell.merken(c)
+                zeigeText("Kein Netz. Barcode gemerkt, wir suchen, sobald du online bist.")
             }
         }
     }
-}
 
-private enum Segment: String, CaseIterable, Identifiable {
-    case zuletzt, favoriten, eigene, rezepte
-
-    var id: String { rawValue }
-    var titel: String {
-        switch self {
-        case .zuletzt: "Zuletzt"
-        case .favoriten: "Favoriten"
-        case .eigene: "Eigene"
-        case .rezepte: "Rezepte"
-        }
+    private func vorschlaegeAuswahl(_ l: Lebensmittel, code: String) {
+        vorschlaege = nil
+        var k = l
+        k.id = "eigen-\(UUID().uuidString)"
+        k.barcode = code
+        modell.eigenesSichern(k)
+        pfad.append(k)
     }
 }
 
-private enum EigenesBlattZiel: Identifiable {
-    case neu
-    case bearbeiten(Lebensmittel)
-
-    var id: String {
-        switch self {
-        case .neu: "neu"
-        case .bearbeiten(let l): l.id
-        }
-    }
-}
-
-private enum BarcodeFolge {
-    case nochmal(String)
-    case anlegen(String)
-}
+// Kein Associated Value, Swift synthetisiert `Equatable` hier schon automatisch – `Equatable`
+// trotzdem explizit, damit `scanZweck == .erstellen` unten als Absicht erkennbar ist.
+private enum ScanZweck: Equatable { case suchen, erstellen }
 
 private struct BarcodeVorlage: Identifiable {
     let id: String
-}
-
-private enum BarcodeVorgang: Identifiable {
-    case unbekannt(String)
-    case fehler(String)
-
-    var id: String {
-        switch self {
-        case .unbekannt(let code): "unbekannt-\(code)"
-        case .fehler(let code): "fehler-\(code)"
-        }
-    }
-}
-
-/// Ladeanzeige, "Produkt nicht gefunden" oder "Keine Verbindung", je nach `vorgang`.
-private struct BarcodeVorgangBlatt: View {
-    let vorgang: BarcodeVorgang
-    let nochmal: (String) -> Void
-    let selbstAnlegen: (String) -> Void
-
-    var body: some View {
-        VStack(spacing: 16) {
-            switch vorgang {
-            case .unbekannt(let code):
-                Group {
-                    ContentUnavailableView("Produkt nicht gefunden", systemImage: "barcode",
-                                           description: Text("Barcode \(code)"))
-                    Button("Selbst anlegen") { selbstAnlegen(code) }.buttonStyle(.borderedProminent)
-                }
-            case .fehler(let code):
-                Group {
-                    ContentUnavailableView("Keine Verbindung", systemImage: "wifi.slash")
-                    Button("Nochmal versuchen") { nochmal(code) }.buttonStyle(.borderedProminent)
-                }
-            }
-        }
-        .padding(24)
-        .presentationDetents([.medium])
-    }
 }
 
 /// Name optional, kcal Pflicht, Rest optional. Trägt sofort als Portion "100 g" ein.
