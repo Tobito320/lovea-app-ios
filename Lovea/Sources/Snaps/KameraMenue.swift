@@ -38,6 +38,11 @@ enum KameraTimer: CaseIterable {
 /// Sounds, Greenscreen, duale Kamera, HD-Modus, Geschwindigkeit, Selfie-Einstellungen, Lenses.
 struct KameraSeitenMenu: View {
     let steuerung: SnapKameraSteuerung
+    /// Wrapped by the view (Review Minor fix, 2026-10-01: a bare `steuerung.kameraWechseln` method
+    /// reference has no precedent elsewhere in this file — everywhere else wraps in `{ … }`) AND
+    /// (Review Important fix: timer cancel) so the view can cancel a running countdown before the
+    /// camera actually switches.
+    let onWechseln: () -> Void
     @Binding var erweitert: Bool
     @Binding var timer: KameraTimer
     @Binding var rasterAn: Bool
@@ -47,7 +52,7 @@ struct KameraSeitenMenu: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            knopf("arrow.triangle.2.circlepath.camera", aktion: steuerung.kameraWechseln)
+            knopf("arrow.triangle.2.circlepath.camera") { onWechseln() }
                 .accessibilityLabel("Kamera wechseln")
                 .disabled(nimmtVideoAuf)
 

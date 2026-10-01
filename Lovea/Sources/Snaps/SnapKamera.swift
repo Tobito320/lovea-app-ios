@@ -559,6 +559,10 @@ struct SnapKameraView: View {
     @State private var freihandAn = false
     @State private var multiSnapAn = false
     @State private var countdown: Int?
+    /// Review Important fix (2026-10-01): the countdown's own cancel handle — without it nothing
+    /// could stop a running timer (a second tap started an overlapping one, `onDisappear` left it
+    /// running and it still fired `fotoAufnehmen()` on an already-left camera).
+    @State private var timerTask: Task<Void, Never>?
 
     private enum Modus { case ruhe, haltend }
 
@@ -599,7 +603,11 @@ struct SnapKameraView: View {
         .statusBarHidden()
         .onAppear { steuerung.halten() }
         .task { await steuerung.start() }
-        .onDisappear { steuerung.kameraVerlassen() }
+        .onDisappear {
+            timerTask?.cancel() // Review Important fix: no dangling countdown after we've left
+            timerTask = nil
+            steuerung.kameraVerlassen()
+        }
     }
 
     private var obereLeiste: some View {
@@ -619,6 +627,14 @@ struct SnapKameraView: View {
     private var menu: some View {
         KameraSeitenMenu(
             steuerung: steuerung,
+            onWechseln: {
+                // Review Important fix: a countdown running when Ahmed switches cameras must not
+                // fire on the side he just left.
+                timerTask?.cancel()
+                timerTask = nil
+                countdown = nil
+                steuerung.kameraWechseln()
+            },
             erweitert: $menueErweitert,
             timer: $timer,
             rasterAn: $rasterAn,
@@ -717,6 +733,14 @@ struct SnapKameraView: View {
     /// reading `steuerung.freihandAn`/`steuerung.multiSnapAn` here referenced members that don't
     /// exist on that type and didn't build.
     private func ausloesen() {
+        // Review Important fix: a tap during a running countdown cancels it instead of layering a
+        // second one on top (the old code had no handle on the countdown `Task` at all).
+        if timerTask != nil {
+            timerTask?.cancel()
+            timerTask = nil
+            countdown = nil
+            return
+        }
         if freihandAn {
             if steuerung.nimmtVideoAuf {
                 steuerung.videoStoppen()
@@ -739,16 +763,23 @@ struct SnapKameraView: View {
     }
 
     /// Counts down in the UI, then captures — the countdown itself needs no AVFoundation, so it
-    /// lives here rather than in `SnapKameraSteuerung`.
+    /// lives here rather than in `SnapKameraSteuerung`. Review Important fix: the `Task` is now kept
+    /// in `timerTask` (cancelled on a second tap — see `ausloesen` — on camera switch, and on
+    /// `onDisappear`), checks `Task.isCancelled` after every sleep instead of swallowing it via
+    /// `try?`, AND re-checks after the loop so a cancel mid-last-second can't still fall through to
+    /// `fotoAufnehmen()`.
     private func fotoMitTimer() {
-        Task {
+        timerTask = Task {
             for sekunde in stride(from: timer.sekunden, through: 1, by: -1) {
                 countdown = sekunde
                 try? await Task.sleep(for: .seconds(1))
+                if Task.isCancelled { break }
             }
             countdown = nil
+            guard !Task.isCancelled else { return }
             Haptik.mittel()
             if let bild = await steuerung.fotoAufnehmen() { onFoto(bild) }
+            timerTask = nil
         }
     }
 
