@@ -45,9 +45,12 @@ private final class KameraSitzung: @unchecked Sendable {
         session.commitConfiguration()
     }
 
-    /// Configures if still needed, then runs. Returns once frames flow. Idempotent.
-    func starten(_ position: AVCaptureDevice.Position) {
+    /// Configures if still needed, then runs. Returns once frames flow. Idempotent. `stabilisierung`
+    /// is re-applied here too (Review Important fix, 2026-10-01), not only when the menu toggle
+    /// fires — `starten` can (re-)create the movie connection via `konfigurieren`/`kameraSetzen`.
+    func starten(_ position: AVCaptureDevice.Position, stabilisierung: Bool) {
         konfigurieren(position)
+        stabilisierungSetzen(an: stabilisierung)
         if !session.isRunning { session.startRunning() }
     }
 
@@ -56,11 +59,16 @@ private final class KameraSitzung: @unchecked Sendable {
         if session.isRunning { session.stopRunning() }
     }
 
-    func wechseln(_ position: AVCaptureDevice.Position) {
+    /// `stabilisierung` is re-applied after the switch (Review Important fix): `kameraSetzen` tears
+    /// down and re-adds the camera input, which can rebuild the movie connection — the toggle would
+    /// otherwise silently stop applying after a camera switch (menu still shows "an", recording runs
+    /// unstabilized).
+    func wechseln(_ position: AVCaptureDevice.Position, stabilisierung: Bool) {
         guard kamera != nil else { return } // not configured yet: `starten` picks up the new side
         session.beginConfiguration()
         kameraSetzen(position)
         session.commitConfiguration()
+        stabilisierungSetzen(an: stabilisierung)
     }
 
     /// New input first; the old one stays if the new one can't be created or added.
@@ -229,9 +237,9 @@ final class SnapKameraSteuerung: NSObject {
         laeuft = true
         vorbereitet = true
         if geraet == nil { geraet = SnapKameraGeraet.waehlen(position: position) }
-        let sitzung = sitzung, position = position
+        let sitzung = sitzung, position = position, stabil = stabilisierungAn
         sessionSchlange.async {
-            sitzung.starten(position)
+            sitzung.starten(position, stabilisierung: stabil)
             Task { @MainActor in self.bildBereit() }
         }
     }
@@ -296,8 +304,8 @@ final class SnapKameraSteuerung: NSObject {
         position = position == .back ? .front : .back
         geraet = SnapKameraGeraet.waehlen(position: position)
         zoom = 1
-        let sitzung = sitzung, position = position
-        sessionSchlange.async { sitzung.wechseln(position) }
+        let sitzung = sitzung, position = position, stabil = stabilisierungAn
+        sessionSchlange.async { sitzung.wechseln(position, stabilisierung: stabil) }
     }
 
     func zoomSetzen(_ wert: CGFloat) {
