@@ -439,6 +439,7 @@ struct HeuteView: View {
                                        partner: heute == echtHeute ? (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))) : nil)
                     }
                     .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    trainingStartenKarte
                     abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute)) { raster }
                     abschnitt("Das fällt mir auf") { hinweisListe }
                     punkteZeile
@@ -585,8 +586,19 @@ struct HeuteView: View {
             onZiele: { befragung = true },
             onTraining: { gymOeffnen() },
             mitStreifen: false,
-            mitFigur: false
+            mitFigur: false,
+            mitNaechstes: false
         )
+    }
+
+    /// Ahmed, 01.10.: "Training starten" ist zu weit unten, ganz oben soll es ohne Scrollen zu sehen sein.
+    @ViewBuilder
+    private var trainingStartenKarte: some View {
+        let daten = KoerperDaten.laden(ich)
+        if !daten.ziele.leer, let n = daten.naechstes {
+            PushKarte(titel: n.titel, meta: n.meta, chips: n.chips, farbe: Color.person(ich), knopf: "Training starten",
+                      symbol: "play.fill", aktion: gymOeffnen)
+        }
     }
 
     private var verlaufKasten: some View {

@@ -430,6 +430,8 @@ struct KoerperInhalt: View {
     var mitStreifen = true
     /// Heute zeigt die Figur nicht mehr auf dem Screen (Ahmed, 01.10.: sieht schlecht aus, nutzt niemand).
     var mitFigur = true
+    /// Heute zeigt "Training starten" separat ganz oben, nicht hier unten noch einmal.
+    var mitNaechstes = true
 
     private var ich: Person { daten.person }
 
@@ -448,7 +450,7 @@ struct KoerperInhalt: View {
                 .padding(.top, 22)
                 .padding(.bottom, 10)
             felder
-            if !daten.ziele.leer, let n = daten.naechstes { naechstesKarte(n).padding(.top, 18) }
+            if mitNaechstes, !daten.ziele.leer, let n = daten.naechstes { naechstesKarte(n).padding(.top, 18) }
         }
     }
 
@@ -670,8 +672,8 @@ private struct Feld: View {
 }
 
 /// Karte im PUSH-Stil: Rosé-Verlauf, schmale Versalien, ein heller Knopf. Archivo gibt es nicht,
-/// deshalb System schwarz, schmal.
-private struct PushKarte: View {
+/// deshalb System schwarz, schmal. Nicht `private`: Heute zeigt damit "Training starten" oben.
+struct PushKarte: View {
     let titel: String
     let meta: String
     let chips: [String]
