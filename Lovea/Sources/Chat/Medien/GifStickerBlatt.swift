@@ -47,6 +47,15 @@ struct GifStickerBlatt: View {
     }
 }
 
+/// R8-Fix: der `switch reiter` in `GifStickerBlatt` verwirft `GifSuche` bei jedem Tab-Wechsel
+/// komplett (andere Case = neue View-Identität) — ohne Cache lief bei jedem Wechsel zu GIFs ein
+/// neuer Netzwerk-Request an und der Lade-Schimmer blitzte kurz auf, bevor die Treffer kamen.
+/// Ein Treffer pro Suchtext reicht fürs Leben des Blatts (Akku: nie mehr als nötig anfragen).
+@MainActor
+private enum GifSucheCache {
+    static var ergebnisse: [String: [KlipyClient.Gif]] = [:]
+}
+
 private struct GifSuche: View {
     let ich: Person
     let antwortAuf: String?
@@ -191,14 +200,22 @@ private struct GifSuche: View {
     }
 
     /// Klipy's test key allows 100 calls/hour — debounced so typing doesn't burn through it.
+    /// Ein Cache-Treffer (R8-Fix) zeigt sofort ohne Lade-Schimmer und ohne neue Anfrage.
     private func debounceSuche(_ text: String) {
         sucheTask?.cancel()
+        if let zwischengespeichert = GifSucheCache.ergebnisse[text] {
+            ergebnisse = zwischengespeichert
+            zustand = .ok
+            return
+        }
         sucheTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
             guard !Task.isCancelled else { return }
             zustand = .laden
             do {
-                ergebnisse = try await KlipyClient.suchen(text)
+                let treffer = try await KlipyClient.suchen(text)
+                ergebnisse = treffer
+                GifSucheCache.ergebnisse[text] = treffer
                 zustand = .ok
             } catch KlipyClient.Fehler.nichtEingerichtet {
                 zustand = .nichtEingerichtet
