@@ -531,7 +531,11 @@ struct StickerKachel: View {
             }
         }
         .task(id: medienId) {
-            if let name = MitgelieferteSticker.assetName(medienId) { bild = UIImage(named: name); return }
+            // Decoded off the main thread, like the backdrop pictures (`Backdrop.bildLaden`).
+            if let name = MitgelieferteSticker.assetName(medienId) {
+                bild = await Task.detached(priority: .userInitiated) { UIImage(named: name)?.preparingForDisplay() }.value
+                return
+            }
             var url = ChatMedien.eigeneQuellen[medienId] ?? Medien.lokal(medienId)
             if url == nil { url = try? await Medien.holen(medienId) }
             guard let url else { return }

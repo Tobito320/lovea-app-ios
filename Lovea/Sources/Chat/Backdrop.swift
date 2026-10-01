@@ -17,6 +17,12 @@ struct Backdrop: Identifiable, Sendable {
     var bildName: String { "backdrop-\(id)" }
 }
 
+/// By id: every other field is fixed per id. Lets SwiftUI see an unchanged `chatBackdrop`
+/// environment value as unchanged, so a rebuild of the conversation does not rebuild every bubble.
+extension Backdrop: Equatable {
+    static func == (a: Backdrop, b: Backdrop) -> Bool { a.id == b.id }
+}
+
 /// `chat.backdrop` (shared, last write wins): a template, an own photo or an own drawing. Both
 /// own kinds carry the id of an uploaded medium, so the partner's phone can show them too.
 enum BackdropWahl: Equatable, Sendable { case vorlage(String), foto(String), zeichnung(String) }

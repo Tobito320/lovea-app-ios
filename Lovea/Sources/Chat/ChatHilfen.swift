@@ -1,3 +1,4 @@
+import Observation
 import SwiftUI
 import UIKit
 
@@ -29,6 +30,42 @@ enum ListenAutoScroll {
     static func sollNachUntenSpringen(sichtbarGeaendert: Bool, warAmEnde: Bool, nutzerZiehtGerade: Bool) -> Bool {
         sichtbarGeaendert && warAmEnde && !nutzerZiehtGerade
     }
+}
+
+/// "Chat-Tempo (Test)": the switch in the settings (default on, off = the old behaviour) and the
+/// flag "the message list is moving". While it moves, the main thread only scrolls: the particle
+/// backdrop pauses, the live figures draw slower and GIFs hold still. Read it only in those leaf
+/// views, never in the list, so a flip re-renders nothing else.
+@MainActor
+@Observable
+final class ChatTempo {
+    static let shared = ChatTempo()
+    nonisolated static let schluessel = "lovea.chat.tempo"
+    /// Frame rate of the live figures while the list moves.
+    nonisolated static let bildrateImScrollen = 10.0
+
+    /// Local to the device, no op. Same pattern as `Haptik.an`; the settings toggle binds the same key.
+    nonisolated static var an: Bool { UserDefaults.standard.object(forKey: schluessel) as? Bool ?? true }
+
+    private(set) var scrollt = false
+
+    func phase(_ phase: ScrollPhase) {
+        let neu = Self.scrolltBei(phase)
+        if neu != scrollt { scrollt = neu }
+    }
+
+    func zuruecksetzen() { scrollt = false }
+
+    /// True while the list is dragged, flung or scrolled by code; only `.idle` is rest.
+    nonisolated static func scrolltBei(_ phase: ScrollPhase) -> Bool { phase != .idle }
+
+    /// Frame rate for a live figure: the normal one, slower while the list moves (switch on).
+    nonisolated static func bildrate(normal: Double, an: Bool, scrollt: Bool) -> Double {
+        an && scrollt ? min(normal, bildrateImScrollen) : normal
+    }
+
+    /// Reading `scrollt` here registers the caller for changes; with the switch off nothing is read.
+    static func pausiert() -> Bool { an && shared.scrollt }
 }
 
 extension View {

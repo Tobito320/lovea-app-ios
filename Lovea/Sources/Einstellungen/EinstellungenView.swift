@@ -6,6 +6,7 @@ struct EinstellungenView: View {
     @ObservedObject var session: PersonSession
     @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
+    @AppStorage(ChatTempo.schluessel) private var chatTempo = true // same key `ChatTempo.an` reads
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
 
@@ -34,8 +35,13 @@ struct EinstellungenView: View {
                     .foregroundStyle(.primary)
                 }
             }
-            Section("Chat") {
+            Section {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
+                Toggle("Chat-Tempo (Test)", isOn: $chatTempo)
+            } header: {
+                Text("Chat")
+            } footer: {
+                Text("Schont das Scrollen im Chat. Gilt ab dem nächsten Öffnen des Chats. Aus: wie vorher.")
             }
             Section("Wir") {
                 NavigationLink("Orte") { OrteListeView() }

@@ -11,7 +11,7 @@ struct ChatZeilenAktionen {
 
 /// Where a row sits among its neighbours (Z-32.4): separators, 2 pt inside a group, 8 pt between
 /// groups, tail on the last bubble of a group.
-struct ZeilenLayout {
+struct ZeilenLayout: Equatable, Sendable {
     var datumstrenner: Bool
     var zeitstempel: Bool
     var gruppenAnfang: Bool
@@ -29,15 +29,15 @@ struct ZeilenLayout {
 /// One row (Z-4.2, Block 18, Z-32.4, Z-33.1–Z-33.3). Gestures: swipe right to reply, swipe left to
 /// peek at the time, double tap for ❤️, long press for reactions and the menu (`NachrichtFokusEbene`).
 /// A photo stack (several photo messages in a row) renders as `FotoStapel`.
-struct ChatNachrichtRow: View {
+struct ChatNachrichtRow: View, Equatable {
     let nachricht: ChatModell.Nachricht
     let ich: Person
     /// Every message of this row's photo stack (first == `nachricht`); just `[nachricht]` otherwise.
-    var stapel: [ChatModell.Nachricht] = []
+    let stapel: [ChatModell.Nachricht]
     let layout: ZeilenLayout
     /// Set on the row holding the newest own message the partner has read (Z-32.4).
-    var gelesenAm: Date?
-    var zustellText: String?
+    let gelesenAm: Date?
+    let zustellText: String?
     let aktionen: ChatZeilenAktionen
 
     @State private var wischOffset: CGFloat = 0
@@ -46,6 +46,19 @@ struct ChatNachrichtRow: View {
 
     private static let antwortSchwelle: CGFloat = 56
     private var eigene: Bool { nachricht.von == ich }
+    /// Chat-Tempo (Test): swipe hints and the heart exist only while they show. Off = always built.
+    private var tempo: Bool { ChatTempo.an }
+
+    /// Chat-Tempo: `.equatable()` skips a rebuild when this is true. Everything the row draws is
+    /// compared; `aktionen` is left out on purpose, its closures only write `@State` of the
+    /// conversation, which an older copy does just as well. `nonisolated` because `Equatable` is;
+    /// SwiftUI diffs views on the main thread, so `assumeIsolated` is the honest way in.
+    nonisolated static func == (a: ChatNachrichtRow, b: ChatNachrichtRow) -> Bool {
+        MainActor.assumeIsolated {
+            a.nachricht == b.nachricht && a.ich == b.ich && a.stapel == b.stapel && a.layout == b.layout
+                && a.gelesenAm == b.gelesenAm && a.zustellText == b.zustellText
+        }
+    }
 
     var body: some View {
         VStack(spacing: 4) {
@@ -112,8 +125,8 @@ struct ChatNachrichtRow: View {
         }
         .padding(.horizontal, 10)
         .offset(x: wischOffset)
-        .background(alignment: .leading) { antwortPfeil }
-        .background(alignment: .trailing) { wischZeit }
+        .background(alignment: .leading) { if !tempo || wischOffset > 0 { antwortPfeil } }
+        .background(alignment: .trailing) { if !tempo || wischOffset < 0 { wischZeit } }
         .modifier(Aufstieg(aktiv: eigene && Date().timeIntervalSince(nachricht.zeit) < 2))
         .accessibilityAction(named: "Antworten") { aktionen.antworten(nachricht) }
         .accessibilityAction(named: "Mit Herz reagieren") { herzReaktion() }
@@ -138,7 +151,7 @@ struct ChatNachrichtRow: View {
                 }
             }
             .animation(Feder.weich, value: nachricht.gemerkt)
-            .overlay { herzPop }
+            .overlay { if !tempo || herzSichtbar { herzPop } }
             .overlay(alignment: eigene ? .topLeading : .topTrailing) {
                 ReaktionsAbzeichen(nachricht: nachricht, ich: ich)
                     .offset(x: eigene ? -12 : 12, y: -18)
@@ -181,6 +194,8 @@ struct ChatNachrichtRow: View {
             .shadow(color: .black.opacity(0.25), radius: 4)
             .scaleEffect(herzSichtbar ? 1 : 0.3)
             .opacity(herzSichtbar ? 1 : 0)
+            // Only used when the heart is built on demand (Chat-Tempo); otherwise it is always there.
+            .transition(reduceMotion ? AnyTransition.opacity : .scale(scale: 0.3).combined(with: .opacity))
             .allowsHitTesting(false)
             .accessibilityHidden(true)
     }
@@ -357,7 +372,7 @@ struct NachrichtBlase: View {
                     .blase(eigene: eigene, schwanz: schwanz, backdrop: backdrop)
                     .accessibilityLabel("\(eigene ? "Du" : nachricht.von.name): \(text)")
             }
-            if let url = ersterLink(in: text) {
+            if let url = LinkCache.erster(in: text) {
                 LinkVorschau(url: url)
                     .frame(maxWidth: 260)
                     .clipShape(.rect(cornerRadius: 14))
@@ -515,6 +530,20 @@ private struct LinkVorschau: UIViewRepresentable {
 
     func makeUIView(context: Context) -> LPLinkView { LPLinkView(url: url) }
     func updateUIView(_ uiView: LPLinkView, context: Context) {}
+}
+
+/// The link check (`NSDataDetector`) ran for every text row on every build of the row; once per text is enough.
+// ponytail: grows with every distinct text (keys share the messages' string storage), like `hatLink` in MedienUebersicht.
+@MainActor
+enum LinkCache {
+    private static var treffer: [String: URL?] = [:]
+
+    static func erster(in text: String) -> URL? {
+        if let bekannt = treffer[text] { return bekannt }
+        let url = ersterLink(in: text)
+        treffer[text] = .some(url)
+        return url
+    }
 }
 
 /// ponytail: in-memory per-message cooldown; resets on app restart, which is fine for anti-spam.

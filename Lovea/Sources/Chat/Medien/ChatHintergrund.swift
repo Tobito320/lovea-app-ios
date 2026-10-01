@@ -120,7 +120,8 @@ struct BackdropPartikel: View {
             if art == .keine {
                 Color.clear
             } else if animiert && !reduceMotion {
-                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar || scenePhase != .active)) { kontext in
+                // Chat-Tempo: frozen while the message list moves (nothing jumps, it just holds).
+                TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar || scenePhase != .active || ChatTempo.pausiert())) { kontext in
                     leinwand(kontext.date.timeIntervalSinceReferenceDate)
                 }
             } else {
@@ -135,7 +136,9 @@ struct BackdropPartikel: View {
 
     private func leinwand(_ t: Double) -> some View {
         let zeichner = BackdropPartikelZeichner(art: art, t: t)
-        return Canvas { g, size in zeichner.zeichne(g, size) }
+        // Chat-Tempo: drawn off the main thread (a pure function of `t`, nothing shared). Only the
+        // looping backdrop pays for the main thread otherwise, 30 times a second under glass bars.
+        return Canvas(rendersAsynchronously: animiert && ChatTempo.an) { g, size in zeichner.zeichne(g, size) }
     }
 }
 
