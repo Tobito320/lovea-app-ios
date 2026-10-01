@@ -21,8 +21,12 @@ enum Medien {
             // connection, or the app being killed mid-upload) reads it again.
             let originalKopie = try lokaleKopie(von: original, id: id, rolle: "original")
             let kleinKopie = try klein.map { try lokaleKopie(von: $0, id: id, rolle: "klein") }
-            try await teilHochladen(id: id, rolle: "original", datei: originalKopie, konfig: konfig)
+            // `klein` zuerst: der Server liefert bei GET /medien/<id> "original", sobald es fertig
+            // ist, sonst "klein" (raum-logic.js medienLesen). Original zuerst hochzuladen heisst,
+            // der Partner sieht bei einem grossen Video minutenlang nichts, obwohl das kleine,
+            // schnell hochgeladene Thumbnail laengst da waere.
             if let kleinKopie { try await teilHochladen(id: id, rolle: "klein", datei: kleinKopie, konfig: konfig) }
+            try await teilHochladen(id: id, rolle: "original", datei: originalKopie, konfig: konfig)
             // Sender sees their own media right away instead of downloading it back.
             try? FileManager.default.removeItem(at: cacheURL(for: id))
             try? FileManager.default.copyItem(at: originalKopie, to: cacheURL(for: id))
