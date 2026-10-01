@@ -56,7 +56,7 @@
     ]
   },
   {
-    "muster": "brotchen|semmel",
+    "muster": "\\b(brotchen|semmel)\\b",
     "portionen": [
       {
         "name": "Brötchen, ganz",
@@ -65,7 +65,7 @@
     ]
   },
   {
-    "muster": "^brot|toast",
+    "muster": "\\bbrot\\b|toast",
     "portionen": [
       {
         "name": "Scheibe",
@@ -74,7 +74,7 @@
     ]
   },
   {
-    "muster": "^butter|margarine",
+    "muster": "\\bbutter\\b|margarine",
     "portionen": [
       {
         "name": "Aufstrich",
@@ -83,7 +83,7 @@
     ]
   },
   {
-    "muster": "haferflocken|musli|cornflakes",
+    "muster": "^(haferflocken|musli|cornflakes)(?!.*(platzchen|keks|riegel|muffin))",
     "portionen": [
       {
         "name": "Portion",
@@ -92,7 +92,7 @@
     ]
   },
   {
-    "muster": "^milch|kuhmilch|joghurt|kefir|buttermilch",
+    "muster": "^(?!.*(joghurt|kase|schokolade|pulver|zucker|saure|creme|pudding|eis|brei|suppe|sosse|sauce|puree|schmarren|pfannkuchen|eierkuchen|kloss|kuchen|torte|salat|auflauf|konserve|riegel|quark)).*(^|\\s)[a-z]*milch(\\s|$)|trinkjoghurt|\\bkefir\\b",
     "portionen": [
       {
         "name": "Glas",
@@ -101,7 +101,7 @@
     ]
   },
   {
-    "muster": "quark|skyr",
+    "muster": "^(?!.*(brot|kuchen|teig|krapfen|hornchen|torte|strudel|taschen|waffel|schmarren|auflauf)).*quark|skyr",
     "portionen": [
       {
         "name": "Becher",
@@ -114,7 +114,7 @@
     ]
   },
   {
-    "muster": "kaffee|tee ",
+    "muster": "^(?!.*(pulver|sahne|likor|bohnen)).*(kaffee|tee )",
     "portionen": [
       {
         "name": "Tasse, mittelgroß",
@@ -127,7 +127,7 @@
     ]
   },
   {
-    "muster": "saft|limonade|cola|wasser",
+    "muster": "^(?!.*(melone|rube|eigenen|konserve|kuchen|torte|salat|suppe|sosse|puree|brei)).*((^|\\s)[a-z]*(wasser|saft|limonade|nektar|schorle|sirup)(\\s|$)|\\bcola\\b)",
     "portionen": [
       {
         "name": "Glas",
@@ -136,7 +136,7 @@
     ]
   },
   {
-    "muster": "kase|gouda|emmentaler",
+    "muster": "^(?!.*(kuchen|torte|suppe|sosse|sauce|salat|auflauf|spatzle|fondue|quiche|creme|flan)).*(kase|gouda|emmentaler)",
     "portionen": [
       {
         "name": "Scheibe",
@@ -145,7 +145,7 @@
     ]
   },
   {
-    "muster": "reis|nudeln|spaghetti|kartoffel",
+    "muster": "^(?!.*(chips|instantpulver|trockenprodukt)).*(reis|nudeln|spaghetti|kartoffel)",
     "portionen": [
       {
         "name": "Portion, gekocht",
@@ -154,7 +154,7 @@
     ]
   },
   {
-    "muster": "zucker|honig|marmelade|konfiture",
+    "muster": "^(?!.*(mais|rohr|cerealien|konserve|kondensmilch|kondensmagermilch)).*((^|\\s)[a-z]*(zucker|honig|marmelade|konfiture)(\\s|$))",
     "portionen": [
       {
         "name": "Teelöffel",
@@ -167,7 +167,7 @@
     ]
   },
   {
-    "muster": "ol |ol$|rapsol|olivenol",
+    "muster": "^(?!.*(escariol|alkohol|vol)).*(^|\\s)[a-z]*ol(\\s|$)",
     "portionen": [
       {
         "name": "Esslöffel",

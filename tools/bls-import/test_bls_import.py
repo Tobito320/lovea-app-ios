@@ -23,6 +23,18 @@ def test_banane_regel_nur_frisch_oder_gekocht():
     assert portionen_fuer("Banane getrocknet", {}, regeln) == []
     assert portionen_fuer("Banane roh", {}, regeln)[0]["gramm"] == 150
 
+def test_weitere_regeln_wortgrenzen_und_verarbeitet():
+    """Dieselbe Behandlung wie bei Banane/Apfel/Ei: Kartoffelchips ist kein Kartoffel-Gericht aus
+    der reis/nudeln/kartoffel-Regel, Milchpulver ist keine trinkbare Milch, aber Vollmilch (ein
+    zusammengesetztes Wort ohne Leerzeichen) muss trotzdem die Milch-Portion bekommen, und
+    Spaghetti gekocht bleibt unveraendert bei 200 g."""
+    regeln = json.loads((Path(__file__).with_name("portionen.json")).read_text("utf-8"))
+    assert portionen_fuer("Kartoffelchips", {}, regeln) == []
+    assert portionen_fuer("Vollmilch frisch, 3,5 % Fett, pasteurisiert", {}, regeln)[0]["gramm"] == 200
+    assert portionen_fuer("Milchpulver mit hohem Fettgehalt (Sahnepulver, Rahmpulver)", {}, regeln) == []
+    assert portionen_fuer("Spaghetti gekocht", {}, regeln)[0]["gramm"] == 200
+
 if __name__ == "__main__":
     test_suchschluessel(); test_portionen_regel_und_alt(); test_banane_regel_nur_frisch_oder_gekocht()
+    test_weitere_regeln_wortgrenzen_und_verarbeitet()
     print("ok")
