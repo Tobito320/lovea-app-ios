@@ -427,7 +427,6 @@ struct HeuteView: View {
     @State private var gewichtOffen = false
     @State private var freitextOffen = false
     @State private var offeneHinweise: Set<String> = []
-    @State private var kachelBearbeiten: KachelBearbeiten?
     @Namespace private var zoom
     @Environment(\.dynamicTypeSize) private var schrift
     @Environment(\.accessibilityReduceMotion) private var ruhig
@@ -464,7 +463,7 @@ struct HeuteView: View {
                                        partner: heute == echtHeute ? (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))) : nil)
                     }
                     .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute), rechts: { bearbeitenMenue }) { raster }
+                    abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute)) { raster }
                     abschnitt("Das fällt mir auf") { hinweisListe }
                     punkteZeile
                     abschnitt("Körper") { koerper }
@@ -508,7 +507,6 @@ struct HeuteView: View {
                     health.setzeHabit(Habit.gewicht.id, datum: heute, wert: $0)
                 }
             }
-            .sheet(item: $kachelBearbeiten) { bearbeitenBlatt($0) }
         }
         .onAppear {
             health.sicherstellen()
@@ -656,34 +654,10 @@ struct HeuteView: View {
     }
 
     private func abschnitt<Inhalt: View>(_ titel: String, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
-        abschnitt(titel, rechts: { EmptyView() }, inhalt)
-    }
-
-    private func abschnitt<Rechts: View, Inhalt: View>(_ titel: String, @ViewBuilder rechts: () -> Rechts, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            HStack {
-                Text(titel).font(.title2.bold()).accessibilityAddTraits(.isHeader)
-                Spacer()
-                rechts()
-            }
+            Text(titel).font(.title2.bold()).accessibilityAddTraits(.isHeader)
             inhalt()
         }
-    }
-
-    /// Ein Stift rechts neben "Dein Tag" statt auf jeder Kachel (Ahmed, 01.10.): nur die zählenden
-    /// Kacheln lassen sich korrigieren.
-    private var bearbeitenMenue: some View {
-        Menu {
-            Button("Wasser") { kachelBearbeiten = .wasser }
-            Button("Koffein") { kachelBearbeiten = .koffein }
-            Button("Creatin") { kachelBearbeiten = .creatin }
-        } label: {
-            Image(systemName: "pencil")
-                .font(.body.weight(.semibold))
-                .frame(width: 44, height: 32, alignment: .trailing)
-                .contentShape(Rectangle())
-        }
-        .accessibilityLabel("Wasser, Koffein oder Creatin bearbeiten")
     }
 
     @ViewBuilder
@@ -771,6 +745,12 @@ struct HeuteView: View {
                           fuellung: ziel > 0 ? Double(n) / Double(ziel) : 0) {
             health.setzeWasser(datum: heute, anzahl: n + 1)
         }
+        .contextMenu {
+            Button("Plus ein Glas", systemImage: "plus") { health.setzeWasser(datum: heute, anzahl: n + 1) }
+            if n > 0 { Button("Minus ein Glas", systemImage: "minus", role: .destructive) { bulkSetzen(Habit.wasser.id, neu: n - 1) } }
+        } preview: {
+            verlauf("Wasser", "\(n) \(n == 1 ? "Glas" : "Gläser")", health.wasserZeiten(ich, heute), je: nil)
+        }
     }
 
     private var schlafKachel: some View {
@@ -821,6 +801,13 @@ struct HeuteView: View {
                           fuellung: Double(n) / 4, zusatz: zusatz) {
             koffeinEintragen()
         }
+        .contextMenu {
+            Button("Plus eine Tasse", systemImage: "plus") { koffeinEintragen() }
+            if n > 0 { Button("Minus letzte Tasse", systemImage: "minus", role: .destructive) { koffeinMinus() } }
+        } preview: {
+            verlauf("Koffein", "\(n) \(n == 1 ? "Tasse" : "Tassen") · ~\(n * KoffeinLogik.mgProTasse) mg",
+                    health.koffeinZeiten(ich, heute), je: "~\(KoffeinLogik.mgProTasse) mg")
+        }
     }
 
     /// Ein Tipp = ein Klick = 3,5 g, Ziel 2 Klicks (Ahmed, 27.09.).
@@ -831,33 +818,42 @@ struct HeuteView: View {
                           fuellung: Double(n) / Double(ziel), zusatz: "\(n)/\(ziel) Klicks") {
             health.setzeHabit(Habit.creatin.id, datum: heute, wert: n + 1)
         }
+        .contextMenu {
+            Button("Plus ein Löffel", systemImage: "plus") { health.setzeHabit(Habit.creatin.id, datum: heute, wert: n + 1) }
+            if n > 0 { Button("Minus ein Löffel", systemImage: "minus", role: .destructive) { bulkSetzen(Habit.creatin.id, neu: n - 1) } }
+        } preview: {
+            verlauf("Creatin", "\(komma(Double(n) * Habit.creatinGramm)) g",
+                    health.habitEintraege(Habit.creatin.id, ich, heute).map(\.zeit), je: "\(komma(Habit.creatinGramm)) g")
+        }
     }
 
     // MARK: Kacheln bearbeiten
 
-    private enum KachelBearbeiten: String, Identifiable { case wasser, koffein, creatin; var id: String { rawValue } }
-
-    @ViewBuilder
-    private func bearbeitenBlatt(_ ziel: KachelBearbeiten) -> some View {
-        switch ziel {
-        case .wasser:
-            ZaehlerBlatt(titel: "Wasser", wert: health.wasserAnzahl(ich, heute), bereich: 0...30,
-                        zeiten: health.wasserEintraege(ich, heute), anzeige: { "\($0) \($0 == 1 ? "Glas" : "Gläser")" },
-                        entfernen: { id, neu in health.setzeHabit(Habit.wasser.id, datum: heute, wert: neu, storniert: id) }) {
-                wasserBulkSetzen($0)
-            }
-        case .koffein:
-            ZaehlerBlatt(titel: "Koffein", wert: health.habitWert(Habit.koffein.id, ich, heute), bereich: 0...20,
-                        zeiten: health.koffeinEintraege(ich, heute), anzeige: { "\($0) \($0 == 1 ? "Tasse" : "Tassen")" },
-                        entfernen: { id, neu in koffeinEntfernen(id: id, neu: neu) }) {
-                koffeinBulkSetzen($0)
-            }
-        case .creatin:
-            ZaehlerBlatt(titel: "Creatin", wert: health.habitWert(Habit.creatin.id, ich, heute), bereich: 0...10,
-                        anzeige: { "\($0) \($0 == 1 ? "Klick" : "Klicks")" }) {
-                health.setzeHabit(Habit.creatin.id, datum: heute, wert: $0)
+    /// Kachel halten (Ahmed, 01.10.): der Verlauf von heute als Vorschau, darunter Plus und Minus.
+    private func verlauf(_ titel: String, _ summe: String, _ zeiten: [Date], je: String?) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(titel).font(.headline)
+            Text(summe).font(.title3.bold()).monospacedDigit()
+            if zeiten.isEmpty {
+                Text("Heute noch nichts").font(.subheadline).foregroundStyle(.secondary)
+            } else {
+                ForEach(Array(zeiten.enumerated()), id: \.offset) { _, zeit in
+                    HStack {
+                        Text(Datum.uhrzeit(zeit)).monospacedDigit()
+                        Spacer()
+                        if let je { Text(je).foregroundStyle(.secondary) }
+                    }
+                    .font(.subheadline)
+                }
             }
         }
+        .padding(16)
+        .frame(width: 260, alignment: .leading)
+    }
+
+    /// Minus = die letzte Tasse: Zähler runter und ihr Tagebuch-Eintrag weg.
+    private func koffeinMinus() {
+        bulkSetzen(Habit.koffein.id, neu: health.habitWert(Habit.koffein.id, ich, heute) - 1) { koffeinDiaryLoeschen($0) }
     }
 
     /// Neue Tasse: eigene Op-Id fürs Habit **und** für den Tagebuch-Eintrag (`setzeHabitMitId`,
@@ -882,27 +878,6 @@ struct HeuteView: View {
         guard let eintrag = ErnaehrungModell.shared.eintraege(ich, heute).first(where: { $0.id == id }) else { return }
         ErnaehrungModell.shared.loeschen(eintrag)
     }
-
-    /// Bearbeiten-Blatt, eine bestimmte Tasse per Swipe weg: Zähler runter, ihre Op storniert
-    /// (`habitOps` vergisst sie), ihr Tagebuch-Eintrag gelöscht — alles über dieselbe Tassen-Id.
-    private func koffeinEntfernen(id: String, neu: Int) {
-        health.setzeHabit(Habit.koffein.id, datum: heute, wert: neu, storniert: id)
-        koffeinDiaryLoeschen(id)
-    }
-
-    /// Stepper/"Zurücksetzen" ohne bestimmte Zeile: steigt der Wert, entstehen neue Tassen inkl.
-    /// Tagebuch (wie ein Tipp); sinkt er, storniert `bulkSetzen` die jüngsten bekannten Tassen und
-    /// räumt hier zusätzlich ihre Tagebuch-Einträge weg.
-    private func koffeinBulkSetzen(_ neu: Int) {
-        let alt = health.habitWert(Habit.koffein.id, ich, heute)
-        if neu > alt {
-            for _ in alt..<neu { koffeinEintragen() }
-        } else {
-            bulkSetzen(Habit.koffein.id, neu: neu) { koffeinDiaryLoeschen($0) }
-        }
-    }
-
-    private func wasserBulkSetzen(_ neu: Int) { bulkSetzen(Habit.wasser.id, neu: neu) }
 
     /// Gemeinsamer Weg für Wasser/Koffein, wenn das Bearbeiten-Blatt ohne bestimmte Zeile (Stepper,
     /// "Zurücksetzen") auf `neu` setzt: storniert die `alt - neu` jüngsten BEKANNTEN Tipps zuerst
