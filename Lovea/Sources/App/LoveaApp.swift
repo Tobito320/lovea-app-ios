@@ -6,6 +6,15 @@ struct LoveaApp: App {
     @StateObject private var session = PersonSession()
     @AppStorage("lovea.ersterStartFertig") private var ersterStartFertig = false
     @Environment(\.scenePhase) private var scenePhase
+    /// Vor der allerersten eigenen `StartProtokoll`-Markierung gelesen (siehe `init`), sonst würde die
+    /// erste Markierung den Wert überschreiben, den dieser Start eigentlich prüfen soll.
+    @State private var letzterAbbruch: String?
+    @State private var abbruchAlertGezeigt = false
+
+    init() {
+        _letzterAbbruch = State(initialValue: StartProtokoll.letzterAbbruch())
+        StartProtokoll.marke("app.init")
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -21,6 +30,10 @@ struct LoveaApp: App {
                     }
                 }
             }
+            .onAppear {
+                StartProtokoll.fertig()
+                if letzterAbbruch != nil { abbruchAlertGezeigt = true }
+            }
             .onChange(of: session.person, initial: true) { _, person in starten(person) }
             .onChange(of: scenePhase) { _, phase in phaseGewechselt(phase) }
             // Z-28.3: `widgetURL` der Widgets, z. B. `lovea://health`. `AppNavigation.tabWunsch`
@@ -32,6 +45,15 @@ struct LoveaApp: App {
                 let teile = URLComponents(url: url, resolvingAgainstBaseURL: false)
                 AppNavigation.shared.essenMahlzeitWunsch = teile?.queryItems?.first { $0.name == "mahlzeit" }?.value
             }
+            // Build 77 (Absturzverdacht Build 76): einmaliger Hinweis, bei welcher Stufe der letzte
+            // Start abgebrochen ist (kein `fertig()` erreicht). Reine Diagnose, kein Verhalten geändert.
+            .alert("Letzter Start abgebrochen bei: \(letzterAbbruch ?? "")", isPresented: $abbruchAlertGezeigt) {
+                Button("Kopieren") {
+                    let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
+                    UIPasteboard.general.string = "Letzter Start abgebrochen bei: \(letzterAbbruch ?? "") (Build \(build))"
+                }
+                Button("OK", role: .cancel) {}
+            }
         }
     }
 
@@ -40,8 +62,12 @@ struct LoveaApp: App {
         guard let person else { return }
         // Bundle JSON (questions, date ideas) is read on first access; do that off the main thread.
         Task.detached(priority: .utility) { _ = FrageDesTages.vorrat; _ = WirModell.ideenVorrat }
+        StartProtokoll.marke("modelle.falten.vor")
         AppStart.falten(person)
+        StartProtokoll.marke("modelle.falten.nach")
+        StartProtokoll.marke("raum.start.vor")
         Raum.shared.start()
+        StartProtokoll.marke("raum.start.nach")
         Standort.shared.start()
         // Z-28.2/Z-28.3: wartende Gym-Ops aus den Widgets abholen.
         WidgetPendingOpsMerge.abholen()
@@ -51,12 +77,20 @@ struct LoveaApp: App {
         Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
         if phase == .active {
             WidgetPendingOpsMerge.abholen()
+            StartProtokoll.marke("gym.abgleichen.start")
             GymLive.abgleichen() // z. B. auf dem iPad eingecheckt, oder die Einheit ist abgelaufen
+            StartProtokoll.marke("workoutuhr.mitteilungLoeschen.vor")
             WorkoutUhr.shared.mitteilungLoeschen() // im Vordergrund vibriert die Leiste selbst
+            StartProtokoll.marke("workoutuhr.mitteilungLoeschen.nach")
         }
         if phase == .background {
             GalerieSync.shared.hintergrund()
+            StartProtokoll.marke("workoutuhr.mitteilungPlanen.vor")
             WorkoutUhr.shared.mitteilungPlanen()
+            StartProtokoll.marke("workoutuhr.mitteilungPlanen.nach")
+            // Normaler Hintergrund-Wechsel, kein Absturz: der nächste Start soll nicht fälschlich
+            // "abgebrochen bei …" melden.
+            StartProtokoll.fertig()
         }
     }
 }

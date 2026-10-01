@@ -626,7 +626,10 @@ struct SnapKameraView: View {
         }
         .background(Color.black)
         .statusBarHidden()
-        .onAppear { steuerung.halten() }
+        .onAppear {
+            StartProtokoll.marke("screen.kamera")
+            steuerung.halten()
+        }
         .task { await steuerung.start() }
         .onDisappear {
             timerTask?.cancel() // Review Important fix: no dangling countdown after we've left

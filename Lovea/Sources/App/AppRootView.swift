@@ -62,6 +62,7 @@ struct AppRootView: View {
             // Alte Werte aus der früheren Health-Leiste (SceneStorage): jetzt ein Health-Tab.
             if [.heute, .koerper, .training, .verlauf, .zurueck].contains(selectedTab) { selectedTab = .health }
         }
+        .onChange(of: selectedTab, initial: true) { _, tab in StartProtokoll.marke("tab.\(tab.rawValue)") }
         .spieleBuehne()
         // Screenshot/recording notices for whatever chat context is on screen (`ScreenshotKontext`).
         .modifier(ChatAufnahmeHinweise())

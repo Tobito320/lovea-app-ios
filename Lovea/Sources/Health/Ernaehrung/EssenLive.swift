@@ -96,6 +96,7 @@ enum EssenLive {
     }
 
     private nonisolated static func anwenden(_ ziel: Ziel, an: Bool, gymLaeuft: Bool) async {
+        StartProtokoll.marke("essenLive.anwenden.vor")
         // Build 77: eine Food-Live-Activity aus einem ÄLTEREN Build läuft eventuell noch mit dem
         // alten ContentState-Shape. Die neue App soll dessen JSON nie über `EssenAktivitaetV2`
         // dekodieren (Absturzverdacht Build 76) — stattdessen hier über den unveränderten alten
@@ -104,6 +105,9 @@ enum EssenLive {
         let laufend = Activity<EssenAktivitaetV2>.activities.first
         let mitternacht = Calendar.current.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime)
             ?? Date().addingTimeInterval(86400)
+        // Hier läse ein inkompatibler ContentState aus einem sehr alten Build (vor der Typ-Isolation
+        // oben) sein `.content.state` — nächste Stufe zuerst markieren, falls genau das abstürzt.
+        StartProtokoll.marke("essenLive.contentState.lesen")
         let veraltet = laufend.map { istVeraltet($0.content.state) } ?? false
         switch aktion(laufendTag: laufend?.content.state.tag, heute: ziel.stand.tag, an: an, laufendVeraltet: veraltet, gymLaeuft: gymLaeuft) {
         case .beenden:
@@ -119,5 +123,6 @@ enum EssenLive {
             guard let laufend, laufend.content.state != ziel.stand else { return }
             await laufend.update(ActivityContent(state: ziel.stand, staleDate: mitternacht))
         }
+        StartProtokoll.marke("essenLive.anwenden.nach")
     }
 }

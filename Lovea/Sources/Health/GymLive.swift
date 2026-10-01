@@ -47,6 +47,7 @@ enum GymLive {
 
     /// Nonisolated: die `Activity`-Objekte bleiben in diesem einen Ablauf (Swift 6, nicht Sendable).
     private nonisolated static func anwenden(_ ziel: Ziel?) async {
+        StartProtokoll.marke("gymLive.anwenden.vor")
         for a in Activity<GymAktivitaet>.activities where a.attributes.sessionId != ziel?.attribute.sessionId {
             await a.end(nil, dismissalPolicy: .immediate)
         }
@@ -63,6 +64,7 @@ enum GymLive {
         // Essen von selbst, solange eine Gym-Aktivität läuft, und startet es hier wieder, sobald
         // keine mehr läuft. Kein neuer Timer, läuft nur mit, wenn `GymLive.abgleichen()` ohnehin
         // schon lief.
+        StartProtokoll.marke("gymLive.anwenden.nach")
         await EssenLive.abgleichen()
     }
 }

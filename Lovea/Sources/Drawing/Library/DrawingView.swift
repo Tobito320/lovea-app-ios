@@ -221,6 +221,7 @@ struct DrawingView: View {
                 Task { @MainActor in importAsDrawing(data, name: name) }
             }
         }
+        .onAppear { StartProtokoll.marke("screen.zeichnen") }
     }
 
     /// Galerie import (Fotos/Dateien): new drawing whose canvas matches the image's pixel size,

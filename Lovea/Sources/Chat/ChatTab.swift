@@ -71,6 +71,7 @@ private struct ChatListe: View {
             if let neu = await PartnerOrt.adresseLaden(partner) { adresse = neu }
         }
         .onAppear {
+            StartProtokoll.marke("screen.chatListe")
             SnapKameraSteuerung.geteilt.halten()
             Task { await SnapKameraSteuerung.geteilt.vorwaermen() }
         }
@@ -407,6 +408,7 @@ private struct Lesebestaetigung: ViewModifier {
     func body(content: Content) -> some View {
         content
             .onAppear {
+                StartProtokoll.marke("screen.gespraech")
                 sichtbar = true
                 leseBestaetigen()
                 FigurenModell.shared.zustandSenden(.init(haupt: .imChat))

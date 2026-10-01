@@ -91,6 +91,7 @@ struct ErnaehrungView: View {
         .background(Color(uiColor: .systemBackground))
         .navigationTitle("Food")
         .navigationBarTitleDisplayMode(.inline)
+        .onAppear { StartProtokoll.marke("screen.ernaehrung") }
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
                 Button("Barcode scannen", systemImage: "barcode.viewfinder") {
