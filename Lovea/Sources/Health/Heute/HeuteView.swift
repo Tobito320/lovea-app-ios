@@ -429,7 +429,6 @@ struct HeuteView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     kopf
-                    trainingStartenKarte
                     freitextZeile
                     VStack(spacing: 0) {
                         tagesWahl
@@ -603,16 +602,6 @@ struct HeuteView: View {
             mitFigur: false,
             mitNaechstes: false
         )
-    }
-
-    /// Ahmed, 01.10.: "Training starten" ist zu weit unten, ganz oben soll es ohne Scrollen zu sehen sein.
-    @ViewBuilder
-    private var trainingStartenKarte: some View {
-        let daten = KoerperDaten.laden(ich)
-        if !daten.ziele.leer, let n = daten.naechstes {
-            PushKarte(titel: n.titel, meta: n.meta, chips: n.chips, farbe: Color.person(ich), knopf: "Training starten",
-                      symbol: "play.fill", aktion: gymOeffnen)
-        }
     }
 
     private var verlaufKasten: some View {
