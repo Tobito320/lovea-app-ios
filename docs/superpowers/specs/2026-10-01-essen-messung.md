@@ -80,9 +80,12 @@ Geprüft mit `gh api repos/Tobito320/lovea-app-ios/actions/permissions` (nur les
 Das zeigt nur, dass Actions eingeschaltet ist, nicht ob Läufe tatsächlich durchkommen (eine
 Billing-Sperre würde Jobs trotzdem sofort abbrechen lassen). Deshalb zusätzlich die echte Lauf-Historie
 geprüft, ebenfalls nur lesend: `gh run list -R Tobito320/lovea-app-ios --limit 10`. Ergebnis: die
-letzten 10 Läufe (TestFlight, iOS CI) sind durchgelaufen (acht `ok`, zwei `FAIL` – das sind
-Job-Ergebnisse, also Code-/Test-Fehler, keine Infrastruktur- oder Abrechnungsfehler). Das ist der
-Beleg, dass Jobs auf diesem privaten Repo tatsächlich ausgeführt werden, keine Billing-Sperre.
+letzten 10 Läufe (TestFlight, iOS CI) sind durchgelaufen, acht davon `ok`. Zwei ältere `FAIL`
+(`36341630101` iOS CI, `36335965760` iOS CI) – die Logs dazu sind bei GitHub bereits abgelaufen
+(`gh run view --log-failed` meldet "log not found"), ich kann also nicht belegen, woran sie genau
+lagen. Entscheidend ist: der jüngste Lauf `36341732612` (TestFlight) danach ist wieder `ok` – ein
+andauernder Billing-Stopp hätte auch diesen und alle folgenden Läufe blockiert. Das ist der Beleg,
+dass Jobs auf diesem privaten Repo laufend ausgeführt werden, keine Billing-Sperre.
 
 Der Billing-Endpunkt (`/users/Tobito320/settings/billing/actions`) ist mit dem vorhandenen
 `gh`-Token nicht lesbar (braucht den `user`-Scope, den ich nicht angefordert habe, um den
@@ -90,8 +93,10 @@ Auth-Status nicht zu verändern) – war wegen der Lauf-Historie auch nicht mehr
 Test-Workflow angelegt, da die vorhandenen Läufe schon die Antwort liefern.
 
 **Ergebnis: Task 5 kann den Nachtjob als GitHub-Action-`schedule` planen, keine Windows-Aufgabe
-(`schtasks`) nötig.** Ein Hinweis für Task 5: `schedule`-Workflows laufen nur vom Standard-Branch
-(`main`) aus, der Workflow muss also dort liegen.
+(`schtasks`) nötig.** Standard-Branch geprüft mit
+`gh repo view Tobito320/lovea-app-ios --json defaultBranchRef`: **`main`**. `schedule`-Workflows
+laufen nur vom Standard-Branch aus, der Workflow muss also dort liegen (nicht auf `runde-3`, der
+Basis-Branch der Design-Spec).
 
 ## 5. BLS-Excel: Spalten und Portionen
 
@@ -129,7 +134,7 @@ dazu `mikro: [String: Double]`) und `enum Mikro` (`Mikronaehrstoffe.swift`, Schl
 | CHORL | Cholesterin | mg/100g | `pro100.mikro["cholesterin"]` |
 | FAMS | Fettsäure, einfach ungesättigt, gesamt | g/100g | `pro100.mikro["einfachUngesaettigt"]` |
 | FAPU | Fettsäuren, mehrfach ungesättigt, gesamt | g/100g | `pro100.mikro["mehrfachUngesaettigt"]` |
-| VITA | Vitamin A, Retinol-Äquivalent | µg/100g | `pro100.mikro["vitaminA"]` |
+| VITAA | Vitamin A, Retinol-Aktivitäts-Äquivalent (RAE) | µg/100g | `pro100.mikro["vitaminA"]` (USDA-Nummer `320` in `Mikro.usda` ist RAE, nicht RE – VITAA passt, nicht VITA) |
 | VITD | Vitamin D | µg/100g | `pro100.mikro["vitaminD"]` |
 | VITE | Vitamin E (Alpha-Tocopherol) | mg/100g | `pro100.mikro["vitaminE"]` |
 | VITK | Vitamin K | µg/100g | `pro100.mikro["vitaminK"]` |
@@ -152,6 +157,10 @@ dazu `mikro: [String: Double]`) und `enum Mikro` (`Mikronaehrstoffe.swift`, Schl
 | NA | Natrium | mg/100g | `pro100.mikro["natrium"]` |
 | ID | Iodid | µg/100g | `pro100.mikro["jod"]` |
 
+BLS hat für Vitamin A zwei Spalten: `VITA` (Retinol-Äquivalent, RE) und `VITAA` (Retinol-Aktivitäts-
+Äquivalent, RAE). Die App rechnet über `Mikro.usda = "320"`, und USDA SR Legacy Nummer 320 ist
+"Vitamin A, RAE" – deshalb ist `VITAA` die passende Spalte, `VITA` (RE) bleibt ungenutzt.
+
 **Fehlen in BLS 4.0 (keine Spalte gefunden, Suche über alle 418 Spaltennamen):** `Mikro.selen` und
 `Mikro.koffein` sind gültige Fälle in `enum Mikro`, aber keine BLS-Spalte liefert dafür einen Wert.
 Task 2 lässt `mikro["selen"]` und `mikro["koffein"]` bei BLS-Einträgen einfach weg (wie bei jedem
@@ -166,10 +175,11 @@ Produkt ohne diesen Wert schon heute, `mikro` ist ein optionales Dictionary).
   ausgeschöpft, liefert dann nur noch Fehlercode 5 ("Tageslimit erreicht"). Nur zum Ausprobieren
   der Schnittstelle geeignet, nicht für den Live-Betrieb.
 - **Private ID für Privatanwender**: maximal 500 Abfragen/Tag mit Abfrageverzögerung. Ablauf laut
-  `userid.php`: (1) einmalige Spende von mindestens 35 Euro an "Küste gegen Plastik" (in Deutschland
-  steuerlich absetzbar, Überweisungsbeleg genügt als Spendennachweis), (2) den Zahlungsbeleg per
-  Mail an den Betreiber schicken, (3) die UserID kommt dann typischerweise innerhalb einer Woche
-  per Mail. Achtung: wird die ID länger nicht genutzt, wird sie wieder gelöscht.
+  `userid.php`: (1) eine Spende von mindestens 35 Euro an "Küste gegen Plastik" (in Deutschland
+  steuerlich absetzbar, Überweisungsbeleg genügt als Spendennachweis; die Seite nennt keinen
+  wiederkehrenden Betrag), (2) den Zahlungsbeleg per Mail an den Betreiber schicken, (3) die UserID
+  kommt dann typischerweise innerhalb einer Woche per Mail. Achtung: wird die ID länger nicht
+  genutzt, wird sie wieder gelöscht.
 
 **Das ist eine Geld-Entscheidung, die Ahmed treffen muss** (35 € Spende für eine private ID, oder
 die Kette in Schritt 5 der Barcode-Kette (`opengtindb.org`) vorerst mit der öffentlichen Test-ID
