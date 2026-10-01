@@ -109,6 +109,10 @@ struct GymD: Codable, Equatable, Sendable {
     var status: String? = nil
     var saetze: [PlanSatz]? = nil
     var name: String? = nil
+    /// Nur bei `gym.checkout` mit status "ende" (echtes Beenden): Dauer und abgehakte Sätze für die
+    /// Mitteilung an den Partner (`server/regeln.js`).
+    var minuten: Int? = nil
+    var zahl: Int? = nil
 }
 
 struct GymEintrag: Equatable, Sendable {

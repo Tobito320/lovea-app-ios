@@ -82,8 +82,13 @@ final class TrainingModell {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "offen"))
     }
 
+    /// Das Training beenden. Status "ende" löst die Mitteilung an den Partner aus; eine spätere
+    /// Zeitkorrektur (`zeitenAendern`) sendet ihn nicht.
     func auschecken(_ session: String, ende: Date = Date()) {
-        Raum.shared.senden("gym.checkout", GymD(session: session, ende: ende))
+        let start = sessions(ich).first { $0.id == session }?.start
+        let minuten = start.map { max(1, Int(ende.timeIntervalSince($0) / 60)) }
+        let zahl = WorkoutLogik.saetzeZahl(workout(session))
+        Raum.shared.senden("gym.checkout", GymD(session: session, ende: ende, status: "ende", minuten: minuten, zahl: zahl))
         Anwesenheit.shared.anstossen()
     }
 
