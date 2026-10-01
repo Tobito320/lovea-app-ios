@@ -117,15 +117,8 @@ enum MedienKodierung {
         komposition.instructions = [anweisung]
         session.videoComposition = komposition
 
-        // `AVAssetExportSession` doesn't watch `Task` cancellation on its own — without this, a
-        // failed `original` export (the `klein` `async let` then never gets awaited) left the
-        // `klein` encode running to completion in the background for nothing.
-        await withTaskCancellationHandler {
-            await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
-                session.exportAsynchronously { continuation.resume() }
-            }
-        } onCancel: {
-            session.cancelExport()
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            session.exportAsynchronously { continuation.resume() }
         }
         return session.status == .completed ? ausgabe : nil
     }
