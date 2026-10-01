@@ -22,6 +22,8 @@ struct HomeView: View {
                 }
                 .padding(16)
             }
+            // R6: nur hier (Wurzel des Tabs), nicht auf TagesAnsicht/FrageDesTagesView dahinter.
+            .tabWischen(vorheriger: nil, naechster: "chat")
             .navigationTitle("Home")
             .navigationDestination(for: String.self) { tag in TagesAnsicht(tag: tag) }
             .navigationDestination(for: FrageZiel.self) { _ in FrageDesTagesView() }

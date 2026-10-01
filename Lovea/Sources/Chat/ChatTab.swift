@@ -13,6 +13,9 @@ struct ChatTab: View {
                 ChatListe(ich: ich) { offen = true }
                     // Follows `offen`: hidden in the conversation, back at once on the pop.
                     .toolbar(offen ? .hidden : .visible, for: .tabBar)
+                    // R6: nur auf der Liste, nicht in der offenen Unterhaltung (dort ist der
+                    // Rand-Wisch "zurück").
+                    .tabWischen(vorheriger: "home", naechster: "drawing")
                     .navigationDestination(isPresented: $offen) {
                         Unterhaltung(ich: ich) { offen = false }
                     }

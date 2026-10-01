@@ -446,6 +446,11 @@ struct HeuteView: View {
                 .padding(16)
             }
             .toolbar(.hidden, for: .navigationBar)
+            // R6: nur die Heute-Wurzel, nicht Training/Körper/Verlauf dahinter. Konkurriert mit dem
+            // Wochenstreifen (`tagesWahl`) nicht normalerweise — der braucht nur 30 pt und reagiert
+            // schon vor den hier nötigen 60 pt; nur bei einem sehr schnellen, weiten Wisch genau dort
+            // können beide einmal zugleich feuern (bekannter, seltener Randfall wie bei MonatsAnsicht).
+            .tabWischen(vorheriger: "drawing", naechster: "profile")
             .navigationDestination(for: HeuteZiel.self) { ansicht($0) }
             .navigationDestination(for: HealthZiel.self) { HealthZielAnsicht(ziel: $0) }
             .navigationDestination(for: VerlaufZiel.self) { ziel in VerlaufZielSeite(ziel: ziel) { pfad.append($0) } }
