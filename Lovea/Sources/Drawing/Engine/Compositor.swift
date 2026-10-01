@@ -118,6 +118,9 @@ final class Compositor {
     /// `foundActive == false` means `activeLayerID` matched no layer (Q-R10 Kandidat 2): the top layer
     /// is kept live as a safe fallback instead of letting every layer fall into the `below` cache.
     static func liveSplit(layers: [ArtworkLayer], activeLayerID: UUID) -> (active: Int, live: Range<Int>, above: Range<Int>, foundActive: Bool) {
+        // Review-Hinweis (Minor): `foundActive` wäre hier auch bei jedem Aufruf `false`, was `encodeFrame`
+        // bei jedem Frame `invalidateCaches()` auslösen ließe. Unerreichbar in der Praxis – `CanvasEngine.
+        // deleteLayer` verweigert das Löschen der letzten Ebene, eine leere `document.layers` kommt nie vor.
         guard !layers.isEmpty else { return (0, 0..<0, 0..<0, false) }
         let found = layers.firstIndex(where: { $0.id == activeLayerID })
         let active = found ?? layers.count - 1
