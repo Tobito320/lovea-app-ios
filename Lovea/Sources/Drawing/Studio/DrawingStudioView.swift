@@ -339,7 +339,8 @@ struct DrawingStudioView: View {
 
 /// Studio: no swipe back, a stroke from the left edge must never leave the drawing. Only the back button
 /// top left leaves. Switches the navigation controller's pop gestures off while the studio is on screen.
-/// Also used by the Food diary, where swiping sideways changes the day.
+/// Also used by `SaetzeEditor` (Trainingsplan) while editing, so an edge swipe cannot silently discard
+/// an unsaved draft (Ahmed, 01.10.: the Food diary no longer uses this, it switched to arrow buttons only).
 struct ZurueckWischenAus: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Steuerung { Steuerung() }
     func updateUIViewController(_ controller: Steuerung, context: Context) {}

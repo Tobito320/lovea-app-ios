@@ -34,9 +34,15 @@ struct MonatsAnsicht: View {
         // wie der System-Kalender deckeln statt abschneiden. VoiceOver liest jeden Tag voll vor.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .contentShape(Rectangle())
-        .gesture(
-            DragGesture(minimumDistance: 24)
+        // simultaneousGesture statt gesture: eine normale `.gesture` über die volle Breite würde das
+        // System-Zurück-Wischen vom linken Rand blockieren (Ahmed, 01.10.). Start in den linken 30 pt
+        // zählt hier gar nicht erst als Monatswechsel, damit beide Gesten nie gleichzeitig feuern –
+        // heute eingebettet nur als Teil von `HomeView.kalenderKarte` (unten gepusht wird nichts),
+        // die Sperre schützt aber auch, falls `MonatsAnsicht` später mal selbst gepusht wird.
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 24, coordinateSpace: .global)
                 .onEnded { wert in
+                    guard wert.startLocation.x > 30 else { return }
                     if wert.translation.width < -30 { wechsleMonat(1) }
                     else if wert.translation.width > 30 { wechsleMonat(-1) }
                 }

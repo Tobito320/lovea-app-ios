@@ -3,7 +3,8 @@ import SwiftUI
 // Food-Tagebuch 1:1 nach YAZIO (Ahmed, 26./27.09.): großer Tagestitel mit Woche, Karte "Übersicht"
 // (Gegessen, offener Ring mit Übrig, Verbrannt, drei Makros), "Ernährung" als kompakte Mahlzeit-Zeilen
 // mit rundem Plus, Wasserzähler in Litern mit "Wasser aus Lebensmitteln", Körperwerte.
-// Tage wechseln per Wischen (rechts liegt die Zukunft), Pfeilen oder Kalender, beliebig weit.
+// Tage wechseln per Pfeilen oben oder Kalender, beliebig weit (Ahmed, 01.10.: kein Wischen mehr,
+// das stand dem Zurück-Wischen vom Rand im Weg).
 
 enum ErnaehrungStil {
     /// YAZIO-Mint, nur für Ringe und Balken, nie für Text.
@@ -48,9 +49,6 @@ struct ErnaehrungView: View {
                 .transition(ruhig ? AnyTransition.opacity : AnyTransition.push(from: vorwaerts ? .trailing : .leading))
         }
         .background(Color(uiColor: .systemBackground))
-        // Waagerecht wischen wechselt den Tag, deshalb zurück nur mit dem Pfeil oben links.
-        .background(ZurueckWischenAus().frame(width: 0, height: 0))
-        .simultaneousGesture(tagWischen)
         .navigationTitle("Food")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -152,15 +150,6 @@ struct ErnaehrungView: View {
         }
         modell.gewichtSetzen(zehntel: letztes.zehntel + schritt, datum: tag)
         Haptik.leicht()
-    }
-
-    /// Nach links wischen = nächster Tag (rechts liegt die Zukunft), nach rechts = Tag davor. Beliebig oft.
-    private var tagWischen: some Gesture {
-        DragGesture(minimumDistance: 40).onEnded { wert in
-            let x = wert.translation.width
-            guard abs(x) > 80, abs(x) > abs(wert.translation.height) * 2 else { return }
-            wechseln(x < 0 ? 1 : -1)
-        }
     }
 
     private var tagBinding: Binding<Date> {
