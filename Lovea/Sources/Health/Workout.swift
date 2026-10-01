@@ -188,7 +188,13 @@ final class WorkoutUhr {
 
     private init() {
         if let daten = UserDefaults.standard.data(forKey: Self.schluessel) {
-            stand = try? JSONDecoder().decode(Stand.self, from: daten)
+            if let dekodiert = try? JSONDecoder().decode(Stand.self, from: daten) {
+                stand = dekodiert
+            } else {
+                // Build 77: unlesbares Altformat nicht stumm als `nil` stehen lassen, sonst scheitert
+                // jeder künftige Start am selben kaputten Schlüssel neu.
+                UserDefaults.standard.removeObject(forKey: Self.schluessel)
+            }
         }
     }
 
