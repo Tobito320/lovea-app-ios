@@ -1,20 +1,19 @@
-import PhotosUI
 import SwiftUI
 import UIKit
 
-/// GIF/Sticker sheet (Z-5.3): Reiter GIFs / Favoriten / Sticker.
+/// Sticker/GIF sheet (Z-5.3, R7): Reiter Wir / Ahmed / Annika / Favoriten / GIFs.
 ///
 /// `aufBildWahl` (Block 6, Z-6.2): when set, every tile hands its flattened `UIImage` to this
 /// closure instead of sending it to the chat — the Snap editor's "Sticker" button reuses this
-/// whole sheet (all three tabs) rather than rebuilding a picker.
+/// whole sheet (all tabs) rather than rebuilding a picker.
 struct GifStickerBlatt: View {
     let ich: Person
     let antwortAuf: String?
     var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
-    private enum Reiter: String, CaseIterable { case gifs = "GIFs", wir = "Wir", favoriten = "Favoriten", sticker = "Sticker" }
-    @State private var reiter = Reiter.gifs
+    private enum Reiter: String, CaseIterable { case wir = "Wir", ahmed = "Ahmed", annika = "Annika", favoriten = "Favoriten", gifs = "GIFs" }
+    @State private var reiter = Reiter.wir
 
     var body: some View {
         NavigationStack {
@@ -26,13 +25,14 @@ struct GifStickerBlatt: View {
                 .padding()
 
                 switch reiter {
-                case .gifs: GifSuche(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
-                case .wir: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .wir: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .beide, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .ahmed: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .ahmed, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .annika: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .annika, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
                 case .favoriten: FavoritenAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
-                case .sticker: StickerAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .gifs: GifSuche(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
                 }
             }
-            .navigationTitle("GIFs & Sticker")
+            .navigationTitle("Sticker & GIFs")
             .navigationBarTitleDisplayMode(.inline)
         }
         .presentationDetents([.medium, .large])
@@ -281,101 +281,6 @@ private struct FavoritenAnsicht: View {
     }
 }
 
-private struct StickerAnsicht: View {
-    let ich: Person
-    let antwortAuf: String?
-    var aufBildWahl: ((UIImage) -> Void)? = nil
-    let onGesendet: () -> Void
-
-    @State private var fotoAuswahl: PhotosPickerItem?
-    @State private var laeuft = false
-
-    var body: some View {
-        ScrollView {
-            LazyVGrid(columns: [GridItem(.adaptive(minimum: 90))], spacing: 8) {
-                PhotosPicker(selection: $fotoAuswahl, matching: .images) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10).fill(.thinMaterial)
-                        if laeuft { ProgressView() } else { Image(systemName: "plus").font(.title2) }
-                    }
-                }
-                .frame(width: 90, height: 90)
-                .accessibilityLabel("Sticker aus Foto erstellen")
-
-                ForEach(FreundschaftsSticker.alle) { figurenSticker in
-                    figurenSticker.ansicht(ahmed: FigurenModell.shared.aussehen(.ahmed), annika: FigurenModell.shared.aussehen(.annika))
-                        .scaleEffect(90 / 320)
-                        .frame(width: 90, height: 90)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .onTapGesture { senden(figurenSticker: figurenSticker) }
-                        .accessibilityElement()
-                        .accessibilityLabel(figurenSticker.titel)
-                        .accessibilityAddTraits(.isButton)
-                }
-
-                // Mitgelieferte (`asset:`) stehen im Reiter "Wir", nicht doppelt hier.
-                ForEach(EigeneSticker.alle(ich: ich).filter { MitgelieferteSticker.assetName($0) == nil }, id: \.self) { id in
-                    StickerKachel(medienId: id)
-                        .frame(width: 90, height: 90)
-                        .clipShape(RoundedRectangle(cornerRadius: 10))
-                        .onTapGesture { sendenEigenerSticker(id) }
-                        .accessibilityElement()
-                        .accessibilityLabel("Eigener Sticker")
-                        .accessibilityAddTraits(.isButton)
-                        .contextMenu {
-                            Button("Zu Favoriten", systemImage: "star") {
-                                ChatEinstellungen.shared.favoritSchalten(.init(art: .sticker, wert: id, breite: nil, hoehe: nil), ich: ich)
-                            }
-                        }
-                }
-            }
-            .padding()
-        }
-        .onChange(of: fotoAuswahl) { _, neu in erstelleAusFoto(neu) }
-    }
-
-    private func erstelleAusFoto(_ item: PhotosPickerItem?) {
-        guard let item else { return }
-        laeuft = true
-        Task {
-            defer { laeuft = false; fotoAuswahl = nil }
-            guard let daten = try? await item.loadTransferable(type: Data.self),
-                  let freigestellt = await StickerErstellung.freistellen(daten),
-                  let id = await ChatMedien.stickerHochladen(png: freigestellt)
-            else { return }
-            EigeneSticker.hinzufuegen(medienId: id)
-        }
-    }
-
-    private func senden(figurenSticker: FreundschaftsSticker) {
-        guard let png = figurenSticker.png(ahmed: FigurenModell.shared.aussehen(.ahmed), annika: FigurenModell.shared.aussehen(.annika)) else { return }
-        if let aufBildWahl {
-            if let bild = UIImage(data: png) { aufBildWahl(bild) }
-            onGesendet()
-            return
-        }
-        laeuft = true
-        Task {
-            defer { laeuft = false }
-            guard let id = await ChatMedien.stickerHochladen(png: png) else { return }
-            ChatModell.shared.stickerSenden(medienId: id, antwortAuf: antwortAuf)
-            onGesendet()
-        }
-    }
-
-    private func sendenEigenerSticker(_ id: String) {
-        if let aufBildWahl {
-            Task {
-                if let bild = await SnapBildQuelle.medium(id) { aufBildWahl(bild) }
-                onGesendet()
-            }
-            return
-        }
-        ChatModell.shared.stickerSenden(medienId: id, antwortAuf: antwortAuf)
-        onGesendet()
-    }
-}
-
 /// Z-40.2: mitgelieferte Sticker aus `Assets.xcassets/Sticker`. Gesendet als `asset:<name>` ohne
 /// Upload. Namen stehen von Hand hier, weil sich ein Asset-Katalog nicht aufzählen lässt.
 enum MitgelieferteSticker {
@@ -407,18 +312,17 @@ enum MitgelieferteSticker {
 private struct WirStickerAnsicht: View {
     let ich: Person
     let antwortAuf: String?
+    let wer: WirWer
     var aufBildWahl: ((UIImage) -> Void)? = nil
     let onGesendet: () -> Void
 
-    @State private var werFilter: WirWer?
     @State private var kontextFilter: String?
 
     var body: some View {
         // Nur Namen, deren Bild im Bundle liegt: eine Liste, die dem Katalog voraus ist, zeigt keine Lücken.
         let namen = MitgelieferteSticker.alle.filter { UIImage(named: $0) != nil }
-        let gefiltert = WirStickerFilter.gefiltert(namen, wer: werFilter, kontext: kontextFilter)
+        let gefiltert = WirStickerFilter.gefiltert(namen, wer: wer, kontext: kontextFilter)
         VStack(spacing: 0) {
-            werLeiste
             kontextLeiste
             if gefiltert.isEmpty {
                 ContentUnavailableView("Noch keine Sticker", systemImage: "heart.text.square")
@@ -446,25 +350,11 @@ private struct WirStickerAnsicht: View {
         }
     }
 
-    private var werLeiste: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
-                chip("Alle", aktiv: werFilter == nil) { werFilter = nil }
-                ForEach(WirWer.allCases) { wer in
-                    chip(wer.titel, aktiv: werFilter == wer) { werFilter = wer }
-                }
-            }
-            .padding(.horizontal)
-        }
-        .fixedSize(horizontal: false, vertical: true)
-        .padding(.top, 8)
-    }
-
     private var kontextLeiste: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
                 chip("Alle", aktiv: kontextFilter == nil) { kontextFilter = nil }
-                ForEach(WirStickerMeta.alleKontexte, id: \.self) { kontext in
+                ForEach(WirStickerMeta.kontexte(fuer: wer), id: \.self) { kontext in
                     chip(kontext, aktiv: kontextFilter == kontext) { kontextFilter = kontext }
                 }
             }

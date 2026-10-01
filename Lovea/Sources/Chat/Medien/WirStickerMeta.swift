@@ -87,14 +87,19 @@ enum WirStickerMeta {
 
     /// Nur Tags, die mindestens ein Sticker trägt — keine leeren Chips.
     static var alleKontexte: [String] { Set(daten.values.flatMap(\.kontext)).sorted() }
+
+    /// R7: Tags nur unter den Stickern eines Tabs (`wer`) — Kontext-Leiste zeigt keine Lücken.
+    static func kontexte(fuer wer: WirWer) -> [String] {
+        Set(daten.values.filter { $0.wer == wer }.flatMap(\.kontext)).sorted()
+    }
 }
 
-/// R6: reine Filterfunktion für den Reiter "Wir" — kein SwiftUI, einzeln testbar.
-/// `wer == nil` oder `kontext == nil` heißt "Alle" für diese Zeile.
+/// R7: reine Filterfunktion für die Sticker-Tabs (Wir/Ahmed/Annika) — kein SwiftUI, einzeln testbar.
+/// Jeder Tab ist fest an ein `wer` gebunden (kein "Alle" mehr). `kontext == nil` heißt "Alle" für den Tag.
 enum WirStickerFilter {
-    static func gefiltert(_ namen: [String], wer: WirWer?, kontext: String?) -> [String] {
+    static func gefiltert(_ namen: [String], wer: WirWer, kontext: String?) -> [String] {
         namen.filter { name in
-            if let wer, WirStickerMeta.wer(name) != wer { return false }
+            guard WirStickerMeta.wer(name) == wer else { return false }
             if let kontext, !WirStickerMeta.kontext(name).contains(kontext) { return false }
             return true
         }
