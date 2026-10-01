@@ -80,13 +80,12 @@ enum MedienKodierung {
         let bereich = CMTimeRange(start: .zero, duration: CMTime(seconds: min(volleDauer.seconds, 30), preferredTimescale: 600))
 
         let originalSize = skaliert(upright, langeKante: 1280)
+        // Nacheinander, nicht mit `async let`: `track`/`asset` sind nicht Sendable, zwei
+        // gleichzeitige Child-Tasks mit demselben Wert sind unter Swift 6 ein Data-Race-Fehler.
+        guard let originalURL = await exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: originalSize, zeit: bereich, id: id, rolle: "original")
+        else { return nil }
         let kleinSize = skaliert(upright, langeKante: 480)
-        // Two independent AVAssetExportSessions writing to different files — run them side by side
-        // instead of one after the other, halves this stage's wall-clock time.
-        async let originalLauf = exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: originalSize, zeit: bereich, id: id, rolle: "original")
-        async let kleinLauf = exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: kleinSize, zeit: bereich, id: id, rolle: "klein")
-        guard let originalURL = await originalLauf else { return nil }
-        let kleinURL = await kleinLauf
+        let kleinURL = await exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: kleinSize, zeit: bereich, id: id, rolle: "klein")
 
         return Ergebnis(original: originalURL, klein: kleinURL, breite: Double(originalSize.width), hoehe: Double(originalSize.height), dauer: bereich.duration.seconds)
     }
