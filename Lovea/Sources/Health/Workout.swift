@@ -11,6 +11,8 @@ struct WorkoutUebung: Identifiable, Equatable, Sendable {
     var vorher: [PlanSatz]
     var extra: Bool
     var cardioFertig = false
+    /// Übersprungen (Gerät besetzt, keine Zeit): ein leerer Stand wurde gesendet. Zählt nicht als dran.
+    var ausgelassen = false
 
     var id: String { planUebung.id }
     var gesamt: Int { planUebung.istCardio ? 1 : saetze.count }
@@ -44,7 +46,7 @@ enum WorkoutLogik {
             let vorher = vorherige(u, in: frueher)
             let lauf = letzter[u.id]
             return WorkoutUebung(planUebung: u, saetze: zeilen(u, lauf: lauf, vorher: vorher), vorher: vorher, extra: extra,
-                                 cardioFertig: u.istCardio && lauf?.fertig == true)
+                                 cardioFertig: u.istCardio && lauf?.fertig == true, ausgelassen: lauf?.stand?.isEmpty == true)
         }
     }
 
@@ -85,7 +87,7 @@ enum WorkoutLogik {
 
     /// Der erste offene Satz in Reihenfolge: welche Übung, welcher Satz. nil = alles fertig.
     static func dran(_ liste: [WorkoutUebung]) -> (uebung: Int, satz: Int)? {
-        for (i, u) in liste.enumerated() where !u.fertig {
+        for (i, u) in liste.enumerated() where !u.fertig && !u.ausgelassen {
             if u.planUebung.istCardio { return (i, 0) }
             if let j = u.saetze.firstIndex(where: { $0.ok != true }) { return (i, j) }
         }
@@ -105,7 +107,8 @@ enum WorkoutLogik {
     static func neuerTag(_ tag: TrainingsTag, _ liste: [WorkoutUebung]) -> TrainingsTag? {
         var neu = tag
         var anders = false
-        for u in liste where !u.planUebung.istCardio {
+        // Ohne Sätze (ausgelassen): die Plan-Sätze bleiben, sonst löschte "Plan aktualisieren" sie.
+        for u in liste where !u.planUebung.istCardio && !u.saetze.isEmpty {
             let saetze = u.saetze.map(\.alsPlan)
             if let i = neu.uebungen.firstIndex(where: { $0.id == u.id }) {
                 if neu.uebungen[i].saetze.map(\.kuerzel) != saetze.map(\.kuerzel) { anders = true }

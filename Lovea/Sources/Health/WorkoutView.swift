@@ -103,6 +103,8 @@ struct WorkoutAktionen {
     var wiederEinchecken: () -> Void = {}
     var zeiten: () -> Void = {}
     var startzeit: () -> Void = {}
+    var auslassen: (WorkoutUebung) -> Void = { _ in }
+    var aufnehmen: (WorkoutUebung) -> Void = { _ in }
 }
 
 /// Das laufende Training: Starten hat eingecheckt, "Beenden" checkt aus.
@@ -238,7 +240,15 @@ struct GymSessionView: View {
                 Haptik.erfolg()
             },
             zeiten: { zeiten = s },
-            startzeit: { startBlatt = s }
+            startzeit: { startBlatt = s },
+            auslassen: { u in
+                modell.auslassen(s.id, u.planUebung)
+                Haptik.leicht()
+            },
+            aufnehmen: { u in
+                modell.entfernen(s.id, u.planUebung)
+                Haptik.leicht()
+            }
         )
     }
 
@@ -311,6 +321,9 @@ struct WorkoutInhalt: View {
                         zeile(u, dran: i == dran)
                     }
                 }
+                if session.ende == nil {
+                    Text("Halte eine Übung gedrückt, um sie auszulassen.").font(.footnote).foregroundStyle(.secondary)
+                }
             }
             schluss
         }
@@ -381,12 +394,12 @@ struct WorkoutInhalt: View {
                         .foregroundStyle(dran ? Color.blue : Color.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    Text(dran ? "Jetzt dran" : unter(u)).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    Text(untertitel(u, dran: dran)).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 HStack(spacing: 4) {
                     if u.fertig { Image(systemName: "checkmark") }
-                    Text("\(u.fertigZahl)/\(u.gesamt)")
+                    Text(zaehler(u))
                 }
                 .font(.headline.monospacedDigit())
                 .foregroundStyle(u.fertig ? Color.green : Color.secondary)
@@ -398,7 +411,36 @@ struct WorkoutInhalt: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(u.fertig ? "fertig" : dran ? "jetzt dran" : "")
+        .accessibilityValue(zustand(u, dran: dran))
+        .contextMenu { kontext(u) }
+    }
+
+    private func untertitel(_ u: WorkoutUebung, dran: Bool) -> String {
+        if u.ausgelassen { return "Ausgelassen" }
+        return dran ? "Jetzt dran" : unter(u)
+    }
+
+    private func zaehler(_ u: WorkoutUebung) -> String {
+        u.ausgelassen ? "–" : "\(u.fertigZahl)/\(u.gesamt)"
+    }
+
+    private func zustand(_ u: WorkoutUebung, dran: Bool) -> String {
+        if u.fertig { return "fertig" }
+        if u.ausgelassen { return "ausgelassen" }
+        return dran ? "jetzt dran" : ""
+    }
+
+    /// Lang drücken: Übung auslassen (Gerät besetzt) oder wieder aufnehmen. Nur Plan-Übungen ohne
+    /// abgehakten Satz; im Training dazugekommene entfernt das Menü der Übung.
+    @ViewBuilder
+    private func kontext(_ u: WorkoutUebung) -> some View {
+        if session.ende == nil, !u.extra {
+            if u.ausgelassen {
+                Button("Wieder aufnehmen", systemImage: "arrow.uturn.backward") { aktionen.aufnehmen(u) }
+            } else if u.fertigZahl == 0 {
+                Button("Auslassen", systemImage: "forward.end") { aktionen.auslassen(u) }
+            }
+        }
     }
 
     private func unter(_ u: WorkoutUebung) -> String {
@@ -635,6 +677,11 @@ struct WorkoutUebungView: View {
             Toggle("RPE-Spalte", isOn: $rpeAn)
             if u.extra {
                 Button("Übung entfernen", systemImage: "trash", role: .destructive) { entfernen(u) }
+            } else if saetze.isEmpty {
+                Button("Übung wieder aufnehmen", systemImage: "arrow.uturn.backward") { aufnehmen(u) }
+            } else {
+                Button("Übung auslassen", systemImage: "forward.end") { auslassen() }
+                    .disabled(saetze.contains { $0.ok == true })
             }
         } label: {
             Image(systemName: "ellipsis.circle")
@@ -649,7 +696,7 @@ struct WorkoutUebungView: View {
             let danach = liste.drop { $0.id != u.id }.dropFirst().first { !$0.fertig && !$0.planUebung.istCardio }
             let naechste = danach ?? kraft.first
             return WorkoutLeiste(
-                titel: "Übung fertig",
+                titel: saetze.isEmpty ? "Übung ausgelassen" : "Übung fertig",
                 unter: naechste.map { "Weiter mit \($0.planUebung.anzeigeName)" } ?? "Zurück zur Übersicht",
                 uhr: stand,
                 knopf: naechste == nil ? "Übersicht" : "Nächste Übung"
@@ -743,6 +790,22 @@ struct WorkoutUebungView: View {
         geladen = false // nichts mehr nachsenden
         modell.entfernen(sessionId, u.planUebung)
         wechseln(nil)
+    }
+
+    /// Ein leerer Stand wird gesendet (`sichern`); die Plan-Sätze bleiben im Plan.
+    private func auslassen() {
+        uhrAus()
+        saetze = []
+        sichern()
+        Haptik.leicht()
+        wechseln(nil)
+    }
+
+    /// "weg" nimmt den leeren Stand zurück: die Zeilen kommen wieder aus dem Plan.
+    private func aufnehmen(_ u: WorkoutUebung) {
+        modell.entfernen(sessionId, u.planUebung)
+        saetze = WorkoutLogik.zeilen(u.planUebung, lauf: nil, vorher: u.vorher)
+        Haptik.leicht()
     }
 }
 

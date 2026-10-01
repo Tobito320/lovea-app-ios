@@ -83,6 +83,13 @@ final class TrainingModell {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "satz", saetze: saetze, name: u.name))
     }
 
+    /// Übung auslassen: ein leerer Stand (`WorkoutUebung.ausgelassen`). `entfernen` nimmt sie wieder
+    /// auf, dann stehen die Plan-Sätze wieder da. Die Pausenuhr dieser Übung hört auf.
+    func auslassen(_ session: String, _ u: PlanUebung) {
+        if WorkoutUhr.shared.stand?.plan == u.id { WorkoutUhr.shared.aus() }
+        saetzeSenden(session, u, [])
+    }
+
     /// Nimmt eine im Training dazugekommene Übung wieder heraus.
     func entfernen(_ session: String, _ u: PlanUebung) {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "weg"))
