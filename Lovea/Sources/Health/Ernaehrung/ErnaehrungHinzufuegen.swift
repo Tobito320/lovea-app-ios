@@ -28,8 +28,13 @@ struct HinzufuegenBlatt: View {
     @State private var barcodeOffen = false
     @State private var schnellOffen = false
     @State private var eigenesNeuOffen = false
+    @State private var eigenesBearbeiten: Lebensmittel?
     @State private var rezeptNeuOffen = false
+    @State private var rezeptBearbeiten: Rezept?
     @State private var rezeptArt: RezeptArt = .rezept
+    /// Einmal pro Erscheinen berechnet statt pro Tastendruck (Favoriten/Häufig/Eigene/Rezepte ändern
+    /// sich während des Tippens nicht).
+    @State private var suchVorne: [Lebensmittel] = []
     /// Welcher Scan-Zweck gerade läuft: normale Suche (Barcode-Kette) oder "Neues Lebensmittel mit
     /// Barcode" aus dem Erstellen-Blatt (direkt zu `NaehrwertFotoBlatt`, ohne Kette).
     @State private var scanZweck: ScanZweck = .suchen
@@ -98,6 +103,7 @@ struct HinzufuegenBlatt: View {
         }
         .fontDesign(.rounded)
         .onAppear {
+            suchVorne = modell.favoriten(ich) + modell.haeufig(ich) + modell.eigene + modell.rezepte.map(ErnaehrungLogik.alsLebensmittel)
             if sofortScannen, !sofortErledigt {
                 sofortErledigt = true
                 scanZweck = .suchen
@@ -121,8 +127,14 @@ struct HinzufuegenBlatt: View {
         .sheet(isPresented: $eigenesNeuOffen) {
             EigenesLebensmittelEditor()
         }
+        .sheet(item: $eigenesBearbeiten) { l in
+            EigenesLebensmittelEditor(start: l)
+        }
         .sheet(isPresented: $rezeptNeuOffen) {
             RezeptEditor(art: rezeptArt)
+        }
+        .sheet(item: $rezeptBearbeiten) { r in
+            RezeptEditor(start: r)
         }
         .sheet(isPresented: $erstellenOffen) {
             ErstellenBlatt(tippen: erstellenGewaehlt)
@@ -153,12 +165,18 @@ struct HinzufuegenBlatt: View {
                           kannKopieren: ersteller(l) == ich.partner,
                           kopieren: { kopieren(l) },
                           istFavorit: modell.istFavorit(l),
-                          favoritUmschalten: { modell.favoritSetzen(l, an: !modell.istFavorit(l)) })
+                          favoritUmschalten: { modell.favoritSetzen(l, an: !modell.istFavorit(l)) },
+                          istEigen: ersteller(l) == ich,
+                          bearbeiten: { bearbeitenOeffnen(l) },
+                          loeschen: { loeschen(l) })
             }
         } else {
             ForEach(listeInhalt) { l in
                 HinzuZeile(lebensmittel: l, eingetragen: geradeEingetragen.contains(l.id),
-                           tippen: { pfad.append(l) }, plus: { direktEintragenUndMarkieren(l) })
+                           tippen: { pfad.append(l) }, plus: { direktEintragenUndMarkieren(l) },
+                           istEigen: ersteller(l) == ich,
+                           bearbeiten: { bearbeitenOeffnen(l) },
+                           loeschen: { loeschen(l) })
             }
         }
     }
@@ -227,6 +245,23 @@ struct HinzufuegenBlatt: View {
         }
     }
 
+    /// Eigenes Lebensmittel oder Rezept: öffnet den passenden Editor mit `start:` vorausgefüllt.
+    private func bearbeitenOeffnen(_ l: Lebensmittel) {
+        if l.id.hasPrefix("rezept-"), let r = modell.rezepte.first(where: { $0.id == String(l.id.dropFirst("rezept-".count)) }) {
+            rezeptBearbeiten = r
+        } else {
+            eigenesBearbeiten = l
+        }
+    }
+
+    private func loeschen(_ l: Lebensmittel) {
+        if l.id.hasPrefix("rezept-"), let r = modell.rezepte.first(where: { $0.id == String(l.id.dropFirst("rezept-".count)) }) {
+            modell.rezeptLoeschen(r)
+        } else {
+            modell.eigenesLoeschen(l)
+        }
+    }
+
     private func hinweisBanner(_ text: String) -> some View {
         Text(text)
             .font(.subheadline.weight(.semibold))
@@ -264,6 +299,7 @@ struct HinzufuegenBlatt: View {
     /// Debounce und wird verworfen, wenn seither erneut getippt wurde.
     private func suchtextGeaendert(_ neu: String) {
         suchAufgabe?.cancel()
+        serverFehlt = false
         suche.nummer += 1
         let nummer = suche.nummer
         let t = neu.trimmingCharacters(in: .whitespaces)
@@ -273,8 +309,7 @@ struct HinzufuegenBlatt: View {
             barcodeSuchen(t)
             return
         }
-        let vorne = modell.favoriten(ich) + modell.haeufig(ich) + modell.eigene + modell.rezepte.map(ErnaehrungLogik.alsLebensmittel)
-        suche.lokal = LebensmittelIndex.shared.suchen(t, vorne: vorne)
+        suche.lokal = LebensmittelIndex.shared.suchen(t, vorne: suchVorne)
         suche.sichtbar = suche.lokal
         guard t.count >= 2 else { return }
         suchAufgabe = Task {
@@ -282,7 +317,7 @@ struct HinzufuegenBlatt: View {
             guard !Task.isCancelled else { return }
             do {
                 let antwort = try await EssenServer.suchen(t)
-                guard !Task.isCancelled else { return }
+                guard !Task.isCancelled, nummer == suche.nummer else { return }
                 serverFehlt = false
                 suche = SuchZusammenfuehrung.server(suche, antwort: antwort, nummer: nummer)
             } catch {
@@ -369,7 +404,9 @@ struct HinzufuegenBlatt: View {
     }
 }
 
-private enum ScanZweck { case suchen, erstellen }
+// Kein Associated Value, Swift synthetisiert `Equatable` hier schon automatisch – `Equatable`
+// trotzdem explizit, damit `scanZweck == .erstellen` unten als Absicht erkennbar ist.
+private enum ScanZweck: Equatable { case suchen, erstellen }
 
 private struct BarcodeVorlage: Identifiable {
     let id: String

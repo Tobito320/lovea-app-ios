@@ -2,11 +2,16 @@ import SwiftUI
 
 // MARK: - Typen
 
-enum HinzuTyp: String, CaseIterable {
+// Alle vier Enums unten haben keine Associated Values, deshalb synthetisiert Swift `Equatable` und
+// `Hashable` schon ohne jede Deklaration (anders als bei Structs/Enums mit Payload). Trotzdem hier
+// explizit angegeben, damit der `AuswahlKnopf<T: ... & Hashable>`-Constraint und `k == aktiv`
+// (`HinzuKachel?`) beim Lesen sofort als beabsichtigt erkennbar sind, nicht nur "funktioniert zufällig".
+
+enum HinzuTyp: String, CaseIterable, Hashable {
     case lebensmittel = "Lebensmittel", mahlzeiten = "Mahlzeiten", rezepte = "Rezepte"
 }
 
-enum HinzuSortierung: String, CaseIterable {
+enum HinzuSortierung: String, CaseIterable, Hashable {
     case haeufig = "Häufig", zuletzt = "Zuletzt", favoriten = "Favoriten"
 }
 
@@ -14,7 +19,7 @@ enum SuchChip: Equatable {
     case favoriten, vonMir, vonPartner
 }
 
-enum HinzuKachel: String, CaseIterable, Identifiable {
+enum HinzuKachel: String, CaseIterable, Identifiable, Hashable {
     case suche, kamera, barcode, sprache, mehr
     var id: String { rawValue }
 
@@ -216,6 +221,13 @@ struct HinzuZeile: View {
     var eingetragen = false
     let tippen: () -> Void
     let plus: () -> Void
+    /// Eigenes Lebensmittel/Rezept: lange drücken zeigt Bearbeiten/Löschen (YAZIO-Pendant zur alten
+    /// "Eigene"-Sektion, siehe Review Task 10 Punkt 2).
+    var istEigen = false
+    var bearbeiten: () -> Void = {}
+    var loeschen: () -> Void = {}
+
+    @State private var loeschenFragen = false
 
     private var portionText: String {
         if let menge = lebensmittel.portionMenge {
@@ -253,6 +265,15 @@ struct HinzuZeile: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .overlay(alignment: .bottom) { Divider().padding(.leading, 16) }
+        .contextMenu {
+            if istEigen {
+                Button("Bearbeiten", systemImage: "pencil", action: bearbeiten)
+                Button("Löschen", systemImage: "trash", role: .destructive) { loeschenFragen = true }
+            }
+        }
+        .confirmationDialog("\(lebensmittel.name) löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
+            Button("Löschen", role: .destructive, action: loeschen)
+        }
     }
 }
 
@@ -266,6 +287,12 @@ struct SuchKarte: View {
     var kopieren: () -> Void = {}
     var istFavorit = false
     var favoritUmschalten: () -> Void = {}
+    /// Eigenes Lebensmittel/Rezept: Kontextmenü zeigt Bearbeiten/Löschen statt Kopieren/Favorit.
+    var istEigen = false
+    var bearbeiten: () -> Void = {}
+    var loeschen: () -> Void = {}
+
+    @State private var loeschenFragen = false
 
     private var untertitel: String {
         let marke = lebensmittel.marke ?? "Eigenes"
@@ -307,10 +334,16 @@ struct SuchKarte: View {
         }
         .buttonStyle(.plain)
         .contextMenu {
-            if kannKopieren {
+            if istEigen {
+                Button("Bearbeiten", systemImage: "pencil", action: bearbeiten)
+                Button("Löschen", systemImage: "trash", role: .destructive) { loeschenFragen = true }
+            } else if kannKopieren {
                 Button("Zu mir kopieren", systemImage: "doc.on.doc", action: kopieren)
                 Button(istFavorit ? "Favorit entfernen" : "Favorit", systemImage: istFavorit ? "star.slash" : "star", action: favoritUmschalten)
             }
+        }
+        .confirmationDialog("\(lebensmittel.name) löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
+            Button("Löschen", role: .destructive, action: loeschen)
         }
     }
 }
