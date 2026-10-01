@@ -83,6 +83,22 @@ final class GymLueckenTests: XCTestCase {
         XCTAssertEqual(neu?.uebungen[1].saetze.count, 2)
     }
 
+    func testRecentExercisesNewestFirstWithoutDuplicates() {
+        func katalogUebung(_ id: String) -> Uebung {
+            Uebung(id: id, name: "Übung \(id)", en: id, muskel: "Brust", koerper: "Brust", geraet: "Langhantel", neben: [])
+        }
+        let katalog = Dictionary(uniqueKeysWithValues: ["a", "b", "c", "d"].map { ($0, katalogUebung($0)) })
+        func lauf(_ id: String, fertig: Bool = true) -> UebungsLauf {
+            UebungsLauf(plan: "p\(id)", uebung: id, start: t0, ende: t0, fertig: fertig, saetze: fertig ? [satz(10, 50, ok: true)] : nil)
+        }
+        let alt = GymSession(id: "alt", tag: nil, start: t0 - 86400, ende: t0 - 80000, laeufe: [lauf("a"), lauf("b")])
+        let neu = GymSession(id: "neu", tag: nil, start: t0, ende: t0 + 3600, laeufe: [lauf("c"), lauf("a"), lauf("d", fertig: false), lauf("eigen")])
+        // Neueste Einheit zuerst, darin die zuletzt gemachte zuerst; "d" ohne Sätze und "eigen" (nicht im Katalog) fehlen.
+        XCTAssertEqual(UebungsKatalog.zuletzt([alt, neu], in: katalog).map(\.id), ["a", "c", "b"])
+        XCTAssertEqual(UebungsKatalog.zuletzt([alt, neu], in: katalog, limit: 2).map(\.id), ["a", "c"])
+        XCTAssertTrue(UebungsKatalog.zuletzt([], in: katalog).isEmpty)
+    }
+
     func testEarliestStartKeepsSessionRunning() {
         let frueh = TrainingLogik.fruehesterStart(jetzt: t0)
         XCTAssertTrue(TrainingLogik.laufend(GymSession(id: "s", tag: nil, start: frueh, ende: nil, laeufe: []), jetzt: t0))

@@ -90,10 +90,17 @@ struct UebungsSuche: View {
     private var liste: some View {
         let basis = UebungsKatalog.alle.filter { passt($0, geraet: geraet, muskel: muskel) }
         let treffer = UebungsKatalog.suchen(text, in: basis)
-        let vorschlaege = text.isEmpty ? UebungsKatalog.vorschlaege(in: basis) : []
+        let zuletzt = text.isEmpty ? zuletztBenutzt(geraet: geraet, muskel: muskel) : []
+        let bekannt = Set(zuletzt.map(\.id))
+        let vorschlaege = text.isEmpty ? UebungsKatalog.vorschlaege(in: basis).filter { !bekannt.contains($0.id) } : []
         return List {
             Section {
                 filter.listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
+            if !zuletzt.isEmpty {
+                Section("Zuletzt benutzt") {
+                    ForEach(zuletzt) { u in zeile(u) }
+                }
             }
             if !vorschlaege.isEmpty {
                 Section("Beliebte Übungen") {
@@ -116,6 +123,11 @@ struct UebungsSuche: View {
                 }
             }
         }
+    }
+
+    /// Die eigenen letzten Übungen, auch nach Gerät und Muskel gefiltert.
+    private func zuletztBenutzt(geraet: String?, muskel: String?) -> [Uebung] {
+        UebungsKatalog.zuletzt(TrainingModell.shared.sessions(Raum.shared.ich ?? .ahmed)).filter { passt($0, geraet: geraet, muskel: muskel) }
     }
 
     /// Wie in Hevy: zwei gleich breite Knöpfe, jeder öffnet ein Blatt mit Kacheln.
