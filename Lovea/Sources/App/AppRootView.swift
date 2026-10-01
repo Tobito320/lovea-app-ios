@@ -56,9 +56,17 @@ struct AppRootView: View {
     let person: Person
     @SceneStorage("app.selectedTab") private var selectedTab: AppTab = .drawing
 
+    init(session: PersonSession, person: Person) {
+        self.session = session
+        self.person = person
+        StartProtokoll.marke("approotview.init")
+    }
+
     var body: some View {
-        hauptLeiste
+        StartProtokoll.marke("approotview.body")
+        return hauptLeiste
         .onAppear {
+            StartProtokoll.marke("approotview.onAppear")
             // Alte Werte aus der früheren Health-Leiste (SceneStorage): jetzt ein Health-Tab.
             if [.heute, .koerper, .training, .verlauf, .zurueck].contains(selectedTab) { selectedTab = .health }
         }
@@ -115,20 +123,21 @@ private extension AppRootView {
     var hauptLeiste: some View {
         TabView(selection: $selectedTab) {
             Tab("Home", systemImage: "house", value: AppTab.home) {
-                HomeView(person: person)
+                HomeView(person: person).onAppear { StartProtokoll.marke("tab.home.onAppear") }
             }
             Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: AppTab.chat) {
-                ChatTab()
+                ChatTab().onAppear { StartProtokoll.marke("tab.chat.onAppear") }
             }
             .badge(ChatModell.shared.ungelesen(fuer: person))
             Tab("Zeichnen", systemImage: "paintbrush.pointed", value: AppTab.drawing) {
-                DrawingView(person: person)
+                DrawingView(person: person).onAppear { StartProtokoll.marke("tab.zeichnen.onAppear") }
             }
             Tab("Health", systemImage: "heart.text.square", value: AppTab.health) {
-                HeuteView()
+                HeuteView().onAppear { StartProtokoll.marke("tab.health.onAppear") }
             }
             Tab("Profil", systemImage: "person.crop.circle", value: AppTab.profile) {
                 ProfileView(person: person, session: session, bilanz: spieleBilanz)
+                    .onAppear { StartProtokoll.marke("tab.profil.onAppear") }
             }
         }
         .leiste()

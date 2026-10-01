@@ -9,7 +9,9 @@ final class ErnaehrungModell {
     private var faltung = ErnaehrungFaltung()
 
     private init() {
+        StartProtokoll.marke("ernaehrungModell.init.vor")
         Raum.shared.beobachten(ErnaehrungFaltung.arten) { [weak self] op in self?.faltung.anwenden(op) }
+        StartProtokoll.marke("ernaehrungModell.init.nach")
     }
 
     var ich: Person { Raum.shared.ich ?? .ahmed }

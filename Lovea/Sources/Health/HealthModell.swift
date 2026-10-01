@@ -76,6 +76,7 @@ final class HealthModell {
     private(set) var berechtigungAngefragt = UserDefaults.standard.bool(forKey: HealthModell.angefragtSchluessel)
 
     private init() {
+        StartProtokoll.marke("healthModell.init.vor")
         Raum.shared.beobachten(["schritte.setzen"]) { [weak self] op in self?.schritteOpAnwenden(op) }
         Raum.shared.beobachten(["schlaf.setzen"]) { [weak self] op in self?.schlafOpAnwenden(op) }
         Raum.shared.beobachten(["habit.setzen", "habit.anlegen", "habit.aendern", "habit.ausblenden"]) { [weak self] op in
@@ -84,6 +85,7 @@ final class HealthModell {
         }
         Raum.shared.beobachten(["einstellung.setzen"]) { [weak self] op in self?.zielOpAnwenden(op) }
         Raum.shared.beobachten(["schlaf.zeiten"]) { [weak self] op in self?.schlafZeitenAnwenden(op) }
+        StartProtokoll.marke("healthModell.init.nach")
     }
 
     private var heute: String { Datum.text(Date()) }

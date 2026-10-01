@@ -49,14 +49,22 @@ enum GymLive {
     private nonisolated static func anwenden(_ ziel: Ziel?) async {
         StartProtokoll.marke("gymLive.anwenden.vor")
         for a in Activity<GymAktivitaet>.activities where a.attributes.sessionId != ziel?.attribute.sessionId {
+            StartProtokoll.marke("gymLive.anwenden.altBeenden.vor")
             await a.end(nil, dismissalPolicy: .immediate)
+            StartProtokoll.marke("gymLive.anwenden.altBeenden.nach")
         }
         if let ziel {
             if let a = Activity<GymAktivitaet>.activities.first(where: { $0.attributes.sessionId == ziel.attribute.sessionId }) {
-                if a.content.state != ziel.stand { await a.update(ActivityContent(state: ziel.stand, staleDate: nil)) }
+                if a.content.state != ziel.stand {
+                    StartProtokoll.marke("gymLive.anwenden.update.vor")
+                    await a.update(ActivityContent(state: ziel.stand, staleDate: nil))
+                    StartProtokoll.marke("gymLive.anwenden.update.nach")
+                }
             } else if ActivityAuthorizationInfo().areActivitiesEnabled {
                 // Klappt nur im Vordergrund; sonst holt der nächste Abgleich beim Öffnen es nach.
+                StartProtokoll.marke("gymLive.anwenden.request.vor")
                 _ = try? Activity.request(attributes: ziel.attribute, content: ActivityContent(state: ziel.stand, staleDate: nil))
+                StartProtokoll.marke("gymLive.anwenden.request.nach")
             }
         }
         // R10 (Ahmed, 01.10.: "nur Gym, wenn gestartet" in der Dynamic Island) — nach jedem

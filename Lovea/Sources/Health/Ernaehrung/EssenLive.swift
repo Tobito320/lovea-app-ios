@@ -101,7 +101,11 @@ enum EssenLive {
         // alten ContentState-Shape. Die neue App soll dessen JSON nie über `EssenAktivitaetV2`
         // dekodieren (Absturzverdacht Build 76) — stattdessen hier über den unveränderten alten
         // Typnamen beenden, bevor überhaupt etwas mit `EssenAktivitaetV2` angefasst wird.
-        for a in Activity<EssenAktivitaet>.activities { await a.end(nil, dismissalPolicy: .immediate) }
+        for a in Activity<EssenAktivitaet>.activities {
+            StartProtokoll.marke("essenLive.anwenden.altBeenden.vor")
+            await a.end(nil, dismissalPolicy: .immediate)
+            StartProtokoll.marke("essenLive.anwenden.altBeenden.nach")
+        }
         let laufend = Activity<EssenAktivitaetV2>.activities.first
         let mitternacht = Calendar.current.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime)
             ?? Date().addingTimeInterval(86400)
@@ -111,17 +115,35 @@ enum EssenLive {
         let veraltet = laufend.map { istVeraltet($0.content.state) } ?? false
         switch aktion(laufendTag: laufend?.content.state.tag, heute: ziel.stand.tag, an: an, laufendVeraltet: veraltet, gymLaeuft: gymLaeuft) {
         case .beenden:
-            for a in Activity<EssenAktivitaetV2>.activities { await a.end(nil, dismissalPolicy: .immediate) }
+            for a in Activity<EssenAktivitaetV2>.activities {
+                StartProtokoll.marke("essenLive.anwenden.beenden.vor")
+                await a.end(nil, dismissalPolicy: .immediate)
+                StartProtokoll.marke("essenLive.anwenden.beenden.nach")
+            }
         case .neuStarten:
             // Vom Vortag übrig (oder keine da): sauber beenden statt mit neuen Werten überschreiben,
             // dann frisch für heute anfordern.
-            for a in Activity<EssenAktivitaetV2>.activities { await a.end(nil, dismissalPolicy: .immediate) }
-            guard ActivityAuthorizationInfo().areActivitiesEnabled else { return }
+            for a in Activity<EssenAktivitaetV2>.activities {
+                StartProtokoll.marke("essenLive.anwenden.neuStarten.beenden.vor")
+                await a.end(nil, dismissalPolicy: .immediate)
+                StartProtokoll.marke("essenLive.anwenden.neuStarten.beenden.nach")
+            }
+            guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+                StartProtokoll.marke("essenLive.anwenden.nach")
+                return
+            }
             // Klappt nur im Vordergrund; sonst holt der nächste Abgleich beim Öffnen es nach.
+            StartProtokoll.marke("essenLive.anwenden.request.vor")
             _ = try? Activity.request(attributes: ziel.attribute, content: ActivityContent(state: ziel.stand, staleDate: mitternacht))
+            StartProtokoll.marke("essenLive.anwenden.request.nach")
         case .aktualisieren:
-            guard let laufend, laufend.content.state != ziel.stand else { return }
+            guard let laufend, laufend.content.state != ziel.stand else {
+                StartProtokoll.marke("essenLive.anwenden.nach")
+                return
+            }
+            StartProtokoll.marke("essenLive.anwenden.update.vor")
             await laufend.update(ActivityContent(state: ziel.stand, staleDate: mitternacht))
+            StartProtokoll.marke("essenLive.anwenden.update.nach")
         }
         StartProtokoll.marke("essenLive.anwenden.nach")
     }

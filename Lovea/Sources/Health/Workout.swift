@@ -187,6 +187,7 @@ final class WorkoutUhr {
     private(set) var stand: Stand?
 
     private init() {
+        StartProtokoll.marke("workoutUhr.init.vor")
         if let daten = UserDefaults.standard.data(forKey: Self.schluessel) {
             if let dekodiert = try? JSONDecoder().decode(Stand.self, from: daten) {
                 stand = dekodiert
@@ -196,6 +197,7 @@ final class WorkoutUhr {
                 UserDefaults.standard.removeObject(forKey: Self.schluessel)
             }
         }
+        StartProtokoll.marke("workoutUhr.init.nach")
     }
 
     private func setzen(_ neu: Stand?) {

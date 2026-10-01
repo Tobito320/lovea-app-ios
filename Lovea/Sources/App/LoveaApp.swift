@@ -6,18 +6,25 @@ struct LoveaApp: App {
     @StateObject private var session = PersonSession()
     @AppStorage("lovea.ersterStartFertig") private var ersterStartFertig = false
     @Environment(\.scenePhase) private var scenePhase
-    /// Vor der allerersten eigenen `StartProtokoll`-Markierung gelesen (siehe `init`), sonst würde die
-    /// erste Markierung den Wert überschreiben, den dieser Start eigentlich prüfen soll.
-    @State private var letzterAbbruch: String?
-    @State private var abbruchAlertGezeigt = false
+
+    /// UI-Tests laufen oft über `XCUIApplication` (killt den Prozess ohne `.background` — sonst
+    /// zählte jeder Testlauf als Absturz) oder über `-uiTestStudio` (kein echter Launch-Pfad).
+    private static var istTest: Bool {
+        ProcessInfo.processInfo.arguments.contains("-uiTestStudio")
+            || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+    }
 
     init() {
-        _letzterAbbruch = State(initialValue: StartProtokoll.letzterAbbruch())
-        StartProtokoll.marke("app.init")
+        guard !Self.istTest else { return }
+        AbsturzFaenger.installieren() // Allererstes: vor jeder anderen App-Logik.
+        StartProtokoll.neuerStart()
+        StartProtokoll.marke("loveaApp.init.start")
+        StartProtokoll.marke("loveaApp.init.ende")
     }
 
     var body: some Scene {
-        WindowGroup {
+        StartProtokoll.marke("loveaApp.body")
+        return WindowGroup {
             Group {
                 if ProcessInfo.processInfo.arguments.contains("-uiTestStudio") {
                     UITestStudio()
@@ -31,8 +38,9 @@ struct LoveaApp: App {
                 }
             }
             .onAppear {
-                StartProtokoll.fertig()
-                if letzterAbbruch != nil { abbruchAlertGezeigt = true }
+                guard !Self.istTest else { return }
+                StartProtokoll.szeneErreicht()
+                Herzschlag.shared.starten()
             }
             .onChange(of: session.person, initial: true) { _, person in starten(person) }
             .onChange(of: scenePhase) { _, phase in phaseGewechselt(phase) }
@@ -44,15 +52,6 @@ struct LoveaApp: App {
                 AppNavigation.shared.tabWunsch = url.host
                 let teile = URLComponents(url: url, resolvingAgainstBaseURL: false)
                 AppNavigation.shared.essenMahlzeitWunsch = teile?.queryItems?.first { $0.name == "mahlzeit" }?.value
-            }
-            // Build 77 (Absturzverdacht Build 76): einmaliger Hinweis, bei welcher Stufe der letzte
-            // Start abgebrochen ist (kein `fertig()` erreicht). Reine Diagnose, kein Verhalten geändert.
-            .alert("Letzter Start abgebrochen bei: \(letzterAbbruch ?? "")", isPresented: $abbruchAlertGezeigt) {
-                Button("Kopieren") {
-                    let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
-                    UIPasteboard.general.string = "Letzter Start abgebrochen bei: \(letzterAbbruch ?? "") (Build \(build))"
-                }
-                Button("OK", role: .cancel) {}
             }
         }
     }
@@ -74,6 +73,8 @@ struct LoveaApp: App {
     }
 
     private func phaseGewechselt(_ phase: ScenePhase) {
+        guard !Self.istTest else { return }
+        StartProtokoll.marke("phaseGewechselt.\(String(describing: phase)).vor")
         Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
         if phase == .active {
             WidgetPendingOpsMerge.abholen()
@@ -88,10 +89,12 @@ struct LoveaApp: App {
             StartProtokoll.marke("workoutuhr.mitteilungPlanen.vor")
             WorkoutUhr.shared.mitteilungPlanen()
             StartProtokoll.marke("workoutuhr.mitteilungPlanen.nach")
+            Herzschlag.shared.stoppen()
             // Normaler Hintergrund-Wechsel, kein Absturz: der nächste Start soll nicht fälschlich
-            // "abgebrochen bei …" melden.
-            StartProtokoll.fertig()
+            // als Absturz zählen.
+            StartProtokoll.sauber()
         }
+        StartProtokoll.marke("phaseGewechselt.\(String(describing: phase)).nach")
     }
 }
 

@@ -27,6 +27,8 @@ final class Raum {
     private var beobachter: [(arten: Set<String>, f: (Op) -> Void)] = []
     private var stapelBeobachter: [(arten: Set<String>, f: ([Op]) -> Void)] = []
     private var fluechtigBeobachter: [String: [(Person, Data) -> Void]] = [:]
+    /// Build 78 (Absturz-Breadcrumbs): nur das erste ausgelieferte Batch markieren, nicht jedes.
+    private var erstesBatchMarkiert = false
 
     private var backoff: TimeInterval = 1
     private var aktivZustand = false
@@ -98,6 +100,8 @@ final class Raum {
     // MARK: - Lifecycle
 
     func start() {
+        StartProtokoll.marke("raum.start.funktion.vor")
+        defer { StartProtokoll.marke("raum.start.funktion.nach") }
         guard eingerichtet, ich != nil else { return }
         aktivZustand = true
         hintergrundTask?.cancel(); hintergrundTask = nil
@@ -515,6 +519,10 @@ final class Raum {
 
     private func liefereBatch(_ ops: [Op]) {
         guard !ops.isEmpty else { return }
+        if !erstesBatchMarkiert {
+            erstesBatchMarkiert = true
+            StartProtokoll.marke("raum.erstesBatch.\(ops.count)")
+        }
         for eintrag in stapelBeobachter {
             let treffer = eintrag.arten.isEmpty ? ops : ops.filter { eintrag.arten.contains($0.art) }
             if !treffer.isEmpty { eintrag.f(treffer) }

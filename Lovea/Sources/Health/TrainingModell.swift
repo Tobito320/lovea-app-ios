@@ -9,10 +9,12 @@ final class TrainingModell {
     private var faltung = TrainingFaltung()
 
     private init() {
+        StartProtokoll.marke("trainingModell.init.vor")
         Raum.shared.beobachten(TrainingFaltung.arten) { [weak self] op in
             self?.faltung.anwenden(op)
             GymLive.abgleichen()
         }
+        StartProtokoll.marke("trainingModell.init.nach")
     }
 
     private var ich: Person { Raum.shared.ich ?? .ahmed }
