@@ -100,6 +100,15 @@ final class TrainingModell {
         Anwesenheit.shared.anstossen()
     }
 
+    /// Ein Training von Hand nachtragen (Ahmed, 01.10.): Start und Ende, ohne im Gym einzuchecken.
+    func nachtragen(tag: String?, start: Date, ende: Date) {
+        let id = UUID().uuidString
+        Raum.shared.senden("gym.checkin", GymD(session: id, tag: tag, start: start))
+        Raum.shared.senden("gym.checkout", GymD(session: id, ende: ende))
+        let datum = Datum.text(start)
+        if !HealthModell.shared.gymAbgehakt(ich, datum) { HealthModell.shared.setzeGym(datum: datum, an: true) }
+    }
+
     func loeschen(_ s: GymSession) {
         Raum.shared.senden("gym.loeschen", GymD(session: s.id))
         Anwesenheit.shared.anstossen()

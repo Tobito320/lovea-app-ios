@@ -211,25 +211,167 @@ struct ZeitenBlatt: View {
     }
 }
 
-/// Own past sessions, newest first; tap to correct times or delete.
+/// Welche Einheit von wem der Verlauf öffnet.
+struct GymVerlaufZiel: Hashable {
+    var person: Person
+    var session: String
+}
+
+/// Vergangene Einheiten, neueste zuerst: die eigenen und die des Partners (nur lesen). Tipp öffnet
+/// die Einheit mit allen Sätzen, das Plus trägt ein Training von Hand nach.
 struct GymVerlaufView: View {
-    @State private var zeiten: GymSession?
+    @State private var person: Person?
+    @State private var offen: GymVerlaufZiel?
+    @State private var nachtragenOffen = false
     private var ich: Person { Raum.shared.ich ?? .ahmed }
 
     var body: some View {
         let modell = TrainingModell.shared
-        let sessions = modell.sessions(ich)
+        let wer = person ?? ich
+        let sessions = modell.sessions(wer)
         List {
+            Picker("Wessen Verlauf", selection: Binding { wer } set: { person = $0 }) {
+                Text("Ich").tag(ich)
+                Text(ich.partner.name).tag(ich.partner)
+            }
+            .pickerStyle(.segmented)
+            .listRowSeparator(.hidden)
             if sessions.isEmpty {
-                Text("Noch keine Einheit. Check im Gym ein, dann steht sie hier.").foregroundStyle(.secondary)
+                Text(wer == ich ? "Noch keine Einheit. Starte ein Training, dann steht es hier." : "\(wer.name) hat noch kein Training.")
+                    .foregroundStyle(.secondary)
             }
             ForEach(sessions) { s in
-                Button { zeiten = s } label: { GymVerlaufZeile(session: s, tag: modell.tag(ich, id: s.tag)) }
-                    .buttonStyle(.plain)
+                Button { offen = GymVerlaufZiel(person: wer, session: s.id) } label: {
+                    GymVerlaufZeile(session: s, tag: modell.tag(wer, id: s.tag))
+                }
+                .buttonStyle(.plain)
             }
         }
         .navigationTitle("Verlauf")
-        .sheet(item: $zeiten) { ZeitenBlatt(session: $0) }
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button("Training nachtragen", systemImage: "plus") { nachtragenOffen = true }
+            }
+        }
+        .navigationDestination(item: $offen) { WorkoutRueckblick(person: $0.person, sessionId: $0.session) }
+        .sheet(isPresented: $nachtragenOffen) { NachtragenBlatt() }
+    }
+}
+
+/// Eine Einheit zum Nachlesen: Zeiten, Volumen und jeder abgehakte Satz. Die eigene lässt sich in
+/// den Zeiten korrigieren oder löschen, die des Partners nur lesen.
+struct WorkoutRueckblick: View {
+    let person: Person
+    let sessionId: String
+    @State private var zeiten: GymSession?
+
+    var body: some View {
+        let modell = TrainingModell.shared
+        let liste = modell.workout(sessionId, person)
+        if let s = modell.sessions(person).first(where: { $0.id == sessionId }) {
+            List {
+                Section {
+                    LabeledContent("Zeit", value: zeit(s))
+                    LabeledContent("Volumen", value: "\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg")
+                    LabeledContent("Sätze", value: "\(WorkoutLogik.saetzeZahl(liste))")
+                }
+                ForEach(liste) { u in
+                    Section(u.planUebung.anzeigeName) { saetze(u) }
+                }
+            }
+            .navigationTitle(modell.tag(person, id: s.tag)?.name ?? Datum.anzeige(Datum.text(s.start)))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                if person == Raum.shared.ich {
+                    ToolbarItem(placement: .primaryAction) { Button("Zeiten") { zeiten = s } }
+                }
+            }
+            .sheet(item: $zeiten) { ZeitenBlatt(session: $0) }
+        } else {
+            ContentUnavailableView("Einheit nicht gefunden", systemImage: "dumbbell")
+        }
+    }
+
+    private func zeit(_ s: GymSession) -> String {
+        let tag = Datum.anzeige(Datum.text(s.start))
+        guard let ende = s.ende else { return "\(tag), seit \(Datum.uhrzeit(s.start))" }
+        return "\(tag), \(Datum.uhrzeit(s.start))–\(Datum.uhrzeit(ende))"
+    }
+
+    @ViewBuilder
+    private func saetze(_ u: WorkoutUebung) -> some View {
+        if u.planUebung.istCardio {
+            Text(u.cardioFertig ? "\(u.planUebung.minuten ?? 20) min" : "nicht gemacht").foregroundStyle(u.cardioFertig ? Color.primary : Color.secondary)
+        } else if u.fertigZahl == 0 {
+            Text("nicht gemacht").foregroundStyle(.secondary)
+        } else {
+            ForEach(u.saetze.indices, id: \.self) { i in
+                if u.saetze[i].ok == true { zeile(u, i) }
+            }
+        }
+    }
+
+    private func zeile(_ u: WorkoutUebung, _ i: Int) -> some View {
+        let s = u.saetze[i]
+        let zeiten = [s.sek.map { "Satz \(WorkoutLogik.zeitText($0))" }, s.pause.map { "Pause \(WorkoutLogik.zeitText($0))" }].compactMap { $0 }
+        return HStack(spacing: 12) {
+            Text(WorkoutLogik.nummer(u.saetze, i))
+                .font(.subheadline.weight(.semibold))
+                .foregroundStyle(s.kuerzel == nil ? Color.secondary : Color.orange)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(WorkoutLogik.satzText(s)).monospacedDigit()
+                if !zeiten.isEmpty { Text(zeiten.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
+            }
+            Spacer(minLength: 8)
+            if let rpe = s.rpe { Text("RPE \(TrainingLogik.kgText(rpe))").font(.subheadline).foregroundStyle(.secondary) }
+        }
+    }
+}
+
+/// Ein Training von Hand nachtragen: Tag, Start und Ende.
+struct NachtragenBlatt: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var start = Date().addingTimeInterval(-90 * 60)
+    @State private var ende = Date()
+    @State private var tag: String?
+
+    private var ich: Person { Raum.shared.ich ?? .ahmed }
+
+    var body: some View {
+        let tage = TrainingModell.shared.plan(ich).tage
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker("Start", selection: $start, in: ...Date())
+                    DatePicker("Ende", selection: $ende, in: start...max(start, Date()))
+                    LabeledContent("Dauer", value: TrainingLogik.dauerText(max(0, ende.timeIntervalSince(start))))
+                }
+                if !tage.isEmpty {
+                    Section {
+                        Picker("Trainingstag", selection: $tag) {
+                            Text("Ohne Tag").tag(String?.none)
+                            ForEach(tage) { t in
+                                Text(t.name.isEmpty ? "Ohne Namen" : t.name).tag(String?.some(t.id))
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle("Training nachtragen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Sichern") {
+                        TrainingModell.shared.nachtragen(tag: tag, start: start, ende: max(ende, start))
+                        Haptik.erfolg()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
     }
 }
 
