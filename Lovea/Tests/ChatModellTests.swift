@@ -261,6 +261,29 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(modell.nachrichten.first?.system, "Ahmed hat den Bildschirm aufgenommen")
     }
 
+    // MARK: - badgeBetroffen (Chat-Tempo-Befund 1: kein Badge-Filter beim eigenen Entwurf-Echo)
+
+    func testBadgeBetroffenIgnoriertEntwurfUndAndereStilleArten() {
+        XCTAssertFalse(ChatModell.badgeBetroffen(["entwurf.setzen"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen(["entwurf.setzen", "entwurf.setzen"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen(["nachricht.reaktion", "stern", "nachricht.gemerkt"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen(["nachricht.bearbeitet", "nachricht.angeheftet", "nachricht.losgeloest"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen(["snap.angesehen", "snap.gespeichert", "medium.abschrift"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen([]))
+    }
+
+    func testBadgeBetroffenErkenntNachrichtenUndLesebestaetigung() {
+        XCTAssertTrue(ChatModell.badgeBetroffen(["nachricht.neu"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["nachricht.geloescht"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["nachricht.gelesen"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["snap.wiederholt"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["snap.aufnahme"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["zeichnung.einladung"]))
+        // Ein gemischter Batch (z. B. Entwurf-Echo zusammen mit der eigentlichen Nachricht) zählt,
+        // sobald IRGENDEIN Op in ihm badge-relevant ist.
+        XCTAssertTrue(ChatModell.badgeBetroffen(["entwurf.setzen", "nachricht.neu"]))
+    }
+
     // MARK: - Helpers
 
     /// Letters are gone: an old one still decodes and reads as a plain text (title, blank line, text).
