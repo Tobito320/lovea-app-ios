@@ -429,7 +429,8 @@ struct HeuteView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     kopf
-                    freitextKnopf
+                    trainingStartenKarte
+                    freitextZeile
                     VStack(spacing: 0) {
                         tagesWahl
                             .padding(.horizontal, 16)
@@ -439,7 +440,6 @@ struct HeuteView: View {
                                        partner: heute == echtHeute ? (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))) : nil)
                     }
                     .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    trainingStartenKarte
                     abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute)) { raster }
                     abschnitt("Das fällt mir auf") { hinweisListe }
                     punkteZeile
@@ -759,16 +759,17 @@ struct HeuteView: View {
         }
     }
 
-    private var freitextKnopf: some View {
+    /// Schmale Zeile statt Karte (Ahmed, 01.10.: Training starten muss ohne Scrollen sichtbar bleiben,
+    /// auch bei großer Schrift).
+    private var freitextZeile: some View {
         Button { freitextOffen = true } label: {
-            Label("Schreib, was war: Schlaf, Gewicht, Wasser, Creatin", systemImage: "square.and.pencil")
-                .font(.subheadline)
+            Label("Schreib, was war", systemImage: "square.and.pencil")
+                .font(.footnote.weight(.semibold))
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(14)
-                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .buttonStyle(.plain)
+        .accessibilityHint("Schlaf, Gewicht, Wasser, Creatin per Freitext eintragen")
     }
 
     private var proteinKachel: some View {
