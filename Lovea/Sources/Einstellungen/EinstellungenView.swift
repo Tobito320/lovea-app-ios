@@ -7,6 +7,7 @@ struct EinstellungenView: View {
     @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
     @AppStorage(SnapBildAusrichtung.schluessel) private var selfieSpiegeln = false
+    @AppStorage(TabWischLogik.schluessel) private var tabWischen = true
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
 
@@ -45,6 +46,11 @@ struct EinstellungenView: View {
             }
             Section("Spotify") {
                 SpotifyVerbindenRow()
+            }
+            Section {
+                Toggle("Zwischen Tabs wischen", isOn: $tabWischen)
+            } footer: {
+                Text("Nach links oder rechts wischen wechselt zwischen Home, Chat, Zeichnen, Health und Profil.")
             }
             Section {
                 Toggle("Haptik", isOn: $haptik)

@@ -60,4 +60,20 @@ final class TabWischLogikTests: XCTestCase {
             .naechsterTab
         )
     }
+
+    /// Schalter "Zwischen Tabs wischen" aus: kein Tab-Wechsel, obwohl Strecke und Richtung passen.
+    func testSchalterAusReagiertNicht() {
+        XCTAssertNil(TabWischLogik.richtung(dx: -100, dy: 0, startX: 200, breite: breite, aktiv: false))
+    }
+
+    func testSchalterIstStandardMaessigAn() {
+        let defaults = UserDefaults(suiteName: "TabWischLogikTests")!
+        defaults.removePersistentDomain(forName: "TabWischLogikTests")
+        XCTAssertTrue(TabWischLogik.aktiv(defaults))
+        defaults.set(false, forKey: TabWischLogik.schluessel)
+        XCTAssertFalse(TabWischLogik.aktiv(defaults))
+        defaults.set(true, forKey: TabWischLogik.schluessel)
+        XCTAssertTrue(TabWischLogik.aktiv(defaults))
+        defaults.removePersistentDomain(forName: "TabWischLogikTests")
+    }
 }
