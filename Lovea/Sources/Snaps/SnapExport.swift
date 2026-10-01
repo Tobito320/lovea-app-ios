@@ -14,21 +14,31 @@ enum SnapExport {
     /// Only the SwiftUI overlay render (`ImageRenderer`, main-actor API) stays on the main actor;
     /// compositing and the JPEG encode run detached (Z-16.2).
     @MainActor
-    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText) async -> Data? {
+    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter) async -> Data? {
         let groesse = MedienKodierung.skaliert(quelle.size, langeKante: 2048)
         let renderer = ImageRenderer(content: SnapUeberlagerung(linien: linien, sticker: sticker, text: text, groesse: groesse))
         renderer.scale = 1
         let overlayBild = renderer.uiImage
 
         return await Task.detached(priority: .userInitiated) { () -> Data? in
+            let basis = Self.gefiltertesBild(quelle: quelle, filter: filter, groesse: groesse) ?? quelle
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             let flach = UIGraphicsImageRenderer(size: groesse, format: format).image { _ in
-                quelle.draw(in: CGRect(origin: .zero, size: groesse))
+                basis.draw(in: CGRect(origin: .zero, size: groesse))
                 overlayBild?.draw(in: CGRect(origin: .zero, size: groesse))
             }
             return flach.jpegData(compressionQuality: 0.85)
         }.value
+    }
+
+    /// Filter vor dem Overlay anwenden (Anforderung: Filter zuerst, Doodle/Text/Sticker obendrauf).
+    /// `.original` übersprungen — identisch zum Quellbild, ein Render weniger.
+    private static func gefiltertesBild(quelle: UIImage, filter: SnapFilter, groesse: CGSize) -> UIImage? {
+        guard filter != .original, let ciBasis = CIImage(image: quelle, options: [.applyOrientationProperty: true]) else { return nil }
+        let gefiltert = filter.anwenden(auf: ciBasis)
+        guard let cgBild = SnapFilter.context.createCGImage(gefiltert, from: gefiltert.extent) else { return nil }
+        return UIImage(cgImage: cgBild)
     }
 
     /// Burns one static overlay image onto every frame via `AVVideoCompositionCoreAnimationTool` —
@@ -40,10 +50,21 @@ enum SnapExport {
     /// The actual encode work still runs on `AVAssetExportSession`'s own queue either way; nothing
     /// here blocks the main thread beyond waiting on that callback.
     @MainActor
-    static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText) async -> URL? {
-        // Most snaps have no doodle/sticker/text — nothing to burn in, so skip the full-quality
+    static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter) async -> URL? {
+        // Most snaps have no doodle/sticker/text/filter — nothing to burn in, so skip the full-quality
         // `AVAssetExportSession` pass entirely. For a 19s gallery video that pass alone was the
         // biggest single delay before the Snap editor could dismiss (Z-Report Kamera).
+        guard !linien.isEmpty || !sticker.isEmpty || !text.text.isEmpty || filter != .original else { return quelle }
+
+        // Filter zuerst, eigener einfacher Pass (CI-Filter pro Frame über `applyingCIFiltersWithHandler`).
+        // Der bestehende Overlay-Pass unten läuft danach unverändert auf dem gefilterten Clip weiter —
+        // zwei simple Pässe statt eines eigenen `AVVideoCompositing`, das CI-Filter UND CALayer-Overlay
+        // gleichzeitig pro Frame mischt.
+        var quelle = quelle
+        if filter != .original {
+            guard let gefiltert = await Self.gefiltertesVideo(quelle: quelle, filter: filter) else { return nil }
+            quelle = gefiltert
+        }
         guard !linien.isEmpty || !sticker.isEmpty || !text.text.isEmpty else { return quelle }
 
         let asset = AVURLAsset(url: quelle)
@@ -91,6 +112,22 @@ enum SnapExport {
         session.timeRange = bereich
         session.videoComposition = komposition
 
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            session.exportAsynchronously { continuation.resume() }
+        }
+        return session.status == .completed ? ziel : nil
+    }
+
+    /// Eigener Export-Pass, der nur den Filter brennt (kein Overlay) — Baustein für `video(…)` oben.
+    @MainActor
+    private static func gefiltertesVideo(quelle: URL, filter: SnapFilter) async -> URL? {
+        let asset = AVURLAsset(url: quelle)
+        guard let komposition = await filter.videoKomposition(fuer: asset) else { return nil }
+        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return nil }
+        let ziel = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
+        session.outputURL = ziel
+        session.outputFileType = .mov
+        session.videoComposition = komposition
         await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
             session.exportAsynchronously { continuation.resume() }
         }
