@@ -448,6 +448,15 @@ struct HeuteView: View {
                 .padding(16)
             }
             .toolbar(.hidden, for: .navigationBar)
+            // Ahmed, 01.10.: ohne Navigationsleiste rutschen die Kacheln beim Scrollen unter die
+            // Statusleiste/Dynamic Island. Eine Fläche in Hintergrundfarbe deckt genau den oberen
+            // Sicherheitsabstand ab, unabhängig von Gerät und Ausrichtung.
+            .overlay(alignment: .top) {
+                GeometryReader { geo in
+                    Color(uiColor: .systemBackground).frame(height: geo.safeAreaInsets.top)
+                }
+                .ignoresSafeArea(edges: .top)
+            }
             // R6: nur die Heute-Wurzel, nicht Training/Körper/Verlauf dahinter. Konkurriert mit dem
             // Wochenstreifen (`tagesWahl`) nicht normalerweise — der braucht nur 30 pt und reagiert
             // schon vor den hier nötigen 60 pt; nur bei einem sehr schnellen, weiten Wisch genau dort
