@@ -13,10 +13,12 @@ final class StartProtokollTests: XCTestCase {
     override func setUp() {
         super.setUp()
         schluessel.forEach { UserDefaults.standard.removeObject(forKey: $0) }
+        ["start-breadcrumbs.txt", "start-vorher.txt"].forEach { try? FileManager.default.removeItem(at: StartProtokoll.datei($0)) }
     }
 
     override func tearDown() {
         schluessel.forEach { UserDefaults.standard.removeObject(forKey: $0) }
+        ["start-breadcrumbs.txt", "start-vorher.txt"].forEach { try? FileManager.default.removeItem(at: StartProtokoll.datei($0)) }
         super.tearDown()
     }
 
@@ -61,7 +63,7 @@ final class StartProtokollTests: XCTestCase {
     func testMarkeSchreibtListeUndRotiertNachVorher() {
         _ = StartProtokoll.neuerStart()
         StartProtokoll.marke("test.stufe")
-        XCTAssertEqual(UserDefaults.standard.stringArray(forKey: "start.breadcrumbs")?.count, 1)
+        XCTAssertTrue((try? String(contentsOf: StartProtokoll.datei("start-breadcrumbs.txt"), encoding: .utf8))?.contains("test.stufe") ?? false)
         _ = StartProtokoll.neuerStart()
         XCTAssertEqual(StartProtokoll.vorherigeListe().count, 1)
         XCTAssertTrue(StartProtokoll.vorherigeListe().first?.contains("test.stufe") ?? false)

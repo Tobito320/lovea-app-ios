@@ -63,7 +63,6 @@ struct AppRootView: View {
     }
 
     var body: some View {
-        StartProtokoll.marke("approotview.body")
         return hauptLeiste
         .onAppear {
             StartProtokoll.marke("approotview.onAppear")

@@ -6,12 +6,12 @@ import XCTest
 final class AbsturzBerichtTests: XCTestCase {
     override func setUp() {
         super.setUp()
-        UserDefaults.standard.removeObject(forKey: "start.vorher")
+        try? FileManager.default.removeItem(at: StartProtokoll.datei("start-vorher.txt"))
         AbsturzFaenger.vorherigenBerichtLoeschen()
     }
 
     override func tearDown() {
-        UserDefaults.standard.removeObject(forKey: "start.vorher")
+        try? FileManager.default.removeItem(at: StartProtokoll.datei("start-vorher.txt"))
         AbsturzFaenger.vorherigenBerichtLoeschen()
         super.tearDown()
     }
@@ -21,7 +21,7 @@ final class AbsturzBerichtTests: XCTestCase {
     }
 
     func testVorherCrashErzeugtBerichtMitBreadcrumbs() {
-        UserDefaults.standard.set(["123 test.stufe [main] mem=500MB"], forKey: "start.vorher")
+        try? Data("123 test.stufe [main] mem=500MB".utf8).write(to: StartProtokoll.datei("start-vorher.txt"))
         let bericht = AbsturzBericht.erfassen(vorherCrash: true, altesStufenFeld: "gym.abgleichen.start")
         XCTAssertNotNil(bericht)
         XCTAssertTrue(bericht?.text.contains("test.stufe") ?? false)

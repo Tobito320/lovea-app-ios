@@ -44,10 +44,15 @@ final class StartProtokoll: @unchecked Sendable {
         let warSzene = d.bool(forKey: szeneSchluessel)
         let warSauber = d.bool(forKey: sauberSchluessel)
         let vorherCrash = warSzene && !warSauber
-        if let bisher = d.stringArray(forKey: breadcrumbsSchluessel), !bisher.isEmpty {
-            d.set(bisher, forKey: vorherSchluessel)
+        // Build 80: Breadcrumbs liegen in Dateien, nicht in UserDefaults. Jeder UserDefaults-Schreibzugriff
+        // invalidiert `@AppStorage`-Views; eine `marke` in einem `body` hat so in Build 77-79 eine
+        // Endlosschleife ausgelöst (App friert ein, System tötet sie).
+        d.removeObject(forKey: breadcrumbsSchluessel)
+        d.removeObject(forKey: vorherSchluessel)
+        if let bisher = try? Data(contentsOf: datei("start-breadcrumbs.txt")), !bisher.isEmpty {
+            try? bisher.write(to: datei("start-vorher.txt"), options: .atomic)
         }
-        d.set([String](), forKey: breadcrumbsSchluessel)
+        try? Data().write(to: datei("start-breadcrumbs.txt"), options: .atomic)
         d.set(false, forKey: sauberSchluessel)
         d.set(false, forKey: szeneSchluessel)
         d.synchronize()
@@ -83,9 +88,13 @@ final class StartProtokoll: @unchecked Sendable {
             if shared.liste.count > maxEintraege { shared.liste.removeFirst(shared.liste.count - maxEintraege) }
             return shared.liste
         }
-        let d = UserDefaults.standard
-        d.set(liste, forKey: breadcrumbsSchluessel)
-        d.synchronize()
+        try? Data(liste.joined(separator: "\n").utf8).write(to: datei("start-breadcrumbs.txt"), options: .atomic)
+    }
+
+    static func datei(_ name: String) -> URL {
+        let ordner = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        try? FileManager.default.createDirectory(at: ordner, withIntermediateDirectories: true)
+        return ordner.appendingPathComponent(name)
     }
 
     /// Irgendeine UI sichtbar geworden — Voraussetzung dafür, dass ein fehlendes `sauber()`
@@ -113,7 +122,9 @@ final class StartProtokoll: @unchecked Sendable {
 
     static var abgesichert: Bool { UserDefaults.standard.integer(forKey: zaehlerSchluessel) >= 2 }
 
-    static func vorherigeListe() -> [String] { UserDefaults.standard.stringArray(forKey: vorherSchluessel) ?? [] }
+    static func vorherigeListe() -> [String] {
+        (try? String(contentsOf: datei("start-vorher.txt"), encoding: .utf8))?.split(separator: "\n").map(String.init) ?? []
+    }
 
     /// Das alte Einzel-Feld aus Build 77 — einmalig lesen und löschen, damit Ahmeds letzter
     /// Build-77-Stand noch in den ersten Build-78-Bericht kommt.

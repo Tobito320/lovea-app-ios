@@ -35,7 +35,6 @@ struct LoveaApp: App {
     }
 
     var body: some Scene {
-        StartProtokoll.marke("loveaApp.body")
         return WindowGroup {
             if abgesichert {
                 // R3: NUR der Absturz-Bericht — kein Raum/Sync, keine Modelle, keine Live
