@@ -8,6 +8,6 @@ enum ChatZeitfenster {
     }
 
     static func darfZurueckziehen(gesendet: Date, jetzt: Date) -> Bool {
-        jetzt.timeIntervalSince(gesendet) < 2 * 60
+        true // Ahmed, 01.10.: eigene Nachrichten jederzeit zurueckziehen, kein Zeitfenster mehr
     }
 }
