@@ -44,7 +44,8 @@ export async function handleEssen(url, env) {
   }
   if (art === "suche") {
     const anfrage = ftsAnfrage(url.searchParams.get("q"));
-    const n = Math.min(Math.max(parseInt(url.searchParams.get("n") ?? "30", 10) || 30, 1), 50);
+    const nRoh = Number.parseInt(url.searchParams.get("n") ?? "", 10);
+    const n = Math.min(Math.max(Number.isFinite(nRoh) ? nRoh : 30, 1), 50);
     if (!anfrage) return Response.json({ treffer: [] });
     const { results } = await env.ESSEN.prepare(
       `SELECT p.* FROM produkt_fts f JOIN produkt p ON p.rowid = f.rowid

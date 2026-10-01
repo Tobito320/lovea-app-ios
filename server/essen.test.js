@@ -67,6 +67,20 @@ test("opengtindb Antwort parsen", () => {
   assert.equal(opengtindbParsen("error=1\n"), null);
 });
 
+test("suche: n=0 wird auf 1 geklemmt statt auf 30 zu fallen", async () => {
+  const e = env();
+  const add = (code, name) => e.ESSEN.roh.prepare(
+    "INSERT INTO produkt (code,name,marke,pro100,beliebtheit) VALUES (?,?,?,?,?)")
+    .run(code, name, null, JSON.stringify({ kcal: 50 }), 0);
+  add("1", "Apfel rot");
+  add("2", "Apfel grün");
+  add("3", "Apfel gelb");
+  const t = (await (await hol("/essen/suche?q=apfel&n=0", e)).json()).treffer;
+  assert.equal(t.length, 1);
+  const zuViel = (await (await hol("/essen/suche?q=apfel&n=999", e)).json()).treffer;
+  assert.equal(zuViel.length, 3);
+});
+
 test("name ohne ID -> 503", async () => {
   const r = await hol("/essen/name/4311501679715");
   assert.equal(r.status, 503);
