@@ -1,5 +1,6 @@
 import AVFoundation
 import CoreMedia
+@preconcurrency import MetalKit
 import PhotosUI
 import SwiftUI
 import UIKit
@@ -31,6 +32,12 @@ private final class KameraSitzung: @unchecked Sendable {
     let session = AVCaptureSession()
     let foto = AVCapturePhotoOutput()
     let film = AVCaptureMovieFileOutput()
+    /// R9 LIVE: eigener Output nur für `SnapLiveFilterRenderer` — rührt `foto`/`film` nicht an.
+    /// `liveFilterVerfuegbar` bleibt false, wenn die Session keinen vierten Output mehr zulässt
+    /// (`session.canAddOutput`); das Karussell bleibt dann trotzdem nutzbar, nur ohne Live-Vorschau
+    /// (Filter wirkt erst im Editor, siehe `SnapLiveFilterEntscheidung`).
+    let liveFilterAusgabe = AVCaptureVideoDataOutput()
+    private(set) var liveFilterVerfuegbar = false
     private var kamera: AVCaptureDeviceInput?
     private var mikro: AVCaptureDeviceInput?
 
@@ -42,7 +49,14 @@ private final class KameraSitzung: @unchecked Sendable {
         kameraSetzen(position)
         if session.canAddOutput(foto) { session.addOutput(foto) }
         if session.canAddOutput(film) { session.addOutput(film) }
+        liveFilterAusgabe.alwaysDiscardsLateVideoFrames = true // Akku-Regel: hinterherhinkende Frames verwerfen
+        liveFilterAusgabe.setSampleBufferDelegate(nil, queue: nil) // startet idle, kein Renderer ohne Filterwahl
+        if session.canAddOutput(liveFilterAusgabe) {
+            session.addOutput(liveFilterAusgabe)
+            liveFilterVerfuegbar = true
+        }
         session.commitConfiguration()
+        liveFilterVerbindungAktualisieren()
     }
 
     /// Configures if still needed, then runs. Returns once frames flow. Idempotent. `stabilisierung`
@@ -69,6 +83,16 @@ private final class KameraSitzung: @unchecked Sendable {
         kameraSetzen(position)
         session.commitConfiguration()
         stabilisierungSetzen(an: stabilisierung)
+        liveFilterVerbindungAktualisieren()
+    }
+
+    /// Portrait wie Foto-/Film-Output (siehe `fotoAufnehmen`s Begründung oben): ohne das käme jedes
+    /// Live-Frame im Sensor-nativen Querformat an. Nach jedem `kameraSetzen` neu gesetzt — ein
+    /// Kamerawechsel baut die Verbindung neu auf, gleiches Muster wie `stabilisierungSetzen`s
+    /// Review-Fix nach `wechseln`.
+    private func liveFilterVerbindungAktualisieren() {
+        guard let verbindung = liveFilterAusgabe.connection(with: .video) else { return }
+        if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
     }
 
     /// New input first; the old one stays if the new one can't be created or added.
@@ -139,6 +163,10 @@ final class SnapKameraSteuerung: NSObject {
     private let sitzung = KameraSitzung()
     /// For the preview layer, set once; it shows frames as soon as the session runs.
     var session: AVCaptureSession { sitzung.session }
+    /// R9 LIVE: besitzt die `MTKView` + den Video-Data-Output-Pfad fürs Live-Filterbild. Eigene
+    /// Klasse statt Eigenschaften hier (siehe `KameraFilterKarussell.swift`), damit `SnapKameraView`
+    /// nur die `MTKView` zum Anzeigen braucht.
+    let liveFilter = SnapLiveFilterRenderer()
 
     private(set) var laeuft = false
     /// True once `startRunning` returned (frames flow); the preview fades in on it.
@@ -221,7 +249,11 @@ final class SnapKameraSteuerung: NSObject {
         guard !vorbereitet, AVCaptureDevice.authorizationStatus(for: .video) == .authorized else { return }
         vorbereitet = true
         let sitzung = sitzung, position = position
-        sessionSchlange.async { sitzung.konfigurieren(position) }
+        sessionSchlange.async {
+            sitzung.konfigurieren(position)
+            let verfuegbar = sitzung.liveFilterVerfuegbar, ausgabe = sitzung.liveFilterAusgabe
+            Task { @MainActor in self.liveFilter.einrichten(ausgabe: verfuegbar ? ausgabe : nil) }
+        }
     }
 
     /// Camera UI opening (Z-6.1): may prompt, then runs the (usually already configured) session.
@@ -240,7 +272,11 @@ final class SnapKameraSteuerung: NSObject {
         let sitzung = sitzung, position = position, stabil = stabilisierungAn
         sessionSchlange.async {
             sitzung.starten(position, stabilisierung: stabil)
-            Task { @MainActor in self.bildBereit() }
+            let verfuegbar = sitzung.liveFilterVerfuegbar, ausgabe = sitzung.liveFilterAusgabe
+            Task { @MainActor in
+                self.liveFilter.einrichten(ausgabe: verfuegbar ? ausgabe : nil)
+                self.bildBereit()
+            }
         }
     }
 
@@ -264,8 +300,15 @@ final class SnapKameraSteuerung: NSObject {
         guard laeuft else { return }
         laeuft = false
         bildDa = false
+        liveFilter.anhalten()
         let sitzung = sitzung
         sessionSchlange.async { sitzung.stoppen() }
+    }
+
+    /// R9 LIVE: Karussell-Tipp/Wisch ruft das auf — gibt den Filter an den Live-Renderer weiter
+    /// (Akku-Regel/Fallback stecken dort, siehe `SnapLiveFilterRenderer.filterWaehlen`).
+    func liveFilterSetzen(_ filter: SnapFilter) {
+        liveFilter.filterWaehlen(filter)
     }
 
     /// Always restores screen brightness, even if `an` is already false (Ahmed's rule: "always
@@ -548,11 +591,13 @@ enum SnapBildAusrichtung {
 /// ring, haptic on shutter. Pinch anywhere zooms; while holding the shutter, dragging up also zooms
 /// (the same finger that started the recording).
 struct SnapKameraView: View {
-    let onFoto: (UIImage) -> Void
-    let onVideo: (URL) -> Void
+    /// R9 LIVE: der in der Kamera gewählte Filter geht mit, damit `SnapKameraFluss` ihn als
+    /// `anfangsFilter` an `SnapEditor` weiterreicht (Foto UND Video kommen dann schon gefiltert an).
+    let onFoto: (UIImage, SnapFilter) -> Void
+    let onVideo: (URL, SnapFilter) -> Void
     /// Z-R9 Multi-Snap: a non-empty burst, handed to `SnapKameraFluss` to run through the editor
     /// one photo after another (see `mehrfachAufnehmen`'s doc comment for the reduced scope).
-    let onMultiFoto: ([UIImage]) -> Void
+    let onMultiFoto: ([UIImage], SnapFilter) -> Void
     let onAbbrechen: () -> Void
 
     // Z-26.5/Z-34.4: the conversation's shared instance, already configured, so this view only
@@ -563,6 +608,12 @@ struct SnapKameraView: View {
     @State private var haltTask: Task<Void, Never>?
     @State private var galerieAuswahl: PhotosPickerItem?
     @State private var galerieLaedt = false
+
+    // R9 LIVE: Karussell/Wisch-Zustand. `ausgewaehlterFilterID` treibt nur das Einrasten der
+    // `ScrollView` (wie `SnapEditor`s gleiches Paar) — `ausgewaehlterFilter` ist die eine
+    // Wahrheitsquelle, die an `steuerung.liveFilterSetzen` und die Aufnahme-Callbacks geht.
+    @State private var ausgewaehlterFilter: SnapFilter = .original
+    @State private var ausgewaehlterFilterID: SnapFilter? = .original
 
     // Z-R9: menu toggles. Plain view state — none of these reach into AVFoundation except
     // indirectly (freihand/multiSnap change which gesture branch runs; timer delays the capture
@@ -596,6 +647,21 @@ struct SnapKameraView: View {
                         .onChanged { wert in steuerung.zoomSetzen(zoomStart * wert) }
                         .onEnded { _ in zoomStart = steuerung.zoom }
                 )
+                // R9 LIVE: Wisch auf dem Kamerabild wechselt den Filter, wie im Editor. Eigenes
+                // `.simultaneousGesture` statt eines zweiten `.gesture()` — zwei `.gesture()`-Modifier
+                // auf derselben View könnten sich sonst gegenseitig blockieren; so bleibt der
+                // bestehende Pinch-Zoom unverändert, und beide erkennen unabhängig.
+                .simultaneousGesture(filterWischGeste)
+
+            // R9 LIVE: über der normalen Vorschau, nur sichtbar (`isHidden` in `SnapLiveFilterRenderer`)
+            // solange ein Filter ungleich Original aktiv UND der Video-Data-Output verfügbar ist.
+            // Nimmt nie selbst Touches (siehe `KameraLiveFilterVorschau`s Doku), Pinch/Wisch bleiben
+            // auf der Ebene darunter.
+            KameraLiveFilterVorschau(mtkView: steuerung.liveFilter.mtkView)
+                .ignoresSafeArea()
+                .opacity(steuerung.bildDa ? 1 : 0)
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
 
             KameraRinglichtRahmen(aktiv: steuerung.ringlichtAktiv)
                 .ignoresSafeArea()
@@ -629,13 +695,44 @@ struct SnapKameraView: View {
         .onAppear {
             StartProtokoll.marke("screen.kamera")
             steuerung.halten()
+            // R9 LIVE: `steuerung` ist die geteilte Singleton-Instanz — ohne das bliebe ein Filter
+            // aus dem letzten Kamera-Öffnen aktiv, obwohl das Karussell hier frisch bei Original
+            // startet. Direkter Aufruf statt `filterWaehlen` (das würde bei bereits `.original`
+            // wegen seines Gleichheits-Guards gar nicht erst feuern).
+            steuerung.liveFilterSetzen(.original)
         }
         .task { await steuerung.start() }
+        .onChange(of: ausgewaehlterFilterID) { _, neu in
+            guard let neu, neu != ausgewaehlterFilter else { return }
+            filterWaehlen(neu)
+        }
         .onDisappear {
             timerTask?.cancel() // Review Important fix: no dangling countdown after we've left
             timerTask = nil
             steuerung.kameraVerlassen()
         }
+    }
+
+    /// Einzige Stelle, die `ausgewaehlterFilter` ändert (Chip-Tipp, Wisch, Karussell-Einrasten) —
+    /// hält `ausgewaehlterFilterID` synchron (wie `SnapEditor.waehleFilter`) und gibt den Filter an
+    /// den Live-Renderer weiter.
+    private func filterWaehlen(_ filter: SnapFilter) {
+        guard filter != ausgewaehlterFilter else { return }
+        Haptik.auswahl()
+        ausgewaehlterFilter = filter
+        ausgewaehlterFilterID = filter
+        steuerung.liveFilterSetzen(filter)
+    }
+
+    /// R9 LIVE: Wisch-Schwelle wie im Editor (`SnapEditor.inhaltGeste`) — erst ab 40pt horizontal
+    /// UND deutlicher horizontal als vertikal, damit ein leichtes Zittern oder ein eigentlich
+    /// vertikaler Wisch nicht versehentlich den Filter wechselt.
+    private var filterWischGeste: some Gesture {
+        DragGesture(minimumDistance: 24)
+            .onEnded { wert in
+                guard abs(wert.translation.width) > 40, abs(wert.translation.width) > abs(wert.translation.height) else { return }
+                filterWaehlen(SnapFilter.benachbart(zu: ausgewaehlterFilter, vorwaerts: wert.translation.width < 0))
+            }
     }
 
     private var obereLeiste: some View {
@@ -672,12 +769,20 @@ struct SnapKameraView: View {
         )
     }
 
-    /// Gallery button left of the shutter, nothing on the right so the shutter stays centred.
+    /// Gallery button left of the shutter, nothing on the right so the shutter stays centred. R9
+    /// LIVE: das Filter-Karussell liegt als eigene Ebene DAHINTER, auf derselben Höhe — der
+    /// Auslöser bleibt dank der unveränderten symmetrischen `HStack` exakt mittig, der dort
+    /// zentrierte Chip (`.scrollPosition(anchor: .center)`) landet direkt dahinter. `galerieKnopf`/
+    /// `ausloeser` haben keinen eigenen `.contentShape`, ihr Tipp-Bereich bleibt ihr gerendertes
+    /// Rund — Chips unterhalb der leeren `maxWidth: .infinity`-Fläche bleiben also erreichbar.
     private var untereLeiste: some View {
-        HStack {
-            galerieKnopf.frame(maxWidth: .infinity)
-            ausloeser
-            Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+        ZStack {
+            KameraFilterKarussell(ausgewaehlt: ausgewaehlterFilter, scrollID: $ausgewaehlterFilterID, onWahl: filterWaehlen)
+            HStack {
+                galerieKnopf.frame(maxWidth: .infinity)
+                ausloeser
+                Color.clear.frame(maxWidth: .infinity, maxHeight: 1)
+            }
         }
         .padding(.bottom, 40)
     }
@@ -713,13 +818,15 @@ struct SnapKameraView: View {
             let video = try? await item.loadTransferable(type: VideoDatei.self)
             var daten: Data?
             if video == nil { daten = try? await item.loadTransferable(type: Data.self) }
+            // Gallery pick, nie durch die Live-Vorschau gelaufen — geht ungefiltert in den Editor
+            // (Original), statt einen zufällig in der Kamera gewählten Filter zu erben.
             switch SnapGalerie.inhalt(videoURL: video?.url, bildDaten: daten) {
             case .foto(let bild)?:
                 Haptik.leicht()
-                onFoto(bild)
+                onFoto(bild, .original)
             case .video(let url)?:
                 Haptik.leicht()
-                onVideo(url)
+                onVideo(url, .original)
             case nil:
                 Haptik.warnung()
             }
@@ -774,22 +881,25 @@ struct SnapKameraView: View {
                 steuerung.videoStoppen()
             } else {
                 Haptik.mittel()
-                Task { if let url = await steuerung.videoStarten() { onVideo(url) } }
+                let filter = ausgewaehlterFilter // am Auslösen einfrieren, wie `schoenheitAusstehend` es für den Foto-Pfad tut
+                Task { if let url = await steuerung.videoStarten() { onVideo(url, filter) } }
             }
         } else if multiSnapAn {
             guard !mehrfachLaeuft else { return }
             mehrfachLaeuft = true
             Haptik.mittel()
+            let filter = ausgewaehlterFilter
             Task {
                 let bilder = await steuerung.mehrfachAufnehmen()
                 mehrfachLaeuft = false
-                if !bilder.isEmpty { onMultiFoto(bilder) }
+                if !bilder.isEmpty { onMultiFoto(bilder, filter) }
             }
         } else if timer != .aus {
             fotoMitTimer()
         } else {
             Haptik.leicht()
-            Task { if let bild = await steuerung.fotoAufnehmen() { onFoto(bild) } }
+            let filter = ausgewaehlterFilter
+            Task { if let bild = await steuerung.fotoAufnehmen() { onFoto(bild, filter) } }
         }
     }
 
@@ -800,6 +910,7 @@ struct SnapKameraView: View {
     /// `try?`, AND re-checks after the loop so a cancel mid-last-second can't still fall through to
     /// `fotoAufnehmen()`.
     private func fotoMitTimer() {
+        let filter = ausgewaehlterFilter // frozen at the tap that started the countdown, not whatever's selected seconds later
         timerTask = Task {
             for sekunde in stride(from: timer.sekunden, through: 1, by: -1) {
                 countdown = sekunde
@@ -809,7 +920,7 @@ struct SnapKameraView: View {
             countdown = nil
             guard !Task.isCancelled else { return }
             Haptik.mittel()
-            if let bild = await steuerung.fotoAufnehmen() { onFoto(bild) }
+            if let bild = await steuerung.fotoAufnehmen() { onFoto(bild, filter) }
             timerTask = nil
         }
     }
@@ -823,11 +934,12 @@ struct SnapKameraView: View {
                 if modus == .ruhe {
                     modus = .haltend
                     zoomStart = steuerung.zoom
+                    let filter = ausgewaehlterFilter
                     haltTask = Task {
                         try? await Task.sleep(for: .milliseconds(300))
                         guard modus == .haltend, !steuerung.nimmtVideoAuf else { return } // released early → tap
                         Haptik.mittel()
-                        if let url = await steuerung.videoStarten() { onVideo(url) }
+                        if let url = await steuerung.videoStarten() { onVideo(url, filter) }
                     }
                 }
                 if steuerung.nimmtVideoAuf {
@@ -869,33 +981,39 @@ struct SnapKameraFluss: View {
 
     private enum Schritt {
         case kamera
-        case editor(SnapInhalt)
+        /// R9 LIVE: der Filter, der in der Kamera live gewählt war — geht als `anfangsFilter` in
+        /// `SnapEditor`, damit Foto UND Video mit genau diesem Filter rausgehen.
+        case editor(SnapInhalt, SnapFilter)
     }
     @State private var schritt: Schritt = .kamera
     /// Z-R9 Multi-Snap: photos still waiting for their turn in the editor, after the one on screen.
     @State private var warteschlange: [SnapInhalt] = []
+    /// R9 LIVE: der Filter der laufenden Multi-Snap-Aufnahme — alle Fotos derselben Session teilen
+    /// sich ihn, nicht nur das erste aus der Warteschlange.
+    @State private var warteschlangenFilter: SnapFilter = .original
 
     var body: some View {
         switch schritt {
         case .kamera:
             SnapKameraView(
-                onFoto: { schritt = .editor(.foto($0)) },
-                onVideo: { schritt = .editor(.video($0)) },
-                onMultiFoto: { bilder in
+                onFoto: { bild, filter in schritt = .editor(.foto(bild), filter) },
+                onVideo: { url, filter in schritt = .editor(.video(url), filter) },
+                onMultiFoto: { bilder, filter in
                     var inhalte = bilder.map(SnapInhalt.foto)
                     guard !inhalte.isEmpty else { return }
-                    schritt = .editor(inhalte.removeFirst())
+                    warteschlangenFilter = filter
+                    schritt = .editor(inhalte.removeFirst(), filter)
                     warteschlange = inhalte
                 },
                 onAbbrechen: onFertig
             )
-        case .editor(let inhalt):
+        case .editor(let inhalt, let filter):
             // Never sent straight from the camera: the editor's send button is the only way out
             // that sends; its X goes back to the camera instead of closing everything. Multi-Snap:
             // "fertig" (sent, or the check-mark path) advances to the next queued photo instead of
             // closing the whole flow, until the queue is empty.
             SnapEditor(
-                inhalt: inhalt, ich: ich, antwortAuf: antwortAuf,
+                inhalt: inhalt, ich: ich, antwortAuf: antwortAuf, anfangsFilter: filter,
                 onFertig: naechstesAusWarteschlangeOderFertig,
                 onVerwerfen: { warteschlange = []; schritt = .kamera }
             )
@@ -904,6 +1022,6 @@ struct SnapKameraFluss: View {
 
     private func naechstesAusWarteschlangeOderFertig() {
         guard !warteschlange.isEmpty else { onFertig(); return }
-        schritt = .editor(warteschlange.removeFirst())
+        schritt = .editor(warteschlange.removeFirst(), warteschlangenFilter)
     }
 }
