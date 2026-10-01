@@ -4,7 +4,7 @@ import SwiftUI
 // Pfade 1:1 aus `FORM` in design/erholung/erholung.html (Koordinatenraum 64 × 64).
 
 enum TagesForm: String, CaseIterable, Sendable {
-    case schritte, wasser, schlaf, habits, stimmung, koffein, protein, gewicht, training
+    case schritte, wasser, schlaf, habits, stimmung, koffein, protein, gewicht, training, creatin
 }
 
 private func tf(_ hex: UInt32, _ alpha: Double = 1) -> Color {
@@ -24,6 +24,7 @@ extension TagesForm {
         case .protein: tf(0xE5534B)
         case .gewicht: tf(0xAEAEB2)
         case .training: tf(0x30D158)
+        case .creatin: tf(0xBF8CFF)
         }
     }
 
@@ -39,6 +40,7 @@ extension TagesForm {
         case .protein: 9...55
         case .gewicht: 10...58
         case .training: 18...46
+        case .creatin: 8...56
         }
     }
 
@@ -58,6 +60,7 @@ extension TagesForm {
         case .protein:
             "M13 21C18 11 33 7 46 11C56 14 60.5 23.5 57.5 34C54.5 44.5 46 52.5 34 54.5C22 56.5 9.5 50.5 7.5 40C6.3 33 8.8 26.5 13 21Z"
         case .gewicht: "M15 10H49C53.4 10 57 13.6 57 18V50C57 54.4 53.4 58 49 58H15C10.6 58 7 54.4 7 50V18C7 13.6 10.6 10 15 10Z"
+        case .creatin: "M24 8H40C44.4 8 48 11.6 48 16V48C48 52.4 44.4 56 40 56H24C19.6 56 16 52.4 16 48V16C16 11.6 19.6 8 24 8Z"
         case .training:
             "M3 26H8V20C8 18.9 8.9 18 10 18H14C15.1 18 16 18.9 16 20V44C16 45.1 15.1 46 14 46H10C8.9 46 8 45.1 8 44V38H3ZM16 29H48V35H16ZM48 20C48 18.9 48.9 18 50 18H54C55.1 18 56 18.9 56 20V26H61V38H56V44C56 45.1 55.1 46 54 46H50C48.9 46 48 45.1 48 44Z"
         }
@@ -224,6 +227,7 @@ private struct TagesFormDetails: View {
             case .protein: steak
             case .gewicht: waage
             case .training: EmptyView()
+            case .creatin: strich("M16 32H48", .white, 1.6, 0.35)
             }
         }
     }

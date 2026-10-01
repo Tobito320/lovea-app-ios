@@ -412,6 +412,7 @@ struct HeuteView: View {
     @State private var koerperAuswahl: KoerperAuswahl?
     @State private var befragung = false
     @State private var gewichtOffen = false
+    @State private var freitextOffen = false
     @State private var offeneHinweise: Set<String> = []
     @Namespace private var zoom
     @Environment(\.dynamicTypeSize) private var schrift
@@ -428,6 +429,8 @@ struct HeuteView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     kopf
+                    trainingStartenKarte
+                    freitextZeile
                     VStack(spacing: 0) {
                         tagesWahl
                             .padding(.horizontal, 16)
@@ -456,6 +459,7 @@ struct HeuteView: View {
                     .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $befragung) { ZieleBefragung() }
+            .sheet(isPresented: $freitextOffen) { FreitextBlatt(tag: heute) }
             .sheet(isPresented: $gewichtOffen) {
                 GewichtBlatt(start: gewichte.last.map { komma(Double($0.zehntel) / 10) } ?? "") {
                     health.setzeHabit(Habit.gewicht.id, datum: heute, wert: $0)
@@ -581,8 +585,20 @@ struct HeuteView: View {
             onGruppe: { koerperAuswahl = KoerperAuswahl(gruppe: $0, teil: $1) },
             onZiele: { befragung = true },
             onTraining: { gymOeffnen() },
-            mitStreifen: false
+            mitStreifen: false,
+            mitFigur: false,
+            mitNaechstes: false
         )
+    }
+
+    /// Ahmed, 01.10.: "Training starten" ist zu weit unten, ganz oben soll es ohne Scrollen zu sehen sein.
+    @ViewBuilder
+    private var trainingStartenKarte: some View {
+        let daten = KoerperDaten.laden(ich)
+        if !daten.ziele.leer, let n = daten.naechstes {
+            PushKarte(titel: n.titel, meta: n.meta, chips: n.chips, farbe: Color.person(ich), knopf: "Training starten",
+                      symbol: "play.fill", aktion: gymOeffnen)
+        }
     }
 
     private var verlaufKasten: some View {
@@ -669,6 +685,7 @@ struct HeuteView: View {
             proteinKachel
             gewichtKachel
             trainingKachel
+            creatinKachel
         }
     }
 
@@ -730,6 +747,29 @@ struct HeuteView: View {
         let n = health.habitWert(Habit.koffein.id, ich, heute)
         return FormKachel(form: .koffein, titel: "Koffein", wert: "\(n)", einheit: n == 1 ? "Tasse" : "Tassen",
                           fuellung: Double(n) / 4) { health.setzeHabit(Habit.koffein.id, datum: heute, wert: n + 1) }
+    }
+
+    /// Ein Tipp = ein Klick = 3,5 g, Ziel 2 Klicks (Ahmed, 27.09.).
+    private var creatinKachel: some View {
+        let n = health.habitWert(Habit.creatin.id, ich, heute)
+        let ziel = Habit.creatin.tagesziel ?? 2
+        return FormKachel(form: .creatin, titel: "Creatin", wert: komma(Double(n) * Habit.creatinGramm), einheit: "g",
+                          fuellung: Double(n) / Double(ziel), zusatz: "\(n)/\(ziel) Klicks") {
+            health.setzeHabit(Habit.creatin.id, datum: heute, wert: n + 1)
+        }
+    }
+
+    /// Schmale Zeile statt Karte (Ahmed, 01.10.: Training starten muss ohne Scrollen sichtbar bleiben,
+    /// auch bei großer Schrift).
+    private var freitextZeile: some View {
+        Button { freitextOffen = true } label: {
+            Label("Schreib, was war", systemImage: "square.and.pencil")
+                .font(.footnote.weight(.semibold))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+        .accessibilityHint("Schlaf, Gewicht, Wasser, Creatin per Freitext eintragen")
     }
 
     private var proteinKachel: some View {
