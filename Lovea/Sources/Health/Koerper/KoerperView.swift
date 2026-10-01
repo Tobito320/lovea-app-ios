@@ -428,6 +428,8 @@ struct KoerperInhalt: View {
     var onTraining: () -> Void = {}
     /// Health zeigt den Wochenstreifen schon oben in der Tagesform, eingebettet ohne.
     var mitStreifen = true
+    /// Heute zeigt die Figur nicht mehr auf dem Screen (Ahmed, 01.10.: sieht schlecht aus, nutzt niemand).
+    var mitFigur = true
 
     private var ich: Person { daten.person }
 
@@ -439,8 +441,8 @@ struct KoerperInhalt: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity)
                 .padding(.top, 10)
-            figurKarte.padding(.top, 14)
-            if daten.ziele.leer { zielKarte.padding(.top, 18) }
+            if mitFigur { figurKarte.padding(.top, 14) }
+            if daten.ziele.leer { zielKarte.padding(.top, mitFigur ? 18 : 14) }
             Text("Sätze diese Woche")
                 .font(.title3.weight(.semibold))
                 .padding(.top, 22)

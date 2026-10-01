@@ -248,6 +248,8 @@ final class RenderGalerieKoerperTests: XCTestCase {
             let daten = Beispiel.daten(.ahmed, plan: Beispiel.ahmedPlan)
             return [
                 zelle("Ahmed, Seite", AnyView(KoerperInhalt(daten: daten, animiert: false))),
+                zelle("Ahmed, eingebettet in Heute (ohne Figur)",
+                     AnyView(KoerperInhalt(daten: daten, animiert: false, mitStreifen: false, mitFigur: false))),
                 zelle("Blatt Brust, Bankdrücken offen", AnyView(KoerperBlatt(daten: daten, gruppe: .brust, teil: .bUnten, animiert: false))),
                 zelle("Blatt Beine", AnyView(KoerperBlatt(daten: daten, gruppe: .beine, animiert: false, offen: ["Kniebeuge"]))),
             ]

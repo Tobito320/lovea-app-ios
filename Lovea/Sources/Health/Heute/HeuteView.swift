@@ -584,7 +584,8 @@ struct HeuteView: View {
             onGruppe: { koerperAuswahl = KoerperAuswahl(gruppe: $0, teil: $1) },
             onZiele: { befragung = true },
             onTraining: { gymOeffnen() },
-            mitStreifen: false
+            mitStreifen: false,
+            mitFigur: false
         )
     }
 
