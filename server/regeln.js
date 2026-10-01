@@ -75,8 +75,18 @@ function grussRegel(von, d) {
   return { stufe: "laut", kategorie: "geste", titel: "Lovea", text };
 }
 
+// Nur das echte Beenden eines Trainings (status "ende", von der App beim Auschecken gesetzt).
+// Zeiten korrigieren und "Auschecken rückgängig" senden auch `gym.checkout`, aber ohne diesen Status.
+function gymEndeRegel(von, d) {
+  if (d.status !== "ende") return null;
+  const dauer = Number.isFinite(d.minuten) && d.minuten > 0 ? ` war ${d.minuten} min im Gym` : " hat das Training beendet";
+  const saetze = Number.isFinite(d.zahl) && d.zahl > 0 ? ` · ${d.zahl} ${d.zahl === 1 ? "Satz" : "Sätze"}` : "";
+  return { stufe: "leise", kategorie: "gym", titel: "Lovea", text: `${NAME[von]}${dauer}${saetze}` };
+}
+
 // art -> (von, d) => {stufe, kategorie, titel, text, ton?} | null (keine Push)
 const TABELLE = {
+  "gym.checkout": gymEndeRegel,
   "nachricht.neu": (von, d) => ({ stufe: "laut", kategorie: "chat", titel: "Lovea", text: nachrichtText(von, d) }),
   "nachricht.reaktion": (von) => ({ stufe: "leise", kategorie: "chat", titel: "Lovea", text: `${NAME[von]} hat reagiert` }),
   "geste": gesteRegel,

@@ -189,6 +189,15 @@ final class TrainingTests: XCTestCase {
 
     // MARK: - Wie Hevy: Satzzeilen
 
+    /// Der Status "ende" (Mitteilung an den Partner) ändert nichts am Falten: die Einheit ist beendet.
+    func testCheckoutWithEndStatusStillEndsTheSession() {
+        let s = faltung([
+            op("gym.checkin", GymD(session: "s", start: t0), zeit: t0),
+            op("gym.checkout", GymD(session: "s", ende: t0 + 3480, status: "ende", minuten: 58, zahl: 12), zeit: t0 + 3480),
+        ]).sessions(.ahmed)[0]
+        XCTAssertEqual(s.ende, t0 + 3480)
+    }
+
     /// Pläne und Ops aus älteren Builds haben die neuen Felder nicht und müssen weiter lesbar sein.
     func testOldSetAndPlanJsonStillDecode() throws {
         let s = try JSONDecoder().decode(PlanSatz.self, from: Data(#"{"wdh":8,"kg":60,"failure":true}"#.utf8))

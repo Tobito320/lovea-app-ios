@@ -95,3 +95,15 @@ test("nachricht.neu mit kapsel bekommt den normalen Nachrichten-Text", () => {
   assert.equal(r.stufe, "laut");
   assert.equal(r.text, "Annika: Bin gleich da");
 });
+
+test("gym.checkout: Push nur beim echten Beenden, nicht bei Zeitkorrektur oder Rückgängig", () => {
+  const r = regel("gym.checkout", "ahmed", { session: "s", ende: "2026-10-01T17:00:00Z", status: "ende", minuten: 58, zahl: 12 });
+  assert.equal(r.stufe, "leise");
+  assert.equal(r.kategorie, "gym");
+  assert.equal(r.text, "Ahmed war 58 min im Gym · 12 Sätze");
+  assert.equal(r.ton, undefined);
+  assert.equal(regel("gym.checkout", "annika", { session: "s", status: "ende", minuten: 40, zahl: 1 }).text, "Annika war 40 min im Gym · 1 Satz");
+  assert.equal(regel("gym.checkout", "annika", { session: "s", status: "ende" }).text, "Annika hat das Training beendet");
+  assert.equal(regel("gym.checkout", "ahmed", { session: "s", ende: "2026-10-01T17:00:00Z" }), null); // Zeiten korrigiert
+  assert.equal(regel("gym.checkout", "ahmed", { session: "s", status: "wieder" }), null); // Auschecken rückgängig
+});

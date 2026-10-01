@@ -95,7 +95,7 @@ private struct MitteilungenListe: View {
         Kategorie(id: "chat", titel: "Chat"), Kategorie(id: "snap", titel: "Snaps"),
         Kategorie(id: "geste", titel: "Gesten"), Kategorie(id: "kalender", titel: "Kalender"),
         Kategorie(id: "orte", titel: "Orte"), Kategorie(id: "zeichnen", titel: "Zeichnen"),
-        Kategorie(id: "spiele", titel: "Spiele"),
+        Kategorie(id: "spiele", titel: "Spiele"), Kategorie(id: "gym", titel: "Gym"),
     ]
 
     var body: some View {
