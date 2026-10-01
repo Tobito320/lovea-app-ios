@@ -48,8 +48,10 @@ struct UebungZeile: View {
 
 /// Search the catalog (German or English), filter by body part, open a row to watch the GIF,
 /// plus adds right away. Stays open so a whole day can be filled in one go.
+/// Ohne `hinzufuegen`: die Übungsliste zum Stöbern (Gym-Seite), eingebettet im Stapel von Health,
+/// ohne Plus, ohne "Erstellen". Eine Übung öffnet Historie und Rekorde.
 struct UebungsSuche: View {
-    let hinzufuegen: (PlanUebung) -> Void
+    var hinzufuegen: ((PlanUebung) -> Void)? = nil
 
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
@@ -61,26 +63,40 @@ struct UebungsSuche: View {
     @State private var eigenerName = ""
 
     var body: some View {
-        NavigationStack {
-            liste
-                .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Übung suchen")
-                .navigationTitle("Übungen")
-                .navigationBarTitleDisplayMode(.inline)
-                .navigationDestination(for: String.self) { id in
-                    if let u = UebungsKatalog.nachId[id] { UebungDetail(uebung: u) { waehlen(u) } }
+        if hinzufuegen == nil {
+            seite
+        } else {
+            NavigationStack { seite }
+        }
+    }
+
+    private var seite: some View {
+        liste
+            .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Übung suchen")
+            .navigationTitle("Übungen")
+            .navigationBarTitleDisplayMode(.inline)
+            .navigationDestination(for: String.self) { id in
+                if let u = UebungsKatalog.nachId[id] {
+                    if hinzufuegen == nil {
+                        UebungDetail(uebung: u)
+                    } else {
+                        UebungDetail(uebung: u) { waehlen(u) }
+                    }
                 }
-                .toolbar {
+            }
+            .toolbar {
+                if hinzufuegen != nil {
                     ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
                     ToolbarItem(placement: .topBarLeading) {
                         Button("Erstellen") { eigeneOffen = true }
                     }
                 }
-                .alert("Eigene Übung", isPresented: $eigeneOffen) {
-                    TextField("Name", text: $eigenerName)
-                    Button("Abbrechen", role: .cancel) { eigenerName = "" }
-                    Button("Hinzufügen") { eigeneHinzufuegen() }
-                }
-        }
+            }
+            .alert("Eigene Übung", isPresented: $eigeneOffen) {
+                TextField("Name", text: $eigenerName)
+                Button("Abbrechen", role: .cancel) { eigenerName = "" }
+                Button("Hinzufügen") { eigeneHinzufuegen() }
+            }
     }
 
     private func passt(_ u: Uebung, geraet: String?, muskel: String?) -> Bool {
@@ -90,10 +106,17 @@ struct UebungsSuche: View {
     private var liste: some View {
         let basis = UebungsKatalog.alle.filter { passt($0, geraet: geraet, muskel: muskel) }
         let treffer = UebungsKatalog.suchen(text, in: basis)
-        let vorschlaege = text.isEmpty ? UebungsKatalog.vorschlaege(in: basis) : []
+        let zuletzt = text.isEmpty ? zuletztBenutzt(geraet: geraet, muskel: muskel) : []
+        let bekannt = Set(zuletzt.map(\.id))
+        let vorschlaege = text.isEmpty ? UebungsKatalog.vorschlaege(in: basis).filter { !bekannt.contains($0.id) } : []
         return List {
             Section {
                 filter.listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16)).listRowBackground(Color.clear).listRowSeparator(.hidden)
+            }
+            if !zuletzt.isEmpty {
+                Section("Zuletzt benutzt") {
+                    ForEach(zuletzt) { u in zeile(u) }
+                }
             }
             if !vorschlaege.isEmpty {
                 Section("Beliebte Übungen") {
@@ -116,6 +139,11 @@ struct UebungsSuche: View {
                 }
             }
         }
+    }
+
+    /// Die eigenen letzten Übungen, auch nach Gerät und Muskel gefiltert.
+    private func zuletztBenutzt(geraet: String?, muskel: String?) -> [Uebung] {
+        UebungsKatalog.zuletzt(TrainingModell.shared.sessions(Raum.shared.ich ?? .ahmed)).filter { passt($0, geraet: geraet, muskel: muskel) }
     }
 
     /// Wie in Hevy: zwei gleich breite Knöpfe, jeder öffnet ein Blatt mit Kacheln.
@@ -143,21 +171,23 @@ struct UebungsSuche: View {
         let drin = hinzugefuegt.contains(u.id)
         return HStack(spacing: 4) {
             NavigationLink(value: u.id) { UebungZeile(uebung: u) }
-            Button { waehlen(u) } label: {
-                Image(systemName: drin ? "checkmark.circle.fill" : "plus.circle.fill")
-                    .font(.title2)
-                    .symbolRenderingMode(.hierarchical)
-                    .foregroundStyle(drin ? Color.green : Color.accentColor)
-                    .contentTransition(.symbolEffect(.replace))
-                    .frame(width: 44, height: 44)
+            if hinzufuegen != nil {
+                Button { waehlen(u) } label: {
+                    Image(systemName: drin ? "checkmark.circle.fill" : "plus.circle.fill")
+                        .font(.title2)
+                        .symbolRenderingMode(.hierarchical)
+                        .foregroundStyle(drin ? Color.green : Color.accentColor)
+                        .contentTransition(.symbolEffect(.replace))
+                        .frame(width: 44, height: 44)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(drin ? "\(u.name) nochmal hinzufügen" : "\(u.name) hinzufügen")
             }
-            .buttonStyle(.borderless)
-            .accessibilityLabel(drin ? "\(u.name) nochmal hinzufügen" : "\(u.name) hinzufügen")
         }
     }
 
     private func waehlen(_ u: Uebung) {
-        hinzufuegen(.neu(u))
+        hinzufuegen?(.neu(u))
         hinzugefuegt.insert(u.id)
         Haptik.erfolg()
     }
@@ -166,7 +196,7 @@ struct UebungsSuche: View {
         let name = eigenerName.trimmingCharacters(in: .whitespacesAndNewlines)
         eigenerName = ""
         guard !name.isEmpty else { return }
-        hinzufuegen(.eigene(name))
+        hinzufuegen?(.eigene(name))
         Haptik.erfolg()
     }
 }

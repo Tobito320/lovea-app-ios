@@ -11,6 +11,8 @@ struct WorkoutUebung: Identifiable, Equatable, Sendable {
     var vorher: [PlanSatz]
     var extra: Bool
     var cardioFertig = false
+    /// Übersprungen (Gerät besetzt, keine Zeit): ein leerer Stand wurde gesendet. Zählt nicht als dran.
+    var ausgelassen = false
 
     var id: String { planUebung.id }
     var gesamt: Int { planUebung.istCardio ? 1 : saetze.count }
@@ -44,7 +46,7 @@ enum WorkoutLogik {
             let vorher = vorherige(u, in: frueher)
             let lauf = letzter[u.id]
             return WorkoutUebung(planUebung: u, saetze: zeilen(u, lauf: lauf, vorher: vorher), vorher: vorher, extra: extra,
-                                 cardioFertig: u.istCardio && lauf?.fertig == true)
+                                 cardioFertig: u.istCardio && lauf?.fertig == true, ausgelassen: lauf?.stand?.isEmpty == true)
         }
     }
 
@@ -85,7 +87,7 @@ enum WorkoutLogik {
 
     /// Der erste offene Satz in Reihenfolge: welche Übung, welcher Satz. nil = alles fertig.
     static func dran(_ liste: [WorkoutUebung]) -> (uebung: Int, satz: Int)? {
-        for (i, u) in liste.enumerated() where !u.fertig {
+        for (i, u) in liste.enumerated() where !u.fertig && !u.ausgelassen {
             if u.planUebung.istCardio { return (i, 0) }
             if let j = u.saetze.firstIndex(where: { $0.ok != true }) { return (i, j) }
         }
@@ -105,7 +107,8 @@ enum WorkoutLogik {
     static func neuerTag(_ tag: TrainingsTag, _ liste: [WorkoutUebung]) -> TrainingsTag? {
         var neu = tag
         var anders = false
-        for u in liste where !u.planUebung.istCardio {
+        // Ohne Sätze (ausgelassen): die Plan-Sätze bleiben, sonst löschte "Plan aktualisieren" sie.
+        for u in liste where !u.planUebung.istCardio && !u.saetze.isEmpty {
             let saetze = u.saetze.map(\.alsPlan)
             if let i = neu.uebungen.firstIndex(where: { $0.id == u.id }) {
                 if neu.uebungen[i].saetze.map(\.kuerzel) != saetze.map(\.kuerzel) { anders = true }
@@ -118,6 +121,47 @@ enum WorkoutLogik {
             }
         }
         return anders ? neu : nil
+    }
+
+    /// Haken von Hand in einer beendeten Einheit (nachtragen, Tippfehler korrigieren): ohne Uhr und
+    /// ohne Pause. Der Haken weg nimmt auch die Zeiten mit, wie beim laufenden Training.
+    static func hakenNachtrag(_ saetze: [PlanSatz], _ i: Int) -> [PlanSatz] {
+        guard saetze.indices.contains(i) else { return saetze }
+        var neu = saetze
+        if neu[i].ok == true {
+            neu[i].ok = nil
+            neu[i].sek = nil
+            neu[i].pause = nil
+        } else {
+            neu[i].ok = true
+        }
+        return neu
+    }
+
+    /// Ein ohne Trainingstag gemachtes Training als neuer, flexibler Tag (ohne Wochentag). Nur Übungen
+    /// mit etwas Abgehaktem, Sätze ohne Haken; die Plan-ids bleiben, damit "Vorher" und Rekorde
+    /// weiter zu denselben Übungen gehören. nil, wenn nichts abgehakt ist.
+    static func alsTag(_ liste: [WorkoutUebung], name: String, id: String = UUID().uuidString) -> TrainingsTag? {
+        let gemacht = liste.filter { $0.fertigZahl > 0 }.map { u -> PlanUebung in
+            var p = u.planUebung
+            if !p.istCardio { p.saetze = u.saetze.map(\.alsPlan) }
+            return p
+        }
+        guard !gemacht.isEmpty else { return nil }
+        let titel = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return TrainingsTag(id: id, name: titel.isEmpty ? "Freies Training" : titel, wochentage: [], uebungen: gemacht)
+    }
+
+    /// Den Trainingstag darf man wechseln, solange nichts abgehakt ist. Sonst blieben abgehakte
+    /// Übungen des alten Tages als Extras im neuen und "Plan aktualisieren" hängte sie an.
+    static func tagWechselbar(_ liste: [WorkoutUebung]) -> Bool {
+        liste.allSatisfy { $0.fertigZahl == 0 }
+    }
+
+    /// Die Läufe der Übungen dieses Tages in der Einheit (beim Wechseln werden sie entfernt).
+    static func laeufeDesTages(_ s: GymSession, _ tag: TrainingsTag?) -> [UebungsLauf] {
+        let ids = Set(tag?.uebungen.map(\.id) ?? [])
+        return s.laeufe.filter { ids.contains($0.plan) }
     }
 
     /// "1", "2" für normale Sätze (Aufwärmsätze zählen nicht mit), sonst "W", "D", "F".

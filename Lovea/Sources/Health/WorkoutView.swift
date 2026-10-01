@@ -102,6 +102,9 @@ struct WorkoutAktionen {
     var tagWaehlen: (TrainingsTag) -> Void = { _ in }
     var wiederEinchecken: () -> Void = {}
     var zeiten: () -> Void = {}
+    var startzeit: () -> Void = {}
+    var auslassen: (WorkoutUebung) -> Void = { _ in }
+    var aufnehmen: (WorkoutUebung) -> Void = { _ in }
 }
 
 /// Das laufende Training: Starten hat eingecheckt, "Beenden" checkt aus.
@@ -113,8 +116,12 @@ struct GymSessionView: View {
     @State private var sucheOffen = false
     @State private var cardio: CardioEintrag?
     @State private var zeiten: GymSession?
+    @State private var startBlatt: GymSession?
     @State private var langFrage: GymSession?
     @State private var planFrage: TrainingsTag?
+    /// Training ohne Trainingstag fertig: "Als Trainingstag speichern?" mit den Übungen von eben.
+    @State private var freiListe: [WorkoutUebung]?
+    @State private var freiName = ""
     @State private var verwerfenFrage = false
 
     private var modell: TrainingModell { TrainingModell.shared }
@@ -175,6 +182,14 @@ struct GymSessionView: View {
                     }
                 }
             }
+            .sheet(item: $startBlatt) { StartzeitBlatt(session: $0) }
+            .alert("Als Trainingstag speichern?", isPresented: freiFrageOffen, presenting: freiListe) { liste in
+                TextField("Name", text: $freiName)
+                Button("Speichern") { alsTagSpeichern(liste) }
+                Button("Nein", role: .cancel) { dismiss() }
+            } message: { _ in
+                Text("Du hast ohne Trainingstag trainiert. Beim nächsten Mal steht es als Vorlage bereit.")
+            }
         } else {
             ContentUnavailableView("Einheit nicht gefunden", systemImage: "dumbbell")
         }
@@ -218,6 +233,10 @@ struct GymSessionView: View {
         Binding { planFrage != nil } set: { if !$0 { planFrage = nil } }
     }
 
+    private var freiFrageOffen: Binding<Bool> {
+        Binding { freiListe != nil } set: { if !$0 { freiListe = nil } }
+    }
+
     private func aktionen(_ s: GymSession) -> WorkoutAktionen {
         WorkoutAktionen(
             oeffnen: { u in
@@ -226,14 +245,24 @@ struct GymSessionView: View {
             hinzufuegen: { sucheOffen = true },
             verwerfen: { verwerfenFrage = true },
             tagWaehlen: { t in
-                modell.tagSetzen(s, t.id)
+                guard t.id != s.tag else { return }
+                modell.tagWechseln(s, zu: t.id)
                 Haptik.leicht()
             },
             wiederEinchecken: {
                 modell.auscheckenRueckgaengig(s.id)
                 Haptik.erfolg()
             },
-            zeiten: { zeiten = s }
+            zeiten: { zeiten = s },
+            startzeit: { startBlatt = s },
+            auslassen: { u in
+                modell.auslassen(s.id, u.planUebung)
+                Haptik.leicht()
+            },
+            aufnehmen: { u in
+                modell.entfernen(s.id, u.planUebung)
+                Haptik.leicht()
+            }
         )
     }
 
@@ -267,11 +296,23 @@ struct GymSessionView: View {
         let liste = modell.workout(s.id)
         modell.auschecken(s.id)
         Haptik.erfolg()
-        if let tag = modell.tag(ich, id: s.tag), let neu = WorkoutLogik.neuerTag(tag, liste) {
+        let tag = modell.tag(ich, id: s.tag)
+        if let tag, let neu = WorkoutLogik.neuerTag(tag, liste) {
             planFrage = neu
+        } else if tag == nil, WorkoutLogik.alsTag(liste, name: "") != nil {
+            freiListe = liste
         } else {
             dismiss()
         }
+    }
+
+    /// Der neue Tag kommt in den Plan, die Einheit gehört danach zu ihm (gleiche Übungs-ids).
+    private func alsTagSpeichern(_ liste: [WorkoutUebung]) {
+        if let neu = WorkoutLogik.alsTag(liste, name: freiName) {
+            modell.planSichern(TrainingLogik.tagSetzen(modell.plan(ich), neu))
+            if let s = modell.sessions(ich).first(where: { $0.id == sessionId }) { modell.tagSetzen(s, neu.id) }
+        }
+        dismiss()
     }
 
     private func verwerfen() {
@@ -306,6 +347,9 @@ struct WorkoutInhalt: View {
                         zeile(u, dran: i == dran)
                     }
                 }
+                if session.ende == nil {
+                    Text("Halte eine Übung gedrückt, um sie auszulassen.").font(.footnote).foregroundStyle(.secondary)
+                }
             }
             schluss
         }
@@ -314,7 +358,7 @@ struct WorkoutInhalt: View {
 
     private var werte: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(tag?.name ?? "Training").font(.largeTitle.bold())
+            titel
             HStack(alignment: .top, spacing: 22) {
                 wert("Dauer") { dauer.foregroundStyle(Color.blue) }
                 wert("Volumen") { Text("\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg") }
@@ -323,6 +367,34 @@ struct WorkoutInhalt: View {
                 if let kcal { wert("kcal") { Text("\(kcal)") } }
             }
             Divider()
+        }
+    }
+
+    /// Der Name des Tages. Solange nichts abgehakt ist, öffnet ein Tipp die anderen Tage.
+    @ViewBuilder
+    private var titel: some View {
+        let name = tag?.name ?? "Training"
+        if session.ende == nil, tag != nil, tage.count > 1, WorkoutLogik.tagWechselbar(liste) {
+            Menu {
+                ForEach(tage) { t in
+                    Button { aktionen.tagWaehlen(t) } label: {
+                        if t.id == tag?.id {
+                            Label(t.name.isEmpty ? "Ohne Namen" : t.name, systemImage: "checkmark")
+                        } else {
+                            Text(t.name.isEmpty ? "Ohne Namen" : t.name)
+                        }
+                    }
+                }
+            } label: {
+                HStack(spacing: 6) {
+                    Text(name).font(.largeTitle.bold())
+                    Image(systemName: "chevron.down.circle.fill").font(.title3).foregroundStyle(.secondary)
+                }
+                .foregroundStyle(Color.primary)
+            }
+            .accessibilityHint("Anderen Trainingstag wählen")
+        } else {
+            Text(name).font(.largeTitle.bold())
         }
     }
 
@@ -348,12 +420,12 @@ struct WorkoutInhalt: View {
                         .foregroundStyle(dran ? Color.blue : Color.primary)
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
-                    Text(dran ? "Jetzt dran" : unter(u)).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
+                    Text(untertitel(u, dran: dran)).font(.subheadline).foregroundStyle(.secondary).lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 HStack(spacing: 4) {
                     if u.fertig { Image(systemName: "checkmark") }
-                    Text("\(u.fertigZahl)/\(u.gesamt)")
+                    Text(zaehler(u))
                 }
                 .font(.headline.monospacedDigit())
                 .foregroundStyle(u.fertig ? Color.green : Color.secondary)
@@ -365,7 +437,36 @@ struct WorkoutInhalt: View {
         }
         .buttonStyle(.plain)
         .accessibilityElement(children: .combine)
-        .accessibilityValue(u.fertig ? "fertig" : dran ? "jetzt dran" : "")
+        .accessibilityValue(zustand(u, dran: dran))
+        .contextMenu { kontext(u) }
+    }
+
+    private func untertitel(_ u: WorkoutUebung, dran: Bool) -> String {
+        if u.ausgelassen { return "Ausgelassen" }
+        return dran ? "Jetzt dran" : unter(u)
+    }
+
+    private func zaehler(_ u: WorkoutUebung) -> String {
+        u.ausgelassen ? "–" : "\(u.fertigZahl)/\(u.gesamt)"
+    }
+
+    private func zustand(_ u: WorkoutUebung, dran: Bool) -> String {
+        if u.fertig { return "fertig" }
+        if u.ausgelassen { return "ausgelassen" }
+        return dran ? "jetzt dran" : ""
+    }
+
+    /// Lang drücken: Übung auslassen (Gerät besetzt) oder wieder aufnehmen. Nur Plan-Übungen ohne
+    /// abgehakten Satz; im Training dazugekommene entfernt das Menü der Übung.
+    @ViewBuilder
+    private func kontext(_ u: WorkoutUebung) -> some View {
+        if session.ende == nil, !u.extra {
+            if u.ausgelassen {
+                Button("Wieder aufnehmen", systemImage: "arrow.uturn.backward") { aktionen.aufnehmen(u) }
+            } else if u.fertigZahl == 0 {
+                Button("Auslassen", systemImage: "forward.end") { aktionen.auslassen(u) }
+            }
+        }
     }
 
     private func unter(_ u: WorkoutUebung) -> String {
@@ -397,6 +498,11 @@ struct WorkoutInhalt: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.blue)
+            Button(action: aktionen.startzeit) {
+                Label("Startzeit ändern", systemImage: "clock").font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .foregroundStyle(.secondary)
             Button(role: .destructive, action: aktionen.verwerfen) {
                 Text("Training verwerfen").frame(maxWidth: .infinity, minHeight: 32)
             }
@@ -421,6 +527,9 @@ struct WorkoutUebungView: View {
     let planId: String
     /// Zur nächsten Übung wechseln, nil = zurück zur Übersicht.
     var wechseln: (String?) -> Void = { _ in }
+    /// Eine beendete Einheit korrigieren oder nachtragen (Rückblick): ohne Uhr und ohne untere Leiste,
+    /// jede Änderung wird gleich gesendet.
+    var nachtrag = false
 
     @State private var saetze: [PlanSatz] = []
     @State private var notiz = ""
@@ -430,6 +539,7 @@ struct WorkoutUebungView: View {
     @AppStorage("gym.rpe") private var rpeAn = true
     @FocusState private var fokus: Bool
     @Environment(\.scenePhase) private var phase
+    @Environment(\.dismiss) private var dismiss
 
     private var modell: TrainingModell { TrainingModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
@@ -476,7 +586,9 @@ struct WorkoutUebungView: View {
                 Button("Fertig") { fokus = false }
             }
         }
-        .safeAreaInset(edge: .bottom, spacing: 0) { leiste(u, liste) }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if !nachtrag { leiste(u, liste) }
+        }
         .sheet(item: $animation) { a in
             NavigationStack { UebungDetail(uebung: a) }.presentationDetents([.medium, .large])
         }
@@ -597,6 +709,11 @@ struct WorkoutUebungView: View {
             Toggle("RPE-Spalte", isOn: $rpeAn)
             if u.extra {
                 Button("Übung entfernen", systemImage: "trash", role: .destructive) { entfernen(u) }
+            } else if saetze.isEmpty {
+                Button("Übung wieder aufnehmen", systemImage: "arrow.uturn.backward") { aufnehmen(u) }
+            } else {
+                Button("Übung auslassen", systemImage: "forward.end") { auslassen() }
+                    .disabled(saetze.contains { $0.ok == true })
             }
         } label: {
             Image(systemName: "ellipsis.circle")
@@ -611,7 +728,7 @@ struct WorkoutUebungView: View {
             let danach = liste.drop { $0.id != u.id }.dropFirst().first { !$0.fertig && !$0.planUebung.istCardio }
             let naechste = danach ?? kraft.first
             return WorkoutLeiste(
-                titel: "Übung fertig",
+                titel: saetze.isEmpty ? "Übung ausgelassen" : "Übung fertig",
                 unter: naechste.map { "Weiter mit \($0.planUebung.anzeigeName)" } ?? "Zurück zur Übersicht",
                 uhr: stand,
                 knopf: naechste == nil ? "Übersicht" : "Nächste Übung"
@@ -660,7 +777,8 @@ struct WorkoutUebungView: View {
     private func sichern() {
         guard geladen, let u = modell.workout(sessionId).first(where: { $0.id == planId }) else { return }
         let laeuft = modell.sessions(ich).first { $0.id == sessionId }?.ende == nil
-        if laeuft, saetze != u.saetze { modell.saetzeSenden(sessionId, u.planUebung, saetze) }
+        let darf = nachtrag || laeuft
+        if darf, saetze != u.saetze { modell.saetzeSenden(sessionId, u.planUebung, saetze) }
         let neu = notiz.trimmingCharacters(in: .whitespacesAndNewlines)
         if !u.extra, neu != (u.planUebung.notiz ?? "") {
             modell.planSichern(TrainingLogik.aendern(modell.plan(ich), planUebung: planId) { $0.notiz = neu.isEmpty ? nil : neu })
@@ -669,7 +787,12 @@ struct WorkoutUebungView: View {
 
     private func haken(_ u: WorkoutUebung, _ i: Int) {
         let vorher = saetze.indices.contains(i) && saetze[i].ok == true
-        saetze = WorkoutAktion.haken(sessionId, u.planUebung, saetze, i)
+        if nachtrag {
+            saetze = WorkoutLogik.hakenNachtrag(saetze, i)
+            modell.saetzeSenden(sessionId, u.planUebung, saetze)
+        } else {
+            saetze = WorkoutAktion.haken(sessionId, u.planUebung, saetze, i)
+        }
         if vorher { Haptik.leicht() } else { Haptik.erfolg() }
     }
 
@@ -682,7 +805,14 @@ struct WorkoutUebungView: View {
 
     /// Die Uhr merkt sich Satznummern: verschieben sich die Zeilen, hört sie auf.
     private func uhrAus() {
-        if WorkoutUhr.shared.stand?.plan == planId { WorkoutUhr.shared.aus() }
+        // Beendete Einheit: die Uhr gehört zum laufenden Training, nicht anfassen.
+        guard !nachtrag, WorkoutUhr.shared.stand?.plan == planId else { return }
+        WorkoutUhr.shared.aus()
+    }
+
+    /// Zurück zur Übersicht, oder aus dem Rückblick heraus.
+    private func zurueck() {
+        if nachtrag { dismiss() } else { wechseln(nil) }
     }
 
     private func loeschen(_ u: WorkoutUebung, _ i: Int) {
@@ -704,7 +834,23 @@ struct WorkoutUebungView: View {
         uhrAus()
         geladen = false // nichts mehr nachsenden
         modell.entfernen(sessionId, u.planUebung)
-        wechseln(nil)
+        zurueck()
+    }
+
+    /// Ein leerer Stand wird gesendet (`sichern`); die Plan-Sätze bleiben im Plan.
+    private func auslassen() {
+        uhrAus()
+        saetze = []
+        sichern()
+        Haptik.leicht()
+        zurueck()
+    }
+
+    /// "weg" nimmt den leeren Stand zurück: die Zeilen kommen wieder aus dem Plan.
+    private func aufnehmen(_ u: WorkoutUebung) {
+        modell.entfernen(sessionId, u.planUebung)
+        saetze = WorkoutLogik.zeilen(u.planUebung, lauf: nil, vorher: u.vorher)
+        Haptik.leicht()
     }
 }
 

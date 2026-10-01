@@ -113,6 +113,11 @@ struct TrainingsPlanView: View {
             } label: {
                 Label("Messungen", systemImage: "ruler")
             }
+            NavigationLink {
+                UebungsSuche()
+            } label: {
+                Label("Übungen", systemImage: "list.bullet")
+            }
         }
     }
 

@@ -51,6 +51,15 @@ final class TrainingModell {
         Raum.shared.senden("gym.checkin", GymD(session: s.id, tag: tag, start: s.start))
     }
 
+    /// Anderen Trainingstag wählen, solange nichts abgehakt ist (`WorkoutLogik.tagWechselbar`): die
+    /// Läufe der Übungen des alten Tages werden herausgenommen, dann gilt der neue Tag.
+    func tagWechseln(_ s: GymSession, zu neu: String) {
+        for l in WorkoutLogik.laeufeDesTages(s, tag(ich, id: s.tag)) {
+            Raum.shared.senden("gym.uebung", GymD(session: s.id, plan: l.plan, uebung: l.uebung, status: "weg"))
+        }
+        tagSetzen(s, neu)
+    }
+
     func starten(_ session: String, _ u: PlanUebung) {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "start"))
     }
@@ -72,6 +81,13 @@ final class TrainingModell {
     /// Der ganze Stand der Satzzeilen einer Übung. Bei jedem Haken, nicht bei jedem Tastendruck.
     func saetzeSenden(_ session: String, _ u: PlanUebung, _ saetze: [PlanSatz]) {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "satz", saetze: saetze, name: u.name))
+    }
+
+    /// Übung auslassen: ein leerer Stand (`WorkoutUebung.ausgelassen`). `entfernen` nimmt sie wieder
+    /// auf, dann stehen die Plan-Sätze wieder da. Die Pausenuhr dieser Übung hört auf.
+    func auslassen(_ session: String, _ u: PlanUebung) {
+        if WorkoutUhr.shared.stand?.plan == u.id { WorkoutUhr.shared.aus() }
+        saetzeSenden(session, u, [])
     }
 
     /// Nimmt eine im Training dazugekommene Übung wieder heraus.

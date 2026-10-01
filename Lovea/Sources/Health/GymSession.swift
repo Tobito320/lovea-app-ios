@@ -211,6 +211,45 @@ struct ZeitenBlatt: View {
     }
 }
 
+/// Nur die Startzeit eines laufenden Trainings ändern ("ich habe schon vor 20 Minuten angefangen").
+/// Sendet nur den Check-in neu, das Training läuft weiter (`zeitenAendern` ohne Ende).
+struct StartzeitBlatt: View {
+    let session: GymSession
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var start: Date
+
+    init(session: GymSession) {
+        self.session = session
+        _start = State(initialValue: session.start)
+    }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    DatePicker("Gestartet", selection: $start, in: min(session.start, TrainingLogik.fruehesterStart(jetzt: Date()))...Date())
+                } footer: {
+                    Text("Das Training läuft weiter. Nur die Startzeit ändert sich, höchstens drei Stunden zurück.")
+                }
+            }
+            .navigationTitle("Startzeit")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Sichern") {
+                        TrainingModell.shared.zeitenAendern(session, start: start, ende: nil)
+                        Haptik.erfolg()
+                        dismiss()
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+}
+
 /// Welche Einheit von wem der Verlauf öffnet.
 struct GymVerlaufZiel: Hashable {
     var person: Person
@@ -320,16 +359,20 @@ private func serieText(_ wochen: Int) -> String {
 }
 
 /// Eine Einheit zum Nachlesen: Zeiten, Volumen und jeder abgehakte Satz. Die eigene lässt sich in
-/// den Zeiten korrigieren oder löschen, die des Partners nur lesen.
+/// den Zeiten und, wenn sie beendet ist, in den Sätzen korrigieren (`WorkoutUebungView(nachtrag:)`),
+/// mit neuen Übungen ergänzen oder löschen. Die des Partners nur lesen.
 struct WorkoutRueckblick: View {
     let person: Person
     let sessionId: String
     @State private var zeiten: GymSession?
+    @State private var sucheOffen = false
 
     var body: some View {
         let modell = TrainingModell.shared
         let liste = modell.workout(sessionId, person)
         if let s = modell.sessions(person).first(where: { $0.id == sessionId }) {
+            // Die eigene, beendete Einheit lässt sich korrigieren und mit Sätzen nachtragen.
+            let bearbeitbar = person == Raum.shared.ich && s.ende != nil
             List {
                 Section {
                     LabeledContent("Zeit", value: zeit(s))
@@ -339,9 +382,24 @@ struct WorkoutRueckblick: View {
                     if let puls = s.puls { LabeledContent("Puls im Schnitt", value: "\(puls)") }
                 }
                 ForEach(liste) { u in
-                    Section(u.planUebung.anzeigeName) { saetze(u) }
+                    Section(u.planUebung.anzeigeName) {
+                        saetze(u)
+                        if bearbeitbar, !u.planUebung.istCardio {
+                            NavigationLink {
+                                WorkoutUebungView(sessionId: sessionId, planId: u.id, nachtrag: true)
+                            } label: {
+                                Label("Sätze bearbeiten", systemImage: "pencil")
+                            }
+                        }
+                    }
+                }
+                if bearbeitbar {
+                    Section {
+                        Button("Übung hinzufügen", systemImage: "plus") { sucheOffen = true }
+                    }
                 }
             }
+            .sheet(isPresented: $sucheOffen) { UebungsSuche { hinzufuegen($0) } }
             .navigationTitle(modell.tag(person, id: s.tag)?.name ?? Datum.anzeige(Datum.text(s.start)))
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -353,6 +411,12 @@ struct WorkoutRueckblick: View {
         } else {
             ContentUnavailableView("Einheit nicht gefunden", systemImage: "dumbbell")
         }
+    }
+
+    /// Eine Übung nachtragen: Kraft mit ihren Plan-Sätzen (ohne Haken), Cardio gleich als gemacht.
+    private func hinzufuegen(_ p: PlanUebung) {
+        let modell = TrainingModell.shared
+        if p.istCardio { modell.fertig(sessionId, p, saetze: []) } else { modell.saetzeSenden(sessionId, p, p.saetze) }
     }
 
     private func zeit(_ s: GymSession) -> String {
