@@ -400,10 +400,10 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
 
     override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent?) {
         trackTouchesEnded(touches)
-        cancelActive()
+        cancelActive("touchesCancelled")
     }
 
-    private func cancelActive() {
+    private func cancelActive(_ grund: String) {
         activeTouch = nil
         strokeStartTime = nil
         strokeLastPoint = nil
@@ -412,7 +412,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         tapStart = nil
         state.lasso = []
         state.shapePreview = []
-        session?.engine?.cancelStroke()
+        session?.engine?.cancelStroke(grund: grund)
         session?.live.strichEnde(abbruch: true)
         setNeedsDisplay()
     }
@@ -431,12 +431,12 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
 
     private func resolveSecondTouch() {
         guard let session, let engine = session.engine, engine.isStroking, let start = strokeStartTime else {
-            cancelActive()
+            cancelActive("zweiter Touch ohne laufenden Strich")
             return
         }
         let alterMs = (CACurrentMediaTime() - start) * 1000
         guard Self.strichBeiZweiterBeruehrung(alterMs: alterMs, laengePunkte: strokePathLength, istStift: strokeIsPencil) == .landen else {
-            cancelActive()
+            cancelActive("zweiter Touch, Strich zu jung oder kurz")
             return
         }
         activeTouch = nil
@@ -564,7 +564,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
     private func navigationChanged(_ recognizer: UIGestureRecognizer) {
         switch recognizer.state {
         case .began:
-            cancelActive()
+            cancelActive("Zoom-, Dreh- oder Schiebegeste")
             state.gestureActive = true
             state.folgen = false
         case .ended, .cancelled, .failed:
@@ -598,13 +598,13 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
 
     @objc private func didUndoTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
-        cancelActive()
+        cancelActive("Zwei-Finger-Undo-Tipp")
         session?.undo(source: .geste)
     }
 
     @objc private func didRedoTap(_ gesture: UITapGestureRecognizer) {
         guard gesture.state == .ended else { return }
-        cancelActive()
+        cancelActive("Drei-Finger-Redo-Tipp")
         session?.redo(source: .geste)
     }
 
@@ -618,7 +618,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
         let screen = gesture.location(in: self)
         switch gesture.state {
         case .began, .changed:
-            cancelActive()
+            cancelActive("Lupe")
             Task { [weak self] in
                 guard let self, let color = await self.session?.engine?.sampleColor(at: self.viewport.documentPoint(screen)) else { return }
                 self.state.loupe = (screen, color)
@@ -633,7 +633,7 @@ final class CanvasView: MTKView, UIGestureRecognizerDelegate, UIPencilInteractio
 
     @objc private func didPickLayer(_ gesture: UILongPressGestureRecognizer) {
         guard gesture.state == .began, let session else { return }
-        cancelActive()
+        cancelActive("Ebenenwahl per Zwei-Finger-Halten")
         // Partner in the drawing: two fingers long put an emoji on the canvas (Spec 10.3) instead.
         if LiveZeichnung.shared.partnerIstDrin(session.live.zeichnungId) {
             state.emojiAuswahl = gesture.location(in: self)

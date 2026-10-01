@@ -327,7 +327,7 @@ final class DrawingSession: ObservableObject {
     func undo(source: UndoQuelle = .knopf) {
         guard canUndo, !nurAnsehen else { return }
         if live.verlauf != nil {
-            engine?.cancelStroke()
+            engine?.cancelStroke(grund: "Undo im Verlauf")
             live.rueckgaengig(wieder: false)
         } else {
             engine?.performUndo()
@@ -343,7 +343,7 @@ final class DrawingSession: ObservableObject {
     func redo(source: UndoQuelle = .knopf) {
         guard canRedo, !nurAnsehen else { return }
         if live.verlauf != nil {
-            engine?.cancelStroke()
+            engine?.cancelStroke(grund: "Redo im Verlauf")
             live.rueckgaengig(wieder: true)
         } else {
             engine?.performRedo()
@@ -471,7 +471,7 @@ final class DrawingSession: ObservableObject {
 
     func selectLayer(_ id: UUID) {
         guard document.layers.contains(where: { $0.id == id }) else { return }
-        engine?.cancelStroke()
+        engine?.cancelStroke(grund: "Ebenenwechsel")
         activeLayerID = id
     }
 

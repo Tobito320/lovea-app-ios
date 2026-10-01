@@ -360,6 +360,9 @@ final class GemeinsamVerlauf {
         sammeln = []
         ausfuehrenOhneAufnahme(eintraege[index])
         eintraege[index].schritte = sammeln ?? []
+        if case .strich = eintraege[index].aktion, eintraege[index].schritte.isEmpty {
+            ZeichenProtokoll.log("Wiederholung eines Strichs ohne Ergebnis id=\(eintraege[index].id) von=\(eintraege[index].von)")
+        }
         sammeln = nil
     }
 
