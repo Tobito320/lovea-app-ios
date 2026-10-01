@@ -34,7 +34,9 @@ struct MonatsAnsicht: View {
         // wie der System-Kalender deckeln statt abschneiden. VoiceOver liest jeden Tag voll vor.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
         .contentShape(Rectangle())
-        .gesture(
+        // simultaneousGesture statt gesture: eine normale `.gesture` über die volle Breite würde das
+        // System-Zurück-Wischen vom linken Rand blockieren (Ahmed, 01.10.).
+        .simultaneousGesture(
             DragGesture(minimumDistance: 24)
                 .onEnded { wert in
                     if wert.translation.width < -30 { wechsleMonat(1) }
