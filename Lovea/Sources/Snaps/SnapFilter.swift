@@ -10,6 +10,16 @@ enum SnapFilter: String, CaseIterable, Identifiable, Sendable {
 
     var id: String { rawValue }
 
+    /// Nächster/vorheriger Filter in `allCases`, an den Rändern geklemmt (kein Umlauf) — geteilt
+    /// zwischen dem Wisch im Editor (`SnapEditor`) und dem Wisch/Karussell in der Live-Kamera
+    /// (`SnapKamera.swift`). Reine Funktion, per XCTest ohne Core Image testbar.
+    static func benachbart(zu aktuell: SnapFilter, vorwaerts: Bool) -> SnapFilter {
+        let alle = allCases
+        guard let index = alle.firstIndex(of: aktuell) else { return aktuell }
+        let neuerIndex = vorwaerts ? min(index + 1, alle.count - 1) : max(index - 1, 0)
+        return alle[neuerIndex]
+    }
+
     var anzeigename: String {
         switch self {
         case .original: return "Original"

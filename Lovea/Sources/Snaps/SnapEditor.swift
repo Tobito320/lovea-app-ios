@@ -50,8 +50,8 @@ struct SnapEditor: View {
     @State private var sendetGerade = false
     @State private var videoSpieler: AVPlayer?
 
-    @State private var ausgewaehlterFilter: SnapFilter = .original
-    @State private var ausgewaehlterFilterID: SnapFilter? = .original
+    @State private var ausgewaehlterFilter: SnapFilter
+    @State private var ausgewaehlterFilterID: SnapFilter?
     @State private var filterThumbnails: [SnapFilter: UIImage] = [:]
     /// Nur fürs Foto live gerendert (Video filtert sich über `videoSpieler`s eigene
     /// `AVVideoComposition`, siehe `vorschauAktualisieren`). `nil` = Originalbild zeigen.
@@ -72,6 +72,26 @@ struct SnapEditor: View {
     /// Fraction of the content width — shared with `SnapExport`'s static re-render so a stroke has
     /// the same visual thickness live and in the flattened snap.
     static let doodleLinienbreite: CGFloat = 0.015
+
+    /// R9 LIVE: `anfangsFilter` kommt von der Kamera (dort schon live gewählt, siehe
+    /// `SnapKameraFluss` in `SnapKamera.swift`) — Foto und Video gehen dann mit genau diesem Filter
+    /// vorausgewählt in den Editor, `SnapExport` wendet ihn beim Senden an. Expliziter `init` statt
+    /// des synthetisierten memberwise-`init`, weil `ausgewaehlterFilter`/`-ID` ihren Startwert jetzt
+    /// von außen bekommen; alle anderen Parameter bleiben wie bisher an den Aufrufstellen
+    /// (`ChatEingabeleiste`s Tray-Modus lässt `anfangsFilter` weg, bleibt bei `.original`).
+    init(
+        inhalt: SnapInhalt, ich: Person, antwortAuf: String?, anfangsFilter: SnapFilter = .original,
+        onFertig: @escaping () -> Void, onUebernehmen: ((Data) -> Void)? = nil, onVerwerfen: (() -> Void)? = nil
+    ) {
+        self.inhalt = inhalt
+        self.ich = ich
+        self.antwortAuf = antwortAuf
+        self.onFertig = onFertig
+        self.onUebernehmen = onUebernehmen
+        self.onVerwerfen = onVerwerfen
+        _ausgewaehlterFilter = State(initialValue: anfangsFilter)
+        _ausgewaehlterFilterID = State(initialValue: anfangsFilter)
+    }
 
     var body: some View {
         ZStack {
@@ -115,6 +135,12 @@ struct SnapEditor: View {
         }
         .task {
             if case .video(let url) = inhalt { videoSpieler = AVPlayer(url: url) }
+            // R9 LIVE: kommt der Editor mit einem von der Kamera schon gewählten Filter an (siehe
+            // `init`), muss die Vorschau das gleich zeigen — sonst steht der Chip auf z. B. "Warm",
+            // aber Foto/Video liefen ungefiltert, bis irgendeine Chip-/Wisch-Interaktion
+            // `vorschauAktualisieren` zum ersten Mal auslöst. Nach `videoSpieler`s Zuweisung oben,
+            // damit die Video-Komposition einen Player zum Setzen vorfindet.
+            if ausgewaehlterFilter != .original { vorschauAktualisieren(fuer: ausgewaehlterFilter) }
             await aspektErmitteln()
             await thumbnailsErzeugen()
         }
@@ -226,14 +252,10 @@ struct SnapEditor: View {
             }
     }
 
-    /// Ein Filter weiter/zurück in `SnapFilter.allCases` — Wisch auf dem Bild selbst (R9), neben
-    /// dem Tippen auf einen Chip im Karussell.
+    /// Ein Filter weiter/zurück — Wisch auf dem Bild selbst (R9), neben dem Tippen auf einen Chip im
+    /// Karussell. Geklemmter Index aus `SnapFilter.benachbart` (geteilt mit der Live-Kamera).
     private func filterWechseln(vorwaerts: Bool) {
-        let alle = SnapFilter.allCases
-        guard let index = alle.firstIndex(of: ausgewaehlterFilter) else { return }
-        let neuerIndex = vorwaerts ? min(index + 1, alle.count - 1) : max(index - 1, 0)
-        guard neuerIndex != index else { return }
-        waehleFilter(alle[neuerIndex])
+        waehleFilter(SnapFilter.benachbart(zu: ausgewaehlterFilter, vorwaerts: vorwaerts))
     }
 
     /// One shared "drag anchor" for all stickers (only one finger drags at a time in practice) —
