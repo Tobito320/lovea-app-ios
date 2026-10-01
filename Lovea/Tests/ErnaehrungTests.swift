@@ -281,4 +281,15 @@ final class ErnaehrungTests: XCTestCase {
         XCTAssertEqual(a.name(.abend), "Abendessen")
         XCTAssertEqual(TagebuchAnpassung.standard.sichtbar, TagebuchAnpassung.alleAbschnitte)
     }
+
+    // MARK: - BLS-Grunddatenbank
+
+    func testBLSGrunddatenbank() {
+        let alle = LebensmittelBasis.laden(Bundle(for: ErnaehrungTests.self)).isEmpty
+            ? LebensmittelBasis.laden(.main) : LebensmittelBasis.laden(Bundle(for: ErnaehrungTests.self))
+        XCTAssertGreaterThan(alle.count, 7000)
+        XCTAssertTrue(alle.allSatisfy { $0.id.hasPrefix("bls-") && $0.quelle == "bls" && $0.suche?.isEmpty == false })
+        let banane = alle.first { $0.suche?.hasPrefix("banane") == true }
+        XCTAssertNotNil(banane?.portionen?.first)
+    }
 }

@@ -1,0 +1,178 @@
+[
+  {
+    "muster": "^(ei|huhnerei)\\b(?!.*(getrocknet|pulver|konserve|einlauf|einlage|chips|saft|kompott|mus|konfiture|gefroren|gezuckert|kuchen|torte|teig|creme|salat|nektar|schorle|kraut|korn|auflauf|schmarren|waffeln|taschen|flammeri|kaltschale|biskuit|omelette|likor))",
+    "portionen": [
+      {
+        "name": "Ei, mittelgroß",
+        "gramm": 60
+      },
+      {
+        "name": "Ei, groß",
+        "gramm": 70
+      }
+    ]
+  },
+  {
+    "muster": "^banane\\b(?!.*(getrocknet|pulver|konserve|einlauf|einlage|chips|saft|kompott|mus|konfiture|gefroren|gezuckert|kuchen|torte|teig|creme|salat|nektar|schorle|kraut|korn|auflauf|schmarren|waffeln|taschen|flammeri|kaltschale|biskuit|omelette|likor))",
+    "portionen": [
+      {
+        "name": "Frucht, mittelgroß",
+        "gramm": 150
+      },
+      {
+        "name": "Frucht, klein",
+        "gramm": 75
+      },
+      {
+        "name": "Frucht, groß",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "muster": "^apfel\\b(?!.*(getrocknet|pulver|konserve|einlauf|einlage|chips|saft|kompott|mus|konfiture|gefroren|gezuckert|kuchen|torte|teig|creme|salat|nektar|schorle|kraut|korn|auflauf|schmarren|waffeln|taschen|flammeri|kaltschale|biskuit|omelette|likor))",
+    "portionen": [
+      {
+        "name": "Frucht, mittelgroß",
+        "gramm": 130
+      },
+      {
+        "name": "Frucht, klein",
+        "gramm": 100
+      },
+      {
+        "name": "Frucht, groß",
+        "gramm": 180
+      }
+    ]
+  },
+  {
+    "muster": "^(birne|orange|pfirsich|nektarine|kiwi|mandarine)\\b(?!.*(getrocknet|pulver|konserve|einlauf|einlage|chips|saft|kompott|mus|konfiture|gefroren|gezuckert|kuchen|torte|teig|creme|salat|nektar|schorle|kraut|korn|auflauf|schmarren|waffeln|taschen|flammeri|kaltschale|biskuit|omelette|likor))",
+    "portionen": [
+      {
+        "name": "Frucht, mittelgroß",
+        "gramm": 120
+      }
+    ]
+  },
+  {
+    "muster": "\\b(brotchen|semmel)\\b",
+    "portionen": [
+      {
+        "name": "Brötchen, ganz",
+        "gramm": 60
+      }
+    ]
+  },
+  {
+    "muster": "\\bbrot\\b|toast",
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 40
+      }
+    ]
+  },
+  {
+    "muster": "\\bbutter\\b|margarine",
+    "portionen": [
+      {
+        "name": "Aufstrich",
+        "gramm": 10
+      }
+    ]
+  },
+  {
+    "muster": "^(haferflocken|musli|cornflakes)(?!.*(platzchen|keks|riegel|muffin))",
+    "portionen": [
+      {
+        "name": "Portion",
+        "gramm": 40
+      }
+    ]
+  },
+  {
+    "muster": "^(?!.*(joghurt|kase|schokolade|pulver|zucker|saure|creme|pudding|eis|brei|suppe|sosse|sauce|puree|schmarren|pfannkuchen|eierkuchen|kloss|kuchen|torte|salat|auflauf|konserve|riegel|quark)).*(^|\\s)[a-z]*milch(\\s|$)|trinkjoghurt|\\bkefir\\b",
+    "portionen": [
+      {
+        "name": "Glas",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "muster": "^(?!.*(brot|kuchen|teig|krapfen|hornchen|torte|strudel|taschen|waffel|schmarren|auflauf)).*quark|skyr",
+    "portionen": [
+      {
+        "name": "Becher",
+        "gramm": 250
+      },
+      {
+        "name": "Esslöffel",
+        "gramm": 30
+      }
+    ]
+  },
+  {
+    "muster": "^(?!.*(pulver|sahne|likor|bohnen)).*(kaffee|tee )",
+    "portionen": [
+      {
+        "name": "Tasse, mittelgroß",
+        "gramm": 200
+      },
+      {
+        "name": "Tasse, groß",
+        "gramm": 300
+      }
+    ]
+  },
+  {
+    "muster": "^(?!.*(melone|rube|eigenen|konserve|kuchen|torte|salat|suppe|sosse|puree|brei)).*((^|\\s)[a-z]*(wasser|saft|limonade|nektar|schorle|sirup)(\\s|$)|\\bcola\\b)",
+    "portionen": [
+      {
+        "name": "Glas",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "muster": "^(?!.*(kuchen|torte|suppe|sosse|sauce|salat|auflauf|spatzle|fondue|quiche|creme|flan)).*(kase|gouda|emmentaler)",
+    "portionen": [
+      {
+        "name": "Scheibe",
+        "gramm": 25
+      }
+    ]
+  },
+  {
+    "muster": "^(?!.*(chips|instantpulver|trockenprodukt)).*(reis|nudeln|spaghetti|kartoffel)",
+    "portionen": [
+      {
+        "name": "Portion, gekocht",
+        "gramm": 200
+      }
+    ]
+  },
+  {
+    "muster": "^(?!.*(mais|rohr|cerealien|konserve|kondensmilch|kondensmagermilch)).*((^|\\s)[a-z]*(zucker|honig|marmelade|konfiture)(\\s|$))",
+    "portionen": [
+      {
+        "name": "Teelöffel",
+        "gramm": 7
+      },
+      {
+        "name": "Esslöffel",
+        "gramm": 20
+      }
+    ]
+  },
+  {
+    "muster": "^(?!.*(escariol|alkohol|vol)).*(^|\\s)[a-z]*ol(\\s|$)",
+    "portionen": [
+      {
+        "name": "Esslöffel",
+        "gramm": 10
+      }
+    ]
+  }
+]
