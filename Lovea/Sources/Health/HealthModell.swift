@@ -289,7 +289,11 @@ final class HealthModell {
     /// Woche deckt "ich hab's gestern vergessen einzutragen" ab, ohne für jeden Tag ewig mitzuwachsen.
     private func habitOpsAufraeumen(_ habitId: String, _ person: Person) {
         let aeltesteNoch = Datum.addTage(heute, -6)
-        habitOps[habitId]?[person] = habitOps[habitId]?[person]?.filter { $0.key >= aeltesteNoch }
+        // Erst lesen, dann schreiben: Lesen und Schreiben von `habitOps` in EINER Zeile ist ein
+        // überlappender Zugriff, Swift bricht dann zur Laufzeit ab (Absturz Build 76-80).
+        guard let alt = habitOps[habitId]?[person] else { return }
+        let neu = alt.filter { $0.key >= aeltesteNoch }
+        habitOps[habitId]?[person] = neu
     }
 
     private func zielOpAnwenden(_ op: Op) {
