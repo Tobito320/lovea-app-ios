@@ -113,18 +113,9 @@ struct OrtVorschau: View {
         if einfach { einfacheAnsicht } else { echteAnsicht }
     }
 
-    /// Render-Tafel: nur Fläche und zwei Beschriftungen, kein Button, Dialog, Blatt oder Schnappschuss.
+    /// Render-Tafel: nur der Ortsname, wie der Platzhalter vor Teil 3 (der Test war damit grün).
     private var einfacheAnsicht: some View {
-        VStack(spacing: 8) {
-            karte
-            HStack(spacing: 0) {
-                Label("Karte zeigen", systemImage: "map").frame(maxWidth: .infinity)
-                Rectangle().fill(Color.secondary.opacity(0.3)).frame(width: 1, height: 24)
-                Label("In Karten öffnen", systemImage: "square.and.arrow.up").frame(maxWidth: .infinity)
-            }
-            .font(.subheadline)
-            .foregroundStyle(.tint)
-        }
+        Text(ort.name)
     }
 
     private var echteAnsicht: some View {
