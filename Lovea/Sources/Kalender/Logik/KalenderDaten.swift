@@ -61,14 +61,17 @@ struct Treffen: Codable, Hashable {
     var datum: String
     var uhrzeit: String?
     var wasMachenWir: String?
+    /// „HH:mm", Ende des Treffens. `uhrzeit` bleibt der Beginn.
+    var bis: String?
 }
 
-/// `d` von `treffen.setzen {datum, uhrzeit?, wasMachenWir?}`. `uhrzeit` fehlt: die alte bleibt
-/// („Machen wir"); `uhrzeit` "": die Uhrzeit wird zurückgenommen (Z-42.2).
+/// `d` von `treffen.setzen {datum, uhrzeit?, wasMachenWir?, bis?}`. `uhrzeit` und `bis` fehlen: die alten
+/// bleiben („Machen wir", Build 92); "": der Wert wird zurückgenommen (Z-42.2).
 struct TreffenD: Codable, Equatable {
     var datum: String
     var uhrzeit: String?
     var wasMachenWir: String?
+    var bis: String?
 }
 
 /// Der aktuelle Stand aller Kalender-Ops, gefaltet. Andere Blöcke bauen das aus Ops auf

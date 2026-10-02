@@ -573,7 +573,7 @@ struct EntwurfFaltung: Sendable {
     }
 
     mutating func anwenden(_ op: Op) {
-        guard let p = op.daten(EntwurfPayload.self) else { return }
+        guard let p = op.daten(EntwurfPayload.self), p.treffenGeheim == nil else { return }
         let entwurf = EntwurfEintrag(text: p.text ?? "", medien: p.medien ?? [], sprache: p.sprache)
         if let seq = op.seq {
             offen.removeValue(forKey: op.id)
@@ -588,6 +588,8 @@ private struct EntwurfPayload: Codable {
     var text: String?
     var medien: [String]?
     var sprache: String?
+    /// Versteckter Treffen-Punkt (`TreffenGeheimModell`): kein Chat-Entwurf, leert ihn nicht.
+    var treffenGeheim: JSONValue?
 }
 
 private struct BearbeitetPayload: Codable { let id: String; let text: String }
