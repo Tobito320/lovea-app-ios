@@ -121,7 +121,7 @@ struct TagNeuInhalt: View {
                     Text("\(stunde)")
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
-                        .position(x: AnsichtWerte.anteil(stunde * 60) * geo.size.width, y: 7)
+                        .position(x: CGFloat(AnsichtWerte.anteil(stunde * 60)) * geo.size.width, y: 7)
                 }
             }
             .frame(height: 14)
@@ -137,13 +137,16 @@ struct TagesBalken: View {
 
     var body: some View {
         GeometryReader { geo in
+            let breite = geo.size.width
             ZStack(alignment: .leading) {
                 Capsule().fill(Color(uiColor: .tertiarySystemFill))
                 ForEach(Array(segmente.enumerated()), id: \.offset) { _, segment in
+                    let links = CGFloat(AnsichtWerte.anteil(segment.von)) * breite
+                    let rechts = CGFloat(AnsichtWerte.anteil(segment.bis)) * breite
                     RoundedRectangle(cornerRadius: 4)
                         .fill(fuellung(segment.art))
-                        .frame(width: max((AnsichtWerte.anteil(segment.bis) - AnsichtWerte.anteil(segment.von)) * geo.size.width, 3))
-                        .offset(x: AnsichtWerte.anteil(segment.von) * geo.size.width)
+                        .frame(width: CGFloat.maximum(rechts - links, 3))
+                        .offset(x: links)
                 }
             }
         }

@@ -20,7 +20,7 @@ struct RasterMonat: View {
         VStack(spacing: 16) {
             RasterMonatInhalt(
                 raster: kalender.monatsRaster(erster), daten: daten, erster: erster, heute: heute, gewaehlt: gewaehlt,
-                waehle: { gewaehlt = $0 }, wechsle: wechsleMonat, plus: { blatt = $0 }
+                waehle: { gewaehlt = $0 }, wechsle: { wechsleMonat($0) }, plus: { blatt = $0 }
             )
             TagesBlatt(
                 tag: gewaehlt, daten: daten, ich: Raum.shared.ich,
