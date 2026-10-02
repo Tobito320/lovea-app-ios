@@ -46,6 +46,9 @@ final class CanvasEngine {
     /// Called once per finished own non-stroke action (fill, layer change, transform …), for `zeichnung.op`.
     var onAction: (() -> Void)?
     private(set) var loading: Task<Void, Never>?
+    /// False until `loadContents` is done. Until then the layers are empty textures the load overwrites,
+    /// so the studio takes no input (`DrawingSession.ensureDrawable`).
+    private(set) var isLoaded = false
 
     private var sampler: StrokeSampler?
     private var strokeLayerID: UUID?
@@ -60,6 +63,8 @@ final class CanvasEngine {
     private var liveSerial = 0
     /// Nur fürs Zeichen-Protokoll: der zuletzt gelandete Strich, damit eine Undo-Zeile ihn wiedererkennt.
     private var letzteLandung: LandungsSpur?
+    /// Eigene gelandete Striche seit dem Start. `reload` sieht daran, ob während des Ladens einer gelandet ist.
+    private var eigeneLandungen = 0
     private var detached: [UUID: MTLTexture] = [:]
     private var remoteStrokes: [String: RemoteStroke] = [:]
     private var spareScratches: [MTLTexture] = []
@@ -122,6 +127,7 @@ final class CanvasEngine {
         }
         if document.schemaVersion < 3 { await migrateLegacyLayers() }
         compositor.invalidateCaches()
+        isLoaded = true
         onChange?()
     }
 
@@ -137,12 +143,22 @@ final class CanvasEngine {
 
     /// Swaps in a newer version of the same artwork from the library (a partner's shared stand).
     /// Decodes everything first so the canvas never shows empty layers. Remote strokes in flight stay.
-    func reload(_ next: ArtworkDocument) async {
+    /// Returns false and changes nothing when an own stroke ran or landed meanwhile: the canvas is newer than the file.
+    @discardableResult
+    func reload(_ next: ArtworkDocument) async -> Bool {
+        // Not while the first load still runs: its older result would land on top of this one.
+        await loading?.value
         let serialStart = liveSerial
+        let landungenStart = eigeneLandungen
         await library.waitForWrites()
         var decoded: [UUID: RasterOps.Pixels] = [:]
         for layer in next.layers {
             decoded[layer.id] = await decodeLayer(layer, artworkID: next.id)
+        }
+        // Decided after the last await, nothing is awaited between here and the swap below.
+        guard LadeEntscheidung.darfUebernehmen(landungenBeiStart: landungenStart, landungenJetzt: eigeneLandungen, strichLaeuft: isStroking) else {
+            ZeichenProtokoll.log("Sicherung Laden: reload verworfen, eigener Strich lief oder landete währenddessen (stroking=\(isStroking), Landungen \(landungenStart) -> \(eigeneLandungen))")
+            return false
         }
         if isStroking || liveSerial != serialStart {
             ZeichenProtokoll.log("reload überschreibt laufenden oder gerade gelandeten Strich (stroking=\(isStroking), serial \(serialStart) -> \(liveSerial))")
@@ -166,6 +182,7 @@ final class CanvasEngine {
         if !keep.contains(activeLayerID) { activeLayerID = next.layers.last?.id ?? activeLayerID }
         compositor.invalidateCaches()
         onChange?()
+        return true
     }
 
     /// Shared drawing: which ops the next save contains. No undo step, no `onChange`.
@@ -238,6 +255,7 @@ final class CanvasEngine {
         strokeLogger.debug("endStroke layer=\(layerID) aktiv=\(self.activeLayerID) bounds=\(String(describing: sampler.bounds))")
         #endif
         land(scratch, sampler: sampler, into: target, layerID: layerID, mirrorX: mirrorX, autor: nil, command: command)
+        eigeneLandungen += 1
         resetStroke()
         didEditPixels(of: layerID)
     }

@@ -155,6 +155,9 @@ final class GemeinsamVerlauf {
     private var sammeln: [UndoEntry]?
     /// Own undone entries, newest last.
     private var wieder: [String] = []
+    /// True while `nachbessern` rebuilds: those rebuilds are not checked again.
+    private var prueft = false
+    private var vollNeuAufgebaut = false
 
     init(engine: CanvasEngine, ich: String, basis: Int, budget: Int = 256 << 20) {
         self.engine = engine
@@ -171,6 +174,8 @@ final class GemeinsamVerlauf {
     var kannWiederholen: Bool { !wieder.isEmpty }
     var offeneIDs: [String] { eintraege.filter(\.offen).map(\.id) }
     var hatOffene: Bool { eintraege.contains(where: \.offen) }
+    /// Own steps the engine recorded that no entry has claimed yet.
+    var hatUnbeanspruchte: Bool { !puffer.isEmpty }
 
     func kennt(_ id: String) -> Bool {
         eintraege.contains { $0.id == id }
@@ -330,6 +335,7 @@ final class GemeinsamVerlauf {
     /// Rolls back every entry from `start` on that overlaps `zone` (the zone grows with each one, since
     /// its undo data covers its own region), runs `mitte`, then re-executes them in order.
     private func umbauen(ab start: Int, zone: [ZeichenBereich], _ mitte: () -> Void) {
+        let vorher: [UmbauPruefung.Stand] = prueft ? [] : stand()
         var zone = zone
         var betroffen: [Int] = []
         if start < eintraege.count {
@@ -344,6 +350,52 @@ final class GemeinsamVerlauf {
         for index in betroffen.reversed() { zurueck(index) }
         mitte()
         for index in betroffen { ausfuehren(index) }
+        if !prueft { nachbessern(vorher: vorher) }
+    }
+
+    /// The replay of a stroke can come back without pixels (`remoteBegin` and `land` return silently, e.g. when
+    /// a working texture or command buffer is missing). A stroke that had landed before the rebuild must not
+    /// vanish: rebuild again from the first lost entry, then once everything, then give up and leave a log line.
+    private func nachbessern(vorher: [UmbauPruefung.Stand]) {
+        prueft = true
+        defer { prueft = false }
+        var versuch = 0
+        while true {
+            let verloren = UmbauPruefung.verloren(vorher: vorher, nachher: stand())
+            switch UmbauPruefung.nachbesserung(verloren: verloren, versuch: versuch, vollSchonVersucht: vollNeuAufgebaut) {
+            case .fertig:
+                if versuch > 0 { ZeichenProtokoll.log("Sicherung Umbau: Strich wieder da nach \(versuch). Versuch") }
+                return
+            case .gezielt:
+                ZeichenProtokoll.log("Sicherung Umbau: \(verloren.count) gelandete(r) Strich(e) ohne Pixel, baue ab dem ersten neu auf (id \(verloren[0]))")
+                if let erster = eintraege.firstIndex(where: { verloren.contains($0.id) }) {
+                    umbauen(ab: erster + 1, zone: bereiche(eintraege[erster])) { ausfuehren(erster) }
+                }
+            case .voll:
+                vollNeuAufgebaut = true
+                ZeichenProtokoll.log("Sicherung Umbau: Strich noch weg, baue einmal alles neu auf (\(eintraege.count) Einträge)")
+                umbauen(ab: 0, zone: [ZeichenBereich(ebene: nil)]) {}
+            case .aufgeben:
+                ZeichenProtokoll.log("Sicherung Umbau: \(verloren.count) Strich(e) bleiben ohne Pixel (id \(verloren[0]))")
+                return
+            }
+            versuch += 1
+        }
+    }
+
+    /// What `UmbauPruefung` compares: per entry, whether its stroke has pixels and whether it should have.
+    private func stand() -> [UmbauPruefung.Stand] {
+        eintraege.map {
+            UmbauPruefung.Stand(id: $0.id, aus: $0.aus, gelandet: !$0.schritte.isEmpty, sollteLanden: !$0.schritte.isEmpty || sollteLanden($0))
+        }
+    }
+
+    /// A stroke whose replay has to leave pixels: layer there, a paint layer, not locked against its author.
+    private func sollteLanden(_ eintrag: Eintrag) -> Bool {
+        guard case let .strich(strich) = eintrag.aktion, !strich.punkte.isEmpty, erlaubt(eintrag.von, strich.ebene),
+              let id = UUID(uuidString: strich.ebene), engine.layer(id)?.kind == .paint, engine.texture(for: id) != nil
+        else { return false }
+        return true
     }
 
     private func bereiche(_ eintrag: Eintrag) -> [ZeichenBereich] {
