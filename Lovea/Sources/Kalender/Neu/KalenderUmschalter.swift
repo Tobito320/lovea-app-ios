@@ -11,7 +11,7 @@ enum KalenderNeu {
 }
 
 /// Die Kalender-Karte auf Home. Der Zweig „aus" ist der alte Karten-Code aus `HomeView`,
-/// unverändert. Der Zweig „an" zeigt vorläufig dasselbe: Teil 2 setzt hier `RasterMonat` ein.
+/// unverändert. Der Zweig „an" ist das neue Raster mit Blatt (`RasterMonat`).
 struct KalenderKarte: View {
     @Binding var pfad: NavigationPath
     @AppStorage(KalenderNeu.schluessel) private var neu = true
@@ -20,8 +20,9 @@ struct KalenderKarte: View {
         if neu { neueKarte } else { alteKarte }
     }
 
-    // ponytail: Teil 2 ersetzt den Inhalt durch die neue Ansicht.
-    private var neueKarte: some View { alteKarte }
+    private var neueKarte: some View {
+        RasterMonat { tag in pfad.append(tag) }
+    }
 
     private var alteKarte: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -39,7 +40,7 @@ struct KalenderKarte: View {
 }
 
 /// Das Ziel eines angetippten Tages (`String`-Navigationsziel auf Home). „Aus" ist die alte
-/// `TagesAnsicht`; „an" zeigt vorläufig dieselbe, Teil 2 setzt hier `TagNeu` ein.
+/// `TagesAnsicht`, „an" ist die neue Tagesansicht (`TagNeu`).
 struct KalenderTagZiel: View {
     let tag: String
     @AppStorage(KalenderNeu.schluessel) private var neu = true
@@ -48,6 +49,5 @@ struct KalenderTagZiel: View {
         if neu { neuerTag } else { TagesAnsicht(tag: tag) }
     }
 
-    // ponytail: Teil 2 ersetzt den Inhalt durch `TagNeu`.
-    private var neuerTag: some View { TagesAnsicht(tag: tag) }
+    private var neuerTag: some View { TagNeu(tag: tag) }
 }
