@@ -62,6 +62,7 @@ final class RenderGalerieTreffenTests: XCTestCase {
             .frame(width: breite, alignment: .top)
             .background(schema == .dark ? Color.black : Color.white)
             .environment(\.colorScheme, schema)
+            .environment(\.ortVorschauEinfach, true)
         return (titel: titel, ansicht: AnyView(ansicht))
     }
 

@@ -73,6 +73,11 @@ struct OrtWahlZeile: View {
     }
 }
 
+extension EnvironmentValues {
+    /// Nur für die Render-Tafel: `ImageRenderer` zeichnet die Vorschau mit Buttons und Dialogen nicht.
+    @Entry var ortVorschauEinfach: Bool = false
+}
+
 /// Kleine Karte als Schnappschuss mit Nadel, darunter "Karte zeigen" und "In Karten öffnen".
 struct OrtVorschau: View {
     let ort: PunktOrt
@@ -82,23 +87,40 @@ struct OrtVorschau: View {
     @State private var zeigeKarte = false
     @State private var zeigeWahl = false
 
+    @Environment(\.ortVorschauEinfach) private var einfach
+
     init(ort: PunktOrt) { self.ort = ort }
 
-    var body: some View {
-        VStack(spacing: 8) {
-            Color.secondary.opacity(0.12)
-                .aspectRatio(16 / 9, contentMode: .fit)
-                .overlay {
-                    if let bild {
-                        Image(uiImage: bild).resizable().scaledToFill()
-                        Image(systemName: "mappin")
-                            .font(.system(size: 30, weight: .bold))
-                            .foregroundStyle(.red)
-                            .offset(y: -15)
-                    }
+    /// Feste Höhe, damit die Karte in keinem Container ohne Breite oder Höhe landet; bis zum Schnappschuss grau.
+    private var karte: some View {
+        Color.secondary.opacity(0.12)
+            .frame(maxWidth: .infinity)
+            .frame(height: 170)
+            .overlay {
+                if let bild {
+                    Image(uiImage: bild).resizable().scaledToFill()
+                    Image(systemName: "mappin")
+                        .font(.system(size: 30, weight: .bold))
+                        .foregroundStyle(.red)
+                        .offset(y: -15)
                 }
-                .clipShape(RoundedRectangle(cornerRadius: 12))
-                .accessibilityHidden(true)
+            }
+            .clipShape(RoundedRectangle(cornerRadius: 12))
+            .accessibilityHidden(true)
+    }
+
+    var body: some View {
+        if einfach { einfacheAnsicht } else { echteAnsicht }
+    }
+
+    /// Render-Tafel: nur der Ortsname, wie der Platzhalter vor Teil 3 (der Test war damit grün).
+    private var einfacheAnsicht: some View {
+        Text(ort.name)
+    }
+
+    private var echteAnsicht: some View {
+        VStack(spacing: 8) {
+            karte
 
             HStack(spacing: 0) {
                 Button { zeigeKarte = true } label: {
