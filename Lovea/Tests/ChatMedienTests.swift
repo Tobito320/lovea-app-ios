@@ -131,6 +131,16 @@ final class ChatMedienTests: XCTestCase {
         XCTAssertTrue(ergebnis.dunkleKarte)
     }
 
+    func testDuenneHelleStricheNachVerkleinernBrauchenDunkleKarte() {
+        var rgba: [UInt8] = []
+        for _ in 0..<100 { rgba += [0, 0, 0, 0] } // fully transparent
+        // Premultiplied white strokes after the 32 px downscale: alpha 40, so RGB is 40 as well.
+        for _ in 0..<10 { rgba += [40, 40, 40, 40] }
+        let ergebnis = TransparenzKarte.auswerten(rgba: rgba)
+        XCTAssertTrue(ergebnis.brauchtKarte)
+        XCTAssertTrue(ergebnis.dunkleKarte, "faint white strokes are still white, not dark")
+    }
+
     func testEinzelnesAntialiasiertesPixelBrauchtKeineKarte() {
         var rgba: [UInt8] = []
         for _ in 0..<199 { rgba += [20, 20, 20, 255] }
