@@ -25,6 +25,7 @@ final class TrainingModell {
     func sessions(_ p: Person) -> [GymSession] { faltung.sessions(p) }
     func laufende(_ p: Person, jetzt: Date = Date()) -> GymSession? { sessions(p).first { TrainingLogik.laufend($0, jetzt: jetzt) } }
     func vergessene(_ p: Person, jetzt: Date = Date()) -> GymSession? { TrainingLogik.vergessen(sessions(p), jetzt: jetzt) }
+    func fortsetzbare(_ p: Person, jetzt: Date = Date()) -> GymSession? { TrainingLogik.fortsetzbar(sessions(p), jetzt: jetzt) }
     /// Catalog id of the exercise `p` is doing right now; nil outside a running session.
     func aktiveUebung(_ p: Person) -> String? { laufende(p)?.aktiv?.uebung }
     func heutigerTag(_ p: Person) -> TrainingsTag? { TrainingLogik.tag(plan(p), datum: Datum.text(Date())) }

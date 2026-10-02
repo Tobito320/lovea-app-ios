@@ -88,6 +88,19 @@ final class TrainingTests: XCTestCase {
         XCTAssertEqual(faltung([checkin, raus, zurueck, nochmal]).sessions(.ahmed)[0].ende, t0 + 5400)
     }
 
+    func testFortsetzbarNurFrischBeendetUndNeueste() {
+        let fertig = GymSession(id: "s", tag: nil, start: t0, ende: t0 + 3240, laeufe: [])
+        XCTAssertEqual(TrainingLogik.fortsetzbar([fertig], jetzt: t0 + 3300)?.id, "s", "gerade beendet")
+        XCTAssertNil(TrainingLogik.fortsetzbar([fertig], jetzt: t0 + 3 * 3600), "danach nicht mehr laufend (langNach)")
+        let kurz = GymSession(id: "k", tag: nil, start: t0, ende: t0 + 600, laeufe: [])
+        XCTAssertNil(TrainingLogik.fortsetzbar([kurz], jetzt: t0 + 600 + 2 * 3600), "vor über 2 h beendet")
+        let offen = GymSession(id: "o", tag: nil, start: t0, ende: nil, laeufe: [])
+        XCTAssertNil(TrainingLogik.fortsetzbar([offen], jetzt: t0 + 60), "läuft noch")
+        let neu = GymSession(id: "n", tag: nil, start: t0 + 3300, ende: nil, laeufe: [])
+        XCTAssertNil(TrainingLogik.fortsetzbar([fertig, neu], jetzt: t0 + 3400), "eine neuere Einheit läuft schon")
+        XCTAssertNil(TrainingLogik.fortsetzbar([], jetzt: t0))
+    }
+
     func testRunningAndForgotten() {
         let s = GymSession(id: "s", tag: nil, start: t0, ende: nil, laeufe: [])
         XCTAssertTrue(TrainingLogik.laufend(s, jetzt: t0 + 2 * 3600))

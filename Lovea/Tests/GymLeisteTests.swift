@@ -15,6 +15,12 @@ final class GymLeisteTests: XCTestCase {
         XCTAssertEqual(GymLeisteLogik.zustand(atGym: true, laufendeSeit: nil, weggewischt: true), .aus)
     }
 
+    func testGeradeBeendetImGymZeigtFortsetzen() {
+        XCTAssertEqual(GymLeisteLogik.zustand(atGym: true, laufendeSeit: nil, weggewischt: false, fortsetzbar: true), .fortsetzen)
+        XCTAssertEqual(GymLeisteLogik.zustand(atGym: true, laufendeSeit: nil, weggewischt: true, fortsetzbar: true), .aus)
+        XCTAssertEqual(GymLeisteLogik.zustand(atGym: false, laufendeSeit: nil, weggewischt: false, fortsetzbar: true), .aus)
+    }
+
     func testLaufendeEinheitGewinntImmer() {
         let start = Date(timeIntervalSince1970: 1_000)
         XCTAssertEqual(GymLeisteLogik.zustand(atGym: true, laufendeSeit: start, weggewischt: false), .laeuft(seit: start))

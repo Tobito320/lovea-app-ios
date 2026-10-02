@@ -8,15 +8,17 @@ import SwiftUI
 enum GymLeisteZustand: Equatable {
     case aus
     case vorschlag
+    /// Gerade beendet und noch im Gym: dasselbe Training fortsetzen statt nur neu starten.
+    case fortsetzen
     case laeuft(seit: Date)
 }
 
 enum GymLeisteLogik {
     /// Eine laufende Einheit gewinnt immer. Sonst: im Gym und nicht für diesen Besuch weggewischt
-    /// zeigt den Vorschlag, alles andere ist still.
-    static func zustand(atGym: Bool, laufendeSeit: Date?, weggewischt: Bool) -> GymLeisteZustand {
+    /// zeigt den Vorschlag (nach einem gerade beendeten Training: Fortsetzen), alles andere ist still.
+    static func zustand(atGym: Bool, laufendeSeit: Date?, weggewischt: Bool, fortsetzbar: Bool = false) -> GymLeisteZustand {
         if let seit = laufendeSeit { return .laeuft(seit: seit) }
-        if atGym && !weggewischt { return .vorschlag }
+        if atGym && !weggewischt { return fortsetzbar ? .fortsetzen : .vorschlag }
         return .aus
     }
 }
@@ -38,11 +40,13 @@ struct GymLeisteView: View {
     private var laufendeSeit: Date? { TrainingModell.shared.laufende(ich)?.start }
 
     var body: some View {
-        let zustand = GymLeisteLogik.zustand(atGym: atGym, laufendeSeit: laufendeSeit, weggewischt: weggewischt)
+        let beendet = TrainingModell.shared.fortsetzbare(ich)
+        let zustand = GymLeisteLogik.zustand(atGym: atGym, laufendeSeit: laufendeSeit, weggewischt: weggewischt, fortsetzbar: beendet != nil)
         Group {
             switch zustand {
             case .aus: EmptyView()
             case .vorschlag: vorschlagLeiste
+            case .fortsetzen: if let beendet { fortsetzenLeiste(beendet) }
             case .laeuft(let seit): laeuftLeiste(seit: seit)
             }
         }
@@ -69,6 +73,31 @@ struct GymLeisteView: View {
         }
         .leistenRahmen()
         .accessibilityElement(children: .combine)
+    }
+
+    private func fortsetzenLeiste(_ s: GymSession) -> some View {
+        HStack(spacing: 10) {
+            Image(systemName: "figure.strengthtraining.traditional").foregroundStyle(Color.person(ich))
+            Text("Training beendet").font(.subheadline.weight(.semibold)).lineLimit(1)
+            Spacer(minLength: 8)
+            Button("Fortsetzen") {
+                TrainingModell.shared.auscheckenRueckgaengig(s.id)
+                Haptik.erfolg()
+                oeffnen()
+            }
+            .font(.subheadline.weight(.semibold))
+            .buttonStyle(.borderedProminent)
+            .tint(Color.person(ich))
+            Button("Neu") { starten() }
+                .font(.subheadline.weight(.semibold))
+                .buttonStyle(.bordered)
+            Button { weggewischt = true } label: {
+                Image(systemName: "xmark").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Schließen")
+        }
+        .leistenRahmen()
     }
 
     private func laeuftLeiste(seit: Date) -> some View {

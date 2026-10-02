@@ -246,6 +246,14 @@ enum TrainingLogik {
         }
     }
 
+    /// Die zuletzt beendete Einheit, solange "Training fortsetzen" Sinn ergibt: vor weniger als 2 h
+    /// beendet und danach noch laufend (`langNach`). Läuft schon eine neuere, gibt es nichts fortzusetzen.
+    static func fortsetzbar(_ sessions: [GymSession], jetzt: Date) -> GymSession? {
+        guard let zuletzt = sessions.max(by: { $0.start < $1.start }), let ende = zuletzt.ende,
+              jetzt.timeIntervalSince(ende) < 2 * 3600, jetzt.timeIntervalSince(zuletzt.start) < langNach else { return nil }
+        return zuletzt
+    }
+
     static func zuLang(start: Date, ende: Date) -> Bool { ende.timeIntervalSince(start) > langNach }
 
     /// Frühester Start, bei dem eine laufende Einheit noch als laufend gilt (`laufend`).
