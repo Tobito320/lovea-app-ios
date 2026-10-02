@@ -14,6 +14,7 @@ struct EinstellungenView: View {
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
     @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
+    @AppStorage(VideoVorab.schluessel) private var videoVorab = true // same key `VideoVorab.an` reads
 
     var body: some View {
         List {
@@ -44,6 +45,7 @@ struct EinstellungenView: View {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
                 Toggle("Chat-Tempo (Test)", isOn: $chatTempo)
                 Toggle("Videos schneller senden (Test)", isOn: $videoSchnell)
+                Toggle("Videos vorab hochladen (Test)", isOn: $videoVorab)
             } header: {
                 Text("Chat")
             } footer: {

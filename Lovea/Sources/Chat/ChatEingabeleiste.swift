@@ -87,7 +87,11 @@ struct ChatEingabeleiste: View {
                     .transition(.move(edge: .bottom).combined(with: .opacity))
             }
             if !anhaenge.isEmpty {
-                AnhangLeiste(anhaenge: $anhaenge, onAendert: { beruehrt = true; entwurfAktualisieren() }) { anhang in
+                AnhangLeiste(anhaenge: $anhaenge, onAendert: {
+                    beruehrt = true
+                    ChatMedien.videoVorabAufraeumen(behalten: Set(anhaenge.map(\.id)))
+                    entwurfAktualisieren()
+                }) { anhang in
                     if anhang.istVideo { Haptik.leicht() } else { bearbeiten = anhang }
                 }
                 .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -336,6 +340,7 @@ struct ChatEingabeleiste: View {
                 guard let anhang = await ChatAnhang.laden(item) else { continue }
                 anhaenge.append(anhang)
                 hochladenFuerEntwurf(anhang.id)
+                if case .video(let quelle) = anhang.inhalt { ChatMedien.videoVorabStarten(anhang: anhang.id, quelle: quelle) }
             }
             ChatHaptik.leicht()
             // No send button anymore (Z-26.1) — an attachment-only send needs the keyboard up so
@@ -398,6 +403,8 @@ struct ChatEingabeleiste: View {
         // Z-33.2: a hand-picked effect rides on the next text; without text it waits for one.
         let gewaehlterEffekt = text.isEmpty ? nil : effekt
         if !text.isEmpty { effekt = nil }
+        // Vor dem Leeren der Anhänge: sonst bricht das Aufräumen die Vorab-Videos ab, die jetzt gesendet werden.
+        let videoVorab = ChatMedien.videoVorabAbholen(anhaengeZuSenden.map(\.id))
 
         eingabeAttr = NSAttributedString()
         anhaenge = []
@@ -431,6 +438,8 @@ struct ChatEingabeleiste: View {
                         [ChatModell.MedienEintrag(id: hochgeladen.medienId, typ: "foto", breite: hochgeladen.breite, hoehe: hochgeladen.hoehe)],
                         antwortAuf: antwort
                     )
+                } else if case .video(let quelle) = anhang.inhalt {
+                    await ChatMedien.videoVorabSenden(videoVorab[anhang.id], quelle: quelle, antwortAuf: antwort)
                 } else {
                     await ChatMedien.anhaengeSenden([anhang.inhalt], antwortAuf: antwort)
                 }
