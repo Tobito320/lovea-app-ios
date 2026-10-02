@@ -53,6 +53,7 @@ targets:
         NSMotionUsageDescription: "Lovea erkennt Bewegung wie Laufen oder Fahren, damit eure Figuren euren Alltag zeigen."
         LSApplicationQueriesSchemes:
           - x-apple-health
+          - comgooglemaps
         NSSpeechRecognitionUsageDescription: "Lovea wandelt deine Sprachnachrichten in Text um, wenn du das im Chat anforderst."
         NSFocusStatusUsageDescription: "Lovea zeigt deinem Partner, ob du gerade nicht gestört werden möchtest."
         NSCalendarsFullAccessUsageDescription: "Lovea liest deinen Kalender, um Termine mit deinem Partner abzugleichen."
