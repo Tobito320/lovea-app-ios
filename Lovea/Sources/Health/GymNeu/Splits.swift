@@ -45,7 +45,7 @@ enum SplitKatalog {
 }
 
 enum SplitLogik {
-    static let tageWahl = [3, 4, 5, 6]
+    static let tageWahl = [2, 3, 4, 5, 6]
     static let ziele: [(id: String, text: String)] = [("muskeln", "Muskeln aufbauen"), ("kraft", "Stärker werden"), ("definieren", "Definieren"), ("fit", "Fit bleiben")]
     static let geraete: [(id: String, text: String)] = [("studio", "Ganzes Studio"), ("kurzhantel", "Nur Kurzhanteln"), ("zuhause", "Zuhause ohne Geräte")]
 

@@ -91,10 +91,12 @@ struct SplitBibliothekInhalt: View {
         HStack(spacing: 6) {
             Button { filtern(nil) } label: { GymChip(text: "Alle", an: filter == nil) }.buttonStyle(.plain)
             ForEach(SplitLogik.tageWahl, id: \.self) { n in
-                Button { filtern(n) } label: { GymChip(text: "\(n) Tage", an: filter == n) }
+                Button { filtern(n) } label: { GymChip(text: "\(n)", an: filter == n) }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("\(n) Tage")
                     .accessibilityAddTraits(filter == n ? .isSelected : [])
             }
+            Text("Tage").font(.footnote).foregroundStyle(.secondary).padding(.leading, 4)
         }
     }
 

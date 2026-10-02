@@ -23,6 +23,12 @@ const U = {
   gesaessbruecke: 'qKBpF7I', hueftheben: 'CqhoytW', pullThrough: 'OM46QHm', kickbackKabel: 'HEJ6DIX', abduktion: 'CHpahtl', adduktion: 'oHsrypV',
   wadenStehend: 'ykUOVze', wadenSitzend: 'bOOdeyc', wadenKH: 'dPmaUaU',
   beinheben: 'I3tsCnC', crunch: 'TFqbd8t', reverseCrunch: 'nCU1Ekp', russianTwist: 'XVDdcoj', bergsteiger: 'RJgzwny',
+  pendlay: 'r0z6xzQ', rackPull: 'za9Ni4z', tbar: 'BgljGjd', latzugParallel: 'rkg41Fb', rearRow: 'yUdIGNs', invRow: 'bZGHsAZ',
+  cleanPress: 'SGY8Zui', maschBrust: 'DOoWcnA', maschSchulter: '67n3r98', frontheben: '3eGE2JC', bankdip: '9RT8oQW',
+  unterarm: 'LrV4s90', farmer: 'qPEzJjA', kbSwing: 'UHJlbu3', burpee: 'dK9394r', sprung: 'LIlE5Tn',
+  sumoMulti: 'dzz6BiV', curtsey: 'gUjqdei', kniebeugeKH: 'HsvHqgf', kreuzhebenKH: 'nUwVh7b', einbeinRdl: 'gKozT8X', stepUpLH: 'Kxquu2E',
+  bruecke: 'u0cNiij', brueckeBank: 'aWedzZX', einbeinBruecke: 'rmEukuS', hipThrustBand: 'Pjbc0Kt', seitAbduktion: '7WaDzyL', adduktionKabel: 'hBGWILP',
+  rueckenstrecker: 'rUXfn3R', reverseHyper: 'Krmb3cB', eselWaden: 'u5ESqzH',
 };
 
 // [Kurzname, Sätze, Wdh von, Wdh bis]
@@ -57,6 +63,12 @@ const khC = [['splitSquatKH', 3, 8, 10], ['arnold', 3, 8, 12], ['ueberzug', 3, 1
 const t = (name, wochentage, uebungen) => ({ name, wochentage, uebungen });
 // [id, name, gruppe, level, ziel, geraet, einheiten]
 const SPLITS = [
+  // Ahmeds Reihenfolge im Oberkörper (PRODUCT.md): Schulter, Unterarme, Nacken, Rücken, Brust. Beine 2x, oben 2x.
+  ['m-schulter4', 'Schulter zuerst', 'm', 'mittel', 'muskeln', 'studio', [
+    t('Oberkörper A', [1], [['ohp', 4, 6, 8], ['seitheben', 4, 12, 15], ['unterarm', 3, 12, 15], ['shrugs', 3, 10, 12], ['rudernLH', 4, 6, 10], ['bank', 3, 6, 10]]),
+    t('Beine A', [2], beine),
+    t('Oberkörper B', [4], [['ohpKH', 4, 8, 10], ['seithebenKabel', 4, 12, 15], ['farmer', 3, 20, 30], ['aufrechtRudern', 3, 10, 12], ['klimmzug', 4, 6, 10], ['schraegKH', 3, 8, 12]]),
+    t('Beine B', [5], beineB)]],
   ['m-ppl6', 'Push Pull Beine', 'm', 'fortgeschritten', 'muskeln', 'studio', [t('Push', [1, 4], push), t('Pull', [2, 5], pull), t('Beine', [3, 6], beine)]],
   ['m-ppl6ab', 'Push Pull Beine A/B', 'm', 'fortgeschritten', 'muskeln', 'studio', [t('Push A', [1], push), t('Pull A', [2], pull), t('Beine A', [3], beine), t('Push B', [4], pushB), t('Pull B', [5], pullB), t('Beine B', [6], beineB)]],
   ['m-ppl3', 'Push Pull Beine kurz', 'm', 'einsteiger', 'muskeln', 'studio', [t('Push', [1], push), t('Pull', [3], pull), t('Beine', [5], beine)]],
@@ -103,6 +115,91 @@ const SPLITS = [
   ['m-kh3', 'Zuhause mit Kurzhanteln', 'm', 'einsteiger', 'fit', 'kurzhantel', [t('Tag A', [1], khA), t('Tag B', [3], khB), t('Tag C', [5], khC)]],
   ['m-kg3', 'Zuhause ohne Geräte', 'm', 'einsteiger', 'fit', 'zuhause', [
     t('Ganzkörper', [1, 3, 5], [['liegestuetz', 4, 8, 15], ['ausfallGehend', 3, 12, 20], ['dipsTrizeps', 3, 8, 12], ['hyper', 3, 12, 15], ['bergsteiger', 3, 20, 30], ['crunch', 3, 15, 20]])]],
+  ['m-gk2', 'Ganzkörper 2 Tage', 'm', 'einsteiger', 'fit', 'studio', [
+    t('Ganzkörper A', [2], [['kniebeuge', 3, 6, 10], ['bank', 3, 6, 10], ['latzug', 3, 8, 12], ['ohpKH', 3, 8, 12], ['beinbeugerLiegend', 3, 10, 12], ['crunch', 3, 12, 15]]),
+    t('Ganzkörper B', [5], [['kreuzheben', 3, 5, 8], ['schraegKH', 3, 8, 12], ['rudernKabel', 3, 8, 12], ['beinpresse', 3, 10, 12], ['seitheben', 3, 12, 15], ['beinheben', 3, 10, 15]])]],
+  ['m-gk5', 'Ganzkörper 5 Tage', 'm', 'fortgeschritten', 'muskeln', 'studio', [
+    t('Tag 1', [1], [['kniebeuge', 3, 5, 8], ['bank', 3, 5, 8], ['latzug', 3, 10, 12], ['seitheben', 3, 12, 15]]),
+    t('Tag 2', [2], [['rdl', 3, 8, 10], ['ohp', 3, 6, 8], ['rudernKabel', 3, 10, 12], ['curlSZ', 3, 10, 12]]),
+    t('Tag 3', [3], [['beinpresse', 3, 10, 12], ['schraegKH', 3, 8, 12], ['klimmzug', 3, 6, 10], ['pushdown', 3, 10, 12]]),
+    t('Tag 4', [5], [['hack', 3, 8, 12], ['dipsBrust', 3, 8, 12], ['tbar', 3, 8, 12], ['rearRow', 3, 12, 15]]),
+    t('Tag 5', [6], [['beinbeugerSitzend', 3, 10, 12], ['maschBrust', 3, 10, 12], ['latzugParallel', 3, 10, 12], ['hammer', 3, 10, 12], ['wadenStehend', 3, 12, 15]])]],
+  ['m-stufen4', 'Linear in drei Stufen', 'm', 'einsteiger', 'kraft', 'studio', [
+    t('Kniebeuge schwer', [1], [['kniebeuge', 5, 3, 3], ['bank', 3, 10, 10], ['latzug', 3, 15, 15]]),
+    t('Drücken schwer', [2], [['ohp', 5, 3, 3], ['kreuzheben', 3, 10, 10], ['rudernKH', 3, 15, 15]]),
+    t('Bank schwer', [4], [['bank', 5, 3, 3], ['kniebeuge', 3, 10, 10], ['latzugV', 3, 15, 15]]),
+    t('Kreuzheben schwer', [5], [['kreuzheben', 5, 3, 3], ['ohp', 3, 10, 10], ['rudernKabel', 3, 15, 15]])]],
+  ['m-volumen4', 'Hauptlift plus 5 × 10', 'm', 'mittel', 'kraft', 'studio', [
+    t('Überkopfdrücken', [1], [['ohp', 3, 3, 5], ['ohpKH', 5, 10, 10], ['chinup', 5, 8, 10]]),
+    t('Kreuzheben', [2], [['kreuzheben', 3, 3, 5], ['rdl', 5, 10, 10], ['beinheben', 5, 10, 15]]),
+    t('Bankdrücken', [4], [['bank', 3, 3, 5], ['bankKH', 5, 10, 10], ['rudernKH', 5, 10, 10]]),
+    t('Kniebeuge', [5], [['kniebeuge', 3, 3, 5], ['beinpresse', 5, 10, 10], ['beinbeugerLiegend', 5, 10, 10]])]],
+  ['m-schwerleicht3', 'Viel, leicht, Rekord', 'm', 'mittel', 'kraft', 'studio', [
+    t('Viel', [1], [['kniebeuge', 5, 5, 5], ['bank', 5, 5, 5], ['pendlay', 5, 5, 5]]),
+    t('Leicht', [3], [['frontKniebeuge', 2, 5, 5], ['ohp', 3, 5, 5], ['chinup', 3, 6, 10], ['hyper', 3, 10, 12]]),
+    t('Rekord', [5], [['kniebeuge', 1, 5, 5], ['bank', 1, 5, 5], ['kreuzheben', 1, 5, 5], ['dipsTrizeps', 3, 8, 12]])]],
+  ['m-dreikampf3', 'Kraftdreikampf', 'm', 'fortgeschritten', 'kraft', 'studio', [
+    t('Kniebeuge', [1], [['kniebeuge', 5, 3, 5], ['frontKniebeuge', 3, 5, 8], ['beinbeugerLiegend', 3, 8, 10], ['beinheben', 3, 10, 15]]),
+    t('Bankdrücken', [3], [['bank', 5, 3, 5], ['bankEng', 3, 6, 8], ['pendlay', 4, 5, 8], ['skull', 3, 8, 12]]),
+    t('Kreuzheben', [5], [['kreuzheben', 4, 2, 4], ['rackPull', 3, 4, 6], ['goodMorning', 3, 8, 10], ['klimmzug', 3, 6, 10]])]],
+  ['m-oben4', 'Oberkörper Fokus', 'm', 'mittel', 'muskeln', 'studio', [
+    t('Brust und Rücken', [1], [['bank', 4, 6, 8], ['tbar', 4, 8, 10], ['schraegKH', 3, 8, 12], ['latzugParallel', 3, 10, 12], ['butterfly', 3, 12, 15]]),
+    t('Beine', [2], unten),
+    t('Schultern und Arme', [4], [['ohp', 4, 6, 8], ['seitheben', 4, 12, 15], ['rearRow', 3, 12, 15], ['curlSZ', 3, 8, 12], ['pushdownV', 3, 10, 12]]),
+    t('Oberkörper leicht', [6], [['maschBrust', 3, 10, 15], ['rudernMaschine', 3, 10, 15], ['maschSchulter', 3, 10, 15], ['curlKabel', 3, 12, 15], ['ueberkopfTrizeps', 3, 12, 15]])]],
+  ['m-arme4', 'Arme Fokus', 'm', 'mittel', 'muskeln', 'studio', [
+    t('Arme schwer', [1], [['bankEng', 4, 6, 8], ['curlLH', 4, 6, 8], ['dipsTrizeps', 3, 8, 12], ['hammer', 3, 8, 12], ['unterarm', 3, 12, 15]]),
+    t('Beine', [2], unten),
+    t('Brust, Rücken, Schultern', [4], [['bank', 3, 6, 10], ['klimmzug', 3, 6, 10], ['ohpKH', 3, 8, 10], ['rudernKabel', 3, 10, 12], ['seitheben', 3, 12, 15]]),
+    t('Arme leicht', [5], [['skull', 3, 10, 12], ['preacher', 3, 10, 12], ['pushdown', 3, 12, 15], ['curlSchraeg', 3, 12, 15], ['konzentration', 2, 12, 15], ['kickbackKH', 2, 12, 15]])]],
+  ['m-ruecken5', 'Breiter Rücken', 'm', 'fortgeschritten', 'muskeln', 'studio', [
+    t('Rücken Breite', [1], [['klimmzug', 4, 6, 10], ['latzug', 3, 10, 12], ['latzugParallel', 3, 10, 12], ['ueberzug', 3, 12, 15], ['curlSZ', 3, 8, 12]]),
+    t('Brust und Schultern', [2], [['bank', 4, 6, 8], ['ohpKH', 3, 8, 10], ['kabelFly', 3, 12, 15], ['seitheben', 3, 12, 15], ['pushdown', 3, 10, 12]]),
+    t('Beine', [3], beine),
+    t('Rücken Dicke', [5], [['pendlay', 4, 5, 8], ['tbar', 3, 8, 10], ['rudernKabel', 3, 10, 12], ['rearRow', 3, 12, 15], ['shrugs', 3, 10, 12], ['hammer', 3, 10, 12]]),
+    t('Oberkörper leicht', [6], [['schraegKH', 3, 10, 12], ['rudernMaschine', 3, 10, 12], ['maschSchulter', 3, 10, 12], ['hyper', 3, 12, 15]])]],
+  ['m-brust4', 'Brust Fokus', 'm', 'mittel', 'muskeln', 'studio', [
+    t('Brust schwer', [1], [['bank', 5, 4, 6], ['schraegLH', 4, 6, 8], ['dipsBrust', 3, 8, 12], ['pushdown', 3, 10, 12]]),
+    t('Rücken und Bizeps', [2], [['rudernLH', 4, 6, 8], ['latzug', 3, 10, 12], ['rearRow', 3, 12, 15], ['curlLH', 3, 8, 12]]),
+    t('Beine', [4], beineB),
+    t('Brust leicht und Schultern', [5], [['schraegKH', 4, 10, 12], ['maschBrust', 3, 12, 15], ['kabelFly', 3, 12, 15], ['ohpKH', 3, 8, 10], ['seitheben', 3, 12, 15]])]],
+  ['m-masch3', 'Nur Maschinen', 'm', 'einsteiger', 'muskeln', 'studio', [
+    t('Drücken', [1], [['maschBrust', 3, 10, 12], ['maschSchulter', 3, 10, 12], ['butterfly', 3, 12, 15], ['pushdown', 3, 12, 15]]),
+    t('Ziehen', [3], [['latzug', 3, 10, 12], ['rudernMaschine', 3, 10, 12], ['rearRow', 3, 12, 15], ['curlKabel', 3, 12, 15], ['rueckenstrecker', 3, 12, 15]]),
+    t('Beine', [5], [['beinpresse', 4, 10, 12], ['beinstrecker', 3, 12, 15], ['beinbeugerSitzend', 3, 12, 15], ['abduktion', 2, 15, 20], ['adduktion', 2, 15, 20], ['wadenSitzend', 3, 12, 15]])]],
+  ['m-athletik4', 'Athletik', 'm', 'mittel', 'fit', 'studio', [
+    t('Explosiv', [1], [['cleanPress', 5, 3, 5], ['sprung', 4, 5, 8], ['kbSwing', 4, 12, 15], ['beinheben', 3, 10, 15]]),
+    t('Oberkörper', [2], [['klimmzug', 4, 6, 10], ['dipsBrust', 4, 8, 12], ['invRow', 3, 10, 12], ['liegestuetz', 3, 12, 20], ['farmer', 3, 20, 30]]),
+    t('Beine', [4], [['frontKniebeuge', 4, 5, 8], ['einbeinRdl', 3, 8, 10], ['ausfallGehend', 3, 12, 16], ['eselWaden', 3, 15, 20]]),
+    t('Ausdauer', [5], [['kbSwing', 5, 15, 20], ['burpee', 4, 10, 15], ['bergsteiger', 4, 20, 30], ['russianTwist', 3, 15, 20], ['hyper', 3, 12, 15]])]],
+  ['m-def4', 'Definieren 4 Tage', 'm', 'mittel', 'definieren', 'studio', [
+    t('Oberkörper Kraft', [1], [['bank', 4, 5, 8], ['rudernLH', 4, 5, 8], ['ohpKH', 3, 8, 10], ['klimmzug', 3, 6, 10]]),
+    t('Unterkörper Kraft', [2], [['kniebeuge', 4, 5, 8], ['rdl', 3, 8, 10], ['beinpresse', 3, 10, 12], ['wadenStehend', 3, 12, 15]]),
+    t('Oberkörper Zirkel', [4], [['schraegKH', 3, 12, 15], ['rudernKabel', 3, 12, 15], ['seitheben', 3, 15, 20], ['pushdown', 3, 15, 20], ['curlKabel', 3, 15, 20], ['bergsteiger', 3, 20, 30]]),
+    t('Unterkörper Zirkel', [5], [['goblet', 3, 12, 15], ['ausfallGehend', 3, 12, 16], ['beinbeugerSitzend', 3, 12, 15], ['kbSwing', 3, 15, 20], ['beinheben', 3, 10, 15], ['burpee', 3, 10, 12]])]],
+  ['m-def3', 'Definieren Zirkel', 'm', 'einsteiger', 'definieren', 'studio', [
+    t('Zirkel A', [1], [['goblet', 3, 12, 15], ['liegestuetz', 3, 10, 15], ['rudernKabel', 3, 12, 15], ['kbSwing', 3, 15, 20], ['crunch', 3, 15, 20]]),
+    t('Zirkel B', [3], [['beinpresse', 3, 12, 15], ['maschBrust', 3, 12, 15], ['latzug', 3, 12, 15], ['burpee', 3, 8, 12], ['russianTwist', 3, 15, 20]]),
+    t('Zirkel C', [5], [['ausfallKH', 3, 12, 16], ['ohpKH', 3, 10, 12], ['invRow', 3, 10, 12], ['bergsteiger', 3, 20, 30], ['reverseCrunch', 3, 12, 15]])]],
+  ['m-kh2', 'Kurzhanteln 2 Tage', 'm', 'einsteiger', 'fit', 'kurzhantel', [
+    t('Tag A', [2], [['kniebeugeKH', 3, 10, 12], ['bankKH', 3, 8, 12], ['rudernKH', 3, 10, 12], ['seitheben', 3, 12, 15], ['crunch', 3, 12, 15]]),
+    t('Tag B', [5], [['kreuzhebenKH', 3, 8, 12], ['ohpStehendKH', 3, 8, 12], ['ueberzug', 3, 10, 12], ['ausfallKH', 3, 10, 12], ['hammer', 3, 10, 12]])]],
+  ['m-kh4', 'Kurzhanteln Ober / Unter', 'm', 'mittel', 'muskeln', 'kurzhantel', [
+    t('Oberkörper A', [1], [['bankKH', 4, 8, 12], ['rudernKH', 4, 8, 12], ['ohpKH', 3, 8, 12], ['hammer', 3, 10, 12], ['kickbackKH', 3, 12, 15]]),
+    t('Unterkörper A', [2], [['goblet', 4, 10, 12], ['rdlKH', 4, 10, 12], ['ausfallKH', 3, 10, 12], ['wadenKH', 4, 15, 20]]),
+    t('Oberkörper B', [4], [['schraegKH', 4, 8, 12], ['ueberzug', 3, 10, 12], ['arnold', 3, 8, 12], ['reverseFlyKH', 3, 12, 15], ['curlSchraeg', 3, 10, 12]]),
+    t('Unterkörper B', [5], [['splitSquatKH', 3, 8, 10], ['einbeinRdl', 3, 8, 10], ['stepUp', 3, 10, 12], ['kniebeugeKH', 3, 12, 15], ['russianTwist', 3, 15, 20]])]],
+  ['m-kh5', 'Kurzhanteln 5 Tage', 'm', 'fortgeschritten', 'muskeln', 'kurzhantel', [
+    t('Push', [1], [['bankKH', 4, 8, 12], ['schraegKH', 3, 8, 12], ['ohpKH', 3, 8, 12], ['seitheben', 4, 12, 15], ['kickbackKH', 3, 12, 15]]),
+    t('Pull', [2], [['rudernKH', 4, 8, 12], ['ueberzug', 3, 10, 12], ['reverseFlyKH', 3, 12, 15], ['hammer', 3, 10, 12], ['konzentration', 3, 10, 12]]),
+    t('Beine', [3], [['goblet', 4, 10, 12], ['rdlKH', 4, 10, 12], ['splitSquatKH', 3, 8, 10], ['wadenKH', 4, 15, 20]]),
+    t('Oberkörper', [5], [['arnold', 4, 8, 12], ['fliegende', 3, 10, 12], ['rudernKH', 3, 10, 12], ['frontheben', 3, 12, 15], ['curlSchraeg', 3, 10, 12]]),
+    t('Unterkörper', [6], [['kreuzhebenKH', 4, 8, 12], ['ausfallKH', 3, 10, 12], ['stepUp', 3, 10, 12], ['einbeinRdl', 3, 8, 10], ['crunch', 3, 15, 20]])]],
+  ['m-kg4', 'Ohne Geräte Ober / Unter', 'm', 'mittel', 'fit', 'zuhause', [
+    t('Oberkörper A', [1], [['liegestuetz', 4, 8, 15], ['invRow', 4, 8, 12], ['bankdip', 3, 10, 15], ['crunch', 3, 15, 20]]),
+    t('Unterkörper A', [2], [['sprung', 4, 10, 15], ['ausfallGehend', 3, 12, 20], ['einbeinBruecke', 3, 10, 15], ['eselWaden', 3, 15, 25]]),
+    t('Oberkörper B', [4], [['klimmzug', 4, 4, 10], ['dipsTrizeps', 3, 6, 12], ['liegestuetz', 3, 10, 20], ['reverseCrunch', 3, 12, 15]]),
+    t('Unterkörper B', [5], [['curtsey', 3, 12, 16], ['bruecke', 3, 15, 20], ['bergsteiger', 3, 20, 30], ['burpee', 3, 8, 12], ['hyper', 3, 12, 15]])]],
 
   ['w-glutes3', 'Glutes 3 Tage', 'w', 'einsteiger', 'muskeln', 'studio', [t('Glutes A', [1], [...glutes, ['latzug', 3, 10, 12]]), t('Glutes B', [3], [...glutesB, ['ohpKH', 3, 10, 12]]), t('Glutes C', [5], [...poBeuger, ['rudernKabel', 3, 10, 12]])]],
   ['w-glutes4', 'Glutes Fokus', 'w', 'mittel', 'muskeln', 'studio', [t('Glutes schwer', [1], glutes), t('Oberkörper', [2], obenW), t('Beine', [4], quadsPo), t('Glutes leicht', [6], glutesB)]],
@@ -119,6 +216,86 @@ const SPLITS = [
   ['w-kh3', 'Zuhause mit Kurzhanteln', 'w', 'einsteiger', 'fit', 'kurzhantel', [t('Tag A', [1], [['goblet', 4, 10, 12], ['rdlKH', 3, 10, 12], ['rudernKH', 3, 10, 12], ['ohpStehendKH', 3, 10, 12], ['crunch', 3, 12, 15]]), t('Tag B', [3], khB), t('Tag C', [5], khC)]],
   ['w-kg3', 'Zuhause ohne Geräte', 'w', 'einsteiger', 'fit', 'zuhause', [
     t('Ganzkörper', [1, 3, 5], [['ausfallGehend', 3, 12, 20], ['liegestuetz', 3, 5, 12], ['hyper', 3, 12, 15], ['reverseCrunch', 3, 12, 15], ['bergsteiger', 3, 20, 30], ['russianTwist', 3, 15, 20]])]],
+  ['w-gk2', 'Ganzkörper 2 Tage', 'w', 'einsteiger', 'fit', 'studio', [
+    t('Ganzkörper A', [2], [['beinpresse', 3, 10, 12], ['gesaessbruecke', 3, 10, 12], ['latzug', 3, 10, 12], ['maschBrust', 3, 10, 12], ['crunch', 3, 12, 15]]),
+    t('Ganzkörper B', [5], [['goblet', 3, 10, 12], ['rdlKH', 3, 10, 12], ['rudernKabel', 3, 10, 12], ['ohpKH', 3, 10, 12], ['abduktion', 3, 15, 20]])]],
+  ['w-po3', 'Po Aufbau Start', 'w', 'einsteiger', 'muskeln', 'studio', [
+    t('Tag A', [1], [['bruecke', 3, 15, 20], ['goblet', 3, 10, 12], ['rudernKH', 3, 10, 12], ['seitAbduktion', 3, 15, 20], ['rueckenstrecker', 3, 12, 15]]),
+    t('Tag B', [3], [['brueckeBank', 3, 12, 15], ['stepUp', 3, 10, 12], ['latzug', 3, 10, 12], ['bankKH', 3, 10, 12], ['hipThrustBand', 3, 15, 20]]),
+    t('Tag C', [5], [['einbeinBruecke', 3, 10, 12], ['rdlKH', 3, 10, 12], ['maschSchulter', 3, 10, 12], ['curtsey', 3, 12, 15], ['reverseCrunch', 3, 12, 15]])]],
+  ['w-po4', 'Po Aufbau 4 Tage', 'w', 'fortgeschritten', 'muskeln', 'studio', [
+    t('Po schwer', [1], [['gesaessbruecke', 5, 6, 8], ['kniebeuge', 4, 6, 8], ['reverseHyper', 3, 10, 12], ['kickbackKabel', 3, 12, 15], ['klimmzugHilfe', 3, 6, 10]]),
+    t('Po und Rücken', [2], [['rdl', 4, 8, 10], ['splitSquatKH', 3, 8, 10], ['rudernKabel', 3, 10, 12], ['abduktion', 4, 15, 20], ['rearRow', 3, 12, 15]]),
+    t('Po Pump', [4], [['hueftheben', 4, 12, 15], ['sumoMulti', 3, 10, 12], ['pullThrough', 3, 12, 15], ['hipThrustBand', 3, 20, 25], ['ohpKH', 3, 10, 12]]),
+    t('Beine und Bauch', [6], [['beinpresse', 4, 10, 12], ['stepUpLH', 3, 10, 12], ['beinbeugerLiegend', 3, 10, 12], ['adduktion', 3, 15, 20], ['beinheben', 3, 10, 15]])]],
+  ['w-masch3', 'Nur Maschinen', 'w', 'einsteiger', 'muskeln', 'studio', [
+    t('Beine und Po', [1], [['beinpresse', 4, 10, 12], ['beinbeugerSitzend', 3, 12, 15], ['beinstrecker', 3, 12, 15], ['abduktion', 3, 15, 20], ['adduktion', 3, 15, 20]]),
+    t('Oberkörper', [3], [['latzug', 3, 10, 12], ['maschBrust', 3, 10, 12], ['rudernMaschine', 3, 10, 12], ['maschSchulter', 3, 10, 12], ['rueckenstrecker', 3, 12, 15]]),
+    t('Po und Bauch', [5], [['kniebeugeMulti', 3, 10, 12], ['kickbackKabel', 3, 12, 15], ['reverseHyper', 3, 12, 15], ['abduktion', 3, 15, 20], ['crunch', 3, 15, 20]])]],
+  ['w-straff4', 'Straff 4 Tage', 'w', 'mittel', 'definieren', 'studio', [
+    t('Beine Kraft', [1], [['kniebeugeMulti', 4, 8, 10], ['rdl', 3, 8, 10], ['beinpresse', 3, 10, 12], ['wadenStehend', 3, 12, 15]]),
+    t('Oberkörper Kraft', [2], [['latzug', 4, 8, 10], ['schraegKH', 3, 8, 10], ['rudernKH', 3, 10, 12], ['seitheben', 3, 12, 15]]),
+    t('Zirkel unten', [4], [['goblet', 3, 15, 20], ['kbSwing', 3, 15, 20], ['ausfallGehend', 3, 12, 16], ['sprung', 3, 10, 15], ['bergsteiger', 3, 20, 30]]),
+    t('Zirkel oben und Bauch', [5], [['liegestuetz', 3, 6, 12], ['invRow', 3, 8, 12], ['ohpStehendKH', 3, 12, 15], ['russianTwist', 3, 15, 20], ['reverseCrunch', 3, 12, 15], ['burpee', 3, 8, 10]])]],
+  ['w-straff3', 'Straff Zirkel', 'w', 'einsteiger', 'definieren', 'studio', [
+    t('Zirkel A', [1], [['goblet', 3, 12, 15], ['latzug', 3, 12, 15], ['bruecke', 3, 15, 20], ['bergsteiger', 3, 20, 30], ['crunch', 3, 15, 20]]),
+    t('Zirkel B', [3], [['beinpresse', 3, 12, 15], ['maschBrust', 3, 12, 15], ['kbSwing', 3, 15, 20], ['seitAbduktion', 3, 15, 20], ['russianTwist', 3, 15, 20]]),
+    t('Zirkel C', [5], [['stepUp', 3, 12, 15], ['rudernKabel', 3, 12, 15], ['curtsey', 3, 12, 15], ['ohpKH', 3, 12, 15], ['reverseCrunch', 3, 12, 15]])]],
+  ['w-ppl6', 'Push Pull Beine 6 Tage', 'w', 'fortgeschritten', 'muskeln', 'studio', [
+    t('Beine Quads', [1], [['kniebeuge', 4, 6, 10], ['hack', 3, 10, 12], ['ausfallGehend', 3, 10, 12], ['beinstrecker', 3, 12, 15], ['wadenStehend', 3, 12, 15]]),
+    t('Push', [2], [['schraegKH', 3, 8, 12], ['maschSchulter', 3, 10, 12], ['seitheben', 4, 12, 15], ['butterfly', 3, 12, 15], ['pushdown', 3, 12, 15]]),
+    t('Pull', [3], [['klimmzugHilfe', 3, 6, 10], ['rudernKabel', 3, 10, 12], ['latzugParallel', 3, 10, 12], ['rearRow', 3, 12, 15], ['curlKabel', 3, 12, 15]]),
+    t('Beine Po', [4], [['gesaessbruecke', 4, 8, 12], ['rdl', 3, 8, 10], ['beinbeugerLiegend', 3, 10, 12], ['kickbackKabel', 3, 12, 15], ['abduktion', 3, 15, 20]]),
+    t('Push leicht', [5], [['ohpKH', 3, 10, 12], ['maschBrust', 3, 12, 15], ['seithebenKabel', 3, 12, 15], ['ueberkopfTrizeps', 3, 12, 15], ['crunch', 3, 15, 20]]),
+    t('Pull leicht', [6], [['latzug', 3, 10, 12], ['rudernMaschine', 3, 10, 12], ['reverseFly', 3, 12, 15], ['hammer', 3, 12, 15], ['hyper', 3, 12, 15]])]],
+  ['w-kraft3', 'Stark werden', 'w', 'einsteiger', 'kraft', 'studio', [
+    t('Kniebeuge', [1], [['kniebeuge', 3, 5, 5], ['ohp', 3, 5, 5], ['latzug', 3, 8, 10], ['hyper', 3, 10, 12]]),
+    t('Bankdrücken', [3], [['bank', 3, 5, 5], ['rdl', 3, 6, 8], ['rudernKabel', 3, 8, 10], ['beinheben', 3, 8, 12]]),
+    t('Kreuzheben', [5], [['kreuzheben', 3, 5, 5], ['frontKniebeuge', 3, 5, 8], ['klimmzugHilfe', 3, 5, 8], ['gesaessbruecke', 3, 8, 10]])]],
+  ['w-kraft4', 'Kraft Ober / Unter', 'w', 'mittel', 'kraft', 'studio', [
+    t('Unterkörper Kraft', [1], [['kniebeuge', 4, 4, 6], ['gesaessbruecke', 4, 5, 8], ['beinbeugerLiegend', 3, 8, 10], ['wadenStehend', 3, 10, 12]]),
+    t('Oberkörper Kraft', [2], [['bank', 4, 4, 6], ['rudernLH', 4, 5, 8], ['ohpKH', 3, 6, 8], ['klimmzugHilfe', 3, 5, 8]]),
+    t('Unterkörper Volumen', [4], [['sumoKreuzheben', 3, 5, 8], ['beinpresse', 3, 10, 12], ['ausfallKH', 3, 10, 12], ['abduktion', 3, 15, 20]]),
+    t('Oberkörper Volumen', [5], [['schraegKH', 3, 8, 12], ['latzug', 3, 10, 12], ['seitheben', 3, 12, 15], ['rearRow', 3, 12, 15], ['pushdown', 3, 12, 15]])]],
+  ['w-haltung3', 'Rücken und Haltung', 'w', 'einsteiger', 'fit', 'studio', [
+    t('Rücken', [1], [['latzug', 3, 10, 12], ['rudernKabel', 3, 10, 12], ['rearRow', 3, 12, 15], ['rueckenstrecker', 3, 12, 15], ['reverseCrunch', 3, 12, 15]]),
+    t('Beine und Po', [3], [['goblet', 3, 10, 12], ['rdlKH', 3, 10, 12], ['bruecke', 3, 15, 20], ['seitAbduktion', 3, 15, 20]]),
+    t('Schultern und Rumpf', [5], [['ohpKH', 3, 10, 12], ['reverseFly', 3, 12, 15], ['invRow', 3, 8, 12], ['hyper', 3, 12, 15], ['russianTwist', 3, 15, 20]])]],
+  ['w-taille4', 'Bauch und Taille', 'w', 'mittel', 'definieren', 'studio', [
+    t('Bauch und Beine', [1], [['beinpresse', 3, 10, 12], ['beinheben', 3, 10, 15], ['russianTwist', 3, 15, 20], ['ausfallGehend', 3, 12, 16]]),
+    t('Rücken und Schultern', [2], [['latzug', 4, 10, 12], ['seitheben', 4, 12, 15], ['rudernKabel', 3, 10, 12], ['reverseFly', 3, 12, 15]]),
+    t('Bauch und Po', [4], [['gesaessbruecke', 4, 10, 12], ['reverseCrunch', 3, 12, 15], ['kickbackKabel', 3, 12, 15], ['crunch', 3, 15, 20], ['bergsteiger', 3, 20, 30]]),
+    t('Ganzkörper leicht', [6], [['goblet', 3, 12, 15], ['maschBrust', 3, 12, 15], ['latzugParallel', 3, 12, 15], ['kbSwing', 3, 15, 20]])]],
+  ['w-innen4', 'Beine innen und außen', 'w', 'mittel', 'muskeln', 'studio', [
+    t('Beine außen und Po', [1], [['gesaessbruecke', 4, 8, 12], ['abduktion', 4, 15, 20], ['curtsey', 3, 12, 15], ['kickbackKabel', 3, 12, 15]]),
+    t('Oberkörper', [2], obenW),
+    t('Beine innen', [4], [['sumoMulti', 4, 10, 12], ['adduktion', 4, 15, 20], ['adduktionKabel', 3, 12, 15], ['beinbeugerSitzend', 3, 10, 12], ['wadenSitzend', 3, 12, 15]]),
+    t('Po und Bauch', [5], [['hueftheben', 3, 12, 15], ['stepUp', 3, 10, 12], ['seitAbduktion', 3, 15, 20], ['beinheben', 3, 10, 15]])]],
+  ['w-gk5', 'Ganzkörper 5 Tage kurz', 'w', 'mittel', 'fit', 'studio', [
+    t('Tag 1', [1], [['kniebeugeMulti', 3, 8, 12], ['latzug', 3, 10, 12], ['crunch', 3, 15, 20]]),
+    t('Tag 2', [2], [['gesaessbruecke', 3, 8, 12], ['ohpKH', 3, 10, 12], ['abduktion', 3, 15, 20]]),
+    t('Tag 3', [3], [['beinpresse', 3, 10, 12], ['rudernKabel', 3, 10, 12], ['reverseCrunch', 3, 12, 15]]),
+    t('Tag 4', [4], [['rdlKH', 3, 10, 12], ['maschBrust', 3, 10, 12], ['seitheben', 3, 12, 15]]),
+    t('Tag 5', [5], [['stepUp', 3, 10, 12], ['klimmzugHilfe', 3, 6, 10], ['kickbackKabel', 3, 12, 15]])]],
+  ['w-kh2', 'Kurzhanteln 2 Tage', 'w', 'einsteiger', 'fit', 'kurzhantel', [
+    t('Tag A', [2], [['goblet', 3, 10, 12], ['rudernKH', 3, 10, 12], ['bruecke', 3, 15, 20], ['ohpStehendKH', 3, 10, 12], ['crunch', 3, 12, 15]]),
+    t('Tag B', [5], [['kreuzhebenKH', 3, 10, 12], ['bankKH', 3, 10, 12], ['stepUp', 3, 10, 12], ['seitheben', 3, 12, 15], ['russianTwist', 3, 15, 20]])]],
+  ['w-kh4', 'Kurzhanteln Po und Oberkörper', 'w', 'mittel', 'muskeln', 'kurzhantel', [
+    t('Po und Beinbeuger', [1], [['rdlKH', 4, 10, 12], ['einbeinRdl', 3, 8, 10], ['einbeinBruecke', 3, 10, 12], ['seitAbduktion', 3, 15, 20]]),
+    t('Oberkörper A', [2], [['ohpKH', 3, 10, 12], ['rudernKH', 3, 10, 12], ['seitheben', 3, 12, 15], ['kickbackKH', 3, 12, 15]]),
+    t('Quads und Po', [4], [['goblet', 4, 10, 12], ['splitSquatKH', 3, 8, 10], ['stepUp', 3, 10, 12], ['wadenKH', 3, 15, 20]]),
+    t('Oberkörper B', [5], [['schraegKH', 3, 10, 12], ['ueberzug', 3, 10, 12], ['reverseFlyKH', 3, 12, 15], ['hammer', 3, 12, 15], ['reverseCrunch', 3, 12, 15]])]],
+  ['w-kg4', 'Ohne Geräte Po und Bauch', 'w', 'einsteiger', 'definieren', 'zuhause', [
+    t('Po', [1], [['bruecke', 4, 15, 20], ['curtsey', 3, 12, 15], ['seitAbduktion', 3, 15, 20], ['einbeinBruecke', 3, 10, 12]]),
+    t('Bauch', [2], [['crunch', 3, 15, 20], ['reverseCrunch', 3, 12, 15], ['russianTwist', 3, 15, 20], ['bergsteiger', 3, 20, 30]]),
+    t('Beine', [4], [['ausfallGehend', 3, 12, 20], ['sprung', 3, 10, 15], ['brueckeBank', 3, 12, 15], ['eselWaden', 3, 15, 25]]),
+    t('Oberkörper und Bauch', [5], [['liegestuetz', 3, 5, 12], ['bankdip', 3, 8, 12], ['hyper', 3, 12, 15], ['beinheben', 3, 8, 12]])]],
+  ['w-kg5', 'Ohne Geräte jeden Werktag', 'w', 'mittel', 'fit', 'zuhause', [
+    t('Po', [1], [['einbeinBruecke', 4, 10, 15], ['curtsey', 3, 12, 16], ['seitAbduktion', 3, 15, 20]]),
+    t('Oberkörper', [2], [['liegestuetz', 4, 5, 12], ['bankdip', 3, 8, 12], ['hyper', 3, 12, 15]]),
+    t('Bauch', [3], [['reverseCrunch', 3, 12, 15], ['russianTwist', 3, 15, 20], ['crunch', 3, 15, 20]]),
+    t('Beine', [4], [['ausfallGehend', 4, 12, 20], ['sprung', 3, 10, 15], ['eselWaden', 3, 15, 25]]),
+    t('Zirkel', [5], [['burpee', 3, 8, 12], ['bergsteiger', 3, 20, 30], ['bruecke', 3, 15, 20], ['liegestuetz', 3, 5, 10]])]],
 ];
 
 const fehler = [];
