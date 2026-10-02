@@ -373,46 +373,6 @@ private struct KoerperAuswahl: Identifiable {
 
 private struct StimmungSetzen: Codable { var datum: String; var stimmung: String }
 
-/// Zahlenfeld für das Gewicht. "78,4" wird als 784 Zehntel-kg gespeichert (`GewichtText`).
-private struct GewichtBlatt: View {
-    let speichern: (Int) -> Void
-    @State private var text: String
-    @Environment(\.dismiss) private var dismiss
-    @FocusState private var fokus: Bool
-
-    init(start: String, speichern: @escaping (Int) -> Void) {
-        self.speichern = speichern
-        _text = State(initialValue: start)
-    }
-
-    private var zehntel: Int? { GewichtText.zehntel(text) }
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                TextField("Gewicht in kg", text: $text)
-                    .keyboardType(.decimalPad)
-                    .focused($fokus)
-                    .accessibilityLabel("Gewicht in Kilogramm")
-            }
-            .navigationTitle("Gewicht")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Sichern") {
-                        if let zehntel { speichern(zehntel) }
-                        dismiss()
-                    }
-                    .disabled(zehntel == nil)
-                }
-            }
-            .onAppear { fokus = true }
-        }
-        .presentationDetents([.medium])
-    }
-}
-
 // MARK: - Tab
 
 /// Der Health-Tab (Ahmed, 27.09.: ein Health statt vier Tabs). Training, Körper, Verlauf, Schritte, Food und
@@ -503,7 +463,7 @@ struct HeuteView: View {
             .sheet(isPresented: $befragung) { ZieleBefragung() }
             .sheet(isPresented: $freitextOffen) { FreitextBlatt(tag: heute) }
             .sheet(isPresented: $gewichtOffen) {
-                GewichtBlatt(start: gewichte.last.map { komma(Double($0.zehntel) / 10) } ?? "") {
+                GewichtBlatt(werte: health.habitWerte(Habit.gewicht.id, ich)) {
                     health.setzeHabit(Habit.gewicht.id, datum: heute, wert: $0)
                 }
             }

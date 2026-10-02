@@ -199,4 +199,35 @@ enum GewichtLogik {
         let fenster = gueltig.filter { $0.key >= ab }.map(\.value)
         return Int((Double(fenster.reduce(0, +)) / Double(fenster.count)).rounded())
     }
+
+    /// Plus/Minus im Feld: Text plus `delta` Zehntel als Feldtext, zwischen 0,1 und 999,9. Kein Zahlentext: nil.
+    static func schritt(_ eingabe: String, _ delta: Int) -> String? {
+        guard let zehntel = GewichtText.zehntel(eingabe) else { return nil }
+        return GewichtText.feld(min(max(zehntel + delta, 1), 9999))
+    }
+
+    /// Letzte Messung minus die Messung davor (Zehntel-kg) und der Tag der Messung davor. Unter zwei Messungen: nil.
+    static func aenderung(_ werte: [String: Int]) -> (zehntel: Int, seit: String)? {
+        let punkte = MessLogik.punkte(werte)
+        guard punkte.count >= 2 else { return nil }
+        let (davor, zuletzt) = (punkte[punkte.count - 2], punkte[punkte.count - 1])
+        return (zuletzt.zehntel - davor.zehntel, davor.tag)
+    }
+
+    /// Je Messtag der Schnitt aller Messungen der 7 Tage bis zu diesem Tag (Lücken zählen nicht mit), älteste zuerst.
+    /// ponytail: je Tag ein Durchlauf, reicht für ein paar hundert Messungen.
+    static func mittelReihe(_ werte: [String: Int]) -> [GewichtMittel] {
+        let punkte = MessLogik.punkte(werte)
+        return punkte.map { p in
+            let ab = Datum.addTage(p.tag, -6)
+            let fenster = punkte.filter { $0.tag >= ab && $0.tag <= p.tag }.map(\.zehntel)
+            return GewichtMittel(tag: p.tag, kg: Double(fenster.reduce(0, +)) / Double(fenster.count) / 10)
+        }
+    }
+}
+
+struct GewichtMittel: Identifiable, Equatable {
+    var tag: String
+    var kg: Double
+    var id: String { tag }
 }
