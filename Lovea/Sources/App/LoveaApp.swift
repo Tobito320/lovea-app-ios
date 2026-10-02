@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct LoveaApp: App {
@@ -65,6 +66,7 @@ struct LoveaApp: App {
                     // pro Prozess, ist also ein no-op, wenn `didFinishLaunching` schon zählte.
                     StartProtokoll.unsauberZaehlen()
                     StartPuls.shared.starten()
+                    AppStart.erstesBildGezeigt()
                     if bericht != nil { berichtGezeigt = true }
                 }
                 .onChange(of: session.person, initial: true) { _, person in starten(person) }
@@ -122,6 +124,7 @@ struct LoveaApp: App {
             StartProtokoll.marke("workoutuhr.mitteilungLoeschen.nach")
         }
         if phase == .background {
+            AppStart.erstesBildGezeigt(wartezeit: .zero) // kam das erste Bild nie, wartende Start-Arbeit jetzt freigeben
             GalerieSync.shared.hintergrund()
             StartProtokoll.marke("workoutuhr.mitteilungPlanen.vor")
             WorkoutUhr.shared.mitteilungPlanen()
@@ -143,6 +146,30 @@ struct LoveaApp: App {
 @MainActor
 enum AppStart {
     private static var gefaltetFuer: Person?
+    private static var erstesBildGemeldet = false
+    private static var erstesBildDa = false
+    private static var wartende: [CheckedContinuation<Void, Never>] = []
+
+    /// Schneller Start (`StartPlan`): Arbeit, die erst nach dem ersten Bild nötig ist, wartet hier.
+    static func erstesBildAbwarten() async {
+        guard !erstesBildDa else { return }
+        await withCheckedContinuation { (fortsetzung: CheckedContinuation<Void, Never>) in
+            wartende.append(fortsetzung)
+        }
+    }
+
+    /// Von der Szene-`onAppear`. `wartezeit` lässt das Bild erst stehen (Schätzung, nicht gemessen).
+    static func erstesBildGezeigt(wartezeit: Duration = .seconds(1)) {
+        guard !erstesBildGemeldet else { return }
+        erstesBildGemeldet = true
+        Task { @MainActor in
+            if wartezeit > .zero { try? await Task.sleep(for: wartezeit) }
+            erstesBildDa = true
+            let liste = wartende
+            wartende = []
+            for fortsetzung in liste { fortsetzung.resume() }
+        }
+    }
 
     static func falten(_ person: Person) {
         Raum.shared.ich = person
@@ -157,13 +184,22 @@ enum AppStart {
         // es zum ersten Mal anfasste, dessen Fold-Beobachter war beim Replay also noch nicht
         // registriert und frühe Ernährungs-Ops wurden verpasst (zeigte "0 kcal" trotz echter Einträge).
         _ = ErnaehrungModell.shared
-        GalerieSync.shared.start()
+        let spaeter = StartPlan.zeitpunkt(schneller: StartPlan.an(), hintergrundStart: UIApplication.shared.applicationState == .background) == .nachErstemBild
+        StartProtokoll.marke("startplan.spaeter=\(spaeter)")
+        GalerieSync.shared.start(nachErstemBild: spaeter)
         // Kein Prompt hier (nur `sicherstellen()` vom Health-Tab darf fragen) — startet HealthKit-
         // Observer/Background-Delivery erneut, falls die Berechtigung früher schon erteilt wurde.
         // Die Replay-Kette existiert schon (Registrierung oben); `Raum.shared.leer()` im Handler wartet darauf.
         HealthModell.shared.beobachtenStartenFallsErlaubt()
         // Z-28.2: Widget-Stand-Schreiber, damit auch ein Hintergrund-Start das Widget aktualisiert.
-        WidgetStandSchreiber.shared.start()
+        if spaeter {
+            Task { @MainActor in
+                await erstesBildAbwarten()
+                WidgetStandSchreiber.shared.start()
+            }
+        } else {
+            WidgetStandSchreiber.shared.start()
+        }
     }
 }
 
