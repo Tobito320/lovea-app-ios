@@ -151,7 +151,7 @@ struct FigurEditorSeite: View {
 
     var body: some View {
         FigurEditor(start: FigurenModell.shared.aussehen(person)) { neu in
-            FigurenModell.shared.aussehenSichern(neu)
+            FigurenModell.shared.aussehenSichern(neu.mitShopTeilen(von: FigurenModell.shared.aussehen(person)))
             dismiss()
         }
         .navigationTitle("Figuren-Editor")

@@ -386,6 +386,20 @@ extension FigurAussehen {
     }
 }
 
+extension FigurAussehen {
+    /// The shop writes these straight into the model; the editor never edits them but holds an older
+    /// copy, so saving it would wipe a bag bought while the editor was open.
+    func mitShopTeilen(von aktuell: FigurAussehen) -> FigurAussehen {
+        var a = self
+        a.tasche = aktuell.tasche
+        a.uhr = aktuell.uhr
+        a.schmuck = aktuell.schmuck
+        a.pose = aktuell.pose
+        a.tier = aktuell.tier
+        return a
+    }
+}
+
 /// Which int field a "mode"/"brille" shop item sets (see `FigurAussehen.shopTeile`).
 /// ponytail: a plain enum instead of a `WritableKeyPath` — key paths carry Swift-6-Sendable risk
 /// in a static global table, and CI is the only compiler here, so the simpler type wins.
