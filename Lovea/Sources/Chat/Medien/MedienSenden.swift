@@ -175,6 +175,114 @@ enum ChatMedien {
         return id
     }
 
+    // MARK: - Video vorab (Schalter "Videos vorab hochladen (Test)", `VideoVorab`)
+    // Das gewählte Video wird schon im Anhang-Streifen kodiert und hochgeladen. Es kommt NICHT in den
+    // Entwurf (`entwurf.setzen`): die Wiederherstellung kennt nur Fotos und würde es als Foto senden.
+    // Beim Senden geht nur `nachricht.neu`; wurde der Anhang vorher entfernt, wird die Arbeit
+    // abgebrochen und aufgeräumt, es entsteht nie eine Nachricht.
+    // ponytail: die Kodierung selbst läuft nach einem Abbruch noch zu Ende (nicht abbrechbar ohne
+    // Gerätetest), nur der Upload startet dann nicht mehr. Der Chat ist ein Tab: der Anhang-Streifen
+    // überlebt einen Tabwechsel, also kein Abbruch bei `onDisappear`. Bleibt nur: App wird mitten im
+    // Upload beendet, dann setzt `Medien.fortsetzen` ihn einmal fort (Waise, keine Nachricht).
+
+    struct VideoVorabErgebnis: Sendable { let id: String; let ergebnis: MedienKodierung.Ergebnis; let hochgeladen: Bool }
+
+    private static var vorab: [UUID: Task<VideoVorabErgebnis?, Never>] = [:]
+    private static var vorabLaufende = 0
+
+    static func videoVorabStarten(anhang: UUID, quelle: URL) {
+        guard VideoVorab.starten(schalter: VideoVorab.an(), laufende: vorabLaufende) else { return }
+        vorabLaufende += 1
+        vorab[anhang] = Task<VideoVorabErgebnis?, Never> {
+            defer { vorabLaufende -= 1 }
+            return await videoVorabArbeit(quelle: quelle)
+        }
+    }
+
+    /// Kodieren, dann hochladen. `nil` = Kodierung gescheitert oder abgebrochen (dann ist schon aufgeräumt).
+    private static func videoVorabArbeit(quelle: URL) async -> VideoVorabErgebnis? {
+        let id = UUID().uuidString
+        let kodiert = await MedienKodierung.video(quelle, id: id)
+        guard let ergebnis = kodiert, !Task.isCancelled else {
+            videoVorabVerwerfen(id: id, ergebnis: kodiert)
+            return nil
+        }
+        eigeneQuellen[id] = ergebnis.original
+        var hochgeladen = false
+        do {
+            try await Medien.hochladen(id: id, original: ergebnis.original, klein: ergebnis.klein)
+            hochgeladen = true
+        } catch {
+            // stiller Rückfall: beim Senden geht die Op raus und der Upload läuft über die Warteschlange
+        }
+        if Task.isCancelled {
+            videoVorabVerwerfen(id: id, ergebnis: ergebnis)
+            return nil
+        }
+        return VideoVorabErgebnis(id: id, ergebnis: ergebnis, hochgeladen: hochgeladen)
+    }
+
+    /// Bricht jedes Vorab ab, dessen Anhang nicht mehr im Entwurf steht, und räumt auf.
+    static func videoVorabAufraeumen(behalten: Set<UUID>) {
+        for anhang in VideoVorab.abzubrechen(offen: Set(vorab.keys), imEntwurf: behalten) {
+            guard let task = vorab.removeValue(forKey: anhang) else { continue }
+            task.cancel()
+            // War es schon fertig, bevor das Abbrechen griff: das Ergebnis hier wegwerfen.
+            Task {
+                if let fertig = await task.value { videoVorabVerwerfen(id: fertig.id, ergebnis: fertig.ergebnis) }
+            }
+        }
+    }
+
+    /// Nimmt die laufenden Vorab-Aufträge der gesendeten Anhänge aus der Liste, damit
+    /// `videoVorabAufraeumen` sie nicht abbricht. Vor dem Leeren des Entwurfs aufrufen.
+    static func videoVorabAbholen(_ anhaenge: [UUID]) -> [UUID: Task<VideoVorabErgebnis?, Never>] {
+        var geholt: [UUID: Task<VideoVorabErgebnis?, Never>] = [:]
+        for anhang in anhaenge { geholt[anhang] = vorab.removeValue(forKey: anhang) }
+        return geholt
+    }
+
+    /// Ein Video aus dem Anhang-Streifen senden: mit fertigem Vorab nur die Op, mit laufendem warten
+    /// (ohne neu zu kodieren), sonst der heutige Weg.
+    static func videoVorabSenden(_ auftrag: Task<VideoVorabErgebnis?, Never>?, quelle: URL, antwortAuf: String?) async {
+        var stand: VideoVorab.Stand = auftrag == nil ? .keiner : .offen
+        var fertig: VideoVorabErgebnis?
+        if VideoVorab.weg(beimSenden: stand) == .aufEndeWarten, let auftrag {
+            fertig = await auftrag.value
+            stand = VideoVorab.stand(kodiert: fertig != nil, hochgeladen: fertig?.hochgeladen ?? false)
+        }
+        switch (VideoVorab.weg(beimSenden: stand), fertig) {
+        case (.nurOp, let f?):
+            ChatModell.shared.medienSenden(
+                [ChatModell.MedienEintrag(id: f.id, typ: "video", breite: f.ergebnis.breite, hoehe: f.ergebnis.hoehe, dauer: f.ergebnis.dauer, pegel: nil)],
+                antwortAuf: antwortAuf
+            )
+        case (.opDannHochladen, let f?):
+            await hochladenUndSenden(id: f.id, ergebnis: f.ergebnis, typ: "video", antwortAuf: antwortAuf)
+        default:
+            await anhaengeSenden([.video(quelle)], antwortAuf: antwortAuf)
+        }
+    }
+
+    /// Löscht, was ein verworfenes Vorab hinterlassen hat: Staging-Dateien, die Upload-Kopie
+    /// (`Sync/Medien.swift` legt sie unter `Lovea/medien/hochladen/<id>-<rolle>` ab) und die Cache-Kopie.
+    private static func videoVorabVerwerfen(id: String, ergebnis: MedienKodierung.Ergebnis?) {
+        eigeneQuellen[id] = nil
+        let medien = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Lovea/medien", isDirectory: true)
+        var weg = [medien.appendingPathComponent(id)]
+        for rolle in ["original", "klein"] {
+            weg.append(medien.appendingPathComponent("hochladen/\(id)-\(rolle)"))
+            weg.append(medien.appendingPathComponent("hochladen/\(id)-\(rolle).tmp"))
+            weg.append(MedienKodierung.stagingURL(id: id, rolle: rolle, ext: "mov"))
+        }
+        if let ergebnis {
+            weg.append(ergebnis.original)
+            if let klein = ergebnis.klein { weg.append(klein) }
+        }
+        for url in weg { try? FileManager.default.removeItem(at: url) }
+    }
+
     // MARK: - Upload + send
 
     private static func hochladenUndSenden(id: String, ergebnis: MedienKodierung.Ergebnis, typ: String, antwortAuf: String?) async {
