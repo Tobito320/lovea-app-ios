@@ -181,8 +181,9 @@ enum ChatMedien {
     // Beim Senden geht nur `nachricht.neu`; wurde der Anhang vorher entfernt, wird die Arbeit
     // abgebrochen und aufgeräumt, es entsteht nie eine Nachricht.
     // ponytail: die Kodierung selbst läuft nach einem Abbruch noch zu Ende (nicht abbrechbar ohne
-    // Gerätetest), nur der Upload startet dann nicht mehr. Verlässt Ahmed den Chat ganz, läuft ein
-    // gestartetes Vorab ebenfalls zu Ende, ohne Nachricht.
+    // Gerätetest), nur der Upload startet dann nicht mehr. Der Chat ist ein Tab: der Anhang-Streifen
+    // überlebt einen Tabwechsel, also kein Abbruch bei `onDisappear`. Bleibt nur: App wird mitten im
+    // Upload beendet, dann setzt `Medien.fortsetzen` ihn einmal fort (Waise, keine Nachricht).
 
     struct VideoVorabErgebnis: Sendable { let id: String; let ergebnis: MedienKodierung.Ergebnis; let hochgeladen: Bool }
 

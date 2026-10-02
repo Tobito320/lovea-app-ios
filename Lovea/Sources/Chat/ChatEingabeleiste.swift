@@ -12,8 +12,9 @@ struct ChatAnhang: Identifiable {
     var vorschau: UIImage?
     /// Z-26.2: set once this attachment is uploaded on its own (not at send time) — its id/pixel
     /// size go straight into `entwurf.setzen` and, unchanged, into the eventual `nachricht.neu`
-    /// (no re-upload). Photos only — videos aren't part of the persisted draft (re-encoding on
-    /// every pick would double their upload for something most drafts never keep that long).
+    /// (no re-upload). Photos only — videos aren't part of the persisted draft (the restore rebuilds
+    /// every id as a photo). With "Videos vorab hochladen" a video is pre-uploaded via `ChatMedien`
+    /// instead, tracked by attachment id, never through this field.
     var hochgeladen: (medienId: String, breite: Double, hoehe: Double)?
 
     var istVideo: Bool {
