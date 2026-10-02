@@ -24,12 +24,16 @@ final class KalenderModell {
         /// `datum -> Bewerter(von) -> Wertung`. Der Bewerter bewertet immer seinen Partner.
         var puenktlich: [String: [Person: String]] = [:]
         var jahrestag: String?
+        /// `datum -> Punkte` (öffentlich oder Platzhalter), Faltung in `TreffenAblauf`.
+        var punkte: [String: [TreffenPunkt]] = [:]
+        var geloeschtePunkte: Set<String> = []
     }
 
     struct TreffenEintrag: Sendable, Equatable {
         var von: Person
         var text: String?
         var uhrzeit: String?
+        var bis: String?
         var zeit: Date
         var vorherige: Vorherige?
 
@@ -52,6 +56,7 @@ final class KalenderModell {
         "muster.setzen", "muster.loeschen", "ausnahme.setzen", "ausnahme.loeschen", "termin.setzen", "termin.loeschen",
         "treffen.setzen", "treffen.loeschen", "notiz.setzen", "checkliste.setzen", "checkliste.loeschen",
         "stimmung.setzen", "puenktlich.setzen", "jahrestag.setzen",
+        "treffen.punkt.setzen", "treffen.punkt.platzhalter", "treffen.punkt.loeschen",
     ]
 
     /// Z-42.1: fertige Monatsraster, neu erst, wenn sich Muster, Ausnahmen, Termine oder Treffen
@@ -67,6 +72,7 @@ final class KalenderModell {
             self.faltung = faltung
         }
         ersterStartMusterFallsNoetig()
+        Task { @MainActor in TreffenFreigabe.shared.starten() }
     }
 
     // MARK: - Faltung (testbar ohne Raum)
@@ -142,6 +148,8 @@ final class KalenderModell {
             if let d = op.daten(PuenktlichEintrag.self) { z.puenktlich[d.datum, default: [:]][op.von] = d.wert }
         case "jahrestag.setzen":
             if let d = op.daten(MitDatum.self) { z.jahrestag = d.datum }
+        case "treffen.punkt.setzen", "treffen.punkt.platzhalter", "treffen.punkt.loeschen":
+            TreffenAblauf.anwenden(op, in: &z)
         default:
             break
         }
@@ -162,10 +170,12 @@ final class KalenderModell {
         }
         // `uhrzeit` "" nimmt die Uhrzeit zurück; fehlt sie ganz („Machen wir"), bleibt die alte.
         let uhrzeit = d.uhrzeit == "" ? nil : (d.uhrzeit ?? vorher?.uhrzeit)
-        let neu = TreffenEintrag(von: von, text: d.wasMachenWir, uhrzeit: uhrzeit, zeit: zeit, vorherige: vorherige)
+        // `bis` wie `uhrzeit`: Build 92 sendet keins und darf es nicht löschen.
+        let bis = d.bis == "" ? nil : (d.bis ?? vorher?.bis)
+        let neu = TreffenEintrag(von: von, text: d.wasMachenWir, uhrzeit: uhrzeit, bis: bis, zeit: zeit, vorherige: vorherige)
         z.treffenText[d.datum] = neu
         z.daten.treffen.removeAll { $0.datum == d.datum }
-        z.daten.treffen.append(Treffen(datum: d.datum, uhrzeit: neu.uhrzeit, wasMachenWir: neu.text))
+        z.daten.treffen.append(Treffen(datum: d.datum, uhrzeit: neu.uhrzeit, wasMachenWir: neu.text, bis: neu.bis))
     }
 
     // MARK: - Z-9.4 Startmuster
