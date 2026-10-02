@@ -23,9 +23,10 @@ enum TransparenzKarte {
             let alpha = rgba[i + 3]
             if alpha < 250 { transparentePixel += 1 }
             if alpha > 10 {
-                // ponytail: premultiplied RGB, not unpremultiplied — good enough for a light/dark
-                // heuristic, not for colour-accurate rendering.
-                helligkeitSumme += 0.299 * Double(rgba[i]) + 0.587 * Double(rgba[i + 1]) + 0.114 * Double(rgba[i + 2])
+                // The buffer is premultiplied: divide alpha out, or a thin white stroke (low alpha after
+                // the downscale) reads as dark and gets a light card it vanishes on.
+                let luma = 0.299 * Double(rgba[i]) + 0.587 * Double(rgba[i + 1]) + 0.114 * Double(rgba[i + 2])
+                helligkeitSumme += min(255, luma * 255 / Double(alpha))
                 opakeAnzahl += 1
             }
         }
