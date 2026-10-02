@@ -213,4 +213,21 @@ enum GewichtLogik {
         let (davor, zuletzt) = (punkte[punkte.count - 2], punkte[punkte.count - 1])
         return (zuletzt.zehntel - davor.zehntel, davor.tag)
     }
+
+    /// Je Messtag der Schnitt aller Messungen der 7 Tage bis zu diesem Tag (Lücken zählen nicht mit), älteste zuerst.
+    /// ponytail: je Tag ein Durchlauf, reicht für ein paar hundert Messungen.
+    static func mittelReihe(_ werte: [String: Int]) -> [GewichtMittel] {
+        let punkte = MessLogik.punkte(werte)
+        return punkte.map { p in
+            let ab = Datum.addTage(p.tag, -6)
+            let fenster = punkte.filter { $0.tag >= ab && $0.tag <= p.tag }.map(\.zehntel)
+            return GewichtMittel(tag: p.tag, kg: Double(fenster.reduce(0, +)) / Double(fenster.count) / 10)
+        }
+    }
+}
+
+struct GewichtMittel: Identifiable, Equatable {
+    var tag: String
+    var kg: Double
+    var id: String { tag }
 }

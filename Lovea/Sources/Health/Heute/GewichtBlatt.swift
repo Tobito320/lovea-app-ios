@@ -1,3 +1,4 @@
+import Charts
 import SwiftUI
 
 /// Gewicht eintragen. Oben der letzte Wert groß mit der Änderung zur Messung davor, dann das Feld (mit dem letzten
@@ -25,6 +26,7 @@ struct GewichtBlatt: View {
                 VStack(alignment: .leading, spacing: 24) {
                     if let letzter = punkte.last { stand(letzter) }
                     eingabe
+                    if punkte.count > 1 { kurve(punkte) }
                 }
                 .padding()
             }
@@ -89,5 +91,28 @@ struct GewichtBlatt: View {
         .buttonRepeatBehavior(.enabled)
         .disabled(zehntel == nil)
         .accessibilityLabel("\(name), 0,1 Kilogramm")
+    }
+
+    /// Glatte Linie = Schnitt der 7 Tage bis zum Messtag, kleine graue Punkte = die einzelnen Messungen.
+    private func kurve(_ punkte: [MessPunkt]) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Chart {
+                ForEach(punkte) { p in
+                    PointMark(x: .value("Tag", Datum.datum(p.tag)), y: .value("kg", Double(p.zehntel) / 10))
+                        .symbolSize(18)
+                        .foregroundStyle(.secondary)
+                }
+                ForEach(GewichtLogik.mittelReihe(werte)) { m in
+                    LineMark(x: .value("Tag", Datum.datum(m.tag)), y: .value("Schnitt kg", m.kg))
+                        .interpolationMethod(.catmullRom)
+                }
+            }
+            .chartYScale(domain: .automatic(includesZero: false))
+            .frame(height: 180)
+            .accessibilityLabel("Gewicht über die Zeit, Linie ist der Schnitt der letzten 7 Tage")
+            Text("Linie: Schnitt der letzten 7 Tage. Punkte: einzelne Messungen.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
     }
 }
