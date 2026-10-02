@@ -22,7 +22,15 @@ final class GalerieSync {
     /// old `galerie.stand` (async download) lands after its sync `galerie.geloescht` and resurrects it.
     private static let geloeschtKey = "galerie.sync.geloescht"
 
-    private let library: ArtworkLibrary
+    /// Lazy: `ArtworkLibrary.init` liest die ganze Bibliothek auf dem Main Thread. Schneller Start
+    /// (`StartPlan`) legt sie erst nach dem ersten Bild an; `start()` erzwingt sie sonst wie vorher.
+    private lazy var library: ArtworkLibrary = {
+        StartProtokoll.marke("galerie.bibliothek.neu")
+        return self.vorgegebeneBibliothek ?? ArtworkLibrary()
+    }()
+    private let vorgegebeneBibliothek: ArtworkLibrary?
+    /// Schneller Start: auch das Replay (gelöscht, Projekte) fasst die Bibliothek erst nach dem ersten Bild an.
+    private var bibliothekSpaeter = false
     /// Own drawing currently open in the Studio -- an incoming stand for it is held back until the
     /// Studio closes (design: "offene Zeichnung zurückstellen").
     private var offenesArtworkID: UUID?
@@ -33,13 +41,26 @@ final class GalerieSync {
     /// Newest known incoming stand per drawing, not yet applied (see `eingehend`).
     private var wartend: [UUID: GalerieStandD] = [:]
 
-    init(library: ArtworkLibrary = ArtworkLibrary()) {
-        self.library = library
+    init(library: ArtworkLibrary? = nil) {
+        vorgegebeneBibliothek = library
     }
 
-    func start() {
+    /// `nachErstemBild` (Schneller Start): die Beobachtung muss VOR dem Replay stehen und bleibt hier.
+    /// Eingehende Stände, Hochladen und der Erststart-Backfill laufen aber erst, wenn das erste Bild
+    /// steht (`hochladeKette` wartet), und die Bibliothek wird erst dann gelesen.
+    func start(nachErstemBild: Bool = false) {
+        bibliothekSpaeter = nachErstemBild
+        if nachErstemBild {
+            hochladeKette = Task { @MainActor in await AppStart.erstesBildAbwarten() }
+        } else {
+            _ = library
+        }
         Raum.shared.beobachten(Self.arten) { [weak self] op in self?.eingehend(op) }
-        backfillFallsNoetig()
+        if nachErstemBild {
+            reihen { [weak self] in self?.backfillFallsNoetig() }
+        } else {
+            backfillFallsNoetig()
+        }
     }
 
     // MARK: - Own changes (called by `ArtworkLibrary`)
@@ -258,11 +279,20 @@ final class GalerieSync {
 
     private func geloeschtEingegangen(_ d: GalerieGeloeschtD) {
         guard let id = UUID(uuidString: d.artworkId) else { return }
-        grabsteinSetzen(id, zeit: d.zeit)
+        grabsteinSetzen(id, zeit: d.zeit) // sofort: schützt `standEingegangen` vor Wiederauferstehen
+        bibliothekArbeit { [weak self] in self?.loeschenAnwenden(id, zeit: d.zeit) }
+    }
+
+    private func loeschenAnwenden(_ id: UUID, zeit: Date) {
         // Open in the Studio: keep it for now; the next launch's replay deletes it via the tombstone.
-        guard offenesArtworkID != id, let lokal = library.document(id), d.zeit >= lokal.updatedAt else { return }
+        guard offenesArtworkID != id, let lokal = library.document(id), zeit >= lokal.updatedAt else { return }
         library.removeWithoutSync(id)
         NotificationCenter.default.post(name: .artworkLibraryGeaendert, object: nil)
+    }
+
+    /// Schneller Start: Arbeit an der Bibliothek geht in die Kette (nach dem ersten Bild), sonst sofort wie vorher.
+    private func bibliothekArbeit(_ arbeit: @escaping () -> Void) {
+        if bibliothekSpaeter { reihen { arbeit() } } else { arbeit() }
     }
 
     private func projekteEingegangen(_ d: GalerieProjekteD, seq: Int?) {
@@ -270,8 +300,10 @@ final class GalerieSync {
         if let seq { UserDefaults.standard.set(seq, forKey: Self.projekteSeqKey) }
         let rang = Dictionary(d.reihenfolge.enumerated().map { ($1, $0) }, uniquingKeysWith: { erster, _ in erster })
         let geordnet = d.projekte.sorted { (rang[$0.id] ?? Int.max) < (rang[$1.id] ?? Int.max) }
-        library.applyRemoteProjects(geordnet)
-        NotificationCenter.default.post(name: .artworkLibraryGeaendert, object: nil)
+        bibliothekArbeit { [weak self] in
+            self?.library.applyRemoteProjects(geordnet)
+            NotificationCenter.default.post(name: .artworkLibraryGeaendert, object: nil)
+        }
     }
 
     private func stickerEingegangen(_ d: GalerieStickerD, seq: Int?) {
