@@ -76,6 +76,8 @@ struct TrainingsPlan: Codable, Equatable, Sendable {
     var tage: [TrainingsTag]
     /// Weekdays marked as rest days, 1 = Mo … 7 = So. Optional: plans from the first build have none.
     var ruhetage: [Int]? = nil
+    /// Name des gewählten Splits (`SplitLogik.alsPlan`); nil bei einem selbst gebauten Plan.
+    var splitName: String? = nil
     static let leer = TrainingsPlan(tage: [])
 }
 
@@ -244,6 +246,14 @@ enum TrainingLogik {
         return sessions.first { s in
             s.ende == nil && jetzt.timeIntervalSince(s.start) >= langNach && heute <= Datum.addTage(Datum.text(s.start), 1)
         }
+    }
+
+    /// Die zuletzt beendete Einheit, solange "Training fortsetzen" Sinn ergibt: vor weniger als 2 h
+    /// beendet und danach noch laufend (`langNach`). Läuft schon eine neuere, gibt es nichts fortzusetzen.
+    static func fortsetzbar(_ sessions: [GymSession], jetzt: Date) -> GymSession? {
+        guard let zuletzt = sessions.max(by: { $0.start < $1.start }), let ende = zuletzt.ende,
+              jetzt.timeIntervalSince(ende) < 2 * 3600, jetzt.timeIntervalSince(zuletzt.start) < langNach else { return nil }
+        return zuletzt
     }
 
     static func zuLang(start: Date, ende: Date) -> Bool { ende.timeIntervalSince(start) > langNach }

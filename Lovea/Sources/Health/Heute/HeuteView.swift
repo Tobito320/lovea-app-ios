@@ -382,6 +382,7 @@ struct HeuteView: View {
     /// Der gezeigte Tag (Ahmed, 27.09.): Wochenstreifen oben, Pfeile, Monat. Standard heute.
     @State private var gewaehlt = Datum.text(Date())
     @State private var monatOffen = false
+    @AppStorage(GymNeu.schluessel) private var gymNeu = true
     @State private var koerperAuswahl: KoerperAuswahl?
     @State private var befragung = false
     @State private var gewichtOffen = false
@@ -523,25 +524,19 @@ struct HeuteView: View {
                                        plan: TrainingModell.shared.plan(ich), heute: echtHeute, katalog: { UebungsKatalog.nachId[$0] },
                                        montagVon: gewaehlt)
         return VStack(spacing: 0) {
-            HStack {
-                pfeil("chevron.left", -7, "Woche davor")
-                Spacer()
-                Button { monatOffen = true } label: {
-                    HStack(spacing: 4) {
-                        Text(Datum.datum(gewaehlt).formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "de_DE"))))
-                            .font(.subheadline.weight(.semibold))
-                        Image(systemName: "calendar").font(.footnote)
-                    }
-                    .frame(minHeight: 44)
+            if gymNeu {
+                // Ahmed, 02.10.: schlicht wie im Gym, ohne Pfeile und Monat. Wischen blättert weiter die Woche.
+                GymWochenLeiste(woche: woche, gewaehlt: gewaehlt) { tag in
+                    Haptik.auswahl()
+                    withAnimation(Feder.weich) { gewaehlt = tag }
                 }
-                .buttonStyle(.plain)
-                .accessibilityHint("Öffnet den Monat")
-                Spacer()
-                pfeil("chevron.right", 7, "Woche danach")
-            }
-            Streifen(woche: woche, gewaehlt: gewaehlt) { tag in
-                Haptik.auswahl()
-                withAnimation(Feder.weich) { gewaehlt = tag }
+                .padding(.top, 6)
+            } else {
+                monatKopf
+                Streifen(woche: woche, gewaehlt: gewaehlt) { tag in
+                    Haptik.auswahl()
+                    withAnimation(Feder.weich) { gewaehlt = tag }
+                }
             }
         }
         .simultaneousGesture(
@@ -557,6 +552,25 @@ struct HeuteView: View {
                     blaettern(g.translation.width < 0 ? 7 : -7)
                 }
         )
+    }
+
+    private var monatKopf: some View {
+        HStack {
+            pfeil("chevron.left", -7, "Woche davor")
+            Spacer()
+            Button { monatOffen = true } label: {
+                HStack(spacing: 4) {
+                    Text(Datum.datum(gewaehlt).formatted(.dateTime.month(.wide).year().locale(Locale(identifier: "de_DE"))))
+                        .font(.subheadline.weight(.semibold))
+                    Image(systemName: "calendar").font(.footnote)
+                }
+                .frame(minHeight: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityHint("Öffnet den Monat")
+            Spacer()
+            pfeil("chevron.right", 7, "Woche danach")
+        }
     }
 
     private func pfeil(_ symbol: String, _ tage: Int, _ label: String) -> some View {
@@ -633,7 +647,7 @@ struct HeuteView: View {
         case .habit(let id): HabitDetailView(habitId: id)
         case .punkte: PunkteVerlaufView()
         case .ernaehrung: ErnaehrungView()
-        case .training: TrainingsPlanView(person: ich, oeffnen: { pfad.append($0) })
+        case .training: GymStartZiel(person: ich, oeffnen: { pfad.append($0) })
         case .koerper: KoerperView()
         case .verlauf: VerlaufView { pfad.append($0) }
         }
