@@ -205,4 +205,12 @@ enum GewichtLogik {
         guard let zehntel = GewichtText.zehntel(eingabe) else { return nil }
         return GewichtText.feld(min(max(zehntel + delta, 1), 9999))
     }
+
+    /// Letzte Messung minus die Messung davor (Zehntel-kg) und der Tag der Messung davor. Unter zwei Messungen: nil.
+    static func aenderung(_ werte: [String: Int]) -> (zehntel: Int, seit: String)? {
+        let punkte = MessLogik.punkte(werte)
+        guard punkte.count >= 2 else { return nil }
+        let (davor, zuletzt) = (punkte[punkte.count - 2], punkte[punkte.count - 1])
+        return (zuletzt.zehntel - davor.zehntel, davor.tag)
+    }
 }

@@ -19,9 +19,11 @@ struct GewichtBlatt: View {
     private var zehntel: Int? { GewichtText.zehntel(text) }
 
     var body: some View {
+        let punkte = MessLogik.punkte(werte)
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
+                    if let letzter = punkte.last { stand(letzter) }
                     eingabe
                 }
                 .padding()
@@ -42,6 +44,20 @@ struct GewichtBlatt: View {
             }
         }
         .presentationDetents([.medium, .large])
+    }
+
+    private func stand(_ letzter: MessPunkt) -> some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Text(GewichtText.feld(letzter.zehntel)).font(.largeTitle.bold().monospacedDigit())
+                Text("kg").font(.title3).foregroundStyle(.secondary)
+            }
+            if let a = GewichtLogik.aenderung(werte) {
+                Text(GewichtText.aenderung(a.zehntel, seit: a.seit)).font(.title3.weight(.medium).monospacedDigit())
+            }
+            Text(Datum.anzeige(letzter.tag)).font(.subheadline).foregroundStyle(.secondary)
+        }
+        .accessibilityElement(children: .combine)
     }
 
     private var eingabe: some View {

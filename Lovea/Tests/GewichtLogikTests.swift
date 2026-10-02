@@ -40,4 +40,24 @@ final class GewichtLogikTests: XCTestCase {
         XCTAssertEqual(GewichtText.feld(784), "78,4")
         XCTAssertEqual(GewichtText.feld(5), "0,5")
     }
+
+    // MARK: Anzeige
+
+    func testAenderungZurMessungDavor() throws {
+        let a = try XCTUnwrap(GewichtLogik.aenderung(["2026-09-20": 800, "2026-09-28": 790, "2026-09-30": 786]))
+        XCTAssertEqual(a.zehntel, -4)
+        XCTAssertEqual(a.seit, "2026-09-28")
+    }
+
+    func testAenderungBrauchtZweiMessungen() {
+        XCTAssertNil(GewichtLogik.aenderung([:]))
+        XCTAssertNil(GewichtLogik.aenderung(["2026-09-30": 786]))
+        XCTAssertNil(GewichtLogik.aenderung(["2026-09-28": 0, "2026-09-30": 786]))
+    }
+
+    func testAenderungText() {
+        XCTAssertEqual(GewichtText.aenderung(-4, seit: "2026-09-28"), "-0,4 kg seit 28.09.")
+        XCTAssertEqual(GewichtText.aenderung(13, seit: "2026-09-28"), "+1,3 kg seit 28.09.")
+        XCTAssertEqual(GewichtText.aenderung(0, seit: "2026-09-28"), "0,0 kg seit 28.09.")
+    }
 }

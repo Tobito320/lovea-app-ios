@@ -75,6 +75,14 @@ enum GewichtText {
     /// 784 -> "78,4", fürs Eingabefeld.
     static func feld(_ zehntel: Int) -> String { "\(zehntel / 10),\(zehntel % 10)" }
 
+    /// (-4, "2026-09-28") -> "-0,4 kg seit 28.09."; keine Wertung, nur Vorzeichen.
+    static func aenderung(_ zehntel: Int, seit tag: String) -> String {
+        let vorzeichen = zehntel > 0 ? "+" : zehntel < 0 ? "-" : ""
+        let teile = tag.split(separator: "-")
+        let datum = teile.count == 3 ? "\(teile[2]).\(teile[1])." : tag
+        return "\(vorzeichen)\(feld(abs(zehntel))) kg seit \(datum)"
+    }
+
     /// "78,4" oder "78.4" -> 784. Leer, Text, negativ, unendlich -> nil.
     static func zehntel(_ eingabe: String) -> Int? {
         let text = eingabe.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
