@@ -57,6 +57,9 @@ struct TagesListe: View {
         Label(TagesWerte.freiText(fenster), systemImage: "sparkles")
             .font(.subheadline.weight(.semibold))
             .foregroundStyle(fenster.isEmpty ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.kalenderGruen))
+            .lineLimit(1)
+            .minimumScaleFactor(0.75)
+            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
     }
 
@@ -137,14 +140,15 @@ struct TagesListe: View {
     /// Langes Drücken (mit Ausnahme): ändern oder zurücknehmen. Alles andere ist nur Text.
     @ViewBuilder
     private func alltagZeile(_ eintrag: AlltagEintrag) -> some View {
+        let tippen = alltagAktion(eintrag)
         let zeile = Label(TagesWerte.alltagZeile(name: eintrag.person.name, block: eintrag.block),
                           systemImage: AnsichtWerte.alltagSymbol(eintrag.block))
             .font(.footnote)
             .foregroundStyle(.secondary)
-            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .frame(maxWidth: .infinity, minHeight: tippen == nil ? 30 : 44, alignment: .leading)
             .contentShape(Rectangle())
         Group {
-            if let tippen = alltagAktion(eintrag) {
+            if let tippen {
                 Button(action: tippen) { zeile }.buttonStyle(.plain)
             } else {
                 zeile

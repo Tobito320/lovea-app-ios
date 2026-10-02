@@ -42,6 +42,8 @@ struct TagNeuInhalt: View {
     var waehle: (String) -> Void = { _ in }
 
     @ScaledMetric(relativeTo: .title) private var datumGroesse: CGFloat = 28
+    /// Breite der Namensspalte links der Balken; Platz für „zusammen" mit Symbol.
+    private static let titelBreite: CGFloat = 100
 
     var body: some View {
         let ahmed = Wochenplan.tag(tag, person: Person.ahmed.rawValue, daten: daten)
@@ -104,10 +106,10 @@ struct TagNeuInhalt: View {
                 } else {
                     Circle().frame(width: 6, height: 6)
                 }
-                Text(titel).font(.footnote.weight(.semibold))
+                Text(titel).font(.footnote.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
             }
             .foregroundStyle(farbe)
-            .frame(width: 84, alignment: .leading)
+            .frame(width: Self.titelBreite, alignment: .leading)
             TagesBalken(segmente: segmente, farbe: farbe)
         }
     }
@@ -115,7 +117,7 @@ struct TagNeuInhalt: View {
     /// Beschriftung 8, 12, 16, 20 Uhr unter den Balken, an derselben Stelle wie die Balken selbst.
     private var achse: some View {
         HStack(spacing: 8) {
-            Color.clear.frame(width: 84, height: 1)
+            Color.clear.frame(width: Self.titelBreite, height: 1)
             GeometryReader { geo in
                 ForEach([8, 12, 16, 20], id: \.self) { stunde in
                     Text("\(stunde)")
