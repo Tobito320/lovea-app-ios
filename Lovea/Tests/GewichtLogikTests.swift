@@ -16,4 +16,28 @@ final class GewichtLogikTests: XCTestCase {
         XCTAssertNil(GewichtLogik.berechnet([:]))
         XCTAssertNil(GewichtLogik.berechnet(["2026-09-27": 0]))
     }
+
+    // MARK: Eingabe
+
+    func testSchrittInZehnteln() {
+        XCTAssertEqual(GewichtLogik.schritt("78,4", 1), "78,5")
+        XCTAssertEqual(GewichtLogik.schritt("78,0", -1), "77,9")
+        XCTAssertEqual(GewichtLogik.schritt("78,9", 1), "79,0")
+        XCTAssertEqual(GewichtLogik.schritt("78.4", 1), "78,5")
+    }
+
+    func testSchrittBleibtImGueltigenBereich() {
+        XCTAssertEqual(GewichtLogik.schritt("0,1", -1), "0,1")
+        XCTAssertEqual(GewichtLogik.schritt("999,9", 1), "999,9")
+    }
+
+    func testSchrittOhneZahlIstNil() {
+        XCTAssertNil(GewichtLogik.schritt("", 1))
+        XCTAssertNil(GewichtLogik.schritt("abc", -1))
+    }
+
+    func testFeldMitKomma() {
+        XCTAssertEqual(GewichtText.feld(784), "78,4")
+        XCTAssertEqual(GewichtText.feld(5), "0,5")
+    }
 }

@@ -199,4 +199,10 @@ enum GewichtLogik {
         let fenster = gueltig.filter { $0.key >= ab }.map(\.value)
         return Int((Double(fenster.reduce(0, +)) / Double(fenster.count)).rounded())
     }
+
+    /// Plus/Minus im Feld: Text plus `delta` Zehntel als Feldtext, zwischen 0,1 und 999,9. Kein Zahlentext: nil.
+    static func schritt(_ eingabe: String, _ delta: Int) -> String? {
+        guard let zehntel = GewichtText.zehntel(eingabe) else { return nil }
+        return GewichtText.feld(min(max(zehntel + delta, 1), 9999))
+    }
 }

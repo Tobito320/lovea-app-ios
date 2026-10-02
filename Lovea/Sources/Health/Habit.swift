@@ -72,6 +72,9 @@ enum GewichtText {
     /// 784 -> "78,4 kg".
     static func anzeige(_ zehntel: Int) -> String { "\(zehntel / 10),\(zehntel % 10) kg" }
 
+    /// 784 -> "78,4", fürs Eingabefeld.
+    static func feld(_ zehntel: Int) -> String { "\(zehntel / 10),\(zehntel % 10)" }
+
     /// "78,4" oder "78.4" -> 784. Leer, Text, negativ, unendlich -> nil.
     static func zehntel(_ eingabe: String) -> Int? {
         let text = eingabe.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: ",", with: ".")
