@@ -9,6 +9,7 @@ struct EinstellungenView: View {
     @AppStorage(SnapBildAusrichtung.schluessel) private var selfieSpiegeln = false
     @AppStorage(ChatTempo.schluessel) private var chatTempo = true // same key `ChatTempo.an` reads
     @AppStorage(TabWischLogik.schluessel) private var tabWischen = true
+    @AppStorage(KalenderNeu.schluessel) private var kalenderNeu = true // same key `KalenderNeu.an` reads
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
     @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
@@ -51,6 +52,7 @@ struct EinstellungenView: View {
                 NavigationLink("Orte") { OrteListeView() }
                 NavigationLink("Jahrestag") { JahrestagEditor() }
                 NavigationLink("Wochenplan") { WochenplanEditor() }
+                Toggle("Neuer Kalender", isOn: $kalenderNeu)
             }
             Section("Spotify") {
                 SpotifyVerbindenRow()

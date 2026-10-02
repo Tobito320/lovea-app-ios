@@ -17,7 +17,7 @@ struct HomeView: View {
                     SchritteDuellCard()
                     FrageDesTagesCard()
                     PuenktlichCard()
-                    kalenderKarte
+                    KalenderKarte(pfad: $pfad)
                     UnsereListeCard()
                 }
                 .padding(16)
@@ -25,22 +25,8 @@ struct HomeView: View {
             // R6: nur hier (Wurzel des Tabs), nicht auf TagesAnsicht/FrageDesTagesView dahinter.
             .tabWischen(vorheriger: nil, naechster: "chat")
             .navigationTitle("Home")
-            .navigationDestination(for: String.self) { tag in TagesAnsicht(tag: tag) }
+            .navigationDestination(for: String.self) { tag in KalenderTagZiel(tag: tag) }
             .navigationDestination(for: FrageZiel.self) { _ in FrageDesTagesView() }
         }
-    }
-
-    private var kalenderKarte: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Kalender")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-            MonatsAnsicht { tag in
-                pfad.append(tag)
-            }
-            MonatsLegende()
-        }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
     }
 }
