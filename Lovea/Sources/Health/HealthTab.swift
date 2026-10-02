@@ -16,7 +16,7 @@ struct HealthZielAnsicht: View {
         case .schritte(let person): SchritteDetailView(person: person)
         case .schritteVergleich: SchritteVergleichView()
         case .punkte: PunkteVerlaufView()
-        case .trainingsPlan(let person): TrainingsPlanView(person: person)
+        case .trainingsPlan(let person): GymStartZiel(person: person)
         case .gymSession(let id): GymSessionView(sessionId: id)
         case .gymVerlauf: GymVerlaufView()
         }

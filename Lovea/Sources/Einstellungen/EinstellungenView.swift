@@ -10,6 +10,7 @@ struct EinstellungenView: View {
     @AppStorage(ChatTempo.schluessel) private var chatTempo = true // same key `ChatTempo.an` reads
     @AppStorage(TabWischLogik.schluessel) private var tabWischen = true
     @AppStorage(KalenderNeu.schluessel) private var kalenderNeu = true // same key `KalenderNeu.an` reads
+    @AppStorage(GymNeu.schluessel) private var gymNeu = true // same key `GymNeu.an` reads
     @AppStorage(StartPlan.schluessel) private var schnellerStart = true // same key `StartPlan.an` reads
     @State private var zeigtEntwickler = false
     @State private var szenenOrt: RaumOrt?
@@ -56,6 +57,7 @@ struct EinstellungenView: View {
                 NavigationLink("Jahrestag") { JahrestagEditor() }
                 NavigationLink("Wochenplan") { WochenplanEditor() }
                 Toggle("Neuer Kalender", isOn: $kalenderNeu)
+                Toggle("Neues Gym", isOn: $gymNeu)
             }
             Section("Spotify") {
                 SpotifyVerbindenRow()

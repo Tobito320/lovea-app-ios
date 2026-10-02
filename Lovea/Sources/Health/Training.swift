@@ -76,6 +76,8 @@ struct TrainingsPlan: Codable, Equatable, Sendable {
     var tage: [TrainingsTag]
     /// Weekdays marked as rest days, 1 = Mo … 7 = So. Optional: plans from the first build have none.
     var ruhetage: [Int]? = nil
+    /// Name des gewählten Splits (`SplitLogik.alsPlan`); nil bei einem selbst gebauten Plan.
+    var splitName: String? = nil
     static let leer = TrainingsPlan(tage: [])
 }
 
