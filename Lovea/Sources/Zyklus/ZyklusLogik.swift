@@ -127,7 +127,11 @@ struct ZyklusLogik {
     private func periodenLaenge(startend start: Int) -> Int {
         guard let i = startIdx.firstIndex(of: start) else { return mittlerePeriodenLaenge }
         let echt = periodenLaengen[i]
-        if i == startIdx.count - 1, heuteIdx - (start + echt - 1) <= 1 { return max(echt, mittlerePeriodenLaenge) }
+        if i == startIdx.count - 1, heuteIdx - (start + echt - 1) <= 1 {
+            let frueher = Array(periodenLaengen.dropLast().suffix(Self.maxZyklen))
+            let erwartet = frueher.isEmpty ? einstellung.periodenLaenge : max(1, Int((Double(frueher.reduce(0, +)) / Double(frueher.count)).rounded()))
+            return max(echt, erwartet)
+        }
         return echt
     }
 
