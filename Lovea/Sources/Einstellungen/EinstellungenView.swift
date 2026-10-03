@@ -7,6 +7,7 @@ struct EinstellungenView: View {
     @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
     @AppStorage(SnapBildAusrichtung.schluessel) private var selfieSpiegeln = false
+    @AppStorage(SnapFilterAnzeige.schluessel) private var kameraFilter = true // same key `SnapFilterAnzeige.an` reads
     @AppStorage(ChatTempo.schluessel) private var chatTempo = true // same key `ChatTempo.an` reads
     @AppStorage(TabWischLogik.schluessel) private var tabWischen = true
     @AppStorage(KalenderNeu.schluessel) private var kalenderNeu = true // same key `KalenderNeu.an` reads
@@ -74,9 +75,14 @@ struct EinstellungenView: View {
             }
             Section {
                 Toggle("Haptik", isOn: $haptik)
-                Toggle("Selfie spiegeln", isOn: $selfieSpiegeln)
+                Toggle("Selfie-Foto und -Video gespiegelt", isOn: $selfieSpiegeln)
             } footer: {
-                Text("Aus: Selfie-Foto und -Video sind nicht gespiegelt, wie in der iPhone-Kamera. Die Vorschau bleibt gespiegelt.")
+                Text("An: Selfie-Foto und -Video sind gespiegelt, genau wie die Vorschau. Aus: nicht gespiegelt, wie in der iPhone-Kamera. Gilt überall, wo Lovea aufnimmt. Die Rückkamera bleibt immer ungespiegelt.")
+            }
+            Section {
+                Toggle("Kamera-Filter anzeigen", isOn: $kameraFilter)
+            } footer: {
+                Text("Aus: keine Filterleiste und kein Wischen zwischen Filtern, das Bild bleibt original.")
             }
             Section {
                 Text("Version \(Bundle.main.appVersion)")
