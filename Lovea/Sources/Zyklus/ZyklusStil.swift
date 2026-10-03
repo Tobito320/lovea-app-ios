@@ -155,7 +155,7 @@ struct ZyklusChip: View {
         let ton = farbe ?? ZyklusFarbe.himbeere.farbe(schema)
         HStack(spacing: 6) {
             if let symbol { Image(systemName: symbol).font(.subheadline.weight(.semibold)) }
-            Text(titel).font(.system(.subheadline, design: .rounded).weight(.semibold))
+            Text(titel).font(.system(.subheadline, design: .rounded).weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
         }
         .foregroundStyle(gewaehlt ? ZyklusFarbe.aufHimbeere(schema) : ZyklusFarbe.tinte(schema))
         .padding(.horizontal, 14)

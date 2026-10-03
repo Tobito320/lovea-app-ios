@@ -40,9 +40,9 @@ final class RenderGalerieZyklusStilTests: XCTestCase {
                         }
                     }
                     HStack {
-                        ZyklusChip(titel: "Krämpfe", symbol: "bolt.heart.fill", gewaehlt: true)
+                        ZyklusChip(titel: "Krämpfe", gewaehlt: true)
                         ZyklusChip(titel: "Müde", symbol: "moon.zzz.fill")
-                        ZyklusChip(titel: "Glücklich", symbol: "sparkles", farbe: ZyklusPhasenTon.fruchtbar.farbe(schema))
+                        ZyklusChip(titel: "Glücklich", farbe: ZyklusPhasenTon.fruchtbar.farbe(schema))
                     }
                     ZyklusKnopf(titel: "Periode beginnt", symbol: "drop.fill")
                     ZyklusKnopf(titel: "Später", leise: true)
