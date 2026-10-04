@@ -68,7 +68,10 @@ struct SplitBibliothekInhalt: View {
     let splits: [SplitVorlage]
     let planLeer: Bool
     var filter: Int? = nil
+    var art: String? = nil
+    var suche = ""
     var filtern: (Int?) -> Void = { _ in }
+    var artWaehlen: (String?) -> Void = { _ in }
     var gefuehrt: () -> Void = {}
     var selbst: () -> Void = {}
     var waehlen: (SplitVorlage) -> Void = { _ in }
@@ -88,6 +91,27 @@ struct SplitBibliothekInhalt: View {
     }
 
     private var chips: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    Button { artWaehlen(nil) } label: { GymChip(text: "Alle", an: art == nil) }.buttonStyle(.plain)
+                    ForEach(Array(artWahl.enumerated()), id: \.offset) { _, a in
+                        Button { artWaehlen(art == a.id ? nil : a.id) } label: { GymChip(text: a.text, an: art == a.id) }
+                            .buttonStyle(.plain)
+                            .accessibilityAddTraits(art == a.id ? .isSelected : [])
+                    }
+                }
+            }
+            tageChips
+        }
+    }
+
+    /// "Für dich" nur, wenn es eigene Splits gibt (Annika hat keine).
+    private var artWahl: [(id: String, text: String)] {
+        SplitLogik.artWahl.filter { $0.id != "fuerdich" || splits.contains(where: SplitLogik.istEigen) }
+    }
+
+    private var tageChips: some View {
         HStack(spacing: 6) {
             Button { filtern(nil) } label: { GymChip(text: "Alle", an: filter == nil) }.buttonStyle(.plain)
             ForEach(SplitLogik.tageWahl, id: \.self) { n in
@@ -102,9 +126,9 @@ struct SplitBibliothekInhalt: View {
 
     @ViewBuilder
     private var liste: some View {
-        let treffer = splits.filter { filter == nil || $0.tage == filter }
+        let treffer = SplitLogik.treffer(splits, art: art, tage: filter, suche: suche)
         if treffer.isEmpty {
-            Text("Kein Split mit so vielen Tagen.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 14)
+            Text(suche.isEmpty ? "Kein Split passt zu den Filtern." : "Nichts gefunden. Stell die Filter auf Alle.").font(.subheadline).foregroundStyle(.secondary).padding(.vertical, 14)
         }
         ForEach(Array(treffer.enumerated()), id: \.element.id) { i, v in
             if i > 0 { Divider() }
@@ -129,15 +153,29 @@ struct SplitBibliothekView: View {
     var fertig: () -> Void = {}
 
     @State private var filter: Int?
+    @State private var art: String?
+    @State private var suche = ""
     @State private var ziel: SplitZiel?
+
+    init(person: Person, fertig: @escaping () -> Void = {}) {
+        self.person = person
+        self.fertig = fertig
+        // Wer eigene Splits hat (Ahmed), sieht zuerst nur die: kurze Liste statt 81.
+        _art = State(initialValue: SplitLogik.fuer(person).contains(where: SplitLogik.istEigen) ? "fuerdich" : nil)
+    }
 
     var body: some View {
         ScrollView {
             SplitBibliothekInhalt(
                 person: person, splits: SplitLogik.fuer(person), planLeer: TrainingModell.shared.plan(person).tage.isEmpty, filter: filter,
+                art: art, suche: suche,
                 filtern: { n in
                     Haptik.auswahl()
                     withAnimation(Feder.schnell) { filter = n }
+                },
+                artWaehlen: { a in
+                    Haptik.auswahl()
+                    withAnimation(Feder.schnell) { art = a }
                 },
                 gefuehrt: { ziel = .gefuehrt }, selbst: { ziel = .editor }, waehlen: { ziel = .vorschau($0.id) }
             )
@@ -146,6 +184,7 @@ struct SplitBibliothekView: View {
         }
         .navigationTitle("Splits")
         .navigationBarTitleDisplayMode(.large)
+        .searchable(text: $suche, prompt: "Split, Übung oder Muskel")
         .navigationDestination(item: $ziel) { seite($0) }
     }
 

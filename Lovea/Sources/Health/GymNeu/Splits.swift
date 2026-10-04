@@ -58,6 +58,31 @@ enum SplitLogik {
         liste.filter { $0.gruppe == gruppe(p) && (tage == nil || $0.tage == tage) }
     }
 
+    /// Kurzfilter über der Liste: "Für dich" = Ahmeds eigene Splits, sonst ein Ziel.
+    static let artWahl: [(id: String, text: String)] = [("fuerdich", "Für dich"), ("muskeln", "Aufbauen"), ("kraft", "Kraft"), ("definieren", "Definieren"), ("fit", "Fit")]
+
+    /// Ahmeds 15 Splits aus dem Vault (`tools/splits-bauen.mjs`, ids `m-ahmed01` …).
+    static func istEigen(_ v: SplitVorlage) -> Bool { v.id.hasPrefix("m-ahmed") }
+
+    /// Wonach die Suche schaut: Name, Level, Ziel, Tage, Einheiten, Übungen mit Muskel und Körperteil.
+    static func suchtext(_ v: SplitVorlage) -> String {
+        let uebungen = v.einheiten.flatMap(\.uebungen).compactMap { UebungsKatalog.nachId[$0.uebung] }.flatMap { [$0.name, $0.muskel, $0.koerper] }
+        let ziel = ziele.first { $0.id == v.ziel }?.text ?? v.ziel
+        return ([v.name, levelText(v), ziel, "\(v.tage) Tage"] + v.einheiten.map(\.name) + uebungen).joined(separator: " ")
+    }
+
+    /// Bibliothek: Art ("fuerdich" oder ein Ziel), Tage, dann muss jedes Wort der Suche vorkommen
+    /// (Groß/Klein und Akzente egal). Reihenfolge wie in der Datei, die Empfehlungen bleiben oben.
+    static func treffer(_ liste: [SplitVorlage], art: String?, tage: Int?, suche: String) -> [SplitVorlage] {
+        let woerter = suche.split(whereSeparator: \.isWhitespace).map(String.init)
+        return liste.filter { v in
+            guard art == nil || (art == "fuerdich" ? istEigen(v) : v.ziel == art), tage == nil || v.tage == tage else { return false }
+            if woerter.isEmpty { return true }
+            let text = suchtext(v)
+            return woerter.allSatisfy { text.localizedStandardContains($0) }
+        }
+    }
+
     /// "Einsteiger", "Einsteigerin", "Mittel", "Fortgeschritten".
     static func levelText(_ v: SplitVorlage) -> String {
         switch v.level {

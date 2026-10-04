@@ -39,6 +39,21 @@ final class SplitsTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(SplitLogik.fuer(.annika).count, 12)
     }
 
+    func testLibrarySearchAndFilter() {
+        let liste = [vorlage("m-ahmed01", tage: 5, ziel: "definieren"), vorlage("Arnold", tage: 6), vorlage("Kraft 4", tage: 4, ziel: "kraft")]
+        XCTAssertEqual(SplitLogik.treffer(liste, art: nil, tage: nil, suche: "").map(\.id), ["m-ahmed01", "Arnold", "Kraft 4"])
+        XCTAssertEqual(SplitLogik.treffer(liste, art: "fuerdich", tage: nil, suche: "").map(\.id), ["m-ahmed01"])
+        XCTAssertEqual(SplitLogik.treffer(liste, art: "kraft", tage: nil, suche: "").map(\.id), ["Kraft 4"])
+        XCTAssertEqual(SplitLogik.treffer(liste, art: nil, tage: 6, suche: "").map(\.id), ["Arnold"])
+        XCTAssertEqual(SplitLogik.treffer(liste, art: nil, tage: nil, suche: "arnold 6 tage").map(\.id), ["Arnold"])
+        XCTAssertTrue(SplitLogik.treffer(liste, art: "fuerdich", tage: nil, suche: "arnold").isEmpty)
+        // Echte Daten: Suche findet Übungen und Muskeln, Ahmeds 15 Splits stehen unter "Für dich".
+        let ahmed = SplitLogik.fuer(.ahmed)
+        XCTAssertEqual(SplitLogik.treffer(ahmed, art: "fuerdich", tage: nil, suche: "").count, 15)
+        XCTAssertFalse(SplitLogik.treffer(ahmed, art: nil, tage: nil, suche: "schulter").isEmpty)
+        XCTAssertFalse(SplitLogik.fuer(.annika).contains(where: SplitLogik.istEigen))
+    }
+
     func testCardioLineBecomesMinutesInPlan() {
         let z = SplitVorlage.Zeile(uebung: "j9Q5crt", saetze: 1, von: 1, bis: 1, minuten: 30)
         XCTAssertEqual(SplitLogik.wdhText(z), "30 min")
