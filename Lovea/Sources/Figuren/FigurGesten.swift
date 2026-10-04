@@ -1,5 +1,6 @@
 import CoreHaptics
 import SwiftUI
+import TipKit
 import UIKit
 
 extension View {
@@ -22,6 +23,7 @@ private struct FigurGesten: ViewModifier {
             .contentShape(Rectangle())
             .onTapGesture { menu = true }
             .onLongPressGesture(minimumDuration: 0.5) { senden("herz") }
+            .popoverTip(FigurGesteTip())
             .sensoryFeedback(.impact(weight: .medium), trigger: gesendet)
             .popover(isPresented: $menu) {
                 VStack(spacing: 0) {

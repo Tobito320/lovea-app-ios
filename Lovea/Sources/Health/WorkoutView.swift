@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 // Training loggen wie Hevy (Ahmed, 01.10.2026): erst alle Übungen mit ihrem Stand, ein Tipp öffnet
 // eine einzelne mit Satzzeilen (Vorher, kg, Wdh, Haken). Unten ein Knopf für den nächsten Schritt.
@@ -404,6 +405,7 @@ struct WorkoutInhalt: View {
                 .foregroundStyle(Color.primary)
             }
             .accessibilityHint("Anderen Trainingstag wählen")
+            .popoverTip(TrainingstagWechselnTip())
         } else {
             Text(name).font(.largeTitle.bold())
         }
@@ -522,12 +524,14 @@ struct WorkoutInhalt: View {
                     .buttonStyle(.bordered)
                 }
             }
+            .popoverTip(CardioSchnellTip())
             // Auch mit offenen Übungen: was fertig ist, zählt, der Rest bleibt im Plan.
             Button(action: aktionen.beenden) {
                 Label("Training beenden", systemImage: "checkmark").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
             }
             .buttonStyle(.borderedProminent)
             .tint(.green)
+            .popoverTip(TrainingBeendenTip())
             Button(action: aktionen.startzeit) {
                 Label("Startzeit ändern", systemImage: "clock").font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
             }
@@ -750,6 +754,7 @@ struct WorkoutUebungView: View {
             Image(systemName: "ellipsis.circle")
         }
         .accessibilityLabel("Mehr")
+        .popoverTip(UebungMehrTip())
     }
 
     private func leiste(_ u: WorkoutUebung, _ liste: [WorkoutUebung]) -> WorkoutLeiste {

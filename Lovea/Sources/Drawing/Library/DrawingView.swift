@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import TipKit
 import UIKit
 import UniformTypeIdentifiers
 
@@ -330,6 +331,7 @@ private struct ProjectGalleryView: View {
                     Image(systemName: "ellipsis.circle")
                 }
                 .accessibilityLabel("Projekt")
+                .popoverTip(ProjektMehrTip())
             }
         }
         .sheet(isPresented: $showsNewArtwork) {

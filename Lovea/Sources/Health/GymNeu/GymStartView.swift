@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 // Neue Gym-Seite (Ahmed, 02.10., Entwurf `Lovea-bilder/gym-entwurf.html`): Woche ohne Zahlen, darunter
 // der gewählte Tag, Einchecken als kleine Kapsel, alles Weitere im Drei-Punkte-Menü.
@@ -299,6 +300,7 @@ struct GymStartView: View {
             Image(systemName: "ellipsis")
         }
         .accessibilityLabel("Mehr")
+        .popoverTip(GymStartMehrTip())
     }
 
     @ViewBuilder

@@ -1,5 +1,6 @@
 import Observation
 import SwiftUI
+import TipKit
 
 /// Chat tab: a one-row inbox (Ahmed's wish, like Snapchat/iMessage) that pushes the full-screen
 /// conversation. Jumps from `AppNavigation` (`chatZiel`, `chatSuche`, `kameraOeffnen`) open the
@@ -300,6 +301,7 @@ private struct Unterhaltung: View {
     private var oben: some View {
         VStack(spacing: 6) {
             ChatKopf(partner: ich.partner, modell: modell, onZurueck: zurueck) { blatt.profil = true }
+            TipView(ChatNachrichtGesteTip())
             if let toast {
                 Text(toast)
                     .font(.footnote.weight(.medium))
