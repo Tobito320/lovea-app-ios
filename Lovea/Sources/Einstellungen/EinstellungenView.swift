@@ -13,6 +13,7 @@ struct EinstellungenView: View {
     @AppStorage(KalenderNeu.schluessel) private var kalenderNeu = true // same key `KalenderNeu.an` reads
     @AppStorage(GymNeu.schluessel) private var gymNeu = true // same key `GymNeu.an` reads
     @AppStorage(StartPlan.schluessel) private var schnellerStart = true // same key `StartPlan.an` reads
+    @AppStorage(AirPodsPro3.schluessel) private var airpodsPro3 = AirPodsPro3.startwert // same key `AirPodsPro3.an` reads
     @State private var zeigtEntwickler = false
     @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
     @AppStorage(VideoVorab.schluessel) private var videoVorab = true // same key `VideoVorab.an` reads
@@ -54,6 +55,14 @@ struct EinstellungenView: View {
             }
             Section("Gym") {
                 Toggle("Neues Gym", isOn: $gymNeu)
+            }
+            Section {
+                Toggle("Ich habe AirPods Pro 3", isOn: $airpodsPro3)
+                    .onChange(of: airpodsPro3) { _, neu in if !neu { WorkoutPuls.shared.beenden(speichern: false) } }
+            } header: {
+                Text("Geräte")
+            } footer: {
+                Text("Gilt für alles: Puls im Training, Kopfhörer-Ton beim Schlaf. Puls kostet nur während eines Trainings Akku.")
             }
             Section {
                 Toggle("Haptik", isOn: $haptik)
