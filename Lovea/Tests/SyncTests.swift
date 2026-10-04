@@ -415,6 +415,16 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(Medien.plan(gesamt: 3, antwort: ohneVorhanden), [2])
     }
 
+    /// Z-Snap-Tempo: `stapeln` gruppiert die Teile-Indizes für den parallelen Upload — Reihenfolge
+    /// der Gruppen bleibt, jede Gruppe höchstens `grad` groß, nichts geht verloren oder verdoppelt.
+    func testMedienStapelnGroupsByGrad() {
+        XCTAssertEqual(Medien.stapeln([0, 1, 2, 3, 4, 5, 6], grad: 4), [[0, 1, 2, 3], [4, 5, 6]])
+        XCTAssertEqual(Medien.stapeln([0, 1, 2], grad: 4), [[0, 1, 2]], "fewer parts than the degree stay one batch")
+        XCTAssertEqual(Medien.stapeln([], grad: 4), [])
+        XCTAssertEqual(Medien.stapeln([0, 1, 2], grad: 1), [[0], [1], [2]], "grad 1 is sequential, same as before")
+        XCTAssertEqual(Medien.stapeln([5, 2, 9], grad: 0), [[5, 2, 9]], "grad <= 0 never splits (safety net, not reachable today)")
+    }
+
     // MARK: - Helpers
 
     private func makeTempDirectory() -> URL {

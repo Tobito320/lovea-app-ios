@@ -107,6 +107,13 @@ enum Medien {
     }
     private static let aktiveUploads = AktiveUploads()
 
+    /// Z-Snap-Tempo: höchstens so viele Teile gleichzeitig hochladen wie hier stehen, statt einer
+    /// nach dem anderen (Analyse "Video kommt spät": bei einem Video 20-35 Einzelanfragen
+    /// nacheinander, der größte Posten der Sendezeit). 4 gleichzeitig nutzt die Mobilfunk-/WLAN-
+    /// Verbindung besser aus, ohne den Akku-Vorteil eines schnelleren Sendens zu verlieren — fertig
+    /// heißt früher Funk aus, nicht länger.
+    private static let parallelitaet = 4
+
     private static func teilHochladen(id: String, rolle: String, datei: URL, konfig: Raum.HttpKonfiguration) async throws {
         let attribute = try? FileManager.default.attributesOfItem(atPath: datei.path)
         guard let groesse = attribute?[.size] as? Int, groesse > 0 else {
@@ -114,18 +121,23 @@ enum Medien {
         }
         let gesamt = Int((Double(groesse) / Double(teilGroesse)).rounded(.up))
         let fehlend = await fehlendeTeile(id: id, rolle: rolle, gesamt: gesamt, konfig: konfig)
-        guard let handle = FileHandle(forReadingAtPath: datei.path) else { throw MedienFehler.datei }
-        defer { try? handle.close() }
-        let typ = inhaltsTyp((try? handle.read(upToCount: 12)) ?? Data())
-        for teil in fehlend {
-            try handle.seek(toOffset: UInt64(teil * teilGroesse))
-            let stueck = (try handle.read(upToCount: teilGroesse)) ?? Data()
-            var request = URLRequest(url: konfig.basis.appendingPathComponent("medien/\(id)/\(rolle)/\(teil)"))
-            request.httpMethod = "PUT"
-            headers(konfig, in: &request)
-            let (_, response) = try await URLSession.shared.upload(for: request, from: stueck)
-            try pruefeErfolg(response)
+        guard let kopfHandle = FileHandle(forReadingAtPath: datei.path) else { throw MedienFehler.datei }
+        let typ = inhaltsTyp((try? kopfHandle.read(upToCount: 12)) ?? Data())
+        try? kopfHandle.close()
+
+        // Jede Aufgabe öffnet ihren eigenen `FileHandle`: ein geteilter Handle mit `seek` + `read`
+        // aus mehreren Tasks gleichzeitig wäre ein Rennen (wessen `seek` zuletzt gewinnt, liest wer).
+        for stapel in stapeln(fehlend, grad: parallelitaet) {
+            try await withThrowingTaskGroup(of: Void.self) { gruppe in
+                for teil in stapel {
+                    gruppe.addTask {
+                        try await teilSenden(id: id, rolle: rolle, teil: teil, datei: datei, konfig: konfig)
+                    }
+                }
+                try await gruppe.waitForAll()
+            }
         }
+
         var fertig = URLRequest(url: konfig.basis.appendingPathComponent("medien/\(id)/\(rolle)/fertig"))
         fertig.httpMethod = "POST"
         fertig.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -133,6 +145,25 @@ enum Medien {
         fertig.httpBody = try JSONEncoder().encode(FertigBody(teile: gesamt, typ: typ, bytes: groesse))
         let (_, response) = try await URLSession.shared.data(for: fertig)
         try pruefeErfolg(response)
+    }
+
+    private static func teilSenden(id: String, rolle: String, teil: Int, datei: URL, konfig: Raum.HttpKonfiguration) async throws {
+        guard let handle = FileHandle(forReadingAtPath: datei.path) else { throw MedienFehler.datei }
+        defer { try? handle.close() }
+        try handle.seek(toOffset: UInt64(teil * teilGroesse))
+        let stueck = (try handle.read(upToCount: teilGroesse)) ?? Data()
+        var request = URLRequest(url: konfig.basis.appendingPathComponent("medien/\(id)/\(rolle)/\(teil)"))
+        request.httpMethod = "PUT"
+        headers(konfig, in: &request)
+        let (_, response) = try await URLSession.shared.upload(for: request, from: stueck)
+        try pruefeErfolg(response)
+    }
+
+    /// Pure: Teile-Indizes in Gruppen von höchstens `grad` aufteilen (Reihenfolge der Gruppen
+    /// bleibt, innerhalb einer Gruppe läuft alles gleichzeitig).
+    static func stapeln(_ teile: [Int], grad: Int) -> [[Int]] {
+        guard grad > 0, !teile.isEmpty else { return teile.isEmpty ? [] : [teile] }
+        return stride(from: 0, to: teile.count, by: grad).map { Array(teile[$0..<min($0 + grad, teile.count)]) }
     }
 
     private static func fehlendeTeile(id: String, rolle: String, gesamt: Int, konfig: Raum.HttpKonfiguration) async -> [Int] {

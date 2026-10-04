@@ -72,10 +72,19 @@ enum SnapExport {
         // UND Doodle/Text/Sticker) einen zweiten verlustbehafteten Encode. Upgrade-Pfad, falls das stört:
         // eine eigene `AVVideoCompositing`-Klasse, die pro Frame erst den CI-Filter rendert und dann das
         // Overlay zeichnet (ersetzt `applyingCIFiltersWithHandler` UND `AVVideoCompositionCoreAnimationTool`).
+        // Schalter "Videos schneller senden": derselbe Deckel (720p) wie `MedienKodierung.video`s
+        // eigener Export danach — ohne das hier hat ein Snap mit Filter/Doodle/Text/Sticker zwei
+        // volle Kodierungen in Originalauflösung mit `HighestQuality` hintereinander (diese hier,
+        // dann noch mal beim Senden), bevor der Editor überhaupt zumacht. Mit dem Deckel ist diese
+        // Kodierung selbst kleiner UND das Ergebnis trifft beim Senden oft schon `videoPlan`s
+        // "unverändert"-Pfad (≤1280 Kante, ≤5 Mbit/s), die zweite Kodierung entfällt dann ganz.
+        let schnell = MedienKodierung.videoSchnell()
+        let preset = schnell ? AVAssetExportPreset1280x720 : AVAssetExportPresetHighestQuality
+
         var quelle = quelle
         var zwischenDatei: URL?
         if filter != .original {
-            guard let gefiltert = await Self.gefiltertesVideo(quelle: quelle, filter: filter) else { return nil }
+            guard let gefiltert = await Self.gefiltertesVideo(quelle: quelle, filter: filter, preset: preset) else { return nil }
             quelle = gefiltert
             zwischenDatei = gefiltert
         }
@@ -90,27 +99,29 @@ enum SnapExport {
 
         let upright = CGSize(width: abs(naturalSize.applying(transform).width), height: abs(naturalSize.applying(transform).height))
         guard upright.width > 0, upright.height > 0 else { return nil }
-        let overlayBild = ImageRenderer(content: SnapUeberlagerung(linien: linien, sticker: sticker, text: text, groesse: upright)).uiImage
+        let zielGroesse = schnell ? MedienKodierung.skaliert(upright, langeKante: 1280) : upright
+        let skalierung = CGAffineTransform(scaleX: zielGroesse.width / upright.width, y: zielGroesse.height / upright.height)
+        let overlayBild = ImageRenderer(content: SnapUeberlagerung(linien: linien, sticker: sticker, text: text, groesse: zielGroesse)).uiImage
 
         let komposition = AVMutableVideoComposition()
-        komposition.renderSize = upright
+        komposition.renderSize = zielGroesse
         komposition.frameDuration = CMTime(value: 1, timescale: 30)
 
         let bereich = CMTimeRange(start: .zero, duration: dauer)
         let anweisung = AVMutableVideoCompositionInstruction()
         anweisung.timeRange = bereich
         let ebene = AVMutableVideoCompositionLayerInstruction(assetTrack: track)
-        ebene.setTransform(transform, at: .zero)
+        ebene.setTransform(transform.concatenating(skalierung), at: .zero)
         anweisung.layerInstructions = [ebene]
         komposition.instructions = [anweisung]
 
         let videoLayer = CALayer()
-        videoLayer.frame = CGRect(origin: .zero, size: upright)
+        videoLayer.frame = CGRect(origin: .zero, size: zielGroesse)
         let overlayLayer = CALayer()
-        overlayLayer.frame = CGRect(origin: .zero, size: upright)
+        overlayLayer.frame = CGRect(origin: .zero, size: zielGroesse)
         overlayLayer.contents = overlayBild?.cgImage
         let parentLayer = CALayer()
-        parentLayer.frame = CGRect(origin: .zero, size: upright)
+        parentLayer.frame = CGRect(origin: .zero, size: zielGroesse)
         // Core Animation's own coordinate space is Y-up; `SnapUeberlagerung`'s `.position(x:y:)`
         // (like every other SwiftUI/UIKit layout) is Y-down — without this, the overlay composites
         // upside down (a well-known `AVVideoCompositionCoreAnimationTool` gotcha).
@@ -119,7 +130,11 @@ enum SnapExport {
         parentLayer.addSublayer(overlayLayer)
         komposition.animationTool = AVVideoCompositionCoreAnimationTool(postProcessingAsVideoLayer: videoLayer, in: parentLayer)
 
-        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return nil }
+        // Sicherheitsnetz ohne Gerätetest (wie `MedienKodierung.exportiere`): kennt das Gerät das
+        // 720p-Preset für dieses Asset nicht, einmal mit `HighestQuality` probieren statt aufzugeben.
+        guard let session = AVAssetExportSession(asset: asset, presetName: preset)
+            ?? (preset != AVAssetExportPresetHighestQuality ? AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) : nil)
+        else { return nil }
         let ziel = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
         session.outputURL = ziel
         session.outputFileType = .mov
@@ -135,11 +150,14 @@ enum SnapExport {
     }
 
     /// Eigener Export-Pass, der nur den Filter brennt (kein Overlay) — Baustein für `video(…)` oben.
+    /// `preset`: schnell-aware (siehe `video(…)`), mit demselben Sicherheitsnetz auf `HighestQuality`.
     @MainActor
-    private static func gefiltertesVideo(quelle: URL, filter: SnapFilter) async -> URL? {
+    private static func gefiltertesVideo(quelle: URL, filter: SnapFilter, preset: String) async -> URL? {
         let asset = AVURLAsset(url: quelle)
         guard let komposition = await filter.videoKomposition(fuer: asset) else { return nil }
-        guard let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) else { return nil }
+        guard let session = AVAssetExportSession(asset: asset, presetName: preset)
+            ?? (preset != AVAssetExportPresetHighestQuality ? AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) : nil)
+        else { return nil }
         let ziel = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
         session.outputURL = ziel
         session.outputFileType = .mov

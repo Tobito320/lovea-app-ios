@@ -71,7 +71,10 @@ struct SnapViewer: View {
                 await anzeigen(geholt)
                 return
             }
-            try? await Task.sleep(for: .seconds(2))
+            // 1s, nicht 2s (PR #14 hat `MedienDatei.url` aus demselben Grund schon auf 1s gesenkt):
+            // die Nachricht kommt an, bevor der Upload fertig ist, 2s hier hieß der Snap stand bis
+            // zu 2s länger als nötig auf "lädt".
+            try? await Task.sleep(for: .seconds(1))
         }
     }
 
