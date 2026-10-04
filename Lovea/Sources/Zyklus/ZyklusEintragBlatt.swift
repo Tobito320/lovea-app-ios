@@ -199,7 +199,7 @@ struct ZyklusEintragInhalt: View {
         .padding(16)
     }
 
-    private func abschnitt<Inhalt: View>(_ titel: String, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
+    private func abschnitt<Inhalt: View>(_ titel: String, @ViewBuilder _ inhalt: @escaping () -> Inhalt) -> some View {
         ZyklusKarte {
             VStack(alignment: .leading, spacing: 10) {
                 Text(titel)
