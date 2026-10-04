@@ -7,7 +7,7 @@ struct EinstellAbschnitt: View {
     let uebung: PlanUebung
     @State private var blatt = false
     private var gedaechtnis: EinstellGedaechtnis { .shared }
-    private var studio: GymStudio { .standard(person) }
+    private var studio: GymStudio { StudioGedaechtnis.shared.studio(person) }
     private var schluessel: String { EinstellGedaechtnis.uebungsSchluessel(uebung) }
 
     var body: some View {
