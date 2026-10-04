@@ -1,11 +1,11 @@
 import SwiftUI
 
 enum ZyklusReiter: String, CaseIterable, Identifiable {
-    case heute, kalender, insights
+    case heute, modus, kalender, insights
     var id: String { rawValue }
     var titel: String {
         switch self {
-        case .heute: return "Heute"
+        case .heute, .modus: return "Heute"
         case .kalender: return "Kalender"
         case .insights: return "Insights"
         }
@@ -15,6 +15,21 @@ enum ZyklusReiter: String, CaseIterable, Identifiable {
 enum ZyklusRootLogik {
     static let demoBanner = "Testdaten, nur zum Ausprobieren"
     static func zeigtBanner(_ quelle: ZyklusQuelle) -> Bool { quelle == .demo }
+
+    /// Zyklus: wie bisher. Die anderen Modi ersetzen "Heute" durch ihre eigene Ansicht.
+    static func reiter(_ modus: Modus) -> [ZyklusReiter] {
+        modus == .zyklus ? [.heute, .kalender, .insights] : [.modus, .kalender, .insights]
+    }
+
+    static func titel(_ reiter: ZyklusReiter, modus: Modus) -> String {
+        reiter == .modus ? ZyklusEinstellungenLogik.modusName(modus) : reiter.titel
+    }
+
+    /// Ein gemerkter Reiter, den der Modus nicht hat, fällt auf den ersten des Modus zurück.
+    static func gueltig(_ reiter: ZyklusReiter, modus: Modus) -> ZyklusReiter {
+        let r = Self.reiter(modus)
+        return r.contains(reiter) ? reiter : r[0]
+    }
 }
 
 /// Einstieg in den Zyklus: Segmente Heute / Kalender / Insights, Sperre, Einstellungen, Demo-Banner.
@@ -24,6 +39,8 @@ struct ZyklusRoot: View {
     @State private var sperre: ZyklusSperre
     @State private var reiter: ZyklusReiter = .heute
     @State private var einstellungenOffen = false
+    @State private var modus: Modus
+    @State private var erinnerung = ErinnerungsEinstellung.laden()
     @Environment(\.scenePhase) private var phase
     @Environment(\.colorScheme) private var schema
 
@@ -37,6 +54,7 @@ struct ZyklusRoot: View {
             echt.beobachten()
         }
         _speicher = State(initialValue: s)
+        _modus = State(initialValue: s.einstellung.modus)
         _sperre = State(initialValue: ZyklusSperre(person: person))
     }
 
@@ -57,26 +75,48 @@ struct ZyklusRoot: View {
                 }
             }
         }
-        .sheet(isPresented: $einstellungenOffen) { ZyklusEinstellungenBlatt(speicher: speicher, sperre: sperre) }
+        .sheet(isPresented: $einstellungenOffen, onDismiss: {
+            modus = speicher.einstellung.modus
+            erinnerung = ErinnerungsEinstellung.laden()
+        }) { ZyklusEinstellungenBlatt(speicher: speicher, sperre: sperre) }
         .onChange(of: phase) { _, neu in if neu == .background { sperre.sperren() } }
     }
 
     private var inhalt: some View {
         VStack(spacing: 0) {
             if ZyklusRootLogik.zeigtBanner(speicher.quelle) { banner }
-            Picker("Ansicht", selection: $reiter) {
-                ForEach(ZyklusReiter.allCases) { Text($0.titel).tag($0) }
+            Picker("Ansicht", selection: Binding(
+                get: { ZyklusRootLogik.gueltig(reiter, modus: modus) },
+                set: { reiter = $0 })
+            ) {
+                ForEach(ZyklusRootLogik.reiter(modus)) { Text(ZyklusRootLogik.titel($0, modus: modus)).tag($0) }
             }
             .pickerStyle(.segmented)
             .padding(.horizontal, 16)
             .padding(.vertical, 8)
-            switch reiter {
+            switch ZyklusRootLogik.gueltig(reiter, modus: modus) {
             case .heute: ZyklusHeuteView(speicher: speicher, eintragBlatt: blatt)
+            case .modus: modusAnsicht
             case .kalender: ZyklusKalenderView(speicher: speicher, eintragBlatt: blatt)
             case .insights: ZyklusInsightsView(speicher: speicher)
             }
         }
         .background(ZyklusHintergrund(deko: false).ignoresSafeArea())
+    }
+
+    @ViewBuilder private var modusAnsicht: some View {
+        switch modus {
+        case .zyklus: ZyklusHeuteView(speicher: speicher, eintragBlatt: blatt)
+        case .schwanger: ZyklusSchwangerView(speicher: speicher)
+        case .kinderwunsch: ZyklusKinderwunschView(speicher: speicher)
+        case .pille:
+            ZyklusPilleView(speicher: speicher, erinnerungAn: erinnerung.aktiv.contains(.pille)) { an in
+                if an { erinnerung.aktiv.insert(.pille) } else { erinnerung.aktiv.remove(.pille) }
+                let neu = erinnerung
+                let s = speicher
+                Task { await ZyklusErinnerungsDienst.anwenden(neu, speicher: s, erfragen: an) }
+            }
+        }
     }
 
     private var banner: some View {
