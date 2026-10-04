@@ -83,4 +83,25 @@ final class ZyklusRootTests: XCTestCase {
             ("Profil-Zeile", AnyView(ZyklusProfilZeile(person: .annika).padding(16).frame(width: 390).background(ZyklusHintergrund(deko: false)))),
         ])
     }
+
+    func testReiterJeModus() {
+        XCTAssertEqual(ZyklusRootLogik.reiter(.zyklus), [.heute, .kalender, .insights])
+        for m in [Modus.schwanger, .kinderwunsch, .pille] {
+            XCTAssertEqual(ZyklusRootLogik.reiter(m), [.modus, .kalender, .insights])
+        }
+    }
+
+    func testReiterTitelUndGueltig() {
+        XCTAssertEqual(ZyklusRootLogik.titel(.modus, modus: .schwanger), "Schwanger")
+        XCTAssertEqual(ZyklusRootLogik.titel(.heute, modus: .zyklus), "Heute")
+        XCTAssertEqual(ZyklusRootLogik.gueltig(.heute, modus: .pille), .modus)
+        XCTAssertEqual(ZyklusRootLogik.gueltig(.modus, modus: .zyklus), .heute)
+        XCTAssertEqual(ZyklusRootLogik.gueltig(.kalender, modus: .pille), .kalender)
+    }
+
+    func testErinnerungsArtenJeModus() {
+        XCTAssertTrue(ZyklusErinnerungsDienst.arten(fuer: .pille).contains(.pille))
+        XCTAssertFalse(ZyklusErinnerungsDienst.arten(fuer: .zyklus).contains(.pille))
+        XCTAssertEqual(ZyklusErinnerungsDienst.arten(fuer: .schwanger), [.wasser, .eintragen])
+    }
 }

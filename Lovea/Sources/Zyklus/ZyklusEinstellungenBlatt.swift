@@ -43,12 +43,43 @@ enum ZyklusEinstellungenLogik {
     }
 }
 
+/// Speichert die Erinnerungen und plant neu. Geplant wird nur für echte Daten, nie für die Demo.
+@MainActor
+enum ZyklusErinnerungsDienst {
+    /// Pille nur im Pillen-Modus; Periode, fruchtbare Tage, Eisprung und Verspätung nur, wo der Plan sie rechnet.
+    static func arten(fuer modus: Modus) -> [ErinnerungsArt] {
+        switch modus {
+        case .zyklus, .kinderwunsch: return [.periodeBald, .fruchtbar, .eisprung, .verspaetung, .wasser, .eintragen]
+        case .schwanger: return [.wasser, .eintragen]
+        case .pille: return [.pille, .wasser, .eintragen]
+        }
+    }
+
+    static func jetztMinute(_ jetzt: Date = Date()) -> Int {
+        let k = Datum.kalender.dateComponents([.hour, .minute], from: jetzt)
+        return (k.hour ?? 0) * 60 + (k.minute ?? 0)
+    }
+
+    /// `erfragen`: nur beim Einschalten wird die Berechtigung angefragt.
+    static func anwenden(_ e: ErinnerungsEinstellung, speicher: any ZyklusSpeicher, erfragen: Bool) async {
+        e.speichern()
+        guard speicher.quelle == .echt else { return }
+        let planer = ZyklusErinnerungsPlaner()
+        if erfragen, !(await planer.erlaubt) { _ = await planer.berechtigungErfragen() }
+        let plan = ErinnerungsPlan.plan(logik: speicher.logik(), einstellung: e,
+                                        heute: Datum.text(Date()), jetztMinute: jetztMinute())
+        await planer.planen(plan)
+    }
+}
+
 struct ZyklusEinstellungenBlatt: View {
     let speicher: any ZyklusSpeicher
     let sperre: ZyklusSperre
-    /// Leerer Platz für Modi und Erinnerungen. Wird später verdrahtet.
+    /// Ersetzt die Erinnerungen, falls gesetzt.
     var erweitert: AnyView?
     @State private var einst: ZyklusEinstellung
+    @State private var erinnerung = ErinnerungsEinstellung.laden()
+    @AppStorage(ZyklusSchalter.imTraining) private var imTraining = false
     @State private var loeschenFrage = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var schema
@@ -83,7 +114,9 @@ struct ZyklusEinstellungenBlatt: View {
                 let b = ZyklusEinstellungenLogik.begrenzt(neu)
                 speicher.einstellung = b
                 if b != neu { einst = b }
+                neuPlanen(erfragen: false)
             }
+            .onChange(of: erinnerung) { _, _ in neuPlanen(erfragen: false) }
             .confirmationDialog("Alle Zyklus-Daten löschen?", isPresented: $loeschenFrage, titleVisibility: .visible) {
                 Button("Alles löschen", role: .destructive) { ZyklusEinstellungenLogik.alleLoeschen(speicher) }
                 Button("Abbrechen", role: .cancel) {}
@@ -136,12 +169,29 @@ struct ZyklusEinstellungenBlatt: View {
         if let erweitert {
             ZyklusKarte { erweitert }
         } else {
+            erinnerungenKarte
+        }
+    }
+
+    private func neuPlanen(erfragen: Bool) {
+        let e = erinnerung
+        let s = speicher
+        Task { await ZyklusErinnerungsDienst.anwenden(e, speicher: s, erfragen: erfragen) }
+    }
+
+    private var erinnerungenKarte: some View {
+        VStack(spacing: 14) {
+            ZyklusErinnerungenView(einstellung: $erinnerung, arten: ZyklusErinnerungsDienst.arten(fuer: einst.modus)) {
+                neuPlanen(erfragen: true)
+            }
             ZyklusKarte {
-                HStack {
-                    titel("Erinnerungen")
-                    Spacer()
-                    Text("Bald").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                Toggle(isOn: $imTraining) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        titel("Zyklus im Training")
+                        Text("Tipps zu Training und Alltag auf der Heute-Seite").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                    }
                 }
+                .tint(ZyklusFarbe.himbeere.farbe(schema))
             }
         }
     }
