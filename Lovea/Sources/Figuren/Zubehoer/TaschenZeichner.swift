@@ -4,15 +4,17 @@ import SwiftUI
 enum TaschenStil: Sendable { case shopper, rucksack, clutch, koffer, klappe, speedy }
 
 /// Z-39.2: brand cues on the bag body. `web` Gucci green-red-green, `monogramm` LV, `oblique` Dior,
-/// `dreieck` Prada, `gesteppt` Chanel quilting with CC.
-enum TaschenMuster: Sendable { case keins, web, monogramm, oblique, dreieck, gesteppt }
+/// `dreieck` Prada, `gesteppt` Chanel quilting with CC, `guess` the Guess wordmark plate.
+/// Fix round 5: `guess` was `.keins` — on Annika's standard black jacket/shoes the all-black bag
+/// had no cue at all and was invisible against them (p5 bug report).
+enum TaschenMuster: Sendable, Equatable { case keins, web, monogramm, oblique, dreieck, gesteppt, guess }
 
 /// Maps a purchased bag's shop id to a drawn silhouette + color. New catalog ids need one line
 /// here (`ShopKatalogTests.testAlleTeileHabenEineZeichnung` catches a missing entry).
 let taschenKatalog: [String: (stil: TaschenStil, farbe: FigurFarbe, muster: TaschenMuster)] = [
     "tasche.stoffbeutel": (.shopper, FigurFarbe(0xD8C3A0), .keins),
     "tasche.canvas-tote": (.shopper, FigurFarbe(0xEFC09B), .keins),
-    "tasche.guess-tasche": (.shopper, FigurFarbe(0x2B2830), .keins),
+    "tasche.guess-tasche": (.shopper, FigurFarbe(0x2B2830), .guess),
     "tasche.rucksack": (.rucksack, FigurFarbe(0x4B6C98), .keins),
     "tasche.prada-rucksack": (.rucksack, FigurFarbe(0x2B2830), .dreieck),
     "tasche.gucci-tasche": (.shopper, FigurFarbe(0xB5552B), .web),
@@ -49,6 +51,8 @@ func zeichneTasche(_ g: GraphicsContext, id: String, an punkt: CGPoint, groesse:
         koerper = box(-13, -6, 26, 17, 8)
     }
     teil(h, koerper, f, 2.5)
+    // Fix round 5: a thin gold rim so the silhouette reads against equally dark clothing (p5).
+    if e.muster == .guess { h.stroke(koerper, with: .color(Pal.gold.farbe), lineWidth: 1.2) }
     var innen = h
     innen.clip(to: koerper)
     muster(innen, e.muster, f)
@@ -100,6 +104,12 @@ private func muster(_ h: GraphicsContext, _ m: TaschenMuster, _ f: FigurFarbe) {
             linie(h, strich(P(x, 12), P(x + 10, -8)), f.mix(Pal.weiss, 0.25).farbe, 0.9)
             linie(h, strich(P(x + 10, 12), P(x, -8)), f.mix(Pal.weiss, 0.25).farbe, 0.9)
         }
+    case .guess:
+        // Gold plate centered on the body, "GUESS" in a bold wide sans — reads as a brand plate
+        // even tiny; also the fix for the all-black bag vanishing against black clothing (p5).
+        h.fill(box(-9, -3, 18, 6, 1.4), with: .color(Pal.gold.farbe))
+        h.draw(Text("GUESS").font(.system(size: 4.6, weight: .black, design: .default)).kerning(0.4)
+            .foregroundStyle(FigurFarbe(0x1A1710).farbe), at: P(0, 0.2))
     }
 }
 

@@ -111,6 +111,8 @@ final class RenderGalerieFigurenTests: XCTestCase {
             }
         }
         for id in taschenKatalog.keys.sorted() {
+            // p5: kein `jacke = 0` hier — Annikas Standard-Lederjacke ist dieselbe Farbe wie die
+            // Guess-Tasche, genau der Fall, der sie vorher unsichtbar machte.
             zeige(id, .annika) { $0.tasche = id }
         }
         RenderTafel.speichern("marken", spalten: 8, zellen: zellen)

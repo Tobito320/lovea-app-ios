@@ -100,6 +100,20 @@ final class TascheProfilTests: XCTestCase {
         return r.uiImage?.pngData()
     }
 
+    /// p5 (Runde 5): die Guess-Tasche war am Standard-Annika-Look (schwarze Lederjacke, schwarze
+    /// Schuhe, alles `0x2B2830`) unsichtbar — gleiche Farbe wie die Tasche, kein Muster, keine
+    /// Kontur, die sich abhebt. `testGetrageneTascheWirdImProfilGezeichnet` unten erkennt das nicht,
+    /// weil ein paar Antialiasing-Pixel schon reichen, um die PNGs ungleich zu machen.
+    func testGuessTascheHebtSichVonSchwarzerKleidungAb() {
+        let annika = FigurAussehen.standard(for: .annika)
+        let jackenfarbe = FigurAussehen.farben[annika.jackenfarbe].farbe
+        let eintrag = taschenKatalog["tasche.guess-tasche"]!
+        let gleicheFarbe = eintrag.farbe == jackenfarbe
+        XCTAssertTrue(gleicheFarbe, "Testannahme: Tasche und Annikas Jacke sind dieselbe Farbe")
+        // Bei identischer Farbe MUSS ein eigenes Muster/Logo die Tasche sichtbar machen.
+        XCTAssertNotEqual(eintrag.muster, .keins, "Guess-Tasche braucht ein Muster/Logo, sonst verschwindet sie vor Annikas schwarzer Jacke")
+    }
+
     /// Profil-Figur (ganzkoerper) zeichnet die angezogene Tasche, für den eigenen und den Partner-Zustand.
     func testGetrageneTascheWirdImProfilGezeichnet() {
         for p in Person.allCases {
