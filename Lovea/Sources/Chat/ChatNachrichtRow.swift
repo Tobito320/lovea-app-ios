@@ -464,6 +464,9 @@ private struct SnapZeile: View {
     let backdrop: Backdrop
 
     @State private var vollbild = false
+    /// Zoom-Transition (wie `MedienNachrichtView`/`FotoStapel`): der Snap öffnet und schließt aus
+    /// seiner Bubble heraus statt mit dem Standard-Sheet-Slide.
+    @Namespace private var zoomRaum
 
     // `bleibt` only stops the snap from collapsing into a spur *after* it's been viewed once — a
     // still-unviewed `bleibt` snap goes through the fullscreen viewer like any other (Spec 6),
@@ -474,6 +477,7 @@ private struct SnapZeile: View {
         Group {
             if alsFoto, let medium = nachricht.medien.first {
                 MedienNachrichtView(medium: medium, eigene: eigene)
+                    .overlay(alignment: .topTrailing) { if nachricht.snapGespeichert { gespeichertAbzeichen } }
             } else if nachricht.snapAngesehen {
                 // Snaps replay without limit: the spur stays tappable ("nochmal" for the receiver).
                 spur(nachricht.snapLange ? "Snap lange angesehen" : (eigene ? "Snap angesehen" : "Snap angesehen · nochmal"))
@@ -483,7 +487,31 @@ private struct SnapZeile: View {
         }
         .fullScreenCover(isPresented: $vollbild) {
             SnapViewer(nachricht: nachricht, ich: ich)
+                .navigationTransition(.zoom(sourceID: nachricht.id, in: zoomRaum))
         }
+        // Lädt das Medium schon vor dem ersten Antippen vor, damit der Viewer nicht erst mit
+        // Spinner öffnet (kein schwarzes Aufblitzen beim Reingehen). Nur für noch nicht geöffnete,
+        // empfangene Snaps — `alsFoto` holt sein Medium schon selbst (`MedienNachrichtView`), ein
+        // schon angesehener Snap braucht es nicht mehr dringend, und die eigenen liegen eh lokal
+        // (`eigene`/`eigeneQuellen`); sonst würde das jeden Snap in der Historie neu laden (Akku).
+        .task(id: nachricht.medien.first?.id) {
+            guard !alsFoto, !nachricht.snapAngesehen, !eigene,
+                  let medium = nachricht.medien.first,
+                  ChatMedien.eigeneQuellen[medium.id] == nil, Medien.lokal(medium.id) == nil
+            else { return }
+            _ = try? await Medien.holen(medium.id)
+        }
+    }
+
+    private var gespeichertAbzeichen: some View {
+        Label("Gespeichert", systemImage: "bookmark.fill")
+            .font(.caption2.weight(.semibold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 3)
+            .background(.black.opacity(0.55), in: .capsule)
+            .padding(6)
+            .accessibilityHidden(true)
     }
 
     // A tap gesture, not a Button: a Button inside the bubble would swallow the long press.
@@ -501,6 +529,7 @@ private struct SnapZeile: View {
         .font(.subheadline.weight(.medium))
         .blase(eigene: eigene, schwanz: schwanz, backdrop: backdrop)
         .contentShape(.rect)
+        .matchedTransitionSource(id: nachricht.id, in: zoomRaum)
         .onTapGesture {
             guard !LangDruck.geradeEben else { return }
             Haptik.leicht()

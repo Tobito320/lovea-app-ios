@@ -229,12 +229,24 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(nachricht?.snapLange, true)
     }
 
+    /// Alte Ops/Clients kennen `an` nicht (nur `{"id": ...}`) — das hieß immer "speichern".
     func testSnapGespeichertSetztFlag() {
         let modell = ChatModell(registrieren: false)
         modell.anwenden([op("nachricht.neu", ["id": "s1"], von: .ahmed, seq: 1)])
         modell.anwenden([op("snap.gespeichert", ["id": "s1"], von: .annika)])
 
         XCTAssertEqual(modell.nachrichten.first { $0.id == "s1" }?.snapGespeichert, true)
+    }
+
+    /// "Nicht mehr speichern" (Toggle): ein zweites `snap.gespeichert` mit `an: false` kehrt es um.
+    func testSnapGespeichertKannWiederEntferntWerden() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "s1"], von: .ahmed, seq: 1)])
+        modell.anwenden([op("snap.gespeichert", ["id": "s1", "an": true], von: .annika)])
+        XCTAssertEqual(modell.nachrichten.first { $0.id == "s1" }?.snapGespeichert, true)
+
+        modell.anwenden([op("snap.gespeichert", ["id": "s1", "an": false], von: .annika)])
+        XCTAssertEqual(modell.nachrichten.first { $0.id == "s1" }?.snapGespeichert, false)
     }
 
     // MARK: - snap.aufnahme (Z-6.4; Review-Fokus #1: dieselbe Operation kommt zweimal)

@@ -18,25 +18,32 @@ struct SnapViewer: View {
     /// both to time `lange` correctly and to never mark a snap "angesehen" that never rendered.
     @State private var begonnen: Date?
     @State private var gemeldeteAufnahmeArten: Set<String> = []
-    /// "In Aufnahmen speichern" (25.09.): gleiche Logik wie das Chat-Menü.
-    @State private var speichernLaeuft = false
     @State private var hinweis: String?
+    /// Interaktives Runterziehen (wie `MedienVollbild.ziehGeste`): folgt dem Finger statt beim
+    /// Loslassen hart zuzuschnappen — 120pt-Schwellwert wie dort, jetzt mit Rückfeder statt hartem Schnitt.
+    @State private var zieh: CGFloat = 0
 
     private var binEmpfaenger: Bool { nachricht.von != ich }
+    /// Live statt der beim Öffnen übergebenen Kopie — der Umschalt-Button soll sofort umspringen,
+    /// auch wenn die Nachricht als Wert-Typ nur einmal in diese View hineinkopiert wurde.
+    private var aktuell: ChatModell.Nachricht { ChatModell.shared.nachricht(nachricht.id) ?? nachricht }
     private var istVideo: Bool { nachricht.medien.first?.typ == "video" }
 
     var body: some View {
         ZStack {
-            Color.black.ignoresSafeArea()
-            if let spieler {
-                // `.allowsHitTesting(false)` — otherwise `VideoPlayer`'s own controls swallow the
-                // tap this view uses to dismiss, and a first tap just pauses/plays instead.
-                VideoPlayer(player: spieler).ignoresSafeArea().allowsHitTesting(false)
-            } else if let bild {
-                Image(uiImage: bild).resizable().scaledToFit()
-            } else {
-                ProgressView().tint(.white)
+            Color.black.opacity(1 - min(zieh / 400, 0.6)).ignoresSafeArea()
+            Group {
+                if let spieler {
+                    // `.allowsHitTesting(false)` — otherwise `VideoPlayer`'s own controls swallow the
+                    // tap this view uses to dismiss, and a first tap just pauses/plays instead.
+                    VideoPlayer(player: spieler).ignoresSafeArea().allowsHitTesting(false)
+                } else if let bild {
+                    Image(uiImage: bild).resizable().scaledToFit()
+                } else {
+                    ProgressView().tint(.white)
+                }
             }
+            .offset(y: zieh)
         }
         .contentShape(Rectangle())
         .onTapGesture { schliessen() }
@@ -47,11 +54,20 @@ struct SnapViewer: View {
         .accessibilityAddTraits(.isButton)
         .accessibilityAction { schliessen() }
         .accessibilityAction(.escape) { schliessen() }
-        .gesture(DragGesture().onEnded { wert in if wert.translation.height > 60 { schliessen() } })
-        .overlay(alignment: .bottom) { speichernEbene }
+        .gesture(ziehGeste)
+        .overlay(alignment: .bottom) { speichernEbene.opacity(zieh > 0 ? 0 : 1) }
         .task { await laden() }
         .onAppear { FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild)) }
-        .onDisappear { FigurenModell.shared.zustandSenden(.init(haupt: .imChat)) }
+        .onDisappear {
+            FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
+            // Nicht nur über `schliessen()`: die Zoom-Transition erlaubt jetzt auch das System-eigene
+            // Wegwischen (`.navigationTransition(.zoom)`), das `schliessen()` nie durchläuft — das
+            // "angesehen" muss trotzdem raus, egal wodurch der Viewer verschwindet.
+            if binEmpfaenger, !nachricht.snapAngesehen, let begonnen {
+                let sekunden = Date().timeIntervalSince(begonnen)
+                ChatModell.shared.snapAngesehenSenden(nachricht.id, lange: sekunden >= 120)
+            }
+        }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
             aufnahmeMelden(art: "screenshot")
         }
@@ -91,11 +107,23 @@ struct SnapViewer: View {
         if binEmpfaenger, nachricht.snapAngesehen { ChatModell.shared.snapWiederholtSenden(nachricht.id) }
     }
 
+    /// Folgt dem Finger nach unten; ab 120pt (wie `MedienVollbild`) schließt es, sonst federt es zurück.
+    private var ziehGeste: some Gesture {
+        DragGesture(minimumDistance: 10)
+            .onChanged { wert in
+                guard wert.translation.height > 0, wert.translation.height > abs(wert.translation.width) else { return }
+                zieh = wert.translation.height
+            }
+            .onEnded { _ in
+                if zieh > 120 {
+                    schliessen()
+                } else {
+                    withAnimation(Feder.schnell) { zieh = 0 }
+                }
+            }
+    }
+
     private func schliessen() {
-        if binEmpfaenger, !nachricht.snapAngesehen, let begonnen {
-            let sekunden = Date().timeIntervalSince(begonnen)
-            ChatModell.shared.snapAngesehenSenden(nachricht.id, lange: sekunden >= 120)
-        }
         dismiss()
     }
 
@@ -133,9 +161,9 @@ struct SnapViewer: View {
                 }
                 Button {
                     Haptik.leicht()
-                    Task { await inAufnahmenSpeichern() }
+                    imChatSpeichernUmschalten()
                 } label: {
-                    Image(systemName: "square.and.arrow.down")
+                    Image(systemName: aktuell.snapGespeichert ? "bookmark.fill" : "bookmark")
                         .font(.system(size: 20, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 52, height: 52)
@@ -143,8 +171,7 @@ struct SnapViewer: View {
                 }
                 .glassEffect(.regular.interactive(), in: .circle)
                 .buttonStyle(.federnd)
-                .disabled(speichernLaeuft)
-                .accessibilityLabel("In Aufnahmen speichern")
+                .accessibilityLabel(aktuell.snapGespeichert ? "Nicht mehr im Chat speichern" : "Im Chat speichern")
             }
             .padding(.bottom, 24)
             .task(id: hinweis) {
@@ -155,25 +182,13 @@ struct SnapViewer: View {
         }
     }
 
-    /// Same logic as the chat menu's "In Aufnahmen speichern" (`ChatTab.inAufnahmenSpeichern`).
-    private func inAufnahmenSpeichern() async {
-        guard !speichernLaeuft else { return }
-        let medien = nachricht.medien.filter { $0.typ == "foto" || $0.typ == "video" }
-        guard !medien.isEmpty else { return }
-        speichernLaeuft = true
-        defer { speichernLaeuft = false }
-        do {
-            try await AufnahmenSpeichern.speichern(medien)
-            Haptik.erfolg()
-            withAnimation(Feder.weich) { hinweis = "In Aufnahmen gespeichert" }
-            let nurVideo = medien.allSatisfy { $0.typ == "video" }
-            ChatModell.shared.snapAufnahmeSenden(nachricht.id, art: nurVideo ? ChatHinweis.gespeichertVideo : ChatHinweis.gespeichertFoto)
-        } catch AufnahmenSpeichern.Fehler.keineErlaubnis {
-            Haptik.warnung()
-            withAnimation(Feder.weich) { hinweis = "Kein Zugriff auf Fotos. In den Einstellungen erlauben." }
-        } catch {
-            Haptik.warnung()
-            withAnimation(Feder.weich) { hinweis = "Speichern hat nicht geklappt" }
-        }
+    /// "Im Chat speichern" (Snapchat-Toggle): bleibt als echtes Foto/Video im Chat stehen, erneut
+    /// ansehbar, und wird über `snap.gespeichert` (`ChatModell`) bei beiden Seiten synchronisiert.
+    /// Gegenstück "In Aufnahmen speichern" (Fotos-App) lebt weiter im Lang-Druck-Menü (`NachrichtFokus`).
+    private func imChatSpeichernUmschalten() {
+        let neu = !aktuell.snapGespeichert
+        ChatModell.shared.snapGespeichertSenden(nachricht.id, an: neu)
+        Haptik.erfolg()
+        withAnimation(Feder.weich) { hinweis = neu ? "Im Chat gespeichert" : "Nicht mehr im Chat gespeichert" }
     }
 }

@@ -189,10 +189,12 @@ struct NachrichtFokusEbene: View {
         let text = nachricht.text ?? ""
         var liste = [MenuePunkt(id: "antworten", titel: "Antworten", symbol: "arrowshape.turn.up.left") { tun(.antworten) }]
         // Fix round 3: straight from the bubble, no need to open the photo first.
-        // Q3: a snap saved in the chat (`snapGespeichert`) is a real photo/video now (`alsFoto` in
-        // `SnapZeile`), so it gets the same Photos option as any other medium; an unsaved/unopened/
-        // expired snap stays without it (still ephemeral).
-        if (nachricht.snap == nil || nachricht.snapGespeichert), fokusMedien.contains(where: { $0.typ == "foto" || $0.typ == "video" }) {
+        // Q3/snap-im-chat: a snap saved in the chat (`snapGespeichert`) is a real photo/video now
+        // (`alsFoto` in `SnapZeile`), so it gets the same Photos option as any other medium; the
+        // viewer no longer has its own "In Aufnahmen speichern" button (that became the chat-save
+        // toggle), so an already-viewed-but-unsaved snap needs this path too, or it has none at
+        // all. Only a still-unopened/expired snap stays without it (still ephemeral).
+        if (nachricht.snap == nil || nachricht.snapGespeichert || nachricht.snapAngesehen), fokusMedien.contains(where: { $0.typ == "foto" || $0.typ == "video" }) {
             liste.append(MenuePunkt(id: "aufnahmen", titel: "In Aufnahmen speichern", symbol: "square.and.arrow.down") { tun(.aufnahmenSpeichern) })
         }
         if !text.isEmpty {
@@ -207,12 +209,11 @@ struct NachrichtFokusEbene: View {
         }
         if nachricht.snap != nil, nachricht.snapAngesehen {
             liste.append(MenuePunkt(id: "snap", titel: "Erneut ansehen", symbol: "arrow.clockwise") { tun(.snapAnsehen) })
-            if !nachricht.snapGespeichert {
-                liste.append(MenuePunkt(id: "snapSpeichern", titel: "Speichern", symbol: "square.and.arrow.down") {
-                    modell.snapGespeichertSenden(nachricht.id)
-                    schliessen()
-                })
-            }
+            let gespeichert = nachricht.snapGespeichert
+            liste.append(MenuePunkt(id: "snapSpeichern", titel: gespeichert ? "Nicht mehr speichern" : "Im Chat speichern", symbol: gespeichert ? "bookmark.slash" : "bookmark") {
+                modell.snapGespeichertSenden(nachricht.id, an: !gespeichert)
+                schliessen()
+            })
         }
         let fotos = lokaleFotos
         if nachricht.snap == nil, !fotos.isEmpty {
