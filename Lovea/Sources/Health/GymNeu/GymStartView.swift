@@ -32,8 +32,10 @@ struct GymStartStand {
     /// Nur am heutigen Tag.
     var knopf: GymStartKnopf?
     var vergessen: Bool
+    /// Zeitfenster des Studios (`ZeitSchaetzung.slot`), nil = keine feste Uhrzeit.
+    var slotMinuten: Int? = nil
 
-    static func bauen(ich: Person, sessions: [Person: [GymSession]], plaene: [Person: TrainingsPlan], gewaehlt: String, jetzt: Date) -> GymStartStand {
+    static func bauen(ich: Person, sessions: [Person: [GymSession]], plaene: [Person: TrainingsPlan], gewaehlt: String, jetzt: Date, slotMinuten: Int? = nil) -> GymStartStand {
         let heute = Datum.text(jetzt)
         let plan = plaene[ich] ?? .leer, eigene = sessions[ich] ?? []
         let woche = KoerperWoche.bauen(ich: ich, sessions: sessions, plan: plan, heute: heute, katalog: { UebungsKatalog.nachId[$0] })
@@ -51,7 +53,7 @@ struct GymStartStand {
             ich: ich, woche: woche, gewaehlt: gewaehlt, heute: heute, tag: TrainingLogik.tag(plan, datum: gewaehlt),
             statusIch: status(ich), statusPartner: status(ich.partner), splitName: plan.splitName,
             planTage: Set(plan.tage.flatMap(\.wochentage)).count, knopf: knopf,
-            vergessen: TrainingLogik.vergessen(eigene, jetzt: jetzt) != nil
+            vergessen: TrainingLogik.vergessen(eigene, jetzt: jetzt) != nil, slotMinuten: slotMinuten
         )
     }
 }
@@ -75,6 +77,9 @@ struct GymStartInhalt: View {
             wer.padding(.top, 10)
             if stand.vergessen { vergessen.padding(.top, 14) }
             kopf.padding(.top, 22)
+            if let tag = stand.tag, !tag.uebungen.isEmpty {
+                ZeitKarte(urteil: ZeitSchaetzung.urteil(tag, slotMinuten: stand.slotMinuten)).padding(.top, 10)
+            }
             uebungen.padding(.top, 8)
             Text("SPLIT").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 22)
             split
@@ -266,7 +271,8 @@ struct GymStartView: View {
     var body: some View {
         let stand = GymStartStand.bauen(
             ich: ich, sessions: [ich: modell.sessions(ich), ich.partner: modell.sessions(ich.partner)],
-            plaene: [ich: modell.plan(ich), ich.partner: modell.plan(ich.partner)], gewaehlt: gewaehlt, jetzt: Date()
+            plaene: [ich: modell.plan(ich), ich.partner: modell.plan(ich.partner)], gewaehlt: gewaehlt, jetzt: Date(),
+            slotMinuten: ZeitSchaetzung.slot(StudioGedaechtnis.shared.profil(ich))
         )
         ScrollView {
             GymStartInhalt(stand: stand, aktionen: aktionen(stand))
