@@ -20,7 +20,7 @@ final class DateSpeicher {
 
     var ideen: [DateIdee] { DateLogik.sortiert(zustand.sichtbar) }
 
-    @ObservationIgnored private let ich: () -> Person?
+    @ObservationIgnored private let wer: () -> Person?
     @ObservationIgnored private let senden: (Op) -> Void
     @ObservationIgnored private let jetzt: () -> Date
     @ObservationIgnored private let merker: UserDefaults
@@ -30,7 +30,7 @@ final class DateSpeicher {
         ich: @escaping () -> Person?, senden: @escaping (Op) -> Void, jetzt: @escaping () -> Date = Date.init,
         merker: UserDefaults = .standard
     ) {
-        self.ich = ich
+        self.wer = ich
         self.senden = senden
         self.jetzt = jetzt
         self.merker = merker
@@ -63,7 +63,7 @@ final class DateSpeicher {
     @discardableResult
     func anlegen(titel: String, kategorie: DateKategorie, ort: PunktOrt? = nil, links: [DateLink] = [], notiz: String? = nil) -> DateIdee? {
         let name = titel.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !name.isEmpty, let ich = ich() else { return nil }
+        guard !name.isEmpty, let ich = wer() else { return nil }
         let text = notiz?.trimmingCharacters(in: .whitespacesAndNewlines)
         let idee = DateIdee(
             id: "idee-" + UUID().uuidString, titel: name, kategorie: kategorie, ort: ort, links: links,
@@ -74,29 +74,29 @@ final class DateSpeicher {
     }
 
     func aendern(_ id: String, _ aenderung: (inout DateIdee) -> Void) {
-        guard let alt = zustand.ideen[id], let ich = ich() else { return }
+        guard let alt = zustand.ideen[id], let ich = wer() else { return }
         uebernehmen(DateLogik.geaendert(alt, von: ich, jetzt: jetzt(), aenderung))
     }
 
     func abhaken(_ id: String, erledigt: Bool) {
-        guard let alt = zustand.ideen[id], alt.erledigt != erledigt, let ich = ich() else { return }
+        guard let alt = zustand.ideen[id], alt.erledigt != erledigt, let ich = wer() else { return }
         uebernehmen(DateLogik.abgehakt(alt, erledigt: erledigt, von: ich, jetzt: jetzt(), heute: Datum.text(jetzt())))
     }
 
     func loeschen(_ id: String) {
-        guard let alt = zustand.ideen[id], !alt.geloescht, let ich = ich() else { return }
+        guard let alt = zustand.ideen[id], !alt.geloescht, let ich = wer() else { return }
         uebernehmen(DateLogik.geloescht(alt, von: ich, jetzt: jetzt()))
     }
 
     /// Undo-Leiste: Flag zurück, mit neuem Zeitstempel, damit es auch gegen die Löschung beim Partner gewinnt.
     func rueckgaengig(_ id: String) {
-        guard let alt = zustand.ideen[id], alt.geloescht, let ich = ich() else { return }
+        guard let alt = zustand.ideen[id], alt.geloescht, let ich = wer() else { return }
         uebernehmen(DateLogik.wiederhergestellt(alt, von: ich, jetzt: jetzt()))
     }
 
     /// Sofort lokal anwenden (die Ansicht reagiert ohne Warten), dann senden. Das Echo ändert nichts mehr.
     private func uebernehmen(_ idee: DateIdee) {
-        guard let ich = ich() else { return }
+        guard let ich = wer() else { return }
         DateLogik.zusammenfuehren(&zustand.ideen, idee)
         senden(Op.neu(Self.art, idee, von: ich))
     }
@@ -117,7 +117,7 @@ final class DateSpeicher {
     }
 
     func startdatenSenden() {
-        guard !merker.bool(forKey: DateStartdaten.schluessel), let ich = ich() else { return }
+        guard !merker.bool(forKey: DateStartdaten.schluessel), let ich = wer() else { return }
         merker.set(true, forKey: DateStartdaten.schluessel)
         for idee in DateStartdaten.fehlende(in: zustand.ideen) {
             DateLogik.zusammenfuehren(&zustand.ideen, idee)

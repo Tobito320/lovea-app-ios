@@ -1,7 +1,7 @@
 import Foundation
 import Observation
 
-struct DateIdee: Codable, Identifiable, Hashable, Sendable {
+struct VorratIdee: Codable, Identifiable, Hashable, Sendable {
     var id: String
     var text: String
 }
@@ -16,10 +16,10 @@ final class WirModell {
     private var faltung = SeqFaltung()
 
     /// Bundle-Vorrat aus `Kalender/Inhalt/dates.json` (40 Ideen der Web-App).
-    nonisolated static let ideenVorrat: [DateIdee] = {
+    nonisolated static let ideenVorrat: [VorratIdee] = {
         guard let url = Inhalt.url(datei: "dates", typ: "json"),
               let data = try? Data(contentsOf: url),
-              let liste = try? JSONDecoder().decode([DateIdee].self, from: data)
+              let liste = try? JSONDecoder().decode([VorratIdee].self, from: data)
         else { return [] }
         return liste
     }()
