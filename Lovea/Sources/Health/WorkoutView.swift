@@ -595,6 +595,7 @@ struct WorkoutUebungView: View {
             }
             .listRowSeparator(.hidden)
             EinstellAbschnitt(person: ich, uebung: u.planUebung)
+            AusweichAbschnitt(sessionId: sessionId, uebung: u, saetze: $saetze, nachtrag: nachtrag)
             Section {
                 tabellenKopf.listRowSeparator(.hidden)
                 ForEach(saetze.indices, id: \.self) { i in zeile(u, i, frueher) }

@@ -84,6 +84,13 @@ final class TrainingModell {
         Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: u.uebung, status: "satz", saetze: saetze, name: u.name))
     }
 
+    /// Tausch im Training (`AusweichLogik`): derselbe Plan-Eintrag, andere Katalog-Übung. Die Satzzeilen
+    /// gehen mit, `ersatzFuer` hält die ursprüngliche fest; zurück auf die ursprüngliche löscht es.
+    func tauschen(_ session: String, _ u: PlanUebung, zu neu: String, ersatzFuer: String?, saetze: [PlanSatz]) {
+        if WorkoutUhr.shared.stand?.plan == u.id { WorkoutUhr.shared.aus() }
+        Raum.shared.senden("gym.uebung", GymD(session: session, plan: u.id, uebung: neu, status: "satz", saetze: saetze, ersatzFuer: ersatzFuer))
+    }
+
     /// Übung auslassen: ein leerer Stand (`WorkoutUebung.ausgelassen`). `entfernen` nimmt sie wieder
     /// auf, dann stehen die Plan-Sätze wieder da. Die Pausenuhr dieser Übung hört auf.
     func auslassen(_ session: String, _ u: PlanUebung) {

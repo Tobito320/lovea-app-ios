@@ -119,6 +119,9 @@ struct GymD: Codable, Equatable, Sendable {
     /// Aktive Kalorien und Puls im Schnitt, wenn die Messung an war (`WorkoutPuls`).
     var kcal: Int? = nil
     var puls: Int? = nil
+    /// Nur bei status "satz": die Plan-Übung wurde im Training gegen `uebung` getauscht (Gerät besetzt,
+    /// `AusweichLogik`); hier steht die Katalog-id der ursprünglichen. Alte Builds lesen es nicht.
+    var ersatzFuer: String? = nil
 }
 
 struct GymEintrag: Equatable, Sendable {
@@ -139,6 +142,9 @@ struct UebungsLauf: Equatable, Sendable {
     /// Alle Satzzeilen aus status "satz", auch offene und Aufwärmsätze; nil bei alten Einheiten.
     var stand: [PlanSatz]? = nil
     var name: String? = nil
+    /// Katalog-id der Plan-Übung, die dieser Lauf ersetzt hat; nil ohne Tausch. `uebung` ist die
+    /// tatsächlich trainierte, `plan` bleibt die des Plans.
+    var ersatzFuer: String? = nil
 
     var dauer: TimeInterval? {
         guard let start, let ende else { return nil }
@@ -220,6 +226,12 @@ enum TrainingLogik {
                 }
                 // Nur eine Übung läuft: alle anderen offenen enden hier (die Figur zeigt `aktiv`).
                 for j in s.laeufe.indices where j != i && s.laeufe[j].start != nil && s.laeufe[j].ende == nil { s.laeufe[j].ende = e.zeit }
+                if let neu = e.d.uebung, !neu.isEmpty, neu != s.laeufe[i].uebung { s.laeufe[i].uebung = neu }
+                if let ersatz = e.d.ersatzFuer {
+                    s.laeufe[i].ersatzFuer = ersatz
+                } else if s.laeufe[i].ersatzFuer == s.laeufe[i].uebung {
+                    s.laeufe[i].ersatzFuer = nil
+                }
                 s.laeufe[i].stand = stand
                 s.laeufe[i].saetze = gezaehlt.isEmpty ? nil : gezaehlt
                 s.laeufe[i].fertig = !gezaehlt.isEmpty

@@ -13,6 +13,9 @@ struct WorkoutUebung: Identifiable, Equatable, Sendable {
     var cardioFertig = false
     /// Übersprungen (Gerät besetzt, keine Zeit): ein leerer Stand wurde gesendet. Zählt nicht als dran.
     var ausgelassen = false
+    /// Katalog-id der Plan-Übung, wenn sie im Training getauscht wurde (`AusweichLogik`); `planUebung`
+    /// ist dann die Ersatz-Übung, die Plan-Id bleibt.
+    var ersatzFuer: String? = nil
 
     var id: String { planUebung.id }
     var gesamt: Int { planUebung.istCardio ? 1 : saetze.count }
@@ -42,11 +45,17 @@ enum WorkoutLogik {
             return PlanUebung(id: id, uebung: l.uebung, name: l.name, saetze: [], minuten: cardio ? 20 : nil)
         }
         let alle = geplant.map { ($0, false) } + extras.map { ($0, true) }
-        return alle.map { u, extra in
+        return alle.map { geplantU, extra in
+            let lauf = letzter[geplantU.id]
+            var u = geplantU
+            if lauf?.ersatzFuer != nil, let neu = lauf?.uebung, !neu.isEmpty, neu != u.uebung {
+                u.uebung = neu
+                u.name = nil
+            }
             let vorher = vorherige(u, in: frueher)
-            let lauf = letzter[u.id]
             return WorkoutUebung(planUebung: u, saetze: zeilen(u, lauf: lauf, vorher: vorher), vorher: vorher, extra: extra,
-                                 cardioFertig: u.istCardio && lauf?.fertig == true, ausgelassen: lauf?.stand?.isEmpty == true)
+                                 cardioFertig: u.istCardio && lauf?.fertig == true, ausgelassen: lauf?.stand?.isEmpty == true,
+                                 ersatzFuer: lauf?.ersatzFuer)
         }
     }
 
@@ -108,7 +117,7 @@ enum WorkoutLogik {
         var neu = tag
         var anders = false
         // Ohne Sätze (ausgelassen): die Plan-Sätze bleiben, sonst löschte "Plan aktualisieren" sie.
-        for u in liste where !u.planUebung.istCardio && !u.saetze.isEmpty {
+        for u in liste where !u.planUebung.istCardio && !u.saetze.isEmpty && u.ersatzFuer == nil {
             let saetze = u.saetze.map(\.alsPlan)
             if let i = neu.uebungen.firstIndex(where: { $0.id == u.id }) {
                 if neu.uebungen[i].saetze.map(\.kuerzel) != saetze.map(\.kuerzel) { anders = true }
