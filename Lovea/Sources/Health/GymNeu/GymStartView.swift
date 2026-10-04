@@ -288,6 +288,13 @@ struct GymStartView: View {
             Button("Messungen", systemImage: "ruler") { ziel = .messungen }
             Button("Übungen", systemImage: "list.bullet") { ziel = .uebungen }
             Button("Split wechseln", systemImage: "square.grid.2x2") { ziel = .splits }
+            // Eigenes Ding ohne Plan: leer starten, Übungen und Cardio im Training dazu.
+            if modell.laufende(ich) == nil {
+                Button("Freies Training", systemImage: "figure.strengthtraining.traditional") {
+                    session = modell.einchecken(tag: nil)
+                    Haptik.erfolg()
+                }
+            }
         } label: {
             Image(systemName: "ellipsis")
         }
