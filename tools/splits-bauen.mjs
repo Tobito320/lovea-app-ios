@@ -63,6 +63,82 @@ const khC = [['splitSquatKH', 3, 8, 10], ['arnold', 3, 8, 12], ['ueberzug', 3, 1
 const t = (name, wochentage, uebungen) => ({ name, wochentage, uebungen });
 // [id, name, gruppe, level, ziel, geraet, einheiten]
 const SPLITS = [
+  // Ahmeds 15 Splits aus dem Vault (10 Fitness/Splits, 04.10.2026), FitX Hagen-Mitte. Nackenübungen fehlen im Katalog, Face Pull = Reverse Fliegende.
+  ['m-ahmed01', "Empfohlen: V-Taper Upper Lower 45", 'm', 'mittel', 'definieren', 'studio', [
+    t("Upper A (schwer)", [1], [['ns0SIbU', 3, 5, 8], ['lBDjFxJ', 3, 6, 10], ['dRTfGZT', 3, 12, 15], ['C0MA9bC', 2, 8, 12], ['FVmZVhk', 2, 12, 15]]),
+    t("Lower A", [2], [['qx4fgX7', 3, 6, 10], ['rR0LJzx', 3, 6, 10], ['goJ6ezq', 2, 12, 15], ['I3tsCnC', 3, 10, 15]]),
+    t("Upper B (Volumen)", [4], [['jHAnWmT', 3, 8, 12], ['qdRxqCj', 3, 8, 12], ['goJ6ezq', 3, 12, 15], ['FVmZVhk', 2, 12, 15], ['myfUsKf', 3, 12, 15], ['dU605di', 2, 10, 15]]),
+    t("Lower B", [5], [['10Z2DXU', 3, 8, 12], ['Zg3XY7P', 3, 10, 12], ['DsgkuIt', 2, 15, 20], ['WW95auq', 3, 10, 15], ['slDvUAU', 2, 10, 12], ['2IxROQ1', 2, 10, 12], ['myfUsKf', 2, 15, 15]])]],
+  ['m-ahmed06', "Empfohlen: Oestreicher PPL x Upper Lower", 'm', 'mittel', 'muskeln', 'studio', [
+    t("Push", [1], [['ns0SIbU', 3, 6, 10], ['67n3r98', 2, 8, 12], ['goJ6ezq', 3, 12, 15], ['FVmZVhk', 2, 12, 15], ['DOoWcnA', 2, 8, 12], ['dU605di', 2, 10, 15]]),
+    t("Pull", [2], [['lBDjFxJ', 3, 6, 10], ['7I6LNUG', 3, 8, 12], ['myfUsKf', 2, 15, 15], ['DT14T9T', 2, 12, 15], ['ae9UoXQ', 2, 8, 12], ['NJzBsGJ', 2, 10, 12]]),
+    t("Beine", [3], [['qx4fgX7', 3, 6, 10], ['rR0LJzx', 3, 8, 10], ['my33uHU', 2, 12, 15], ['ykHcWme', 2, 12, 15]]),
+    t("Upper", [5], [['jHAnWmT', 3, 8, 12], ['qdRxqCj', 3, 8, 12], ['dRTfGZT', 3, 12, 15], ['slDvUAU', 2, 10, 12], ['2IxROQ1', 2, 10, 12]]),
+    t("Lower", [6], [['10Z2DXU', 3, 8, 12], ['Zg3XY7P', 3, 10, 12], ['DsgkuIt', 2, 15, 20], ['myfUsKf', 2, 15, 15], ['I3tsCnC', 3, 10, 15], ['WW95auq', 2, 12, 12]])]],
+  ['m-ahmed02', "Laid DUP Powerbuilding", 'm', 'fortgeschritten', 'kraft', 'studio', [
+    t("Beine schwer", [1], [['qXTaZnJ', 4, 4, 6], ['wQ2c4XD', 3, 8, 8], ['10Z2DXU', 2, 10, 12], ['6MaEjVA', 3, 10, 12], ['I3tsCnC', 3, 12, 12]]),
+    t("Push schwer", [2], [['EIeI8Vf', 4, 4, 6], ['ns0SIbU', 3, 8, 10], ['Kyd9Rz5', 3, 6, 8], ['DsgkuIt', 4, 12, 15], ['2IxROQ1', 3, 10, 12]]),
+    t("Pull schwer", [3], [['ila4NZS', 3, 3, 5], ['lBDjFxJ', 3, 6, 10], ['eZyBC3j', 3, 8, 10], ['myfUsKf', 3, 15, 15], ['6TG6x2w', 3, 8, 10]]),
+    t("Beine Volumen", [4], [['qx4fgX7', 3, 8, 10], ['17lJ1kr', 3, 10, 12], ['my33uHU', 3, 12, 15], ['CqhoytW', 3, 8, 10], ['WW95auq', 3, 12, 12]]),
+    t("Push Volumen", [5], [['3TZduzM', 4, 6, 10], ['9WTm7dq', 3, 8, 12], ['goJ6ezq', 4, 12, 15], ['FVmZVhk', 3, 12, 15], ['dU605di', 3, 12, 12]]),
+    t("Pull Volumen", [6], [['qdRxqCj', 4, 8, 12], ['fUBheHs', 3, 10, 12], ['DT14T9T', 3, 12, 15], ['myfUsKf', 3, 15, 15], ['ae9UoXQ', 3, 10, 12], ['NJzBsGJ', 3, 10, 12]])]],
+  ['m-ahmed03', "Push Beine Pull Push 45", 'm', 'mittel', 'definieren', 'studio', [
+    t("Push A", [1], [['ns0SIbU', 3, 6, 10], ['5v7KYld', 2, 8, 12], ['goJ6ezq', 4, 12, 15], ['67n3r98', 2, 8, 12], ['dU605di', 2, 10, 15], ['I3tsCnC', 2, 10, 15]]),
+    t("Beine + Bauch", [2], [['10Z2DXU', 3, 8, 12], ['rR0LJzx', 3, 8, 10], ['my33uHU', 3, 12, 15], ['17lJ1kr', 2, 10, 15], ['WW95auq', 3, 12, 15]]),
+    t("Pull", [4], [['qdRxqCj', 3, 8, 12], ['7I6LNUG', 3, 8, 12], ['DT14T9T', 2, 12, 15], ['myfUsKf', 3, 12, 15], ['ae9UoXQ', 2, 8, 12], ['slDvUAU', 2, 10, 12]]),
+    t("Push B + Lat", [5], [['FVmZVhk', 3, 12, 15], ['jHAnWmT', 2, 8, 12], ['DsgkuIt', 3, 12, 15], ['4c9BhzB', 2, 8, 12], ['2IxROQ1', 2, 10, 12], ['NAgVB3t', 2, 8, 12]])]],
+  ['m-ahmed04', "Ganzkörper 3x", 'm', 'einsteiger', 'muskeln', 'studio', [
+    t("Ganzkörper A", [1], [['jFtipLl', 3, 6, 10], ['ns0SIbU', 3, 6, 10], ['qdRxqCj', 3, 8, 12], ['dRTfGZT', 3, 12, 15], ['I3tsCnC', 2, 10, 15]]),
+    t("Ganzkörper B", [3], [['wQ2c4XD', 3, 6, 10], ['znQUdHY', 3, 8, 12], ['7I6LNUG', 3, 8, 12], ['goJ6ezq', 3, 12, 15]]),
+    t("Ganzkörper C", [5], [['10Z2DXU', 3, 8, 12], ['jHAnWmT', 3, 8, 12], ['lBDjFxJ', 3, 6, 10], ['DsgkuIt', 2, 12, 15], ['slDvUAU', 2, 10, 12], ['2IxROQ1', 2, 10, 12], ['WW95auq', 2, 12, 12]])]],
+  ['m-ahmed05', "Arnold Split 6 Tage", 'm', 'fortgeschritten', 'muskeln', 'studio', [
+    t("Brust + Rücken", [1, 4], [['3TZduzM', 3, 6, 10], ['lBDjFxJ', 3, 6, 10], ['v3xmPAR', 2, 12, 15], ['fUBheHs', 3, 8, 12], ['FVmZVhk', 2, 12, 15], ['DT14T9T', 2, 12, 15]]),
+    t("Schulter + Arme", [2, 5], [['znQUdHY', 3, 8, 10], ['DsgkuIt', 4, 12, 15], ['myfUsKf', 2, 15, 15], ['6TG6x2w', 3, 8, 12], ['2IxROQ1', 3, 10, 12], ['slDvUAU', 2, 10, 12]]),
+    t("Beine + Bauch", [3, 6], [['qXTaZnJ', 3, 6, 10], ['wQ2c4XD', 3, 8, 10], ['my33uHU', 2, 12, 15], ['ykHcWme', 3, 12, 15], ['I3tsCnC', 3, 10, 15]])]],
+  ['m-ahmed07', "Schulter-Spezialisierung V-Taper", 'm', 'mittel', 'muskeln', 'studio', [
+    t("Oberkörper A", [1], [['dRTfGZT', 3, 12, 15], ['ns0SIbU', 3, 6, 10], ['qdRxqCj', 3, 8, 12], ['dU605di', 2, 10, 15]]),
+    t("Beine", [2], [['jFtipLl', 3, 6, 10], ['wQ2c4XD', 3, 8, 10], ['goJ6ezq', 3, 12, 15], ['I3tsCnC', 2, 10, 15]]),
+    t("Oberkörper B", [3], [['znQUdHY', 3, 8, 10], ['7I6LNUG', 3, 8, 12], ['DsgkuIt', 3, 12, 20], ['myfUsKf', 2, 15, 15], ['ae9UoXQ', 2, 8, 12]]),
+    t("Oberkörper C", [5], [['goJ6ezq', 3, 12, 15], ['jHAnWmT', 3, 8, 12], ['lBDjFxJ', 3, 6, 10], ['2IxROQ1', 2, 10, 12], ['slDvUAU', 2, 10, 12]]),
+    t("Beine leicht + Bauch", [6], [['10Z2DXU', 3, 10, 12], ['17lJ1kr', 2, 10, 12], ['WW95auq', 3, 12, 12]])]],
+  ['m-ahmed08', "Torso Limbs", 'm', 'mittel', 'muskeln', 'studio', [
+    t("Torso A", [1], [['3TZduzM', 3, 6, 10], ['lBDjFxJ', 3, 6, 10], ['dRTfGZT', 3, 12, 15], ['fUBheHs', 2, 8, 12], ['myfUsKf', 2, 15, 15]]),
+    t("Arme + Beine A", [2], [['jFtipLl', 3, 6, 10], ['Zg3XY7P', 2, 10, 12], ['6TG6x2w', 3, 8, 12], ['2IxROQ1', 3, 10, 12], ['I3tsCnC', 2, 10, 15]]),
+    t("Torso B", [4], [['jHAnWmT', 3, 8, 12], ['qdRxqCj', 3, 8, 12], ['goJ6ezq', 3, 12, 15], ['FVmZVhk', 2, 12, 15], ['myfUsKf', 2, 15, 15]]),
+    t("Arme + Beine B", [5], [['wQ2c4XD', 3, 8, 10], ['10Z2DXU', 2, 10, 12], ['slDvUAU', 2, 10, 12], ['dU605di', 2, 10, 15], ['WW95auq', 2, 12, 12]])]],
+  ['m-ahmed09', "Upper Lower Push Pull Legs", 'm', 'mittel', 'muskeln', 'studio', [
+    t("Upper schwer", [1], [['EIeI8Vf', 3, 4, 6], ['eZyBC3j', 3, 6, 8], ['Kyd9Rz5', 2, 6, 8], ['lBDjFxJ', 2, 6, 10]]),
+    t("Lower schwer", [2], [['qXTaZnJ', 3, 4, 6], ['wQ2c4XD', 3, 6, 8], ['6MaEjVA', 3, 8, 12], ['I3tsCnC', 2, 10, 15]]),
+    t("Push", [4], [['ns0SIbU', 3, 8, 12], ['FVmZVhk', 2, 12, 15], ['DsgkuIt', 4, 12, 15], ['2IxROQ1', 3, 10, 12]]),
+    t("Pull", [5], [['qdRxqCj', 3, 8, 12], ['7I6LNUG', 3, 10, 12], ['myfUsKf', 3, 15, 15], ['ae9UoXQ', 3, 10, 12]]),
+    t("Beine", [6], [['10Z2DXU', 3, 10, 12], ['17lJ1kr', 3, 10, 12], ['my33uHU', 2, 12, 15], ['WW95auq', 3, 12, 12]])]],
+  ['m-ahmed10', "Bro Split klassisch", 'm', 'mittel', 'muskeln', 'studio', [
+    t("Brust", [1], [['3TZduzM', 4, 6, 10], ['ns0SIbU', 3, 8, 12], ['DOoWcnA', 3, 8, 12], ['FVmZVhk', 3, 12, 15]]),
+    t("Rücken", [2], [['lBDjFxJ', 4, 6, 10], ['eZyBC3j', 3, 8, 10], ['4c9BhzB', 3, 10, 12], ['DT14T9T', 3, 12, 15]]),
+    t("Schulter", [3], [['znQUdHY', 3, 8, 10], ['DsgkuIt', 4, 12, 15], ['goJ6ezq', 3, 12, 15], ['myfUsKf', 3, 15, 15], ['NJzBsGJ', 3, 10, 12]]),
+    t("Beine", [5], [['qXTaZnJ', 4, 6, 10], ['wQ2c4XD', 3, 8, 10], ['10Z2DXU', 3, 10, 12], ['17lJ1kr', 3, 10, 12], ['ykHcWme', 3, 12, 15]]),
+    t("Arme + Bauch", [6], [['6TG6x2w', 3, 8, 12], ['2IxROQ1', 3, 10, 12], ['ae9UoXQ', 3, 10, 12], ['dU605di', 3, 10, 15], ['WW95auq', 3, 12, 12], ['I3tsCnC', 3, 10, 15]])]],
+  ['m-ahmed11', "Kraftblock Powerlifting", 'm', 'fortgeschritten', 'kraft', 'studio', [
+    t("Kniebeuge + Bank", [1], [['qXTaZnJ', 4, 3, 5], ['EIeI8Vf', 4, 3, 5], ['DsgkuIt', 3, 12, 15], ['I3tsCnC', 2, 10, 15]]),
+    t("Kreuzheben + Overhead", [2], [['ila4NZS', 3, 2, 4], ['Kyd9Rz5', 3, 5, 6], ['lBDjFxJ', 3, 5, 8], ['myfUsKf', 2, 15, 15]]),
+    t("Bank Volumen", [4], [['EIeI8Vf', 3, 6, 8], ['ns0SIbU', 2, 8, 10], ['eZyBC3j', 3, 6, 8], ['goJ6ezq', 3, 12, 15], ['2IxROQ1', 2, 10, 12]]),
+    t("Kniebeuge Volumen", [5], [['qXTaZnJ', 3, 6, 8], ['wQ2c4XD', 3, 6, 8], ['qdRxqCj', 3, 8, 10], ['6TG6x2w', 2, 8, 10]])]],
+  ['m-ahmed12', "Ganzkörper 4x kurz", 'm', 'einsteiger', 'definieren', 'studio', [
+    t("Ganzkörper A", [1, 4], [['ns0SIbU', 3, 6, 10], ['qdRxqCj', 3, 8, 12], ['10Z2DXU', 2, 8, 12], ['dRTfGZT', 3, 12, 15], ['WW95auq', 2, 12, 12]]),
+    t("Ganzkörper B", [2, 5], [['jHAnWmT', 2, 8, 12], ['7I6LNUG', 3, 8, 12], ['rR0LJzx', 2, 8, 10], ['goJ6ezq', 3, 12, 15], ['slDvUAU', 1, 10, 12], ['2IxROQ1', 1, 10, 12]])]],
+  ['m-ahmed13', "PPL 3 Tage", 'm', 'einsteiger', 'muskeln', 'studio', [
+    t("Push", [1], [['3TZduzM', 3, 6, 10], ['znQUdHY', 3, 8, 10], ['DsgkuIt', 4, 12, 15], ['FVmZVhk', 2, 12, 15], ['2IxROQ1', 3, 10, 12]]),
+    t("Pull", [3], [['lBDjFxJ', 3, 6, 10], ['7I6LNUG', 3, 8, 12], ['qdRxqCj', 2, 10, 12], ['myfUsKf', 2, 15, 15], ['6TG6x2w', 3, 8, 12]]),
+    t("Beine", [5], [['jFtipLl', 3, 6, 10], ['wQ2c4XD', 3, 8, 10], ['my33uHU', 2, 12, 15], ['I3tsCnC', 3, 10, 15]])]],
+  ['m-ahmed14', "Anterior Posterior", 'm', 'mittel', 'muskeln', 'studio', [
+    t("Vorderseite A", [1], [['3TZduzM', 3, 6, 10], ['jFtipLl', 3, 6, 10], ['dRTfGZT', 3, 12, 15], ['ae9UoXQ', 2, 8, 12], ['I3tsCnC', 2, 10, 15]]),
+    t("Rückseite A", [2], [['lBDjFxJ', 3, 6, 10], ['wQ2c4XD', 3, 6, 10], ['7I6LNUG', 2, 8, 12], ['2IxROQ1', 2, 10, 12]]),
+    t("Vorderseite B", [4], [['jHAnWmT', 3, 8, 12], ['10Z2DXU', 3, 10, 12], ['goJ6ezq', 3, 12, 15], ['slDvUAU', 2, 10, 12], ['WW95auq', 2, 12, 12]]),
+    t("Rückseite B", [5], [['qdRxqCj', 3, 8, 12], ['Zg3XY7P', 3, 10, 12], ['myfUsKf', 2, 15, 15], ['dU605di', 2, 10, 15], ['DsgkuIt', 2, 15, 20]])]],
+  ['m-ahmed15', "Minimum 2 Tage", 'm', 'einsteiger', 'fit', 'studio', [
+    t("Ganzkörper A", [1], [['ns0SIbU', 3, 6, 10], ['qdRxqCj', 3, 8, 12], ['10Z2DXU', 2, 8, 12], ['dRTfGZT', 3, 12, 15], ['I3tsCnC', 2, 10, 15]]),
+    t("Ganzkörper B", [4], [['67n3r98', 2, 8, 12], ['7I6LNUG', 3, 8, 12], ['rR0LJzx', 2, 8, 10], ['goJ6ezq', 3, 12, 15], ['WW95auq', 2, 12, 12]])]],
+
   // Ahmeds Reihenfolge im Oberkörper (PRODUCT.md): Schulter, Unterarme, Nacken, Rücken, Brust. Beine 2x, oben 2x.
   ['m-schulter4', 'Schulter zuerst', 'm', 'mittel', 'muskeln', 'studio', [
     t('Oberkörper A', [1], [['ohp', 4, 6, 8], ['seitheben', 4, 12, 15], ['unterarm', 3, 12, 15], ['shrugs', 3, 10, 12], ['rudernLH', 4, 6, 10], ['bank', 3, 6, 10]]),
@@ -305,9 +381,10 @@ const aus = SPLITS.map(([id, name, gruppe, level, ziel, geraet, einheiten]) => (
   einheiten: einheiten.map(e => ({
     name: e.name, wochentage: e.wochentage,
     uebungen: e.uebungen.map(([k, saetze, von, bis]) => {
-      if (!U[k]) fehler.push(`${id}: Kurzname "${k}" fehlt`);
-      else if (!katalog.has(U[k])) fehler.push(`${id}: ${k} -> ${U[k]} nicht im Katalog`);
-      return { uebung: U[k], saetze, von, bis };
+      const uid = U[k] ?? (katalog.has(k) ? k : undefined); // Kurzname oder direkt eine Katalog-id
+      if (!uid) fehler.push(`${id}: Kurzname "${k}" fehlt`);
+      else if (!katalog.has(uid)) fehler.push(`${id}: ${k} -> ${uid} nicht im Katalog`);
+      return { uebung: uid, saetze, von, bis };
     }),
   })),
 }));
