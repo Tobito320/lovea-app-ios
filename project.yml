@@ -58,8 +58,8 @@ targets:
         NSFocusStatusUsageDescription: "Lovea zeigt deinem Partner, ob du gerade nicht gestört werden möchtest."
         NSCalendarsFullAccessUsageDescription: "Lovea liest deinen Kalender, um Termine mit deinem Partner abzugleichen."
         NSCalendarsWriteOnlyAccessUsageDescription: "Lovea trägt gemeinsame Termine in deinen Kalender ein."
-        NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte, Strecke, Etagen, Aktivität und euren Schlaf."
-        NSHealthUpdateUsageDescription: "Lovea speichert dein Gym-Training in Health, wenn du im Training Puls und Kalorien einschaltest."
+        NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte, Strecke, Etagen, Aktivität und euren Schlaf. Wenn du den Zyklus verknüpfst, liest Lovea auch Periode, Temperatur und Gewicht."
+        NSHealthUpdateUsageDescription: "Lovea speichert dein Gym-Training in Health, wenn du im Training Puls und Kalorien einschaltest, und deine Periode, wenn du den Zyklus verknüpfst."
         NSSupportsLiveActivities: true
     settings:
       base:
