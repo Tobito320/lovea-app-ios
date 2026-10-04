@@ -1,10 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// Z-19.3 (Spec 8.1 Nr. 2): nur noch Stimmung (gut/mittel/schlecht). Kein „brauche", kein Satz mehr
-/// in der Oberfläche – alte `stimmung.setzen`-Ops mit diesen Feldern bleiben decodierbar
-/// (`StimmungOp`/`KalenderModell.Stimmung`), sie werden nur nicht mehr angezeigt oder gesendet.
-/// Beide sehen sich gegenseitig; die eigene Auswahl ist nur für die eigene Person editierbar.
+/// Spec 8.1 Nr. 2: Stimmung (gut/mittel/schlecht) und „brauche" (Nähe/Worte/Ruhe), pro Tag
+/// gespeichert und jederzeit erneut änderbar. Beide sehen sich gegenseitig; die eigene Auswahl ist
+/// nur für die eigene Person editierbar. Z-19.3 hatte „brauche" aus der Oberfläche entfernt, hier
+/// wieder da (Ahmed, 04.10.2026).
 struct WieGehtsDirCard: View {
     let kalender = KalenderModell.shared
     @Environment(\.dynamicTypeSize) private var schrift
@@ -27,10 +27,17 @@ struct WieGehtsDirCard: View {
                 }
             }
 
-            reihe {
-                stimmungKnopf("gut", "sun.max.fill", "Gut")
-                stimmungKnopf("mittel", "cloud.fill", "Mittel")
-                stimmungKnopf("schlecht", "cloud.rain.fill", "Schlecht")
+            VStack(spacing: 8) {
+                reihe {
+                    stimmungKnopf("gut", "sun.max.fill", "Gut")
+                    stimmungKnopf("mittel", "cloud.fill", "Mittel")
+                    stimmungKnopf("schlecht", "cloud.rain.fill", "Schlecht")
+                }
+                reihe {
+                    brauchKnopf("naehe", "Nähe")
+                    brauchKnopf("worte", "Worte")
+                    brauchKnopf("ruhe", "Ruhe")
+                }
             }
         }
         .padding(16)
@@ -47,6 +54,11 @@ struct WieGehtsDirCard: View {
                 Image(systemName: symbol(stimmung.stimmung))
                     .font(.title)
                     .foregroundStyle(Color.person(person))
+                if let brauche = stimmung.brauche {
+                    Text(brauchText(brauche))
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
             } else {
                 Image(systemName: "questionmark.circle")
                     .font(.title)
@@ -55,14 +67,21 @@ struct WieGehtsDirCard: View {
         }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(person.name)
-        .accessibilityValue(stimmung.map { stimmungText($0.stimmung) } ?? "noch keine Angabe")
+        .accessibilityValue(vorleseText(stimmung))
+    }
+
+    private func vorleseText(_ stimmung: KalenderModell.Stimmung?) -> String {
+        guard let stimmung else { return "noch keine Angabe" }
+        var teile = [stimmungText(stimmung.stimmung)]
+        if let brauche = stimmung.brauche { teile.append(brauchText(brauche)) }
+        return teile.joined(separator: ", ")
     }
 
     private func stimmungKnopf(_ wert: String, _ symbol: String, _ titel: String) -> some View {
         let aktiv = meineStimmung?.stimmung == wert
         return Button {
             UISelectionFeedbackGenerator().selectionChanged()
-            senden(stimmung: wert)
+            senden(stimmung: wert, brauche: meineStimmung?.brauche)
         } label: {
             Label(titel, systemImage: symbol)
                 .font(.caption.weight(.semibold))
@@ -73,10 +92,29 @@ struct WieGehtsDirCard: View {
         .accessibilityAddTraits(aktiv ? .isSelected : [])
     }
 
-    private func senden(stimmung: String) {
-        Raum.shared.senden("stimmung.setzen", StimmungOp(datum: heute, stimmung: stimmung, brauche: nil, satz: nil))
+    private func brauchKnopf(_ wert: String, _ titel: String) -> some View {
+        let aktiv = meineStimmung?.brauche == wert
+        return Button {
+            guard let stimmung = meineStimmung?.stimmung else { return }
+            UISelectionFeedbackGenerator().selectionChanged()
+            senden(stimmung: stimmung, brauche: aktiv ? nil : wert)
+        } label: {
+            Text(titel)
+                .font(.caption.weight(.semibold))
+                .frame(maxWidth: .infinity, minHeight: 44)
+        }
+        .buttonStyle(.bordered)
+        .tint(aktiv ? Color.loveaRose : .gray)
+        // „Brauche" hängt an einer Stimmung, ohne sie würde der Knopf nichts tun.
+        .disabled(meineStimmung == nil)
+        .accessibilityAddTraits(aktiv ? .isSelected : [])
+    }
+
+    private func senden(stimmung: String, brauche: String?) {
+        Raum.shared.senden("stimmung.setzen", StimmungOp(datum: heute, stimmung: stimmung, brauche: brauche, satz: nil))
         // Nur ein Hinweis für die Figur — Block 7 besitzt die endgültige Zustandsfaltung.
-        FigurenModell.shared.zustandSenden(.init(haupt: FigurZustand(rawValue: stimmung) ?? .ruhig))
+        let haupt: FigurZustand = brauche.flatMap(FigurZustand.init(rawValue:)) ?? FigurZustand(rawValue: stimmung) ?? .ruhig
+        FigurenModell.shared.zustandSenden(.init(haupt: haupt))
     }
 
     private func symbol(_ stimmung: String) -> String {
@@ -94,8 +132,17 @@ struct WieGehtsDirCard: View {
         default: "mittel"
         }
     }
+
+    private func brauchText(_ brauche: String) -> String {
+        switch brauche {
+        case "naehe": "braucht Nähe"
+        case "worte": "braucht Worte"
+        case "ruhe": "braucht Ruhe"
+        default: brauche
+        }
+    }
 }
 
-/// Feldnamen unverändert aus Runde 1 (`schnittstellen.md`) – `brauche`/`satz` bleiben optional, damit
-/// alte Ops weiter decodieren, werden von dieser Karte aber nicht mehr gesetzt oder angezeigt.
+/// Feldnamen unverändert aus Runde 1 (`schnittstellen.md`) – `satz` bleibt optional/unversendet,
+/// es gibt kein Kurzsatz-Feld mehr in dieser Karte.
 private struct StimmungOp: Codable { var datum: String; var stimmung: String; var brauche: String?; var satz: String? }

@@ -170,8 +170,29 @@ final class KalenderModellTests: XCTestCase {
 
         XCTAssertNil(Puenktlich.monatsKrone(ops: ops, monat: "2026-09"))
     }
+
+    // MARK: - Brauche (Nähe/Worte/Ruhe) wieder in der Oberfläche (Ahmed, 04.10.2026)
+
+    func testStimmungMitBraucheWirdDecodiert() {
+        let op = Op.neu("stimmung.setzen", StimmungSendeD(datum: "2026-10-04", stimmung: "mittel", brauche: "naehe", satz: nil), von: .ahmed)
+
+        let zustand = KalenderModell.anwenden([op])
+
+        XCTAssertEqual(zustand.stimmungen["2026-10-04"]?[.ahmed]?.stimmung, "mittel")
+        XCTAssertEqual(zustand.stimmungen["2026-10-04"]?[.ahmed]?.brauche, "naehe")
+    }
+
+    func testStimmungBraucheAbwaehlenSetztNil() {
+        let opA = Op.neu("stimmung.setzen", StimmungSendeD(datum: "2026-10-04", stimmung: "gut", brauche: "ruhe", satz: nil), von: .annika)
+        let opB = Op.neu("stimmung.setzen", StimmungSendeD(datum: "2026-10-04", stimmung: "gut", brauche: nil, satz: nil), von: .annika)
+
+        let zustand = KalenderModell.anwenden([opA, opB])
+
+        XCTAssertNil(zustand.stimmungen["2026-10-04"]?[.annika]?.brauche)
+    }
 }
 
+private struct StimmungSendeD: Encodable { var datum: String; var stimmung: String; var brauche: String?; var satz: String? }
 private struct TreffenSendeD: Encodable { var datum: String; var uhrzeit: String?; var wasMachenWir: String? }
 private struct ListeSendeD: Encodable { var id: String; var text: String; var geschafft: Bool }
 private struct MitIdD: Encodable { var id: String }
