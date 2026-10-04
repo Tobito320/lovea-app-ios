@@ -227,6 +227,7 @@ final class ProfilSzeneTests: XCTestCase {
     // MARK: - Gym (Brief S)
 
     func testGymOrt() {
+        XCTAssertEqual(RaumOrt.allCases.count, 4, "Einstellungen > Figur > Szenen gestalten zeigt genau diese vier")
         XCTAssertEqual(RaumOrt.allCases.last, .gym, "added at the end, so old JSON keeps decoding")
         let z = Zimmer(ort: .gym)
         XCTAssertEqual(z.deko, ["lautsprecher"])
