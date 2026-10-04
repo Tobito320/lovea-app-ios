@@ -61,7 +61,7 @@ final class RenderGalerieGymNeuTests: XCTestCase {
             zelle(.dark, titel: "Gym, Mittwoch gewählt", GymStartInhalt(stand: stand("2026-09-30"))),
             zelle(.light, titel: "Gym, Sonntag (Ruhetag)", GymStartInhalt(stand: stand("2026-10-04"))),
             zelle(.dark, titel: "Splits, Ahmed", SplitBibliothekInhalt(person: .ahmed, splits: Array(SplitLogik.fuer(.ahmed).prefix(6)), planLeer: false)),
-            zelle(.light, titel: "Splits, Ahmed, Für dich", SplitBibliothekInhalt(person: .ahmed, splits: SplitLogik.fuer(.ahmed), planLeer: false, art: "fuerdich")),
+            zelle(.light, titel: "Splits, Ahmed, Für dich", SplitBibliothekInhalt(person: .ahmed, splits: Array(SplitLogik.fuer(.ahmed).prefix(6)), planLeer: false, art: "fuerdich")),
             zelle(.light, titel: "Splits, Annika, 4 Tage", SplitBibliothekInhalt(person: .annika, splits: SplitLogik.fuer(.annika), planLeer: true, filter: 4)),
             zelle(.dark, titel: "Vorschau", SplitVorschauInhalt(vorlage: SplitLogik.fuer(.annika).first ?? SplitKatalog.alle[0])),
             zelle(.dark, titel: "Split-Tag, Sätze offen", SplitEditorInhalt(plan: ahmed, tagId: ahmed.tage.first?.id, offen: ahmed.tage.first?.uebungen.first?.id)),
