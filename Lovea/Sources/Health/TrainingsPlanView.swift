@@ -15,6 +15,7 @@ struct TrainingsPlanView: View {
         List {
             if eigener { gymSektion }
             if eigener { ZyklusHinweisEinhang(person: person) }
+            if eigener { StudioEinhang(person: person, wochentage: plan.tage.flatMap(\.wochentage)) }
             Section {
                 WochenLeiste(plan: plan, setzen: eigener ? setzenAktion(plan) : nil)
             } header: {
