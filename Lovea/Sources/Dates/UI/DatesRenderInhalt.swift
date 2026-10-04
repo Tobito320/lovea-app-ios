@@ -50,14 +50,14 @@ struct DatesRenderInhalt: View {
     }
 
     private var chips: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             DatesChip(titel: filter.kategorie?.titel ?? "Kategorie", pfeil: true, aktiv: filter.kategorie != nil)
             DatesChip(titel: "Offen", aktiv: filter.status == .offen)
             DatesChip(titel: "Erledigt", aktiv: filter.status == .erledigt)
             DatesChip(titel: filter.ort ?? "Ort", symbol: "mappin", pfeil: true, aktiv: filter.ort != nil)
             Spacer(minLength: 0)
         }
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 14)
         .padding(.bottom, 2)
     }
 }

@@ -169,10 +169,10 @@ struct DatesChip: View {
     var body: some View {
         HStack(spacing: 5) {
             if let symbol { Image(systemName: symbol).font(.caption2.weight(.semibold)).opacity(0.8) }
-            Text(titel).font(.subheadline.weight(.semibold)).lineLimit(1)
+            Text(titel).font(.subheadline.weight(.semibold)).lineLimit(1).fixedSize()
             if pfeil { Image(systemName: "chevron.down").font(.caption2.weight(.bold)).opacity(0.8) }
         }
-        .padding(.horizontal, 13)
+        .padding(.horizontal, 12)
         .frame(minHeight: 34)
         .foregroundStyle(aktiv ? DatesStil.umgekehrt : Color.primary)
         .background(aktiv ? Color.primary : DatesStil.chipGrund, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
