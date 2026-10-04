@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Treffen-Tag als dünne Hülle um zwei Ansichten: lesen (`TreffenLesenInhalt`, Standard) und bearbeiten
 /// (`TreffenBearbeitenInhalt`, Menü „Bearbeiten"). Gesendet wird im Bearbeiten-Modus erst mit „Fertig":
@@ -87,6 +88,7 @@ struct TreffenTagView: View {
             Label("Mehr", systemImage: "ellipsis.circle")
                 .frame(minWidth: 44, minHeight: 44)
         }
+        .popoverTip(TreffenMehrTip())
     }
 
     private var exportBlatt: some View {

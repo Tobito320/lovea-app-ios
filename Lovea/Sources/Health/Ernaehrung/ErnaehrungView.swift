@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 // Food-Tagebuch 1:1 nach YAZIO (Ahmed, 26./27.09.): großer Tagestitel mit Woche, Karte "Übersicht"
 // (Gegessen, offener Ring mit Übrig, Verbrannt, drei Makros), "Ernährung" als kompakte Mahlzeit-Zeilen
@@ -115,6 +116,7 @@ struct ErnaehrungView: View {
                     Image(systemName: "ellipsis")
                 }
                 .accessibilityLabel("Mehr")
+                .popoverTip(ErnaehrungMehrTip())
             }
         }
         .navigationDestination(item: $offeneMahlzeit) { m in

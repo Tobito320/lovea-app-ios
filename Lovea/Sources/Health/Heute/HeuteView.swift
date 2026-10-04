@@ -1,5 +1,6 @@
 import Charts
 import SwiftUI
+import TipKit
 import UIKit
 
 // Tab "Heute" (Plan Task 8): Tagesform-Karte, "Dein Tag" mit neun Formen, "Das fällt mir auf", Punkte-Zeile.
@@ -726,6 +727,7 @@ struct HeuteView: View {
         } preview: {
             verlauf("Wasser", "\(n) \(n == 1 ? "Glas" : "Gläser")", health.wasserZeiten(ich, heute), je: nil)
         }
+        .popoverTip(KachelGesteTip())
     }
 
     private var schlafKachel: some View {

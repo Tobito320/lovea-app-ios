@@ -79,3 +79,43 @@ struct FigurGesteTip: Tip {
     var title: Text { Text("Figur berühren") }
     var message: Text? { Text("Tippen öffnet Anstupsen, Kuss und Ausdrücke. Gedrückt halten schickt sofort ein Herz.") }
 }
+
+struct KachelGesteTip: Tip {
+    var title: Text { Text("Mehr zur Kachel") }
+    var message: Text? { Text("Tippen zählt eins hoch. Gedrückt halten zeigt Abziehen und den Verlauf des Tages.") }
+}
+
+struct SatzWischenTip: Tip {
+    var title: Text { Text("Satz löschen") }
+    var message: Text? { Text("Nach links wischen löscht einen Satz.") }
+}
+
+struct ErnaehrungMehrTip: Tip {
+    var title: Text { Text("Mehr zum Tag") }
+    var message: Text? { Text("Auswertung, Nährwerte, Fasten, Einkaufsliste, Tagebuch anpassen oder zum Tag des Partners wechseln.") }
+}
+
+struct MahlzeitMehrTip: Tip {
+    var title: Text { Text("Mehr zur Mahlzeit") }
+    var message: Text? { Text("Übernimmt die gestrige Mahlzeit für heute.") }
+}
+
+struct SplitTagMehrTip: Tip {
+    var title: Text { Text("Mehr zum Tag") }
+    var message: Text? { Text("Tag umbenennen oder löschen.") }
+}
+
+struct TreffenMehrTip: Tip {
+    var title: Text { Text("Mehr zum Treffen") }
+    var message: Text? { Text("Bearbeiten, zum iPhone-Kalender oder absagen.") }
+}
+
+struct DuellMehrTip: Tip {
+    var title: Text { Text("Mehr zum Duell") }
+    var message: Text? { Text("In den Chat senden oder in Aufnahmen speichern.") }
+}
+
+struct TrainingsplanZeileTip: Tip {
+    var title: Text { Text("Übung in der Zeile") }
+    var message: Text? { Text("Nach links wischen löscht. Nach rechts wischen verdoppelt die Übung.") }
+}

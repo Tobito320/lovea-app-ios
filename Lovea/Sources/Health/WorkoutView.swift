@@ -600,6 +600,7 @@ struct WorkoutUebungView: View {
             .listRowSeparator(.hidden)
             EinstellAbschnitt(person: ich, uebung: u.planUebung)
             Section {
+                if !saetze.isEmpty { TipView(SatzWischenTip()).listRowSeparator(.hidden) }
                 tabellenKopf.listRowSeparator(.hidden)
                 ForEach(saetze.indices, id: \.self) { i in zeile(u, i, frueher) }
                 Button { satzDazu() } label: {

@@ -25,6 +25,11 @@ Gesperrte Dateien: `ZyklusHeuteView.swift`, `ZyklusEinstellungenBlatt.swift`, `Z
 | "Periode beginnt heute" | "Setzt den heutigen Tag als ersten Periodentag und rechnet die Vorhersage neu." | nur Vorschlag (gesperrt) |
 | Insights/Vorhersage-Karte | "Die Vorhersage rechnet aus deinen letzten Zyklen. Je mehr eingetragen ist, desto genauer." | nur Vorschlag (gesperrt) |
 
+Geprüft: `Eintragen`, `Periode beginnt heute` und `Insights` leben nur in den vier gesperrten Dateien.
+Die übrigen 22 Zyklus-Dateien (`ZyklusEintragBlatt.swift`, `ZyklusInsightsView.swift`,
+`ZyklusKalenderView.swift` …) haben keine versteckten Gesten oder Menüs (kein `contextMenu`,
+`swipeActions`, `onLongPressGesture`, `Menu {`, `ellipsis`) — nichts dort zu erklären.
+
 ## Gym / Training
 
 | Datei:Zeile | Geste/Menü | Hinweistext | Status |
@@ -37,6 +42,9 @@ Gesperrte Dateien: `ZyklusHeuteView.swift`, `ZyklusEinstellungenBlatt.swift`, `Z
 | `Health/GymNeu/SplitAnsichten.swift:92` (Chip "Für dich") | Filterchip | "Für dich zeigt nur deine eigenen gespeicherten Splits." | umgesetzt |
 | `Health/WorkoutView.swift:206` (Puls-Schalter) | Toggle | bereits mit sichtbarem Text erklärt ("Braucht AirPods Pro 3...") | übersprungen, schon erklärt |
 | `Health/WorkoutView.swift:362` (Übung gedrückt halten = auslassen) | onLongPressGesture (indirekt über contextMenu) | bereits als sichtbarer Text da: "Halte eine Übung gedrückt, um sie auszulassen." | übersprungen, schon erklärt |
+| `Health/WorkoutView.swift:718` (Satz wischen) | swipeActions, TipView über der Tabelle | "Nach links wischen löscht einen Satz." | umgesetzt |
+| `Health/TrainingsPlanView.swift:387/392` (Übungszeile wischen, Plan bearbeiten) | swipeActions beidseitig, TipView über der Liste | "Nach links wischen löscht. Nach rechts wischen verdoppelt die Übung." | umgesetzt |
+| `Health/GymNeu/SplitEditorView.swift:167` ("..." beim Trainingstag) | Menu | "Tag umbenennen oder löschen." | umgesetzt |
 
 ## Health / Ernährung
 
@@ -44,12 +52,17 @@ Gesperrte Dateien: `ZyklusHeuteView.swift`, `ZyklusEinstellungenBlatt.swift`, `Z
 |---|---|---|---|
 | `Health/Ernaehrung/EinkaufView.swift:112` ("..." in einer Einkaufsliste) | Menu | "Mehr: Erledigte löschen, Liste umbenennen oder löschen." | umgesetzt |
 | `Health/Ernaehrung/EinkaufView.swift:22` (Einkaufsliste wischen) | swipeActions (Zeile in `ForEach`) | "Nach links wischen löscht eine Liste oder benennt sie um." | nicht umgesetzt — Zeile liegt in `ForEach`, ein Tip pro Zeile hätte auf jeder Liste gleichzeitig gepoppt, siehe Regel "nicht nerven" |
+| `Health/Ernaehrung/ErnaehrungView.swift:115` ("..." Tagesmenü) | Menu | "Auswertung, Nährwerte, Fasten, Einkaufsliste, Tagebuch anpassen oder zum Tag des Partners wechseln." | umgesetzt |
+| `Health/Ernaehrung/ErnaehrungMahlzeit.swift:56` ("..." bei einer Mahlzeit) | Menu | "Übernimmt die gestrige Mahlzeit für heute." | umgesetzt |
+| `Health/Heute/HeuteView.swift:777/794` (Wasser-/Koffein-/Creatin-Kachel gedrückt halten) | contextMenu | "Tippen zählt eins hoch. Gedrückt halten zeigt Abziehen und den Verlauf des Tages." | umgesetzt — ein Tip auf der Wasser-Kachel, gilt für alle drei (gleiches Muster) |
+| `Health/Ernaehrung/HinzufuegenTeile.swift:268/336` (Lebensmittel gedrückt halten) | contextMenu (Zeile in `ForEach`) | "Gedrückt halten bearbeitet oder löscht ein eigenes Lebensmittel." | nicht umgesetzt — Zeile in `ForEach`, gleiche Begründung wie oben |
 
 ## Kalender
 
 | Datei:Zeile | Geste/Menü | Hinweistext | Status |
 |---|---|---|---|
 | `Kalender/Neu/TagesListe.swift:96` (Termin gedrückt halten) | contextMenu | "Tippen bearbeitet einen Termin. Lang drücken zeigt mehr: zum iPhone-Kalender, löschen." | umgesetzt |
+| `Kalender/TreffenTagView.swift:87` ("Mehr" beim Treffen) | Menu | "Bearbeiten, zum iPhone-Kalender oder absagen." | umgesetzt |
 
 ## Chat
 
@@ -75,6 +88,12 @@ Gesperrte Dateien: `ZyklusHeuteView.swift`, `ZyklusEinstellungenBlatt.swift`, `Z
 
 (`FigurView.swift` und `GesichterNeuPfade.swift` sind gesperrt und nicht angefasst — `FigurGesten.swift` ist das nicht.)
 
+## Spiele
+
+| Datei:Zeile | Geste/Menü | Hinweistext | Status |
+|---|---|---|---|
+| `Spiele/DuellRueckblick.swift:119` ("..." beim Duell-Bild) | Menu | "In den Chat senden oder in Aufnahmen speichern." | umgesetzt |
+
 ## Einstellungen
 
 | Datei:Zeile | Geste/Menü | Hinweistext | Status |
@@ -90,6 +109,7 @@ Gesperrte Dateien: `ZyklusHeuteView.swift`, `ZyklusEinstellungenBlatt.swift`, `Z
   kein "..."-Menü) — nichts zu erklären.
 - Kleinere Menüs mit bereits sprechendem Label (z. B. `Health/WorkoutView.swift:650` Pausentimer,
   zeigt den aktuellen Wert direkt im Label) wurden übersprungen, um die App nicht zu überladen.
-- `Spiele/DuellRueckblick.swift:119` und `Health/GymNeu/SplitEditorView.swift:167`: weitere
-  "..."-Menüs, aus Zeitgründen nicht mit Tips versehen (Umfang laut Auftrag 20–40 Funktionen,
-  Gym und Zyklus zuerst).
+- Zeilen-Gesten in `ForEach`/`List` (Einkaufsliste wischen, Lebensmittel gedrückt halten): bewusst
+  ohne Tip, weil ein `.popoverTip` dort auf jeder Zeile gleichzeitig aufpoppen würde — siehe
+  "nicht nerven"-Regel. Ein fester TipView-Header wäre möglich, aber dort schon durch andere
+  Tips (Kalender, Satz-Tabelle) gut abgedeckt.

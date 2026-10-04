@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Kritzel-Duell im Rückblick: jede Runde mit beiden Bildern und den Herzen. Ein Bild öffnet groß,
 /// oben rechts "…" schickt es in den Chat oder speichert es in Aufnahmen.
@@ -119,6 +120,7 @@ struct DuellBildAnsicht: View {
                         Image(systemName: "ellipsis.circle")
                     }
                     .accessibilityLabel("Mehr")
+                    .popoverTip(DuellMehrTip())
                 }
             }
     }
