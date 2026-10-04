@@ -598,6 +598,7 @@ struct WorkoutUebungView: View {
                 }
             }
             .listRowSeparator(.hidden)
+            DefektAbschnitt(sessionId: sessionId, uebung: u, saetze: $saetze, nachtrag: nachtrag)
             EinstellAbschnitt(person: ich, uebung: u.planUebung)
             AusweichAbschnitt(sessionId: sessionId, uebung: u, saetze: $saetze, nachtrag: nachtrag)
             Section {
