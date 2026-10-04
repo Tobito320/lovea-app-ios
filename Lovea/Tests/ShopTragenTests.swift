@@ -1,3 +1,4 @@
+import SwiftUI
 import XCTest
 @testable import Lovea
 
@@ -66,5 +67,52 @@ final class ShopTragenTests: XCTestCase {
         let preis = 1200
         XCTAssertEqual(max(0, preis - 950), 250, "\"dir fehlen N\" rechnet Preis minus verfügbar")
         XCTAssertEqual(max(0, preis - 5000), 0, "genug Punkte -> nichts fehlt")
+    }
+}
+
+/// p5: Guess-Handtasche fehlte im Profil. Der Editor hielt eine alte Kopie und überschrieb beim
+/// Sichern die im Shop (Sheet im Editor) angezogene Tasche.
+@MainActor
+final class TascheProfilTests: XCTestCase {
+    private let guess = "tasche.guess-tasche"
+
+    func testEditorSichernBehaeltImShopAngezogeneTasche() {
+        let editorKopie = FigurAussehen.standard(for: .annika)
+        var modell = editorKopie
+        modell.tasche = guess
+        modell.uhr = "uhr.x"
+        let gesichert = editorKopie.mitShopTeilen(von: modell)
+        XCTAssertEqual(gesichert.tasche, guess)
+        XCTAssertEqual(gesichert.uhr, "uhr.x")
+    }
+
+    func testEditorSichernAendertFreieFelderNichtAusDemModell() {
+        var editorKopie = FigurAussehen.standard(for: .annika)
+        editorKopie.frisur = 7
+        var modell = FigurAussehen.standard(for: .annika)
+        modell.tasche = guess
+        XCTAssertEqual(editorKopie.mitShopTeilen(von: modell).frisur, 7)
+    }
+
+    private func bild(_ a: FigurAussehen, _ z: FigurZustand) -> Data? {
+        let r = ImageRenderer(content: FigurView(a, zustand: z, groesse: 400, animiert: false, ganzkoerper: true))
+        r.scale = 1
+        return r.uiImage?.pngData()
+    }
+
+    /// Profil-Figur (ganzkoerper) zeichnet die angezogene Tasche, für den eigenen und den Partner-Zustand.
+    func testGetrageneTascheWirdImProfilGezeichnet() {
+        for p in Person.allCases {
+            for z in [FigurZustand.ruhig, .zuhause, .arbeit] {
+                var ohne = FigurAussehen.standard(for: p)
+                ohne.tasche = nil
+                var mit = ohne
+                mit.tasche = guess
+                let a = bild(ohne, z), b = bild(mit, z)
+                XCTAssertNotNil(a)
+                XCTAssertNotNil(b)
+                XCTAssertNotEqual(a, b, "\(p) \(z): Tasche fehlt im Bild")
+            }
+        }
     }
 }
