@@ -48,6 +48,8 @@ final class HealthModell {
     private let energieType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!
     private let bewegungType = HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!
     private let sleepType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)!
+    /// Wann über Kopfhörer Ton lief (Verlauf mit Zeitstempel). Nur mit Schalter "Ich habe AirPods Pro 3".
+    private let tonType = HKQuantityType.quantityType(forIdentifier: .headphoneAudioExposure)!
     /// Teil 6: Bewegungs-Schätzung (d), nur wenn weder Watch noch iPhone-Schlafenszeit etwas liefern.
     /// Gleiches Muster wie `Anwesenheit`/`Standort`: kein `requestAuthorization` nötig, iOS fragt beim
     /// ersten `queryActivityStarting` selbst (`NSMotionUsageDescription` ist schon gesetzt).
@@ -64,8 +66,8 @@ final class HealthModell {
 
     /// A new key per new set of types, so the prompt appears once more (v3: distance and floors,
     /// v4: active energy and exercise time). Background observers still start on any older flag.
-    private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt.v4"
-    private static let alteSchluessel = ["lovea.health.berechtigungAngefragt", "lovea.health.berechtigungAngefragt.v3"]
+    private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt.v5"
+    private static let alteSchluessel = ["lovea.health.berechtigungAngefragt", "lovea.health.berechtigungAngefragt.v3", "lovea.health.berechtigungAngefragt.v4"]
     private static let nachgetragenSchluessel = "lovea.health.schritteNachgetragen.v1"
 
     /// Für den "Health nicht erlaubt"-Hinweis (Z-21.1/Z-21.3, Review-Fokus 4): unterscheidet "noch
@@ -358,7 +360,7 @@ final class HealthModell {
     /// wurde (Apples Privacy-Design für Lesezugriffe) — deshalb wird trotzdem versucht zu lesen.
     private func berechtigungAnfragen() async -> Bool {
         await withCheckedContinuation { fortsetzung in
-            store.requestAuthorization(toShare: [], read: [stepType, distanzType, etagenType, energieType, bewegungType, sleepType]) { erfolg, _ in
+            store.requestAuthorization(toShare: [], read: [stepType, distanzType, etagenType, energieType, bewegungType, sleepType, tonType]) { erfolg, _ in
                 fortsetzung.resume(returning: erfolg)
             }
         }
@@ -484,9 +486,9 @@ final class HealthModell {
         defer { schlafLaeuft = false }
         for tag in letzteAchtTage() {
             guard let ergebnis = await schlafAn(tag),
-                  schlaf[ich]?[tag]?.minuten != ergebnis.minuten || schlaf[ich]?[tag]?.quelle != ergebnis.quelle.rawValue
+                  schlaf[ich]?[tag]?.minuten != ergebnis.minuten || schlaf[ich]?[tag]?.quelle != ergebnis.quelle
             else { continue }
-            Raum.shared.senden("schlaf.setzen", SchlafD(datum: tag, minuten: ergebnis.minuten, von: Self.isoText(ergebnis.von), bis: Self.isoText(ergebnis.bis), quelle: ergebnis.quelle.rawValue))
+            Raum.shared.senden("schlaf.setzen", SchlafD(datum: tag, minuten: ergebnis.minuten, von: Self.isoText(ergebnis.von), bis: Self.isoText(ergebnis.bis), quelle: ergebnis.quelle))
         }
     }
 
@@ -499,7 +501,7 @@ final class HealthModell {
     /// benutzen die asleep-Werte; nur das iPhone selbst (mit eingeschalteter Schlafenszeit) schreibt
     /// `inBed`, ohne je asleep zu setzen — deshalb reicht "asleep vorhanden?" als Watch-Erkennung,
     /// ohne die Quelle jedes Samples einzeln zu prüfen.
-    private func schlafAn(_ tag: String) async -> (minuten: Int, von: Date, bis: Date, quelle: SchlafLogik.Quelle)? {
+    private func schlafAn(_ tag: String) async -> (minuten: Int, von: Date, bis: Date, quelle: String)? {
         let tagStart = Calendar.berlin.startOfDay(for: Datum.datum(tag))
         guard let fensterStart = Calendar.berlin.date(byAdding: .hour, value: -30, to: tagStart),
               let fensterEnde = Calendar.berlin.date(byAdding: .day, value: 1, to: tagStart)
@@ -514,36 +516,47 @@ final class HealthModell {
         let watchIntervalle = samples
             .filter { Self.asleepWerte.contains($0.value) }
             .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
-        let iphoneIntervalle = samples
+        let watch = HealthLogik.schlafNacht(watchIntervalle, tag: tag)
+        // Das Punktesystem kostet nur Rechnung, aber CoreMotion und Kopfhörer-Ton sind Abfragen: nur ohne Watch.
+        guard watch == nil else { return SchlafLogik.automatikVorrang(watch: watch, punkte: nil) }
+        var eingabe = SchlafLogik.PunkteEingabe(tag: tag, fensterEnde: min(Calendar.berlin.date(byAdding: .hour, value: 14, to: tagStart) ?? fensterEnde, Date()))
+        eingabe.imBett = samples
             .filter { $0.value == HKCategoryValueSleepAnalysis.inBed.rawValue }
             .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
-        let watch = HealthLogik.schlafNacht(watchIntervalle, tag: tag)
-        let iphone = SchlafLogik.imBettSchaetzung(iphoneIntervalle, tag: tag)
-        // CoreMotion ist teurer — nur ohne Watch. Mit iPhone-Schnipsel trotzdem: die längere Nacht gewinnt.
-        let geschaetzt = watch == nil ? await schlafGeschaetzt(tag) : nil
-        return SchlafLogik.automatikVorrang(watch: watch, iphone: iphone, geschaetzt: geschaetzt)
+        eingabe.aktivitaeten = await bewegungen(tag)
+        if AirPodsPro3.an { eingabe.ton = await tonSpannen(von: fensterStart, bis: fensterEnde) }
+        if let ich = Raum.shared.ich { eingabe.guteNacht = FigurenModell.shared.gruss[ich]?.nacht }
+        return SchlafLogik.automatikVorrang(watch: nil, punkte: SchlafLogik.punkte(eingabe))
     }
 
-    /// d) Bewegungs-Schätzung: Fenster 18 Uhr Vortag bis 14 Uhr (nie in die Zukunft), Aktivität via
-    /// `CMMotionActivityManager`.
-    private func schlafGeschaetzt(_ tag: String) async -> (minuten: Int, von: Date, bis: Date)? {
-        guard Geraet.wirdGetragen, CMMotionActivityManager.isActivityAvailable() else { return nil }
+    /// Verlauf der Bewegungs-Zustände (CoreMotion hält ihn 7 Tage selbst, Lesen kostet keinen Sensor).
+    private func bewegungen(_ tag: String) async -> [SchlafLogik.Aktivitaet] {
+        guard Geraet.wirdGetragen, CMMotionActivityManager.isActivityAvailable() else { return [] }
         let tagStart = Calendar.berlin.startOfDay(for: Datum.datum(tag))
         guard let fensterStart = Calendar.berlin.date(byAdding: .hour, value: -6, to: tagStart),
               let fensterEndeRoh = Calendar.berlin.date(byAdding: .hour, value: 14, to: tagStart)
-        else { return nil }
+        else { return [] }
         let fensterEnde = min(fensterEndeRoh, Date())
-        guard fensterEnde > fensterStart else { return nil }
-        let aktivitaeten: [SchlafLogik.Aktivitaet] = await withCheckedContinuation { fortsetzung in
+        guard fensterEnde > fensterStart else { return [] }
+        return await withCheckedContinuation { fortsetzung in
             bewegungsManager.queryActivityStarting(from: fensterStart, to: fensterEnde, to: .main) { taetigkeiten, _ in
-                let liste = (taetigkeiten ?? []).map {
+                fortsetzung.resume(returning: (taetigkeiten ?? []).map {
                     SchlafLogik.Aktivitaet(zeit: $0.startDate, stationaer: $0.stationary,
                                           konfidenz: SchlafLogik.Konfidenz(rawValue: $0.confidence.rawValue) ?? .niedrig)
-                }
-                fortsetzung.resume(returning: liste)
+                })
             }
         }
-        return SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: tag)
+    }
+
+    /// Wann Ton über Kopfhörer lief. Ohne Berechtigung oder ohne Samples: leer, kein Fehler.
+    private func tonSpannen(von: Date, bis: Date) async -> [HealthLogik.SchlafIntervall] {
+        let praedikat = HKQuery.predicateForSamples(withStart: von, end: bis, options: .strictStartDate)
+        return await withCheckedContinuation { fortsetzung in
+            let abfrage = HKSampleQuery(sampleType: tonType, predicate: praedikat, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, ergebnis, _ in
+                fortsetzung.resume(returning: (ergebnis ?? []).map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) })
+            }
+            store.execute(abfrage)
+        }
     }
 
     /// UNSICHER (Bericht): `HKCategoryValueSleepAnalysis.allAsleepValues` (iOS 16+) deckt vermutlich

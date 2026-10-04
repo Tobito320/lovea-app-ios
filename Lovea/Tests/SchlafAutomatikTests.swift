@@ -32,135 +32,132 @@ final class SchlafAutomatikTests: XCTestCase {
         XCTAssertNil(SchlafLogik.quelle(eintrag: 0, automatikQuelle: "Apple Watch"))
     }
 
-    // MARK: - b/c) Watch vor iPhone-Schlafenszeit vor Bewegung
+    // MARK: - Watch vor Punktesystem
 
-    func testAutomatikVorrangWatchVorIphone() {
+    func testWatchGewinntVorPunkten() {
         let watch = (minuten: 400, von: Date(), bis: Date())
-        let iphone = (minuten: 300, von: Date(), bis: Date())
-        let ergebnis = SchlafLogik.automatikVorrang(watch: watch, iphone: iphone, geschaetzt: nil)
+        let punkte = SchlafLogik.PunkteErgebnis(nacht: (300, Date(), Date()), konfidenz: .hoch, nickerchen: [], wachLuecken: [])
+        let ergebnis = SchlafLogik.automatikVorrang(watch: watch, punkte: punkte)
         XCTAssertEqual(ergebnis?.minuten, 400)
-        XCTAssertEqual(ergebnis?.quelle, .appleWatch)
+        XCTAssertEqual(ergebnis?.quelle, "Apple Watch")
     }
 
-    func testAutomatikVorrangIphoneOhneWatch() {
-        let iphone = (minuten: 300, von: Date(), bis: Date())
-        let ergebnis = SchlafLogik.automatikVorrang(watch: nil, iphone: iphone, geschaetzt: nil)
-        XCTAssertEqual(ergebnis?.quelle, .iphoneSchlafenszeit)
+    func testPunktesystemOhneWatchMitQuelleUndKonfidenz() {
+        let punkte = SchlafLogik.PunkteErgebnis(nacht: (300, Date(), Date()), konfidenz: .mittel, nickerchen: [], wachLuecken: [])
+        let ergebnis = SchlafLogik.automatikVorrang(watch: nil, punkte: punkte)
+        XCTAssertEqual(ergebnis?.minuten, 300)
+        XCTAssertEqual(ergebnis?.quelle, "Punktesystem, wahrscheinlich")
+        XCTAssertNil(SchlafLogik.automatikVorrang(watch: nil, punkte: nil))
+        XCTAssertNil(SchlafLogik.automatikVorrang(watch: nil, punkte: SchlafLogik.PunkteErgebnis(nacht: nil, konfidenz: .niedrig, nickerchen: [], wachLuecken: [])))
     }
 
-    func testAutomatikVorrangGeschaetztNurAlsLetztes() {
-        let geschaetzt = (minuten: 200, von: Date(), bis: Date())
-        XCTAssertNil(SchlafLogik.automatikVorrang(watch: nil, iphone: nil, geschaetzt: nil))
-        XCTAssertEqual(SchlafLogik.automatikVorrang(watch: nil, iphone: nil, geschaetzt: geschaetzt)?.quelle, .geschaetzt)
-    }
-
-    // MARK: - c) Im Bett: Lücken (Handy nachts benutzt) fallen raus
-
-    func testImBettMitHandynutzungAusgeschlossen() {
-        // 23:00–07:00, dazwischen 04:00–04:15 am Handy: 8 h minus 15 min = 7 h 45.
-        let intervalle = [intervall(23, 23, 0, 24, 4, 0), intervall(24, 4, 15, 24, 7, 0)]
-        let ergebnis = SchlafLogik.imBettSchaetzung(intervalle, tag: "2026-09-24")
-        XCTAssertEqual(ergebnis?.minuten, 7 * 60 + 45)
-    }
-
-    // MARK: - d) Bewegungs-Schätzung
+    // MARK: - Punktesystem
 
     private func aktiv(_ tag: Int, _ stunde: Int, _ minute: Int = 0, stationaer: Bool, konfidenz: SchlafLogik.Konfidenz = .hoch) -> SchlafLogik.Aktivitaet {
         SchlafLogik.Aktivitaet(zeit: Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: tag, hour: stunde, minute: minute))!,
                               stationaer: stationaer, konfidenz: konfidenz)
     }
 
-    func testBewegungToilettengangBleibtEinBlock() {
-        // 23:00 schlafen, 03:58–04:01 kurz auf (mit Schritten: Toilettengang), dann weiter bis 07:00.
-        let aktivitaeten = [
-            aktiv(24, 23, stationaer: true),
-            aktiv(25, 3, 58, stationaer: false),
-            aktiv(25, 4, 1, stationaer: true),
-        ]
-        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 7))!
-        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
-        // Bleibt EIN Block (Lücke unter 10 min): volle Nacht minus die 3 Minuten mit Schritten.
-        XCTAssertEqual(ergebnis?.minuten, 8 * 60 - 3)
+    private func ende(_ tag: Int, _ stunde: Int) -> Date {
+        Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: tag, hour: stunde))!
     }
 
-    func test20MinWachTeiltDieNacht() {
-        // 23:00 schlafen, 20 min richtig wach (03:50–04:10), dann weiter bis 07:00.
-        let aktivitaeten = [
-            aktiv(24, 23, stationaer: true),
-            aktiv(25, 3, 50, stationaer: false),
-            aktiv(25, 4, 10, stationaer: true),
-        ]
-        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 7))!
-        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
-        // 20 min reißen die 10-Minuten-Schwelle: zwei Abschnitte derselben Nacht, zusammengezählt ohne die
-        // Wachzeit: 23:00–03:50 (290 min) + 04:10–07:00 (170 min) = 460 min.
-        XCTAssertEqual(ergebnis?.minuten, 460)
+    private func rechne(_ aktivitaeten: [SchlafLogik.Aktivitaet], tag: Int, bis stunde: Int, _ aendern: (inout SchlafLogik.PunkteEingabe) -> Void = { _ in }) -> SchlafLogik.PunkteErgebnis {
+        var e = SchlafLogik.PunkteEingabe(tag: String(format: "2026-09-%02d", tag), fensterEnde: ende(tag, stunde))
+        e.aktivitaeten = aktivitaeten
+        aendern(&e)
+        return SchlafLogik.punkte(e)
     }
 
-    func testBewegungSchreibtischZaehltNichtAlsNacht() {
-        // Kurze Nacht 23:00–01:00 (120 min), dann 8 h Lücke, dann ruhig am Schreibtisch 09:00–14:00
-        // (300 min) — ohne die 6-Uhr-Grenze würde der Schreibtisch als (größerer) Nacht-Teil gewinnen.
-        let aktivitaeten = [
-            aktiv(24, 23, stationaer: true),
-            aktiv(25, 1, stationaer: false),
-            aktiv(25, 9, stationaer: true),
-        ]
-        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 14))!
-        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
-        XCTAssertNil(ergebnis, "120 min sind unter der Mindestnacht, Schreibtisch erst recht nicht")
+    func testToilettengangBleibtEineNacht() {
+        let a = [aktiv(24, 23, stationaer: true), aktiv(25, 3, 58, stationaer: false), aktiv(25, 4, 1, stationaer: true)]
+        // 8 h minus die 3 Minuten am Handy.
+        XCTAssertEqual(rechne(a, tag: 25, bis: 7).nacht?.minuten, 8 * 60 - 3)
+    }
+
+    func test20MinWachTeiltDieNachtZaehltAberNichtMit() {
+        let a = [aktiv(24, 23, stationaer: true), aktiv(25, 3, 50, stationaer: false), aktiv(25, 4, 10, stationaer: true)]
+        let r = rechne(a, tag: 25, bis: 7)
+        XCTAssertEqual(r.nacht?.minuten, 290 + 170)
+        XCTAssertEqual(r.wachLuecken.count, 1)
+    }
+
+    func testSchreibtischIstKeineNacht() {
+        // 2 h Schlaf, dann wach bis 09:00, dann ruhig am Schreibtisch 09:00 bis 14:00.
+        let a = [aktiv(24, 23, stationaer: true), aktiv(25, 1, stationaer: false), aktiv(25, 9, stationaer: true)]
+        let r = rechne(a, tag: 25, bis: 14)
+        XCTAssertNil(r.nacht, "unter 3 h ist keine Nacht")
+        XCTAssertEqual(r.nickerchen.count, 1, "kurzer Schlaf wird Nickerchen, nicht verworfen")
+    }
+
+    func testHandyKurzAusIstKeineNacht() {
+        // Ahmed, 05.10.: Handy 22:00 bis 22:40 aus (letzter Stand "still"), danach in der Hand.
+        let a = [aktiv(4, 22, stationaer: true), aktiv(4, 22, 40, stationaer: false)]
+        XCTAssertNil(rechne(a, tag: 5, bis: 14).nacht)
+    }
+
+    func testHandyAusMinusPunkteStreichtSchlaf() {
+        // Gleiche Lage, aber ohne Handy-Nutzung: der Kurzbefehl meldet "aus" 22:00 bis 02:00.
+        let a = [aktiv(4, 22, stationaer: true)]
+        let r = rechne(a, tag: 5, bis: 7) { e in
+            e.aus = [HealthLogik.SchlafIntervall(von: self.ende(4, 22), bis: self.ende(5, 2))]
+        }
+        XCTAssertEqual(r.nacht?.minuten, 5 * 60, "02:00 bis 07:00, die Ausphase zählt nicht")
     }
 
     func testHandyNachtsInDerHandGiltNichtAlsSchlaf() {
-        // 23:00 schlafen, 03:30 Handy in die Hand, alle paar Minuten neue Bewegung ohne Schritte
-        // (kurze Stücke unter 10 min), 03:50 wieder hingelegt, schlafen bis 07:00 (Fensterende).
-        let aktivitaeten = [
+        let a = [
             aktiv(24, 23, stationaer: true),
             aktiv(25, 3, 30, stationaer: false),
             aktiv(25, 3, 36, stationaer: false, konfidenz: .niedrig),
             aktiv(25, 3, 43, stationaer: false),
             aktiv(25, 3, 50, stationaer: true),
         ]
-        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 7))!
-        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
-        // 23:00–03:30 (270) + 03:50–07:00 (190), die 20 min am Handy zählen nicht.
-        XCTAssertEqual(ergebnis?.minuten, 460)
+        XCTAssertEqual(rechne(a, tag: 25, bis: 7).nacht?.minuten, 270 + 190)
     }
 
     func testWeckerAusUndHandyImBettBeendetDieNacht() {
-        // Ahmed, 27.09.: Wecker um 07:00 aus, danach im Bett am Handy (liegt meist still), um 08:20
-        // aufgestanden. Aufgewacht ist er um 07:00, nicht 08:20.
-        let aktivitaeten = [
-            aktiv(27, 0, 30, stationaer: true),
-            aktiv(27, 7, 0, stationaer: false),
-            aktiv(27, 7, 3, stationaer: true),
-            aktiv(27, 7, 40, stationaer: false, konfidenz: .niedrig),
-            aktiv(27, 7, 44, stationaer: true),
-            aktiv(27, 8, 20, stationaer: false),
+        // Ahmed, 27.09.: Wecker 07:00 aus, danach im Bett am Handy, 08:20 aufgestanden. Aufgewacht um 07:00.
+        let a = [
+            aktiv(27, 0, 30, stationaer: true), aktiv(27, 7, 0, stationaer: false), aktiv(27, 7, 3, stationaer: true),
+            aktiv(27, 7, 40, stationaer: false, konfidenz: .niedrig), aktiv(27, 7, 44, stationaer: true), aktiv(27, 8, 20, stationaer: false),
         ]
-        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 27, hour: 9))!
-        let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-27")
-        XCTAssertEqual(ergebnis?.bis, Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 27, hour: 7)))
-        XCTAssertEqual(ergebnis?.minuten, 6 * 60 + 30)
+        let r = rechne(a, tag: 27, bis: 9)
+        XCTAssertEqual(r.nacht?.bis, ende(27, 7))
+        XCTAssertEqual(r.nacht?.minuten, 6 * 60 + 30)
     }
 
-    func testHandyKurzAusIstKeineNacht() {
-        // Ahmed, 05.10.: Handy 22:00–22:40 aus (letzter Stand "still"), danach in der Hand. 40 min.
-        let aktivitaeten = [aktiv(4, 22, stationaer: true), aktiv(4, 22, 40, stationaer: false)]
-        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 5, hour: 14))!
-        XCTAssertNil(SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-05"))
+    func testPcAktivBeiStillemHandyIstKeinSchlaf() {
+        // Handy liegt 22:00 bis 07:00 still, aber der PC war bis 01:00 mit echter Maus aktiv.
+        let a = [aktiv(4, 22, stationaer: true)]
+        let r = rechne(a, tag: 5, bis: 7) { e in
+            e.pc = [HealthLogik.SchlafIntervall(von: self.ende(4, 22), bis: self.ende(5, 1))]
+        }
+        XCTAssertEqual(r.nacht?.von, ende(5, 1))
+        XCTAssertEqual(r.nacht?.minuten, 6 * 60)
     }
 
-    func testKurzerIphoneSchnipselVerdraengtBewegungNicht() {
-        let iphone = (minuten: 40, von: Date(), bis: Date())
-        let geschaetzt = (minuten: 420, von: Date(), bis: Date())
-        let ergebnis = SchlafLogik.automatikVorrang(watch: nil, iphone: iphone, geschaetzt: geschaetzt)
-        XCTAssertEqual(ergebnis?.minuten, 420)
-        XCTAssertEqual(ergebnis?.quelle, .geschaetzt)
-        XCTAssertNil(SchlafLogik.automatikVorrang(watch: nil, iphone: iphone, geschaetzt: nil))
+    func testTonUeberAirPodsIstWach() {
+        let a = [aktiv(4, 23, stationaer: true)]
+        let r = rechne(a, tag: 5, bis: 7) { e in
+            e.ton = [HealthLogik.SchlafIntervall(von: self.ende(4, 23), bis: self.ende(5, 0))]
+        }
+        XCTAssertEqual(r.nacht?.von, ende(5, 0), "Einschlafen, wenn der Ton endet")
     }
 
-    func testBewegungsSchaetzungOhneDatenIstNil() {
-        XCTAssertNil(SchlafLogik.bewegungsSchaetzung([], fensterEnde: Date(), tag: "2026-09-25"))
+    func testMehrHinweiseMehrKonfidenz() {
+        let a = [aktiv(24, 23, stationaer: true)]
+        let schwach = rechne(a, tag: 25, bis: 7)
+        let stark = rechne(a, tag: 25, bis: 7) { e in
+            e.laden = [HealthLogik.SchlafIntervall(von: self.ende(24, 23), bis: self.ende(25, 7))]
+            e.fokus = [HealthLogik.SchlafIntervall(von: self.ende(24, 23), bis: self.ende(25, 7))]
+        }
+        XCTAssertEqual(schwach.konfidenz, .niedrig)
+        XCTAssertEqual(stark.konfidenz, .hoch)
+    }
+
+    func testOhneDatenKeineNacht() {
+        XCTAssertNil(rechne([], tag: 25, bis: 7).nacht)
     }
 
     // MARK: - Schlafziel mit flexiblen Tagen
