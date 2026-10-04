@@ -46,6 +46,7 @@ struct SnapEditor: View {
     @State private var zeichnenAktiv = false
     @State private var doodleFarbe = Color.white
 
+    @AppStorage(SnapFilterAnzeige.schluessel) private var filterAn = true // same key `SnapFilterAnzeige.an` reads
     @State private var bleibt = false
     @State private var sendetGerade = false
     @State private var videoSpieler: AVPlayer?
@@ -92,7 +93,7 @@ struct SnapEditor: View {
                 obereLeiste
                 if zeichnenAktiv { farbAuswahl }
                 Spacer()
-                filterKarussell
+                if filterAn { filterKarussell }
                 untereLeiste
             }
         }
@@ -221,10 +222,13 @@ struct SnapEditor: View {
                     aktuelleLinie = []
                     return
                 }
-                guard abs(wert.translation.width) > 40, abs(wert.translation.width) > abs(wert.translation.height) else { return }
+                guard filterAn, abs(wert.translation.width) > 40, abs(wert.translation.width) > abs(wert.translation.height) else { return }
                 filterWechseln(vorwaerts: wert.translation.width < 0)
             }
     }
+
+    /// Filter aus (Einstellungen): immer das Original, egal was vorher gewählt war.
+    private var wirksamerFilter: SnapFilter { SnapFilterAnzeige.filter(ausgewaehlterFilter, an: filterAn) }
 
     /// Ein Filter weiter/zurück in `SnapFilter.allCases` — Wisch auf dem Bild selbst (R9), neben
     /// dem Tippen auf einen Chip im Karussell.
@@ -453,7 +457,7 @@ struct SnapEditor: View {
         case .foto(let bild): quellBild = bild
         case .video(let url): quellBild = await Self.erstesVideoBild(url: url)
         }
-        guard let quellBild else { return }
+        guard filterAn, let quellBild else { return }
         filterThumbnails = await Self.filterThumbnails(aus: quellBild)
     }
 
@@ -528,7 +532,7 @@ struct SnapEditor: View {
             // ponytail: tray mode edits photos only (videos in the tray aren't editable yet).
             guard case .foto(let bild) = inhalt else { onFertig(); return }
             Task {
-                if let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: ausgewaehlterFilter) { onUebernehmen(jpeg) }
+                if let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: wirksamerFilter) { onUebernehmen(jpeg) }
                 onFertig()
             }
             return
@@ -536,14 +540,14 @@ struct SnapEditor: View {
         switch inhalt {
         case .foto(let bild):
             Task {
-                let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: ausgewaehlterFilter)
+                let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: wirksamerFilter)
                 onFertig()
                 if let jpeg { await ChatMedien.snapFotoSenden(jpeg: jpeg, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
         case .video(let url):
             Task {
                 defer { onFertig() }
-                guard let exportURL = await SnapExport.video(quelle: url, linien: linien, sticker: sticker, text: text, filter: ausgewaehlterFilter) else { return }
+                guard let exportURL = await SnapExport.video(quelle: url, linien: linien, sticker: sticker, text: text, filter: wirksamerFilter) else { return }
                 Task { await ChatMedien.snapVideoSenden(quelle: exportURL, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
         }
