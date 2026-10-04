@@ -198,6 +198,7 @@ struct ZyklusHeuteView: View {
     let heute: String
     @State private var blatt: ZyklusAuswahl?
     @State private var stand = 0
+    @AppStorage(ZyklusZeitraum.schluessel) private var zeitraumWahl = -1
     @Environment(\.colorScheme) private var schema
 
     init(speicher: any ZyklusSpeicher, eintragBlatt: @escaping (String) -> AnyView, heute: String = Datum.text(Date())) {
@@ -219,6 +220,7 @@ struct ZyklusHeuteView: View {
         let logik = speicher.logik(heute: heute)
         let ring = ZyklusHeuteLogik.ringText(logik: logik, heute: heute)
         let zeilen = ZyklusHeuteLogik.eintraege(speicher.tage[heute])
+        let alltag = speicher.quelle == .echt ? ZyklusAlltag.fuer(Raum.shared.ich ?? .annika, heute: heute) : nil
         return VStack(spacing: 16) {
             Text(Datum.anzeige(heute))
                 .font(.system(.title3, design: .rounded).weight(.bold))
@@ -231,6 +233,9 @@ struct ZyklusHeuteView: View {
                         .font(.system(.subheadline, design: .rounded))
                         .foregroundStyle(ZyklusFarbe.tinte(schema))
                 }
+            }
+            if logik.verspaetung == nil, let r = logik.periodeZeitraum(breite: ZyklusZeitraum.breite(zeitraumWahl), spaeter: alltag?.spaeter ?? 0) {
+                vorhersageKarte(r, logik: logik, alltag: alltag)
             }
             ZyklusKarte {
                 VStack(alignment: .leading, spacing: 10) {
@@ -262,6 +267,30 @@ struct ZyklusHeuteView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Nächste Periode als Zeitraum, darunter der Alltag-Hinweis und wie die Vorhersage rechnet.
+    private func vorhersageKarte(_ r: ClosedRange<String>, logik: ZyklusLogik, alltag: ZyklusAlltag.Hinweis?) -> some View {
+        ZyklusKarte {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Nächste Periode").font(.system(.headline, design: .rounded)).foregroundStyle(ZyklusFarbe.tinte(schema))
+                Text(ZyklusZeitraum.text(r)).font(.system(.title3, design: .rounded).weight(.bold)).foregroundStyle(ZyklusFarbe.tinte(schema))
+                if !logik.vorhersageSicher {
+                    Text("Noch ungenau: Es braucht mindestens drei Zyklen.").font(.system(.footnote, design: .rounded)).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                }
+                ForEach(alltag?.texte ?? [], id: \.self) { t in
+                    Label(t, systemImage: "moon.zzz").font(.system(.footnote, design: .rounded)).foregroundStyle(ZyklusFarbe.tinte(schema))
+                }
+                DisclosureGroup("So rechnet Lovea") {
+                    Text(ZyklusZeitraum.erklaerung).font(.system(.footnote, design: .rounded)).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                        .frame(maxWidth: .infinity, alignment: .leading).padding(.top, 4)
+                }
+                .font(.system(.footnote, design: .rounded).weight(.semibold))
+                .tint(ZyklusFarbe.tinte(schema))
+                Text(ZyklusZeitraum.keineVerhuetung).font(.system(.footnote, design: .rounded).weight(.semibold)).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }

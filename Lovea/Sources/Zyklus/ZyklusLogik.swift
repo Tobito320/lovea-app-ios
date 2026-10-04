@@ -2,7 +2,7 @@ import Foundation
 
 /// Reine Zyklus-Rechnung. Alle Tage sind `yyyy-MM-dd`-Strings; intern zählen wir ganze Tage.
 /// Perioden-Start = erster Tag mit Blutung leicht/mittel/stark (Schmierblutung zählt nicht).
-/// Vorhersage = Mittel der letzten bis zu 6 Zyklen, ohne Daten die Einstellung (Standard 28/5).
+/// Vorhersage = Median der letzten bis zu 6 Zyklen, ohne Daten die Einstellung (Standard 28/5).
 struct ZyklusLogik {
     static let maxZyklen = 6
     static let lutealTage = 14
@@ -48,10 +48,12 @@ struct ZyklusLogik {
 
     private var letzteZyklen: [Int] { Array(zyklusLaengen.suffix(Self.maxZyklen)) }
 
+    /// Median statt Mittel: ein einzelner Ausreißer (Stress, Krankheit) verschiebt die Vorhersage kaum.
     var mittlereZyklusLaenge: Int {
-        let z = letzteZyklen
+        let z = letzteZyklen.sorted()
         guard !z.isEmpty else { return einstellung.zyklusLaenge }
-        return Int((Double(z.reduce(0, +)) / Double(z.count)).rounded())
+        let m = z.count / 2
+        return z.count % 2 == 1 ? z[m] : Int((Double(z[m - 1] + z[m]) / 2).rounded())
     }
 
     var mittlerePeriodenLaenge: Int {
@@ -76,6 +78,15 @@ struct ZyklusLogik {
 
     var naechstePeriode: String? {
         startIdx.last.map { Self.text($0 + mittlereZyklusLaenge) }
+    }
+
+    /// Zeitraum um die nächste Periode. `breite` nil = automatisch: halbe Streuung (1 bis 4 Tage),
+    /// unter 3 Zyklen 2 Tage. `spaeter` öffnet nur nach hinten (Alltag, siehe `ZyklusAlltag`).
+    func periodeZeitraum(breite: Int?, spaeter: Int = 0) -> ClosedRange<String>? {
+        guard let l = startIdx.last else { return nil }
+        let n = l + mittlereZyklusLaenge
+        let b = breite ?? (letzteZyklen.count < 3 ? 2 : min(4, max(1, (streuung + 1) / 2)))
+        return Self.text(n - b)...Self.text(n + b + spaeter)
     }
 
     /// Eisprung im laufenden Zyklus: 14 Tage vor der nächsten Periode.
