@@ -105,6 +105,9 @@ struct WorkoutAktionen {
     var startzeit: () -> Void = {}
     var auslassen: (WorkoutUebung) -> Void = { _ in }
     var aufnehmen: (WorkoutUebung) -> Void = { _ in }
+    var beenden: () -> Void = {}
+    /// Cardio außerhalb des Plans: Katalog-id (Laufband, Stairmaster).
+    var cardio: (String) -> Void = { _ in }
 }
 
 /// Das laufende Training: Starten hat eingecheckt, "Beenden" checkt aus.
@@ -172,6 +175,8 @@ struct GymSessionView: View {
                 if session.ende == nil { pulsSchalter }
             }
             .onAppear { if session.ende == nil { WorkoutPuls.shared.starten() } }
+            // Health versteckt die Leiste auf seiner Startseite, das erbte das Training: "Beenden" fehlte (Ahmed, 04.10.).
+            .toolbar(.visible, for: .navigationBar)
             .safeAreaInset(edge: .bottom, spacing: 0) {
                 if session.ende == nil, !liste.isEmpty { leiste(session, liste) }
             }
@@ -261,6 +266,12 @@ struct GymSessionView: View {
             },
             aufnehmen: { u in
                 modell.entfernen(s.id, u.planUebung)
+                Haptik.leicht()
+            },
+            beenden: { beenden(s) },
+            cardio: { id in
+                guard let u = UebungsKatalog.nachId[id] else { return }
+                hinzufuegen(PlanUebung.neu(u))
                 Haptik.leicht()
             }
         )
@@ -490,6 +501,11 @@ struct WorkoutInhalt: View {
         }
     }
 
+    /// Cardio-Kurzknöpfe unter "Übung hinzufügen" (Katalog-ids wie im Split 01).
+    static let cardioSchnell: [(id: String, name: String, bild: String)] = [
+        ("rjiM4L3", "Laufband", "figure.run"), ("j9Q5crt", "Stairmaster", "figure.stair.stepper"),
+    ]
+
     @ViewBuilder
     private var schluss: some View {
         if session.ende == nil {
@@ -498,6 +514,20 @@ struct WorkoutInhalt: View {
             }
             .buttonStyle(.borderedProminent)
             .tint(.blue)
+            HStack(spacing: 10) {
+                ForEach(Array(Self.cardioSchnell.enumerated()), id: \.offset) { _, c in
+                    Button { aktionen.cardio(c.id) } label: {
+                        Label(c.name, systemImage: c.bild).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 36)
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            // Auch mit offenen Übungen: was fertig ist, zählt, der Rest bleibt im Plan.
+            Button(action: aktionen.beenden) {
+                Label("Training beenden", systemImage: "checkmark").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(.green)
             Button(action: aktionen.startzeit) {
                 Label("Startzeit ändern", systemImage: "clock").font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
             }
