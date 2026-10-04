@@ -22,6 +22,20 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .herz)
     }
 
+    func testBraucheSchlaegtStimmungAberNichtGeste() {
+        // Ohne Geste/App/Ort/Bewegung gewinnt „brauche" vor der reinen Stimmung (wieder in der UI, 04.10.2026).
+        var e = FigurEingabe(person: .ahmed, jetzt: berlin(10, 3, 14))
+        e.stimmung = "gut"
+        e.brauche = "worte"
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .worte)
+
+        e.brauche = "naehe"
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .naehe)
+
+        e.geste = .herz
+        XCTAssertEqual(FigurZustand.bestimmen(e).haupt, .herz)
+    }
+
     func testSchlafenNurZuHauseUndInRuhe() {
         var e = FigurEingabe(person: .ahmed, jetzt: berlin(10, 3, 23))
         e.fokus = "schlafen"
