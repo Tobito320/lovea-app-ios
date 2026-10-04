@@ -117,6 +117,7 @@ private struct ProfilInhalt: View {
                     if istEigenes {
                         eigeneChips
                         eigeneAktionen
+                        ZyklusProfilZeile(person: person)
                         ProfilPunkteKarte(person: person)
                         abschnitt("Spiele-Bilanz") { spieleAbschnittInhalt }
                     } else {
