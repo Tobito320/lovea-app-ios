@@ -526,6 +526,18 @@ final class HealthModell {
         eingabe.aktivitaeten = await bewegungen(tag)
         if AirPodsPro3.an { eingabe.ton = await tonSpannen(von: fensterStart, bis: fensterEnde) }
         if let ich = Raum.shared.ich { eingabe.guteNacht = FigurenModell.shared.gruss[ich]?.nacht }
+        let signale = SchlafSignale.laden()
+        let bis = eingabe.fensterEnde
+        eingabe.laden = SchlafSignale.spannen(signale, art: "laden", bis: bis)
+        eingabe.fokus = SchlafSignale.spannen(signale, art: "fokus", bis: bis)
+        eingabe.unterwegs = SchlafSignale.spannen(signale, art: "daheim", wennAn: false, bis: bis)
+        eingabe.aus = SchlafSignale.spannen(signale, art: "aus", bis: bis)
+        eingabe.wecker = SchlafSignale.weckerAus(signale, tagStart: tagStart)
+        var griffe = SchlafSignale.aktivZeiten(signale)
+        if let ich = Raum.shared.ich {
+            griffe += ChatModell.shared.nachrichten.filter { $0.von == ich && !$0.geloescht && $0.system == nil }.map(\.zeit)
+        }
+        eingabe.wach = SchlafSignale.kurzWach(griffe)
         return SchlafLogik.automatikVorrang(watch: nil, punkte: SchlafLogik.punkte(eingabe))
     }
 

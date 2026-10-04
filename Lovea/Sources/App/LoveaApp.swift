@@ -102,6 +102,7 @@ struct LoveaApp: App {
     private func starten(_ person: Person?) {
         Raum.shared.ich = person
         guard let person else { return }
+        SchlafSignale.bootErfassen()
         // Bundle JSON (questions, date ideas) is read on first access; do that off the main thread.
         Task.detached(priority: .utility) { _ = FrageDesTages.vorrat; _ = WirModell.ideenVorrat }
         StartProtokoll.marke("modelle.falten.vor")
@@ -120,6 +121,7 @@ struct LoveaApp: App {
         StartProtokoll.marke("phaseGewechselt.\(String(describing: phase)).vor")
         Raum.shared.aktiv(phase == .active, hintergrund: phase == .background)
         if phase == .active {
+            SchlafSignale.aktivMelden()
             WidgetPendingOpsMerge.abholen()
             StartProtokoll.marke("gym.abgleichen.start")
             GymLive.abgleichen() // z. B. auf dem iPad eingecheckt, oder die Einheit ist abgelaufen
@@ -128,6 +130,7 @@ struct LoveaApp: App {
             StartProtokoll.marke("workoutuhr.mitteilungLoeschen.nach")
         }
         if phase == .background {
+            SchlafSignale.lebtMelden()
             AppStart.erstesBildGezeigt(wartezeit: .zero) // kam das erste Bild nie, wartende Start-Arbeit jetzt freigeben
             GalerieSync.shared.hintergrund()
             StartProtokoll.marke("workoutuhr.mitteilungPlanen.vor")

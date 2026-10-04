@@ -25,6 +25,7 @@ extension SchlafLogik {
         static let pcAktiv = -4.0      // echte Maus oder Tastatur am PC
         static let unterwegs = -4.0    // nicht zu Hause
         static let weckerAus = -6.0    // ab "Wecker aus"
+        static let wach = -4.0         // kurzer Griff zum Handy: App geöffnet, Chat gesendet, Neustart
     }
 
     static let schwelle = 4.0
@@ -41,6 +42,7 @@ extension SchlafLogik {
         var fokus: [HealthLogik.SchlafIntervall] = []
         var aus: [HealthLogik.SchlafIntervall] = []
         var pc: [HealthLogik.SchlafIntervall] = []
+    var wach: [HealthLogik.SchlafIntervall] = []
         var unterwegs: [HealthLogik.SchlafIntervall] = []
         var guteNacht: Date?
         var wecker: Date?
@@ -108,6 +110,7 @@ extension SchlafLogik {
         addiere(e.ton, Punkte.tonLaeuft)
         addiere(e.aus, Punkte.handyAus)
         addiere(e.pc, Punkte.pcAktiv)
+        addiere(e.wach, Punkte.wach)
         addiere(e.unterwegs, Punkte.unterwegs)
 
         // Hinweise, die für jede Minute gelten: Ort angenommen, Tageszeit, Gewohnheit, Gute Nacht, Wecker.
