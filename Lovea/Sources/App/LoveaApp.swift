@@ -28,7 +28,7 @@ struct LoveaApp: App {
             return
         }
         AbsturzFaenger.installieren() // Allererstes: vor jeder anderen App-Logik.
-        // Hinweise.swift: jeder Tip einmal pro Stunde höchstens, kein `.immediate` (sonst poppt
+        // AppErklaerungen.swift: jeder Tip einmal pro Stunde höchstens, kein `.immediate` (sonst poppt
         // beim ersten Start alles auf einmal auf).
         try? Tips.configure([.displayFrequency(.hourly)])
         let vorherCrash = StartProtokoll.neuerStart()

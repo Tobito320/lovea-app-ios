@@ -4,7 +4,7 @@ Auftrag Ahmed 04.10.2026: kurze Hinweise zu Funktionen, die man nicht direkt sie
 wischen, Menüs hinter "...", Schalter, Rechenlogik). Zielgruppe Ahmed und Annika, keine Techniker.
 
 Weg: Apple TipKit (`Tip`, `.popoverTip`, `TipView`), ein Weg für die ganze App. Deployment-Target
-iOS 26 (project.yml), TipKit ab iOS 17 verfügbar. Alle Tips in `Lovea/Sources/App/Hinweise.swift`.
+iOS 26 (project.yml), TipKit ab iOS 17 verfügbar. Alle Tips in `Lovea/Sources/App/AppErklaerungen.swift`.
 `Tips.configure([.displayFrequency(.hourly)])` in `LoveaApp.init()`, nicht `.immediate` (nervt sonst,
 zeigt sonst beim ersten Start alles auf einmal). UI-Tests (`istTest`) überspringen configure, wie
 schon beim restlichen Start-Code.
@@ -17,7 +17,7 @@ runde-3** = Funktion im Auftrag genannt, aber in diesem Branch nicht gefunden.
 
 Gesperrte Dateien: `ZyklusHeuteView.swift`, `ZyklusEinstellungenBlatt.swift`, `ZyklusLogik.swift`,
 `ZyklusVorhersage.swift`. Wer die Tips einbaut: gleiches Muster wie unten (TipKit, Tip aus
-`Hinweise.swift`, `.popoverTip` oder `TipView` über der jeweiligen Stelle).
+`AppErklaerungen.swift`, `.popoverTip` oder `TipView` über der jeweiligen Stelle).
 
 | Bereich | Hinweistext | Status |
 |---|---|---|
