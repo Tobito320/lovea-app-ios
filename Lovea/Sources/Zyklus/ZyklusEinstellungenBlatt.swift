@@ -97,12 +97,13 @@ struct ZyklusEinstellungenBlatt: View {
                 ZyklusHintergrund(deko: false)
                 ScrollView {
                     VStack(spacing: 14) {
-                        modusKarte
-                        laengenKarte
-                        sperreKarte
-                        erweitertKarte
+                        ZyklusEinstellungenInhalt(
+                            einst: $einst,
+                            sperreAktiv: Binding(get: { sperre.aktiv }, set: { sperre.aktiv = $0 }),
+                            erweitert: erweitert ?? AnyView(erinnerungenKarte),
+                            darfLoeschen: ZyklusEinstellungenLogik.darfLoeschen(speicher.quelle),
+                            loeschen: { loeschenFrage = true })
                         exportKarte
-                        if ZyklusEinstellungenLogik.darfLoeschen(speicher.quelle) { loeschenKarte }
                     }
                     .padding(16)
                 }
@@ -126,53 +127,6 @@ struct ZyklusEinstellungenBlatt: View {
         }
     }
 
-    private func titel(_ text: String) -> some View {
-        Text(text).font(.system(.headline, design: .rounded).weight(.bold)).foregroundStyle(ZyklusFarbe.tinte(schema))
-    }
-
-    private var modusKarte: some View {
-        ZyklusKarte {
-            VStack(alignment: .leading, spacing: 10) {
-                titel("Modus")
-                Picker("Modus", selection: $einst.modus) {
-                    ForEach(Modus.allCases, id: \.self) { Text(ZyklusEinstellungenLogik.modusName($0)).tag($0) }
-                }
-                .pickerStyle(.segmented)
-            }
-        }
-    }
-
-    private var laengenKarte: some View {
-        ZyklusKarte {
-            VStack(alignment: .leading, spacing: 10) {
-                titel("Längen")
-                Stepper("Zyklus: \(einst.zyklusLaenge) Tage", value: $einst.zyklusLaenge, in: ZyklusEinstellungenLogik.zyklusGrenzen)
-                Stepper("Periode: \(einst.periodenLaenge) Tage", value: $einst.periodenLaenge, in: ZyklusEinstellungenLogik.periodenGrenzen)
-            }
-            .font(.system(.body, design: .rounded))
-        }
-    }
-
-    private var sperreKarte: some View {
-        ZyklusKarte {
-            Toggle(isOn: Binding(get: { sperre.aktiv }, set: { sperre.aktiv = $0 })) {
-                VStack(alignment: .leading, spacing: 2) {
-                    titel("Sperre")
-                    Text("Face ID oder Code beim Öffnen").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
-                }
-            }
-            .tint(ZyklusFarbe.himbeere.farbe(schema))
-        }
-    }
-
-    @ViewBuilder private var erweitertKarte: some View {
-        if let erweitert {
-            ZyklusKarte { erweitert }
-        } else {
-            erinnerungenKarte
-        }
-    }
-
     private func neuPlanen(erfragen: Bool) {
         let e = erinnerung
         let s = speicher
@@ -187,7 +141,7 @@ struct ZyklusEinstellungenBlatt: View {
             ZyklusKarte {
                 Toggle(isOn: $imTraining) {
                     VStack(alignment: .leading, spacing: 2) {
-                        titel("Zyklus im Training")
+                        Text("Zyklus im Training").font(.system(.headline, design: .rounded).weight(.bold))
                         Text("Tipps zu Training und Alltag auf der Heute-Seite").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
                     }
                 }
@@ -199,8 +153,8 @@ struct ZyklusEinstellungenBlatt: View {
     private var exportKarte: some View {
         ZyklusKarte {
             VStack(alignment: .leading, spacing: 10) {
-                titel("Export")
-                Text("Alle Einträge als Text.").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                Text("Export").font(.system(.headline, design: .rounded).weight(.bold))
+                Text("Alle Einträge als Text.").font(.footnote)
                 ShareLink(item: ZyklusEinstellungenLogik.export(tage: speicher.tage, einstellung: speicher.einstellung)) {
                     Label("Als Text teilen", systemImage: "square.and.arrow.up")
                         .font(.system(.body, design: .rounded).weight(.bold))
@@ -208,8 +162,87 @@ struct ZyklusEinstellungenBlatt: View {
             }
         }
     }
+}
 
-    private var loeschenKarte: some View {
-        ZyklusKnopf(titel: "Daten löschen", symbol: "trash", leise: true) { loeschenFrage = true }
+/// Reines SwiftUI (keine UIKit-Steuerelemente), damit die Render-Tafel es zeichnet.
+struct ZyklusEinstellungenInhalt: View {
+    @Binding var einst: ZyklusEinstellung
+    @Binding var sperreAktiv: Bool
+    var erweitert: AnyView?
+    var darfLoeschen: Bool
+    var loeschen: () -> Void = {}
+    @Environment(\.colorScheme) private var schema
+
+    var body: some View {
+        VStack(spacing: 14) {
+            ZyklusKarte {
+                VStack(alignment: .leading, spacing: 10) {
+                    titel("Modus")
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 120), spacing: 8)], alignment: .leading, spacing: 8) {
+                        ForEach(Modus.allCases, id: \.self) { m in
+                            Button { einst.modus = m } label: {
+                                ZyklusChip(titel: ZyklusEinstellungenLogik.modusName(m), gewaehlt: einst.modus == m)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            ZyklusKarte {
+                VStack(alignment: .leading, spacing: 12) {
+                    titel("Längen")
+                    schritt("Zyklus", wert: $einst.zyklusLaenge, grenzen: ZyklusEinstellungenLogik.zyklusGrenzen)
+                    schritt("Periode", wert: $einst.periodenLaenge, grenzen: ZyklusEinstellungenLogik.periodenGrenzen)
+                }
+            }
+            ZyklusKarte {
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        titel("Sperre")
+                        Text("Face ID oder Code beim Öffnen").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                    }
+                    Spacer()
+                    Button { sperreAktiv.toggle() } label: {
+                        ZyklusChip(titel: sperreAktiv ? "An" : "Aus", symbol: sperreAktiv ? "lock.fill" : "lock.open", gewaehlt: sperreAktiv)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Sperre")
+                    .accessibilityValue(sperreAktiv ? "An" : "Aus")
+                }
+            }
+            if let erweitert {
+                ZyklusKarte { erweitert }
+            } else {
+                ZyklusKarte {
+                    HStack {
+                        titel("Erinnerungen")
+                        Spacer()
+                        Text("Bald").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                    }
+                }
+            }
+            if darfLoeschen { ZyklusKnopf(titel: "Daten löschen", symbol: "trash", leise: true, aktion: loeschen) }
+        }
+        .foregroundStyle(ZyklusFarbe.tinte(schema))
+    }
+
+    private func titel(_ text: String) -> some View {
+        Text(text).font(.system(.headline, design: .rounded).weight(.bold))
+    }
+
+    private func schritt(_ name: String, wert: Binding<Int>, grenzen: ClosedRange<Int>) -> some View {
+        HStack(spacing: 12) {
+            Text("\(name): \(wert.wrappedValue) Tage").font(.system(.body, design: .rounded))
+            Spacer()
+            Button { wert.wrappedValue = max(grenzen.lowerBound, wert.wrappedValue - 1) } label: {
+                Image(systemName: "minus.circle.fill").font(.title2)
+            }
+            .accessibilityLabel("\(name) kürzer")
+            Button { wert.wrappedValue = min(grenzen.upperBound, wert.wrappedValue + 1) } label: {
+                Image(systemName: "plus.circle.fill").font(.title2)
+            }
+            .accessibilityLabel("\(name) länger")
+        }
+        .buttonStyle(.plain)
     }
 }

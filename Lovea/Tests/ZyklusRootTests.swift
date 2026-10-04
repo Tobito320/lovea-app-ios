@@ -75,12 +75,14 @@ final class ZyklusRootTests: XCTestCase {
     }
 
     func testRenderRootDemo() {
-        let s = DemoZyklusSpeicher(heute: "2026-10-04")
         let sperre = ZyklusSperre(person: .ahmed, defaults: defaults(), pruefer: { true })
+        let kachel = { (inhalt: AnyView) in
+            AnyView(inhalt.padding(16).frame(width: 390).background(ZyklusHintergrund(deko: false)))
+        }
         RenderTafel.speichern("zyklus-root", spalten: 2, zellen: [
-            ("Einstellungen", AnyView(ZyklusEinstellungenBlatt(speicher: s, sperre: sperre).frame(width: 390, height: 800))),
+            ("Einstellungen (Annika, mit Loeschen)", kachel(AnyView(ZyklusEinstellungenInhalt(einst: .constant(ZyklusEinstellung()), sperreAktiv: .constant(true), erweitert: nil, darfLoeschen: true)))),
             ("Sperre", AnyView(ZyklusSperreAnsicht(sperre: sperre).frame(width: 390, height: 400))),
-            ("Profil-Zeile", AnyView(ZyklusProfilZeile(person: .annika).padding(16).frame(width: 390).background(ZyklusHintergrund(deko: false)))),
+            ("Profil-Zeile", kachel(AnyView(ZyklusProfilZeileInhalt()))),
         ])
     }
 

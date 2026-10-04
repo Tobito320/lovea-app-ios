@@ -136,23 +136,27 @@ struct ZyklusRoot: View {
 /// Zeile im Profil.
 struct ZyklusProfilZeile: View {
     let person: Person
+
+    var body: some View {
+        NavigationLink { ZyklusRoot(person: person) } label: { ZyklusProfilZeileInhalt() }
+            .buttonStyle(.plain)
+    }
+}
+
+struct ZyklusProfilZeileInhalt: View {
     @Environment(\.colorScheme) private var schema
 
     var body: some View {
-        NavigationLink { ZyklusRoot(person: person) } label: {
-            ZyklusKarte {
-                HStack(spacing: 12) {
-                    ZyklusHerzForm().fill(ZyklusFarbe.himbeere.farbe(schema)).frame(width: 26, height: 26)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Zyklus").font(.system(.headline, design: .rounded).weight(.bold))
-                        Text("Dein Tagebuch, nur für dich").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
-                    }
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+        ZyklusKarte {
+            HStack(spacing: 12) {
+                ZyklusHerzForm().fill(ZyklusFarbe.himbeere.farbe(schema)).frame(width: 26, height: 26)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Zyklus").font(.system(.headline, design: .rounded).weight(.bold)).foregroundStyle(ZyklusFarbe.tinte(schema))
+                    Text("Dein Tagebuch, nur für dich").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
                 }
-                .foregroundStyle(ZyklusFarbe.tinte(schema))
+                Spacer()
+                Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
             }
         }
-        .buttonStyle(.plain)
     }
 }
