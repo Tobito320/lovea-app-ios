@@ -74,4 +74,32 @@ final class SnapZuschnittTests: XCTestCase {
         suite.set(true, forKey: SnapBildAusrichtung.schluessel)
         XCTAssertTrue(SnapBildAusrichtung.spiegeln(suite))
     }
+
+    /// Video: nur vorne und nur bei AN gespiegelt; Foto-Verbindung ist immer ungespiegelt (siehe
+    /// `fotoAufnehmen`), dort wirkt der Schalter allein über `fuer(position:spiegeln:)`.
+    func testVideoGespiegeltNurVorneBeiAn() {
+        XCTAssertTrue(SnapBildAusrichtung.videoGespiegelt(position: .front, spiegeln: true))
+        XCTAssertFalse(SnapBildAusrichtung.videoGespiegelt(position: .front, spiegeln: false))
+        XCTAssertFalse(SnapBildAusrichtung.videoGespiegelt(position: .back, spiegeln: true))
+        XCTAssertFalse(SnapBildAusrichtung.videoGespiegelt(position: .back, spiegeln: false))
+    }
+
+    /// Foto und Video folgen demselben Schalter: gespiegelt genau dann, wenn vorne und AN.
+    func testFotoUndVideoStimmenUeberein() {
+        for position in [AVCaptureDevice.Position.front, .back] {
+            for an in [true, false] {
+                let foto = SnapBildAusrichtung.fuer(position: position, spiegeln: an) == .leftMirrored
+                XCTAssertEqual(foto, SnapBildAusrichtung.videoGespiegelt(position: position, spiegeln: an))
+            }
+        }
+    }
+
+    func testFilterSchalterStandardAnUndAusBlendetAus() {
+        let suite = UserDefaults(suiteName: "SnapFilterAnzeigeTests.\(UUID().uuidString)")!
+        XCTAssertTrue(SnapFilterAnzeige.an(suite))
+        suite.set(false, forKey: SnapFilterAnzeige.schluessel)
+        XCTAssertFalse(SnapFilterAnzeige.an(suite))
+        XCTAssertEqual(SnapFilterAnzeige.filter(.allCases[1], an: false), .original)
+        XCTAssertEqual(SnapFilterAnzeige.filter(.allCases[1], an: true), .allCases[1])
+    }
 }

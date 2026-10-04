@@ -14,6 +14,7 @@ struct TrainingsPlanView: View {
         let plan = modell.plan(person)
         List {
             if eigener { gymSektion }
+            if eigener { ZyklusHinweisEinhang(person: person) }
             Section {
                 WochenLeiste(plan: plan, setzen: eigener ? setzenAktion(plan) : nil)
             } header: {

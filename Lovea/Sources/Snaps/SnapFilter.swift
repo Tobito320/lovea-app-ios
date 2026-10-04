@@ -253,3 +253,17 @@ extension SnapFilter {
         })
     }
 }
+
+/// Einstellungen-Schalter "Kamera-Filter anzeigen" (Standard AN): AUS blendet im `SnapEditor` die
+/// Filterleiste und den Wisch-Filterwechsel aus, das Bild bleibt `.original`.
+enum SnapFilterAnzeige {
+    static let schluessel = "lovea.kameraFilter"
+
+    static func an(_ defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: schluessel) as? Bool ?? true
+    }
+
+    static func filter(_ gewaehlt: SnapFilter, an: Bool) -> SnapFilter {
+        an ? gewaehlt : .original
+    }
+}

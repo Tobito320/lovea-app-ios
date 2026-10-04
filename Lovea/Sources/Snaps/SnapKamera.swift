@@ -115,13 +115,13 @@ private final class KameraSitzung: @unchecked Sendable {
 
     /// Adds the mic, then records. false when the session can't record yet (not running, no
     /// active video connection) — `startRecording` would throw "No active/enabled connections".
-    func aufnehmen(nach ziel: URL, spiegeln: Bool, delegate: any AVCaptureFileOutputRecordingDelegate) -> Bool {
+    func aufnehmen(nach ziel: URL, position: AVCaptureDevice.Position, spiegeln: Bool, delegate: any AVCaptureFileOutputRecordingDelegate) -> Bool {
         guard session.isRunning, let verbindung = film.connection(with: .video), verbindung.isActive else { return false }
         mikroDazu()
         // App is portrait-only but a connection defaults to landscape (angle 0).
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
         // Only this OUTPUT connection: the preview mirrors the front camera on its own connection.
-        SnapBildAusrichtung.anwenden(auf: verbindung, spiegeln: spiegeln)
+        SnapBildAusrichtung.anwenden(auf: verbindung, gespiegelt: SnapBildAusrichtung.videoGespiegelt(position: position, spiegeln: spiegeln))
         film.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
         film.startRecording(to: ziel, recordingDelegate: delegate)
         return true
@@ -347,11 +347,11 @@ final class SnapKameraSteuerung: NSObject {
         guard fotoContinuation == nil, let verbindung = sitzung.foto.connection(with: .video), verbindung.isActive else { return nil }
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
         // "Selfie spiegeln": read once at tap time and frozen for the delegate (like the crop).
-        // The connection flag AND the orientation tag below both follow it — unclear without a
-        // device whether the flag also changes the pixels of `cgImageRepresentation()`, so both are
-        // set to agree either way.
+        // Photo: the connection is always UNmirrored, so `cgImageRepresentation()` is the plain
+        // sensor image whatever the connection would do; the orientation tag below is the only
+        // place the mirroring happens (a mirrored connection plus a mirrored tag could cancel out).
         let spiegeln = SnapBildAusrichtung.spiegeln()
-        SnapBildAusrichtung.anwenden(auf: verbindung, spiegeln: spiegeln)
+        SnapBildAusrichtung.anwenden(auf: verbindung, gespiegelt: false)
         // Visible rect the preview showed (aspectFill crops the sensor image to the screen) —
         // captured now, while the layer's bounds are still the ones Ahmed framed by. This rect is in
         // `metadataOutputRectConverted`'s coordinate space: the capture device's native SENSOR
@@ -413,9 +413,9 @@ final class SnapKameraSteuerung: NSObject {
         let ziel = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
         return await withCheckedContinuation { continuation in
             videoContinuation = continuation
-            let sitzung = sitzung, spiegeln = SnapBildAusrichtung.spiegeln()
+            let sitzung = sitzung, spiegeln = SnapBildAusrichtung.spiegeln(), position = position
             sessionSchlange.async {
-                guard sitzung.aufnehmen(nach: ziel, spiegeln: spiegeln, delegate: self) else {
+                guard sitzung.aufnehmen(nach: ziel, position: position, spiegeln: spiegeln, delegate: self) else {
                     Task { @MainActor in self.aufnahmeBeendet(nil) }
                     return
                 }
@@ -540,9 +540,10 @@ enum SnapZuschnitt {
 /// Portrait-only, so the orientation only depends on `position` and the switch below — no per-photo
 /// metadata lookup needed.
 ///
-/// Schalter "Selfie spiegeln" (Einstellungen, Standard AUS, Ahmed 01.10.): AUS = Foto und Video von der
-/// Frontkamera ungespiegelt wie in der iOS-Kamera, nur die Live-Vorschau bleibt gespiegelt. AN = die
-/// alte Spiegelung wie die Vorschau. Die Rückkamera ändert der Schalter nie.
+/// Schalter "Selfie-Foto und -Video gespiegelt" (Einstellungen, Standard AUS, Ahmed 01.10.): AUS = Foto
+/// und Video von der Frontkamera ungespiegelt wie in der iOS-Kamera, nur die Live-Vorschau bleibt
+/// gespiegelt. AN = gespiegelt wie die Vorschau. Die Rückkamera ändert der Schalter nie. Einziger
+/// Aufnahmeweg ist `SnapKameraSteuerung` (Snaps, Chat-Kamera teilen `.geteilt`).
 enum SnapBildAusrichtung {
     static let schluessel = "lovea.selfieSpiegeln"
 
@@ -554,16 +555,17 @@ enum SnapBildAusrichtung {
         position == .front && spiegeln ? .leftMirrored : .right
     }
 
-    /// Setzt die Spiegelung einer Ausgabe-Connection (Foto oder Film), die Vorschau hat ihre eigene.
-    /// AN: Automatik wie früher. AUS: Automatik aus, dann erst `isVideoMirrored` (andersherum wirft
-    /// AVFoundation). Immer ausdrücklich gesetzt, weil die Connection zwischen Aufnahmen bleibt.
-    static func anwenden(auf verbindung: AVCaptureConnection, spiegeln: Bool) {
-        if spiegeln {
-            verbindung.automaticallyAdjustsVideoMirroring = true
-        } else {
-            verbindung.automaticallyAdjustsVideoMirroring = false
-            if verbindung.isVideoMirroringSupported { verbindung.isVideoMirrored = false }
-        }
+    /// Video: gespiegelt nur vorne und nur bei AN, sonst nie (Rückkamera ändert der Schalter nie).
+    static func videoGespiegelt(position: AVCaptureDevice.Position, spiegeln: Bool) -> Bool {
+        position == .front && spiegeln
+    }
+
+    /// Setzt die Spiegelung einer Ausgabe-Connection (Foto oder Film) ausdrücklich, nie per
+    /// Automatik: die Connection bleibt zwischen Aufnahmen, die Vorschau hat ihre eigene. Erst
+    /// Automatik aus, dann `isVideoMirrored` (andersherum wirft AVFoundation).
+    static func anwenden(auf verbindung: AVCaptureConnection, gespiegelt: Bool) {
+        verbindung.automaticallyAdjustsVideoMirroring = false
+        if verbindung.isVideoMirroringSupported { verbindung.isVideoMirrored = gespiegelt }
     }
 }
 
