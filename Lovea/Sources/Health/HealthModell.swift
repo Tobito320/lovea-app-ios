@@ -519,8 +519,8 @@ final class HealthModell {
             .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
         let watch = HealthLogik.schlafNacht(watchIntervalle, tag: tag)
         let iphone = SchlafLogik.imBettSchaetzung(iphoneIntervalle, tag: tag)
-        // Die Bewegungs-Schätzung braucht CoreMotion-Abfragen (teurer) — nur versuchen, wenn a/b/c nichts haben.
-        let geschaetzt = (watch == nil && iphone == nil) ? await schlafGeschaetzt(tag) : nil
+        // CoreMotion ist teurer — nur ohne Watch. Mit iPhone-Schnipsel trotzdem: die längere Nacht gewinnt.
+        let geschaetzt = watch == nil ? await schlafGeschaetzt(tag) : nil
         return SchlafLogik.automatikVorrang(watch: watch, iphone: iphone, geschaetzt: geschaetzt)
     }
 
