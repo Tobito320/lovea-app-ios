@@ -82,6 +82,42 @@ final class ZyklusLogikTests: XCTestCase {
         XCTAssertEqual(l.mittlereZyklusLaenge, 29) // 28.5 rundet auf
     }
 
+    func testMedianIgnoriertEinenAusreisser() {
+        let (l, start) = logik([28, 28, 42, 28, 29], heuteNach: 3)
+        XCTAssertEqual(l.mittlereZyklusLaenge, 28)
+        XCTAssertEqual(l.naechstePeriode, plus(start, 28))
+    }
+
+    func testZeitraumFestOderAutomatisch() {
+        let (l, start) = logik([26, 28, 30, 28], heuteNach: 3)
+        let n = plus(start, 28)
+        XCTAssertEqual(l.periodeZeitraum(breite: 0), n...n)
+        XCTAssertEqual(l.periodeZeitraum(breite: 1), plus(start, 27)...plus(start, 29))
+        XCTAssertEqual(l.periodeZeitraum(breite: nil), plus(start, 26)...plus(start, 30)) // Streuung 4, halbe 2
+        XCTAssertEqual(l.periodeZeitraum(breite: 1, spaeter: 2), plus(start, 27)...plus(start, 31))
+        let (wenig, s2) = logik([30], heuteNach: 2)
+        XCTAssertEqual(wenig.periodeZeitraum(breite: nil), plus(s2, 28)...plus(s2, 32))
+        XCTAssertNil(ZyklusLogik(tage: [], heute: "2026-03-10").periodeZeitraum(breite: nil))
+    }
+
+    func testZeitraumText() {
+        XCTAssertEqual(ZyklusZeitraum.text("2026-11-03"..."2026-11-03"), "am 3. November")
+        XCTAssertEqual(ZyklusZeitraum.text("2026-11-03"..."2026-11-06"), "3. bis 6. November")
+        XCTAssertEqual(ZyklusZeitraum.text("2026-10-30"..."2026-11-02"), "30. Oktober bis 2. November")
+    }
+
+    func testAlltagHinweis() {
+        let gut = Array(repeating: 450, count: 14)
+        XCTAssertNil(ZyklusAlltag.hinweis(schlaf14: gut, schlaf60: gut + gut, kcal14: Array(repeating: 1900, count: 10), kcalZiel: 2000))
+        let wenigSchlaf = ZyklusAlltag.hinweis(schlaf14: Array(repeating: 330, count: 10), schlaf60: [], kcal14: [], kcalZiel: 2000)
+        XCTAssertEqual(wenigSchlaf?.texte.count, 1)
+        XCTAssertEqual(wenigSchlaf?.spaeter, 2)
+        XCTAssertNotNil(ZyklusAlltag.hinweis(schlaf14: Array(repeating: 400, count: 10), schlaf60: Array(repeating: 480, count: 40), kcal14: [], kcalZiel: 2000))
+        XCTAssertNotNil(ZyklusAlltag.hinweis(schlaf14: [], schlaf60: [], kcal14: Array(repeating: 1200, count: 8), kcalZiel: 2000))
+        XCTAssertNotNil(ZyklusAlltag.hinweis(schlaf14: [], schlaf60: [], kcal14: [800, 3200, 900, 3000, 1000, 3100, 2000], kcalZiel: 2000))
+        XCTAssertNil(ZyklusAlltag.hinweis(schlaf14: Array(repeating: 300, count: 5), schlaf60: [], kcal14: [1000, 1000], kcalZiel: 2000), "zu wenig Tage")
+    }
+
     func testGrosseStreuungMachtVorhersageUnsicher() {
         let (l, _) = logik([21, 35, 28], heuteNach: 1)
         XCTAssertEqual(l.streuung, 14)

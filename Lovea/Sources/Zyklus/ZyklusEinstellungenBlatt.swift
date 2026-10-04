@@ -80,6 +80,7 @@ struct ZyklusEinstellungenBlatt: View {
     @State private var einst: ZyklusEinstellung
     @State private var erinnerung = ErinnerungsEinstellung.laden()
     @AppStorage(ZyklusSchalter.imTraining) private var imTraining = false
+    @AppStorage(ZyklusZeitraum.schluessel) private var zeitraumWahl = -1
     @State private var loeschenFrage = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var schema
@@ -146,6 +147,17 @@ struct ZyklusEinstellungenBlatt: View {
                     }
                 }
                 .tint(ZyklusFarbe.himbeere.farbe(schema))
+            }
+            ZyklusKarte {
+                VStack(alignment: .leading, spacing: 6) {
+                    Picker(selection: $zeitraumWahl) {
+                        ForEach(Array(ZyklusZeitraum.wahl.enumerated()), id: \.offset) { _, w in Text(w.text).tag(w.wert) }
+                    } label: {
+                        Text("Vorhersage der Periode").font(.system(.headline, design: .rounded).weight(.bold))
+                    }
+                    .tint(ZyklusFarbe.himbeere.farbe(schema))
+                    Text("Ein Tag oder ein Zeitraum. Automatisch nimmt die Schwankung deiner Zyklen.").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                }
             }
         }
     }
