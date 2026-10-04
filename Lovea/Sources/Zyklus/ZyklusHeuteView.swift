@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 struct ZyklusRingText: Equatable {
     var titel: String
@@ -258,6 +259,7 @@ struct ZyklusHeuteView: View {
                     }
                 }
             }
+            TipView(ZyklusEintragenTip())
             ZyklusKnopf(titel: "Heute eintragen", symbol: "plus") { blatt = ZyklusAuswahl(id: heute) }
             if speicher.tage[heute]?.blutung == nil {
                 ZyklusKnopf(titel: "Periode beginnt heute", symbol: "drop.fill", leise: true) {

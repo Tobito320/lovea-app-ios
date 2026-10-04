@@ -22,8 +22,8 @@ Muster wie unten (TipKit, Tip aus `AppErklaerungen.swift`, `.popoverTip` oder `T
 
 | Datei:Zeile | Geste/Menü | Hinweistext | Status |
 |---|---|---|---|
-| `Zyklus/ZyklusHeuteView.swift:256` ("Heute eintragen") | Button | "Tippe auf einen Tag, um Periode, Stimmung oder Symptome einzutragen." | nur Vorschlag (gesperrt) |
-| `Zyklus/ZyklusHeuteView.swift:258` ("Periode beginnt heute") | Button | "Setzt den heutigen Tag als ersten Periodentag und rechnet die Vorhersage neu." | nur Vorschlag (gesperrt) |
+| `Zyklus/ZyklusHeuteView.swift:256` ("Heute eintragen") | Button | "Tippe auf einen Tag, um Periode, Stimmung oder Symptome einzutragen." | umgesetzt (`ZyklusEintragenTip`, ein Tip für beide Knöpfe) |
+| `Zyklus/ZyklusHeuteView.swift:258` ("Periode beginnt heute") | Button | "Setzt den heutigen Tag als ersten Periodentag und rechnet die Vorhersage neu." | umgesetzt (`ZyklusEintragenTip`, ein Tip für beide Knöpfe) |
 | `Zyklus/ZyklusInsightsView.swift:63` (Zahlenkarte: Tage Zyklus/Periode/Streuung) | ZyklusKarte, nicht gesperrt | "Durchschnitt aus deinen eingetragenen Zyklen. Streuung zeigt, wie stark sie sich unterscheiden – je mehr eingetragen ist, desto genauer." | umgesetzt |
 
 `ZyklusInsightsView.swift` und `ZyklusInsightsLogik.swift` sind nicht gesperrt — der Insights-Tip
