@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 import UIKit
 
 extension Color {
@@ -25,6 +26,7 @@ struct TagesListe: View {
         VStack(alignment: .leading, spacing: 0) {
             freiZeile(TagesWerte.freieZeiten(ahmed + annika))
             trenner
+            if !termine.isEmpty { TipView(TerminMehrTip()) }
             ForEach(termine) { termin in
                 terminZeile(termin)
                 trenner

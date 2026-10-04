@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import TipKit
 
 extension View {
     /// Floating control surface: Liquid Glass on the control layer.
@@ -163,6 +164,7 @@ struct ToolRail: View {
                 .frame(width: 44, height: 44)
         }
         .accessibilityLabel("Mehr Werkzeuge")
+        .popoverTip(WerkzeugMehrTip())
     }
 }
 

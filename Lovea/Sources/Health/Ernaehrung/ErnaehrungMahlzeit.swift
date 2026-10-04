@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Ziel für die Produktseite eines gespeicherten Eintrags (`EssenEintrag` selbst ist nicht Hashable).
 struct EintragZiel: Hashable, Identifiable {
@@ -56,6 +57,7 @@ struct MahlzeitView: View {
                         Image(systemName: "ellipsis")
                     }
                     .accessibilityLabel("Mehr")
+                    .popoverTip(MahlzeitMehrTip())
                 }
             }
         }

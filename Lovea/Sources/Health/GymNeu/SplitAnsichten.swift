@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 // Split-Bibliothek, Vorschau und geführtes Erstellen (Entwurf `Lovea-bilder/gym-entwurf.html`, Liste A).
 // Wählen schreibt den Plan über `planSichern` (`gym.plan`), kein neuer Op.
@@ -96,9 +97,7 @@ struct SplitBibliothekInhalt: View {
                 HStack(spacing: 6) {
                     Button { artWaehlen(nil) } label: { GymChip(text: "Alle", an: art == nil) }.buttonStyle(.plain)
                     ForEach(Array(artWahl.enumerated()), id: \.offset) { _, a in
-                        Button { artWaehlen(art == a.id ? nil : a.id) } label: { GymChip(text: a.text, an: art == a.id) }
-                            .buttonStyle(.plain)
-                            .accessibilityAddTraits(art == a.id ? .isSelected : [])
+                        chip(a)
                     }
                 }
             }
@@ -109,6 +108,18 @@ struct SplitBibliothekInhalt: View {
     /// "Für dich" nur, wenn es eigene Splits gibt (Annika hat keine).
     private var artWahl: [(id: String, text: String)] {
         SplitLogik.artWahl.filter { $0.id != "fuerdich" || splits.contains(where: SplitLogik.istEigen) }
+    }
+
+    @ViewBuilder
+    private func chip(_ a: (id: String, text: String)) -> some View {
+        let knopf = Button { artWaehlen(art == a.id ? nil : a.id) } label: { GymChip(text: a.text, an: art == a.id) }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(art == a.id ? .isSelected : [])
+        if a.id == "fuerdich" {
+            knopf.popoverTip(SplitFuerDichTip())
+        } else {
+            knopf
+        }
     }
 
     private var tageChips: some View {

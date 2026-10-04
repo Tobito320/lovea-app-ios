@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// A person's plan: the week and the training days. Only the owner edits; the partner reads.
 struct TrainingsPlanView: View {
@@ -378,6 +379,7 @@ struct TagEditor: View {
 
     private var uebungen: some View {
         Section {
+            if bearbeitbar && !tag.uebungen.isEmpty { TipView(TrainingsplanZeileTip()) }
             ForEach($tag.uebungen) { $u in
                 NavigationLink {
                     SaetzeEditor(uebung: $u, bearbeitbar: bearbeitbar) { tag.uebungen.removeAll { $0.id == u.id } }

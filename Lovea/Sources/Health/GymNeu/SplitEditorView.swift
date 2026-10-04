@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 // Der eigene Split, Tag für Tag (Entwurf `Lovea-bilder/gym-entwurf.html`, "Neuer Tag" A: Plus neben den
 // Tagen). Jede Änderung sichert sofort den ganzen Plan (`gym.plan`, neuester gilt).
@@ -168,6 +169,7 @@ struct SplitEditorView: View {
         }
         .disabled(tag == nil)
         .accessibilityLabel("Mehr")
+        .popoverTip(SplitTagMehrTip())
     }
 
     private var aktionen: SplitEditorAktionen {

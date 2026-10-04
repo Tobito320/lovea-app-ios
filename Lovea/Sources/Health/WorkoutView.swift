@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 // Training loggen wie Hevy (Ahmed, 01.10.2026): erst alle Übungen mit ihrem Stand, ein Tipp öffnet
 // eine einzelne mit Satzzeilen (Vorher, kg, Wdh, Haken). Unten ein Knopf für den nächsten Schritt.
@@ -372,7 +373,7 @@ struct WorkoutInhalt: View {
             titel
             HStack(alignment: .top, spacing: 22) {
                 wert("Dauer") { dauer.foregroundStyle(Color.blue) }
-                wert("Volumen") { Text("\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg") }
+                wert("Volumen") { Text("\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg") }.popoverTip(VolumenTip())
                 wert("Sätze") { Text("\(WorkoutLogik.saetzeZahl(liste))") }
                 if let puls { wert(session.ende == nil ? "Puls" : "Puls im Schnitt") { Text("\(puls)").foregroundStyle(Color.red) } }
                 if let kcal { wert("kcal") { Text("\(kcal)") } }
@@ -404,6 +405,7 @@ struct WorkoutInhalt: View {
                 .foregroundStyle(Color.primary)
             }
             .accessibilityHint("Anderen Trainingstag wählen")
+            .popoverTip(TrainingstagWechselnTip())
         } else {
             Text(name).font(.largeTitle.bold())
         }
@@ -522,12 +524,14 @@ struct WorkoutInhalt: View {
                     .buttonStyle(.bordered)
                 }
             }
+            .popoverTip(CardioSchnellTip())
             // Auch mit offenen Übungen: was fertig ist, zählt, der Rest bleibt im Plan.
             Button(action: aktionen.beenden) {
                 Label("Training beenden", systemImage: "checkmark").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
             }
             .buttonStyle(.borderedProminent)
             .tint(.green)
+            .popoverTip(TrainingBeendenTip())
             Button(action: aktionen.startzeit) {
                 Label("Startzeit ändern", systemImage: "clock").font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
             }
@@ -597,6 +601,7 @@ struct WorkoutUebungView: View {
             EinstellAbschnitt(person: ich, uebung: u.planUebung)
             AusweichAbschnitt(sessionId: sessionId, uebung: u, saetze: $saetze, nachtrag: nachtrag)
             Section {
+                if !saetze.isEmpty { TipView(SatzWischenTip()).listRowSeparator(.hidden) }
                 tabellenKopf.listRowSeparator(.hidden)
                 ForEach(saetze.indices, id: \.self) { i in zeile(u, i, frueher) }
                 Button { satzDazu() } label: {
@@ -751,6 +756,7 @@ struct WorkoutUebungView: View {
             Image(systemName: "ellipsis.circle")
         }
         .accessibilityLabel("Mehr")
+        .popoverTip(UebungMehrTip())
     }
 
     private func leiste(_ u: WorkoutUebung, _ liste: [WorkoutUebung]) -> WorkoutLeiste {

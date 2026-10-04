@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import TipKit
 import UIKit
 
 struct DrawingStudioView: View {
@@ -161,6 +162,7 @@ struct DrawingStudioView: View {
             Image(systemName: "ellipsis.circle")
         }
         .accessibilityLabel("Mehr")
+        .popoverTip(ZeichenstudioMehrTip())
         .onChange(of: viewMirrored) { _, value in session.canvasState.setMirrored(value) }
     }
 

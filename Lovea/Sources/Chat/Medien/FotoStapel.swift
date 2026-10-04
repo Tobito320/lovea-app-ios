@@ -1,5 +1,6 @@
 import AVKit
 import SwiftUI
+import TipKit
 import UIKit
 
 /// Instagram-style photo stack (Block 18): up to three cards fanned behind each other with a count
@@ -107,6 +108,9 @@ struct MedienGalerie: View {
             }
             .padding(.horizontal)
             .opacity(zieh > 0 ? 0 : 1)
+        }
+        .overlay(alignment: .bottom) {
+            TipView(FotoGedruecktHaltenTip()).padding(.horizontal).padding(.bottom, 24).opacity(zieh > 0 ? 0 : 1)
         }
         .presentationBackground(.clear)
         .statusBarHidden()

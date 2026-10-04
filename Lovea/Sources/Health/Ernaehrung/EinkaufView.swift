@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 // Einkaufsliste wie YAZIO Pro, aber gemeinsam für Ahmed und Annika. Übersicht der Listen, darin
 // Einträge mit rundem Abhaken, Eingabefeld oben, Wischen löscht, Tippen ändert Text/Menge.
@@ -111,6 +112,7 @@ struct EinkaufListeView: View {
                 } label: {
                     Image(systemName: "ellipsis.circle")
                 }
+                .popoverTip(EinkaufListeMehrTip())
             }
         }
         .sheet(item: $bearbeite) { e in EinkaufEintragEditor(eintrag: e) }
