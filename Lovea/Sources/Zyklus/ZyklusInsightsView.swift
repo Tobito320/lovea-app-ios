@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Insights: Zykluslängen, Periode, Regelmäßigkeit, Symptome und Stimmung je Phase, Temperatur, Hinweise, Wissen.
 /// Diagramme sind eigene Shapes (reines SwiftUI), damit ImageRenderer sie zeichnet.
@@ -72,6 +73,7 @@ struct ZyklusInsightsInhalt: View {
                 leise(auswertung.regelmaessigkeit.text)
             }
         }
+        .popoverTip(ZyklusZahlenTip())
     }
 
     private var verlaufKarte: some View {

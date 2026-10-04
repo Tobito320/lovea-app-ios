@@ -373,7 +373,7 @@ struct WorkoutInhalt: View {
             titel
             HStack(alignment: .top, spacing: 22) {
                 wert("Dauer") { dauer.foregroundStyle(Color.blue) }
-                wert("Volumen") { Text("\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg") }
+                wert("Volumen") { Text("\(TrainingLogik.kgText(WorkoutLogik.volumen(liste).rounded())) kg") }.popoverTip(VolumenTip())
                 wert("Sätze") { Text("\(WorkoutLogik.saetzeZahl(liste))") }
                 if let puls { wert(session.ende == nil ? "Puls" : "Puls im Schnitt") { Text("\(puls)").foregroundStyle(Color.red) } }
                 if let kcal { wert("kcal") { Text("\(kcal)") } }

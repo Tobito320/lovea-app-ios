@@ -119,3 +119,13 @@ struct TrainingsplanZeileTip: Tip {
     var title: Text { Text("Übung in der Zeile") }
     var message: Text? { Text("Nach links wischen löscht. Nach rechts wischen verdoppelt die Übung.") }
 }
+
+struct ZyklusZahlenTip: Tip {
+    var title: Text { Text("Deine Zahlen") }
+    var message: Text? { Text("Durchschnitt aus deinen eingetragenen Zyklen. Streuung zeigt, wie stark sie sich unterscheiden – je mehr eingetragen ist, desto genauer.") }
+}
+
+struct VolumenTip: Tip {
+    var title: Text { Text("Volumen") }
+    var message: Text? { Text("Kilogramm mal Wiederholungen, über alle gezählten Sätze addiert.") }
+}
