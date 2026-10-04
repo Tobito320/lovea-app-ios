@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Blatt für eine Idee: Titel, Kategorie, Notiz, Erledigt, Löschen. Neue Idee: `idee == nil`.
-/// Ort und Link sind nur Platzhalterzeilen, die baut Punkt D4.
+/// Ort (Suche, Karte) und Link-Chips ändert das Blatt erst mit "Fertig".
 struct DateIdeeBlatt: View {
     let idee: DateIdee?
     var vorKategorie: DateKategorie?
@@ -13,6 +13,8 @@ struct DateIdeeBlatt: View {
     @State private var kategorie: DateKategorie
     @State private var erledigt: Bool
     @State private var notiz: String
+    @State private var ort: PunktOrt?
+    @State private var links: [DateLink]
     @FocusState private var titelFokus: Bool
 
     init(idee: DateIdee?, vorKategorie: DateKategorie? = nil, beiGeloescht: @escaping (DateIdee) -> Void) {
@@ -23,6 +25,8 @@ struct DateIdeeBlatt: View {
         _kategorie = State(initialValue: idee?.kategorie ?? vorKategorie ?? .essen)
         _erledigt = State(initialValue: idee?.erledigt ?? false)
         _notiz = State(initialValue: idee?.notiz ?? "")
+        _ort = State(initialValue: idee?.ort)
+        _links = State(initialValue: idee?.links ?? [])
     }
 
     private var titelText: String { titel.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -36,8 +40,8 @@ struct DateIdeeBlatt: View {
                         .focused($titelFokus)
                         .submitLabel(.done)
                     kategorien
-                    ortZeile
-                    linkZeile
+                    DateOrtAbschnitt(ort: $ort)
+                    DateLinkAbschnitt(links: $links)
                     VStack(spacing: 0) {
                         DatesHaarlinie()
                         Toggle("Erledigt", isOn: $erledigt)
@@ -98,60 +102,12 @@ struct DateIdeeBlatt: View {
         }
     }
 
-    private var ortZeile: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            abschnittsTitel("Ort")
-            HStack {
-                if let ort = idee?.ort {
-                    VStack(alignment: .leading, spacing: 1) {
-                        Text(ort.name).font(.body.weight(.semibold))
-                        if let adresse = ort.adresse { Text(adresse).font(.subheadline).foregroundStyle(.secondary) }
-                    }
-                }
-                Spacer(minLength: 8)
-                platzhalter("Ort suchen", symbol: "magnifyingglass")
-            }
-        }
-    }
-
-    private var linkZeile: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            abschnittsTitel("Links")
-            platzhalter("Link", symbol: "plus")
-        }
-    }
-
-    private func abschnittsTitel(_ text: String) -> some View {
-        Text(text.uppercased()).font(.caption.weight(.bold)).tracking(1).foregroundStyle(DatesStil.grau)
-    }
-
-    /// Ohne Funktion bis D4.
-    private func platzhalter(_ text: String, symbol: String) -> some View {
-        Label(text, systemImage: symbol)
-            .font(.subheadline.weight(.semibold))
-            .foregroundStyle(Color.loveaRose.opacity(0.6))
-            .padding(.horizontal, 14)
-            .frame(minHeight: 44)
-            .overlay(RoundedRectangle(cornerRadius: 14, style: .continuous).strokeBorder(Color.loveaRose.opacity(0.4), lineWidth: 1))
-            .accessibilityHint("Folgt in einer späteren Version")
-    }
-
     private func speichern() {
         guard !titelText.isEmpty else { return }
-        let text = notiz.trimmingCharacters(in: .whitespacesAndNewlines)
-        let notizWert: String? = text.isEmpty ? nil : text
-        if let idee {
-            if titelText != idee.titel || kategorie != idee.kategorie || notizWert != idee.notiz {
-                speicher.aendern(idee.id) {
-                    $0.titel = titelText
-                    $0.kategorie = kategorie
-                    $0.notiz = notizWert
-                }
-            }
-            speicher.abhaken(idee.id, erledigt: erledigt)
-        } else if let neu = speicher.anlegen(titel: titelText, kategorie: kategorie, notiz: notizWert), erledigt {
-            speicher.abhaken(neu.id, erledigt: true)
-        }
+        DateIdeeBearbeitung.speichern(
+            .init(titel: titel, kategorie: kategorie, erledigt: erledigt, notiz: notiz, ort: ort, links: links),
+            idee: idee, in: speicher
+        )
         dismiss()
     }
 }
