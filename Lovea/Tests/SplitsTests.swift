@@ -39,6 +39,22 @@ final class SplitsTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(SplitLogik.fuer(.annika).count, 12)
     }
 
+    func testCardioLineBecomesMinutesInPlan() {
+        let z = SplitVorlage.Zeile(uebung: "j9Q5crt", saetze: 1, von: 1, bis: 1, minuten: 30)
+        XCTAssertEqual(SplitLogik.wdhText(z), "30 min")
+        let v = SplitVorlage(id: "c", name: "Cardio", gruppe: "m", level: "mittel", ziel: "definieren", geraet: "studio", tage: 1, einheiten: [
+            .init(name: "A", wochentage: [6], uebungen: [z, .init(uebung: "EIeI8Vf", saetze: 3, von: 8, bis: 12)]),
+        ])
+        let plan = SplitLogik.alsPlan(v)
+        let cardio = plan.tage[0].uebungen[0], kraft = plan.tage[0].uebungen[1]
+        XCTAssertTrue(cardio.istCardio)
+        XCTAssertEqual(cardio.minuten, 30)
+        XCTAssertTrue(cardio.saetze.isEmpty)
+        XCTAssertFalse(kraft.istCardio)
+        XCTAssertEqual(kraft.saetze.count, 3)
+        XCTAssertEqual(SplitKatalog.alle.first { $0.id == "m-ahmed01" }?.einheiten.flatMap(\.uebungen).filter { $0.minuten != nil }.count, 3, "Split 01: Cardio an drei Tagen")
+    }
+
     func testSplitBecomesAPlanWithRestDays() {
         let v = SplitVorlage(id: "x", name: "Test", gruppe: "m", level: "einsteiger", ziel: "kraft", geraet: "studio", tage: 3, einheiten: [
             .init(name: "A", wochentage: [5, 1], uebungen: [.init(uebung: "EIeI8Vf", saetze: 4, von: 6, bis: 8)]),

@@ -8,6 +8,8 @@ struct SplitVorlage: Codable, Identifiable, Equatable, Sendable {
         var saetze: Int
         var von: Int
         var bis: Int
+        /// Cardio: Dauer in Minuten statt Sätzen (Stairmaster, Laufband). Fehlt bei Kraftübungen.
+        var minuten: Int? = nil
     }
 
     struct Einheit: Codable, Equatable, Sendable {
@@ -76,7 +78,8 @@ enum SplitLogik {
 
     /// "3 × 8–12", "5 × 5".
     static func wdhText(_ z: SplitVorlage.Zeile) -> String {
-        z.von == z.bis ? "\(z.saetze) × \(z.von)" : "\(z.saetze) × \(z.von)–\(z.bis)"
+        if let m = z.minuten { return "\(m) min" }
+        return z.von == z.bis ? "\(z.saetze) × \(z.von)" : "\(z.saetze) × \(z.von)–\(z.bis)"
     }
 
     /// Der Split als Plan: frische ids, Sätze mit der unteren Wiederholungszahl (der Plan kennt keinen
@@ -85,7 +88,8 @@ enum SplitLogik {
         let tage = v.einheiten.map { e in
             TrainingsTag(id: neueId(), name: e.name, wochentage: e.wochentage.sorted(), uebungen: e.uebungen.map { z in
                 PlanUebung(id: neueId(), uebung: z.uebung, name: nil,
-                           saetze: Array(repeating: PlanSatz(wdh: z.von, kg: nil, failure: false), count: z.saetze), minuten: nil)
+                           saetze: z.minuten != nil ? [] : Array(repeating: PlanSatz(wdh: z.von, kg: nil, failure: false), count: z.saetze),
+                           minuten: z.minuten)
             })
         }
         let training = Set(v.einheiten.flatMap(\.wochentage))
