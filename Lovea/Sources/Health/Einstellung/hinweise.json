@@ -1,0 +1,84 @@
+[
+  {
+    "muster": ["schragbankdrucken", "maschine"],
+    "anleitung": "Sitz so einstellen, dass die Griffe auf Höhe der oberen Brust starten. Schulterblätter an die Lehne, Füße fest am Boden. Drücken, oben nicht ganz durchstrecken.",
+    "einstellung": "Sitzhöhe: Griffe beim Start knapp unter Schulterhöhe. Genaue Stufen sind je Gerät verschieden, einmal ausprobieren und unten speichern.",
+    "fehler": "Sitz zu tief: Schultern rollen nach vorn und die Schulter übernimmt.",
+    "unsicher": true
+  },
+  {
+    "muster": ["schragbankdrucken"],
+    "anleitung": "Schulterblätter zusammen und runter, Rücken leicht im Hohlkreuz, Füße fest am Boden. Stange oder Hanteln zur oberen Brust senken, Ellbogen etwa 45 bis 60 Grad vom Körper, dann hochdrücken.",
+    "einstellung": "Lehne 15 bis 30 Grad. Ab etwa 45 Grad übernimmt die Schulter, die Brust arbeitet weniger. Neigung prüfen: iPhone-App Maßband, Reiter Wasserwaage, Handy flach auf die Lehne legen.",
+    "fehler": "Lehne zu steil gestellt. Ellbogen 90 Grad zur Seite. Hintern hebt ab.",
+    "unsicher": false,
+    "studioTipps": [
+      { "studio": "fitxHagenMitte", "text": "FitX-Bank: Stufe 3 ist vielleicht im Bereich 15 bis 30 Grad. Nicht gemessen. Mit der Wasserwaage selbst prüfen und die Stufe unten speichern.", "unsicher": true }
+    ]
+  },
+  {
+    "muster": ["bankdrucken"],
+    "anleitung": "Schulterblätter zusammen und runter, Füße fest am Boden. Stange zur unteren Brust senken, Ellbogen etwa 45 bis 60 Grad vom Körper, dann hochdrücken.",
+    "einstellung": "Flache Bank. Augen etwa unter der Stange, damit sie sicher in die Ablage geht.",
+    "fehler": "Ellbogen weit nach außen. Hintern hebt ab. Stange springt von der Brust.",
+    "unsicher": false
+  },
+  {
+    "muster": ["brustpresse"],
+    "anleitung": "Rücken fest an die Lehne, Schulterblätter zusammen. Griffe auf Brusthöhe nach vorn drücken, langsam zurückführen, Schultern bleiben unten.",
+    "einstellung": "Sitzhöhe: Griffe auf Höhe der mittleren Brust. Genaue Stufen sind je Gerät verschieden, unten speichern.",
+    "fehler": "Sitz zu hoch: Schultern ziehen hoch. Rücken löst sich von der Lehne.",
+    "unsicher": true
+  },
+  {
+    "muster": ["schulterdrucken", "maschine"],
+    "anleitung": "Rücken an die Lehne, Griffe auf Schulterhöhe greifen, nach oben drücken, Nacken lang lassen, langsam zurück.",
+    "einstellung": "Sitzhöhe: Griffe beim Start etwa auf Schulterhöhe. Stufen sind je Gerät verschieden, unten speichern.",
+    "fehler": "Hohlkreuz. Schultern zu den Ohren. Ruckartig nach oben.",
+    "unsicher": true
+  },
+  {
+    "muster": ["latzug"],
+    "anleitung": "Oberschenkel unter die Polster, Stange etwas weiter als schulterbreit greifen. Brust raus, zur oberen Brust ziehen, Ellbogen nach unten, langsam zurück.",
+    "einstellung": "Polster so, dass die Oberschenkel fest sitzen und du nicht hochgezogen wirst. Gewicht nur so hoch, dass der Oberkörper still bleibt.",
+    "fehler": "Mit viel Schwung nach hinten lehnen. Stange hinter den Nacken ziehen. Arme statt Rücken ziehen.",
+    "unsicher": false
+  },
+  {
+    "muster": ["rudern"],
+    "ohne": ["aufrechtes"],
+    "anleitung": "Brust an das Polster oder gerader Rücken, Schulterblätter zusammen ziehen, Ellbogen nah am Körper nach hinten, kurz halten, langsam zurück.",
+    "einstellung": "Sitz und Brustpolster so, dass die Arme am Start fast gestreckt sind und das Polster die Brust nur leicht berührt. Stufen je Gerät verschieden, unten speichern.",
+    "fehler": "Mit dem Oberkörper schwingen. Schultern zu den Ohren. Rundrücken.",
+    "unsicher": true
+  },
+  {
+    "muster": ["beinpresse"],
+    "anleitung": "Rücken und Hintern flach an die Lehne, Füße schulterbreit auf die Platte. Knie in Richtung Zehen beugen, kontrolliert zurückdrücken, Knie nicht ganz durchstrecken.",
+    "einstellung": "Lehne so, dass die Knie unten etwa 90 Grad haben und der Hintern nicht abhebt. Sicherheitsstopper einstellen.",
+    "fehler": "Hintern hebt unten ab, Becken rollt ein. Knie fallen nach innen. Knie hart durchgestreckt.",
+    "unsicher": false
+  },
+  {
+    "muster": ["beinstrecker"],
+    "anleitung": "Rücken an die Lehne, Knie in Höhe der Gelenkachse. Beine strecken, oben kurz halten, langsam zurück.",
+    "einstellung": "Achse des Geräts auf Höhe des Knies. Unteres Polster knapp über den Knöcheln. Stufen je Gerät verschieden, unten speichern.",
+    "fehler": "Mit Schwung hochschleudern. Hintern hebt vom Sitz ab.",
+    "unsicher": true
+  },
+  {
+    "muster": ["beinbeuger"],
+    "anleitung": "Knie in Höhe der Gelenkachse, Polster oberhalb der Ferse. Beine beugen, kurz halten, langsam zurück.",
+    "einstellung": "Achse des Geräts auf Höhe des Knies. Stufen je Gerät verschieden, unten speichern.",
+    "fehler": "Becken hebt ab. Zu viel Schwung.",
+    "unsicher": true
+  },
+  {
+    "muster": ["wadenheben"],
+    "ohne": ["donkey"],
+    "anleitung": "Fußballen auf die Kante, Ferse tief sinken lassen, hoch auf die Zehenspitzen drücken, oben kurz halten.",
+    "einstellung": "Polster so, dass die Beine fast gestreckt sind. Stufen je Gerät verschieden, unten speichern.",
+    "fehler": "Zu kleiner Weg. Wippen mit Schwung.",
+    "unsicher": true
+  }
+]
