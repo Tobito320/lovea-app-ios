@@ -9,6 +9,18 @@ import Observation
 // Akku: Die Sitzung hält den Sensor wach, das kostet spürbar. Deshalb aus, bis man es pro Gerät
 // einschaltet, und nur während ein Training läuft. Das Training landet danach in Apple Health.
 
+/// Der eine Schalter "Ich habe AirPods Pro 3" (Einstellungen, pro Gerät). Alles, was AirPods braucht,
+/// fragt hier: Puls im Gym, Kopfhörer-Ton in der Schlaf-Erkennung. Nie ein eigener Schalter je Funktion.
+enum AirPodsPro3 {
+    static let schluessel = "geraet.airpodsPro3"
+    /// Startwert für Geräte, die den alten Gym-Schalter (`gym.puls`) schon an hatten.
+    static var startwert: Bool { UserDefaults.standard.bool(forKey: "gym.puls") }
+    static var an: Bool {
+        get { UserDefaults.standard.object(forKey: schluessel) as? Bool ?? startwert }
+        set { UserDefaults.standard.set(newValue, forKey: schluessel) }
+    }
+}
+
 /// Die HealthKit-Objekte sind nicht Sendable und rufen ihren Delegate auf einer eigenen Queue.
 /// Diese Klasse hält sie zusammen und reicht nur Zahlen nach außen.
 private final class PulsSitzung: NSObject, HKLiveWorkoutBuilderDelegate, @unchecked Sendable {
@@ -86,7 +98,6 @@ private final class PulsSitzung: NSObject, HKLiveWorkoutBuilderDelegate, @unchec
 @MainActor @Observable
 final class WorkoutPuls {
     static let shared = WorkoutPuls()
-    private static let schluessel = "gym.puls"
 
     /// Letzter Puls, Schnitt über das Training und aktive Kalorien; nil, solange nichts kommt.
     private(set) var puls: Int?
@@ -101,14 +112,14 @@ final class WorkoutPuls {
 
     private init() {}
 
-    /// Pro Gerät, ohne Op: aus, bis man es einschaltet.
+    /// Pro Gerät, ohne Op: folgt dem einen AirPods-Schalter in den Einstellungen.
     var an: Bool {
         get {
             access(keyPath: \.an)
-            return UserDefaults.standard.bool(forKey: Self.schluessel)
+            return AirPodsPro3.an
         }
         set {
-            withMutation(keyPath: \.an) { UserDefaults.standard.set(newValue, forKey: Self.schluessel) }
+            withMutation(keyPath: \.an) { AirPodsPro3.an = newValue }
         }
     }
 

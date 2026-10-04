@@ -173,7 +173,6 @@ struct GymSessionView: View {
                               puls: session.ende == nil ? WorkoutPuls.shared.puls : session.puls,
                               kcal: session.ende == nil ? WorkoutPuls.shared.kcal : session.kcal,
                               aktionen: aktionen(session))
-                if session.ende == nil { pulsSchalter }
             }
             .onAppear { if session.ende == nil { WorkoutPuls.shared.starten() } }
             // Health versteckt die Leiste auf seiner Startseite, das erbte das Training: "Beenden" fehlte (Ahmed, 04.10.).
@@ -199,23 +198,6 @@ struct GymSessionView: View {
         } else {
             ContentUnavailableView("Einheit nicht gefunden", systemImage: "dumbbell")
         }
-    }
-
-    /// Puls und Kalorien: pro Gerät, aus bis man es einschaltet (Akku-Regel).
-    private var pulsSchalter: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Toggle("Puls und Kalorien messen", isOn: Binding {
-                WorkoutPuls.shared.an
-            } set: { neu in
-                WorkoutPuls.shared.an = neu
-                if neu { WorkoutPuls.shared.starten() } else { WorkoutPuls.shared.beenden(speichern: false) }
-            })
-            Text("Braucht AirPods Pro 3 oder einen Pulsgurt. Kostet Akku. Das Training steht danach in Apple Health.")
-                .font(.footnote)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 16)
-        .padding(.bottom, 16)
     }
 
     private func leiste(_ s: GymSession, _ liste: [WorkoutUebung]) -> WorkoutLeiste {
