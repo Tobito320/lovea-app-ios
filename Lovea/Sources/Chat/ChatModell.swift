@@ -241,8 +241,8 @@ final class ChatModell {
             if p.lange { byID[p.id]?.snapLange = true }
             return p.id
         case "snap.gespeichert":
-            guard let p = op.daten(IDPayload.self) else { return nil }
-            byID[p.id]?.snapGespeichert = true
+            guard let p = op.daten(SnapGespeichertPayload.self) else { return nil }
+            byID[p.id]?.snapGespeichert = p.an
             return p.id
         case "snap.wiederholt":
             // One grey line per snap and viewer, updated to the newest count (not one line per replay).
@@ -491,8 +491,10 @@ final class ChatModell {
         Raum.shared.senden("snap.angesehen", SnapAngesehenPayload(id: id, lange: lange))
     }
 
-    func snapGespeichertSenden(_ id: String) {
-        Raum.shared.senden("snap.gespeichert", IDPayload(id: id))
+    /// Toggle ("Im Chat speichern" / "Nicht mehr speichern"): `an = false` kehrt es wieder um,
+    /// synchronisiert über dasselbe Op wie das Setzen (`an` defaultet bei alten Payloads auf `true`).
+    func snapGespeichertSenden(_ id: String, an: Bool = true) {
+        Raum.shared.senden("snap.gespeichert", SnapGespeichertPayload(id: id, an: an))
     }
 
     /// The receiver reopened an already viewed snap (unlimited replays). `anzahl` = this person's
@@ -602,4 +604,16 @@ private struct AbschriftPayload: Codable { let id: String; let text: String }
 private struct SnapAngesehenPayload: Codable { let id: String; let lange: Bool }
 private struct SnapAufnahmePayload: Codable { let id: String; let art: String }
 private struct SnapWiederholtPayload: Codable { let id: String; let anzahl: Int }
+/// `an` fehlt bei älteren Clients/Ops (nur `{"id": ...}`, immer "speichern") — defaultet dann auf `true`.
+private struct SnapGespeichertPayload: Codable {
+    let id: String
+    let an: Bool
+    init(id: String, an: Bool) { self.id = id; self.an = an }
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        an = try c.decodeIfPresent(Bool.self, forKey: .an) ?? true
+    }
+    private enum CodingKeys: String, CodingKey { case id, an }
+}
 private struct EinladungPayload: Codable { let zeichnungId: String; let name: String }
