@@ -5,6 +5,11 @@ import TipKit
 // Jeder Tip zeigt sich einmal (`.displayFrequency(.hourly)` in der Konfiguration, kein `.immediate`),
 // damit nicht alles auf einen Schlag aufpoppt. Siehe `docs/erklaerungen.md` für die volle Liste.
 
+struct ZyklusEintragenTip: Tip {
+    var title: Text { Text("Eintragen und Vorhersage") }
+    var message: Text? { Text("Heute eintragen: Periode, Stimmung oder Symptome. Periode beginnt heute setzt den ersten Tag und rechnet die Vorhersage neu. Andere Tage trägst du im Kalender ein.") }
+}
+
 struct TrainingBeendenTip: Tip {
     var title: Text { Text("Training beenden") }
     var message: Text? { Text("Fertige Sätze zählen. Was offen bleibt, steht beim nächsten Mal wieder im Plan.") }
