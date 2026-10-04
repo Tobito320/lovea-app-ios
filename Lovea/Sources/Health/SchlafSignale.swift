@@ -23,6 +23,7 @@ enum SchlafSignale {
     /// War das Handy länger aus, ist das eher eine leere Akku-Nacht oder Flugmodus als ein Ausschalten: nur ein Wach-Punkt beim Start.
     static let ausMax: TimeInterval = 3 * 3600
     static let ausMin: TimeInterval = 60
+    static let bestaetigtSchluessel = "schlaf.bestaetigt.v1"
 
     // MARK: - Reine Rechnung
 
@@ -134,5 +135,54 @@ enum SchlafSignale {
     @MainActor static func lebtMelden() {
         guard Geraet.wirdGetragen else { return }
         UserDefaults.standard.set(Date().timeIntervalSince1970, forKey: lebtSchluessel)
+    }
+}
+
+/// Wach-Lücken und Nickerchen der letzten Rechnung, nur lokal für die Anzeige (wird nicht synchronisiert).
+struct SchlafDetail: Sendable {
+    var luecken: [HealthLogik.SchlafIntervall]
+    var nickerchen: [HealthLogik.SchlafIntervall]
+}
+
+extension SchlafSignale {
+    /// Nächte, bei denen Ahmed oder Annika "Stimmt" getippt hat. Zählt wie ein eigener Eintrag fürs Lernen der Bettzeit,
+    /// verändert aber die Nacht selbst nicht (kein Eintrag, die Automatik rechnet weiter).
+    static func bestaetigt() -> Set<String> {
+        Set(UserDefaults.standard.stringArray(forKey: bestaetigtSchluessel) ?? [])
+    }
+
+    static func bestaetigen(_ tag: String) {
+        let neu = bestaetigt().union([tag])
+        UserDefaults.standard.set(Array(neu.sorted().suffix(60)), forKey: bestaetigtSchluessel)
+    }
+}
+
+extension SchlafLogik {
+    struct BekannteNacht: Sendable {
+        var tag: String
+        var von: Date
+        var bis: Date
+    }
+
+    /// Aufwach-Tag ist Samstag oder Sonntag.
+    static func istWochenende(_ tag: String) -> Bool {
+        let w = Calendar.berlin.component(.weekday, from: Datum.datum(tag))
+        return w == 1 || w == 7
+    }
+
+    /// Übliche Bett- und Aufstehzeit (Minuten ab Mitternacht): Median der letzten 14 sicheren Nächte, getrennt nach
+    /// Wochenende. Sicher = Watch, eigener Eintrag oder bestätigt; nie die Schätzung des Punktesystems selbst
+    /// (sonst lernt es seine eigenen Fehler). Unter 3 Nächten: nichts.
+    static func gewohnheit(_ naechte: [BekannteNacht], wochenende: Bool) -> (bett: Int, auf: Int)? {
+        let passend = naechte.filter { istWochenende($0.tag) == wochenende }.sorted { $0.tag > $1.tag }.prefix(14)
+        guard passend.count >= 3 else { return nil }
+        func minuten(_ d: Date) -> Int {
+            let c = Calendar.berlin.dateComponents([.hour, .minute], from: d)
+            return (c.hour ?? 0) * 60 + (c.minute ?? 0)
+        }
+        func median(_ werte: [Int]) -> Int { werte.sorted()[werte.count / 2] }
+        // Bettzeit nach Mitternacht (00:30) liegt hinter 23:00: für den Median 24 h dazu, wenn vor 12 Uhr.
+        let bett = median(passend.map { let m = minuten($0.von); return m < 720 ? m + 1440 : m }) % 1440
+        return (bett, median(passend.map { minuten($0.bis) }))
     }
 }

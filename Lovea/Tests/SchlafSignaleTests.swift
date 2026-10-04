@@ -89,4 +89,28 @@ final class SchlafSignaleTests: XCTestCase {
         XCTAssertEqual(r.nacht?.bis, zeit(25, 7), "Wecker aus beendet die Nacht")
         XCTAssertEqual(r.konfidenz, .hoch)
     }
+
+    // MARK: - Gewohnheit
+
+    private func nacht(_ tag: Int, vonStunde: Int = 23, vonMinute: Int = 0) -> SchlafLogik.BekannteNacht {
+        SchlafLogik.BekannteNacht(tag: String(format: "2026-09-%02d", tag), von: zeit(tag - 1, vonStunde, vonMinute), bis: zeit(tag, 7))
+    }
+
+    func testGewohnheitMedianUnterWoche() {
+        // 21.09. bis 23.09.2026 sind Montag bis Mittwoch.
+        let g = SchlafLogik.gewohnheit([nacht(21), nacht(22), nacht(23)], wochenende: false)
+        XCTAssertEqual(g?.bett, 23 * 60)
+        XCTAssertEqual(g?.auf, 7 * 60)
+        XCTAssertNil(SchlafLogik.gewohnheit([nacht(21), nacht(22), nacht(23)], wochenende: true), "keine Wochenend-Nächte bekannt")
+    }
+
+    func testGewohnheitUnterDreiNaechtenNichts() {
+        XCTAssertNil(SchlafLogik.gewohnheit([nacht(21), nacht(22)], wochenende: false))
+    }
+
+    func testGewohnheitBettzeitNachMitternachtLiegtHinter23Uhr() {
+        // 23:00, 00:30, 23:30: der Median ist 23:30, nicht 00:30.
+        let n = [nacht(21), SchlafLogik.BekannteNacht(tag: "2026-09-22", von: zeit(22, 0, 30), bis: zeit(22, 8)), nacht(23, vonStunde: 23, vonMinute: 30)]
+        XCTAssertEqual(SchlafLogik.gewohnheit(n, wochenende: false)?.bett, 23 * 60 + 30)
+    }
 }

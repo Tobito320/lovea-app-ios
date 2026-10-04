@@ -19,6 +19,7 @@ final class HealthModell {
     /// Teil 6: die automatisch erkannte Nacht (Watch, iPhone-Schlafenszeit oder Bewegungs-Schätzung —
     /// `quelle` sagt welche). Eigene Einträge (`schlafZeiten`) haben immer Vorrang, siehe `schlafMinuten`.
     private(set) var schlaf: [Person: [String: (minuten: Int, von: Date, bis: Date, quelle: String?)]] = [:]
+    private(set) var schlafDetails: [String: SchlafDetail] = [:]
 
     private(set) var zielSchritteAenderungen: [Person: [ZielAenderung]] = [:]
     private(set) var zielGymAenderungen: [Person: [ZielAenderung]] = [:]
@@ -109,6 +110,7 @@ final class HealthModell {
     func schritteWerte(_ person: Person) -> [String: Int] { (schritte[person] ?? [:]).mapValues(\.wert) }
     func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date, quelle: String?)? { schlaf[person]?[tag] }
     func schlafZeitenAm(_ person: Person, _ tag: String) -> SchlafZeitenD? { schlafZeiten[person]?[tag] }
+    func schlafDetail(_ tag: String) -> SchlafDetail? { schlafDetails[tag] }
     /// Teil 6: eigener Eintrag (auch gelöscht = 0 min, dann `nil`) vor Watch vor iPhone-Schlafenszeit
     /// vor Bewegungs-Schätzung — siehe `SchlafLogik.minuten`. `schlafQuelle` sagt, welche das war.
     func schlafMinuten(_ person: Person, _ tag: String) -> Int? {
@@ -525,7 +527,10 @@ final class HealthModell {
             .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
         eingabe.aktivitaeten = await bewegungen(tag)
         if AirPodsPro3.an { eingabe.ton = await tonSpannen(von: fensterStart, bis: fensterEnde) }
-        if let ich = Raum.shared.ich { eingabe.guteNacht = FigurenModell.shared.gruss[ich]?.nacht }
+        if let ich = Raum.shared.ich {
+            eingabe.guteNacht = FigurenModell.shared.gruss[ich]?.nacht
+            eingabe.gewohnheit = gewohnheit(ich, tag: tag)
+        }
         let signale = SchlafSignale.laden()
         let bis = eingabe.fensterEnde
         eingabe.laden = SchlafSignale.spannen(signale, art: "laden", bis: bis)
@@ -538,7 +543,25 @@ final class HealthModell {
             griffe += ChatModell.shared.nachrichten.filter { $0.von == ich && !$0.geloescht && $0.system == nil }.map(\.zeit)
         }
         eingabe.wach = SchlafSignale.kurzWach(griffe)
-        return SchlafLogik.automatikVorrang(watch: nil, punkte: SchlafLogik.punkte(eingabe))
+        let punkte = SchlafLogik.punkte(eingabe)
+        schlafDetails[tag] = SchlafDetail(luecken: punkte.wachLuecken, nickerchen: punkte.nickerchen)
+        return SchlafLogik.automatikVorrang(watch: nil, punkte: punkte)
+    }
+
+    /// Bett- und Aufstehzeit aus den sicheren Nächten der letzten Wochen (`SchlafLogik.gewohnheit`).
+    private func gewohnheit(_ person: Person, tag: String) -> (bett: Int, auf: Int)? {
+        let bestaetigt = SchlafSignale.bestaetigt()
+        var naechte: [SchlafLogik.BekannteNacht] = []
+        for (t, n) in schlaf[person] ?? [:] where t != tag {
+            if n.quelle == SchlafLogik.Quelle.appleWatch.rawValue || bestaetigt.contains(t) {
+                naechte.append(SchlafLogik.BekannteNacht(tag: t, von: n.von, bis: n.bis))
+            }
+        }
+        for (t, z) in schlafZeiten[person] ?? [:] where t != tag && EnergieLogik.imBett(z) > 0 {
+            naechte.removeAll { $0.tag == t }
+            naechte.append(SchlafLogik.BekannteNacht(tag: t, von: z.bett, bis: z.auf))
+        }
+        return SchlafLogik.gewohnheit(naechte, wochenende: SchlafLogik.istWochenende(tag))
     }
 
     /// Verlauf der Bewegungs-Zustände (CoreMotion hält ihn 7 Tage selbst, Lesen kostet keinen Sensor).
