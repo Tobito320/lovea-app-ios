@@ -14,7 +14,6 @@ struct EinstellungenView: View {
     @AppStorage(GymNeu.schluessel) private var gymNeu = true // same key `GymNeu.an` reads
     @AppStorage(StartPlan.schluessel) private var schnellerStart = true // same key `StartPlan.an` reads
     @State private var zeigtEntwickler = false
-    @State private var szenenOrt: RaumOrt?
     @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
     @AppStorage(VideoVorab.schluessel) private var videoVorab = true // same key `VideoVorab.an` reads
 
@@ -23,25 +22,17 @@ struct EinstellungenView: View {
             Section("Mitteilungen") {
                 NavigationLink("Mitteilungen") { MitteilungenListe() }
             }
-            Section("FaceTime") {
-                FaceTimeKontaktZeile()
-            }
             Section("Figur") {
                 NavigationLink("Figuren-Editor") { FigurEditorSeite(person: person) }
+                NavigationLink("Szenen gestalten") { SzenenUebersicht(person: person) }
             }
-            Section("Szenen") {
-                ForEach(RaumOrt.allCases) { ort in
-                    Button { szenenOrt = ort } label: {
-                        HStack(spacing: 12) {
-                            Label(ort.titel, systemImage: ort.symbol)
-                            Spacer()
-                            ZimmerKachel(zimmer: Zimmer.von(person, ort: ort), ort: ort, art: .raum, aussehen: FigurenModell.shared.aussehen(person))
-                                .frame(width: 40, height: 40)
-                                .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-                        }
-                    }
-                    .foregroundStyle(.primary)
-                }
+            Section {
+                Toggle("Selfie-Foto und -Video gespiegelt", isOn: $selfieSpiegeln)
+                Toggle("Kamera-Filter anzeigen", isOn: $kameraFilter)
+            } header: {
+                Text("Kamera")
+            } footer: {
+                Text("Gespiegelt: Selfie-Foto und -Video sehen aus wie die Vorschau, wie in der iPhone-Kamera. Die Rückkamera bleibt immer ungespiegelt. Filter aus: keine Filterleiste und kein Wischen zwischen Filtern, das Bild bleibt original.")
             }
             Section {
                 NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
@@ -58,11 +49,62 @@ struct EinstellungenView: View {
                 NavigationLink("Jahrestag") { JahrestagEditor() }
                 NavigationLink("Wochenplan") { WochenplanEditor() }
                 Toggle("Neuer Kalender", isOn: $kalenderNeu)
-                Toggle("Neues Gym", isOn: $gymNeu)
-            }
-            Section("Spotify") {
+                FaceTimeKontaktZeile()
                 SpotifyVerbindenRow()
             }
+            Section("Gym") {
+                Toggle("Neues Gym", isOn: $gymNeu)
+            }
+            Section {
+                Toggle("Haptik", isOn: $haptik)
+                NavigationLink("Erweitert") { SonstigesErweitert(session: session, zeigtEntwickler: $zeigtEntwickler, showsHUD: $showsHUD, tabWischen: $tabWischen, schnellerStart: $schnellerStart) }
+            } header: {
+                Text("Sonstiges")
+            }
+        }
+        .navigationTitle("Einstellungen")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Szenen (Räume gestalten)
+
+private struct SzenenUebersicht: View {
+    let person: Person
+    @State private var szenenOrt: RaumOrt?
+
+    var body: some View {
+        List {
+            ForEach(RaumOrt.allCases) { ort in
+                Button { szenenOrt = ort } label: {
+                    HStack(spacing: 12) {
+                        Label(ort.titel, systemImage: ort.symbol)
+                        Spacer()
+                        ZimmerKachel(zimmer: Zimmer.von(person, ort: ort), ort: ort, art: .raum, aussehen: FigurenModell.shared.aussehen(person))
+                            .frame(width: 40, height: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                }
+                .foregroundStyle(.primary)
+            }
+        }
+        .navigationTitle("Szenen gestalten")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $szenenOrt) { ort in NavigationStack { ZimmerEditor(person: person, ort: ort) } }
+    }
+}
+
+// MARK: - Sonstiges, seltene und technische Schalter
+
+private struct SonstigesErweitert: View {
+    @ObservedObject var session: PersonSession
+    @Binding var zeigtEntwickler: Bool
+    @Binding var showsHUD: Bool
+    @Binding var tabWischen: Bool
+    @Binding var schnellerStart: Bool
+
+    var body: some View {
+        List {
             Section {
                 Toggle("Zwischen Tabs wischen", isOn: $tabWischen)
             } footer: {
@@ -72,17 +114,6 @@ struct EinstellungenView: View {
                 Toggle("Schneller Start (Test)", isOn: $schnellerStart)
             } footer: {
                 Text("Galerie-Sync und Widget starten erst nach dem ersten Bild. Gilt ab dem nächsten App-Start. Aus: wie vorher.")
-            }
-            Section {
-                Toggle("Haptik", isOn: $haptik)
-                Toggle("Selfie-Foto und -Video gespiegelt", isOn: $selfieSpiegeln)
-            } footer: {
-                Text("An: Selfie-Foto und -Video sind gespiegelt, genau wie die Vorschau. Aus: nicht gespiegelt, wie in der iPhone-Kamera. Gilt überall, wo Lovea aufnimmt. Die Rückkamera bleibt immer ungespiegelt.")
-            }
-            Section {
-                Toggle("Kamera-Filter anzeigen", isOn: $kameraFilter)
-            } footer: {
-                Text("Aus: keine Filterleiste und kein Wischen zwischen Filtern, das Bild bleibt original.")
             }
             Section {
                 Text("Version \(Bundle.main.appVersion)")
@@ -104,9 +135,8 @@ struct EinstellungenView: View {
                 Text("Entwickler")
             }
         }
-        .navigationTitle("Einstellungen")
+        .navigationTitle("Erweitert")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(item: $szenenOrt) { ort in NavigationStack { ZimmerEditor(person: person, ort: ort) } }
     }
 }
 
