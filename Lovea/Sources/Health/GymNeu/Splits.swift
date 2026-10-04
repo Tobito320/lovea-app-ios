@@ -10,6 +10,8 @@ struct SplitVorlage: Codable, Identifiable, Equatable, Sendable {
         var bis: Int
         /// Cardio: Dauer in Minuten statt Sätzen (Stairmaster, Laufband). Fehlt bei Kraftübungen.
         var minuten: Int? = nil
+        /// true = Supersatz mit der nächsten Zeile (`PlanUebung.supersatz`). Nur die 45-Minuten-Pläne setzen es.
+        var supersatz: Bool? = nil
     }
 
     struct Einheit: Codable, Equatable, Sendable {
@@ -59,10 +61,14 @@ enum SplitLogik {
     }
 
     /// Kurzfilter über der Liste: "Für dich" = Ahmeds eigene Splits, sonst ein Ziel.
-    static let artWahl: [(id: String, text: String)] = [("fuerdich", "Für dich"), ("muskeln", "Aufbauen"), ("kraft", "Kraft"), ("definieren", "Definieren"), ("fit", "Fit")]
+    static let artWahl: [(id: String, text: String)] = [("fuerdich", "Für dich"), (kurzArt, "45 Minuten"), ("muskeln", "Aufbauen"), ("kraft", "Kraft"), ("definieren", "Definieren"), ("fit", "Fit")]
 
     /// Ahmeds 15 Splits aus dem Vault (`tools/splits-bauen.mjs`, ids `m-ahmed01` …).
     static func istEigen(_ v: SplitVorlage) -> Bool { v.id.hasPrefix("m-ahmed") }
+
+    /// Kurzpläne für ein Studio-Zeitfenster (ids `m-kurz45-1` …, `Zeit/ZeitSchaetzung`): Filter "45 Minuten".
+    static let kurzArt = "kurz45"
+    static func istKurzplan(_ v: SplitVorlage) -> Bool { v.id.contains("-kurz45-") }
 
     /// Wonach die Suche schaut: Name, Level, Ziel, Tage, Einheiten, Übungen mit Muskel und Körperteil.
     static func suchtext(_ v: SplitVorlage) -> String {
@@ -76,7 +82,7 @@ enum SplitLogik {
     static func treffer(_ liste: [SplitVorlage], art: String?, tage: Int?, suche: String) -> [SplitVorlage] {
         let woerter = suche.split(whereSeparator: \.isWhitespace).map(String.init)
         return liste.filter { v in
-            guard art == nil || (art == "fuerdich" ? istEigen(v) : v.ziel == art), tage == nil || v.tage == tage else { return false }
+            guard art == nil || (art == "fuerdich" ? istEigen(v) : art == kurzArt ? istKurzplan(v) : v.ziel == art), tage == nil || v.tage == tage else { return false }
             if woerter.isEmpty { return true }
             let text = suchtext(v)
             return woerter.allSatisfy { text.localizedStandardContains($0) }
@@ -114,7 +120,7 @@ enum SplitLogik {
             TrainingsTag(id: neueId(), name: e.name, wochentage: e.wochentage.sorted(), uebungen: e.uebungen.map { z in
                 PlanUebung(id: neueId(), uebung: z.uebung, name: nil,
                            saetze: z.minuten != nil ? [] : Array(repeating: PlanSatz(wdh: z.von, kg: nil, failure: false), count: z.saetze),
-                           minuten: z.minuten)
+                           minuten: z.minuten, supersatz: z.supersatz)
             })
         }
         let training = Set(v.einheiten.flatMap(\.wochentage))
@@ -154,11 +160,9 @@ enum GymStartLogik {
         return "\(wann) · \(tag.name.isEmpty ? "Training" : tag.name)"
     }
 
-    /// "6 Übungen · etwa 60 min": 2,5 min pro Satz mit Pause, Cardio nach Plan, auf 5 min gerundet.
-    // ponytail: feste 2,5 min pro Satz; echte Dauer aus dem Verlauf, wenn die Schätzung stört.
+    /// "6 Übungen · etwa 60 min": `ZeitSchaetzung` (Sätze, Pausen, Wechsel), auf 5 min gerundet.
     static func umfang(_ tag: TrainingsTag) -> String {
-        let minuten = tag.uebungen.reduce(0.0) { $0 + Double($1.minuten ?? 0) + Double($1.saetze.count) * 2.5 }
-        let rund = max(5, Int((minuten / 5).rounded()) * 5)
+        let rund = max(5, Int((Double(ZeitSchaetzung.minuten(tag)) / 5).rounded()) * 5)
         return "\(tag.uebungen.count) \(tag.uebungen.count == 1 ? "Übung" : "Übungen") · etwa \(rund) min"
     }
 }

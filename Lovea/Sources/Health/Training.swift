@@ -41,6 +41,8 @@ struct PlanUebung: Codable, Identifiable, Equatable, Sendable {
     var notiz: String? = nil
     /// Pausenzeit in Sekunden; nil = `WorkoutLogik.standardPause`, 0 = ohne Ziel.
     var pause: Int? = nil
+    /// true = Supersatz mit der nächsten Übung im Tag (abwechselnd, nur eine Pause pro Runde). Nur für die Zeitschätzung.
+    var supersatz: Bool? = nil
 
     static let eigen = "eigen"
 
