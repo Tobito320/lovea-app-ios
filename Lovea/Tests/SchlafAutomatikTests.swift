@@ -107,7 +107,7 @@ final class SchlafAutomatikTests: XCTestCase {
         ]
         let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 25, hour: 14))!
         let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-25")
-        XCTAssertEqual(ergebnis?.minuten, 120)
+        XCTAssertNil(ergebnis, "120 min sind unter der Mindestnacht, Schreibtisch erst recht nicht")
     }
 
     func testHandyNachtsInDerHandGiltNichtAlsSchlaf() {
@@ -141,6 +141,22 @@ final class SchlafAutomatikTests: XCTestCase {
         let ergebnis = SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-27")
         XCTAssertEqual(ergebnis?.bis, Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 27, hour: 7)))
         XCTAssertEqual(ergebnis?.minuten, 6 * 60 + 30)
+    }
+
+    func testHandyKurzAusIstKeineNacht() {
+        // Ahmed, 05.10.: Handy 22:00–22:40 aus (letzter Stand "still"), danach in der Hand. 40 min.
+        let aktivitaeten = [aktiv(4, 22, stationaer: true), aktiv(4, 22, 40, stationaer: false)]
+        let fensterEnde = Calendar.berlin.date(from: DateComponents(year: 2026, month: 9, day: 5, hour: 14))!
+        XCTAssertNil(SchlafLogik.bewegungsSchaetzung(aktivitaeten, fensterEnde: fensterEnde, tag: "2026-09-05"))
+    }
+
+    func testKurzerIphoneSchnipselVerdraengtBewegungNicht() {
+        let iphone = (minuten: 40, von: Date(), bis: Date())
+        let geschaetzt = (minuten: 420, von: Date(), bis: Date())
+        let ergebnis = SchlafLogik.automatikVorrang(watch: nil, iphone: iphone, geschaetzt: geschaetzt)
+        XCTAssertEqual(ergebnis?.minuten, 420)
+        XCTAssertEqual(ergebnis?.quelle, .geschaetzt)
+        XCTAssertNil(SchlafLogik.automatikVorrang(watch: nil, iphone: iphone, geschaetzt: nil))
     }
 
     func testBewegungsSchaetzungOhneDatenIstNil() {

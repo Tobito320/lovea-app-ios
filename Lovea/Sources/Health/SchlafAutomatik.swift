@@ -38,15 +38,26 @@ extension SchlafLogik {
     /// b) Watch (alle asleep-Werte) vor c) iPhone-Schlafenszeit (inBed) vor d) Bewegungs-Schätzung.
     /// Alle drei schon über `HealthLogik.schlafNacht`/`bewegungsSchaetzung` gegen Lücken gerechnet
     /// (Summe der Spannen, nicht Ende minus Anfang) — hier nur noch die Rangfolge plus Quelle-Label.
+    /// Unter 3 h ist es keine Nacht (Handy kurz aus, am Schreibtisch still, Mittagsschlaf): so ein
+    /// Block wird nie als Nachtschlaf geschätzt (Ahmed, 05.10.: 40 min um 22 Uhr, Handy war nur aus).
+    static let mindestNacht = 180
+
+    /// Watch zuerst (echte Schlafphasen). Sonst gewinnt von iPhone-Schlafenszeit und Bewegung die
+    /// längere Nacht: ein kurzer "im Bett"-Schnipsel darf die Bewegungs-Schätzung nicht verdrängen.
     static func automatikVorrang(
         watch: (minuten: Int, von: Date, bis: Date)?,
         iphone: (minuten: Int, von: Date, bis: Date)?,
         geschaetzt: (minuten: Int, von: Date, bis: Date)?
     ) -> (minuten: Int, von: Date, bis: Date, quelle: Quelle)? {
         if let w = watch { return (w.minuten, w.von, w.bis, .appleWatch) }
-        if let i = iphone { return (i.minuten, i.von, i.bis, .iphoneSchlafenszeit) }
-        if let g = geschaetzt { return (g.minuten, g.von, g.bis, .geschaetzt) }
-        return nil
+        let i = iphone.flatMap { $0.minuten >= mindestNacht ? $0 : nil }
+        let g = geschaetzt.flatMap { $0.minuten >= mindestNacht ? $0 : nil }
+        switch (i, g) {
+        case let (i?, g?): return g.minuten > i.minuten ? (g.minuten, g.von, g.bis, .geschaetzt) : (i.minuten, i.von, i.bis, .iphoneSchlafenszeit)
+        case let (i?, nil): return (i.minuten, i.von, i.bis, .iphoneSchlafenszeit)
+        case let (nil, g?): return (g.minuten, g.von, g.bis, .geschaetzt)
+        default: return nil
+        }
     }
 
     /// c) "Im Bett": exakt dieselbe Zusammenfassung wie für Watch-Werte (`HealthLogik.schlafNacht`) —
@@ -147,7 +158,7 @@ extension SchlafLogik {
                 }
             }
         }
-        return (minuten, von, bis)
+        return minuten >= mindestNacht ? (minuten, von, bis) : nil
     }
 
     // MARK: - Schlafziel mit flexiblen Tagen
