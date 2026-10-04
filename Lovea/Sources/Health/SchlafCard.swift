@@ -122,8 +122,8 @@ struct SchlafDetailView: View {
     private var hinweisOhneAutomatik: some View {
         // `schlafNacht` (die Automatik allein), nicht `schlafQuelle` — sonst verdeckt ein eigener
         // Eintrag, dass in Wahrheit weder Watch noch iPhone etwas melden.
-        let quellen: Set<String> = [SchlafLogik.Quelle.appleWatch.rawValue, SchlafLogik.Quelle.iphoneSchlafenszeit.rawValue]
-        let hatGenauereQuelle = (0..<7).contains { quellen.contains(health.schlafNacht(ich, Datum.addTage(heute, -$0))?.quelle ?? "") }
+        let genau: Set<String> = [SchlafLogik.Quelle.appleWatch.rawValue, "Punktesystem, sicher", "Punktesystem, wahrscheinlich"]
+        let hatGenauereQuelle = (0..<7).contains { genau.contains(health.schlafNacht(ich, Datum.addTage(heute, -$0))?.quelle ?? "") }
         if !hatGenauereQuelle {
             SchlafGenauerHinweis()
         }
