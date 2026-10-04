@@ -1,9 +1,10 @@
 import SwiftUI
 import UIKit
 
-/// Spec 8.1 Nr. 2: Stimmung (gut/mittel/schlecht) und „brauche" (Nähe/Worte/Ruhe), einmal pro Tag
-/// änderbar. Beide sehen sich gegenseitig; die eigene Auswahl ist nur für die eigene Person
-/// editierbar. Z-19.3 hatte „brauche" aus der Oberfläche entfernt, hier wieder da (Ahmed, 04.10.2026).
+/// Spec 8.1 Nr. 2: Stimmung (gut/mittel/schlecht) und „brauche" (Nähe/Worte/Ruhe), pro Tag
+/// gespeichert und jederzeit erneut änderbar. Beide sehen sich gegenseitig; die eigene Auswahl ist
+/// nur für die eigene Person editierbar. Z-19.3 hatte „brauche" aus der Oberfläche entfernt, hier
+/// wieder da (Ahmed, 04.10.2026).
 struct WieGehtsDirCard: View {
     let kalender = KalenderModell.shared
     @Environment(\.dynamicTypeSize) private var schrift
