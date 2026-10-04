@@ -31,7 +31,7 @@ const U = {
   rueckenstrecker: 'rUXfn3R', reverseHyper: 'Krmb3cB', eselWaden: 'u5ESqzH',
 };
 
-// [Kurzname, Sätze, Wdh von, Wdh bis]
+// [Kurzname, Sätze, Wdh von, Wdh bis, Minuten nur bei Cardio]
 const push = [['bank', 4, 6, 8], ['schraegKH', 3, 8, 12], ['ohpKH', 3, 8, 10], ['seitheben', 3, 12, 15], ['kabelFly', 3, 12, 15], ['pushdown', 3, 10, 12]];
 const pushB = [['ohp', 4, 6, 8], ['schraegLH', 3, 8, 10], ['dipsBrust', 3, 8, 12], ['seithebenKabel', 3, 12, 15], ['butterfly', 3, 12, 15], ['ueberkopfTrizeps', 3, 10, 12]];
 const pull = [['klimmzug', 4, 6, 10], ['rudernLH', 3, 8, 10], ['latzug', 3, 10, 12], ['rudernKabel', 3, 10, 12], ['reverseFly', 3, 12, 15], ['curlSZ', 3, 8, 12]];
@@ -64,11 +64,12 @@ const t = (name, wochentage, uebungen) => ({ name, wochentage, uebungen });
 // [id, name, gruppe, level, ziel, geraet, einheiten]
 const SPLITS = [
   // Ahmeds 15 Splits aus dem Vault (10 Fitness/Splits, 04.10.2026), FitX Hagen-Mitte. Nackenübungen fehlen im Katalog, Face Pull = Reverse Fliegende.
-  ['m-ahmed01', "Empfohlen: V-Taper Upper Lower 45", 'm', 'mittel', 'definieren', 'studio', [
-    t("Upper A (schwer)", [1], [['ns0SIbU', 3, 5, 8], ['lBDjFxJ', 3, 6, 10], ['dRTfGZT', 3, 12, 15], ['C0MA9bC', 2, 8, 12], ['FVmZVhk', 2, 12, 15]]),
+  ['m-ahmed01', "Empfohlen: V-Taper Cut + Cardio", 'm', 'mittel', 'definieren', 'studio', [
+    t("Upper A + Stairmaster", [1], [['ns0SIbU', 3, 5, 8], ['lBDjFxJ', 3, 6, 10], ['dRTfGZT', 3, 12, 15], ['C0MA9bC', 2, 8, 12], ['FVmZVhk', 2, 12, 15], ['j9Q5crt', 1, 1, 1, 30]]),
     t("Lower A", [2], [['qx4fgX7', 3, 6, 10], ['rR0LJzx', 3, 6, 10], ['goJ6ezq', 2, 12, 15], ['I3tsCnC', 3, 10, 15]]),
-    t("Upper B (Volumen)", [4], [['jHAnWmT', 3, 8, 12], ['qdRxqCj', 3, 8, 12], ['goJ6ezq', 3, 12, 15], ['FVmZVhk', 2, 12, 15], ['myfUsKf', 3, 12, 15], ['dU605di', 2, 10, 15]]),
-    t("Lower B", [5], [['10Z2DXU', 3, 8, 12], ['Zg3XY7P', 3, 10, 12], ['DsgkuIt', 2, 15, 20], ['WW95auq', 3, 10, 15], ['slDvUAU', 2, 10, 12], ['2IxROQ1', 2, 10, 12], ['myfUsKf', 2, 15, 15]])]],
+    t("Upper B + Stairmaster", [4], [['jHAnWmT', 3, 8, 12], ['qdRxqCj', 3, 8, 12], ['goJ6ezq', 3, 12, 15], ['FVmZVhk', 2, 12, 15], ['myfUsKf', 3, 12, 15], ['dU605di', 2, 10, 15], ['j9Q5crt', 1, 1, 1, 30]]),
+    t("Lower B", [5], [['10Z2DXU', 3, 8, 12], ['Zg3XY7P', 3, 10, 12], ['DsgkuIt', 2, 15, 20], ['WW95auq', 3, 10, 15], ['slDvUAU', 2, 10, 12], ['2IxROQ1', 2, 10, 12], ['myfUsKf', 2, 15, 15]]),
+    t("Cardio", [6], [['j9Q5crt', 1, 1, 1, 40]])]],
   ['m-ahmed06', "Empfohlen: Oestreicher PPL x Upper Lower", 'm', 'mittel', 'muskeln', 'studio', [
     t("Push", [1], [['ns0SIbU', 3, 6, 10], ['67n3r98', 2, 8, 12], ['goJ6ezq', 3, 12, 15], ['FVmZVhk', 2, 12, 15], ['DOoWcnA', 2, 8, 12], ['dU605di', 2, 10, 15]]),
     t("Pull", [2], [['lBDjFxJ', 3, 6, 10], ['7I6LNUG', 3, 8, 12], ['myfUsKf', 2, 15, 15], ['DT14T9T', 2, 12, 15], ['ae9UoXQ', 2, 8, 12], ['NJzBsGJ', 2, 10, 12]]),
@@ -380,11 +381,11 @@ const aus = SPLITS.map(([id, name, gruppe, level, ziel, geraet, einheiten]) => (
   tage: new Set(einheiten.flatMap(e => e.wochentage)).size,
   einheiten: einheiten.map(e => ({
     name: e.name, wochentage: e.wochentage,
-    uebungen: e.uebungen.map(([k, saetze, von, bis]) => {
+    uebungen: e.uebungen.map(([k, saetze, von, bis, minuten]) => {
       const uid = U[k] ?? (katalog.has(k) ? k : undefined); // Kurzname oder direkt eine Katalog-id
       if (!uid) fehler.push(`${id}: Kurzname "${k}" fehlt`);
       else if (!katalog.has(uid)) fehler.push(`${id}: ${k} -> ${uid} nicht im Katalog`);
-      return { uebung: uid, saetze, von, bis };
+      return minuten ? { uebung: uid, saetze, von, bis, minuten } : { uebung: uid, saetze, von, bis };
     }),
   })),
 }));
