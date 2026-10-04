@@ -178,6 +178,18 @@ struct SplitVorschauInhalt: View {
         }
     }
 
+    private func zeile(_ name: String, _ z: SplitVorlage.Zeile, video: Bool) -> some View {
+        HStack {
+            if video { Image(systemName: "play.circle").foregroundStyle(.secondary).accessibilityHidden(true) }
+            Text(name).font(.body)
+            Spacer(minLength: 12)
+            Text(SplitLogik.wdhText(z)).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+        }
+        .frame(minHeight: 44)
+        .contentShape(.rect)
+        .accessibilityHint(video ? "Zeigt, wie die Übung geht" : "")
+    }
+
     private func einheit(_ e: SplitVorlage.Einheit) -> some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack(alignment: .firstTextBaseline) {
@@ -189,12 +201,13 @@ struct SplitVorschauInhalt: View {
             .padding(.bottom, 4)
             ForEach(Array(e.uebungen.enumerated()), id: \.offset) { i, z in
                 if i > 0 { Divider() }
-                HStack {
-                    Text(UebungsKatalog.nachId[z.uebung]?.name ?? "Übung").font(.body)
-                    Spacer(minLength: 12)
-                    Text(SplitLogik.wdhText(z)).font(.subheadline).foregroundStyle(.secondary).monospacedDigit()
+                if let u = UebungsKatalog.nachId[z.uebung] {
+                    // Tipp öffnet die Übung mit Animation (UebungDetail), damit man sieht, wie sie geht.
+                    NavigationLink { UebungDetail(uebung: u) } label: { zeile(u.name, z, video: true) }
+                        .buttonStyle(.plain)
+                } else {
+                    zeile("Übung", z, video: false)
                 }
-                .frame(minHeight: 44)
             }
         }
     }
