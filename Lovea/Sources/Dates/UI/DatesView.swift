@@ -8,6 +8,11 @@ struct DatesView: View {
     @State private var filter = DateFilter()
     @State private var blatt: DatesBlattZiel?
     @State private var undo: DatesUndo?
+    @State private var gewuerfelt: DatesWuerfelEintrag?
+    @State private var letzteGezogene: [String] = []
+    @State private var wuerfelDreht = false
+    @State private var zeigtMachenWir = false
+    @State private var zeigtListe = false
 
     var body: some View {
         let ideen = speicher.ideen
@@ -16,6 +21,7 @@ struct DatesView: View {
         List {
             DatesKopf(erledigt: fortschritt.erledigt, gesamt: fortschritt.gesamt)
                 .listRow()
+            wuerfelKarte(ideen: ideen).listRow()
             filterLeiste(ortNamen: DateLogik.ortNamen(ideen))
                 .listRow()
             if abschnitte.isEmpty {
@@ -48,6 +54,10 @@ struct DatesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
+                Button { zeigtListe = true } label: { Image(systemName: "list.bullet") }
+                    .accessibilityLabel("Unsere Liste")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
                 Button { blatt = DatesBlattZiel(idee: nil) } label: { Image(systemName: "plus") }
                     .accessibilityLabel("Neue Idee")
             }
@@ -69,6 +79,55 @@ struct DatesView: View {
         .sheet(item: $blatt) { ziel in
             DateIdeeBlatt(idee: ziel.idee, vorKategorie: filter.kategorie, beiGeloescht: loeschen)
         }
+        .sheet(isPresented: $zeigtMachenWir) {
+            if let gewuerfelt { MachenWirBlatt(text: gewuerfelt.text) }
+        }
+        .sheet(isPresented: $zeigtListe) { ListenBlatt() }
+    }
+
+    // MARK: - Würfel
+
+    private func wuerfelKarte(ideen: [DateIdee]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            if let gewuerfelt {
+                Text(gewuerfelt.text)
+                    .font(.title3.weight(.semibold))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            } else {
+                Text("Keine Idee im Kopf? Würfel eine aus eurer Liste.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            HStack(spacing: 10) {
+                Button { wuerfeln(ideen) } label: {
+                    Label("Würfeln", systemImage: "die.face.5.fill")
+                        .rotationEffect(.degrees(wuerfelDreht ? 360 : 0))
+                }
+                .buttonStyle(.bordered)
+                if gewuerfelt != nil {
+                    Button("Machen wir") {
+                        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                        zeigtMachenWir = true
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(Color.loveaRose)
+                }
+            }
+            .frame(minHeight: 44)
+        }
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+        .padding(.horizontal, 20)
+        .padding(.vertical, 8)
+    }
+
+    private func wuerfeln(_ ideen: [DateIdee]) {
+        UIImpactFeedbackGenerator(style: .medium).impactOccurred()
+        withAnimation(.easeInOut(duration: 0.4)) { wuerfelDreht.toggle() }
+        let wuensche = WirModell.shared.zustand.liste.filter { !$0.geschafft }.map { (id: $0.id, text: $0.text) }
+        guard let treffer = DatesWuerfel.pool(ideen: ideen, wuensche: wuensche, letzte: letzteGezogene).randomElement() else { return }
+        gewuerfelt = treffer
+        letzteGezogene = Array((letzteGezogene + [treffer.id]).suffix(5))
     }
 
     // MARK: - Filter
