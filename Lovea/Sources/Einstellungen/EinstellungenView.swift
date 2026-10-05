@@ -14,6 +14,7 @@ struct EinstellungenView: View {
     @AppStorage(GymNeu.schluessel) private var gymNeu = true // same key `GymNeu.an` reads
     @AppStorage(StartPlan.schluessel) private var schnellerStart = true // same key `StartPlan.an` reads
     @AppStorage(AirPodsPro3.schluessel) private var airpodsPro3 = AirPodsPro3.startwert // same key `AirPodsPro3.an` reads
+    @AppStorage(BettErinnerung.schluessel) private var bettErinnerung = false
     @State private var zeigtEntwickler = false
     @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
     @AppStorage(VideoVorab.schluessel) private var videoVorab = true // same key `VideoVorab.an` reads
@@ -63,6 +64,14 @@ struct EinstellungenView: View {
                 Text("Geräte")
             } footer: {
                 Text("Gilt für alles: Puls im Training, Kopfhörer-Ton beim Schlaf. Puls kostet nur während eines Trainings Akku.")
+            }
+            Section {
+                Toggle("Bettzeit-Erinnerung", isOn: $bettErinnerung)
+                    .onChange(of: bettErinnerung) { _, _ in HealthModell.shared.bettErinnerungAktualisieren() }
+            } header: {
+                Text("Schlaf")
+            } footer: {
+                Text("Eine stille Mitteilung 30 Minuten vor deiner üblichen Bettzeit. Die Zeit lernt die App aus deinen sicheren Nächten.")
             }
             Section {
                 Toggle("Haptik", isOn: $haptik)
