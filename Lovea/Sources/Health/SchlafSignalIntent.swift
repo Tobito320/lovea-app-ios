@@ -4,7 +4,7 @@ import AppIntents
 /// (Ladegerät verbunden/getrennt, Fokus Schlafen an/aus, Wecker gestoppt, Heim-WLAN verbunden/getrennt).
 /// Das iPhone führt die Automation von selbst aus, die App läuft dafür nicht im Hintergrund: kein Akku.
 enum SchlafEreignis: String, AppEnum {
-    case ladenAn, ladenAus, fokusAn, fokusAus, weckerAus, daheimAn, daheimAus
+    case ladenAn, ladenAus, fokusAn, fokusAus, weckerAus, aufgestanden, daheimAn, daheimAus
 
     static let typeDisplayRepresentation = TypeDisplayRepresentation(name: "Schlaf-Ereignis")
     static let caseDisplayRepresentations: [SchlafEreignis: DisplayRepresentation] = [
@@ -13,6 +13,7 @@ enum SchlafEreignis: String, AppEnum {
         .fokusAn: DisplayRepresentation(title: "Fokus Schlafen an"),
         .fokusAus: DisplayRepresentation(title: "Fokus Schlafen aus"),
         .weckerAus: DisplayRepresentation(title: "Wecker gestoppt"),
+        .aufgestanden: DisplayRepresentation(title: "Aufgestanden (NFC im Bad)"),
         .daheimAn: DisplayRepresentation(title: "Heim-WLAN verbunden"),
         .daheimAus: DisplayRepresentation(title: "Heim-WLAN getrennt"),
     ]
@@ -24,7 +25,7 @@ enum SchlafEreignis: String, AppEnum {
         case .ladenAus: ("laden", false)
         case .fokusAn: ("fokus", true)
         case .fokusAus: ("fokus", false)
-        case .weckerAus: ("wecker", true)
+        case .weckerAus, .aufgestanden: ("wecker", true)
         case .daheimAn: ("daheim", true)
         case .daheimAus: ("daheim", false)
         }

@@ -176,6 +176,14 @@ struct SchlafDetailView: View {
                     }
                 }
                 Text(sollText(minuten)).font(.subheadline).foregroundStyle(.secondary)
+                if let schuld = health.schlafSchuld(ich, heute: heute) {
+                    Text(schuld > 0 ? "Schlafschuld der letzten 7 Nächte: \(EnergieLogik.dauer(schuld))" : "Keine Schlafschuld in den letzten 7 Nächten")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+                if let k = health.koffeinVergleich(ich, heute: heute) {
+                    Text("Koffein nach 16 Uhr: im Schnitt \(EnergieLogik.dauer(k.mit)) Schlaf, sonst \(EnergieLogik.dauer(k.ohne))")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
             }
             .accessibilityElement(children: .combine)
             if !woche.isEmpty {
@@ -335,7 +343,7 @@ private struct SchlafGenauerHinweis: View {
                 Label("Genauer messen", systemImage: "heart.text.square")
                     .font(.subheadline.weight(.semibold))
                     .foregroundStyle(HabitFarbe.indigo.farbe)
-                Text("Für genaue Werte in Health unter Schlaf die Schlafenszeit einschalten. Dann nimmt das iPhone Zeiten heraus, in denen du nachts am Handy warst.")
+                Text("Für genaue Werte in Kurzbefehle unter Automation je eine Aktion „Schlaf-Signal melden“ anlegen: Ladegerät, Fokus Schlafen, Wecker gestoppt. Dazu in Health unter Schlaf die Schlafenszeit einschalten.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                 Button("Health öffnen") {

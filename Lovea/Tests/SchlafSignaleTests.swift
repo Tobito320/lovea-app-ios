@@ -113,4 +113,41 @@ final class SchlafSignaleTests: XCTestCase {
         let n = [nacht(21), SchlafLogik.BekannteNacht(tag: "2026-09-22", von: zeit(22, 0, 30), bis: zeit(22, 8)), nacht(23, vonStunde: 23, vonMinute: 30)]
         XCTAssertEqual(SchlafLogik.gewohnheit(n, wochenende: false)?.bett, 23 * 60 + 30)
     }
+
+    // MARK: - Erinnerung, Schuld, Koffein, Guten Morgen
+
+    func testSchuldRechnetUeberschussGegenUndNieUnterNull() {
+        let n = [(minuten: 420, ziel: 480), (minuten: 540, ziel: 480), (minuten: 400, ziel: 480)]
+        XCTAssertEqual(SchlafLogik.schuld(n), 60 - 60 + 80)
+        XCTAssertEqual(SchlafLogik.schuld([(minuten: 600, ziel: 480), (minuten: 600, ziel: 480), (minuten: 600, ziel: 480)]), 0)
+        XCTAssertNil(SchlafLogik.schuld([(minuten: 400, ziel: 480)]))
+    }
+
+    func testKoffeinVergleichBrauchtGenugNaechteUndUnterschied() {
+        let spaet = (0..<3).map { _ in (minuten: 400, spaet: true) }
+        let frueh = (0..<3).map { _ in (minuten: 460, spaet: false) }
+        let r = SchlafLogik.koffeinVergleich(spaet + frueh)
+        XCTAssertEqual(r?.mit, 400)
+        XCTAssertEqual(r?.ohne, 460)
+        XCTAssertNil(SchlafLogik.koffeinVergleich(Array(spaet.prefix(2)) + frueh))
+        XCTAssertNil(SchlafLogik.koffeinVergleich(spaet + frueh.map { _ in (minuten: 410, spaet: false) }), "10 min sind kein Unterschied")
+    }
+
+    func testGuterMorgenNurAmMorgenUndNurMitGruss() {
+        let tagStart = Calendar.berlin.startOfDay(for: zeit(5, 12))
+        let n = [(zeit: zeit(5, 2), text: "moin"), (zeit: zeit(5, 7, 40), text: "Wann bist du da?"), (zeit: zeit(5, 8, 5), text: "Guten Morgen Schatz")]
+        XCTAssertEqual(SchlafSignale.guterMorgen(n, tagStart: tagStart), zeit(5, 8, 5))
+        XCTAssertNil(SchlafSignale.guterMorgen([(zeit: zeit(5, 2), text: "moin")], tagStart: tagStart))
+    }
+
+    func testBettErinnerungPlanMitNachMitternachtUndWochenende() {
+        // Werktag 23:00 (Erinnerung 22:30 am selben Tag), Wochenende 00:30 (Erinnerung 00:00 am Folgetag).
+        let p = BettErinnerung.plan(werktag: (23 * 60, 7 * 60), wochenende: (30, 9 * 60))
+        XCTAssertEqual(p.count, 7)
+        // Montagabend (Wochentag 2): Aufwachtag Dienstag, Werktag-Zeit.
+        XCTAssertEqual(p.first { $0.wochentag == 2 }?.minute, 22 * 60 + 30)
+        // Freitagabend (6): Aufwachtag Samstag, Bettzeit 00:30, Erinnerung 00:00 am Samstag (7).
+        XCTAssertTrue(p.contains { $0.wochentag == 7 && $0.minute == 0 })
+        XCTAssertTrue(BettErinnerung.plan(werktag: nil, wochenende: nil).isEmpty)
+    }
 }
