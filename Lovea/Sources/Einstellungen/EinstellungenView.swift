@@ -46,6 +46,7 @@ struct EinstellungenView: View {
             }
             Section {
                 Toggle("Leistungsanzeige", isOn: $showsHUD)
+                NavigationLink("Chat-Leistung") { ChatPerfView() }
             }
             Section {
                 Text("Version \(Bundle.main.appVersion)")

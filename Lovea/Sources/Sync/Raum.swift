@@ -269,7 +269,7 @@ final class Raum {
             guard let self else { return }
             await self.warteschlange.rein(op)
             await self.wartetAktualisieren()
-            if self.verbunden { self.sendeOp(op) }
+            if self.verbunden { ChatPerf.shared.anfrageGestartet(opId: op.id); self.sendeOp(op) }
         }
     }
 
@@ -443,6 +443,7 @@ final class Raum {
         await log.anhaengen(ops)
         for op in ops { await warteschlange.raus(id: op.id) }
         await wartetAktualisieren()
+        for op in ops where op.seq != nil { ChatPerf.shared.antwortErhalten(opId: op.id) }
         liefereBatch(ops)
         guard seite else { return }
         if let hoechsteSeq {
