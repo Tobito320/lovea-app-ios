@@ -220,7 +220,7 @@ private struct ArtikelDetail: View {
     /// the sheet — an op sent via `aussehenSichern` applies optimistically before confirmation.
     private var vorschauAussehen: FigurAussehen { FigurenModell.shared.aussehen(ziel).mitVorschau(artikel) }
     private var fehlend: Int { max(0, artikel.preis - verfuegbar) }
-    private var getragen: Bool { vorschauAussehen.traegt(artikel) }
+    private var getragen: Bool { FigurenModell.shared.aussehen(ziel).traegt(artikel) }
     private var direktTeil: Bool { artikel.kategorie != "backdrop" }
 
     var body: some View {
