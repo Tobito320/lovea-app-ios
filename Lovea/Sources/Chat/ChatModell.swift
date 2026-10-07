@@ -102,9 +102,11 @@ final class ChatModell {
     /// an optimistic send and its server echo share one op id, but only `nachricht.neu`'s own
     /// `id` field is what edits/reactions/deletes reference).
     func anwenden(_ ops: [Op]) {
+        let foldStart = ChatPerf.jetztNs()
         var beruehrt: Set<String> = []
         for op in ops { if let id = anwendenEins(op) { beruehrt.insert(id) } }
         if !beruehrt.isEmpty { einordnen(beruehrt) }
+        if registrieren { ChatPerf.shared.faltung(ms: ChatPerf.ms(von: foldStart, bis: ChatPerf.jetztNs()), anzahl: nachrichten.count) }
         if registrieren, Self.badgeBetroffen(ops.map(\.art)) { badgeAktualisieren() }
     }
 
@@ -344,10 +346,15 @@ final class ChatModell {
         let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !getrimmt.isEmpty else { return }
         let gewaehlt = effekt ?? ChatEffekt.erkennen(getrimmt)
-        Raum.shared.senden(
+        guard let ich = Raum.shared.ich else { return }
+        let nachrichtID = UUID().uuidString
+        let op = Op.neu(
             "nachricht.neu",
-            NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, antwortAuf: antwortAuf, effekt: gewaehlt?.rawValue)
+            NachrichtNeuPayload(id: nachrichtID, text: getrimmt, antwortAuf: antwortAuf, effekt: gewaehlt?.rawValue),
+            von: ich
         )
+        ChatPerf.shared.beginn(opId: op.id, messageId: nachrichtID, geladen: nachrichten.count)
+        Raum.shared.einreihen(op)
     }
 
     func bearbeiten(_ id: String, text: String) {

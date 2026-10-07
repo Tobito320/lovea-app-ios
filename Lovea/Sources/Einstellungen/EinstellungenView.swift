@@ -141,6 +141,7 @@ private struct SonstigesErweitert: View {
                 // section instead of sitting permanently in the production settings list.
                 if zeigtEntwickler {
                     Toggle("Leistungsanzeige", isOn: $showsHUD)
+                    NavigationLink("Chat-Leistung") { ChatPerfView() }
                     Menu {
                         ForEach(Person.allCases, id: \.self) { kandidat in
                             Button(kandidat.name) { session.waehlen(kandidat) }

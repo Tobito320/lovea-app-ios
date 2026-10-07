@@ -308,7 +308,7 @@ final class Raum {
             guard let self else { return }
             await self.warteschlange.rein(op)
             await self.wartetAktualisieren()
-            if self.verbunden { self.sendeOp(op) }
+            if self.verbunden { ChatPerf.shared.anfrageGestartet(opId: op.id); self.sendeOp(op) }
         }
     }
 
@@ -516,6 +516,7 @@ final class Raum {
         // `Op.id` (see `beobachten`'s contract above), and the paging cursor below only ever moves
         // AFTER `log.anhaengen` — so a crash between these two lines just means the same ops get
         // redelivered (log) or re-sent (queue) next time, never lost, never double-shown.
+        for op in ops where op.seq != nil { ChatPerf.shared.antwortErhalten(opId: op.id) }
         liefereBatch(ops)
         await log.anhaengen(ops)
         await warteschlange.rausBatch(ids: ops.map(\.id))
