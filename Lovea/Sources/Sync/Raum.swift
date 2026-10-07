@@ -76,7 +76,8 @@ final class Raum {
         schluessel: String = Raum.plistSchluessel(),
         medienBeimStartFortsetzen: Bool = true,
         pingAbstand: Duration = .seconds(10),
-        pongFrist: Duration = .seconds(5)
+        pongFrist: Duration = .seconds(5),
+        nachholFrist: Duration = .seconds(10)
     ) {
         self.transport = transport ?? WebSocketTransport()
         self.log = log
