@@ -12,7 +12,7 @@ struct DatesView: View {
     @State private var letzteGezogene: [String] = []
     @State private var wuerfelDreht = false
     @State private var zeigtMachenWir = false
-    @State private var zeigtListe = false
+    @State private var zeigtNotizen = false
 
     var body: some View {
         let ideen = speicher.ideen
@@ -54,8 +54,8 @@ struct DatesView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button { zeigtListe = true } label: { Image(systemName: "list.bullet") }
-                    .accessibilityLabel("Unsere Liste")
+                Button { zeigtNotizen = true } label: { Image(systemName: "note.text") }
+                    .accessibilityLabel("Notizen")
             }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { blatt = DatesBlattZiel(idee: nil) } label: { Image(systemName: "plus") }
@@ -82,7 +82,7 @@ struct DatesView: View {
         .sheet(isPresented: $zeigtMachenWir) {
             if let gewuerfelt { MachenWirBlatt(text: gewuerfelt.text) }
         }
-        .sheet(isPresented: $zeigtListe) { ListenBlatt() }
+        .sheet(isPresented: $zeigtNotizen) { NotizenBlatt() }
     }
 
     // MARK: - Würfel
