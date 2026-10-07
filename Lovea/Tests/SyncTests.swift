@@ -299,6 +299,28 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(transport.urls.count, 1)
     }
 
+    func testMissingNextPageReconnectsFromPersistedPageCursor() async throws {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        await log.vollstaendigBisSeqSetzen(7)
+        let raum = Raum(
+            transport: transport, log: log, warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false, pingAbstand: .seconds(10),
+            nachholFrist: .milliseconds(120)
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+        await transport.receive(makeOpsMessage(ops: [(id: "page-8", seq: 8)], mehr: true, seite: true))
+        XCTAssertTrue(transport.sent.contains { $0.contains("\"seit\":8") })
+        await transport.receive("pong")
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(transport.urls.count, 2)
+        XCTAssertEqual(transport.urls.last?.query, "seit=8")
+    }
+
     func testRepeatedCatchUpTimeoutBacksOffAndIgnoresOldSocket() async throws {
         let dir = makeTempDirectory()
         let transport = FakeTransport()

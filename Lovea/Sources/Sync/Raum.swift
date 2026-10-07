@@ -213,17 +213,13 @@ final class Raum {
         hintergrundAufgabe = .invalid
     }
 
-    /// Connects (if needed) and waits for a real catch-up — the first page response after
-    /// connecting, or `timeout`, whichever comes first — instead of returning immediately.
+    /// Requests catch-up even on an open socket and waits for a real page or `timeout`.
     /// Meant for a silent push's `didReceiveRemoteNotification`, so iOS doesn't suspend the app
     /// again before anything was actually fetched.
     func nachholenBisFertig(timeout: Duration = .seconds(20)) async {
         guard eingerichtet, ich != nil else { return }
-        // Already caught up / actively connected, nothing to wait for. `leer()` still puts just-queued
-        // ops on disk (audit #7): a HealthKit background launch never passes through `aktiv(false)`.
-        if verbunden { await leer(); return }
-        start()
         let zaehlerVorher = catchUpZaehler
+        nachholenJetzt()
         let deadline = ContinuousClock.now + timeout
         while catchUpZaehler == zaehlerVorher, ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(200))
@@ -372,9 +368,8 @@ final class Raum {
             }
         )
         // NOT backoff = 1 here (I-1): the connection isn't confirmed yet at this point, only
-        // attempted. Resetting here made scheduleReconnect always see backoff == 1, so it never
-        // actually grew past 1 s between retries. It resets on the first received frame instead,
-        // in nachrichtAnwenden — real proof the connection is up.
+        // attempted. A real catch-up page resets backoff in nachrichtAnwenden; pongs cannot
+        // confirm that pending messages were delivered.
         verbunden = true
         if let token = geraeteToken { sende(GeraetNachricht(token: token)) }
         reiheOhneWarten { [weak self] in
