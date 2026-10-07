@@ -7,6 +7,7 @@ struct HabitDetailView: View {
 
     @State private var blatt: HabitBlatt?
     @State private var ausblendenFragen = false
+    @State private var loeschenFragen = false
     @Environment(\.dismiss) private var dismiss
     private var health: HealthModell { HealthModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
@@ -47,6 +48,15 @@ struct HabitDetailView: View {
             }
         } message: {
             Text("Die Historie bleibt. Über das Auge bei den Habits blendest du sie wieder ein.")
+        }
+        .confirmationDialog("Gewohnheit löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
+            Button("Löschen", role: .destructive) {
+                health.loeschen(habit.id)
+                Haptik.leicht()
+                dismiss()
+            }
+        } message: {
+            Text("\(habit.name) und der Verlauf gehen für euch beide verloren.")
         }
     }
 
@@ -133,6 +143,12 @@ struct HabitDetailView: View {
             }
             Button(role: .destructive) { ausblendenFragen = true } label: {
                 Label("Ausblenden", systemImage: "eye.slash").frame(maxWidth: .infinity, minHeight: 44)
+            }
+            if !habit.istEingebaut {
+                Button(role: .destructive) { loeschenFragen = true } label: {
+                    Label("Gewohnheit löschen", systemImage: "trash").frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .tint(.red)
             }
         }
         .buttonStyle(.bordered)

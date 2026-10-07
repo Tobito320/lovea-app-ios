@@ -149,7 +149,10 @@ struct HabitSetzenD: Codable, Sendable { var art: String; var datum: String; var
 /// `habit.ausblenden {id, aus}`
 struct HabitAusblendenD: Codable, Sendable { var id: String; var aus: Bool }
 
-/// Pure fold of the four habit ops, so tests feed real `Op`s without `Raum`. Every slot follows
+/// `habit.loeschen {id}` — Tombstone für alle: ältere Builds kennen den Op nicht und ignorieren ihn.
+struct HabitLoeschenD: Codable, Sendable { var id: String }
+
+/// Pure fold of the five habit ops, so tests feed real `Op`s without `Raum`. Every slot follows
 /// `HealthFaltung.gewinner` (highest `seq` wins, arrival order doesn't matter).
 struct HabitFaltung: Sendable {
     /// `habit.setzen` per habit id, then person and day — the same per-day fold Gym and Wasser always
@@ -162,6 +165,9 @@ struct HabitFaltung: Sendable {
     /// Hidden per id and person: `habit.ausblenden` hides only for whoever sent it, so nobody can
     /// take a shared habit (Gym with Ahmed's FitX days) away from the other one.
     private var ausblendungen: [String: [Person: TagesEintrag<Bool>]] = [:]
+
+    /// Ids mit `habit.loeschen`; eingebaute Habits lassen sich nicht löschen. Die Historie bleibt in `werte`.
+    private var geloescht: Set<String> = []
 
     mutating func anwenden(_ op: Op) {
         let gesendet = Datum.text(op.zeit)
@@ -178,6 +184,9 @@ struct HabitFaltung: Sendable {
         case "habit.ausblenden":
             guard let d = op.daten(HabitAusblendenD.self) else { return }
             HealthFaltung.gewinner(&ausblendungen[d.id, default: [:]][op.von], TagesEintrag(seq: op.seq, von: op.von, datum: gesendet, gesendetAm: gesendet, wert: d.aus, id: op.id))
+        case "habit.loeschen":
+            guard let d = op.daten(HabitLoeschenD.self), !Habit.eingebaut.contains(where: { $0.id == d.id }) else { return }
+            geloescht.insert(d.id)
         default:
             break
         }
@@ -186,7 +195,7 @@ struct HabitFaltung: Sendable {
     /// Every habit incl. Gym and Wasser; `ausgeblendet` as seen by `ich`.
     func habits(ich: Person) -> [String: Habit] {
         var alle = Dictionary(uniqueKeysWithValues: Habit.eingebaut.map { ($0.id, $0) })
-        for (id, eintrag) in definitionen { alle[id] = eintrag.wert }
+        for (id, eintrag) in definitionen where !geloescht.contains(id) { alle[id] = eintrag.wert }
         return alle.mapValues { habit in
             var habit = habit
             habit.ausgeblendet = ausblendungen[habit.id]?[ich]?.wert ?? false
