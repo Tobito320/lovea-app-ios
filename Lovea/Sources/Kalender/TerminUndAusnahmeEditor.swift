@@ -34,12 +34,17 @@ struct TerminEditor: View {
                         ForEach(Self.typen, id: \.self) { Text($0.capitalized) }
                     }
                 }
-                Section("Für") {
-                    ForEach(Person.allCases, id: \.self) { person in
-                        Toggle(person.name, isOn: Binding(
-                            get: { fuer.contains(person) },
-                            set: { an in if an { fuer.insert(person) } else { fuer.remove(person) } }
-                        ))
+                Section {
+                    HStack {
+                        Text("Für")
+                        Spacer()
+                        ForEach(Person.allCases, id: \.self) { person in
+                            Toggle(person.name, isOn: Binding(
+                                get: { fuer.contains(person) },
+                                set: { an in if an { fuer.insert(person) } else { fuer.remove(person) } }
+                            ))
+                            .toggleStyle(.button)
+                        }
                     }
                 }
                 Section("Wann") {

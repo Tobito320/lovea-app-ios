@@ -176,7 +176,7 @@ struct ChatBlaetter {
 
 private struct Unterhaltung: View {
     let ich: Person
-    /// Back to the chat list (header chevron, left-edge swipe).
+    /// Back to the chat list (header chevron, native iOS back swipe).
     let onZurueck: () -> Void
     private let modell = ChatModell.shared
 
@@ -185,13 +185,7 @@ private struct Unterhaltung: View {
     @State private var fokus: ChatFokus?
     @State private var blatt = ChatBlaetter()
     @State private var sucheAktiv = false
-    @State private var flaeche = ChatFlaeche(breite: 390, ursprung: .zero)
-    /// Left-edge swipe back to the list: the finger's rightward distance and height (local).
-    @State private var randWeg: CGFloat = 0
-    @State private var randY: CGFloat = 0
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    private static let randZone: CGFloat = 32
-    private static let randSchwelle: CGFloat = 80
+    @State private var breite: CGFloat = 390
     /// Short confirmation under the header ("In Aufnahmen gespeichert").
     @State private var toast: String?
 
@@ -213,19 +207,8 @@ private struct Unterhaltung: View {
             // Chat-Tempo: one backdrop lookup for the whole list instead of 3-4 per bubble, each of
             // which also watched every shared setting. nil (switch off) = every bubble looks it up.
             .environment(\.chatBackdrop, ChatTempo.an ? Backdrops.aktuell : nil)
-            .environment(\.chatBreite, flaeche.breite)
-            // Width and origin only: the old rect also carried `maxY`, which moves with every
-            // frame of the keyboard, so every keyboard frame rebuilt the conversation and all rows
-            // (nothing read the height any more).
-            .onGeometryChange(for: ChatFlaeche.self) { geo in
-                let rahmen = geo.frame(in: .global)
-                return ChatFlaeche(breite: rahmen.width, ursprung: rahmen.origin)
-            } action: { flaeche = $0 }
-            .offset(x: reduceMotion ? 0 : min(randWeg, 120) * 0.35)
-            .overlay(alignment: .topLeading) { if randWeg > 0 { randPfeil } }
-            // Simultaneous: taps (chevron, camera, bubbles) and the list's scrolling pass through;
-            // only a rightward drag that starts in the left 32 pt counts.
-            .simultaneousGesture(randGeste)
+            .environment(\.chatBreite, breite)
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { breite = $0 }
             .toolbar(.hidden, for: .navigationBar)
             // The open conversation is full screen; the tab bar returns on the chat list.
             .toolbar(.hidden, for: .tabBar)
@@ -250,53 +233,11 @@ private struct Unterhaltung: View {
         )
     }
 
-    /// Back to the chat list (header chevron and left-edge swipe), so leaving never gets lost.
+    /// Back to the chat list from the header; the native iOS swipe pops the same destination.
     private func zurueck() {
         Haptik.leicht()
         ChatTastatur.schliessen()
         onZurueck()
-    }
-
-    /// Swipe right from the left 32 pt to leave the chat. Rows ignore drags starting there (their
-    /// reply swipe needs `x > 32`), so the two never compete.
-    private var randGeste: some Gesture {
-        DragGesture(minimumDistance: 12, coordinateSpace: .global)
-            .onChanged { wert in
-                guard wert.startLocation.x - flaeche.ursprung.x < Self.randZone,
-                      wert.translation.width > abs(wert.translation.height) || randWeg > 0
-                else { return }
-                let weg = max(0, wert.translation.width)
-                if randWeg < Self.randSchwelle, weg >= Self.randSchwelle { Haptik.leicht() }
-                randWeg = weg
-                randY = wert.location.y - flaeche.ursprung.y
-            }
-            .onEnded { wert in
-                guard randWeg > 0 else { return }
-                if randWeg >= Self.randSchwelle || wert.predictedEndTranslation.width > 220 {
-                    randWeg = 0
-                    zurueck()
-                } else {
-                    withAnimation(reduceMotion ? .easeOut(duration: 0.15) : Feder.schnell) { randWeg = 0 }
-                }
-            }
-    }
-
-    /// Circle with a chevron at the left edge: follows the finger vertically, grows with the drag and
-    /// fills once past the threshold (Reduce Motion: fades only).
-    private var randPfeil: some View {
-        let fortschritt = min(randWeg / Self.randSchwelle, 1)
-        let erreicht = randWeg >= Self.randSchwelle
-        return Image(systemName: "chevron.left")
-            .font(.system(size: 17, weight: .bold))
-            .foregroundStyle(erreicht ? Color.white : Color.primary)
-            .frame(width: 44, height: 44)
-            .background(erreicht ? AnyShapeStyle(Color.loveaRose) : AnyShapeStyle(.regularMaterial), in: .circle)
-            .scaleEffect(reduceMotion ? 1 : 0.6 + 0.4 * fortschritt)
-            .opacity(Double(fortschritt))
-            .offset(x: 10 + (reduceMotion ? 0 : 24 * fortschritt), y: randY - 22)
-            .animation(Feder.schnell, value: erreicht)
-            .allowsHitTesting(false)
-            .accessibilityHidden(true)
     }
 
     private var oben: some View {
@@ -738,11 +679,6 @@ private struct NachrichtenListe: View {
 }
 
 /// Width and window origin of the conversation (the photo cap and the left-edge swipe need them).
-private struct ChatFlaeche: Equatable, Sendable {
-    var breite: CGFloat
-    var ursprung: CGPoint
-}
-
 /// Visible height between the bars, and whether the list sits at its bottom.
 private struct ListenLage: Equatable {
     let sichtbar: CGFloat
