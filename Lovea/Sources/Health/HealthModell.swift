@@ -82,7 +82,7 @@ final class HealthModell {
         StartProtokoll.marke("healthModell.init.vor")
         Raum.shared.beobachten(["schritte.setzen"]) { [weak self] op in self?.schritteOpAnwenden(op) }
         Raum.shared.beobachten(["schlaf.setzen"]) { [weak self] op in self?.schlafOpAnwenden(op) }
-        Raum.shared.beobachten(["habit.setzen", "habit.anlegen", "habit.aendern", "habit.ausblenden"]) { [weak self] op in
+        Raum.shared.beobachten(["habit.setzen", "habit.anlegen", "habit.aendern", "habit.ausblenden", "habit.loeschen"]) { [weak self] op in
             self?.habitFaltung.anwenden(op)
             self?.habitOpMerken(op)
         }
@@ -234,6 +234,7 @@ final class HealthModell {
 
     func anlegen(_ habit: Habit) { Raum.shared.senden("habit.anlegen", habit) }
     func aendern(_ habit: Habit) { Raum.shared.senden("habit.aendern", habit) }
+    func loeschen(_ id: String) { Raum.shared.senden("habit.loeschen", HabitLoeschenD(id: id)) }
     func ausblenden(_ id: String, _ aus: Bool) { Raum.shared.senden("habit.ausblenden", HabitAusblendenD(id: id, aus: aus)) }
 
     func setzeGym(datum: String, an: Bool) { setzeHabit(Habit.gym.id, datum: datum, wert: an ? 1 : 0) }

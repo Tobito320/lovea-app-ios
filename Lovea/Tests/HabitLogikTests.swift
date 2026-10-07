@@ -129,6 +129,38 @@ final class HabitLogikTests: XCTestCase {
         XCTAssertTrue(faltung.sichtbar(fuer: .ahmed).contains { $0.id == "h-1" }, "wieder eingeblendet")
     }
 
+    func testLoeschenEntferntHabitAusListeUndAlleAnsichten() {
+        let faltung = gefaltet([
+            op("habit.anlegen", eigene("h-1"), seq: 1),
+            op("habit.anlegen", eigene("h-2", name: "Yoga"), seq: 2),
+            setzen("h-1", "2026-09-20", 1, seq: 3),
+            op("habit.loeschen", #"{"id":"h-1"}"#, von: .annika, seq: 4),
+        ])
+        XCTAssertNil(faltung.habits(ich: .ahmed)["h-1"])
+        XCTAssertNil(faltung.habits(ich: .annika)["h-1"])
+        XCTAssertFalse(faltung.sichtbar(fuer: .ahmed).contains { $0.id == "h-1" })
+        XCTAssertEqual(faltung.sichtbar(fuer: .ahmed).filter { !$0.istEingebaut }.map(\.id), ["h-2"])
+    }
+
+    func testLoeschenGiltAuchBeiSpaeterAnkunftDerDefinition() {
+        let faltung = gefaltet([
+            op("habit.loeschen", #"{"id":"h-1"}"#, seq: 5),
+            op("habit.anlegen", eigene("h-1"), seq: 1),
+        ])
+        XCTAssertNil(faltung.habits(ich: .ahmed)["h-1"])
+    }
+
+    func testEingebauteLassenSichNichtLoeschen() {
+        let faltung = gefaltet([op("habit.loeschen", #"{"id":"gym"}"#, seq: 1)])
+        XCTAssertTrue(faltung.sichtbar(fuer: .ahmed).contains { $0.id == "gym" })
+    }
+
+    func testOpStandOhneLoeschenBleibtGueltig() {
+        let faltung = gefaltet([op("habit.anlegen", eigene("h-1"), seq: 1), setzen("h-1", "2026-09-20", 1, seq: 2)])
+        XCTAssertNotNil(faltung.habits(ich: .ahmed)["h-1"])
+        XCTAssertEqual(faltung.werte["h-1"]?[.ahmed]?["2026-09-20"]?.wert, 1)
+    }
+
     func testSichtbarSortiertGymWasserDannNachAnlage() {
         let faltung = gefaltet([
             op("habit.anlegen", eigene("h-b", name: "Zweite"), seq: 20),
