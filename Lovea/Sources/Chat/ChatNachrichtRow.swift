@@ -41,6 +41,7 @@ struct ChatNachrichtRow: View, Equatable {
     let aktionen: ChatZeilenAktionen
 
     @State private var wischOffset: CGFloat = 0
+    @State private var wischAchse = WischAchse.offen
     @State private var herzSichtbar = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -221,14 +222,18 @@ struct ChatNachrichtRow: View, Equatable {
         DragGesture(minimumDistance: 20, coordinateSpace: .global)
             .onChanged { wert in
                 // The left 32 pt belong to the leave-chat swipe (`Unterhaltung.randGeste`).
-                guard wert.startLocation.x > 32, !ScrubSperre.aktiv, abs(wert.translation.width) > abs(wert.translation.height) else { return }
+                guard wert.startLocation.x > 32, !ScrubSperre.aktiv else { return }
+                if wischAchse == .offen { wischAchse = WischAchse.erkennen(breite: wert.translation.width, hoehe: wert.translation.height) }
+                guard wischAchse == .waagerecht else { return }
                 let breite = wert.translation.width
                 let neu = breite > 0 ? min(breite * 0.8, 84) : max(breite * 0.8, -64)
                 if wischOffset < Self.antwortSchwelle, neu >= Self.antwortSchwelle { Haptik.mittel() }
                 wischOffset = neu
             }
             .onEnded { _ in
-                if wischOffset >= Self.antwortSchwelle { aktionen.antworten(nachricht) }
+                let waagerecht = wischAchse == .waagerecht
+                wischAchse = .offen
+                if waagerecht, wischOffset >= Self.antwortSchwelle { aktionen.antworten(nachricht) }
                 withAnimation(Feder.schnell) { wischOffset = 0 }
             }
     }

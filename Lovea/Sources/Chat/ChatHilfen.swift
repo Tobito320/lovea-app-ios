@@ -32,6 +32,31 @@ enum ListenAutoScroll {
     }
 }
 
+/// Older messages load by themselves while scrolling up: one page as soon as the top is within
+/// `schwelle` points, so the next page is there before the finger reaches the top. No timer, no
+/// network — the history is already on the device, only the built window grows.
+enum ListenNachladen {
+    static let schwelle: CGFloat = 1200
+
+    static func nahOben(abstandOben: CGFloat) -> Bool { abstandOben < schwelle }
+
+    /// Only on the step into the zone (not on every scroll frame inside it) and only if there is more.
+    static func sollMehr(warNahOben: Bool, istNahOben: Bool, nochAelteres: Bool) -> Bool {
+        istNahOben && !warNahOben && nochAelteres
+    }
+}
+
+/// The reply swipe on a bubble. The first 20 pt of a drag decide the axis for the whole touch: only a
+/// clearly sideways start (twice as wide as tall) is a swipe. Before, every diagonal scroll drag
+/// moved the row and could trigger "Antworten" on release.
+enum WischAchse {
+    case offen, waagerecht, senkrecht
+
+    static func erkennen(breite: CGFloat, hoehe: CGFloat) -> WischAchse {
+        abs(breite) > 2 * abs(hoehe) ? .waagerecht : .senkrecht
+    }
+}
+
 /// "Chat-Tempo (Test)": the switch in the settings (default on, off = the old behaviour) and the
 /// flag "the message list is moving". While it moves, the main thread only scrolls: the particle
 /// backdrop pauses, the live figures draw slower and GIFs hold still. Read it only in those leaf

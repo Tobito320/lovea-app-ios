@@ -135,3 +135,36 @@ final class ChatZeileGleichheitTests: XCTestCase {
         XCTAssertFalse(zeile(n) == zeile(n, vorher: davor))
     }
 }
+
+/// p39: older messages load on their own when scrolling up; a vertical drag never counts as a reply swipe.
+final class ChatNachladenTests: XCTestCase {
+    func testLaedtBeimEintrittInDieNaheOben() {
+        XCTAssertTrue(ListenNachladen.sollMehr(warNahOben: false, istNahOben: true, nochAelteres: true))
+    }
+
+    func testLaedtNichtBeiJedemFrameInDerZone() {
+        XCTAssertFalse(ListenNachladen.sollMehr(warNahOben: true, istNahOben: true, nochAelteres: true))
+    }
+
+    func testLaedtNichtOhneAelteres() {
+        XCTAssertFalse(ListenNachladen.sollMehr(warNahOben: false, istNahOben: true, nochAelteres: false))
+    }
+
+    func testLaedtNichtWeitWeg() {
+        XCTAssertFalse(ListenNachladen.nahOben(abstandOben: ListenNachladen.schwelle))
+        XCTAssertTrue(ListenNachladen.nahOben(abstandOben: ListenNachladen.schwelle - 1))
+    }
+
+    func testSenkrechtesZiehenIstKeinWischen() {
+        XCTAssertEqual(WischAchse.erkennen(breite: 8, hoehe: 40), .senkrecht)
+    }
+
+    func testSchraegesZiehenIstKeinWischen() {
+        // Vorher reichte breite > hoehe: 30 zu 25 verschob die Zeile und konnte "Antworten" ausloesen.
+        XCTAssertEqual(WischAchse.erkennen(breite: 30, hoehe: 25), .senkrecht)
+    }
+
+    func testWaagerechtesZiehenIstWischen() {
+        XCTAssertEqual(WischAchse.erkennen(breite: -40, hoehe: 10), .waagerecht)
+    }
+}
