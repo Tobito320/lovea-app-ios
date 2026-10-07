@@ -965,7 +965,7 @@ struct WorkoutSatzZeile: View {
     /// "Satz 0:42 · Pause 1:58".
     private var zeiten: String? {
         guard fertig else { return nil }
-        WorkoutLogik.zeitenText(sek: satz.sek, pause: satz.pause, satzzeit: satzzeit)
+        return WorkoutLogik.zeitenText(sek: satz.sek, pause: satz.pause, satzzeit: satzzeit)
     }
 }
 
