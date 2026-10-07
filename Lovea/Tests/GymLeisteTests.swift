@@ -3,6 +3,13 @@ import XCTest
 
 /// R7: reine Entscheidung für die Gym-Leiste (`GymLeisteLogik.zustand`), ohne Gerät oder Modelle.
 final class GymLeisteTests: XCTestCase {
+    func testSeitlichWischenDocktDieLeisteAlsKleinenKnopf() {
+        XCTAssertEqual(GymLeisteLogik.seite(wisch: CGSize(width: -90, height: 10)), "links")
+        XCTAssertEqual(GymLeisteLogik.seite(wisch: CGSize(width: 90, height: -5)), "rechts")
+        XCTAssertNil(GymLeisteLogik.seite(wisch: CGSize(width: 30, height: 0)), "zu kurz")
+        XCTAssertNil(GymLeisteLogik.seite(wisch: CGSize(width: 80, height: 120)), "eher senkrecht")
+    }
+
     func testWederNochNichtWeggewischtIstAus() {
         XCTAssertEqual(GymLeisteLogik.zustand(atGym: false, laufendeSeit: nil, weggewischt: false), .aus)
     }

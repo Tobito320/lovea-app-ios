@@ -107,6 +107,8 @@ struct AppRootView: View {
         // `SyncStatusZeile` in `ChatTab.swift`: verdrängt den Inhalt, statt ihn zu überdecken, und
         // bleibt leer (keine Höhe), wenn `GymLeisteView` gerade nichts zeigt.
         .safeAreaInset(edge: .top, spacing: 0) { GymLeisteView() }
+        // Eingeklappt (seitlich weggewischt): kleiner Knopf am Rand, mittig in der Höhe.
+        .overlay(alignment: .center) { GymLeisteKnopf() }
     }
 }
 
