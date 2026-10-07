@@ -94,8 +94,10 @@ final class ChatModell {
     /// an optimistic send and its server echo share one op id, but only `nachricht.neu`'s own
     /// `id` field is what edits/reactions/deletes reference).
     func anwenden(_ ops: [Op]) {
+        let foldStart = ChatPerf.jetztNs()
         for op in ops { anwendenEins(op) }
         nachrichten = byID.values.sorted { ($0.seq ?? Int.max, $0.zeit) < ($1.seq ?? Int.max, $1.zeit) }
+        if registrieren { ChatPerf.shared.faltung(ms: ChatPerf.ms(von: foldStart, bis: ChatPerf.jetztNs()), anzahl: nachrichten.count) }
         if registrieren { badgeAktualisieren() }
     }
 
@@ -226,7 +228,11 @@ final class ChatModell {
     func nachrichtSenden(text: String, antwortAuf: String? = nil) {
         let getrimmt = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !getrimmt.isEmpty else { return }
-        Raum.shared.senden("nachricht.neu", NachrichtNeuPayload(id: UUID().uuidString, text: getrimmt, antwortAuf: antwortAuf))
+        guard let ich = Raum.shared.ich else { return }
+        let nachrichtID = UUID().uuidString
+        let op = Op.neu("nachricht.neu", NachrichtNeuPayload(id: nachrichtID, text: getrimmt, antwortAuf: antwortAuf), von: ich)
+        ChatPerf.shared.beginn(opId: op.id, messageId: nachrichtID, geladen: nachrichten.count)
+        Raum.shared.einreihen(op)
     }
 
     /// Z-27.2: Zeitkapsel — `oeffnetAm` ist der Öffnungstag (Europe/Berlin), verschlossen bis dahin.

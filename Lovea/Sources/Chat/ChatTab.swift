@@ -29,7 +29,9 @@ struct ChatTab: View {
             .navigationTitle("Chats")
         }
         // Search mode ends with the conversation; not in its onDisappear, which also fires for covers.
-        .onChange(of: offen) { _, auf in if !auf { sucheAktiv = false } }
+        .onChange(of: offen) { _, auf in
+            if !auf { sucheAktiv = false } else { ChatPerf.shared.oeffnenBeginn() }
+        }
         .sheet(isPresented: $profilOffen) {
             if let ich = Raum.shared.ich { PartnerProfilView(person: ich.partner) }
         }
@@ -451,8 +453,12 @@ private struct NachrichtenListe: View {
                 zielID = nil
                 springen(zu: id, proxy: proxy)
             }
+            .onAppear { ChatPerf.shared.ersteListeSichtbar() }
+            // Diagnose: Bestätigung vom Server verarbeitet (schließt jeden Trace einmalig ab).
+            .onChange(of: ChatPerf.shared.antwortZaehler) { _, _ in ChatPerf.shared.gerendert() }
             // Own send: jump to the bottom like Snapchat, even when scrolled up.
             .onChange(of: modell.nachrichten.last?.id) { _, id in
+                if let id { ChatPerf.shared.lokalSichtbar(messageId: id) }
                 guard let id, modell.nachrichten.last?.von == ich else { return }
                 let ziel = gruppeID(fuer: id)
                 withAnimation(.snappy) { proxy.scrollTo(ziel, anchor: .bottom) }

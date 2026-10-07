@@ -301,6 +301,7 @@ struct ChatEingabeleiste: View {
     /// re-uploaded), then the leftover text. Only the very first thing sent carries the reply
     /// reference. Clears the persisted draft once everything is queued.
     private func senden() {
+        ChatPerf.shared.tippen()
         // Final-Review I-6: a restored draft photo/voice note still downloading would be dropped by
         // the clear below. Hold the send until it is there (Enter again then sends everything).
         guard ausstehendeMedien.isEmpty, ausstehendeSprache == nil else {
