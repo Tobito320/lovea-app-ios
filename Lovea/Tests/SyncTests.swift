@@ -328,6 +328,36 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(transport.urls.last?.query, "seit=7")
     }
 
+    func testSilentPushWaitsForPageOnConnectedSocket() async throws {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let raum = Raum(
+            transport: transport, log: OpLog(rootURL: dir),
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+
+        var finished = false
+        let push = Task { @MainActor in
+            await raum.nachholenBisFertig(timeout: .seconds(1))
+            finished = true
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        raum.nachholenJetzt()
+        XCTAssertEqual(transport.sent.filter { $0.contains("\"nachholen\"") }.count, 1)
+        await transport.receive("pong")
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertFalse(finished)
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+        await push.value
+        XCTAssertTrue(finished)
+    }
+
     func testPagingDeliversThreeBatchesForTwelveHundredOps() async {
         let dir = makeTempDirectory()
         let transport = FakeTransport()
