@@ -29,6 +29,7 @@ struct ChatTab: View {
         .onChange(of: AppNavigation.shared.kameraOeffnen, initial: true) { _, an in if an { offen = true } }
         .onChange(of: AppNavigation.shared.gespraechOeffnen, initial: true) { _, an in if an { offen = true; AppNavigation.shared.gespraechOeffnen = false } }
         .onChange(of: AppNavigation.shared.partnerProfilOeffnen, initial: true) { _, an in if an { offen = true } }
+        .onChange(of: offen) { _, auf in if auf { ChatPerf.shared.oeffnenBeginn() } }
     }
 }
 
@@ -657,7 +658,11 @@ private struct NachrichtenListe: View {
             }
             // Own send: jump to the bottom like Snapchat, even when scrolled up. Not for grey
             // system rows ("hat in Aufnahmen gespeichert"): saving must leave the list where it was.
+            .onAppear { ChatPerf.shared.ersteListeSichtbar() }
+            // Diagnose: Server-Bestätigung verarbeitet (schließt jeden Trace einmalig ab).
+            .onChange(of: ChatPerf.shared.antwortZaehler) { _, _ in ChatPerf.shared.gerendert() }
             .onChange(of: modell.nachrichten.last?.id) { _, id in
+                if let id { ChatPerf.shared.lokalSichtbar(messageId: id) }
                 guard let id, let letzte = modell.nachrichten.last, letzte.von == ich, letzte.system == nil else { return }
                 let ziel = gruppeID(fuer: id)
                 withAnimation(Feder.schnell) { proxy.scrollTo(ziel, anchor: .bottom) }
