@@ -30,7 +30,15 @@ final class PunkteModell {
     private init() {
         Raum.shared.beobachten(["spiel.ergebnis"]) { [weak self] op in self?.spielErgebnisAnwenden(op) }
         Raum.shared.beobachten(["shop.kauf"]) { [weak self] op in self?.kaufAnwenden(op) }
+        Raum.shared.beobachten([DankLogik.art]) { [weak self] op in self?.dankAnwenden(op) }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            self?.dankSendenFallsFehlt()
+        }
     }
+
+    private var dankNachId: [String: Person] = [:]
+    private var dankEintraege: [PunkteLogik.Eintrag] { DankLogik.eintraege(dankNachId.map { (id: $0.key, fuer: $0.value) }) }
 
     private var heute: String { Datum.text(Date()) }
 
@@ -59,6 +67,7 @@ final class PunkteModell {
         for (person, punkte) in ChallengeLogik.punkteBonus(wochen: wochen, monate: monate, serien: serien) {
             summe[person, default: 0] += punkte
         }
+        for e in dankEintraege { summe[e.von, default: 0] += e.punkte }
         return summe
     }
 
@@ -89,6 +98,7 @@ final class PunkteModell {
         for bonus in serien {
             eintraege.append(PunkteLogik.Eintrag(datum: bonus.datum, von: bonus.von, grund: "Serie \(bonus.laenge) Tage", punkte: bonus.punkte))
         }
+        eintraege += dankEintraege
         let preis: (String) -> Int? = { ShopKatalog.artikel($0)?.preis }
         let urteil = besitzErgebnis(stand: stand, preis: preis)
         for kauf in kaeufe where !urteil.abgelehnt.contains(kauf.id) {
@@ -198,6 +208,18 @@ final class PunkteModell {
             spiel: d.id, gespielt: d.gespielt, ahmed: d.punkte.ahmed, annika: d.punkte.annika,
             datum: Datum.text(op.zeit), seq: op.seq ?? spielStaende[op.id]?.seq, opId: op.id
         )
+    }
+
+    private func dankAnwenden(_ op: Op) {
+        guard let d = op.daten(DankLogik.D.self) else { return }
+        dankNachId[op.id] = d.fuer
+    }
+
+    /// Läuft einmal nach dem Log-Replay; was schon im Log steht (anderes Gerät, Neuinstallation), wird nicht neu gesendet.
+    private func dankSendenFallsFehlt() {
+        guard let ich = Raum.shared.ich else { return }
+        let gebucht = Set(dankEintraege.map(\.von))
+        for person in DankLogik.fehlende(gebucht: gebucht) { Raum.shared.einreihen(DankLogik.op(fuer: person, von: ich)) }
     }
 
     private func kaufAnwenden(_ op: Op) {

@@ -553,6 +553,7 @@ struct WorkoutUebungView: View {
     @State private var animation: Uebung?
     @State private var scheibenOffen = false
     @AppStorage("gym.rpe") private var rpeAn = true
+    @AppStorage(WorkoutLogik.satzzeitSchluessel) private var satzzeitAn = false
     @FocusState private var fokus: Bool
     @Environment(\.scenePhase) private var phase
     @Environment(\.dismiss) private var dismiss
@@ -577,6 +578,7 @@ struct WorkoutUebungView: View {
                 if !u.extra {
                     TextField("Notizen hier hinzufügen", text: $notiz, axis: .vertical).font(.subheadline)
                     pausenMenue(u)
+                    Toggle("Satz-Zeit", isOn: $satzzeitAn).font(.subheadline.weight(.medium))
                 }
             }
             .listRowSeparator(.hidden)
@@ -693,6 +695,7 @@ struct WorkoutUebungView: View {
             satz: bindung(i),
             vorher: u.vorher.indices.contains(i) ? u.vorher[i] : nil,
             rpe: rpeAn,
+            satzzeit: satzzeitAn,
             laeuft: laufenderSatz == i,
             rekord: rekord(i, frueher),
             typ: { t in
@@ -882,6 +885,7 @@ struct WorkoutSatzZeile: View {
     @Binding var satz: PlanSatz
     let vorher: PlanSatz?
     var rpe = true
+    var satzzeit = false
     var laeuft = false
     /// "Schwerstes Gewicht": dieser Satz bricht einen persönlichen Rekord.
     var rekord: String? = nil
@@ -961,8 +965,7 @@ struct WorkoutSatzZeile: View {
     /// "Satz 0:42 · Pause 1:58".
     private var zeiten: String? {
         guard fertig else { return nil }
-        let teile = [satz.sek.map { "Satz \(WorkoutLogik.zeitText($0))" }, satz.pause.map { "Pause \(WorkoutLogik.zeitText($0))" }].compactMap { $0 }
-        return teile.isEmpty ? nil : teile.joined(separator: " · ")
+        WorkoutLogik.zeitenText(sek: satz.sek, pause: satz.pause, satzzeit: satzzeit)
     }
 }
 
