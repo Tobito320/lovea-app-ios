@@ -229,6 +229,32 @@ final class SyncTests: XCTestCase {
 
     // MARK: - Paging (Z-2.2, Review-Fokus 3)
 
+    func testConnectedRefreshUsesCompleteCursorAndDedupesRequests() async {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        await log.vollstaendigBisSeqSetzen(7)
+        let raum = Raum(
+            transport: transport, log: log, warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+        await transport.receive(makeOpsMessage(ops: [(id: "live-99", seq: 99)], mehr: false, seite: false))
+
+        raum.start()
+        raum.start()
+        XCTAssertEqual(transport.sent.filter { $0.contains("\"nachholen\"") }.count, 1)
+        XCTAssertTrue(transport.sent.contains { $0.contains("\"seit\":7") })
+
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+        raum.start()
+        XCTAssertEqual(transport.sent.filter { $0.contains("\"nachholen\"") }.count, 2)
+    }
+
     func testPagingDeliversThreeBatchesForTwelveHundredOps() async {
         let dir = makeTempDirectory()
         let transport = FakeTransport()
