@@ -74,7 +74,7 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
         DispatchQueue.main.async {
             MainActor.assumeIsolated {
                 if !StartProtokoll.abgesichert { // R3: Sicherheitsmodus, nichts starten.
-                    Raum.shared.start()
+                    Raum.shared.nachholenJetzt()
                     AppNavigation.shared.mitteilungGeoeffnet(nachrichtId: nachrichtId, art: art)
                 }
             }
