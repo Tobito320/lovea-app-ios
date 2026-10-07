@@ -34,6 +34,7 @@ final class Raum {
     private var aktivZustand = false
     private var generation = 0
     private var empfangenBisSeq = 0
+    private var nachholenLaeuft = false
     private var geraeteToken: String?
     private var reconnectTask: Task<Void, Never>?
     private var hintergrundTask: Task<Void, Never>?
@@ -109,7 +110,7 @@ final class Raum {
         reconnectTask?.cancel(); reconnectTask = nil
         backoff = 1 // explicit start() means "try fresh"; verbinden() itself no longer resets this (I-1)
         if medienBeimStartFortsetzen { Medien.fortsetzen() }
-        guard !verbunden else { return }
+        if verbunden { nachholenAnfordern(); return }
         // Chained (not a bare Task) so `leer()` also waits for the connect + queue flush below.
         reiheOhneWarten { [weak self] in
             guard let self else { return }
@@ -120,6 +121,14 @@ final class Raum {
             await self.wartetAktualisieren() // e.g. after an offline restart, before anything is sent
             self.verbinden()
         }
+    }
+
+    func nachholenJetzt() { start() }
+
+    private func nachholenAnfordern() {
+        guard verbunden, !nachholenLaeuft else { return }
+        nachholenLaeuft = true
+        sende(NachholenNachricht(seit: empfangenBisSeq))
     }
 
     /// Call from `scenePhase`: connect when active. `.inactive` (app switcher, Control Center)
@@ -325,6 +334,7 @@ final class Raum {
         generation += 1
         let gen = generation
         let headers = ["X-Lovea-Key": appKey, "X-Lovea-Person": ich.rawValue]
+        nachholenLaeuft = true
         transport.verbinden(
             url: url,
             headers: headers,
@@ -491,6 +501,7 @@ final class Raum {
         if mehr {
             if let hoechsteSeq { sende(NachholenNachricht(seit: hoechsteSeq)) }
         } else {
+            nachholenLaeuft = false
             catchUpZaehler += 1
         }
     }
