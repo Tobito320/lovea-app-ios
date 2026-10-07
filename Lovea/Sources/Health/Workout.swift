@@ -205,6 +205,16 @@ enum WorkoutLogik {
         s.kg.map { "\(TrainingLogik.kgText($0)) kg × \(s.wdh)" } ?? "\(s.wdh) Wdh"
     }
 
+    /// Schalter "Satz-Zeit" (Standard aus): ohne ihn wird keine Satzdauer erfasst und keine gezeigt.
+    static let satzzeitSchluessel = "gym.satzzeit"
+    static var satzzeitAn: Bool { UserDefaults.standard.bool(forKey: satzzeitSchluessel) }
+
+    /// "Satz 0:42 · Pause 1:58"; "Satz" nur mit Schalter. Gespeicherte Werte bleiben, sie werden nur ausgeblendet.
+    static func zeitenText(sek: Double?, pause: Double?, satzzeit: Bool) -> String? {
+        let teile = [satzzeit ? sek.map { "Satz \(zeitText($0))" } : nil, pause.map { "Pause \(zeitText($0))" }].compactMap { $0 }
+        return teile.isEmpty ? nil : teile.joined(separator: " · ")
+    }
+
     /// "1:05".
     static func zeitText(_ sekunden: Double) -> String {
         let s = max(0, Int(sekunden.rounded()))
@@ -331,7 +341,7 @@ enum WorkoutAktion {
             let dauer = uhr.satzDauer(plan: u.id, satz: i)
             neu = pauseAbschliessen(session, u, neu)
             neu[i].ok = true
-            neu[i].sek = dauer
+            neu[i].sek = WorkoutLogik.satzzeitAn ? dauer : nil
             uhr.pauseStarten(session: session, plan: u.id, satz: i, ziel: u.pause ?? WorkoutLogik.standardPause)
         }
         TrainingModell.shared.saetzeSenden(session, u, neu)

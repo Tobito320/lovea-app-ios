@@ -440,7 +440,7 @@ struct WorkoutRueckblick: View {
 
     private func zeile(_ u: WorkoutUebung, _ i: Int) -> some View {
         let s = u.saetze[i]
-        let zeiten = [s.sek.map { "Satz \(WorkoutLogik.zeitText($0))" }, s.pause.map { "Pause \(WorkoutLogik.zeitText($0))" }].compactMap { $0 }
+        let zeiten = WorkoutLogik.zeitenText(sek: s.sek, pause: s.pause, satzzeit: WorkoutLogik.satzzeitAn)
         return HStack(spacing: 12) {
             Text(WorkoutLogik.nummer(u.saetze, i))
                 .font(.subheadline.weight(.semibold))
@@ -448,7 +448,7 @@ struct WorkoutRueckblick: View {
                 .frame(width: 24)
             VStack(alignment: .leading, spacing: 2) {
                 Text(WorkoutLogik.satzText(s)).monospacedDigit()
-                if !zeiten.isEmpty { Text(zeiten.joined(separator: " · ")).font(.caption).foregroundStyle(.secondary) }
+                if let zeiten { Text(zeiten).font(.caption).foregroundStyle(.secondary) }
             }
             Spacer(minLength: 8)
             if let rpe = s.rpe { Text("RPE \(TrainingLogik.kgText(rpe))").font(.subheadline).foregroundStyle(.secondary) }
