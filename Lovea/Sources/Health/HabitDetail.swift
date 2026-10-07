@@ -144,7 +144,7 @@ struct HabitDetailView: View {
             Button(role: .destructive) { ausblendenFragen = true } label: {
                 Label("Ausblenden", systemImage: "eye.slash").frame(maxWidth: .infinity, minHeight: 44)
             }
-            if !habit.istEingebaut {
+            if health.habits[habitId]?.istEingebaut == false {
                 Button(role: .destructive) { loeschenFragen = true } label: {
                     Label("Gewohnheit löschen", systemImage: "trash").frame(maxWidth: .infinity, minHeight: 44)
                 }
