@@ -71,7 +71,7 @@ struct TagesListe: View {
     private func terminZeile(_ termin: Termin) -> some View {
         Button { aktionen.bearbeiten(termin) } label: {
             HStack(alignment: .top, spacing: 11) {
-                Text(AnsichtWerte.zeitSpalte(termin))
+                Text(AnsichtWerte.zeitSpalte(termin, tag: tag))
                     .font(.subheadline.monospacedDigit())
                     .lineLimit(1)
                     .minimumScaleFactor(0.7)
@@ -100,7 +100,7 @@ struct TagesListe: View {
             Button("Zum iPhone-Kalender", systemImage: "calendar.badge.plus") { aktionen.zumIPhone(termin) }
             Button("Löschen", systemImage: "trash", role: .destructive) { aktionen.loeschen(termin) }
         }
-        .accessibilityLabel("\(AnsichtWerte.zeitSpalte(termin)), \(termin.titel), \(AnsichtWerte.terminUnterzeile(termin))")
+        .accessibilityLabel("\(AnsichtWerte.zeitSpalte(termin, tag: tag)),\(termin.titel), \(AnsichtWerte.terminUnterzeile(termin))")
         .accessibilityHint("Bearbeiten. Weitere Aktionen: zum iPhone-Kalender, löschen")
         .accessibilityAction(named: "Zum iPhone-Kalender") { aktionen.zumIPhone(termin) }
         .accessibilityAction(named: "Löschen") { aktionen.loeschen(termin) }

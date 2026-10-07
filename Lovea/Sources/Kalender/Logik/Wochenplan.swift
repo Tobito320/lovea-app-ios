@@ -42,8 +42,8 @@ enum Wochenplan {
 
         var bloecke = eintraege.map { $0.block }
 
-        for termin in daten.termine where termin.datum == tag && termin.fuer.contains(person) {
-            bloecke.append(Block(titel: termin.titel, typ: termin.typ, start: termin.start, ende: termin.ende, status: "normal", quelle: "termin", terminId: termin.id))
+        for termin in daten.termine where termin.faelltAuf(tag) && termin.fuer.contains(person) {
+            bloecke.append(Block(titel: termin.titel, typ: termin.typ, start: termin.start(am: tag), ende: termin.ende(am: tag), status: "normal", quelle: "termin", terminId: termin.id))
         }
 
         for treffen in daten.treffen where treffen.datum == tag {

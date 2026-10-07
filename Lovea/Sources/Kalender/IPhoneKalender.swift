@@ -99,7 +99,9 @@ extension IPhoneKalenderExportBlatt {
     /// Z-9.6: ein Lovea-Termin als Vorlage. Ohne Uhrzeit ganztägig, ohne Ende eine Stunde.
     init(termin: Termin) {
         let start = IPhoneKalenderDatum.kombiniert(termin.datum, termin.start)
-        let ende = termin.ende.map { IPhoneKalenderDatum.kombiniert(termin.datum, $0) } ?? start
+        let mehrtaegig = termin.letzterTag > termin.datum
+        let ende = termin.ende.map { IPhoneKalenderDatum.kombiniert(termin.letzterTag, $0) }
+            ?? (mehrtaegig ? IPhoneKalenderDatum.kombiniert(termin.letzterTag, termin.start) : start)
         self.init(titel: termin.titel, start: start, ende: ende > start ? ende : start.addingTimeInterval(60 * 60), ganztaegig: termin.start == nil)
     }
 }

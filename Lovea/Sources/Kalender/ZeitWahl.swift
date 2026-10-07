@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Z-42.2 Nachtrag (Ahmed: Uhrzeit eingeben ist zu mühsam): Schnellwahl statt Rad. Beginn-Chips
-/// 08–20 Uhr alle zwei Stunden, „Andere …" öffnet einen kompakten Picker, Dauer-Chips setzen das
-/// Ende. `start == nil` heißt ohne Uhrzeit (Chip `ohneZeit`, etwa „Ganztägig"). Ohne `ende`
-/// (Treffen) gibt es nur den Beginn. Die Chips sind `.borderless`, sonst lösen in einer Form-Zeile
+/// Z-42.2 Nachtrag (Ahmed: Uhrzeit eingeben ist zu mühsam): Schnellwahl statt Rad. „Ab"-Chips
+/// 08–20 Uhr alle zwei Stunden, „Andere …" öffnet einen kompakten Picker, die Zeile „Bis" setzt
+/// das Ende (nie vor „Ab"). `start == nil` heißt ohne Uhrzeit (Chip `ohneZeit`, etwa „Ohne neue
+/// Uhrzeit"). Ohne `ende` (Treffen) gibt es nur die Uhrzeit. Der Termin-Editor nutzt das nicht
+/// mehr, er hat eigene „Ab"/„Bis"-Zeilen mit Datum (`TerminZeitraum`). Die Chips sind `.borderless`, sonst lösen in einer Form-Zeile
 /// alle Knöpfe zusammen aus.
 struct ZeitWahl: View {
     let datum: String
@@ -14,12 +15,11 @@ struct ZeitWahl: View {
     @State private var zeigtAndere = false
 
     private static let zeiten = ["08:00", "10:00", "12:00", "14:00", "16:00", "18:00", "20:00"]
-    private static let dauern = [30, 60, 120, 180]
     private static let standardBeginn = "10:00"
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ueberschrift(ende == nil ? "Uhrzeit" : "Beginn")
+            ueberschrift(ende == nil ? "Uhrzeit" : "Ab")
             Grid(horizontalSpacing: 8, verticalSpacing: 8) {
                 GridRow {
                     ForEach(Self.zeiten.prefix(4), id: \.self) { zeitChip($0) }
@@ -28,23 +28,11 @@ struct ZeitWahl: View {
                     ForEach(Self.zeiten.suffix(3), id: \.self) { zeitChip($0) }
                     andereChip
                 }
-                if ende == nil {
-                    GridRow { ohneChip.gridCellColumns(4) }
-                }
+                GridRow { ohneChip.gridCellColumns(4) }
             }
-            if let ende {
-                ueberschrift("Dauer")
-                Grid(horizontalSpacing: 8, verticalSpacing: 8) {
-                    GridRow {
-                        ForEach(Self.dauern, id: \.self) { dauerChip($0, ende: ende) }
-                    }
-                    GridRow { ohneChip.gridCellColumns(4) }
-                }
-                if let start {
-                    Text(ende.wrappedValue.map { "\(start) bis \($0)" } ?? "ab \(start)")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            if let ende, let start {
+                DatePicker("Bis", selection: bisZeit(start: start, ende: ende), displayedComponents: .hourAndMinute)
+                    .environment(\.timeZone, Datum.kalender.timeZone)
             }
         }
         .padding(.vertical, 4)
@@ -83,14 +71,15 @@ struct ZeitWahl: View {
         }
     }
 
-    private func dauerChip(_ minuten: Int, ende: Binding<String?>) -> some View {
-        let titel = minuten < 60 ? "\(minuten) min" : "\(minuten / 60) h"
-        let vorlesen = minuten < 60 ? "\(minuten) Minuten" : (minuten == 60 ? "1 Stunde" : "\(minuten / 60) Stunden")
-        return chip(titel, an: Self.dauer(start, ende.wrappedValue) == minuten, vorlesen: vorlesen) {
-            let beginn = start ?? Self.standardBeginn
-            start = beginn
-            ende.wrappedValue = Datum.uhrzeit(beginn, plus: minuten)
-        }
+    /// „Bis" liegt nie vor „Ab"; ohne Ende gilt eine Stunde nach dem Beginn.
+    private func bisZeit(start: String, ende: Binding<String?>) -> Binding<Date> {
+        Binding(
+            get: { IPhoneKalenderDatum.kombiniert(datum, ende.wrappedValue ?? Datum.uhrzeit(start, plus: 60)) },
+            set: { neu in
+                let zeit = Datum.uhrzeit(neu)
+                ende.wrappedValue = (Datum.minuten(zeit) ?? 0) >= (Datum.minuten(start) ?? 0) ? zeit : start
+            }
+        )
     }
 
     private func chip(_ titel: String, an: Bool, vorlesen: String? = nil, aktion: @escaping () -> Void) -> some View {
