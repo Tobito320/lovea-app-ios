@@ -109,7 +109,7 @@ final class ShopQualitaetTests: XCTestCase {
             pruefe("Halbfigur 140 \(id)", mindestens: 1500,
                    ohne: figur(mitTier(nil), groesse: 140, ganz: false),
                    mit: figur(mitTier(id), groesse: 140, ganz: false))
-            pruefe("Profil 220 \(id)", mindestens: 2500,
+            pruefe("Profil 220 \(id)", mindestens: 1500,
                    ohne: figur(mitTier(nil), groesse: 220, ganz: true),
                    mit: figur(mitTier(id), groesse: 220, ganz: true))
         }

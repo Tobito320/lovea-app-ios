@@ -92,7 +92,8 @@ func zeichneHoodie(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFarbe) 
         g.fill(kreis(P(x, 187), 1.5), with: .color(Pal.silber.mal(0.85).farbe))
     }
     if nike {
-        let mark = swooshPfad(P(126, 200), breite: 25)
+        // Centre chest: the open jacket hides the right side on Annika's standard look.
+        let mark = swooshPfad(P(100, 226), breite: 20)
         g.fill(mark.offsetBy(dx: 0.7, dy: 1), with: .color(.black.opacity(0.3)))
         g.fill(mark, with: .color(.white))
     } else if guess {
