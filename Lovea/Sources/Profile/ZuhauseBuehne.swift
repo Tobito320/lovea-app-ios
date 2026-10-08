@@ -136,6 +136,22 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         return ZimmerLebenModell.tagesZiele(ich: ich, heute: Datum.text(Date())).lampenFaktor
     }
 
+    /// Das Zimmer pflegt sich selbst (nur im Panorama, nie in den festen Brettern): die Person, deren Tag zählt,
+    /// ist die, die die App hält. Ohne Gesundheitsdaten bleibt alles wie gehabt (Bett gemacht, Schuhe da).
+    private var zustandPerson: Person? { fest || welt != .panorama ? nil : Raum.shared.ich }
+
+    /// Die Sneaker stehen im Regal, sobald das Schrittziel von heute erreicht ist.
+    private var schuheDa: Bool {
+        guard let p = zustandPerson else { return true }
+        return ZimmerZustandLogik.schuheDa(schritte: HealthModell.shared.heuteSchritte(p), ziel: HealthModell.shared.zielSchritte(p))
+    }
+
+    /// Das Bett ist gemacht, solange die Nacht mindestens 75 % des Schlafziels hatte (oder nichts bekannt ist).
+    private var bettGemacht: Bool {
+        guard let p = zustandPerson else { return true }
+        return ZimmerZustandLogik.bettGemacht(schlafMinuten: HealthModell.shared.schlafMinuten(p, Datum.text(Date())), ziel: HealthModell.shared.schlafZielMinuten(p))
+    }
+
     /// The time of day the room is drawn in: the clock's, or night once both said good night.
     private var sicht: Tageszeit { nacht ? .nacht : stand.zeit }
 
@@ -144,10 +160,10 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             let s = geo.size.width / welt.breite
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
-                ZuhauseRaumBild(zeit: sicht, wahl: wahl, welt: welt)
+                ZuhauseRaumBild(zeit: sicht, wahl: wahl, welt: welt, schuhe: schuheDa)
                 wandDinge(sicht)
                 if welt == .einzel { schatten }
-                if let outfit {
+                if let outfit, welt == .einzel {
                     let schrank = welt.versatz(.kleiderschrank)
                     tippflaeche(ZimmerMoebel.stange.offsetBy(dx: schrank.width, dy: schrank.height), "Kleiderstange, Outfit wechseln", outfit, s, oben)
                     tippflaeche(ZimmerMoebel.regal.offsetBy(dx: schrank.width, dy: schrank.height), "Schuhregal, Outfit wechseln", outfit, s, oben)
@@ -234,7 +250,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             Canvas { g, _ in
                 var b = g
                 b.scaleBy(x: k, y: k)
-                ZimmerMoebel.bettVorn(b, stil, wahl, herz: liegt)
+                ZimmerMoebel.bettVorn(b, stil, wahl, herz: liegt, gemacht: bettGemacht)
             }
         }
         .frame(width: 300 * k, height: 220 * k)
@@ -493,13 +509,15 @@ private struct ZuhauseRaumBild: View {
     let zeit: Tageszeit
     let wahl: ZimmerWahl
     var welt: ProfilWelt = .einzel
+    var schuhe = true
 
     var body: some View {
         let zeit = zeit
         let wahl = wahl
         let welt = welt
+        let schuhe = schuhe
         Canvas { g, groesse in
-            ZuhauseZeichnung.raum(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, wahl: wahl, welt: welt)
+            ZuhauseZeichnung.raum(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, wahl: wahl, welt: welt, schuhe: schuhe)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

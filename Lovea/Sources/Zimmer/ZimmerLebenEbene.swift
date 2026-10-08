@@ -36,7 +36,7 @@ struct ZimmerLebenBild: View {
                     welt.zeichne(r, .rahmen(f.slot)) { SzenenZeichnung.rahmen($0, ZimmerLebenLayout.rahmen[f.slot]) }
                 }
                 welt.zeichne(r, .kalender) { ZimmerLebenZeichnung.kalender($0, s.termin) }
-                welt.zeichne(r, .pokale) { ZimmerLebenZeichnung.pokale($0, s.pokale) }
+                welt.zeichne(r, .pokale) { ZimmerLebenZeichnung.pokale($0, s.pokale, punkte: s.punkte) }
                 welt.zeichne(r, .pinnwand) { ZimmerLebenZeichnung.pinnwand($0, anzahl: s.polaroids.count) }
                 welt.zeichne(r, .fernseher) { ZimmerLebenZeichnung.fernseher($0, s.film) }
                 welt.zeichne(r, .pflanze) {

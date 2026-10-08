@@ -25,24 +25,6 @@ struct ProfilPille: View {
     }
 }
 
-/// p69: the zone tabs right under the scene (Schlafen, Wohnen, Regal). Chrome: its letters stop growing with
-/// Dynamic Type so it never breaks.
-struct ProfilZonenLeiste: View {
-    let zone: ProfilZone
-    let waehle: (ProfilZone) -> Void
-
-    var body: some View {
-        HStack(spacing: 6) {
-            ForEach(ProfilZone.allCases, id: \.self) { z in
-                ProfilPille(titel: z.titel, aktiv: z == zone) { waehle(z) }
-            }
-        }
-        .dynamicTypeSize(ProfilLayout.leistenSchrift)
-        .frame(maxWidth: .infinity)
-        .frame(height: ProfilLayout.leistenHoehe)
-    }
-}
-
 /// p69: the tab strip of the part that scrolls (Zimmer, Wir, Erinnerungen, Quests). Wide letters that do not
 /// fit in a row slide sideways instead of breaking the strip.
 struct ProfilReiterLeiste: View {
