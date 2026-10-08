@@ -326,7 +326,9 @@ class TiefenTestBasis: XCTestCase {
         }
         if !erwartetLeer && inhalt.count < 2 { befund("leere Ansicht bei \(name)", hart: true) }
         for e in sicht where e.typ == "StaticText" && !e.label.isEmpty && e.rahmen.width > 0 && e.rahmen.height > 0 {
-            if e.label.hasSuffix("…") || e.label.hasSuffix("...") {
+            // System-Text (Diktat-Hinweis, Foto-Auswahl), nicht aus der App
+            let systemText = ["Learn More…", "Weitere Infos …", "Loading..."]
+            if (e.label.hasSuffix("…") || e.label.hasSuffix("...")) && !systemText.contains(e.label) {
                 befund("Text endet mit Auslassung bei \(name): '\(e.label)'", hart: true)
                 continue
             }

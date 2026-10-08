@@ -107,6 +107,7 @@ jobs:
           xcrun simctl boot "$IPHONE_ID" || true
           xcrun simctl bootstatus "$IPHONE_ID" -b
           xcrun simctl privacy "$IPHONE_ID" grant photos || true
+          xcrun simctl privacy "$IPHONE_ID" grant location-always com.onlyus.lovea || true
           xcrun simctl addmedia "$IPHONE_ID" docs/figuren-vorlage/*.png || true
       - name: Tiefentest
         timeout-minutes: 75
