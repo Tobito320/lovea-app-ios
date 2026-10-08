@@ -82,7 +82,7 @@ struct ChatEingabeleiste: View {
     private static let hoehe: CGFloat = 44
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Abstand.s) {
             if let antwortAuf {
                 ZitatLeiste(nachricht: antwortAuf, ich: ich) { self.antwortAuf = nil }
                     .transition(.move(edge: .bottom).combined(with: .opacity))
@@ -108,7 +108,7 @@ struct ChatEingabeleiste: View {
         // every piece takes only its own height (a greedy child filled the screen before).
         .fixedSize(horizontal: false, vertical: true)
         .padding(.horizontal, 10)
-        .padding(.vertical, 8)
+        .padding(.vertical, Abstand.s)
         .animation(Feder.schnell, value: anhaenge.count)
         .animation(Feder.federnd, value: plusOffen)
         .animation(Feder.schnell, value: effekt)
@@ -127,8 +127,8 @@ struct ChatEingabeleiste: View {
 
     /// [Kamera] [Feld] [Plus], one glass family.
     private var reihe: some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(alignment: .bottom, spacing: 8) {
+        GlassEffectContainer(spacing: Abstand.s) {
+            HStack(alignment: .bottom, spacing: Abstand.s) {
                 Button {
                     Haptik.leicht()
                     StartProtokoll.marke("kamera.tippen")

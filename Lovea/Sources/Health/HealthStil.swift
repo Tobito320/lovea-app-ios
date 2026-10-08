@@ -37,17 +37,18 @@ private func uiFarbe(_ hex: UInt32) -> UIColor {
     UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255, blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
 }
 
-/// HabitLink card: soft vertical tint over the grouped surface, 1 pt lighter border, radius 22.
+/// HabitLink card (p66, flat): the grouped surface with one light tint, the app-wide card shape. A
+/// border only for increased contrast; no gradient, no outline otherwise.
 struct HealthKarte: ViewModifier {
     var farbe: Color
     @Environment(\.colorSchemeContrast) private var kontrast
 
     func body(content: Content) -> some View {
-        let form = RoundedRectangle(cornerRadius: 22, style: .continuous)
+        let form = RoundedRectangle.loveaKarte
         return content.background {
             form.fill(Color(uiColor: .secondarySystemBackground))
-                .overlay(form.fill(LinearGradient(colors: [farbe.opacity(0.26), farbe.opacity(0.06)], startPoint: .top, endPoint: .bottom)))
-                .overlay(form.strokeBorder(farbe.opacity(kontrast == .increased ? 0.7 : 0.22), lineWidth: 1))
+                .overlay(form.fill(farbe.opacity(0.14)))
+                .overlay { if kontrast == .increased { form.strokeBorder(farbe.opacity(0.7), lineWidth: 1) } }
         }
     }
 }

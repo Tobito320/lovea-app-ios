@@ -96,14 +96,14 @@ struct ChatListenZeile: View {
     var animiert = true
 
     var body: some View {
-        HStack(spacing: 14) {
-            KopfFigur(person: partner, groesse: 58, animiert: animiert)
-                .padding(4)
-                .overlay(Circle().strokeBorder(online ? Color.green : Color.clear, lineWidth: 2.5))
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: Abstand.m) {
+            KopfFigur(person: partner, groesse: 44, animiert: animiert)
+                .padding(3)
+                .overlay(Circle().strokeBorder(online ? Color.green : Color.clear, lineWidth: 2))
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(partner.name).font(.title3.weight(.semibold)).foregroundStyle(.primary)
-                    Spacer(minLength: 8)
+                    Text(partner.name).font(.headline).foregroundStyle(.primary)
+                    Spacer(minLength: Abstand.s)
                     if let zeit {
                         Text(zeit).font(.caption).foregroundStyle(ungelesen > 0 ? Color.loveaRose : Color.secondary)
                     }
@@ -139,10 +139,11 @@ struct ChatListenZeile: View {
                 }
             }
         }
-        .padding(14)
+        .padding(.horizontal, Abstand.l)
+        .padding(.vertical, Abstand.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 22))
-        .contentShape(.rect(cornerRadius: 22))
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .loveaKarte)
+        .contentShape(.loveaKarte)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(beschreibung)
         .accessibilityHint("Chat öffnen")
