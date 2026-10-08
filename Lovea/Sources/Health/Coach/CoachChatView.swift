@@ -71,6 +71,7 @@ struct CoachChatView: View {
     @AppStorage(CoachSchluessel.pause) private var pausiert = false
     @State private var entwurf = ""
     @State private var ausblendenFragen = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var modell: CoachModell { CoachModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
@@ -79,6 +80,7 @@ struct CoachChatView: View {
         Group {
             if pausiert { pauseAnsicht } else { chat }
         }
+        .background { hintergrund }
         .navigationTitle("Coach")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -91,6 +93,16 @@ struct CoachChatView: View {
         } message: {
             Text("Die Nachrichten verschwinden nur auf diesem Gerät. Der Coach kennt die letzten Nachrichten weiter.")
         }
+    }
+
+    /// Inhaltsebene: ein Hauch Mint von oben und Himmel von unten, kein Glas. Glas gehört nur auf die Bedienelemente.
+    private var hintergrund: some View {
+        ZStack {
+            Color(uiColor: .systemBackground)
+            RadialGradient(colors: [HabitFarbe.mint.farbe.opacity(0.2), Color.clear], center: .top, startRadius: 0, endRadius: 460)
+            RadialGradient(colors: [HabitFarbe.himmel.farbe.opacity(0.12), Color.clear], center: .bottomTrailing, startRadius: 0, endRadius: 380)
+        }
+        .ignoresSafeArea()
     }
 
     // MARK: Menü
@@ -143,72 +155,164 @@ struct CoachChatView: View {
     // MARK: Chat
 
     private var chat: some View {
-        VStack(spacing: 0) {
-            verlauf(modell.liste)
-            Divider()
-            unten
+        let nachrichten = modell.liste
+        let leer = nachrichten.isEmpty && !modell.sendet
+        // Beim ersten Öffnen kommt der Verlauf erst nach dem ersten Zeichnen; der Wechsel blendet über statt zu springen.
+        return Group {
+            if leer { leerAnsicht.transition(.opacity) } else { verlauf(nachrichten).transition(.opacity) }
         }
+        .animation(reduceMotion ? nil : Feder.weich, value: leer)
+        .safeAreaBar(edge: .bottom, spacing: 0) { unten(leer: leer) }
     }
+
+    // MARK: Leer
+
+    private static let schnellSymbole = ["doc.text.magnifyingglass", "figure.strengthtraining.traditional", "fork.knife"]
+
+    private var leerAnsicht: some View {
+        ScrollView {
+            VStack(spacing: 8) {
+                CoachOrb(groesse: 84, aktiv: true).padding(.bottom, 16)
+                Text("\(CoachText.begruessung(stunde: Datum.kalender.component(.hour, from: Date()))), \(ich.name)")
+                    .font(.title2.weight(.bold))
+                    .multilineTextAlignment(.center)
+                    .accessibilityAddTraits(.isHeader)
+                Text("Ich kenne deine Zahlen aus Training, Essen, Schritten und Gewicht.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                VStack(spacing: 10) {
+                    ForEach(Array(CoachRegeln.schnellfragen.enumerated()), id: \.offset) { index, frage in
+                        frageKarte(frage, symbol: Self.schnellSymbole.indices.contains(index) ? Self.schnellSymbole[index] : "sparkles")
+                    }
+                }
+                .padding(.top, 24)
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 32)
+            .frame(maxWidth: .infinity)
+        }
+        .defaultScrollAnchor(.center)
+        .scrollIndicators(.hidden)
+    }
+
+    private func frageKarte(_ frage: String, symbol: String) -> some View {
+        Button { absenden(frage, ausFeld: false) } label: {
+            HStack(spacing: 12) {
+                Image(systemName: symbol)
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(HabitFarbe.mint.farbe)
+                    .frame(width: 36, height: 36)
+                    .background(HabitFarbe.mint.farbe.opacity(0.16), in: Circle())
+                    .accessibilityHidden(true)
+                Text(frage)
+                    .font(.body.weight(.medium))
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                Spacer(minLength: 8)
+                Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
+            }
+            .padding(.horizontal, 14)
+            .padding(.vertical, 10)
+            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            .healthKarte(HabitFarbe.mint.farbe)
+            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .buttonStyle(.federnd)
+        .disabled(modell.sendet)
+    }
+
+    // MARK: Verlauf
 
     private func verlauf(_ nachrichten: [CoachNachricht]) -> some View {
         ScrollViewReader { proxy in
             ScrollView {
-                LazyVStack(spacing: 8) {
-                    if nachrichten.isEmpty && !modell.sendet {
-                        Text("Ich kenne deine Zahlen aus Training, Essen, Schritten und Gewicht. Frag mich etwas oder nimm eine Schnellfrage.")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 8)
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(nachrichten.enumerated()), id: \.element.id) { index, nachricht in
+                        eintrag(nachricht, vorher: index > 0 ? nachrichten[index - 1] : nil)
+                            .transition(.opacity)
                     }
-                    ForEach(nachrichten) { CoachBlase(nachricht: $0, person: ich) }
-                    if modell.sendet { denkt }
+                    if modell.sendet { denkt.padding(.top, 18).transition(.opacity) }
                     Color.clear.frame(height: 1).id("ende")
                 }
-                .padding(16)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+                .animation(reduceMotion ? nil : Feder.weich, value: nachrichten.count)
+                .animation(reduceMotion ? nil : Feder.weich, value: modell.sendet)
             }
             .defaultScrollAnchor(.bottom)
             .scrollDismissesKeyboard(.interactively)
-            .onChange(of: nachrichten.count) { _, _ in proxy.scrollTo("ende", anchor: .bottom) }
-            .onChange(of: modell.sendet) { _, _ in proxy.scrollTo("ende", anchor: .bottom) }
+            .onChange(of: nachrichten.count) { _, _ in nachUnten(proxy) }
+            .onChange(of: modell.sendet) { _, _ in nachUnten(proxy) }
         }
     }
 
+    private func nachUnten(_ proxy: ScrollViewProxy) {
+        if reduceMotion {
+            proxy.scrollTo("ende", anchor: .bottom)
+        } else {
+            withAnimation(Feder.weich) { proxy.scrollTo("ende", anchor: .bottom) }
+        }
+    }
+
+    /// Eine Nachricht, bei Bedarf mit Zeit-Trennzeile davor. Gleicher Absender rückt näher, ein Wechsel lässt Luft.
+    @ViewBuilder
+    private func eintrag(_ nachricht: CoachNachricht, vorher: CoachNachricht?) -> some View {
+        let neuerBlock = CoachText.trennerNoetig(vorher: vorher?.zeit, jetzt: nachricht.zeit, kalender: Datum.kalender)
+        if neuerBlock { trenner(nachricht.zeit) }
+        CoachZeile(nachricht: nachricht, person: ich, kopf: nachricht.rolle == .coach && (neuerBlock || vorher?.rolle != .coach))
+            .padding(.top, neuerBlock ? 0 : (vorher?.rolle == nachricht.rolle ? 6 : 18))
+    }
+
+    private static let deutsch = Locale(identifier: "de_DE")
+
+    private func trenner(_ zeit: Date) -> some View {
+        let kalender = Datum.kalender
+        let stil = Date.FormatStyle(locale: Self.deutsch, calendar: kalender, timeZone: kalender.timeZone)
+        let uhr = zeit.formatted(stil.hour().minute())
+        let text = if kalender.isDateInToday(zeit) {
+            "Heute, \(uhr)"
+        } else if kalender.isDateInYesterday(zeit) {
+            "Gestern, \(uhr)"
+        } else {
+            zeit.formatted(stil.weekday(.abbreviated).day().month(.abbreviated)) + ", " + uhr
+        }
+        return Text(text)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+            .frame(maxWidth: .infinity)
+            .padding(.top, 20)
+            .padding(.bottom, 12)
+    }
+
     private var denkt: some View {
-        HStack {
-            HStack(spacing: 8) {
-                ProgressView()
-                Text("Coach denkt nach").font(.subheadline).foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            Spacer(minLength: 48)
+        HStack(spacing: 10) {
+            CoachOrb(groesse: 24, aktiv: true)
+            Text("Coach denkt nach").font(.subheadline).foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
     }
 
     // MARK: Unten: Fehler, Schnellfragen, Eingabe
 
-    private var unten: some View {
+    private func unten(leer: Bool) -> some View {
         VStack(spacing: 8) {
             if let fehler = modell.fehler { fehlerZeile(fehler) }
-            schnellfragen
+            if !leer { schnellfragen }
             eingabe
             Text("KI-Coach, kein Arzt")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-                .frame(maxWidth: .infinity)
         }
         .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .background(Color(uiColor: .systemBackground))
+        .padding(.vertical, 4)
     }
 
     private func fehlerZeile(_ fehler: CoachFehler) -> some View {
         HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.circle").foregroundStyle(HabitFarbe.amber.farbe)
-            Text(fehler.text).font(.footnote).foregroundStyle(.secondary).frame(maxWidth: .infinity, alignment: .leading)
+            Image(systemName: "exclamationmark.circle").foregroundStyle(HabitFarbe.amber.farbe).frame(minHeight: 44)
+            Text(fehler.text).font(.footnote).foregroundStyle(.primary).frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             Button { modell.fehlerLoeschen() } label: {
                 Image(systemName: "xmark").font(.footnote.weight(.semibold)).frame(minWidth: 44, minHeight: 44)
             }
@@ -216,27 +320,32 @@ struct CoachChatView: View {
             .foregroundStyle(.secondary)
             .accessibilityLabel("Hinweis schließen")
         }
-        .padding(.leading, 12)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .padding(.leading, 14)
+        .background(HabitFarbe.amber.farbe.opacity(0.14), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var schnellfragen: some View {
         ScrollView(.horizontal) {
-            HStack(spacing: 8) {
-                ForEach(CoachRegeln.schnellfragen, id: \.self) { frage in
-                    Button { absenden(frage, ausFeld: false) } label: {
-                        Text(frage)
-                            .font(.subheadline.weight(.medium))
-                            .padding(.horizontal, 14)
-                            .frame(minHeight: 44)
-                            .background(Capsule().fill(Color(uiColor: .secondarySystemBackground)))
+            GlassEffectContainer(spacing: 8) {
+                HStack(spacing: 8) {
+                    ForEach(CoachRegeln.schnellfragen, id: \.self) { frage in
+                        Button { absenden(frage, ausFeld: false) } label: {
+                            Text(frage)
+                                .font(.subheadline.weight(.medium))
+                                .padding(.horizontal, 16)
+                                .frame(minHeight: 44)
+                                .contentShape(.capsule)
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.primary)
+                        .glassEffect(.regular.interactive(), in: .capsule)
+                        .disabled(modell.sendet)
                     }
-                    .buttonStyle(.federnd)
-                    .disabled(modell.sendet)
                 }
             }
         }
         .scrollIndicators(.hidden)
+        .scrollClipDisabled()
     }
 
     private var kannSenden: Bool {
@@ -244,24 +353,30 @@ struct CoachChatView: View {
     }
 
     private var eingabe: some View {
-        HStack(alignment: .bottom, spacing: 8) {
-            TextField("Frag den Coach", text: $entwurf, axis: .vertical)
-                .lineLimit(1...5)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .onChange(of: entwurf) { _, neu in
-                    if neu.count > CoachModell.maxZeichen { entwurf = String(neu.prefix(CoachModell.maxZeichen)) }
+        GlassEffectContainer(spacing: 8) {
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Frag den Coach", text: $entwurf, axis: .vertical)
+                    .lineLimit(1...5)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 10)
+                    .frame(minHeight: 44)
+                    .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                    .onChange(of: entwurf) { _, neu in
+                        if neu.count > CoachModell.maxZeichen { entwurf = String(neu.prefix(CoachModell.maxZeichen)) }
+                    }
+                Button { absenden(entwurf, ausFeld: true) } label: {
+                    Image(systemName: "arrow.up")
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(kannSenden ? Color.personText(ich) : Color.secondary)
+                        .frame(width: 44, height: 44)
+                        .contentShape(.circle)
                 }
-            Button { absenden(entwurf, ausFeld: true) } label: {
-                Image(systemName: "arrow.up.circle.fill")
-                    .font(.system(size: 32))
-                    .frame(minWidth: 44, minHeight: 44)
+                .buttonStyle(.plain)
+                .glassEffect(.regular.tint(kannSenden ? Color.person(ich) : nil).interactive(), in: .circle)
+                .disabled(!kannSenden)
+                .animation(reduceMotion ? nil : Feder.schnell, value: kannSenden)
+                .accessibilityLabel("Senden")
             }
-            .buttonStyle(.federnd)
-            .foregroundStyle(kannSenden ? Color.person(ich) : Color.secondary)
-            .disabled(!kannSenden)
-            .accessibilityLabel("Senden")
         }
     }
 
@@ -278,34 +393,116 @@ struct CoachChatView: View {
     }
 }
 
-// MARK: - Blase
+// MARK: - Orb
 
-private struct CoachBlase: View {
+/// Das Gesicht des Coaches: eine Kugel in Mint und Himmel, die einzige auffällige Stelle im Chat. Sie atmet nur,
+/// wenn `aktiv` gesetzt ist und Bewegung erlaubt ist, sonst steht sie still. Rein dekorativ, VoiceOver überspringt sie.
+private struct CoachOrb: View {
+    let groesse: CGFloat
+    var aktiv = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: !aktiv || reduceMotion)) { zeit in
+            kugel(atem: aktiv && !reduceMotion ? sin(zeit.date.timeIntervalSinceReferenceDate * 2.2) : 0)
+        }
+        .frame(width: groesse, height: groesse)
+        .accessibilityHidden(true)
+    }
+
+    private func kugel(atem: Double) -> some View {
+        let mint = HabitFarbe.mint.farbe
+        return Circle()
+            .fill(LinearGradient(colors: [mint, HabitFarbe.himmel.farbe], startPoint: .topLeading, endPoint: .bottomTrailing))
+            .overlay {
+                Circle().fill(RadialGradient(colors: [Color.white.opacity(0.6), Color.white.opacity(0)],
+                                             center: UnitPoint(x: 0.3 + 0.05 * atem, y: 0.27),
+                                             startRadius: 0, endRadius: groesse * 0.6))
+            }
+            .overlay { Circle().strokeBorder(Color.white.opacity(0.3), lineWidth: 1) }
+            .shadow(color: mint.opacity(0.4), radius: groesse * 0.22, y: groesse * 0.06)
+            .scaleEffect(1 + 0.06 * atem)
+    }
+}
+
+// MARK: - Nachricht
+
+/// Eigene Nachricht: Blase in der Personenfarbe. Antwort des Coaches: Text ohne Blase, Listen und Fett aus `CoachText`.
+private struct CoachZeile: View {
     let nachricht: CoachNachricht
     let person: Person
+    /// Erste Antwort eines Blocks trägt Orb und Namen.
+    let kopf: Bool
 
     private var eigene: Bool { nachricht.rolle == .du }
 
-    /// Das Modell antwortet gern mit **fett** und Listen; Zeilenumbrüche bleiben, ohne gültiges Markdown gilt der Rohtext.
-    private var inhalt: AttributedString {
-        let optionen = AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
-        return (try? AttributedString(markdown: nachricht.text, options: optionen)) ?? AttributedString(nachricht.text)
-    }
-
     var body: some View {
-        HStack {
-            if eigene { Spacer(minLength: 48) }
-            Text(inhalt)
-                .font(.body)
-                .foregroundStyle(eigene ? Color.personText(person) : Color.primary)
-                .padding(.horizontal, 14)
-                .padding(.vertical, 10)
-                .background(eigene ? Color.person(person) : Color(uiColor: .secondarySystemBackground),
-                            in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                .textSelection(.enabled)
-            if !eigene { Spacer(minLength: 48) }
+        Group {
+            if eigene { eigeneBlase } else { antwort }
         }
         .accessibilityElement(children: .combine)
         .accessibilityLabel("\(eigene ? "Du" : "Coach"): \(nachricht.text)")
+    }
+
+    private var eigeneBlase: some View {
+        HStack(spacing: 0) {
+            Spacer(minLength: 56)
+            Text(CoachText.inline(nachricht.text))
+                .font(.body)
+                .foregroundStyle(Color.personText(person))
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.person(person), in: UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22, bottomTrailingRadius: 6, topTrailingRadius: 22))
+                .textSelection(.enabled)
+        }
+    }
+
+    private var antwort: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if kopf {
+                HStack(spacing: 8) {
+                    CoachOrb(groesse: 20)
+                    Text("Coach").font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                }
+            }
+            inhalt
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.trailing, 24)
+        .textSelection(.enabled)
+    }
+
+    @ViewBuilder
+    private var inhalt: some View {
+        let zeilen = CoachText.zeilen(nachricht.text)
+        if zeilen.isEmpty {
+            Text(nachricht.text).font(.body)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                ForEach(Array(zeilen.enumerated()), id: \.offset) { _, zeile in ansicht(zeile) }
+            }
+            .font(.body)
+            .lineSpacing(2)
+        }
+    }
+
+    @ViewBuilder
+    private func ansicht(_ zeile: CoachText.Zeile) -> some View {
+        switch zeile.art {
+        case .absatz:
+            Text(CoachText.inline(zeile.text))
+        case .ueberschrift:
+            Text(CoachText.inline(zeile.text)).font(.headline).padding(.top, 4)
+        case .punkt:
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text(verbatim: "•").foregroundStyle(HabitFarbe.mint.farbe).accessibilityHidden(true)
+                Text(CoachText.inline(zeile.text))
+            }
+        case .nummer(let n):
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(verbatim: "\(n).").monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 22, alignment: .trailing)
+                Text(CoachText.inline(zeile.text))
+            }
+        }
     }
 }
