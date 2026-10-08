@@ -46,6 +46,7 @@ struct EinstellungenView: View {
             } footer: {
                 Text("Schont das Scrollen im Chat. Gilt ab dem nächsten Öffnen des Chats. Aus: wie vorher.")
             }
+            if person == .ahmed { AhmedHilfeEinstellungen() }
             Section("Wir") {
                 NavigationLink("Orte") { OrteListeView() }
                 NavigationLink("Jahrestag") { JahrestagEditor() }
