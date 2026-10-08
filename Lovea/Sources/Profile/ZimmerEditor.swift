@@ -18,17 +18,21 @@ struct ZimmerEditor: View {
     @State private var fehler: String?
     /// Poster tab at home: 0 left wall, 1 above the bed, 2 right wall.
     @State private var posterPlatz = 2
+    /// p59: the flowers on the dresser and in the vase (Annika at home), saved with the room.
+    @State private var straeusse: ZimmerStraeusse
+    @State private var straeusseBlatt: StraeusseBlatt.Stelle?
 
     init(person: Person, ort: RaumOrt = .zuhause) {
         self.person = person
         self.ort = ort
         _zimmer = State(initialValue: Zimmer.von(person, ort: ort))
+        _straeusse = State(initialValue: ZimmerStraeusse.von(person))
         // Brief S: the gym has no bed or desk and a fixed wall/floor, so it skips straight to Deko.
         _tab = State(initialValue: ort == .gym ? .deko : .moebel)
     }
 
     private enum Tab: String, CaseIterable, Identifiable {
-        case moebel = "Möbel", wand = "Wand", boden = "Boden", deko = "Deko", poster = "Poster", bilder = "Bilder"
+        case moebel = "Möbel", wand = "Wand", boden = "Boden", deko = "Deko", poster = "Poster", bilder = "Bilder", blumen = "Blumen"
         var id: String { rawValue }
     }
 
@@ -57,6 +61,7 @@ struct ZimmerEditor: View {
             ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
         }
         .onChange(of: fotoAuswahl) { _, neu in fotoUebernehmen(neu) }
+        .sheet(item: $straeusseBlatt) { StraeusseBlatt(stelle: $0, auswahl: $straeusse) }
     }
 
     // MARK: - Preview (the own header's scene, scaled down whole)
@@ -95,7 +100,10 @@ struct ZimmerEditor: View {
     }
 
     /// Brief S: the gym has no Möbel, Wand or Boden to pick (fixed backdrop) and no wall frames.
-    private var tabs: [Tab] { ort == .gym ? [.deko, .poster] : Tab.allCases }
+    private var tabs: [Tab] { ort == .gym ? [.deko, .poster] : Tab.allCases.filter { $0 != .blumen || blumenOption } }
+
+    /// p59: Annika furnishes flowers in her home; the dresser and the vase are the home scene's.
+    private var blumenOption: Bool { ort == .zuhause && person == .annika }
 
     private var tabLeiste: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -129,6 +137,7 @@ struct ZimmerEditor: View {
         case .deko: deko
         case .poster: posterTab
         case .bilder: bilder
+        case .blumen: blumen
         }
     }
 
@@ -285,7 +294,48 @@ struct ZimmerEditor: View {
         }
     }
 
+    // MARK: - Blumen (p59: up to 3 bouquets on the dresser, 1 in the vase)
+
+    private var blumen: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Blumen für dein Zimmer: bis zu drei auf dem Schrank, eine in der Vase auf dem Tisch.")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            blumenZeile("Auf dem Schrank", stelle: .schrank, liste: straeusse.schrank)
+            blumenZeile("In der Vase", stelle: .vase, liste: straeusse.vase.map { [$0] } ?? [])
+        }
+    }
+
+    private func blumenZeile(_ titel: String, stelle: StraeusseBlatt.Stelle, liste: [StraussArt]) -> some View {
+        let namen = liste.isEmpty ? "Leer" : liste.map(\.name).joined(separator: ", ")
+        return Button {
+            straeusseBlatt = stelle
+            Haptik.auswahl()
+        } label: {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titel).font(.headline).foregroundStyle(Color.primary)
+                    Text(namen)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 8)
+                HStack(spacing: 4) {
+                    ForEach(liste) { StraussBild(art: $0, breite: 44) }
+                }
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            .padding(12)
+            .frame(maxWidth: .infinity, minHeight: 72, alignment: .leading)
+            .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        }
+        .buttonStyle(.federnd)
+        .accessibilityLabel("\(titel): \(namen)")
+    }
+
     private func sichern() {
+        if straeusse != ZimmerStraeusse.von(person) { straeusse.sichern() }
         if zimmer != Zimmer.von(person, ort: ort) { zimmer.sichern(ort: ort) }
         Haptik.erfolg()
         dismiss()

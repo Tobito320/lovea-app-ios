@@ -223,10 +223,10 @@ private struct ProfilInhalt: View {
     /// p58: the stretchy header scene is always the shared home with both of them (`ZuhauseBuehne`),
     /// in the partner profile and the own one. It grows upward while pulling down. They walk about
     /// by the clock; only when they are together for real (or a kiss plays) the pair's hug and kiss
-    /// replaces the walkers. The bouquets (p59) come in through `straeusse`.
+    /// replaces the walkers. The bouquets (p59) are Annika's choice for her room, shown in both profiles.
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
-        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZuhauseStraeusse(), paarDa: paarDa) { f in
+        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa) { f in
             buehnenFigur(f)
         } paar: {
             // Teil 2 (Nähe): the pair's closeness pose (kiss glides into Stufe 3 and back).
