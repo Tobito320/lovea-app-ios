@@ -63,6 +63,11 @@ struct KussPaar<Figur: View>: View {
     @State private var wechsel: Date?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// Beide haben das Profil offen: Umarmung (Stufe 3), auch ohne echte Nähe (`ZimmerUmarmung`).
+    private var umarmt: Bool { ZimmerUmarmung.shared.umarmt }
+    private var wirkStufe: Int { umarmt ? 3 : stufe }
+    private var wirkZusammen: Bool { zusammen || umarmt }
+
     var body: some View {
         let _ = nachKuss
         let beginn = FigurenModell.shared.kussBeginn
@@ -70,9 +75,9 @@ struct KussPaar<Figur: View>: View {
         TimelineView(.animation(minimumInterval: 1.0 / 30, paused: (beginn == nil && !gleitet) || reduceMotion)) { kontext in
             let stand = standBei(beginn, kontext.date)
             KussPaarBild(pose: pose(stand, kontext.date), herzen: stand != nil,
-                         ahmedHerein: (stand.map { 1 - $0.weg } ?? 0) * (zusammen ? 0 : 150), figur: figur)
+                         ahmedHerein: (stand.map { 1 - $0.weg } ?? 0) * (wirkZusammen ? 0 : 150), figur: figur)
         }
-        .onChange(of: stufe) { alt, _ in
+        .onChange(of: wirkStufe) { alt, _ in
             vonStufe = alt
             wechsel = Date()
         }
@@ -90,11 +95,11 @@ struct KussPaar<Figur: View>: View {
 
     /// Level pose (gliding 1.5 s after a change), blended into Stufe 3 while a kiss plays.
     private func pose(_ stand: KussAblauf.Stand?, _ jetzt: Date) -> NaehePose {
-        let ziel = NaehePose.stufe(zusammen ? stufe : 0, vorn: vorn)
+        let ziel = NaehePose.stufe(wirkZusammen ? wirkStufe : 0, vorn: vorn)
         var basis = ziel
         if let von = vonStufe, let wechsel, !reduceMotion {
             let t = min(1, CGFloat(jetzt.timeIntervalSince(wechsel) / 1.5))
-            basis = NaehePose.mix(NaehePose.stufe(zusammen ? von : 0, vorn: vorn), ziel, t * t * (3 - 2 * t))
+            basis = NaehePose.mix(NaehePose.stufe(wirkZusammen ? von : 0, vorn: vorn), ziel, t * t * (3 - 2 * t))
         }
         guard let stand else { return basis }
         var p = NaehePose.mix(basis, .stufe(3, vorn: vorn), stand.arme)
