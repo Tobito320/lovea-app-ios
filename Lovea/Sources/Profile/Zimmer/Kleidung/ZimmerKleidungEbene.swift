@@ -75,7 +75,7 @@ struct ZimmerKleidungEbene: View {
             .sensoryFeedback(.selection, trigger: zaehler) { _, _ in haptik }
             .sensoryFeedback(.success, trigger: erfolg) { _, _ in haptik }
             .sheet(isPresented: $blatt, onDismiss: { bewegen { offen = false } }) { schrankBlatt(stand) }
-            .task(id: schluessel) { laden(stand) }
+            .task(id: "\(schluessel)\(stand.isEmpty)") { laden(stand) }
         }
     }
 
@@ -98,7 +98,7 @@ struct ZimmerKleidungEbene: View {
                                 .overlay(alignment: .bottomTrailing) {
                                     if traegt {
                                         Image(systemName: "checkmark.circle.fill")
-                                            .font(.system(size: 24 * k))
+                                            .font(.system(size: 9 * k))
                                             .foregroundStyle(.green)
                                     }
                                 }
@@ -260,7 +260,7 @@ struct ZimmerKleidungEbene: View {
     private func laden(_ stand: [String]) {
         if let a = UserDefaults.standard.stringArray(forKey: schluessel) {
             gesehen = Set(a)
-        } else {
+        } else if !stand.isEmpty {
             // Erster Start: bisheriger Besitz gilt als ausgepackt, nur neue Käufe kommen als Paket.
             gesehen = Set(stand)
             UserDefaults.standard.set(stand, forKey: schluessel)
