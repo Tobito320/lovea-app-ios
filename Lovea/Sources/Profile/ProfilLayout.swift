@@ -44,6 +44,25 @@ enum ProfilLayout {
         return Szene(breite: b, hoehe: h, unten: unten, klebt: unten >= unterMinimum)
     }
 
+    /// p72: where scene and floating chrome (online chip, gear) start, measured from the very top of the screen.
+    struct Oben: Equatable {
+        /// The status bar the wall bleeds into; the scene is drawn below it.
+        var szene: CGFloat
+        /// The chip and the gear: below the status bar and below whatever hangs under it (the Gym bar).
+        var chrome: CGFloat
+    }
+
+    /// `innen`: the top inset read inside the profile. The profile reaches under the status bar (`ignoresSafeArea`),
+    /// and a view that ignores an edge reads 0 there, so the gear sat at the very top, in the status bar's taps.
+    /// `aussen`: the top inset read outside that (status bar, plus the Gym bar while it shows).
+    /// `statusleiste`: the real status bar height of the scene.
+    /// The own profile has no navigation bar: the scene starts under the real status bar (steady, whether or not the
+    /// Gym bar shows) and the chrome clears the status bar and the Gym bar. The partner sheet keeps the inset it gets.
+    static func oben(eigenes: Bool, innen: CGFloat, aussen: CGFloat, statusleiste: CGFloat) -> Oben {
+        guard eigenes else { return Oben(szene: innen, chrome: innen) }
+        return Oben(szene: statusleiste, chrome: max(aussen, statusleiste))
+    }
+
     /// The tab bar of iOS 26 folds away while the lower part scrolls and gives its room to it. A device whose
     /// `unten` lies in this band would flip between fixed and whole-scroll mid-scroll, so none may.
     static let tabLeistenSpiel: CGFloat = 50
