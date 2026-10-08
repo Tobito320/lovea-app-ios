@@ -121,7 +121,10 @@ class TiefenTestBasis: XCTestCase {
         let eintrag = "[\(bereich)] \(hart ? "FEHLER" : "Hinweis"): \(text)"
         guard gemeldet.insert(eintrag).inserted else { return }
         befunde.append(eintrag)
-        if hart { XCTFail(eintrag) }
+        if hart {
+            if befunde.count <= 8 { anhaengen("Hierarchie-\(bereich)-\(befunde.count)", text: app.debugDescription) }
+            XCTFail(eintrag)
+        }
     }
 
     @MainActor

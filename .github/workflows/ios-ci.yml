@@ -140,16 +140,16 @@ jobs:
       - name: Screenshots und Befunde exportieren
         if: always()
         run: |
-          mkdir -p tiefentest-bilder
-          xcrun xcresulttool export attachments --path tiefentest.xcresult --output-path tiefentest-bilder || true
+          mkdir -p tiefentest-roh tiefentest-bilder
+          xcrun xcresulttool export attachments --path tiefentest.xcresult --output-path tiefentest-roh > tiefentest-export.log 2>&1 || true
           xcrun xcresulttool get test-results summary --path tiefentest.xcresult --compact > tiefentest-bilder/summary.json || true
           xcrun xcresulttool get test-results tests --path tiefentest.xcresult --compact > tiefentest-bilder/tests.json || true
           cp tiefentest.log tiefentest-bilder/ || true
-          if [ -f tiefentest-bilder/manifest.json ]; then
-            mkdir -p tiefentest-bilder/benannt
-            jq -r '.[] | .testIdentifier as $t | .attachments[] | [.exportedFileName, ($t | gsub("[^A-Za-z0-9]"; "_")), .suggestedHumanReadableName] | join("|")' tiefentest-bilder/manifest.json \
+          if [ -f tiefentest-roh/manifest.json ]; then
+            jq -r '.[] | .testIdentifier as $t | .attachments[] | select(.suggestedHumanReadableName | test("^(Befunde|Hierarchie|[a-z0-9]+-[0-9]{3}-)")) | [.exportedFileName, ($t | gsub("[^A-Za-z0-9]"; "_")), .suggestedHumanReadableName] | join("|")' tiefentest-roh/manifest.json \
               | while IFS='|' read -r datei test name; do
-                  cp "tiefentest-bilder/$datei" "tiefentest-bilder/benannt/${test}__${name}" || true
+                  sauber=$(printf '%s' "$name" | tr -c 'A-Za-z0-9._-' '_')
+                  cp "tiefentest-roh/$datei" "tiefentest-bilder/${test}__${sauber}" || true
                 done
           fi
           {
