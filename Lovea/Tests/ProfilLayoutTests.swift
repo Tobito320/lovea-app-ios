@@ -146,6 +146,44 @@ final class ProfilLayoutTests: XCTestCase {
         XCTAssertTrue(ProfilReiterLogik.zeigtLeiste([.zimmer, .wir]))
     }
 
+    // MARK: p72: Chip und Zahnrad unter der Statusleiste
+
+    /// Gym-Leiste ("Training laeuft"): mindestens 44 pt unter der Statusleiste.
+    private let gymLeiste: CGFloat = 44
+
+    func testEigenesProfilStartetUnterDerEchtenStatusleisteAuchWennInnenNullGelesenWird() {
+        for (name, _, _, status) in iPhones26 {
+            // Innen (unter ignoresSafeArea) liest 0, aussen liest die Statusleiste.
+            let o = L.oben(eigenes: true, innen: 0, aussen: status, statusleiste: status)
+            XCTAssertEqual(o.szene, status, name)
+            XCTAssertEqual(o.chrome, status, name)
+            // Das Zahnrad beginnt nie in der Statusleiste, wo das System die Tipps nimmt.
+            XCTAssertGreaterThanOrEqual(o.chrome, status, name)
+        }
+    }
+
+    func testChromeFaelltNieUnterDieStatusleisteAuchWennAussenNullLiest() {
+        let o = L.oben(eigenes: true, innen: 0, aussen: 0, statusleiste: 59)
+        XCTAssertEqual(o.chrome, 59)
+        XCTAssertEqual(o.szene, 59)
+    }
+
+    func testChromeLiegtUnterDerGymLeisteDieSzeneBleibtStabil() {
+        for (name, b, h, status) in iPhones26 {
+            let ohne = L.oben(eigenes: true, innen: 0, aussen: status, statusleiste: status)
+            let mit = L.oben(eigenes: true, innen: 0, aussen: status + gymLeiste, statusleiste: status)
+            XCTAssertEqual(mit.chrome, status + gymLeiste, name)
+            XCTAssertEqual(mit.szene, ohne.szene, "\(name): die Szene springt nicht, wenn die Leiste kommt")
+            XCTAssertEqual(L.szene(breite: b, hoehe: h, oben: mit.szene), L.szene(breite: b, hoehe: h, oben: ohne.szene), name)
+            XCTAssertTrue(L.szene(breite: b, hoehe: h, oben: mit.szene).klebt, name)
+        }
+    }
+
+    func testPartnerSheetBehaeltDenGegebenenAbstand() {
+        XCTAssertEqual(L.oben(eigenes: false, innen: 0, aussen: 59, statusleiste: 59), L.Oben(szene: 0, chrome: 0))
+        XCTAssertEqual(L.oben(eigenes: false, innen: 56, aussen: 56, statusleiste: 0), L.Oben(szene: 56, chrome: 56))
+    }
+
     // MARK: Tippflaechen und Schrift
 
     func testTippflaechenSindMindestens44Pt() {
