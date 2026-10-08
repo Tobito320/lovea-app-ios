@@ -7,6 +7,8 @@ struct ProfilAvatar: View {
     let person: Person
     let online: Bool
     let d: CGFloat
+    /// Thin rose ring around the avatar, 0...1 of the way to the next milestone (`Meilenstein`); nil = none.
+    var fortschritt: Double? = nil
 
     var body: some View {
         FigurView(FigurenModell.shared.aussehen(person), zustand: .ruhig, groesse: d * 1.6, animiert: false)
@@ -15,6 +17,17 @@ struct ProfilAvatar: View {
             .background(Color(uiColor: .secondarySystemBackground))
             .clipShape(Circle())
             .overlay(Circle().stroke(.white, lineWidth: 3))
+            .overlay {
+                if let fortschritt {
+                    ZStack {
+                        Circle().stroke(Color.loveaRose.opacity(0.22), lineWidth: 2.5)
+                        Circle().trim(from: 0, to: fortschritt)
+                            .stroke(Color.loveaRose, style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                            .rotationEffect(.degrees(-90))
+                    }
+                    .frame(width: d + 7, height: d + 7)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 if online {
                     Circle().fill(.green)
