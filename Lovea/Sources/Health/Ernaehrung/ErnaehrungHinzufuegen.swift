@@ -171,6 +171,12 @@ struct HinzufuegenBlatt: View {
                           loeschen: { loeschen(l) })
             }
         } else {
+            if typ == .lebensmittel {
+                MeineMahlzeiten(liste: modell.rezepte(von: ich, art: .mahlzeit), eingetragen: geradeEingetragen,
+                                eintragen: mahlzeitEintragen,
+                                bearbeiten: { rezeptBearbeiten = $0 },
+                                neu: { rezeptArt = .mahlzeit; rezeptNeuOffen = true })
+            }
             ForEach(listeInhalt) { l in
                 HinzuZeile(lebensmittel: l, eingetragen: geradeEingetragen.contains(l.id),
                            tippen: { pfad.append(l) }, plus: { direktEintragenUndMarkieren(l) },
@@ -342,7 +348,24 @@ struct HinzufuegenBlatt: View {
 
     // MARK: - Aktionen
 
+    /// Ganze Mahlzeit in den Slot dieses Tags: ein Eintrag je Zutat.
+    private func mahlzeitEintragen(_ r: Rezept) {
+        modell.mahlzeitEintragen(r, mahlzeit: mahlzeit, datum: datum)
+        zeigeHinweis(r.name)
+        zaehler += 1
+        geradeEingetragen.insert(r.id)
+        Task {
+            try? await Task.sleep(for: .seconds(1))
+            geradeEingetragen.remove(r.id)
+        }
+    }
+
     private func direktEintragen(_ l: Lebensmittel) {
+        if let vorlage = modell.mahlzeitVorlage(l.id) {
+            modell.mahlzeitEintragen(vorlage, mahlzeit: mahlzeit, datum: datum)
+            zeigeHinweis(l.name)
+            return
+        }
         let start = modell.letzteMenge(ich, l) ?? ErnaehrungLogik.startMenge(l)
         modell.eintragen(l, menge: start.menge, einheit: start.einheit, mahlzeit: mahlzeit, datum: datum)
         zeigeHinweis(l.name)
@@ -407,6 +430,61 @@ struct HinzufuegenBlatt: View {
         k.barcode = code
         modell.eigenesSichern(k)
         pfad.append(k)
+    }
+}
+
+/// "Meine Mahlzeiten" ganz oben: Tipp trägt die ganze Mahlzeit in den Slot ein, Kontextmenü bearbeitet die Vorlage.
+private struct MeineMahlzeiten: View {
+    let liste: [Rezept]
+    let eingetragen: Set<String>
+    let eintragen: (Rezept) -> Void
+    let bearbeiten: (Rezept) -> Void
+    let neu: () -> Void
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Meine Mahlzeiten").font(.headline)
+                Spacer()
+                Button("Neue Mahlzeit", systemImage: "plus", action: neu)
+                    .labelStyle(.iconOnly)
+                    .font(.title3)
+            }
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 4)
+            if liste.isEmpty {
+                Text("Speichere Cornflakes, Milch und Honig als eine Mahlzeit und trag sie mit einem Tipp ein.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 8)
+            }
+            ForEach(liste) { r in
+                Button { eintragen(r) } label: {
+                    HStack(spacing: 12) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(r.name).foregroundStyle(.primary)
+                            Text("\(r.zutaten.count) Zutaten").font(.caption).foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        Text("\(Int(ErnaehrungLogik.summe(r).kcal.rounded())) kcal").font(.subheadline).foregroundStyle(.secondary)
+                        Image(systemName: eingetragen.contains(r.id) ? "checkmark.circle.fill" : "plus.circle")
+                            .font(.title2)
+                            .foregroundStyle(Color.accentColor)
+                            .frame(width: 36, height: 36)
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .overlay(alignment: .bottom) { Divider().padding(.leading, 16) }
+                .contextMenu { Button("Bearbeiten", systemImage: "pencil") { bearbeiten(r) } }
+                .accessibilityLabel("\(r.name) eintragen")
+            }
+        }
     }
 }
 
