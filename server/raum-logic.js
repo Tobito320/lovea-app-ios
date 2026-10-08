@@ -112,8 +112,9 @@ export function verbindungIstLebendig(letzterKontaktMs, jetztMs) {
 // noch beim Nachholen -- auch getippter und wieder gelöschter Text landet so nicht auf seinem Gerät.
 export const NUR_FUER_ABSENDER = "entwurf.setzen";
 // 27.09.: auch die private Galerie (`galerie.*`) -- sie syncht nur zwischen den Geräten ihres Besitzers.
+// Ebenso die Geschenkbox (`geschenkbox.*`): der Partner soll die Wünsche nie sehen, bis sie ausgepackt sind.
 export function nurFuerAbsender(art) {
-  return art === NUR_FUER_ABSENDER || art.startsWith("galerie.");
+  return art === NUR_FUER_ABSENDER || art.startsWith("galerie.") || art.startsWith("geschenkbox.");
 }
 
 // Speichert eine Op. Doppelte id -> vorhandene seq zurück (INSERT OR IGNORE).
@@ -155,7 +156,7 @@ export function opsSeit(sql, seit, limit = SEITE, maxBytes = SEITE_BYTES, fuer =
   let bytes = 0;
   const zeilen = sql.exec(
     `SELECT seq, id, art, von, zeit, d FROM ops
-     WHERE seq > ? AND (? IS NULL OR NOT ((art = ? OR art LIKE 'galerie.%') AND von != ?))
+     WHERE seq > ? AND (? IS NULL OR NOT ((art = ? OR art LIKE 'galerie.%' OR art LIKE 'geschenkbox.%') AND von != ?))
      ORDER BY seq ASC LIMIT ?`,
     seit,
     fuer,

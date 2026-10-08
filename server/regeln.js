@@ -53,6 +53,8 @@ function nachrichtText(von, d) {
 
 function gesteRegel(von, d) {
   const name = NAME[von];
+  // Lampe im Zimmer (Paar-Signale): derselbe Herz-Tipp, aber ohne Text und Ton -- die Lampe leuchtet nur.
+  if (d.art === "herz" && d.quelle === "lampe") return { stufe: "still", kategorie: "geste", titel: "Lovea", text: null };
   if (d.art === "herz") {
     return { stufe: "laut", kategorie: "geste", titel: "Lovea", text: `${name} denkt gerade an dich`, ton: "herzschlag.wav" };
   }

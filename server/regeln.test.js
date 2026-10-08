@@ -39,6 +39,20 @@ test("geste herz, kuss, anstupsen: laut mit eigenem Ton", () => {
   assert.equal(stups.ton, "anstupsen.wav");
 });
 
+test("geste herz aus der Lampe: still, ohne Text und Ton", () => {
+  const lampe = regel("geste", "annika", { art: "herz", quelle: "lampe" });
+  assert.equal(lampe.stufe, "still");
+  assert.equal(lampe.kategorie, "geste");
+  assert.equal(lampe.text, null);
+  assert.equal(lampe.ton, undefined);
+  assert.equal(regel("geste", "annika", { art: "herz", quelle: "widget" }).stufe, "laut");
+});
+
+test("Stimmung, Geschenkbox, Zimmer-Signale lösen keine eigene Push aus", () => {
+  assert.equal(regel("stimmung.setzen", "annika", { art: "muede" }), null);
+  assert.equal(regel("geschenkbox.setzen", "annika", { id: "x", text: "Ring" }), null);
+});
+
 test("laute Mitteilungen haben immer einen Ton, leise keinen", () => {
   assert.equal(regel("nachricht.neu", "ahmed", { text: "hi" }).ton, "nachricht.wav");
   assert.equal(regel("ort.ereignis", "ahmed", { art: "ankunft" }, { ortName: "Gym" }).ton, "ort.wav");
