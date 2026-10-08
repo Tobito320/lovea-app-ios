@@ -7,7 +7,7 @@ struct ProfileView: View {
     let person: Person
     @ObservedObject var session: PersonSession
     /// Spiele-Bilanz aus Block 14 (`SpieleModell`), vom Controller in `AppRootView.swift` verdrahtet.
-    var bilanz: [(spiel: String, ahmed: Int, annika: Int)] = []
+    var bilanz: [(spiel: String, ahmed: Int, annika: Int, paar: String?)] = []
 
     var body: some View {
         NavigationStack {
@@ -47,10 +47,11 @@ struct PartnerProfilView: View {
         .partnerStandortLive()
     }
 
-    private var bilanz: [(spiel: String, ahmed: Int, annika: Int)] {
+    private var bilanz: [(spiel: String, ahmed: Int, annika: Int, paar: String?)] {
         SpielArt.allCases.compactMap { art in
             guard let p = SpieleModell.shared.bilanz[art] else { return nil }
-            return (art.titel, p.ahmed, p.annika)
+            let paar: String? = art.paarWertung ? art.bilanzText(p) : nil
+            return (art.titel, p.ahmed, p.annika, paar)
         }
     }
 }
@@ -76,7 +77,7 @@ private enum KussTon {
 
 private struct ProfilInhalt: View {
     let person: Person
-    let bilanz: [(spiel: String, ahmed: Int, annika: Int)]
+    let bilanz: [(spiel: String, ahmed: Int, annika: Int, paar: String?)]
     /// Closes the partner sheet before a tab switch; no-op in the tab.
     let schliessen: () -> Void
 
@@ -641,7 +642,7 @@ private struct ProfilInhalt: View {
                 HStack {
                     Text(eintrag.spiel)
                     Spacer()
-                    Text("Ahmed \(eintrag.ahmed) : \(eintrag.annika) Annika").monospacedDigit().foregroundStyle(.secondary)
+                    Text(eintrag.paar ?? "Ahmed \(eintrag.ahmed) : \(eintrag.annika) Annika").monospacedDigit().foregroundStyle(.secondary)
                 }
                 .font(.subheadline)
                 .padding(.leading, 58)
@@ -677,8 +678,9 @@ private struct ProfilInhalt: View {
     }
 
     private var gesamtKrone: Person? {
-        let ahmedGesamt = bilanz.reduce(0) { $0 + $1.ahmed }
-        let annikaGesamt = bilanz.reduce(0) { $0 + $1.annika }
+        let mitSieger = bilanz.filter { $0.paar == nil }
+        let ahmedGesamt = mitSieger.reduce(0) { $0 + $1.ahmed }
+        let annikaGesamt = mitSieger.reduce(0) { $0 + $1.annika }
         guard ahmedGesamt != annikaGesamt else { return nil }
         return ahmedGesamt > annikaGesamt ? .ahmed : .annika
     }

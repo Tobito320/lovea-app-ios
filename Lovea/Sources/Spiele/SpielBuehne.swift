@@ -91,6 +91,9 @@ struct SpielBuehne: View {
         case .kennen: KennenSpiel(k: k)
         case .reaktion: ReaktionSpiel(k: k)
         case .memory: MemorySpiel(k: k)
+        case .eher: EherSpiel(k: k).id(k.partie)
+        case .wordle: WordleSpiel(k: k).id(k.partie)
+        case .schiffe: SchiffeSpiel(k: k).id(k.partie)
         }
     }
 
@@ -102,19 +105,24 @@ struct SpielBuehne: View {
         case .kennen: KennenSpiel(k: k).ende
         case .reaktion: ReaktionSpiel(k: k).ende
         case .memory: MemorySpiel(k: k).ende
+        case .eher: EherSpiel(k: k).ende
+        case .wordle: WordleSpiel(k: k).ende
+        case .schiffe: SchiffeSpiel(k: k).ende
         }
     }
 
     private func kopf(_ k: SpielKontext) -> some View {
         let gesamt = k.spiel.ergebnis?.punkte ?? SpielPunkte()
         let da = modell.partnerGesehen[spielId].map { jetzt.timeIntervalSince($0) < 7 } ?? false
-        let raus = k.partnerZug?.raus == true
-        let status = raus ? "\(k.partner.name) ist raus" : (da ? "\(k.spiel.ergebnis?.gespielt ?? 0)× gespielt" : "Warte auf \(k.partner.name) …")
+        // Schiffe lebt von gespeicherten Ops und läuft über Tage: "raus" und "da" gelten dort nicht.
+        let dauerhaft = k.spiel.art == .schiffe
+        let raus = !dauerhaft && k.partnerZug?.raus == true
+        let status = raus ? "\(k.partner.name) ist raus" : (da || dauerhaft ? "\(k.spiel.ergebnis?.gespielt ?? 0)× gespielt" : "Warte auf \(k.partner.name) …")
         return HStack(alignment: .bottom) {
             spieler(k.ich, name: "Du", da: true)
             Spacer()
             VStack(spacing: 2) {
-                Text("\(gesamt[k.ich]) : \(gesamt[k.partner])")
+                Text(k.spiel.art.paarWertung ? "\(gesamt.ahmed) von \(gesamt.ahmed + gesamt.annika)" : "\(gesamt[k.ich]) : \(gesamt[k.partner])")
                     .font(.system(.title, design: .rounded).weight(.bold).monospacedDigit())
                     .contentTransition(.numericText())
                 Text(status)
@@ -123,12 +131,12 @@ struct SpielBuehne: View {
             }
             .padding(.bottom, 18)
             Spacer()
-            spieler(k.partner, name: k.partner.name, da: da && !raus)
+            spieler(k.partner, name: k.partner.name, da: (da || dauerhaft) && !raus)
         }
         .padding(.horizontal, 24)
         .padding(.top, 4)
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("Du \(gesamt[k.ich]), \(k.partner.name) \(gesamt[k.partner]), \(status)")
+        .accessibilityLabel(k.spiel.art.paarWertung ? "\(k.spiel.art.bilanzText(gesamt)), \(status)" : "Du \(gesamt[k.ich]), \(k.partner.name) \(gesamt[k.partner]), \(status)")
     }
 
     private func spieler(_ p: Person, name: String, da: Bool) -> some View {
@@ -151,7 +159,7 @@ private struct EndeKarte: View {
     }
 
     var body: some View {
-        let raus = k.partnerZug?.raus == true
+        let raus = k.spiel.art != .schiffe && k.partnerZug?.raus == true
         VStack(spacing: 12) {
             if let s = ende.sieger {
                 FigurView(FigurenModell.shared.aussehen(s), zustand: .pokal, groesse: 120)

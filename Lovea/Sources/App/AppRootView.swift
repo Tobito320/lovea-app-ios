@@ -112,10 +112,11 @@ struct AppRootView: View {
 
 
 private extension AppRootView {
-    var spieleBilanz: [(spiel: String, ahmed: Int, annika: Int)] {
+    var spieleBilanz: [(spiel: String, ahmed: Int, annika: Int, paar: String?)] {
         SpielArt.allCases.compactMap { art in
             guard let p = SpieleModell.shared.bilanz[art] else { return nil }
-            return (art.titel, p.ahmed, p.annika)
+            let paar: String? = art.paarWertung ? art.bilanzText(p) : nil
+            return (art.titel, p.ahmed, p.annika, paar)
         }
     }
 
