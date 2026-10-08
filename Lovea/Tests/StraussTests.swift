@@ -106,6 +106,20 @@ final class StraussTests: XCTestCase {
         XCTAssertNil(z.vase)
     }
 
+    func testBuehnenWahlTraegtDieIds() {
+        let z = ZimmerStraeusse(schrank: [.lila, .glitzerRot], vase: .pinkCreme)
+        XCTAssertEqual(z.fuerBuehne, ZuhauseStraeusse(schrank: ["lila", "glitzerRot"], vase: "pinkCreme"))
+        XCTAssertEqual(ZimmerStraeusse().fuerBuehne, ZuhauseStraeusse())
+        for art in StraussArt.allCases { XCTAssertNotNil(StraussArt(rawValue: art.rawValue)) }
+    }
+
+    func testStraussViewKenntNurEchteIds() throws {
+        let echt = try XCTUnwrap(bild(StraussView(id: "rotBunt").frame(width: 60, height: 100)))
+        let fremd = try XCTUnwrap(bild(StraussView(id: "gibtEsNicht").frame(width: 60, height: 100)))
+        XCTAssertGreaterThan(sichtbar(echt), 500)
+        XCTAssertEqual(sichtbar(fremd), 0)
+    }
+
     func testSpeichernUndLesenKommtGleichZurueck() {
         let z = ZimmerStraeusse(schrank: [.glitzerRot, .lila], vase: .pinkCreme)
         XCTAssertEqual(ZimmerStraeusse.lesen(z.json), z)
@@ -141,6 +155,29 @@ final class StraussTests: XCTestCase {
             zellen += StraussArt.allCases.map { zelle($0, breite: breite, titel: "\($0.name) \(Int(breite)) pt") }
         }
         RenderTafel.speichern("p59-blumen", spalten: 5, zellen: zellen)
+    }
+
+    /// Die echte Zuhause-Bühne (p58) mit den Sträußen: drei auf dem Schrank, einer in der Vase.
+    private func zimmer(_ zeit: Tageszeit, _ z: ZimmerStraeusse, breite: CGFloat = 390) -> AnyView {
+        let stand = ZuhauseSzenenstand(zeit: zeit, ZuhauseAblauf.aufstellung(zeit, schritt: 2), mitGeste: false)
+        let szene = ZuhauseBuehne(straeusse: z.fuerBuehne, fest: stand) { f in
+            FigurView(.standard(for: f.person), zustand: f.zustand, groesse: f.groesse, animiert: false, ganzkoerper: f.ganzkoerper)
+        } paar: {
+            EmptyView()
+        }
+        return AnyView(szene.frame(width: breite, height: 430).clipped())
+    }
+
+    func testTafelZimmerMitStraeussen() {
+        let drei = ZimmerStraeusse(schrank: [.lila, .rotBunt, .rosaGerbera], vase: .pinkCreme)
+        let andere = ZimmerStraeusse(schrank: [.glitzerRot, .pinkCreme, .lila], vase: .rosaGerbera)
+        let zellen: [Zelle] = [
+            (titel: "Schrank: Lila, Rot, Rosa. Vase: Pink", ansicht: zimmer(.tag, drei)),
+            (titel: "Schrank: Glitzer, Pink, Lila. Vase: Rosa", ansicht: zimmer(.tag, andere)),
+            (titel: "Nur ein Strauß, Vase leer", ansicht: zimmer(.morgen, ZimmerStraeusse(schrank: [.rotBunt], vase: nil))),
+            (titel: "Nacht, alle Plätze voll", ansicht: zimmer(.nacht, drei)),
+        ]
+        RenderTafel.speichern("p59-zimmer", spalten: 2, zellen: zellen)
     }
 
     /// Je Strauß eine große Tafel, zum Vergleichen mit dem Foto.

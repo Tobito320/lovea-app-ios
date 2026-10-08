@@ -46,6 +46,11 @@ struct ZimmerStraeusse: Equatable, Sendable {
         if let vase { o["vase"] = .string(vase.rawValue) }
         return .object(o)
     }
+
+    /// What the home scene (p58) takes: the same choice as IDs for `StraussView`.
+    var fuerBuehne: ZuhauseStraeusse {
+        ZuhauseStraeusse(schrank: schrank.map(\.rawValue), vase: vase?.rawValue)
+    }
 }
 
 @MainActor
