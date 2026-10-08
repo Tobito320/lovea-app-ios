@@ -55,12 +55,12 @@ final class PaarSignaleRenderTests: XCTestCase {
         let blasen = AnyView(HStack(spacing: 8) {
             bild(SignaleZeichnung.blasenRaster, breite: 44) { SignaleZeichnung.blase($0, nil) }
             ForEach(Gefuehl.allCases, id: \.self) { s in
-                bild(SignaleZeichnung.blasenRaster, breite: 44) { SignaleZeichnung.blase($0, s) }
+                self.bild(SignaleZeichnung.blasenRaster, breite: 44) { SignaleZeichnung.blase($0, s) }
             }
         })
         let gesichter = AnyView(HStack(spacing: 8) {
             ForEach(Gefuehl.allCases, id: \.self) { s in
-                bild(CGSize(width: 40, height: 40), breite: 56) { SignaleZeichnung.gesicht($0, s) }
+                self.bild(CGSize(width: 40, height: 40), breite: 56) { SignaleZeichnung.gesicht($0, s) }
             }
         })
         let dinge = AnyView(HStack(spacing: 8) {
