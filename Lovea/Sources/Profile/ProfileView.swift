@@ -225,7 +225,7 @@ private struct ProfilInhalt: View {
     /// replaces the walkers. The bouquets (p59) come in through `straeusse`.
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
-        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZuhauseStraeusse(), paarDa: paarDa) { f in
+        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZuhauseStraeusse(), paarDa: paarDa, extras: .live()) { f in
             buehnenFigur(f)
         } paar: {
             // Teil 2 (Nähe): the pair's closeness pose (kiss glides into Stufe 3 and back).

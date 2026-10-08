@@ -59,6 +59,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let dehnung: CGFloat
     private let straeusse: ZuhauseStraeusse
     private let paarDa: Bool
+    private let extras: ZimmerExtrasStand?
     private let fest: Bool
     private let figur: (ZuhauseFigur) -> Figur
     private let paar: () -> Paar
@@ -72,12 +73,14 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// `dehnung`: how far the header is pulled down; the scene grows upwards, the bottom stays.
     /// `paarDa`: they are together for real, `paar` (hug, kiss) replaces the two walkers.
     /// `fest`: a fixed scene without any driver (render board, previews).
+    /// `extras` (p63): occasion decoration, sign, shelf and dice, hung in under the figures.
     init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
-         fest: ZuhauseSzenenstand? = nil,
+         extras: ZimmerExtrasStand? = nil, fest: ZuhauseSzenenstand? = nil,
          @ViewBuilder figur: @escaping (ZuhauseFigur) -> Figur, @ViewBuilder paar: @escaping () -> Paar) {
         self.dehnung = dehnung
         self.straeusse = straeusse
         self.paarDa = paarDa
+        self.extras = extras
         self.fest = fest != nil
         self.figur = figur
         self.paar = paar
@@ -95,6 +98,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                 ZuhauseRaumBild(zeit: stand.zeit)
                 schatten
                 ZStack(alignment: .topLeading) {
+                    if let extras { ZimmerExtras(stand: extras, s: s, oben: oben) }
                     bett(s, oben)
                     straeusseSicht(s, oben)
                     personen(sitzend: true, s, oben)
