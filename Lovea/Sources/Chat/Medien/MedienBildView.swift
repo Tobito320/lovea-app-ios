@@ -45,7 +45,7 @@ struct MedienNachrichtView: View {
                             .navigationTransition(.zoom(sourceID: medium.id, in: zoomRaum))
                     }
             } else {
-                LadePlatzhalter(istVideo: istVideo)
+                LadePlatzhalter(istVideo: istVideo, medienId: medium.id)
             }
         }
         // Review r10-chatbild #2: the card's padding goes *inside* the already-maxed bubble frame
@@ -56,6 +56,10 @@ struct MedienNachrichtView: View {
         .transparenzKarte(karte)
         .frame(width: groesse.width, height: groesse.height)
         .clipShape(.rect(cornerRadius: 18))
+        .overlay(alignment: .bottomTrailing) {
+            // Eigene Medien liegen sofort lokal; der Stand zeigt, wie weit das Senden ist.
+            if eigene { FortschrittsAnzeige(medienId: medium.id).padding(8) }
+        }
         .task(id: medium.id) {
             guard let gefunden = await MedienDatei.url(medium, eigene: eigene) else { return }
             localURL = gefunden
@@ -113,7 +117,7 @@ enum MedienDatei {
         if eigene, let quelle = ChatMedien.eigeneQuellen[medium.id] { return quelle }
         if let vorhanden = Medien.lokal(medium.id) { return vorhanden }
         while !Task.isCancelled {
-            if let geholt = try? await Medien.holen(medium.id) { return geholt }
+            if let geholt = try? await MedienUebertragung.holen(medium.id) { return geholt }
             // The message arrives before the upload finishes (404 until then): 5 s here meant the
             // photo showed up to 5 s after it was actually there.
             try? await Task.sleep(for: .seconds(1))
@@ -156,12 +160,17 @@ struct MedienKachel: View {
 
 private struct LadePlatzhalter: View {
     let istVideo: Bool
+    let medienId: String
     var body: some View {
         ZStack {
             Rectangle().fill(.thinMaterial)
-            VStack(spacing: 6) {
-                ProgressView()
-                Text("wird geladen").font(.caption2).foregroundStyle(.secondary)
+            if FortschrittsStand.shared.stand(medienId) != nil {
+                FortschrittsAnzeige(medienId: medienId)
+            } else {
+                VStack(spacing: 6) {
+                    ProgressView()
+                    Text("wird geladen").font(.caption2).foregroundStyle(.secondary)
+                }
             }
         }
         .overlay(alignment: .topLeading) {

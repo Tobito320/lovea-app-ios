@@ -51,6 +51,7 @@ enum ChatMedien {
         var hochzuladen: [(id: String, ergebnis: MedienKodierung.Ergebnis)] = []
         for inhalt in inhalte {
             let id = UUID().uuidString
+            FortschrittsStand.shared.beginnen(id, rolle: .senden)
             let ergebnis: MedienKodierung.Ergebnis?
             let typ: String
             switch inhalt {
@@ -61,7 +62,7 @@ enum ChatMedien {
                 ergebnis = await MedienKodierung.video(quelle, id: id)
                 typ = "video"
             }
-            guard let fertig = ergebnis else { continue }
+            guard let fertig = ergebnis else { FortschrittsStand.shared.vergessen(id); continue }
             vormerkenUndSenden(id: id, ergebnis: fertig, typ: typ, antwortAuf: antwort)
             hochzuladen.append((id: id, ergebnis: fertig))
             antwort = nil
@@ -71,7 +72,8 @@ enum ChatMedien {
 
     static func videoSenden(_ quelle: URL, antwortAuf: String? = nil) async {
         let id = UUID().uuidString
-        guard let ergebnis = await MedienKodierung.video(quelle, id: id) else { return }
+        FortschrittsStand.shared.beginnen(id, rolle: .senden)
+        guard let ergebnis = await MedienKodierung.video(quelle, id: id) else { FortschrittsStand.shared.vergessen(id); return }
         await hochladenUndSenden(id: id, ergebnis: ergebnis, typ: "video", antwortAuf: antwortAuf)
     }
 
@@ -109,7 +111,8 @@ enum ChatMedien {
 
     static func snapFotoSenden(jpeg: Data, bleibt: Bool, antwortAuf: String? = nil) async {
         let id = UUID().uuidString
-        guard let ergebnis = await Task.detached(priority: .userInitiated) { MedienKodierung.foto(jpeg, id: id) }.value else { return }
+        FortschrittsStand.shared.beginnen(id, rolle: .senden)
+        guard let ergebnis = await Task.detached(priority: .userInitiated) { MedienKodierung.foto(jpeg, id: id) }.value else { FortschrittsStand.shared.vergessen(id); return }
         eigeneQuellen[id] = ergebnis.original
         merkeAusstehend(id: id, original: ergebnis.original, klein: ergebnis.klein)
         ChatModell.shared.snapSenden(
@@ -124,7 +127,8 @@ enum ChatMedien {
     /// redundant here since it's already ≤30s, but keeps one encoding path instead of two).
     static func snapVideoSenden(quelle: URL, bleibt: Bool, antwortAuf: String? = nil) async {
         let id = UUID().uuidString
-        guard let ergebnis = await MedienKodierung.video(quelle, id: id) else { return }
+        FortschrittsStand.shared.beginnen(id, rolle: .senden)
+        guard let ergebnis = await MedienKodierung.video(quelle, id: id) else { FortschrittsStand.shared.vergessen(id); return }
         eigeneQuellen[id] = ergebnis.original
         merkeAusstehend(id: id, original: ergebnis.original, klein: ergebnis.klein)
         ChatModell.shared.snapSenden(
@@ -202,6 +206,7 @@ enum ChatMedien {
     /// Kodieren, dann hochladen. `nil` = Kodierung gescheitert oder abgebrochen (dann ist schon aufgeräumt).
     private static func videoVorabArbeit(quelle: URL) async -> VideoVorabErgebnis? {
         let id = UUID().uuidString
+        FortschrittsStand.shared.beginnen(id, rolle: .senden)
         let kodiert = await MedienKodierung.video(quelle, id: id)
         guard let ergebnis = kodiert, !Task.isCancelled else {
             videoVorabVerwerfen(id: id, ergebnis: kodiert)
@@ -210,7 +215,7 @@ enum ChatMedien {
         eigeneQuellen[id] = ergebnis.original
         var hochgeladen = false
         do {
-            try await Medien.hochladen(id: id, original: ergebnis.original, klein: ergebnis.klein)
+            try await MedienUebertragung.hochladen(id: id, original: ergebnis.original, klein: ergebnis.klein)
             hochgeladen = true
         } catch {
             // stiller Rückfall: beim Senden geht die Op raus und der Upload läuft über die Warteschlange
@@ -268,6 +273,7 @@ enum ChatMedien {
     /// (`Sync/Medien.swift` legt sie unter `Lovea/medien/hochladen/<id>-<rolle>` ab) und die Cache-Kopie.
     private static func videoVorabVerwerfen(id: String, ergebnis: MedienKodierung.Ergebnis?) {
         eigeneQuellen[id] = nil
+        FortschrittsStand.shared.vergessen(id)
         let medien = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Lovea/medien", isDirectory: true)
         var weg = [medien.appendingPathComponent(id)]
@@ -301,7 +307,7 @@ enum ChatMedien {
 
     private static func hochladen(id: String, ergebnis: MedienKodierung.Ergebnis) async {
         do {
-            try await Medien.hochladen(id: id, original: ergebnis.original, klein: ergebnis.klein)
+            try await MedienUebertragung.hochladen(id: id, original: ergebnis.original, klein: ergebnis.klein)
             vergisAusstehend(id: id)
         } catch {
             // stays in the resume queue; `ausstehendeAbarbeiten()` retries later
@@ -314,7 +320,7 @@ enum ChatMedien {
     static func ausstehendeAbarbeiten() async {
         for eintrag in ladeAusstehend() {
             do {
-                try await Medien.hochladen(id: eintrag.id, original: eintrag.original, klein: eintrag.klein)
+                try await MedienUebertragung.hochladen(id: eintrag.id, original: eintrag.original, klein: eintrag.klein)
                 vergisAusstehend(id: eintrag.id)
             } catch {
                 continue

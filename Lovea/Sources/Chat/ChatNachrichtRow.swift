@@ -482,7 +482,7 @@ private struct SnapZeile: View {
                 // Snaps replay without limit: the spur stays tappable ("nochmal" for the receiver).
                 spur(nachricht.snapLange ? "Snap lange angesehen" : (eigene ? "Snap angesehen" : "Snap angesehen · nochmal"))
             } else {
-                spur(eigene ? "Snap" : "Snap ansehen")
+                spur(ungeoeffnetText)
             }
         }
         .fullScreenCover(isPresented: $vollbild) {
@@ -499,8 +499,19 @@ private struct SnapZeile: View {
                   let medium = nachricht.medien.first,
                   ChatMedien.eigeneQuellen[medium.id] == nil, Medien.lokal(medium.id) == nil
             else { return }
-            _ = try? await Medien.holen(medium.id)
+            _ = try? await MedienUebertragung.holen(medium.id)
         }
+    }
+
+    /// "Snap" / "Snap ansehen", solange etwas unterwegs ist mit dem ehrlichen Stand dahinter
+    /// (Hochladen, Zustellen, Herunterladen). Kommt nichts mehr hinzu, steht wieder der Normaltext da.
+    private var ungeoeffnetText: String {
+        let normal = eigene ? "Snap" : "Snap ansehen"
+        guard let id = nachricht.medien.first?.id,
+              let stand = FortschrittsStand.shared.stand(id)?.mitBestaetigung(nachricht.seq != nil),
+              !stand.fertig
+        else { return normal }
+        return normal + " · " + stand.text
     }
 
     private var gespeichertAbzeichen: some View {

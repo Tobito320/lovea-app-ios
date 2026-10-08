@@ -3,7 +3,8 @@ import Combine
 import SwiftUI
 import UIKit
 
-/// Fullscreen snap viewer (Z-6.3, Z-6.4): tap or swipe down to close. Only the recipient's very
+/// Fullscreen snap viewer (Z-6.3, Z-6.4): tap or swipe down to close. Nothing sits on the picture
+/// except the three-dot menu top right (save in chat, save to Photos, close). Only the recipient's very
 /// first open sends `snap.angesehen` (`lange` from 2 minutes on screen); "Erneut ansehen" reopens
 /// this same view without resending it. A screenshot or screen recording while open sends
 /// `snap.aufnahme`, attributed to whoever is looking right now (`ich`), never the original sender.
@@ -40,7 +41,7 @@ struct SnapViewer: View {
                 } else if let bild {
                     Image(uiImage: bild).resizable().scaledToFit()
                 } else {
-                    ProgressView().tint(.white)
+                    ladeAnzeige
                 }
             }
             .offset(y: zieh)
@@ -55,7 +56,8 @@ struct SnapViewer: View {
         .accessibilityAction { schliessen() }
         .accessibilityAction(.escape) { schliessen() }
         .gesture(ziehGeste)
-        .overlay(alignment: .bottom) { speichernEbene.opacity(zieh > 0 ? 0 : 1) }
+        .overlay(alignment: .topTrailing) { menueKnopf.opacity(zieh > 0 ? 0 : 1) }
+        .overlay(alignment: .bottom) { hinweisEbene.opacity(zieh > 0 ? 0 : 1) }
         .task { await laden() }
         .onAppear { FigurenModell.shared.zustandSenden(.init(haupt: istVideo ? .schautVideo : .schautBild)) }
         .onDisappear {
@@ -71,7 +73,20 @@ struct SnapViewer: View {
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.userDidTakeScreenshotNotification)) { _ in
             aufnahmeMelden(art: "screenshot")
         }
-        .task { await bildschirmaufnahmeUeberwachen() }
+        .onReceive(NotificationCenter.default.publisher(for: UIScreen.capturedDidChangeNotification)) { _ in
+            bildschirmaufnahmePruefen()
+        }
+        .onAppear { bildschirmaufnahmePruefen() }
+    }
+
+    /// Spinner, solange nichts lokal ist; läuft ein Download (oder wartet er auf den Absender), steht
+    /// stattdessen der ehrliche Stand da.
+    @ViewBuilder private var ladeAnzeige: some View {
+        if FortschrittsStand.shared.stand(nachricht.medien.first?.id ?? "") != nil {
+            FortschrittsAnzeige(medienId: nachricht.medien.first?.id ?? "")
+        } else {
+            ProgressView().tint(.white)
+        }
     }
 
     /// The sender may still be uploading when this opens (Review-Fokus #5) — retries instead of
@@ -83,7 +98,7 @@ struct SnapViewer: View {
             return
         }
         while !Task.isCancelled {
-            if let geholt = try? await Medien.holen(medium.id) {
+            if let geholt = try? await MedienUebertragung.holen(medium.id) {
                 await anzeigen(geholt)
                 return
             }
@@ -137,48 +152,68 @@ struct SnapViewer: View {
         ChatModell.shared.snapAufnahmeSenden(nachricht.id, art: art)
     }
 
-    /// No notification exists for screen recording — `UIScreen.main.isCaptured` is the documented
-    /// way to detect it, polled while the viewer is open.
-    private func bildschirmaufnahmeUeberwachen() async {
-        while !Task.isCancelled {
-            if UIScreen.main.isCaptured { aufnahmeMelden(art: "bildschirmaufnahme") }
-            try? await Task.sleep(for: .seconds(1))
+    /// `UIScreen.main.isCaptured` is the documented way to detect screen recording; checked once on
+    /// open and whenever `capturedDidChangeNotification` fires (no polling timer, Akku).
+    private func bildschirmaufnahmePruefen() {
+        if UIScreen.main.isCaptured { aufnahmeMelden(art: "bildschirmaufnahme") }
+    }
+
+    /// Drei-Punkte-Menü oben rechts, wie in der Vorlage: die einzige Bedienung auf dem Bild.
+    @ViewBuilder private var menueKnopf: some View {
+        if bild != nil || spieler != nil {
+            Menu {
+                Button { imChatSpeichernUmschalten() } label: {
+                    Label(aktuell.snapGespeichert ? "Nicht mehr im Chat speichern" : "Im Chat speichern",
+                          systemImage: aktuell.snapGespeichert ? "bookmark.slash" : "bookmark")
+                }
+                Button { Task { await inAufnahmenSpeichern() } } label: {
+                    Label("In Aufnahmen speichern", systemImage: "square.and.arrow.down")
+                }
+                Button { schliessen() } label: { Label("Schließen", systemImage: "xmark") }
+            } label: {
+                Image(systemName: "ellipsis")
+                    .rotationEffect(.degrees(90))
+                    .font(.system(size: 20, weight: .bold))
+                    .foregroundStyle(.white)
+                    .shadow(color: .black.opacity(0.55), radius: 3)
+                    .frame(width: 48, height: 48)
+                    .contentShape(.rect)
+            }
+            .accessibilityLabel("Mehr")
+            .padding(.trailing, 6)
         }
     }
 
-    @ViewBuilder private var speichernEbene: some View {
-        if bild != nil || spieler != nil {
-            VStack(spacing: 10) {
-                if let hinweis {
-                    Text(hinweis)
-                        .font(.footnote.weight(.medium))
-                        .foregroundStyle(.white)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 8)
-                        .glassEffect(.regular, in: .capsule)
-                        .transition(.move(edge: .bottom).combined(with: .opacity))
+    @ViewBuilder private var hinweisEbene: some View {
+        if let hinweis {
+            Text(hinweis)
+                .font(.footnote.weight(.medium))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 14)
+                .padding(.vertical, 8)
+                .glassEffect(.regular, in: .capsule)
+                .padding(.bottom, 24)
+                .transition(.move(edge: .bottom).combined(with: .opacity))
+                .task(id: hinweis) {
+                    try? await Task.sleep(for: .seconds(2.5))
+                    withAnimation(Feder.weich) { self.hinweis = nil }
                 }
-                Button {
-                    Haptik.leicht()
-                    imChatSpeichernUmschalten()
-                } label: {
-                    Image(systemName: aktuell.snapGespeichert ? "bookmark.fill" : "bookmark")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .frame(width: 52, height: 52)
-                        .contentShape(.circle)
-                }
-                .glassEffect(.regular.interactive(), in: .circle)
-                .buttonStyle(.federnd)
-                .accessibilityLabel(aktuell.snapGespeichert ? "Nicht mehr im Chat speichern" : "Im Chat speichern")
-            }
-            .padding(.bottom, 24)
-            .task(id: hinweis) {
-                guard hinweis != nil else { return }
-                try? await Task.sleep(for: .seconds(2.5))
-                withAnimation(Feder.weich) { hinweis = nil }
-            }
+        }
+    }
+
+    private func inAufnahmenSpeichern() async {
+        guard let medium = nachricht.medien.first else { return }
+        do {
+            try await AufnahmenSpeichern.speichern([medium])
+            Haptik.erfolg()
+            withAnimation(Feder.weich) { hinweis = "In Aufnahmen gespeichert" }
+        } catch AufnahmenSpeichern.Fehler.keineErlaubnis {
+            Haptik.warnung()
+            withAnimation(Feder.weich) { hinweis = "Keine Erlaubnis für Fotos. Bitte in den Einstellungen erlauben." }
+        } catch {
+            Haptik.warnung()
+            withAnimation(Feder.weich) { hinweis = "Speichern hat nicht geklappt" }
         }
     }
 
