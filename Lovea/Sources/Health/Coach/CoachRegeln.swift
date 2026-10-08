@@ -61,7 +61,7 @@ struct CoachEssenStand: Equatable, Sendable {
     let proteinSchnitt: Double?
     /// Weniger als 10 von 14 Tagen: der Schnitt ist keine echte Aufnahme.
     let lueckig: Bool
-    /// Schnitt unter der Untergrenze an mindestens 5 geloggten Tagen.
+    /// Schnitt unter der Untergrenze, aber nur bei brauchbarem Log: wer selten trackt, hat keine Aufnahme, die man bewerten könnte.
     let sehrWenig: Bool
 }
 
@@ -70,7 +70,6 @@ enum CoachRegeln {
     static let untergrenzeMann = 1500
     static let fensterTage = 14
     static let mindestTageImLog = 10
-    static let mindestTageSehrWenig = 5
     /// Ein Tag mit nur Kaffee (Koffein-Kachel schreibt einen Tagebuch-Eintrag, rund 4 kcal) ist kein geloggter Tag.
     static let mindestKcalProLogTag = 200.0
 
@@ -101,7 +100,7 @@ enum CoachRegeln {
         return CoachEssenStand(
             geloggteTage: tage.count, kcalSchnitt: kcal, proteinSchnitt: protein,
             lueckig: tage.count < mindestTageImLog,
-            sehrWenig: tage.count >= mindestTageSehrWenig && kcal < Double(untergrenze(geschlecht: e.geschlecht)))
+            sehrWenig: tage.count >= mindestTageImLog && kcal < Double(untergrenze(geschlecht: e.geschlecht)))
     }
 
     // MARK: Karten

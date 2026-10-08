@@ -85,6 +85,7 @@ test("Essen: gleiche id = Bearbeitung (neueste gewinnt), gelöscht zählt nicht,
   essen(sql, "e3", gestern, 200, { menge: 2, einheit: "portion", lm: { portionMenge: 150 } }); // 300 g -> 600 kcal
   essen(sql, "e4", gestern, 100, { menge: 1, einheit: "packung", lm: { packungMenge: 250 } }); // 250 g -> 250 kcal
   essen(sql, "e5", gestern, 100, { menge: 1, einheit: "portion" }); // ohne portionMenge: 100 g -> 100 kcal
+  for (let i = 2; i <= 10; i++) essen(sql, `fuell${i}`, tag(-i), 1000); // 10 Tage im Log, sonst zeigt der Kontext keine Mengen
   const k = await coachKontext(sql, "ahmed", JETZT, { katalog: KATALOG });
   const eintrag = k.essen.jeTag.find((t) => t.datum === gestern);
   assert.equal(eintrag.kcal, 600 + 600 + 250 + 100);
@@ -94,9 +95,10 @@ test("Essen: Schnitt nur über Tage mit Einträgen, Tage gezählt, heute getrenn
   const sql = db();
   essen(sql, "a", tag(-1), 1400, { protein: 100 });
   essen(sql, "b", tag(-3), 1600, { protein: 80 });
+  for (const i of [2, 4, 5, 6, 7, 8, 9, 10]) essen(sql, `fuell${i}`, tag(-i), 1500, { protein: 90 });
   essen(sql, "heute1", HEUTE, 500, { protein: 30, name: "Haferbrei" });
   const k = await coachKontext(sql, "ahmed", JETZT, { katalog: KATALOG });
-  assert.equal(k.essen.letzte14Tage.tageMitEintraegen, 2);
+  assert.equal(k.essen.letzte14Tage.tageMitEintraegen, 10);
   assert.equal(k.essen.letzte14Tage.tageGeprueft, 14);
   assert.equal(k.essen.letzte14Tage.schnittKcal, 1500, "nicht durch 14 geteilt");
   assert.equal(k.essen.letzte14Tage.schnittProtein, 90);
@@ -117,6 +119,21 @@ test("Essen: nur Tage mit echten Kalorien zählen als geloggt (Wasser allein ist
   essen(sql, "wasser", tag(-1), 0, { name: "Wasser" });
   const k = await coachKontext(sql, "ahmed", JETZT, { katalog: KATALOG });
   assert.equal(k.essen.letzte14Tage.tageMitEintraegen, 0);
+});
+
+test("Essen: lückiges Log (unter 10 von 14 Tagen) zeigt dem Modell keine Mengen, nur Tage und Hinweis", async () => {
+  const sql = db();
+  mitEssenTagen(sql, 9, 700);
+  essen(sql, "heute1", HEUTE, 300, { protein: 12, name: "Haferbrei" });
+  const k = await coachKontext(sql, "ahmed", JETZT, { katalog: KATALOG });
+  assert.equal(k.sicherheit.essenLueckig, true);
+  assert.equal(k.sicherheit.sehrWenigGegessen, false, "Teiltage sind keine Aufnahme");
+  assert.deepEqual(k.essen.letzte14Tage, { tageGeprueft: 14, tageMitEintraegen: 9 });
+  assert.match(k.essen.hinweis, /lückenhaft/);
+  assert.equal(k.essen.jeTag, undefined);
+  assert.equal(k.essen.gestern, undefined);
+  assert.equal(k.essen.heute, undefined);
+  assert.doesNotMatch(JSON.stringify(k.essen), /kcal|protein|Haferbrei/i);
 });
 
 // --- Kontext: Sicherheits-Merker -------------------------------------------------------------------
@@ -142,13 +159,13 @@ test("Sicherheit: essenLueckig bei weniger als 10 von 14 Tagen mit Einträgen", 
   assert.equal(s.essenTageMitEintraegen, 9);
 });
 
-test("Sicherheit: sehrWenigGegessen = Schnitt unter der Untergrenze an mindestens 5 geloggten Tagen", async () => {
+test("Sicherheit: sehrWenigGegessen = Schnitt unter der Untergrenze, aber nur bei brauchbarem Log (mindestens 10 von 14 Tagen)", async () => {
   const fuenfNiedrig = db();
-  mitEssenTagen(fuenfNiedrig, 5, 1000);
+  mitEssenTagen(fuenfNiedrig, 10, 1000);
   const vierNiedrig = db();
-  mitEssenTagen(vierNiedrig, 4, 1000);
+  mitEssenTagen(vierNiedrig, 9, 1000);
   const fuenfOk = db();
-  mitEssenTagen(fuenfOk, 5, 1600);
+  mitEssenTagen(fuenfOk, 10, 1600);
   assert.equal((await coachKontext(fuenfNiedrig, "ahmed", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, true);
   assert.equal((await coachKontext(vierNiedrig, "ahmed", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, false);
   assert.equal((await coachKontext(fuenfOk, "ahmed", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, false);
@@ -156,10 +173,10 @@ test("Sicherheit: sehrWenigGegessen = Schnitt unter der Untergrenze an mindesten
 
 test("Sicherheit: die Untergrenze der Frau (1200) gilt für den Vergleich, nicht die des Mannes", async () => {
   const sql = db();
-  mitEssenTagen(sql, 5, 1300, { von: "annika" });
+  mitEssenTagen(sql, 10, 1300, { von: "annika" });
   assert.equal((await coachKontext(sql, "annika", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, false);
   const sql2 = db();
-  mitEssenTagen(sql2, 5, 1300, { von: "ahmed" });
+  mitEssenTagen(sql2, 10, 1300, { von: "ahmed" });
   assert.equal((await coachKontext(sql2, "ahmed", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, true);
 });
 
@@ -276,6 +293,7 @@ test("Datenschutz: ans Modell geht nur Eigenes -- nie Chat, Zyklus, Standort, Ga
   const sql = db();
   // Eigenes, erlaubtes Material.
   essen(sql, "e1", tag(-1), 1800, { name: "Haferbrei" });
+  mitEssenTagen(sql, 10, 1500); // brauchbares Log, sonst bleiben die Mengen draußen
   schreibe(sql, "coach.nachricht", { rolle: "du", text: "Meine frühere Frage", tag: tag(-1) });
   // Alles, was nie ins Modell darf -- eigene und fremde Sentinels.
   schreibe(sql, "nachricht.neu", { id: "m1", text: "GEHEIM-CHAT-AHMED" });
