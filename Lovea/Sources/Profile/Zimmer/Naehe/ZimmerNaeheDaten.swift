@@ -2,6 +2,7 @@ import Foundation
 
 /// Unser Zimmer, Worker I: Sync-Werte (`zimmer.*`) für Schublade, Zettel, Decken und Tage.
 /// Jede Person schreibt nur ihre eigenen Schlüssel, beide lesen beide.
+@MainActor
 enum ZimmerNaeheDaten {
     typealias Zettel = ZimmerNaeheLogik.Zettel
 
