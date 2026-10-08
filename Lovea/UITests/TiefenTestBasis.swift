@@ -41,9 +41,8 @@ class TiefenTestBasis: XCTestCase {
         startArgumente = [
             "-tiefentest", "-tiefentestNeu", "YES",
             "-tiefentestPerson", erststart ? "keine" : person,
-            "-lovea.ersterStartFertig", erststart ? "NO" : "YES",
             "-AppleLanguages", "(de)", "-AppleLocale", "de_DE",
-        ] + extra
+        ] + (erststart ? [] : ["-lovea.ersterStartFertig", "YES"]) + extra // Argument überstimmt gespeicherten Wert, beim Erststart weglassen
         addTeardownBlock { @MainActor [weak self] in self?.befundeAnhaengen() }
         addUIInterruptionMonitor(withDescription: "Systemdialog") { alert in
             for name in TiefenTestBasis.dialogKnoepfe where alert.buttons[name].exists {

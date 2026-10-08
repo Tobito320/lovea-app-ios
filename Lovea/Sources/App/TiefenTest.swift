@@ -19,6 +19,7 @@ enum TiefenTest {
     /// Ganz am Anfang von `LoveaApp.init`: frischer Zustand pro Testlauf.
     static func vorbereiten() {
         guard aktiv, UserDefaults.standard.bool(forKey: "tiefentestNeu") else { return }
+        UserDefaults.standard.removeObject(forKey: "lovea.ersterStartFertig")
         let dateien = FileManager.default
         for ordner in [FileManager.SearchPathDirectory.applicationSupportDirectory, .documentDirectory, .cachesDirectory] {
             guard let basis = dateien.urls(for: ordner, in: .userDomainMask).first,
