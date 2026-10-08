@@ -146,7 +146,7 @@ struct ZyklusKalenderView: View {
                     }
                 }
             }
-            modusLeiste
+            if !speicher.nurLesen { modusLeiste }
             legende
         }
     }

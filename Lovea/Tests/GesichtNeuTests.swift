@@ -31,11 +31,30 @@ final class GesichtNeuTests: XCTestCase {
         XCTAssertEqual(annika.frisur, 56)
     }
 
-    func testChosenFaceSticks() {
+    func testOldFaceFallsBackToNewFace() {
         var a = FigurAussehen()
         a.gesichtsform = 2
         a.gesichtV2 = true
-        XCTAssertEqual(FigurAussehen.mitNeuemGesicht(a, .ahmed).gesichtsform, 2)
+        a.frisur = 3
+        let b = FigurAussehen.mitNeuemGesicht(a, .ahmed)
+        XCTAssertEqual(b.gesichtsform, 7)
+        XCTAssertEqual(b.frisur, 3)
+        XCTAssertEqual(FigurAussehen.mitGueltigemGesicht(a, .annika).gesichtsform, 8)
+        a.gesichtsform = 8
+        XCTAssertEqual(FigurAussehen.mitGueltigemGesicht(a, .ahmed).gesichtsform, 7, "Annikas Gesicht gilt nicht für Ahmed")
+    }
+
+    func testFacesAndHairOnlyOwnGender() {
+        typealias A = FigurAussehen
+        XCTAssertEqual(A.gesichter(fuer: .ahmed), [7])
+        XCTAssertEqual(A.gesichter(fuer: .annika), [8])
+        for p in Person.allCases {
+            let a = A.standard(for: p)
+            XCTAssertTrue(A.gesichter(fuer: p).contains(a.gesichtsform))
+            XCTAssertTrue(A.frisurenAuswahl(fuer: p).contains(a.frisur))
+            let erlaubt = A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: p)
+            for i in A.frisurenAuswahl(fuer: p) { XCTAssertTrue(erlaubt.contains(i), "\(p) \(i)") }
+        }
     }
 
     func testOldJsonDecodes() throws {

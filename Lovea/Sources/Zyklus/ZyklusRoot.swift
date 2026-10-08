@@ -13,8 +13,8 @@ enum ZyklusReiter: String, CaseIterable, Identifiable {
 }
 
 enum ZyklusRootLogik {
-    static let demoBanner = "Testdaten, nur zum Ausprobieren"
-    static func zeigtBanner(_ quelle: ZyklusQuelle) -> Bool { quelle == .demo }
+    static let leseBanner = "Annikas Zyklus, nur ansehen"
+    static func zeigtBanner(nurLesen: Bool) -> Bool { nurLesen }
 
     /// Zyklus: wie bisher. Die anderen Modi ersetzen "Heute" durch ihre eigene Ansicht.
     static func reiter(_ modus: Modus) -> [ZyklusReiter] {
@@ -32,7 +32,7 @@ enum ZyklusRootLogik {
     }
 }
 
-/// Einstieg in den Zyklus: Segmente Heute / Kalender / Insights, Sperre, Einstellungen, Demo-Banner.
+/// Einstieg in den Zyklus: Segmente Heute / Kalender / Insights, Sperre, Einstellungen. Ahmed sieht Annikas Zyklus nur (Banner, keine Eingabe).
 struct ZyklusRoot: View {
     let person: Person
     @State private var speicher: any ZyklusSpeicher
@@ -66,10 +66,10 @@ struct ZyklusRoot: View {
                 inhalt
             }
         }
-        .navigationTitle("Zyklus")
+        .navigationTitle(speicher.nurLesen ? "Annikas Zyklus" : "Zyklus")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            if !sperre.gesperrt {
+            if !sperre.gesperrt, !speicher.nurLesen {
                 ToolbarItem(placement: .primaryAction) {
                     Button { einstellungenOffen = true } label: { Label("Einstellungen", systemImage: "gearshape.fill") }
                 }
@@ -84,7 +84,7 @@ struct ZyklusRoot: View {
 
     private var inhalt: some View {
         VStack(spacing: 0) {
-            if ZyklusRootLogik.zeigtBanner(speicher.quelle) { banner }
+            if ZyklusRootLogik.zeigtBanner(nurLesen: speicher.nurLesen) { banner }
             Picker("Ansicht", selection: Binding(
                 get: { ZyklusRootLogik.gueltig(reiter, modus: modus) },
                 set: { reiter = $0 })
@@ -105,6 +105,10 @@ struct ZyklusRoot: View {
     }
 
     @ViewBuilder private var modusAnsicht: some View {
+        Group { modusInhalt }.disabled(speicher.nurLesen)
+    }
+
+    @ViewBuilder private var modusInhalt: some View {
         switch modus {
         case .zyklus: ZyklusHeuteView(speicher: speicher, eintragBlatt: blatt)
         case .schwanger: ZyklusSchwangerView(speicher: speicher)
@@ -120,7 +124,7 @@ struct ZyklusRoot: View {
     }
 
     private var banner: some View {
-        Text(ZyklusRootLogik.demoBanner)
+        Text(ZyklusRootLogik.leseBanner)
             .font(.system(.footnote, design: .rounded).weight(.bold))
             .foregroundStyle(ZyklusFarbe.aufHimbeere(schema))
             .frame(maxWidth: .infinity)
@@ -129,7 +133,8 @@ struct ZyklusRoot: View {
     }
 
     private func blatt(_ datum: String) -> AnyView {
-        AnyView(ZyklusEintragBlatt(speicher: speicher, datum: datum))
+        if speicher.nurLesen { return AnyView(ZyklusTagLeseBlatt(speicher: speicher, datum: datum)) }
+        return AnyView(ZyklusEintragBlatt(speicher: speicher, datum: datum))
     }
 }
 
@@ -138,12 +143,13 @@ struct ZyklusProfilZeile: View {
     let person: Person
 
     var body: some View {
-        NavigationLink { ZyklusRoot(person: person) } label: { ZyklusProfilZeileInhalt() }
+        NavigationLink { ZyklusRoot(person: person) } label: { ZyklusProfilZeileInhalt(nurLesen: person != .annika) }
             .buttonStyle(.plain)
     }
 }
 
 struct ZyklusProfilZeileInhalt: View {
+    var nurLesen = false
     @Environment(\.colorScheme) private var schema
 
     var body: some View {
@@ -151,12 +157,37 @@ struct ZyklusProfilZeileInhalt: View {
             HStack(spacing: 12) {
                 ZyklusHerzForm().fill(ZyklusFarbe.himbeere.farbe(schema)).frame(width: 26, height: 26)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Zyklus").font(.system(.headline, design: .rounded).weight(.bold)).foregroundStyle(ZyklusFarbe.tinte(schema))
-                    Text("Dein Tagebuch, nur für dich").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                    Text(nurLesen ? "Annikas Zyklus" : "Zyklus").font(.system(.headline, design: .rounded).weight(.bold)).foregroundStyle(ZyklusFarbe.tinte(schema))
+                    Text(nurLesen ? "Nur ansehen" : "Dein Tagebuch, nur für dich").font(.footnote).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
                 }
                 Spacer()
                 Image(systemName: "chevron.right").font(.footnote.weight(.bold)).foregroundStyle(ZyklusFarbe.tinteLeise(schema))
             }
         }
+    }
+}
+
+/// Ein Tag aus Annikas Zyklus, nur zum Ansehen (Ahmed).
+struct ZyklusTagLeseBlatt: View {
+    let speicher: any ZyklusSpeicher
+    let datum: String
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.colorScheme) private var schema
+
+    var body: some View {
+        let zeilen = ZyklusHeuteLogik.eintraege(speicher.tage[datum])
+        NavigationStack {
+            List {
+                if zeilen.isEmpty {
+                    Text("Nichts eingetragen.").foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                }
+                ForEach(zeilen) { z in Label(z.titel, systemImage: z.symbol) }
+                if let n = speicher.tage[datum]?.notiz, !n.isEmpty { Text(n) }
+            }
+            .navigationTitle(Datum.anzeige(datum))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } } }
+        }
+        .presentationDetents([.medium])
     }
 }

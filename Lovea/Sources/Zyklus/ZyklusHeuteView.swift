@@ -221,7 +221,7 @@ struct ZyklusHeuteView: View {
         let logik = speicher.logik(heute: heute)
         let ring = ZyklusHeuteLogik.ringText(logik: logik, heute: heute)
         let zeilen = ZyklusHeuteLogik.eintraege(speicher.tage[heute])
-        let alltag = speicher.quelle == .echt ? ZyklusAlltag.fuer(Raum.shared.ich ?? .annika, heute: heute) : nil
+        let alltag = speicher.quelle == .echt && !speicher.nurLesen ? ZyklusAlltag.fuer(Raum.shared.ich ?? .annika, heute: heute) : nil
         return VStack(spacing: 16) {
             Text(Datum.anzeige(heute))
                 .font(.system(.title3, design: .rounded).weight(.bold))
@@ -240,11 +240,11 @@ struct ZyklusHeuteView: View {
             }
             ZyklusKarte {
                 VStack(alignment: .leading, spacing: 10) {
-                    Text("Heute bei dir")
+                    Text(speicher.nurLesen ? "Heute bei Annika" : "Heute bei dir")
                         .font(.system(.headline, design: .rounded))
                         .foregroundStyle(ZyklusFarbe.tinte(schema))
                     if zeilen.isEmpty {
-                        Text("Noch nichts eingetragen. Wie geht es dir?")
+                        Text(speicher.nurLesen ? "Noch nichts eingetragen." : "Noch nichts eingetragen. Wie geht es dir?")
                             .font(.system(.subheadline, design: .rounded))
                             .foregroundStyle(ZyklusFarbe.tinteLeise(schema))
                     } else {
@@ -259,9 +259,11 @@ struct ZyklusHeuteView: View {
                     }
                 }
             }
-            TipView(ZyklusEintragenTip())
-            ZyklusKnopf(titel: "Heute eintragen", symbol: "plus") { blatt = ZyklusAuswahl(id: heute) }
-            if speicher.tage[heute]?.blutung == nil {
+            if !speicher.nurLesen {
+                TipView(ZyklusEintragenTip())
+                ZyklusKnopf(titel: "Heute eintragen", symbol: "plus") { blatt = ZyklusAuswahl(id: heute) }
+            }
+            if !speicher.nurLesen, speicher.tage[heute]?.blutung == nil {
                 ZyklusKnopf(titel: "Periode beginnt heute", symbol: "drop.fill", leise: true) {
                     if let t = ZyklusHeuteLogik.periodeStart(heute, tage: speicher.tage) {
                         speicher.setze(t)

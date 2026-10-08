@@ -52,7 +52,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     }
 
     /// Z-38.4: the looks of Ahmed's and Annika's Bitmojis (`docs/figuren-vorlage/`). Whoever never sent
-    /// an own `figur.aussehen` sees these (`FigurenModell.aussehen`), the editor's "Wie mein Bitmoji" sets them.
+    /// an own `figur.aussehen` sees these (`FigurenModell.aussehen`), 
     static func standard(for person: Person) -> FigurAussehen {
         var a = FigurAussehen()
         a.person = person
@@ -108,12 +108,31 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     /// `gesichtV2` gets the new face once, together with the hairstyle that belongs to it (Ahmed chose
     /// the heads including the hair); the editor saves the flag, so a later choice sticks.
     static func mitNeuemGesicht(_ a: FigurAussehen, _ p: Person) -> FigurAussehen {
-        guard a.gesichtV2 == nil else { return a }
+        guard a.gesichtV2 == nil else { return mitGueltigemGesicht(a, p) }
         var b = a
         b.gesichtsform = p == .ahmed ? 7 : 8
         b.frisur = p == .ahmed ? 79 : 56
         b.gesichtV2 = true
         return b
+    }
+
+    /// Only the redesigned faces are offered: 7 for Ahmed, 8 for Annika. The old cartoon heads stay in
+    /// `gesichtsformen` (stored indices never shift) but are no longer pickable.
+    static func gesichter(fuer person: Person) -> [Int] { person.figurGeschlecht == .m ? [7] : [8] }
+
+    /// A saved look with an old or foreign face falls back to the person's new face; nothing else changes.
+    static func mitGueltigemGesicht(_ a: FigurAussehen, _ p: Person) -> FigurAussehen {
+        let erlaubt = gesichter(fuer: p)
+        guard !erlaubt.contains(a.gesichtsform) else { return a }
+        var b = a
+        b.gesichtsform = erlaubt[0]
+        return b
+    }
+
+    /// Hairstyles the editor offers: the person's own look (Ahmed 79, Annika 56) plus a few close variants.
+    /// Index order = tile order. Other styles still draw when a stored look uses them.
+    static func frisurenAuswahl(fuer person: Person) -> [Int] {
+        person.figurGeschlecht == .m ? [79, 78, 80, 81] : [56, 57, 58, 59]
     }
 
     static let hautToene: [(name: String, farbe: FigurFarbe)] = [

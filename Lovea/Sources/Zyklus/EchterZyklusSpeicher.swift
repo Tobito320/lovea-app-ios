@@ -1,7 +1,8 @@
 import Foundation
 import Observation
 
-/// Annikas echte Daten: lokal als JSON abgelegt, jede Änderung geht als `zyklus.*`-Op an den Raum.
+/// Annikas Daten: lokal als JSON abgelegt, jede Änderung geht als `zyklus.*`-Op an den Raum.
+/// Auf Ahmeds Gerät liegt derselbe Stand nur zum Ansehen: er empfängt Annikas Ops, ändert und sendet nichts.
 /// Abhängigkeiten kommen als Parameter, damit Tests und die Verdrahtung nichts Fremdes brauchen.
 @MainActor
 @Observable
@@ -14,6 +15,7 @@ final class EchterZyklusSpeicher: ZyklusSpeicher {
     private let sende: (Op) -> Void
 
     var tage: [String: ZyklusTag] { stand.tage }
+    var nurLesen: Bool { ich() != .annika }
 
     var einstellung: ZyklusEinstellung {
         get { stand.einstellung }
@@ -57,7 +59,7 @@ final class EchterZyklusSpeicher: ZyklusSpeicher {
         uebernehmen(ZyklusOps.tagOp(tag, von: person))
     }
 
-    /// Eingehende Op, auch die eigene Bestätigung vom Server. Ahmeds Gerät verwirft sie.
+    /// Eingehende Op, auch die eigene Bestätigung vom Server. Ahmeds Gerät übernimmt sie nur zum Ansehen.
     func empfangen(_ op: Op) {
         if stand.anwenden(op, ich: ich()) { sichern() }
     }
