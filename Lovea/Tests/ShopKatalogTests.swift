@@ -27,14 +27,14 @@ final class ShopKatalogTests: XCTestCase {
         XCTAssertEqual(Set(alle.map(\.id)).count, alle.count, "doppelte ids")
     }
 
-    /// p47: nur Taschen, Haustiere und Mode, keine Pose und kein Tanz.
-    func testKatalogHatNurDreiGruppen() throws {
+    /// p47: nur Taschen, Haustiere und Mode, keine Pose und kein Tanz. p61: dazu das Zimmer.
+    func testKatalogHatNurVierGruppen() throws {
         let alle = try geladenerKatalog()
-        XCTAssertEqual(Set(alle.map(\.kategorie)), ["mode", "tasche", "tier"])
+        XCTAssertEqual(Set(alle.map(\.kategorie)), ["mode", "tasche", "tier", "zimmer"])
         XCTAssertFalse(alle.contains { $0.id.hasPrefix("pose.") || $0.name.contains("Tanz") || $0.name.contains("Pose") })
-        for k in ["mode", "tasche", "tier"] {
+        for k in ["mode", "tasche", "tier", "zimmer"] {
             let n = alle.filter { $0.kategorie == k }.count
-            XCTAssertTrue((4...8).contains(n), "\(k): \(n) Teile, erwartet 4 bis 8")
+            XCTAssertTrue((4...10).contains(n), "\(k): \(n) Teile, erwartet 4 bis 10")
         }
     }
 

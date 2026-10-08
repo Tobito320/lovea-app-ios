@@ -21,5 +21,16 @@
   {"id": "tier.katze-orange", "name": "Katze (orange)", "marke": null, "kategorie": "tier", "preis": 3200, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.katze-schwarz", "name": "Kuschelkatze (schwarz)", "marke": null, "kategorie": "tier", "preis": 4200, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.hase-weiss", "name": "Hase (weiß)", "marke": null, "kategorie": "tier", "preis": 3800, "geschlecht": "n", "exklusiv": false},
-  {"id": "tier.vogel-blau", "name": "Vogel (blau)", "marke": null, "kategorie": "tier", "preis": 4000, "geschlecht": "n", "exklusiv": true}
+  {"id": "tier.vogel-blau", "name": "Vogel (blau)", "marke": null, "kategorie": "tier", "preis": 4000, "geschlecht": "n", "exklusiv": true},
+
+  {"id": "zimmer.wand-rose", "name": "Wand Rosé", "marke": null, "kategorie": "zimmer", "preis": 700, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.wand-salbei", "name": "Wand Salbei", "marke": null, "kategorie": "zimmer", "preis": 700, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.wand-himmel", "name": "Wand Himmel", "marke": null, "kategorie": "zimmer", "preis": 700, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.teppich-wolke", "name": "Wolkenteppich", "marke": null, "kategorie": "zimmer", "preis": 1100, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.teppich-herz", "name": "Herzteppich", "marke": null, "kategorie": "zimmer", "preis": 1100, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.bett-salbei", "name": "Bettwäsche Salbei", "marke": null, "kategorie": "zimmer", "preis": 900, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.bett-streifen", "name": "Bettwäsche Streifen", "marke": null, "kategorie": "zimmer", "preis": 900, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.bett-herzen", "name": "Bettwäsche Herzen", "marke": null, "kategorie": "zimmer", "preis": 900, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.lampe-rattan", "name": "Rattanlampe", "marke": null, "kategorie": "zimmer", "preis": 1000, "geschlecht": "n", "exklusiv": false},
+  {"id": "zimmer.lampe-laterne", "name": "Laterne", "marke": null, "kategorie": "zimmer", "preis": 1000, "geschlecht": "n", "exklusiv": false}
 ]
