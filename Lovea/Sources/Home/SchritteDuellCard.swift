@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Z-36.2: the step duel on Home in the new Health look — the two rings with km and floors,
-/// tapping opens the steps comparison in Health (Spec 3.1 Runde 2: "Home: nur das Duell").
+/// tapping opens the steps detail (ring, T/W/M, Ahmed/Annika) in Health (Spec 3.1 Runde 2: "Home: nur das Duell").
 struct SchritteDuellCard: View {
     private var health: HealthModell { HealthModell.shared }
 
@@ -33,13 +33,13 @@ struct SchritteDuellCard: View {
         }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Öffnet den Schrittevergleich")
+        .accessibilityHint("Öffnet die Schritte")
         .accessibilityAction { oeffneHealth() }
     }
 
     private func oeffneHealth() {
         Haptik.auswahl()
-        AppNavigation.shared.healthSeite = "schritteVergleich"
+        AppNavigation.shared.healthSeite = "schritte"
         AppNavigation.shared.tabWunsch = "health"
     }
 }
