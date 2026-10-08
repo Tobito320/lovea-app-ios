@@ -14,6 +14,8 @@ struct WidgetPendingOp: Codable, Sendable, Equatable, Identifiable {
     var wert: Int
     /// Habit id; nil = "gym" (files written before the Habit widget).
     var habit: String? = nil
+    /// Gesetzt (z. B. "herz") = `geste`-Op statt `habit.setzen`; `datum`/`wert` sind dann ohne Bedeutung.
+    var geste: String? = nil
 }
 
 /// Reine Logik ohne Dateizugriff — testbar ohne App Group/Sandbox.

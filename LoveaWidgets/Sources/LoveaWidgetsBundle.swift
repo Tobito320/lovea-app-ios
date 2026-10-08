@@ -12,5 +12,6 @@ struct LoveaWidgetsBundle: WidgetBundle {
         FotoFrageWidget()
         GymLiveWidget()
         EssenLiveWidget()
+        PartnerJetztWidget()
     }
 }
