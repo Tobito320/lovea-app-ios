@@ -11,10 +11,10 @@ struct ZimmerRitualeEbene: View {
     // Orte in Entwurfseinheiten (für F: ZimmerPlatzLogik)
     static let vorhangRect = ProfilSlots.welt(.fenster)
     static let nachtlichtRect = CGRect(x: 88, y: 160, width: 44, height: 44)
-    static let kussglasRect = CGRect(x: 96, y: 346, width: 44, height: 52)
+    static let kussglasRect = CGRect(x: 166, y: 362, width: 44, height: 52)
     static let teeRect = CGRect(x: 418, y: 318, width: 64, height: 44)
     static let keksRect = CGRect(x: 490, y: 332, width: 44, height: 36)
-    static let wunschglasRect = CGRect(x: 636, y: 176, width: 44, height: 52)
+    static let wunschglasRect = CGRect(x: 580, y: 176, width: 40, height: 52)
     static let alleRects: [CGRect] = [nachtlichtRect, kussglasRect, teeRect, keksRect, wunschglasRect]
 
     private enum Blatt: String, Identifiable {

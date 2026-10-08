@@ -30,8 +30,8 @@ struct ZimmerErinnerungEbene: View {
     static let liebesschloesser = CGRect(x: 415, y: 66, width: 82, height: 30)
     static let balkonGarten = CGRect(x: 410, y: 172, width: 92, height: 30)
     static let schneekugel = CGRect(x: 704, y: 286, width: 36, height: 44)
-    static let erinnerungsKisten = CGRect(x: 22, y: 334, width: 100, height: 26)
-    static let katzenSchild = CGRect(x: 128, y: 336, width: 56, height: 20)
+    static let erinnerungsKisten = CGRect(x: 62, y: 334, width: 100, height: 26)
+    static let katzenSchild = CGRect(x: 166, y: 336, width: 56, height: 20)
 
     static let alleRects: [CGRect] = [polaroidWand, liebesschloesser, balkonGarten, schneekugel, erinnerungsKisten, katzenSchild]
 
