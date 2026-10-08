@@ -182,8 +182,19 @@ struct GymSessionView: View {
             }
             .toolbar {
                 if session.ende == nil {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Menu {
+                            Button("Startzeit ändern", systemImage: "clock") { startBlatt = session }
+                            Button("Training verwerfen", systemImage: "trash", role: .destructive) { verwerfenFrage = true }
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                        }
+                        .accessibilityLabel("Mehr")
+                    }
                     ToolbarItem(placement: .confirmationAction) {
+                        // Auch mit offenen Übungen: was fertig ist, zählt, der Rest bleibt im Plan.
                         Button("Beenden") { beenden(session) }.fontWeight(.semibold)
+                            .popoverTip(TrainingBeendenTip())
                     }
                 }
             }
@@ -473,16 +484,36 @@ struct WorkoutInhalt: View {
     private var leer: some View {
         if session.ende == nil, tag == nil, !tage.isEmpty {
             Text("Welcher Trainingstag?").font(.headline)
-            ForEach(tage) { t in
-                Button { aktionen.tagWaehlen(t) } label: {
-                    Text(t.name.isEmpty ? "Ohne Namen" : t.name).frame(maxWidth: .infinity, minHeight: 44)
-                }
-                .buttonStyle(.bordered)
-            }
-            Text("Oder leer starten und Übungen einzeln hinzufügen.").font(.footnote).foregroundStyle(.secondary)
+            gruppe(tage.map { (t: TrainingsTag) -> ListenZeile in
+                (id: t.id, titel: t.name.isEmpty ? "Ohne Namen" : t.name, bild: "dumbbell", aktion: { aktionen.tagWaehlen(t) })
+            })
         } else {
             Text("Noch keine Übung. Füg unten eine hinzu.").font(.subheadline).foregroundStyle(.secondary)
         }
+    }
+
+    typealias ListenZeile = (id: String, titel: String, bild: String, aktion: () -> Void)
+
+    /// Ruhige Inset-Gruppe: Zeilen mit Symbol und Chevron, getrennt durch Linien.
+    private func gruppe(_ zeilen: [ListenZeile]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(zeilen.enumerated()), id: \.element.id) { i, z in
+                if i > 0 { Divider().padding(.leading, 52) }
+                Button(action: z.aktion) {
+                    HStack(spacing: 12) {
+                        Image(systemName: z.bild).frame(width: 28).foregroundStyle(Color.accentColor)
+                        Text(z.titel).font(.body).foregroundStyle(Color.primary)
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(minHeight: 48)
+                    .contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .background(Color(uiColor: .tertiarySystemFill), in: .rect(cornerRadius: 14, style: .continuous))
     }
 
     /// Cardio-Kurzknöpfe unter "Übung hinzufügen" (Katalog-ids wie im Split 01).
@@ -493,36 +524,12 @@ struct WorkoutInhalt: View {
     @ViewBuilder
     private var schluss: some View {
         if session.ende == nil {
-            Button(action: aktionen.hinzufuegen) {
-                Label("Übung hinzufügen", systemImage: "plus").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
-            HStack(spacing: 10) {
-                ForEach(Array(Self.cardioSchnell.enumerated()), id: \.offset) { _, c in
-                    Button { aktionen.cardio(c.id) } label: {
-                        Label(c.name, systemImage: c.bild).font(.subheadline.weight(.semibold)).frame(maxWidth: .infinity, minHeight: 36)
-                    }
-                    .buttonStyle(.bordered)
-                }
-            }
-            .popoverTip(CardioSchnellTip())
-            // Auch mit offenen Übungen: was fertig ist, zählt, der Rest bleibt im Plan.
-            Button(action: aktionen.beenden) {
-                Label("Training beenden", systemImage: "checkmark").font(.headline).frame(maxWidth: .infinity, minHeight: 36)
-            }
-            .buttonStyle(.borderedProminent)
-            .tint(.green)
-            .popoverTip(TrainingBeendenTip())
-            Button(action: aktionen.startzeit) {
-                Label("Startzeit ändern", systemImage: "clock").font(.subheadline).frame(maxWidth: .infinity, minHeight: 44)
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
-            Button(role: .destructive, action: aktionen.verwerfen) {
-                Text("Training verwerfen").frame(maxWidth: .infinity, minHeight: 32)
-            }
-            .buttonStyle(.bordered)
+            let leerStart = tag == nil && liste.isEmpty
+            Text(leerStart ? "Oder frei trainieren" : "Hinzufügen").font(.footnote).foregroundStyle(.secondary)
+            let neu: ListenZeile = (id: "neu", titel: leerStart ? "Leeres Training" : "Übung hinzufügen", bild: "plus", aktion: aktionen.hinzufuegen)
+            gruppe([neu] + Self.cardioSchnell.map { (c: (id: String, name: String, bild: String)) -> ListenZeile in
+                (id: c.id, titel: c.name, bild: c.bild, aktion: { aktionen.cardio(c.id) }) })
+                .popoverTip(CardioSchnellTip())
         } else {
             HStack(spacing: 10) {
                 Label("Beendet", systemImage: "checkmark.seal.fill").font(.headline).foregroundStyle(Color.green)
