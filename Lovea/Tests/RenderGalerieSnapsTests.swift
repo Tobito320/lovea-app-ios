@@ -58,16 +58,24 @@ final class RenderGalerieSnapsTests: XCTestCase {
                     .foregroundStyle(.white)
                     .shadow(radius: 3)
                     .position(x: 300 * 0.35, y: 600 * 0.4)
-                VStack {
-                    HStack(alignment: .top) {
-                        KameraSchliessenKnopf {}
-                        Spacer()
-                        SnapEditorWerkzeuge(zeichnenAktiv: false, onText: {}, onKritzeln: {}, onSticker: {})
-                    }
-                    .padding(.horizontal, 12).padding(.top, 8)
+                VStack(spacing: 0) {
+                    SnapEditorKopfzeile(bleibt: .constant(false), sendetGerade: false, tray: false, schliessenLabel: "Verwerfen", onSchliessen: {}, onSenden: {})
                     Spacer()
-                    SnapSendenLeiste(bleibt: .constant(false), sendetGerade: false, tray: false, onSenden: {})
-                        .padding(.bottom, 12)
+                    SnapWerkzeugLeiste(werkzeuge: SnapPanel.leiste(video: true, filterAn: true), onWahl: { _ in })
+                }
+            }
+            .frame(width: 300, height: 600)
+            .clipShape(.rect(cornerRadius: 24))
+            .environment(\.colorScheme, hell ? .light : .dark)
+        )
+    }
+
+    private func filterPanel(hell: Bool) -> AnyView {
+        AnyView(
+            ZStack(alignment: .bottom) {
+                szene(hell: hell)
+                SnapPanelRahmen(titel: "Filter", onFertig: {}) {
+                    SnapFilterPanel(vorschauBilder: [:], gewaehlt: .original, staerke: .constant(100), onWahl: { _ in })
                 }
             }
             .frame(width: 300, height: 600)
@@ -82,6 +90,7 @@ final class RenderGalerieSnapsTests: XCTestCase {
             (titel: "Kamera dunkel, Filter offen", ansicht: kamera(hell: false, filterOffen: true)),
             (titel: "Editor hell", ansicht: editor(hell: true)),
             (titel: "Editor dunkel", ansicht: editor(hell: false)),
+            (titel: "Filter-Panel", ansicht: filterPanel(hell: false)),
         ])
     }
 }

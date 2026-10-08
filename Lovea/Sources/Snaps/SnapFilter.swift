@@ -198,6 +198,23 @@ enum SnapFilter: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+extension SnapFilter {
+    /// Filter mit Intensität (CapCut-Regler 0...1): 0 = Originalbild, 1 = voller Filter, dazwischen
+    /// eine Überblendung zwischen beiden. Die Extremwerte nehmen den unveränderten Pfad, damit
+    /// "100" bitgenau dem bisherigen Ergebnis entspricht.
+    func anwenden(auf bild: CIImage, video: Bool = false, staerke: Double) -> CIImage {
+        let voll = anwenden(auf: bild, video: video)
+        let anteil = min(max(staerke, 0), 1)
+        if self == .original || anteil >= 1 { return voll }
+        if anteil <= 0 { return bild }
+        guard let mischer = CIFilter(name: "CIDissolveTransition") else { return voll }
+        mischer.setValue(bild, forKey: kCIInputImageKey)
+        mischer.setValue(voll, forKey: kCIInputTargetImageKey)
+        mischer.setValue(anteil, forKey: kCIInputTimeKey)
+        return (mischer.outputImage ?? voll).cropped(to: bild.extent)
+    }
+}
+
 private extension CIImage {
     func settingSaettigung(_ wert: Double) -> CIImage {
         guard let filter = CIFilter(name: "CIColorControls") else { return self }
@@ -231,9 +248,9 @@ extension SnapFilter {
     /// bewusst INNERHALB gebaut statt von außen hineingereicht (R9-Review). Sicher aus einem
     /// `Task.detached` heraus aufzurufen, weil nur `CGImage` (per `SendableCGImage`) und `SnapFilter`
     /// (beide `Sendable`) die Grenze queren müssen.
-    static func gefiltertesCGBild(aus quelle: CGImage, filter: SnapFilter, zuschnitt: CGRect? = nil) -> CGImage? {
+    static func gefiltertesCGBild(aus quelle: CGImage, filter: SnapFilter, zuschnitt: CGRect? = nil, staerke: Double = 1) -> CGImage? {
         let ciBasis = CIImage(cgImage: quelle)
-        let gefiltert = filter.anwenden(auf: ciBasis)
+        let gefiltert = filter.anwenden(auf: ciBasis, staerke: staerke)
         return SnapFilterKontext.shared.context.createCGImage(gefiltert, from: zuschnitt ?? gefiltert.extent)
     }
 }
@@ -246,10 +263,10 @@ extension SnapFilter {
     /// `anwenden(auf:video:)`). `nil` bei `.original`, ein Composition-Objekt weniger zu bauen und
     /// zuzuweisen ist der einfachste "kein Filter"-Fall.
     @MainActor
-    func videoKomposition(fuer asset: AVAsset) async -> AVVideoComposition? {
-        guard self != .original else { return nil }
+    func videoKomposition(fuer asset: AVAsset, staerke: Double = 1) async -> AVVideoComposition? {
+        guard self != .original, staerke > 0 else { return nil }
         return try? await AVVideoComposition(asset: asset, applyingCIFiltersWithHandler: { anfrage in
-            anfrage.finish(with: self.anwenden(auf: anfrage.sourceImage, video: true), context: SnapFilterKontext.shared.context)
+            anfrage.finish(with: self.anwenden(auf: anfrage.sourceImage, video: true, staerke: staerke), context: SnapFilterKontext.shared.context)
         })
     }
 }
