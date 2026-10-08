@@ -86,7 +86,7 @@ enum SignaleLogik {
         return z
     }
 
-    private static func neuer(_ zeit: Date, _ id: String, alsZeit alt: Date, id altId: String) -> Bool {
+    static func neuer(_ zeit: Date, _ id: String, alsZeit alt: Date, id altId: String) -> Bool {
         zeit != alt ? zeit > alt : id > altId
     }
 

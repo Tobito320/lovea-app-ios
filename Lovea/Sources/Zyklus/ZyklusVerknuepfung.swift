@@ -4,6 +4,8 @@ import Foundation
 enum ZyklusSchalter {
     static let imTraining = "lovea.zyklusImTraining"
     static let healthKit = "lovea.zyklusHealthKit"
+    /// p64: Wärmflasche und Tee im Zimmer an schweren Tagen. Nur Annika schaltet ein, Standard AUS.
+    static let waerme = "lovea.waerme.freigabe"
 }
 
 enum TrainingsRat: String, Equatable {
