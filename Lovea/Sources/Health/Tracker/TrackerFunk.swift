@@ -94,8 +94,10 @@ final class TrackerFunk: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             melden(.bluetooth(.aus))
         case .unauthorized:
             melden(.bluetooth(.nichtErlaubt))
-        default:
+        case .unsupported:
             melden(.bluetooth(.nichtVerfuegbar))
+        default:
+            break // .unknown und .resetting sind kurz nach dem Anlegen normal
         }
     }
 

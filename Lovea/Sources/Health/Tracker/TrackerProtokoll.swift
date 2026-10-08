@@ -4,7 +4,9 @@ import Foundation
 /// CoreBluetooth, damit sie ohne Gerät testbar ist.
 ///
 /// Am 08.10.2026 gegen das echte Gerät belegt (Firmware 1.00.13): Akku (0x03) und die Lesebefehle
-/// 0x16, 0x2C, 0x36, 0x38. Nicht belegt: Schritte (0x43), Schlaf, Pulsverlauf.
+/// 0x16, 0x2C, 0x36, 0x38. Schritte (0x43): Aufbau der Pakete passt zu echten Antworten (Datum als BCD,
+/// Zeitindex, kcal, Schritte, Meter), die Zahlen sind aber noch nicht mit QWatch Pro verglichen.
+/// Nicht belegt: Schlaf, Pulsverlauf.
 /// Absichtlich nur Lesebefehle, kein freies Senden: Reset und Ausschalten gehören zur selben Familie.
 enum TrackerProtokoll {
     static let dienst = "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E"
@@ -39,7 +41,7 @@ enum TrackerProtokoll {
     static let akkuAnfrage = paket(.akku)
     /// 0x16 mit Byte 1 = 1 liest die Einstellung (am Gerät belegt: Antwort "an, 10 Minuten").
     static let pulsEinstellungAnfrage = paket(.pulsEinstellung, [1])
-    /// Schritte von heute: Tag 0, Slots ab 0 bis 0x5F (96 Viertelstunden). Dekodierung nicht belegt.
+    /// Schritte von heute: Tag 0, Zeitindex 0 bis 0x5F (96 Viertelstunden).
     static let schritteHeuteAnfrage = paket(.schritte, [0, 0x0F, 0, 0x5F, 1])
 
     struct Akku: Equatable {
@@ -52,7 +54,8 @@ enum TrackerProtokoll {
         var intervallMinuten: Int
     }
 
-    /// Eine Viertelstunde Aktivität. Nicht belegt, bis jemand sie am Display des Trackers gegengeprüft hat.
+    /// Eine Antwortzeile: Zeitindex in Viertelstunden (0x44 = 17:00), dann kcal, Schritte, Meter
+    /// (Byte 7 bis 12, little endian). Zahlen noch nicht mit QWatch Pro verglichen.
     struct SchrittSlot: Equatable {
         var slot: Int
         var kcal: Int

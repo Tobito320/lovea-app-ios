@@ -1,24 +1,61 @@
 import XCTest
 @testable import Lovea
 
-/// Paket-Codec des iSo-Tech-Trackers. Alle Pakete hier sind synthetisch (aus `paket` und Hand-Bytes
-/// gebaut), nicht vom Gerät mitgeschnitten. Belegt am Gerät ist nur das Format selbst (16 Byte,
-/// Summe in Byte 15) und die Bedeutung von 0x03 und 0x16, nicht die Schritt-Dekodierung.
+/// Paket-Codec des iSo-Tech-Trackers. `echt` sind Antworten, die am 08.10.2026 um 20:28 vom Gerät
+/// mitgeschnitten wurden (Firmware 1.00.13, nur Lesebefehle). Alles andere ist synthetisch, aus
+/// `paket` oder Hand-Bytes gebaut. Die Schrittzahlen sind noch nicht mit QWatch Pro verglichen.
 final class TrackerProtokollTests: XCTestCase {
+    private func daten(hex: String) -> Data {
+        var ergebnis = Data()
+        var index = hex.startIndex
+        while index < hex.endIndex {
+            let ende = hex.index(index, offsetBy: 2)
+            ergebnis.append(UInt8(hex[index..<ende], radix: 16)!)
+            index = ende
+        }
+        return ergebnis
+    }
+
     private func bytes(_ daten: Data) -> [UInt8] { [UInt8](daten) }
+
+    // MARK: Echte Pakete vom Gerät
+
+    func testEchteAnfragenStimmenMitDemGeraetFormatUeberein() {
+        XCTAssertEqual(TrackerProtokoll.akkuAnfrage, daten(hex: "03000000000000000000000000000003"))
+        XCTAssertEqual(TrackerProtokoll.pulsEinstellungAnfrage, daten(hex: "16010000000000000000000000000017"))
+        XCTAssertEqual(TrackerProtokoll.schritteHeuteAnfrage, daten(hex: "43000f005f01000000000000000000b2"))
+    }
+
+    func testEchteAkkuAntwort() {
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "031b000000000000000000000000001e")),
+                       .akku(.init(prozent: 27, laedt: false)))
+    }
+
+    func testEchtePulsEinstellung() {
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "1601010a050000000000000000000027")),
+                       .pulsEinstellung(.init(an: true, intervallMinuten: 10)))
+    }
+
+    func testEchteSchrittAntwortZeilen() {
+        // Kopfpaket (Byte 1 = 0xF0, vier Zeilen folgen) ist keine Zeile.
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43f00401000000000000000000000038")), .unbekannt(0x43))
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43261008440004cd0180004d00000064")),
+                       .schritte(.init(slot: 0x44, kcal: 461, schritte: 128, meter: 77)))
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "432610084c0204b003e1009f00000006")),
+                       .schritte(.init(slot: 0x4C, kcal: 944, schritte: 225, meter: 159)))
+    }
+
+    func testEchtesSchlussPaketIstKeineZeile() {
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43ff0000000000000000000000000042")), .unbekannt(0x43))
+    }
+
+    // MARK: Synthetisch
 
     func testPaketHatSechzehnByteUndPruefsumme() {
         let akku = bytes(TrackerProtokoll.akkuAnfrage)
         XCTAssertEqual(akku.count, 16)
         XCTAssertEqual(akku[0], 0x03)
         XCTAssertEqual(akku[15], 0x03)
-        XCTAssertEqual(Array(bytes(TrackerProtokoll.pulsEinstellungAnfrage)[0...2]), [0x16, 0x01, 0x00])
-        XCTAssertEqual(bytes(TrackerProtokoll.pulsEinstellungAnfrage)[15], 0x17)
-    }
-
-    func testSchritteAnfrageBytes() {
-        XCTAssertEqual(bytes(TrackerProtokoll.schritteHeuteAnfrage),
-                       [0x43, 0x00, 0x0F, 0x00, 0x5F, 0x01, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xB2])
     }
 
     func testPruefsummeLaeuftUeberModulo256() {
@@ -27,35 +64,20 @@ final class TrackerProtokollTests: XCTestCase {
 
     func testUngueltigeLaengeOderPruefsummeGibtNil() {
         XCTAssertNil(TrackerProtokoll.lesen(Data([0x03, 0x1B])))
-        var kaputt = bytes(TrackerProtokoll.paket(.akku, [27, 0]))
+        var kaputt = bytes(daten(hex: "031b000000000000000000000000001e"))
         kaputt[15] = kaputt[15] &+ 1
         XCTAssertNil(TrackerProtokoll.lesen(Data(kaputt)))
         XCTAssertFalse(TrackerProtokoll.istGueltig(Data()))
     }
 
-    func testAkkuAntwort() {
-        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.akku, [27, 0])),
-                       .akku(.init(prozent: 27, laedt: false)))
+    func testAkkuLaedt() {
         XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.akku, [100, 1])),
                        .akku(.init(prozent: 100, laedt: true)))
     }
 
-    func testPulsEinstellungAntwort() {
-        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.pulsEinstellung, [1, 1, 10])),
-                       .pulsEinstellung(.init(an: true, intervallMinuten: 10)))
+    func testPulsEinstellungAus() {
         XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.pulsEinstellung, [1, 2, 30])),
                        .pulsEinstellung(.init(an: false, intervallMinuten: 30)))
-    }
-
-    func testSchrittSlotLittleEndian() {
-        let daten: [UInt8] = [0x00, 0, 0, 5, 0, 0, 0x2C, 0x01, 0x10, 0x02, 0x34, 0x03]
-        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.schritte, daten)),
-                       .schritte(.init(slot: 5, kcal: 300, schritte: 528, meter: 820)))
-    }
-
-    func testSteuerpaketeDerSchrittAntwortSindKeineSlots() {
-        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.schritte, [0xF0])), .unbekannt(0x43))
-        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.schritte, [0xFF])), .unbekannt(0x43))
     }
 
     func testUnbekannterBefehlWirdNichtGedeutet() {

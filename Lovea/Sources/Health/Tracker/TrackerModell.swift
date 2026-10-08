@@ -3,7 +3,7 @@ import Observation
 
 /// Zustand der Verbindung zum iSo-Tech-Tracker (H59MAX), nur für Ahmed. Rein lokal: nichts davon
 /// geht in den Raum, zu Annika oder in Health. Absichtlich kein Aufruf von `schritteEintragen` oder
-/// `schlafEintragen`, solange die Schritt-Dekodierung nicht am Display des Trackers gegengeprüft ist.
+/// `schlafEintragen`, solange die Schritt-Dekodierung nicht mit QWatch Pro verglichen ist.
 @MainActor
 @Observable
 final class TrackerModell {
@@ -20,7 +20,7 @@ final class TrackerModell {
     private(set) var name: String?
     private(set) var akku: TrackerProtokoll.Akku?
     private(set) var pulsEinstellung: TrackerProtokoll.PulsEinstellung?
-    /// Summe der Viertelstunden-Slots von heute. Nicht belegt, nur zum Vergleich mit dem Tracker-Display.
+    /// Summe der Antwortzeilen von heute. Nicht belegt, nur zum Vergleich mit QWatch Pro.
     private(set) var testSchritte: Int?
     private(set) var aktualisiert: Date?
 
