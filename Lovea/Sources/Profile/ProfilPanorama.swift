@@ -40,9 +40,6 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         self.schwebend = schwebend()
     }
 
-    /// Height of the zone tabs under the scene (44 pt: every button is hit on the whole height).
-    static var leistenHoehe: CGFloat { ProfilLayout.leistenHoehe }
-
     var body: some View {
         let k = ProfilPanoramaLayout.massstab(breite: breite)
         VStack(spacing: 0) {
@@ -99,30 +96,7 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
     // MARK: Zone tabs
 
     private func zonenLeiste(_ k: CGFloat) -> some View {
-        HStack(spacing: 6) {
-            ForEach(ProfilZone.allCases, id: \.self) { z in
-                let aktiv = z == zone
-                Button { gehe(z, k) } label: {
-                    Text(z.titel)
-                        .font(.footnote.weight(.semibold))
-                        .lineLimit(1)
-                        .foregroundStyle(aktiv ? Color.loveaRose : .secondary)
-                        .padding(.horizontal, 14)
-                        .frame(minHeight: 30)
-                        .background(aktiv ? Color.loveaRose.opacity(0.16) : .clear, in: Capsule())
-                        // 30 pt to look at, the whole strip height (44 pt) to hit.
-                        .frame(minHeight: Self.leistenHoehe)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(z.titel)
-                .accessibilityAddTraits(aktiv ? [.isButton, .isSelected] : .isButton)
-            }
-        }
-        // The strip is chrome: its letters stop growing with Dynamic Type so it never breaks.
-        .dynamicTypeSize(ProfilLayout.leistenSchrift)
-        .frame(maxWidth: .infinity)
-        .frame(height: Self.leistenHoehe)
+        ProfilZonenLeiste(zone: zone) { gehe($0, k) }
     }
 
     private func gehe(_ z: ProfilZone, _ k: CGFloat) {

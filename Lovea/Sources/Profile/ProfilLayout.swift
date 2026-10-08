@@ -21,7 +21,7 @@ enum ProfilLayout {
     /// Air under the last card, above the tab bar.
     static let schlussPolster: CGFloat = 32
     /// Navigation chrome (the two strips) stops growing with Dynamic Type here; the content below keeps scaling.
-    static let leistenSchrift: ClosedRange<DynamicTypeSize> = DynamicTypeSize.xsmall...DynamicTypeSize.xxxLarge
+    static let leistenSchrift: ClosedRange<DynamicTypeSize> = DynamicTypeSize.xSmall...DynamicTypeSize.xxxLarge
 
     struct Szene: Equatable {
         /// Width the scene is drawn at; centred when the screen is wider.

@@ -89,7 +89,6 @@ struct ProfilUnterbau<Kopf: View>: View {
     /// sheet, the editor or the shop closes.
     @State private var umgeschaltet: Set<String> = []
     @State private var position = ScrollPosition(edge: .top)
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// `start`: the tab that shows first (nil: the first one with something in it).
     init(abschnitte: [ProfilAbschnitt], klebt: Bool, start: ProfilReiter? = nil, @ViewBuilder kopf: () -> Kopf) {
@@ -133,7 +132,7 @@ struct ProfilUnterbau<Kopf: View>: View {
                     Section {
                         ForEach(liste) { a in zeile(a, liste) }
                     } header: {
-                        if ProfilReiterLogik.zeigtLeiste(sichtbar) { leiste(sichtbar, aktiv: aktiv) }
+                        if ProfilReiterLogik.zeigtLeiste(sichtbar) { ProfilReiterLeiste(reiter: sichtbar, aktiv: aktiv, waehle: waehle) }
                     }
                 }
                 .padding(.top, 6)
@@ -161,47 +160,6 @@ struct ProfilUnterbau<Kopf: View>: View {
         .padding(.horizontal, 16)
     }
 
-    // MARK: Tab strip
-
-    private func leiste(_ sichtbar: [ProfilReiter], aktiv: ProfilReiter?) -> some View {
-        let knoepfe = HStack(spacing: 6) {
-            ForEach(sichtbar) { r in knopf(r, aktiv: r == aktiv) }
-        }
-        // Wide letters (Dynamic Type) that do not fit in a row slide sideways instead of breaking the strip.
-        return ViewThatFits(in: .horizontal) {
-            knoepfe.padding(.horizontal, 16)
-            ScrollView(.horizontal) { knoepfe.padding(.horizontal, 16) }
-                .scrollIndicators(.hidden)
-                // The slide is the strip's, not the tab's.
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 20).onChanged { wert in
-                        if abs(wert.translation.width) > abs(wert.translation.height) { TabWischSperre.shared.beanspruchen() }
-                    }
-                )
-        }
-        .dynamicTypeSize(ProfilLayout.leistenSchrift)
-        .frame(maxWidth: .infinity)
-        .frame(minHeight: ProfilLayout.reiterHoehe)
-        .background(Color(uiColor: .systemGroupedBackground))
-    }
-
-    private func knopf(_ r: ProfilReiter, aktiv: Bool) -> some View {
-        Button { waehle(r) } label: {
-            Text(r.titel)
-                .font(.footnote.weight(.semibold))
-                .lineLimit(1)
-                .foregroundStyle(aktiv ? Color.loveaRose : .secondary)
-                .padding(.horizontal, 14)
-                .frame(minHeight: 34)
-                .background(aktiv ? Color.loveaRose.opacity(0.16) : .clear, in: Capsule())
-                .frame(minHeight: ProfilLayout.reiterHoehe)
-                .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel(r.titel)
-        .accessibilityAddTraits(aktiv ? [.isButton, .isSelected] : .isButton)
-    }
-
     private func waehle(_ r: ProfilReiter) {
         Haptik.auswahl()
         wahl = r
@@ -218,6 +176,13 @@ struct ProfilKlappKarte: View {
     @Binding var offen: Bool
     let inhalt: () -> AnyView
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Written out: the private `reduceMotion` would make the memberwise one private, and the render gallery builds it too.
+    init(titel: String, offen: Binding<Bool>, inhalt: @escaping () -> AnyView) {
+        self.titel = titel
+        _offen = offen
+        self.inhalt = inhalt
+    }
 
     var body: some View {
         VStack(spacing: 0) {

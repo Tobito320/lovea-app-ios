@@ -413,6 +413,7 @@ private struct ProfilInhalt: View {
                     .font(.footnote)
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 4)
+                AppKannHinweis(person: person)
             }
         }
     }
