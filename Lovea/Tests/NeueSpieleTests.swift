@@ -214,6 +214,7 @@ final class WordleLogikTests: XCTestCase {
     }
 }
 
+@MainActor
 final class SchiffeLogikTests: XCTestCase {
 
     /// Gültige Testflotte: vier Reihen links oben, nichts überlappt.
