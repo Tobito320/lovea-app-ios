@@ -32,17 +32,6 @@ private func punktAufBogen(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, _ t: CGFloa
     return P(x, y)
 }
 
-/// Perlen oder Punkte entlang eines Bogens (Spitzenrand, Perlenreihe).
-private func punktReihe(_ g: GraphicsContext, _ a: CGPoint, _ b: CGPoint, _ c: CGPoint, anzahl: Int, r: CGFloat, farbe: Color, rand: Color) {
-    var p = Path()
-    for i in 0...anzahl {
-        let m = punktAufBogen(a, b, c, CGFloat(i) / CGFloat(anzahl))
-        p.addEllipse(in: CGRect(x: m.x - r, y: m.y - r, width: r * 2, height: r * 2))
-    }
-    g.stroke(p, with: .color(rand), lineWidth: 0.7)
-    g.fill(p, with: .color(farbe))
-}
-
 /// Rüschenband entlang eines Bogens: oben die Kante, unten `n` Wellen, die `tief` nach unten schwingen.
 private func rueschenBand(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, hoehe: CGFloat, n: Int, tief: CGFloat) -> Path {
     Path { p in
@@ -119,7 +108,13 @@ func zeichneCamisole(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFarbe
         linie(g, kante, top.kontur, 6)
         linie(g, kante, spitze.farbe, 4)
     }
-    punktReihe(g, P(76, 196.5), P(124, 196.5), P(100, 221), anzahl: 10, r: 1.35, farbe: spitze.mix(Pal.weiss, 0.5).farbe, rand: top.kontur.opacity(0.6))
+    var perlen = Path()
+    for i in 0...10 {
+        let m = punktAufBogen(P(76, 196.5), P(124, 196.5), P(100, 221), CGFloat(i) / 10)
+        perlen.addEllipse(in: CGRect(x: m.x - 1.35, y: m.y - 1.35, width: 2.7, height: 2.7))
+    }
+    g.stroke(perlen, with: .color(top.kontur.opacity(0.6)), lineWidth: 0.7)
+    g.fill(perlen, with: .color(spitze.mix(Pal.weiss, 0.5).farbe))
     // Spaghettiträger mit goldenem Schieber.
     for seite: CGFloat in [-1, 1] {
         let traeger = strich(P(100 + seite * 33, 163), P(100 + seite * 26, 193))
@@ -231,6 +226,7 @@ func zeichneRueschenAermel(_ g: GraphicsContext, von s: CGPoint, nach e: CGPoint
 /// Oberteil des Wickelkleids: tiefer V-Ausschnitt mit Paspel, die obere Lage kreuzt zum Knoten an der
 /// linken Hüfte, Raffung um den Knoten, Taillenband. Der Rock kommt aus `zeichneWickelRock`.
 func zeichneWickelkleid(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFarbe, haut: FigurFarbe) {
+    h.fill(box(0, 150, 200, 200), with: stoffVerlauf(top, 30, 170, dunkel: 0.8, hell: 0.1))
     // Der V-Ausschnitt ist Haut (auf der ganzen Figur wird der Torso nicht ausgeschnitten).
     let v = Path { p in
         p.move(to: P(83, 157))
@@ -238,8 +234,6 @@ func zeichneWickelkleid(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFa
         p.addLine(to: P(117, 157))
         p.closeSubpath()
     }
-    g.fill(v, with: .color(haut.farbe))
-    h.fill(box(0, 150, 200, 200), with: stoffVerlauf(top, 30, 170, dunkel: 0.8, hell: 0.1))
     g.fill(v, with: .color(haut.farbe))
     // Untere Lage (links) liegt im Schatten, die obere Lage kreuzt von rechts zum Knoten.
     let unterLage = Path { p in
@@ -466,14 +460,7 @@ func zeichneBlumenJeans(_ g: GraphicsContext, beine: [(h: CGPoint, k: CGPoint, f
             teil(g, kreis(ende, 1), kupfer, 0.5)
         }
         // Saumumschlag am Knöchel.
-        let umschlag = Path { p in
-            p.move(to: P(bn.f.x - b * 0.36, bn.f.y - 8))
-            p.addLine(to: P(bn.f.x + b * 0.36, bn.f.y - 8))
-            p.addLine(to: P(bn.f.x + b * 0.36, bn.f.y))
-            p.addLine(to: P(bn.f.x - b * 0.36, bn.f.y))
-            p.closeSubpath()
-        }
-        g.fill(umschlag, with: .color(farbe.mix(Pal.weiss, 0.22).farbe))
+        g.fill(box(bn.f.x - b * 0.36, bn.f.y - 8, b * 0.72, 8), with: .color(farbe.mix(Pal.weiss, 0.22).farbe))
         linie(g, strich(P(bn.f.x - b * 0.36, bn.f.y - 8), P(bn.f.x + b * 0.36, bn.f.y - 8)), farbe.kontur.opacity(0.55), 1.1)
         steppnaht(g, strich(P(bn.f.x - b * 0.32, bn.f.y - 6.2), P(bn.f.x + b * 0.32, bn.f.y - 6.2)), faden.farbe.opacity(0.8), 0.6)
     }
@@ -509,6 +496,7 @@ func zeichneBlumenJeans(_ g: GraphicsContext, beine: [(h: CGPoint, k: CGPoint, f
 func zeichneJeansRueckseite(_ g: GraphicsContext, farbe: FigurFarbe) {
     let faden = FigurFarbe(0xE2A24B)
     let kupfer = FigurFarbe(0xC98A4B)
+    var umriss = Path()
     for seite: CGFloat in [-1, 1] {
         let bein = Path { p in
             p.move(to: P(100 + seite * 1.5, 40))
@@ -520,18 +508,10 @@ func zeichneJeansRueckseite(_ g: GraphicsContext, farbe: FigurFarbe) {
             p.closeSubpath()
         }
         teil(g, bein, farbe, 3)
+        umriss.addPath(bein)
     }
     var k = g
-    k.clip(to: Path { p in
-        p.move(to: P(50, 40))
-        p.addLine(to: P(150, 40))
-        p.addQuadCurve(to: P(138, 140), control: P(154, 96))
-        p.addLine(to: P(133, 252))
-        p.addLine(to: P(67, 252))
-        p.addLine(to: P(62, 140))
-        p.addQuadCurve(to: P(50, 40), control: P(46, 96))
-        p.closeSubpath()
-    })
+    k.clip(to: umriss)
     // Waschung und Schatten an den Seiten.
     k.fill(Path(CGRect(x: 0, y: 40, width: 200, height: 220)), with: verlaufX(46, 154, [
         .init(color: .black.opacity(0.18), location: 0),
@@ -597,14 +577,7 @@ func zeichneJeansRueckseite(_ g: GraphicsContext, farbe: FigurFarbe) {
     linie(g, strich(P(93, 54), P(107, 54)), FigurFarbe(0x5A3E24).farbe, 1.1)
     // Saumumschlag.
     for seite: CGFloat in [-1, 1] {
-        let umschlag = Path { p in
-            p.move(to: P(100 + seite * 33, 236))
-            p.addLine(to: P(100 + seite * 12, 236))
-            p.addLine(to: P(100 + seite * 12, 252))
-            p.addLine(to: P(100 + seite * 33, 252))
-            p.closeSubpath()
-        }
-        g.fill(umschlag, with: .color(farbe.mix(Pal.weiss, 0.22).farbe))
+        g.fill(box(100 + seite * 22.5 - 10.5, 236, 21, 16), with: .color(farbe.mix(Pal.weiss, 0.22).farbe))
         linie(g, strich(P(100 + seite * 33, 236), P(100 + seite * 12, 236)), farbe.kontur.opacity(0.55), 1.2)
         steppnaht(g, strich(P(100 + seite * 32, 239), P(100 + seite * 13, 239)), faden.farbe.opacity(0.85), 0.7)
     }
