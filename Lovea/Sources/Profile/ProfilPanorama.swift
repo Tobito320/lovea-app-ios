@@ -44,10 +44,7 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
 
     var body: some View {
         let k = ProfilPanoramaLayout.massstab(breite: breite)
-        VStack(spacing: 0) {
-            szene(k)
-            zonenLeiste(k)
-        }
+        szene(k)
     }
 
     private func szene(_ k: CGFloat) -> some View {
@@ -101,17 +98,6 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         .accessibilityHidden(true)
     }
 
-    // MARK: Zone tabs
-
-    private func zonenLeiste(_ k: CGFloat) -> some View {
-        ProfilZonenLeiste(zone: zone) { gehe($0, k) }
-    }
-
-    private func gehe(_ z: ProfilZone, _ k: CGFloat) {
-        Haptik.auswahl()
-        letzterTab = Date()
-        withAnimation(reduceMotion ? nil : Feder.weich) { position.scrollTo(x: ProfilSlots.anker(z) * k) }
-    }
 }
 
 /// p65 A2: the wall layer of the panorama, `ProfilPanoramaLayout.wandBreite` design units wide and anchored to

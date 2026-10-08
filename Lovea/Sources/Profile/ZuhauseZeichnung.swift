@@ -47,7 +47,9 @@ enum ZuhauseZeichnung {
 
     /// `wahl` (p61): wall, rug and lamp of the shop's room pieces; the standard is the room as it was.
     /// p65: in the panorama the wall is its own, slower layer (`wand`); here are floor and furniture.
-    static func raum(_ g: GraphicsContext, zeit: Tageszeit, wahl: ZimmerWahl = .standard, welt: ProfilWelt = .einzel) {
+    /// `schuhe`: die Sneaker im Regal (Schrittziel erreicht); im Panorama hängen an der Stange keine festen Bügel,
+    /// das sind die Outfits von `ZimmerKleidungEbene`.
+    static func raum(_ g: GraphicsContext, zeit: Tageszeit, wahl: ZimmerWahl = .standard, welt: ProfilWelt = .einzel, schuhe: Bool = true) {
         if welt == .einzel { wand(g, wahl, breite: breite) }
         boden(g, wahl, welt)
         welt.zeichne(g, .fenster) { fensterZeichnen($0, zeit) }
@@ -58,8 +60,8 @@ enum ZuhauseZeichnung {
         }
         welt.zeichne(g, .lampe) { ZimmerMoebel.lampe($0, ort: lampe, wahl.teil(.lampe)) }
         welt.zeichne(g, .kleiderschrank) {
-            ZimmerMoebel.kleiderstange($0)
-            ZimmerMoebel.schuhregal($0)
+            ZimmerMoebel.kleiderstange($0, buegel: welt == .einzel)
+            ZimmerMoebel.schuhregal($0, schuhe: schuhe)
         }
         abdunkeln(g, zeit, welt)
     }

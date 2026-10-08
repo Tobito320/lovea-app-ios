@@ -8,6 +8,8 @@ struct ZimmerLebenStand: Equatable {
     var andere: ZimmerAndere.Wo = .zuhause
     var polaroids: [ZimmerPolaroid] = []
     var pokale: [ZimmerPokal] = []
+    /// Lebenszeit-Punkte der gezeigten Person: ihre Pokal-Stufen stehen mit auf dem Regal (ZimmerZustandLogik).
+    var punkte = 0
     var film: ZimmerFilm?
     var pflanze = ZimmerPflanzenStand(stufe: 0, haengt: false, serie: 0)
     var ziel: ZimmerZiel?
@@ -43,6 +45,7 @@ enum ZimmerLebenModell {
             andere: wo(person.partner, heute: heute, stunde: stunde),
             polaroids: ZimmerFotos.letzte(ChatModell.shared.nachrichten),
             pokale: ZimmerPokale.aus(SpieleModell.shared.bilanz),
+            punkte: PunkteModell.shared.stand[person] ?? 0,
             film: ZimmerFilme.laeuft(filme()),
             pflanze: pflanze(ich: Raum.shared.ich ?? person, heute: heute).mit(tagesZiele(ich: Raum.shared.ich ?? person, heute: heute)),
             ziel: lesen(zielSchluessel, als: ZimmerZiel.self)
