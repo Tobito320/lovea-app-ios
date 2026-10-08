@@ -157,9 +157,11 @@ struct CoachChatView: View {
     private var chat: some View {
         let nachrichten = modell.liste
         let leer = nachrichten.isEmpty && !modell.sendet
+        // Beim ersten Öffnen kommt der Verlauf erst nach dem ersten Zeichnen; der Wechsel blendet über statt zu springen.
         return Group {
-            if leer { leerAnsicht } else { verlauf(nachrichten) }
+            if leer { leerAnsicht.transition(.opacity) } else { verlauf(nachrichten).transition(.opacity) }
         }
+        .animation(reduceMotion ? nil : Feder.weich, value: leer)
         .safeAreaBar(edge: .bottom, spacing: 0) { unten(leer: leer) }
     }
 
@@ -202,12 +204,14 @@ struct CoachChatView: View {
                     .foregroundStyle(HabitFarbe.mint.farbe)
                     .frame(width: 36, height: 36)
                     .background(HabitFarbe.mint.farbe.opacity(0.16), in: Circle())
+                    .accessibilityHidden(true)
                 Text(frage)
                     .font(.body.weight(.medium))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
                 Spacer(minLength: 8)
                 Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+                    .accessibilityHidden(true)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
