@@ -1,22 +1,26 @@
 import SwiftUI
 
-/// Where the living objects sit in the room's design space (390 x 430, bottom anchored, like
-/// `SzenenZeichnung`). Drawing and tap targets read the same rects.
+/// Where the living objects sit in the home of `ZuhauseZeichnung` (design space 390 x 430, bottom
+/// anchored). Drawing and tap targets read the same rects. Left wall: calendar, frames, TV; right
+/// wall above the sofa: board and cups; the plant on the sill; the goal on the floor.
 enum ZimmerLebenLayout {
-    /// The window glass of `SzenenZeichnung` (frame 22,72,112,124 inset by 7).
-    static let fenster = CGRect(x: 29, y: 79, width: 98, height: 110)
-    static let kalender = CGRect(x: 146, y: 142, width: 40, height: 50)
-    static let pokale = CGRect(x: 196, y: 150, width: 84, height: 44)
-    static let pinnwand = CGRect(x: 294, y: 142, width: 84, height: 60)
-    static let fernseher = CGRect(x: 296, y: 212, width: 78, height: 56)
-    /// Stands on the window sill (y 192).
-    static let pflanze = CGRect(x: 52, y: 126, width: 52, height: 68)
-    static let ziel = CGRect(x: 316, y: 292, width: 58, height: 66)
-    static let andere = CGRect(x: 316, y: 364, width: 58, height: 58)
+    /// The visible glass between the curtains (`ZuhauseZeichnung.fenster` inset by 7, minus the curtain edges).
+    static let fenster = CGRect(x: 188, y: 69, width: 68, height: 106)
+    static let kalender = CGRect(x: 8, y: 58, width: 40, height: 50)
+    static let fernseher = CGRect(x: 82, y: 104, width: 78, height: 56)
+    static let pinnwand = CGRect(x: 298, y: 58, width: 84, height: 60)
+    static let pokale = CGRect(x: 298, y: 124, width: 84, height: 44)
+    /// Stands on the window sill (y 180), leaning on the left curtain.
+    static let pflanze = CGRect(x: 158, y: 112, width: 52, height: 68)
+    static let ziel = CGRect(x: 322, y: 350, width: 58, height: 66)
+    /// The other one's real whereabouts, a small round window on the left wall above the bed.
+    static let andere = CGRect(x: 12, y: 162, width: 42, height: 42)
+    /// The three photo frames (slot 0 to 2 of `Zimmer.rahmen`); the photo sits 7 inside.
+    static let rahmen = [CGRect(x: 52, y: 62, width: 34, height: 42), CGRect(x: 6, y: 114, width: 36, height: 44), CGRect(x: 45, y: 114, width: 34, height: 44)]
 
     /// Polaroid `i` on the board: centre and tilt in degrees.
     static func polaroid(_ i: Int) -> (mitte: CGPoint, grad: Double) {
-        let alle: [(mitte: CGPoint, grad: Double)] = [(P(312, 173), -8), (P(336, 177), 4), (P(360, 172), 10)]
+        let alle: [(mitte: CGPoint, grad: Double)] = [(P(318, 90), -8), (P(342, 94), 4), (P(366, 89), 10)]
         return alle[i]
     }
 
@@ -43,7 +47,7 @@ enum ZimmerLebenZeichnung {
 
     // MARK: Fenster (2)
 
-    /// Sky and weather in the window glass, then the bars and curtains drawn again on top of it.
+    /// Sky and weather in the glass between the curtains, then the cross of bars drawn again on top.
     static func fenster(_ g: GraphicsContext, _ h: ZimmerHimmel) {
         let glas = ZimmerLebenLayout.fenster
         var c = g
@@ -57,48 +61,38 @@ enum ZimmerLebenZeichnung {
         case (false, .schnee): [0xB9CAD9, 0xEAF1F7]
         }
         c.fill(Path(glas), with: .linearGradient(Gradient(colors: himmel.map { farbe($0).farbe }), startPoint: P(glas.midX, glas.minY), endPoint: P(glas.midX, glas.maxY)))
+        let himmelsding = P(glas.maxX - 18, glas.minY + 24)
         if h.nacht && !grau {
-            for k in 0..<8 { c.fill(kreis(P(glas.minX + CGFloat((k * 37) % 98), glas.minY + CGFloat((k * 53) % 70)), k % 3 == 0 ? 1.8 : 1.1), with: .color(farbe(0xFFF6D5).farbe)) }
-            c.fill(kreis(P(100, 108), 22), with: .radialGradient(Gradient(colors: [farbe(0xFFF1B8).farbe.opacity(0.25), .clear]), center: P(100, 108), startRadius: 9, endRadius: 22))
+            for k in 0..<8 { c.fill(kreis(P(glas.minX + CGFloat((k * 37) % 62) + 3, glas.minY + CGFloat((k * 53) % 80) + 4), k % 3 == 0 ? 1.8 : 1.1), with: .color(farbe(0xFFF6D5).farbe)) }
+            c.fill(kreis(himmelsding, 20), with: .radialGradient(Gradient(colors: [farbe(0xFFF1B8).farbe.opacity(0.25), .clear]), center: himmelsding, startRadius: 8, endRadius: 20))
             var m = c
-            m.clip(to: kreis(P(105.5, 104), 10), options: .inverse)
-            m.fill(kreis(P(100, 108), 11), with: .color(farbe(0xFFF1B8).farbe))
+            m.clip(to: kreis(P(himmelsding.x + 5.5, himmelsding.y - 4), 9), options: .inverse)
+            m.fill(kreis(himmelsding, 10), with: .color(farbe(0xFFF1B8).farbe))
         }
         if !h.nacht && h.wetter == .sonne {
             for k in 0..<8 {
                 let w = Double(k) * .pi / 4
-                c.stroke(strich(P(98 + 17 * CGFloat(cos(w)), 108 + 17 * CGFloat(sin(w))), P(98 + 22 * CGFloat(cos(w)), 108 + 22 * CGFloat(sin(w)))), with: .color(Pal.gelb.farbe), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                c.stroke(strich(P(himmelsding.x + 15 * CGFloat(cos(w)), himmelsding.y + 15 * CGFloat(sin(w))), P(himmelsding.x + 20 * CGFloat(cos(w)), himmelsding.y + 20 * CGFloat(sin(w)))), with: .color(Pal.gelb.farbe), style: StrokeStyle(lineWidth: 2.5, lineCap: .round))
             }
-            teil(c, kreis(P(98, 108), 13), Pal.gelb, 2.5)
+            teil(c, kreis(himmelsding, 11), Pal.gelb, 2.5)
         }
         let wolken = grau ? farbe(0xB4BDC8) : (h.nacht ? farbe(0x6A7194) : Pal.weiss)
         switch h.wetter {
-        case .sonne: if !h.nacht { wolke(c, P(60, 160), 0.4, Pal.weiss) }
+        case .sonne: if !h.nacht { wolke(c, P(glas.minX + 22, glas.maxY - 22), 0.4, Pal.weiss) }
         case .wolken:
-            wolke(c, P(62, 112), 0.45, wolken)
-            wolke(c, P(100, 158), 0.5, wolken)
+            wolke(c, P(glas.minX + 26, glas.minY + 30), 0.4, wolken)
+            wolke(c, P(glas.maxX - 24, glas.midY + 28), 0.45, wolken)
         case .regen, .schnee:
-            wolke(c, P(66, 104), 0.5, wolken)
-            wolke(c, P(104, 128), 0.4, wolken)
+            wolke(c, P(glas.minX + 28, glas.minY + 24), 0.42, wolken)
+            wolke(c, P(glas.maxX - 22, glas.minY + 40), 0.34, wolken)
             for k in 0..<14 {
-                let p = P(glas.minX + CGFloat((k * 41) % 94) + 2, 134 + CGFloat((k * 29) % 52))
+                let p = P(glas.minX + CGFloat((k * 41) % 62) + 3, glas.midY + CGFloat((k * 29) % 46))
                 if h.wetter == .regen { c.stroke(strich(p, P(p.x - 3, p.y + 9)), with: .color(farbe(0xDDEBF7).farbe.opacity(0.8)), style: StrokeStyle(lineWidth: 1.8, lineCap: .round)) }
                 else { c.fill(kreis(p, k % 3 == 0 ? 2.6 : 1.8), with: .color(.white)) }
             }
         }
-        linie(c, strich(P(78, glas.minY), P(78, glas.maxY)), Pal.weiss.farbe, 5)
-        linie(c, strich(P(glas.minX, 134), P(glas.maxX, 134)), Pal.weiss.farbe, 5)
-        // The curtains as in `SzenenZeichnung.fensterVorn`, which the sky above has covered.
-        let stoff = farbe(0xF7B6C6)
-        let links = Path { p in
-            p.move(to: P(10, 64))
-            p.addLine(to: P(42, 64))
-            p.addQuadCurve(to: P(30, 206), control: P(18, 140))
-            p.addLine(to: P(8, 208))
-            p.closeSubpath()
-        }
-        teil(g, links, stoff, 2.5)
-        teil(g, links.applying(CGAffineTransform(a: -1, b: 0, c: 0, d: 1, tx: 156, ty: 0)), stoff, 2.5)
+        linie(c, strich(P(glas.midX, glas.minY), P(glas.midX, glas.maxY)), Pal.weiss.farbe, 4)
+        linie(c, strich(P(glas.minX, glas.midY), P(glas.maxX, glas.midY)), Pal.weiss.farbe, 4)
     }
 
     // MARK: Kalenderblatt (1)

@@ -3,8 +3,6 @@ import Foundation
 /// Everything the living objects show, as plain values: the drawing and the render board both
 /// take this, only `ZimmerLebenModell.stand` reads the app's models.
 struct ZimmerLebenStand: Equatable {
-    /// The room has a window, so the weather has somewhere to show.
-    var fenster = true
     var termin: ZimmerTermin?
     var himmel: ZimmerHimmel?
     var andere: ZimmerAndere.Wo = .zuhause
@@ -40,7 +38,6 @@ enum ZimmerLebenModell {
         let heute = Datum.text(jetzt)
         let stunde = Calendar.berlin.component(.hour, from: jetzt)
         return ZimmerLebenStand(
-            fenster: zimmer.hat("fenster"),
             termin: ZimmerKalenderblatt.naechster(KalenderModell.shared.zustand.daten, heute: heute),
             himmel: WetterModell.shared.staende[wetterPerson].map { ZimmerHimmel(code: $0.code, tag: $0.tag, stunde: stunde) },
             andere: wo(person.partner, heute: heute, stunde: stunde),

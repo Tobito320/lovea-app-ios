@@ -11,10 +11,11 @@ struct ZimmerLebenBild: View {
         let s = stand ?? ZimmerLebenModell.stand(zimmer: zimmer, person: person)
         ZStack {
             Canvas { g, size in
-                if s.fenster, let h = s.himmel { ZimmerLebenZeichnung.fenster(SzenenZeichnung.raum(g, size), h) }
+                if let h = s.himmel { ZimmerLebenZeichnung.fenster(SzenenZeichnung.raum(g, size), h) }
             }
             Canvas { g, size in
                 let r = SzenenZeichnung.raum(g, size)
+                for f in zimmer.rahmen where ZimmerLebenLayout.rahmen.indices.contains(f.slot) { SzenenZeichnung.rahmen(r, ZimmerLebenLayout.rahmen[f.slot]) }
                 ZimmerLebenZeichnung.kalender(r, s.termin)
                 ZimmerLebenZeichnung.pokale(r, s.pokale)
                 ZimmerLebenZeichnung.pinnwand(r, anzahl: s.polaroids.count)
@@ -48,7 +49,10 @@ struct ZimmerLebenTippen: View {
 
     private func ziele(_ s: ZimmerLebenStand) -> [Ziel] {
         let heute = Datum.text(Date())
-        var z = [
+        // Later ones sit on top: the plant over the window glass.
+        var z: [Ziel] = []
+        if let h = s.himmel { z.append(Ziel(name: "Fenster", rect: ZimmerLebenLayout.fenster, blatt: .info(titel: "Draußen bei \(ZimmerLebenModell.wetterPerson.name)", text: h.text))) }
+        z += [
             Ziel(name: "Kalender", rect: ZimmerLebenLayout.kalender, blatt: .kalender(s.termin?.tag ?? heute)),
             Ziel(name: "Pokale", rect: ZimmerLebenLayout.pokale, blatt: .pokale),
             Ziel(name: "Fernseher", rect: ZimmerLebenLayout.fernseher, blatt: .film),
@@ -56,9 +60,8 @@ struct ZimmerLebenTippen: View {
             Ziel(name: "Ziel", rect: ZimmerLebenLayout.ziel, blatt: .ziel),
             Ziel(name: "Andere", rect: ZimmerLebenLayout.andere, blatt: .info(titel: "\(person.partner.name) ist", text: s.andere.text)),
         ]
-        if s.fenster, let h = s.himmel { z.append(Ziel(name: "Fenster", rect: ZimmerLebenLayout.fenster, blatt: .info(titel: "Draußen bei \(ZimmerLebenModell.wetterPerson.name)", text: h.text))) }
-        for r in zimmer.rahmen where SzenenZeichnung.rahmenRects.indices.contains(r.slot) {
-            z.append(Ziel(name: "Rahmen \(r.slot)", rect: SzenenZeichnung.rahmenRects[r.slot], blatt: .foto(medienId: r.medienId, titel: "Eure Erinnerung")))
+        for r in zimmer.rahmen where ZimmerLebenLayout.rahmen.indices.contains(r.slot) {
+            z.append(Ziel(name: "Rahmen \(r.slot)", rect: ZimmerLebenLayout.rahmen[r.slot], blatt: .foto(medienId: r.medienId, titel: "Eure Erinnerung")))
         }
         if s.polaroids.isEmpty {
             z.append(Ziel(name: "Pinnwand", rect: ZimmerLebenLayout.pinnwand, blatt: .info(titel: "Pinnwand", text: "Gespeicherte Snaps hängen hier als Polaroids.")))
@@ -77,6 +80,13 @@ struct ZimmerLebenTippen: View {
             let k = geo.size.width / SzenenZeichnung.breite
             let oben = geo.size.height - SzenenZeichnung.hoehe * k
             ZStack(alignment: .topLeading) {
+                ForEach(zimmer.rahmen.filter { ZimmerLebenLayout.rahmen.indices.contains($0.slot) }, id: \.slot) { r in
+                    let foto = ZimmerLebenLayout.rahmen[r.slot].insetBy(dx: 7, dy: 7)
+                    ProfilFoto(medienId: r.medienId)
+                        .overlay(Color(red: 0.1, green: 0.12, blue: 0.23).opacity(Tageszeit.um(Date()).dunkel ? 0.45 : 0))
+                        .frame(width: foto.width * k, height: foto.height * k)
+                        .position(x: foto.midX * k, y: oben + foto.midY * k)
+                }
                 ForEach(Array(s.polaroids.enumerated()), id: \.element.id) { i, p in
                     let l = ZimmerLebenLayout.polaroid(i), foto = ZimmerLebenLayout.polaroidFoto, g = ZimmerLebenLayout.polaroidGroesse
                     ProfilFoto(medienId: p.medienId)
@@ -108,12 +118,13 @@ struct ZimmerLebenTippen: View {
         .task { rueckblick() }
     }
 
-    /// Once a day "Heute vor einem Jahr", when there is a photo from then.
+    /// Once a day "Heute vor …" (`HeuteVorLogik`: a month, three months, a year), when that day has a photo.
     private func rueckblick() {
         let heute = Datum.text(Date())
         guard stand == nil, UserDefaults.standard.string(forKey: Self.rueckblickSchluessel) != heute,
-              let foto = ZimmerFotos.vorEinemJahr(ChatModell.shared.nachrichten) else { return }
+              let treffer = HeuteVorLogik.auswahl(ChatModell.shared.nachrichten),
+              let foto = treffer.nachricht.medien.first(where: { $0.typ == "foto" }) else { return }
         UserDefaults.standard.set(heute, forKey: Self.rueckblickSchluessel)
-        blatt = .foto(medienId: foto.medienId, titel: "Heute vor einem Jahr")
+        blatt = .foto(medienId: foto.id, titel: "Heute: \(treffer.zeitraum.titel)")
     }
 }

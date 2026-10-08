@@ -225,7 +225,9 @@ private struct ProfilInhalt: View {
     /// replaces the walkers. The bouquets (p59) come in through `straeusse`.
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
-        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZuhauseStraeusse(), paarDa: paarDa) { f in
+        let zimmer = Zimmer.von(person)
+        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZuhauseStraeusse(), paarDa: paarDa,
+                             wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel)) }) { f in
             buehnenFigur(f)
         } paar: {
             // Teil 2 (Nähe): the pair's closeness pose (kiss glides into Stufe 3 and back).
@@ -233,6 +235,8 @@ private struct ProfilInhalt: View {
                 figur(p, naehe: pose, ebene: ebene)
             }
         }
+        // p62: the room's living objects (wall, shelf, plant, goal); their taps sit on top, small.
+        .overlay { ZimmerLebenTippen(zimmer: zimmer, person: person) }
     }
 
     /// A walker, sitter or sleeper of the home scene: their own look and badges, the state and size

@@ -128,7 +128,7 @@ struct ZimmerPflanzenStand: Equatable, Sendable {
     }
 }
 
-// MARK: - 4 Pinnwand, 5 Rückblick
+// MARK: - 4 Pinnwand (5 Rückblick: `HeuteVorLogik`)
 
 struct ZimmerPolaroid: Equatable, Sendable, Identifiable {
     var id: String
@@ -152,15 +152,6 @@ enum ZimmerFotos {
             .map { $0 }
     }
 
-    /// A photo from exactly one year ago today (newest of that day). Unsaved snaps are fleeting.
-    static func vorEinemJahr(_ nachrichten: [ChatModell.Nachricht], jetzt: Date = Date()) -> ZimmerPolaroid? {
-        guard let ziel = Calendar.berlin.date(byAdding: .year, value: -1, to: jetzt),
-              let fenster = Calendar.berlin.dateInterval(of: .day, for: ziel) else { return nil }
-        return nachrichten
-            .filter { fenster.contains($0.zeit) && ($0.snap.map { s in $0.snapGespeichert || s.bleibt } ?? true) }
-            .compactMap { n in foto(n).map { ZimmerPolaroid(id: n.id, medienId: $0, zeit: n.zeit) } }
-            .max { $0.zeit < $1.zeit }
-    }
 }
 
 // MARK: - 6 Fernseher: gemeinsame Film- und Serienliste
