@@ -447,17 +447,17 @@ struct SnapTextPanel: View {
         case .schrift:
             optionsReihe {
                 ForEach(SnapSchrift.allCases, id: \.self) { schrift in
-                    auswahlKachel(titel: schrift.anzeigename, gewaehlt: text.wrappedValue.schrift == schrift, schrift: schrift) { text.wrappedValue.schrift = schrift }
+                    auswahlKachel(titel: schrift.anzeigename, gewaehlt: text.schrift == schrift, schrift: schrift) { text.schrift = schrift }
                 }
             }
         case .farbe:
             optionsReihe {
                 ForEach(Array(SnapFarben.palette.enumerated()), id: \.offset) { _, farbe in
-                    Button { text.wrappedValue.farbe = farbe } label: {
+                    Button { text.farbe = farbe } label: {
                         RoundedRectangle(cornerRadius: 8)
                             .fill(farbe)
                             .frame(width: 44, height: 44)
-                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white, lineWidth: text.wrappedValue.farbe == farbe ? 3 : 1).opacity(text.wrappedValue.farbe == farbe ? 1 : 0.25))
+                            .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Color.white, lineWidth: text.farbe == farbe ? 3 : 1).opacity(text.farbe == farbe ? 1 : 0.25))
                     }
                     .accessibilityLabel("Textfarbe")
                 }
@@ -465,7 +465,7 @@ struct SnapTextPanel: View {
         case .stil:
             optionsReihe {
                 ForEach(SnapTextStil.allCases, id: \.self) { stil in
-                    auswahlKachel(titel: stil.anzeigename, gewaehlt: text.wrappedValue.stil == stil, schrift: .fett) { text.wrappedValue.stil = stil }
+                    auswahlKachel(titel: stil.anzeigename, gewaehlt: text.stil == stil, schrift: .fett) { text.stil = stil }
                 }
             }
         }

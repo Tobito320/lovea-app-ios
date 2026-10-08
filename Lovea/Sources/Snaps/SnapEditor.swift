@@ -179,8 +179,8 @@ struct SnapEditor: View {
             .frame(width: geo.size.width, height: geo.size.height)
             .coordinateSpace(.named(Self.inhaltRaum))
             .contentShape(Rectangle())
-            .gesture(TapGesture().onEnded { auswahl = nil }, isEnabled: panel != .zeichnen)
-            .gesture(zeichenGeste(groesse: geo.size), isEnabled: panel == .zeichnen)
+            .gesture(TapGesture().onEnded { auswahl = nil }, including: panel == .zeichnen ? .none : .all)
+            .gesture(zeichenGeste(groesse: geo.size), including: panel == .zeichnen ? .all : .none)
         }
         .aspectRatio(inhaltAspekt, contentMode: .fit)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
