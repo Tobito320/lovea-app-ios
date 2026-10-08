@@ -85,7 +85,7 @@ enum ZimmerCountdownZeichnung {
 
 /// Die kurze Feier am Tag des Wiedersehens: Herzen und Konfetti steigen vom Schild auf. `fortschritt` 0 bis 1
 /// wird von einer einzigen Animation gefahren, danach steht nichts mehr.
-struct ZimmerFeierBild: View, Animatable {
+struct ZimmerFeierBild: View, @MainActor Animatable {
     var fortschritt: Double
 
     var animatableData: Double {

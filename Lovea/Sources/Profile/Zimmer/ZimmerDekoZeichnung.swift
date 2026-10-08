@@ -98,9 +98,11 @@ enum ZimmerDekoZeichnung {
         case .blaetter:
             let f = [c(0xE07B39), c(0xC8553D), c(0xE8B04A), c(0x9C6B30)][i % 4]
             linie(g, strich(m, P(m.x, m.y + 5)), Pal.dunkel.farbe.opacity(0.4), 1)
-            let b = blatt(P(m.x, m.y + 12), 8, CGFloat(i % 3 - 1) * 0.5)
-            teil(g, b, f, 1.5)
-            linie(g, strich(P(m.x - 3 * CGFloat(i % 3 - 1) * 0.5, m.y + 5), P(m.x + 3 * CGFloat(i % 3 - 1) * 0.5, m.y + 19)), f.mal(0.7).farbe, 1)
+            let neigung: CGFloat = CGFloat(i % 3 - 1) * 0.5
+            teil(g, blatt(P(m.x, m.y + 12), 8, neigung), f, 1.5)
+            let kopf = P(m.x - 3 * neigung, m.y + 5)
+            let fuss = P(m.x + 3 * neigung, m.y + 19)
+            linie(g, strich(kopf, fuss), f.mal(0.7).farbe, 1)
         case .blumen:
             let f = [Pal.rose.mix(Pal.weiss, 0.45), Pal.weiss, Pal.gelb, Pal.himmel.mix(Pal.weiss, 0.3)][i % 4]
             let mitte = P(m.x, m.y + 8)
@@ -408,7 +410,11 @@ enum ZimmerDekoZeichnung {
 
     /// Feste Punkte quer über die Wand: kein Zufall, jedes Bild gleich.
     private static func streupunkte(_ n: Int) -> [CGPoint] {
-        (0..<n).map { i in P(CGFloat((i * 97 + 31) % 372 + 8), CGFloat((i * 53 + 17) % 150 + 78)) }
+        (0..<n).map { (i: Int) -> CGPoint in
+            let x: Int = (i * 97 + 31) % 372 + 8
+            let y: Int = (i * 53 + 17) % 150 + 78
+            return P(CGFloat(x), CGFloat(y))
+        }
     }
 
     private static func streu(_ g: GraphicsContext, _ art: ZimmerDeko.Streu) {
@@ -425,7 +431,7 @@ enum ZimmerDekoZeichnung {
             }
         case .herzen:
             for (i, m) in streupunkte(14).enumerated() {
-                let s = CGFloat(3 + i % 3 * 1.6)
+                let s: CGFloat = 3 + CGFloat(i % 3) * 1.6
                 g.fill(gedreht(herzPfad(m, s), um: m, CGFloat(i % 5 - 2) * 0.22), with: .color(Pal.rose.mix(Pal.weiss, i % 2 == 0 ? 0.15 : 0.45).farbe.opacity(0.85)))
             }
         case .schnee:
@@ -433,7 +439,9 @@ enum ZimmerDekoZeichnung {
             var innen = g
             innen.clip(to: Path(glas))
             for i in 0..<22 {
-                let m = P(glas.minX + CGFloat((i * 37 + 9) % Int(glas.width)), glas.minY + CGFloat((i * 23 + 5) % Int(glas.height)))
+                let dx: Int = (i * 37 + 9) % Int(glas.width)
+                let dy: Int = (i * 23 + 5) % Int(glas.height)
+                let m = P(glas.minX + CGFloat(dx), glas.minY + CGFloat(dy))
                 innen.fill(kreis(m, 1.1 + CGFloat(i % 3) * 0.55), with: .color(.white.opacity(0.92)))
             }
             // Papier-Schneeflocken an der Wand.
