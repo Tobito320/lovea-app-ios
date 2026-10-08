@@ -79,9 +79,11 @@ enum TagesWerte {
     static func marken(_ daten: KalenderDaten, monat: String) -> [String: TagesMarken] {
         let praefix = String(monat.prefix(7))
         var ergebnis: [String: TagesMarken] = [:]
-        for termin in daten.termine where termin.datum.hasPrefix(praefix) {
-            if termin.fuer.contains(Person.ahmed.rawValue) { ergebnis[termin.datum, default: TagesMarken()].ahmed = true }
-            if termin.fuer.contains(Person.annika.rawValue) { ergebnis[termin.datum, default: TagesMarken()].annika = true }
+        for termin in daten.termine {
+            for tag in termin.tage where tag.hasPrefix(praefix) {
+                if termin.fuer.contains(Person.ahmed.rawValue) { ergebnis[tag, default: TagesMarken()].ahmed = true }
+                if termin.fuer.contains(Person.annika.rawValue) { ergebnis[tag, default: TagesMarken()].annika = true }
+            }
         }
         for treffen in daten.treffen where treffen.datum.hasPrefix(praefix) {
             ergebnis[treffen.datum, default: TagesMarken()].treffen = true

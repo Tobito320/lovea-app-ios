@@ -55,6 +55,26 @@ struct Termin: Codable, Hashable, Identifiable {
     var datum: String
     var start: String?
     var ende: String?
+    /// Letzter Tag eines mehrtägigen Termins (`yyyy-MM-dd`). Fehlt bei alten und eintägigen
+    /// Terminen; `ende` ist dann die Uhrzeit am `bisDatum`.
+    var bisDatum: String? = nil
+
+    /// Der letzte Tag, nie vor `datum`.
+    var letzterTag: String { max(datum, bisDatum ?? datum) }
+
+    func faelltAuf(_ tag: String) -> Bool { datum <= tag && tag <= letzterTag }
+
+    /// Alle Tage von `datum` bis `letzterTag`, höchstens ein Jahr (kaputte Daten sollen nichts aufblasen).
+    var tage: [String] {
+        let anzahl = min(Datum.tageZwischen(datum, letzterTag), 365)
+        return (0...anzahl).map { Datum.addTage(datum, $0) }
+    }
+
+    /// Beginn an diesem Tag: am ersten Tag `start`, an Folgetagen nil (ganztägig).
+    func start(am tag: String) -> String? { tag == datum ? start : nil }
+
+    /// Ende an diesem Tag: nur am letzten Tag `ende`; vorher nil.
+    func ende(am tag: String) -> String? { tag == letzterTag ? ende : nil }
 }
 
 struct Treffen: Codable, Hashable {

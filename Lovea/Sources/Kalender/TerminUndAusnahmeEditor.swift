@@ -9,9 +9,7 @@ struct TerminEditor: View {
     @State private var titel: String
     @State private var typ: String
     @State private var fuer: Set<Person>
-    @State private var tag: Date
-    @State private var start: String?
-    @State private var ende: String?
+    @State private var zeitraum: TerminZeitraum
 
     private static let typen = ["schule", "arbeit", "fahrschule", "sonstiges"]
 
@@ -20,9 +18,7 @@ struct TerminEditor: View {
         _titel = State(initialValue: termin?.titel ?? "")
         _typ = State(initialValue: termin?.typ ?? "sonstiges")
         _fuer = State(initialValue: termin.map { Set($0.fuer.compactMap(Person.init(rawValue:))) } ?? [Raum.shared.ich ?? .ahmed])
-        _tag = State(initialValue: Datum.datum(termin?.datum ?? datum))
-        _start = State(initialValue: termin?.start)
-        _ende = State(initialValue: termin?.ende)
+        _zeitraum = State(initialValue: TerminZeitraum(datum: datum, termin: termin))
     }
 
     var body: some View {
@@ -47,10 +43,21 @@ struct TerminEditor: View {
                         }
                     }
                 }
-                Section("Wann") {
-                    DatePicker("Datum", selection: $tag, displayedComponents: .date)
+                Section {
+                    Toggle("Ganztägig", isOn: Binding(
+                        get: { zeitraum.ganztaegig },
+                        set: { zeitraum.setzeGanztaegig($0) }
+                    ))
+                    DatePicker("Ab", selection: Binding(
+                        get: { zeitraum.ab },
+                        set: { zeitraum.setzeAb($0) }
+                    ), displayedComponents: zeitKomponenten)
                         .environment(\.timeZone, Datum.kalender.timeZone)
-                    ZeitWahl(datum: Datum.text(tag), start: $start, ende: $ende, ohneZeit: "Ganztägig")
+                    DatePicker("Bis", selection: Binding(
+                        get: { zeitraum.bis },
+                        set: { zeitraum.setzeBis($0) }
+                    ), in: zeitraum.ab..., displayedComponents: zeitKomponenten)
+                        .environment(\.timeZone, Datum.kalender.timeZone)
                 }
             }
             .navigationTitle(bestehend == nil ? "Neuer Termin" : "Termin bearbeiten")
@@ -65,16 +72,18 @@ struct TerminEditor: View {
         }
     }
 
+    private var zeitKomponenten: DatePickerComponents {
+        zeitraum.ganztaegig ? .date : [.date, .hourAndMinute]
+    }
+
     private func sichern() {
-        let termin = Termin(
+        let termin = zeitraum.angewandt(auf: Termin(
             id: bestehend?.id ?? UUID().uuidString,
             fuer: Person.allCases.filter(fuer.contains).map(\.rawValue),
             titel: titel.trimmingCharacters(in: .whitespaces),
             typ: typ,
-            datum: Datum.text(tag),
-            start: start,
-            ende: start == nil ? nil : ende
-        )
+            datum: Datum.text(zeitraum.ab)
+        ))
         Raum.shared.senden("termin.setzen", termin)
         Haptik.erfolg()
         dismiss()

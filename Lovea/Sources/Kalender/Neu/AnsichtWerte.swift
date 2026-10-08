@@ -20,15 +20,27 @@ enum AnsichtWerte {
 
     /// Termine des Tages, ganztägige zuerst, dann nach Uhrzeit.
     static func tagesTermine(_ daten: KalenderDaten, tag: String) -> [Termin] {
-        daten.termine.filter { $0.datum == tag }.sorted { ($0.start ?? "", $0.id) < ($1.start ?? "", $1.id) }
+        daten.termine.filter { $0.faelltAuf(tag) }.sorted { ($0.start(am: tag) ?? "", $0.id) < ($1.start(am: tag) ?? "", $1.id) }
     }
 
-    static func zeitSpalte(_ termin: Termin) -> String { termin.start ?? "ganztägig" }
+    /// Ohne `tag` der Beginn des Termins. Mit `tag` (mehrtägig): Folgetage „ganztägig", der letzte
+    /// Tag „bis HH:mm".
+    static func zeitSpalte(_ termin: Termin, tag: String? = nil) -> String {
+        guard let tag, termin.letzterTag > termin.datum else { return termin.start ?? "ganztägig" }
+        if let start = termin.start(am: tag) { return start }
+        return termin.ende(am: tag).map { "bis \($0)" } ?? "ganztägig"
+    }
 
-    /// „Ahmed · bis 19:00", „Ahmed und Annika".
+    /// „Ahmed · bis 19:00", „Ahmed und Annika", mehrtägig „Ahmed · bis Freitag, 9. Oktober 18:00".
     static func terminUnterzeile(_ termin: Termin) -> String {
         let namen = Person.allCases.filter { termin.fuer.contains($0.rawValue) }.map(\.name).joined(separator: " und ")
-        return [namen, termin.ende.map { "bis \($0)" } ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+        let bis: String
+        if termin.letzterTag > termin.datum {
+            bis = "bis " + [Datum.anzeige(termin.letzterTag), termin.ende].compactMap { $0 }.joined(separator: " ")
+        } else {
+            bis = termin.ende.map { "bis \($0)" } ?? ""
+        }
+        return [namen, bis].filter { !$0.isEmpty }.joined(separator: " · ")
     }
 
     /// Satz für VoiceOver auf einer Rasterzelle.
