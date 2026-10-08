@@ -334,14 +334,27 @@ enum Videobild {
         return FileManager.default.fileExists(atPath: link.path) ? link : url
     }
 
+    // ponytail: same reasoning as `Bilddatei.vorschauen`, `NSCache` is documented thread-safe, just not `Sendable`.
+    nonisolated(unsafe) private static let erstbilder: NSCache<NSString, UIImage> = {
+        let cache = NSCache<NSString, UIImage>()
+        cache.countLimit = 60
+        return cache
+    }()
+
+    /// Cached per file: a video row that scrolls back into view (the whole history is one list now)
+    /// shows its poster at once instead of decoding the first frame again.
     static func erstesBild(_ url: URL) async -> UIImage? {
-        await Task.detached(priority: .userInitiated) {
+        let schluessel = url.path as NSString
+        if let vorhanden = erstbilder.object(forKey: schluessel) { return vorhanden }
+        let bild = await Task.detached(priority: .userInitiated) { () -> UIImage? in
             let generator = AVAssetImageGenerator(asset: AVURLAsset(url: Videobild.abspielbar(url)))
             generator.appliesPreferredTrackTransform = true
             generator.maximumSize = CGSize(width: 700, height: 700)
             guard let cgImage = try? generator.copyCGImage(at: .zero, actualTime: nil) else { return nil }
             return UIImage(cgImage: cgImage)
         }.value
+        if let bild { erstbilder.setObject(bild, forKey: schluessel) }
+        return bild
     }
 }
 
