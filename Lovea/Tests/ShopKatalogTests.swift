@@ -79,6 +79,7 @@ final class ShopKatalogTests: XCTestCase {
             case "tasche": XCTAssertNotNil(taschenKatalog[a.id], a.id)
             case "tier": XCTAssertNotNil(haustierKatalog[a.id], a.id)
             case "mode": XCTAssertNotNil(FigurAussehen.shopTeile[a.id], a.id)
+            case "zimmer": XCTAssertNotNil(ZimmerTeile.alle[a.id], a.id)
             default: XCTFail("unbekannte Kategorie \(a.kategorie)")
             }
         }
