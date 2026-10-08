@@ -32,6 +32,8 @@ final class AppNavigation {
     var chatZiel: String?
     /// 25.09.: Kuss/Anstupsen/Herz-Push angetippt -> die Unterhaltung öffnet das Partnerprofil.
     var partnerProfilOeffnen = false
+    /// `lovea://tag` (Widget "Partner jetzt"): Home öffnet den Tag des Partners und löscht das Flag wieder.
+    var tagOeffnen = false
     /// Contexts on screen right now, for screenshot/recording notices (`ScreenshotKontext`).
     var bildschirm: [ScreenshotKontext] = []
     private init() {}
@@ -68,6 +70,7 @@ struct AppRootView: View {
             StartProtokoll.marke("approotview.onAppear")
             // Alte Werte aus der früheren Health-Leiste (SceneStorage): jetzt ein Health-Tab.
             if [.heute, .koerper, .training, .verlauf, .zurueck].contains(selectedTab) { selectedTab = .health }
+            if AppNavigation.shared.tagOeffnen { selectedTab = .home } // Kaltstart über lovea://tag
         }
         .onChange(of: selectedTab, initial: true) { _, tab in StartProtokoll.marke("tab.\(tab.rawValue)") }
         .spieleBuehne()
@@ -78,6 +81,11 @@ struct AppRootView: View {
                 AppNavigation.shared.tabWunsch = nil
                 AppNavigation.shared.healthSeite = "gym"
                 selectedTab = .health
+                return
+            }
+            if wunsch == "tag" { // Widget "Partner jetzt": Home zeigt "<Name>s Tag"
+                AppNavigation.shared.tabWunsch = nil
+                selectedTab = .home
                 return
             }
             if wunsch == "essen" { // Live Activity: zurück ins Ernährungstagebuch
@@ -107,6 +115,7 @@ struct AppRootView: View {
         // der Leiste (`gymLeisteOben`: Home, Zeichnen, Health, Profil).
         // Eingeklappt (seitlich weggewischt): kleiner Knopf am Rand, mittig in der Höhe.
         .overlay(alignment: .center) { GymLeisteKnopf() }
+        .overlay { HerzRegen() }
     }
 }
 

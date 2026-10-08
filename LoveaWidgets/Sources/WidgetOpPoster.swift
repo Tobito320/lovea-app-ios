@@ -10,7 +10,16 @@ enum WidgetOpPoster {
     /// danach den direkten `POST /ops` und löscht die Datei nur bei einer 2xx-Antwort — alles
     /// andere holt die App beim nächsten `.active` ab (`WidgetPendingOpsMerge`, App-Target).
     static func gymHeuteSenden(von person: String, datum: String, wert: Int, habit: String = "gym") async {
-        let pending = WidgetPendingOp(id: UUID().uuidString, von: person, zeit: isoJetzt(), datum: datum, wert: wert, habit: habit)
+        await senden(WidgetPendingOp(id: UUID().uuidString, von: person, zeit: isoJetzt(), datum: datum, wert: wert, habit: habit))
+    }
+
+    /// "Denk an dich" aus dem Widget: `geste herz`. Mit `?push=1`, damit der Server den Push schickt
+    /// (und höchstens alle 10 Minuten); die App-Seite dedupliziert über die Op-`id`.
+    static func herzSenden(von person: String) async {
+        await senden(WidgetPendingOp(id: UUID().uuidString, von: person, zeit: isoJetzt(), datum: "", wert: 0, geste: "herz"))
+    }
+
+    private static func senden(_ pending: WidgetPendingOp) async {
         guard let ordner = WidgetGruppe.pendingOrdner() else { return }
         let datei = ordner.appendingPathComponent("\(pending.id).json")
         guard let daten = try? JSONEncoder().encode(pending) else { return }
@@ -28,7 +37,12 @@ enum WidgetOpPoster {
         guard !schluessel.isEmpty else { return false }
         guard let bodyDaten = try? JSONEncoder().encode(WireBody(ops: [WireOp(pending)])) else { return false }
 
-        var request = URLRequest(url: basis.appendingPathComponent("ops"))
+        var url = basis.appendingPathComponent("ops")
+        if pending.geste != nil, var teile = URLComponents(url: url, resolvingAgainstBaseURL: false) {
+            teile.queryItems = [URLQueryItem(name: "push", value: "1")]
+            url = teile.url ?? url
+        }
+        var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 8
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -50,12 +64,19 @@ enum WidgetOpPoster {
 
 /// Server-Wire-Format (`server/raum-logic.js` `opGueltig`): `{id, art, von, zeit, d}`, `d` ein
 /// flaches JSON-Objekt — genau wie `Op`s eigener Encoder im App-Target, hier nur ohne dessen Typ.
-private struct WireHabitD: Encodable { var art = "gym"; var datum: String; var wert: Int }
+private struct WireD: Encodable {
+    var art: String; var datum: String?; var wert: Int?
+}
 private struct WireOp: Encodable {
-    var id: String; var art = "habit.setzen"; var von: String; var zeit: String; var d: WireHabitD
+    var id: String; var art = "habit.setzen"; var von: String; var zeit: String; var d: WireD
     init(_ pending: WidgetPendingOp) {
         id = pending.id; von = pending.von; zeit = pending.zeit
-        d = WireHabitD(art: pending.habit ?? "gym", datum: pending.datum, wert: pending.wert)
+        if let geste = pending.geste {
+            art = "geste"
+            d = WireD(art: geste, datum: nil, wert: nil)
+        } else {
+            d = WireD(art: pending.habit ?? "gym", datum: pending.datum, wert: pending.wert)
+        }
     }
 }
 private struct WireBody: Encodable { var ops: [WireOp] }

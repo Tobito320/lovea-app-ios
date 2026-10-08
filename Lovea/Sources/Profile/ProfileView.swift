@@ -124,6 +124,7 @@ private struct ProfilInhalt: View {
                     } else {
                         chips
                         aktionen
+                        PartnerTagProfilZeile(person: person)
                         // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
                         abschnitt("Die Karte") { dieKarte }
                         abschnitt("Unser Chat") { unserChat }

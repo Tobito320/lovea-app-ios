@@ -12,6 +12,7 @@ struct HomeView: View {
                 VStack(spacing: 16) {
                     NaechstesTreffenCard()
                     GrussKnopfCard()
+                    PartnerTagCard(person: person)
                     HeuteVorCard()
                     WieGehtsDirCard()
                     SchritteDuellCard()
@@ -28,6 +29,13 @@ struct HomeView: View {
             .navigationTitle("Home")
             .navigationDestination(for: String.self) { tag in KalenderTagZiel(tag: tag) }
             .navigationDestination(for: FrageZiel.self) { _ in FrageDesTagesView() }
+            .navigationDestination(for: PartnerTagZiel.self) { _ in PartnerTagView(person: person.partner) }
+            .onChange(of: AppNavigation.shared.tagOeffnen, initial: true) { _, offen in
+                guard offen else { return }
+                AppNavigation.shared.tagOeffnen = false
+                pfad = NavigationPath()
+                pfad.append(PartnerTagZiel())
+            }
         }
     }
 }

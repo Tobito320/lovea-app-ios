@@ -91,6 +91,7 @@ final class WidgetStandSchreiber {
         healthEintragen(&stand)
         challengeEintragen(&stand)
         partnerEintragen(&stand, partner: ich.partner)
+        tagEintragen(&stand, partner: ich.partner)
         stand.frageDesTages = FrageDesTages.waehlen(vorrat: FrageDesTages.vorrat, tag: Datum.text(Date()))?.text
         return stand
     }
@@ -157,6 +158,14 @@ final class WidgetStandSchreiber {
             stand.partnerWetter = "\(Int(wetter.temperatur.rounded()))°"
             stand.partnerWetterSymbol = wetter.symbol
         }
+    }
+
+    /// "Partner jetzt": Status, letzter Moment und Herzen heute. Liest nur schon vorhandene Modelle.
+    private func tagEintragen(_ stand: inout WidgetStand, partner: Person) {
+        stand.partnerStatus = TagModell.shared.statusText(person: partner)
+        stand.partnerLetzterMoment = TagModell.shared.letzterMoment(person: partner)
+        stand.herzDatum = Datum.text(Date())
+        stand.herzHeute = Dictionary(uniqueKeysWithValues: Person.allCases.map { ($0.rawValue, FigurenModell.shared.herzHeute[$0] ?? 0) })
     }
 
     // MARK: - Partner-Figur und -Foto

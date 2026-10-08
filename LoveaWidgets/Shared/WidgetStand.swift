@@ -61,4 +61,12 @@ struct WidgetStand: Codable, Sendable, Equatable {
         var serie: Int
     }
     var habits: [HabitKachel]?
+
+    /// "Partner jetzt": Status in Worten und letzter Moment des Tages ("14:05 Bankdrücken geschafft").
+    /// Optional, damit ältere Dateien weiter lesbar sind.
+    var partnerStatus: String?
+    var partnerLetzterMoment: String?
+    /// Herzen heute je Absender (`Person.rawValue`), gültig nur für `herzDatum` (yyyy-MM-dd Berlin).
+    var herzHeute: [String: Int]?
+    var herzDatum: String?
 }
