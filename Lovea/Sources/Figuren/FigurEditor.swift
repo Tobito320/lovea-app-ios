@@ -209,7 +209,7 @@ struct FigurEditor: View {
         .onAppear {
             let tabs = Kategorie.sichtbar(fuer: person, bereich: bereich)
             if !tabs.contains(kategorie), let erster = tabs.first { kategorie = erster }
-            aussehen = FigurAussehen.mitGueltigerKleidung(FigurAussehen.mitGueltigemGesicht(aussehen, person), person)
+            aussehen = FigurAussehen.mitGueltigenIndizes(FigurAussehen.mitGueltigerKleidung(FigurAussehen.mitGueltigemGesicht(aussehen, person), person), person)
         }
         .sheet(isPresented: $shopOffen) { ShopView(ziel: person) }
     }

@@ -140,7 +140,8 @@ struct PunkteKnopf: View {
     @State private var offen = false
 
     var body: some View {
-        Button { offen = true } label: { PunkteChip(person: person) }
+        // p69: the chip is 32 pt tall; six points more on every side make the hit area 44 pt without moving anything.
+        Button { offen = true } label: { PunkteChip(person: person).contentShape(Rectangle().inset(by: -6)) }
             .buttonStyle(.plain)
             .accessibilityHint("Zeigt, woraus die Punkte bestehen")
             .sheet(isPresented: $offen) { PunkteDetailBlatt(person: person) }
