@@ -4,7 +4,7 @@ import SwiftUI
 /// black wrapping paper with a gold edge, tied with a curling red ribbon.
 enum StraussGlitzerRot {
     static func zeichne(_ g: GraphicsContext, fein: Bool) {
-        let a = FotoAbb(ox: 0, oy: 365, sx: 0.2, sy: 0.2, sr: 0.2, dx: 8, dy: 6)
+        let a = FotoAbb(ox: 0, oy: 365, sx: 0.2, sy: 0.2, sr: 0.235, dx: 8, dy: 6)
         let schwarzOben = FigurFarbe(0x1E1A1B)
         let schwarzUnten = FigurFarbe(0x090707)
         let gold = Color(red: 0.8, green: 0.63, blue: 0.28)

@@ -355,6 +355,25 @@ func blumeZweig(_ g: GraphicsContext, _ a: CGPoint, _ b: CGPoint, blatt f: Figur
     blumeLaub(g, b, P(b.x + dx / l * groesse * 0.9, b.y + dy / l * groesse * 0.9), breite: groesse * 0.34, f, rund: 0.7, fein: false)
 }
 
+/// The dense dark mass of leaves and stems under the blooms: in the photos the flowers sit shoulder
+/// to shoulder, so the gaps between them show this and not the paper. A smooth blob through `pts`.
+func blumenMasse(_ g: GraphicsContext, _ pts: [CGPoint], oben: FigurFarbe, unten: FigurFarbe) {
+    let n = pts.count
+    guard n > 2 else { return }
+    func mitte(_ i: Int) -> CGPoint {
+        let p = pts[i % n]
+        let q = pts[(i + 1) % n]
+        return P((p.x + q.x) / 2, (p.y + q.y) / 2)
+    }
+    var pf = Path()
+    pf.move(to: mitte(n - 1))
+    for i in 0..<n { pf.addQuadCurve(to: mitte(i), control: pts[i]) }
+    pf.closeSubpath()
+    let top = pts.map { $0.y }.min() ?? 0
+    let bottom = pts.map { $0.y }.max() ?? 1
+    g.fill(pf, with: .linearGradient(Gradient(colors: [oben.farbe, unten.farbe]), startPoint: P(0, top), endPoint: P(0, bottom)))
+}
+
 // MARK: - Paper, ribbon, glitter
 
 /// One sheet of wrapping paper: a polygon with a soft shadow, a top-to-bottom tint, a sharp edge

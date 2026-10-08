@@ -4,9 +4,9 @@ import SwiftUI
 /// alstroemeria, pink gypsophila, glossy ruscus leaves, white frosted wrapping paper.
 enum StraussLila {
     static func zeichne(_ g: GraphicsContext, fein: Bool) {
-        let a = FotoAbb(ox: 70, oy: 505, sx: 0.195, sy: 0.195, sr: 0.195, dx: 5, dy: 8)
-        let papierOben = FigurFarbe(0xF8F5EE)
-        let papierUnten = FigurFarbe(0xD7D1DB)
+        let a = FotoAbb(ox: 70, oy: 505, sx: 0.195, sy: 0.195, sr: 0.225, dx: 5, dy: 8)
+        let papierOben = FigurFarbe(0xFBF8F0)
+        let papierUnten = FigurFarbe(0xE2DAD8)
         let kante = Color(red: 0.62, green: 0.58, blue: 0.67).opacity(0.9)
 
         // Wrapping: stems, the cone at the bottom, then three sheets folded around the flowers.
@@ -29,6 +29,9 @@ enum StraussLila {
                 h.stroke(blumenBlatt(P(0, 0), P(0, -a.r(70)), breite: a.r(26), rund: 0.5), with: .color(.white.opacity(0.7)), style: StrokeStyle(lineWidth: 0.5))
             }
         }
+
+        blumenMasse(g, [P(22, 80), P(40, 45), P(75, 28), P(120, 28), P(160, 48), P(188, 95), P(172, 140), P(125, 160), P(75, 160), P(36, 132)],
+                    oben: FigurFarbe(0x3A7A3A), unten: FigurFarbe(0x25502A))
 
         // Ruscus leaves behind the flowers: the tall group top left, a few on the right.
         let laub = FigurFarbe(0x3F8F3A)

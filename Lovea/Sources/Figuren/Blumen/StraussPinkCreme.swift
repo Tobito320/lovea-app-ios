@@ -6,7 +6,7 @@ import SwiftUI
 enum StraussPinkCreme {
     static func zeichne(_ g: GraphicsContext, fein: Bool) {
         // Positions are squeezed vertically (sy < sx) so the long close-up fits the dome.
-        let a = FotoAbb(ox: 0, oy: 150, sx: 0.2, sy: 0.12, sr: 0.17, dx: 8, dy: 6)
+        let a = FotoAbb(ox: 0, oy: 150, sx: 0.2, sy: 0.12, sr: 0.2, dx: 8, dy: 6)
         let papierOben = FigurFarbe(0xF5F2F6)
         let papierUnten = FigurFarbe(0xD8D2DC)
         let kante = Color(red: 0.66, green: 0.62, blue: 0.7).opacity(0.9)
@@ -26,6 +26,9 @@ enum StraussPinkCreme {
                 h.stroke(blumenBlatt(P(0, 0), P(0, -a.r(120)), breite: a.r(44), rund: 0.5), with: .color(.white.opacity(0.8)), style: StrokeStyle(lineWidth: 0.5))
             }
         }
+
+        blumenMasse(g, [P(12, 40), P(60, 12), P(140, 12), P(190, 40), P(195, 120), P(180, 185), P(100, 208), P(20, 185), P(8, 120)],
+                    oben: FigurFarbe(0x9A2058), unten: FigurFarbe(0x5E1238))
 
         let cerHell = FigurFarbe(0xE0287F)
         let cerDunkel = FigurFarbe(0x8A0F4A)

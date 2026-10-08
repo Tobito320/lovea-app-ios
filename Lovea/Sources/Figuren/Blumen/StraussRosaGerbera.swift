@@ -5,7 +5,7 @@ import SwiftUI
 /// lots of green (spiky palm leaves, grass, pistachio twigs) and pale blue tissue paper.
 enum StraussRosaGerbera {
     static func zeichne(_ g: GraphicsContext, fein: Bool) {
-        let a = FotoAbb(ox: 0, oy: 380, sx: 0.165, sy: 0.165, sr: 0.165, dx: 24, dy: 6)
+        let a = FotoAbb(ox: 0, oy: 380, sx: 0.165, sy: 0.165, sr: 0.185, dx: 24, dy: 6)
         let tuchOben = FigurFarbe(0xEDF5F9)
         let tuchUnten = FigurFarbe(0xC3D9E7)
         let kante = Color(red: 0.62, green: 0.74, blue: 0.82).opacity(0.9)
@@ -18,6 +18,9 @@ enum StraussRosaGerbera {
                     falten: [(a.p(250, 1480), a.p(150, 1700))])
         blumePapier(g, a.pfad([(650, 1330), (880, 1300), (890, 1600), (790, 1740), (620, 1640)]), oben: tuchOben, unten: tuchUnten, kante: kante,
                     falten: [(a.p(880, 1300), a.p(760, 1650))])
+
+        blumenMasse(g, [P(30, 70), P(80, 40), P(150, 50), P(182, 90), P(174, 150), P(140, 186), P(75, 186), P(30, 150)],
+                    oben: FigurFarbe(0x2F5F3A), unten: FigurFarbe(0x234A2E))
 
         // Spiky dark palm leaves fanning out of the top, thin grass blades.
         let palme = FigurFarbe(0x2A5648)

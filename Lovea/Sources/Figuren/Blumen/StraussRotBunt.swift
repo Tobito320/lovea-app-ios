@@ -5,7 +5,7 @@ import SwiftUI
 /// a lighter inner border and four pointed corners.
 enum StraussRotBunt {
     static func zeichne(_ g: GraphicsContext, fein: Bool) {
-        let a = FotoAbb(ox: 135, oy: 575, sx: 0.19, sy: 0.19, sr: 0.19, dx: 8, dy: 6)
+        let a = FotoAbb(ox: 135, oy: 575, sx: 0.19, sy: 0.19, sr: 0.21, dx: 8, dy: 6)
         let rotOben = FigurFarbe(0xBF3D45)
         let rotUnten = FigurFarbe(0x8E1F2C)
         let kante = Color(red: 0.48, green: 0.08, blue: 0.14).opacity(0.95)
@@ -19,6 +19,9 @@ enum StraussRotBunt {
                     falten: [(a.p(143, 578), a.p(330, 860)), (a.p(1075, 592), a.p(900, 820)), (a.p(140, 1425), a.p(300, 1250)), (a.p(790, 1560), a.p(700, 1330))])
         let innen = a.pfad([(172, 602), (520, 730), (735, 745), (1050, 612), (1060, 1000), (1070, 1140), (1015, 1210), (790, 1520), (565, 1490), (172, 1395), (190, 1000)])
         blumePapier(g, innen, oben: rotOben.mix(Pal.weiss, 0.18), unten: rotUnten.mix(Pal.weiss, 0.1), kante: kante.opacity(0.5), kanteBreite: 0.6)
+
+        blumenMasse(g, [P(30, 90), P(55, 45), P(110, 38), P(165, 60), P(178, 110), P(160, 165), P(100, 178), P(45, 150)],
+                    oben: FigurFarbe(0x5A1A22), unten: FigurFarbe(0x3A1A1A))
 
         // Dark leaves at the bottom right, variegated with a cream edge.
         let gruen = FigurFarbe(0x2F5A32)

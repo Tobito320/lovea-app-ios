@@ -148,14 +148,17 @@ final class StraussTests: XCTestCase {
         return (titel ?? art.name, AnyView(ansicht))
     }
 
-    /// Alle fünf groß, mittel und klein: die Größen, in denen sie in der App vorkommen.
-    func testTafelAlleStraeusse() {
-        var zellen: [Zelle] = []
-        for breite: CGFloat in [150, 80, 44] {
-            zellen += StraussArt.allCases.map { zelle($0, breite: breite, titel: "\($0.name) \(Int(breite)) pt") }
-        }
-        RenderTafel.speichern("p59-blumen", spalten: 5, zellen: zellen)
+    /// Alle fünf in den Größen, in denen sie in der App vorkommen. Je Größe eine Tafel und ein Test:
+    /// eine Tafel mit 15 Zellen riss in der CI den Test-Host weg (Lauf 37726648817), so sieht man,
+    /// welche Größe es war. Die Tafel `p59-blumen` setzt der Bericht aus den dreien zusammen.
+    private func tafelBreite(_ breite: CGFloat, _ name: String) {
+        let zellen = StraussArt.allCases.map { zelle($0, breite: breite, titel: "\($0.name) \(Int(breite)) pt") }
+        RenderTafel.speichern(name, spalten: 5, zellen: zellen)
     }
+
+    func testTafelGross() { tafelBreite(150, "p59-blumen-gross") }
+    func testTafelMittel() { tafelBreite(80, "p59-blumen-mittel") }
+    func testTafelKlein() { tafelBreite(44, "p59-blumen-klein") }
 
     /// Die echte Zuhause-Bühne (p58) mit den Sträußen: drei auf dem Schrank, einer in der Vase.
     private func zimmer(_ zeit: Tageszeit, _ z: ZimmerStraeusse, breite: CGFloat = 390) -> AnyView {
