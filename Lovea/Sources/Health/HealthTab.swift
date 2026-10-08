@@ -14,6 +14,7 @@ struct HealthTab: View {
                     VerlaufCard()
                     LaufendeChallengesCard()
                     HabitsHeuteCard()
+                    EssenCard()
                     SchlafCard()
                 }
                 .padding(16)
