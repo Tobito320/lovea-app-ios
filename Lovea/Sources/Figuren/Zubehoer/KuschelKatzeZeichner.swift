@@ -58,18 +58,23 @@ private func kuschelSchwanz(_ h: GraphicsContext, _ k: KuschelFarben, _ a: CGPoi
     }
     let form = linieForm.strokedPath(StrokeStyle(lineWidth: breite, lineCap: .round, lineJoin: .round))
     var teile: [Path] = [form]
+    var haare = Path()
     for t: CGFloat in [0.3, 0.55, 0.8] {
         let m = kubisch(t, a, b, c, d)
         let r = m.grad * Double.pi / 180
         for s: CGFloat in [-1, 1] {
             let basis = P(m.punkt.x - CGFloat(sin(r)) * s * breite * 0.42, m.punkt.y + CGFloat(cos(r)) * s * breite * 0.42)
-            teile.append(tierBuschel(basis, laenge: 8, breite: 7, grad: m.grad + Double(s) * 45, biegung: 0.25 * s))
+            let g = m.grad + Double(s) * 45
+            teile.append(tierBuschel(basis, laenge: 8, breite: 7, grad: g, biegung: 0.25 * s))
+            haare.move(to: basis)
+            haare.addLine(to: P(basis.x + CGFloat(cos(g * Double.pi / 180)) * 7, basis.y + CGFloat(sin(g * Double.pi / 180)) * 7))
         }
     }
     for w in [-90.0, -60, -120] {
         teile.append(tierBuschel(d, laenge: 7.5, breite: 6.5, grad: w))
     }
     kVerbunden(h, teile, k.fell, k, 2)
+    h.stroke(haare, with: .color(k.glanz.farbe.opacity(0.5)), style: StrokeStyle(lineWidth: 0.9, lineCap: .round))
     linie(h, linieForm.applying(CGAffineTransform(translationX: 2.2, y: 0)), k.glanz.farbe.opacity(0.35), 1.6)
     linie(h, linieForm.applying(CGAffineTransform(translationX: -2.4, y: 0)), k.glanz.farbe.opacity(0.18), 1.1)
 }
@@ -118,7 +123,7 @@ private func kuschelSteht(_ h: GraphicsContext, _ k: KuschelFarben) {
 
 private func kuschelLiegt(_ h: GraphicsContext, _ k: KuschelFarben) {
     let f = k.fell
-    kuschelSchwanz(h, k, P(-19, -9), P(-38, -12), P(-36, -3), P(-8, -4), breite: 11)
+    kuschelSchwanz(h, k, P(-19, -11), P(-38, -15), P(-36, -8), P(-8, -8), breite: 11)
     let koerper = oval(P(0, -11), 22, 11)
     var teile: [Path] = [koerper, oval(P(-11, -12), 12, 11)]
     for x in stride(from: CGFloat(-22), through: 22, by: 4.4) {
