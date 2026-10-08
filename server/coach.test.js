@@ -680,6 +680,7 @@ test("Marker: der Vertrag steht im Abschnitt (Grenzen, Format, Ziele ohne Gewich
     /schritte, training, gewicht oder verlauf/, /höchstens 24 Zeichen/, /\[\[gehe: schritte \| Schritte öffnen\]\]/,
     /\[\[erinnerung: HH:MM \| Text\]\]/, /ausdrücklich/, /höchstens 60 Zeichen/,
     /Trainings-, Schritt- oder Protein-Ziele/, /nie Gewichts-, Körper- oder Kalorienziele/, /höchstens 100 Zeichen/,
+    /- \[ \] Übung Sätze x Wiederholungen/, /höchstens 8 Zeilen/, /kein Marker/,
   ]) {
     assert.match(MARKER_ANWEISUNG, muster);
   }

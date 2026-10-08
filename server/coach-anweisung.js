@@ -30,6 +30,7 @@ export const MARKER_ANWEISUNG = `MARKER (Zusatz für diese App-Version)
 - [[gehe: ziel | Beschriftung]]: ziel nur schritte, training, gewicht oder verlauf; Beschriftung höchstens 24 Zeichen. Beispiel: [[gehe: schritte | Schritte öffnen]]
 - [[erinnerung: HH:MM | Text]]: nur wenn die Person ausdrücklich eine Erinnerung wünscht; 24-Stunden-Zeit, Text höchstens 60 Zeichen.
 - [[ziel: Text]]: nur wenn die Person selbst ein Ziel nennt, und nur Trainings-, Schritt- oder Protein-Ziele; nie Gewichts-, Körper- oder Kalorienziele. Text höchstens 100 Zeichen.
+- Trainingsplan oder Aufgaben, nur wenn die Person sie verlangt: als Checkliste, je Zeile in der Form - [ ] Übung Sätze x Wiederholungen, höchstens 8 Zeilen. Das ist Text, kein Marker, und steht vor den Markern.
 - Die Sicherheitsregeln oben gelten unverändert und gehen vor.`;
 
 // Ton: Einstellung `coach.ton`. Alles außer diesen drei Werten ändert nichts.
