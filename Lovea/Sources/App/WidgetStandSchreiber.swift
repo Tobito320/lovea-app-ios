@@ -91,6 +91,7 @@ final class WidgetStandSchreiber {
         healthEintragen(&stand)
         challengeEintragen(&stand)
         partnerEintragen(&stand, partner: ich.partner)
+        tagEintragen(&stand, partner: ich.partner)
         stand.frageDesTages = FrageDesTages.waehlen(vorrat: FrageDesTages.vorrat, tag: Datum.text(Date()))?.text
         return stand
     }
@@ -157,6 +158,13 @@ final class WidgetStandSchreiber {
             stand.partnerWetter = "\(Int(wetter.temperatur.rounded()))°"
             stand.partnerWetterSymbol = wetter.symbol
         }
+    }
+
+    private func tagEintragen(_ stand: inout WidgetStand, partner: Person) {
+        stand.partnerStatus = FigurenModell.shared.anzeige(partner).haupt.titel
+        stand.partnerLetzterMoment = TagModell.shared.letzterMoment(person: partner)
+        stand.herzDatum = Datum.text(Date())
+        stand.herzHeute = FigurenModell.shared.herzHeute[partner.partner] ?? 0
     }
 
     // MARK: - Partner-Figur und -Foto

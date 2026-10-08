@@ -22,6 +22,11 @@ final class FigurenModell {
     private(set) var geste: [Person: (art: FigurZustand, bis: Date)] = [:]
     /// Counts "herz" gestures per sender for the current Berlin day, for the profile.
     private(set) var herzHeute: [Person: Int] = [:]
+    /// Op-IDs aller schon gesehenen Gesten: eigene Ops kommen doppelt an (optimistisch und bestätigt),
+    /// sonst zählte `herzHeute` doppelt und die Herz-Animation liefe zweimal.
+    private var gesehenGesten: Set<String> = []
+    /// Zählt hoch, wenn Herzen regnen sollen (eigener Tipp oder frisches Herz vom Partner), `HerzRegen`.
+    private(set) var herzEreignis = 0
     /// Z-24.3: newest `kuss` op per sender, updated on EVERY delivery (live and replay alike, unlike
     /// `geste` above which only tracks the 4s-fresh window) — lets the profile show a missed kiss
     /// once, the next time it's opened.
@@ -49,13 +54,15 @@ final class FigurenModell {
         }
         raum.beobachten(["geste"]) { [weak self] op in
             guard let self, let art = op.daten([String: String].self)?["art"] else { return }
-            if Calendar.berlin.isDateInToday(op.zeit), art == "herz" { herzHeute[op.von, default: 0] += 1 }
+            let neu = gesehenGesten.insert(op.id).inserted
+            if neu, Calendar.berlin.isDateInToday(op.zeit), art == "herz" { herzHeute[op.von, default: 0] += 1 }
             if art == "kuss", (letzterKuss[op.von] ?? .distantPast) < op.zeit { letzterKuss[op.von] = op.zeit }
             // Only fresh gestures animate; replayed history just counts.
-            guard op.von != raum.ich, Date().timeIntervalSince(op.zeit) < 30, let z = FigurZustand(rawValue: art) else { return }
+            guard neu, op.von != raum.ich, Date().timeIntervalSince(op.zeit) < 30, let z = FigurZustand(rawValue: art) else { return }
             geste[op.von] = (z, Date().addingTimeInterval(4))
             Herzschlag.geste(art)
             if art == "kuss" { kussEreignis += 1 }
+            if art == "herz" { herzEreignis += 1 }
             aufFrischeGeste?(op.von, z)
         }
         raum.beobachten(["gruss"]) { [weak self] op in
@@ -163,6 +170,7 @@ final class FigurenModell {
             geste[ich] = (z, Date().addingTimeInterval(4))
             return
         }
+        if art == "herz" { herzEreignis += 1 }
         guard art == "kuss" else { return }
         geste[ich] = (.kuss, Date().addingTimeInterval(4))
         letzterKuss[ich] = Date()

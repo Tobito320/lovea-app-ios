@@ -87,7 +87,7 @@ export class Raum {
     const person = request.headers.get("X-Lovea-Person") ?? url.searchParams.get("person");
 
     if (url.pathname === "/raum") return this.#upgrade(request, url, person);
-    if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request);
+    if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request, url, person);
     if (url.pathname === "/fl" && request.method === "POST") return this.#flHttp(request, person);
     if (teile[0] === "medien") return this.#medien(request, teile, person);
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
@@ -383,6 +383,7 @@ export class Raum {
 
   // --- Push für eintreffende Ops (Z-1.6) ------------------------------------
 
+  #letztesHerz = {}; // nur im Speicher wie #letzterTon
   #letzterTon = {}; // ponytail: nur im Speicher, nach Hibernation klingt die nächste Push wieder
   async #pushFuerOp(op) {
     let kontext;
@@ -398,6 +399,12 @@ export class Raum {
     if (!r || r.stufe === "inapp") return;
     const empfaenger = partnerVon(op.von);
     if (einstellung(this.sql, empfaenger, `mitteilungen.${r.kategorie}`) === false) return;
+
+    // Herz-Tipps zählen alle, die Push geht höchstens alle 10 Minuten.
+    if (op.art === "geste" && op.d.art === "herz") {
+      if (Date.now() - (this.#letztesHerz[empfaenger] ?? 0) < 10 * 60_000) return;
+      this.#letztesHerz[empfaenger] = Date.now();
+    }
 
     const immer = op.art === "ort.ereignis"; // Ankunft/Verlassen gehen immer.
     // Z-32.1: Antippen springt im Chat zur Nachricht, die App liest `userInfo["nachrichtId"]`.
@@ -439,7 +446,7 @@ export class Raum {
 
   // --- Ops-Batch (Umzugsskript, Z-1.9) ---------------------------------------
 
-  async #opsBatch(request) {
+  async #opsBatch(request, url, person) {
     // Nur fürs Umzugsskript: Bulk-Import historischer Ops. Absichtlich keine
     // Push -- sonst spammen hunderte migrierte Ops beide Handys wach.
     const { ops } = await request.json();
@@ -455,6 +462,10 @@ export class Raum {
       const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
       letzteSeq = seq;
       if (neu) this.#verteilen(null, { ...op, seq });
+      // Widget-Herz (kein Socket): nur mit ?push=1, nur "geste", nur vom Absender selbst.
+      if (neu && url?.searchParams.get("push") === "1" && op.art === "geste" && op.von === person) {
+        await this.#pushFuerOp({ ...op, seq }).catch((err) => this.#log("push für Op fehlgeschlagen", op.art, err));
+      }
     }
     await this.#alarmAktualisieren();
     return Response.json({ seq: letzteSeq, uebersprungen });
