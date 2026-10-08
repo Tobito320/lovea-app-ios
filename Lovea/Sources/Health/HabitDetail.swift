@@ -1,12 +1,13 @@
 import SwiftUI
 
 /// Z-35.3, Spec 3.3 "Kachel antippen → Detail": week and month (swipeable, never the future), streak,
-/// best streak, 30-day rate, comparison with the partner for "wir beide", marking past days, edit, hide.
+/// best streak, 30-day rate, comparison with the partner for "wir beide", marking past days (tap in the month),
+/// edit and delete in the three-dot menu. Gewicht is a day log: tapping a day opens that day's entry.
 struct HabitDetailView: View {
     let habitId: String
 
     @State private var blatt: HabitBlatt?
-    @State private var ausblendenFragen = false
+    @State private var gewichtTag: String?
     @State private var loeschenFragen = false
     @Environment(\.dismiss) private var dismiss
     private var health: HealthModell { HealthModell.shared }
@@ -37,18 +38,19 @@ struct HabitDetailView: View {
         }
         .navigationTitle(habit.name)
         .toolbar {
-            ToolbarItem(placement: .primaryAction) { Button("Bearbeiten") { blatt = .bearbeiten } }
+            ToolbarItem(placement: .primaryAction) {
+                Menu {
+                    Button { blatt = .bearbeiten } label: { Label("Bearbeiten", systemImage: "pencil") }
+                    if !habit.istEingebaut {
+                        Button(role: .destructive) { loeschenFragen = true } label: { Label("Löschen", systemImage: "trash") }
+                    }
+                } label: {
+                    Image(systemName: "ellipsis.circle").frame(minWidth: 44, minHeight: 44)
+                }
+                .accessibilityLabel("Mehr")
+            }
         }
         .sheet(item: $blatt) { art in blattInhalt(art, habit) }
-        .confirmationDialog("\(habit.name) ausblenden?", isPresented: $ausblendenFragen, titleVisibility: .visible) {
-            Button("Ausblenden", role: .destructive) {
-                health.ausblenden(habit.id, true)
-                Haptik.leicht()
-                dismiss()
-            }
-        } message: {
-            Text("Die Historie bleibt. Über das Auge bei den Habits blendest du sie wieder ein.")
-        }
         .confirmationDialog("Gewohnheit löschen?", isPresented: $loeschenFragen, titleVisibility: .visible) {
             Button("Löschen", role: .destructive) {
                 health.loeschen(habit.id)
@@ -68,6 +70,10 @@ struct HabitDetailView: View {
             if habit.istEingebaut { ZieleAendernView() } else { HabitFormular(bestehend: habit) }
         case .vergangeneTage:
             VergangeneTageView(habit: habit)
+        case .gewicht:
+            GewichtBlatt(werte: health.habitWerte(habit.id, ich), tag: gewichtTag ?? Datum.text(Date()), tagWaehlbar: true) {
+                health.setzeHabit(habit.id, datum: $0, wert: $1)
+            }
         }
     }
 
@@ -90,11 +96,24 @@ struct HabitDetailView: View {
         return VStack(alignment: .leading, spacing: 10) {
             Text("Monat").font(.headline).accessibilityAddTraits(.isHeader).padding(.horizontal, 16)
             MonatsPager { zurueck in
-                HabitMonat(habit: habit, werte: werte, ziel: ziel, heute: heute, monateZurueck: zurueck).padding(.horizontal, 16)
+                HabitMonat(habit: habit, werte: werte, ziel: ziel, heute: heute, monateZurueck: zurueck, tippen: { tagTippen($0, habit) }).padding(.horizontal, 16)
             }
         }
         .padding(.vertical, 16)
         .healthKarte()
+    }
+
+    /// Tap on a past day in the month: counts/ticks it (or clears it again); Gewicht opens that day's entry.
+    private func tagTippen(_ tag: String, _ habit: Habit) {
+        if habit.id == Habit.gewicht.id {
+            gewichtTag = tag
+            blatt = .gewicht
+            return
+        }
+        let wert = health.habitWert(habit.id, ich, tag)
+        let neu = HabitLogik.umgeschaltet(habit, wert: wert, ziel: health.habitZiel(habit.id, ich))
+        health.setzeHabit(habit.id, datum: tag, wert: neu)
+        if neu == 0 { Haptik.leicht() } else { Haptik.erfolg() }
     }
 
     private func vergleich(_ habit: Habit, heute: String) -> some View {
@@ -138,17 +157,14 @@ struct HabitDetailView: View {
 
     private var aktionen: some View {
         VStack(spacing: 10) {
-            Button { blatt = .vergangeneTage } label: {
-                Label("Vergangene Tage markieren", systemImage: "calendar.badge.checkmark").frame(maxWidth: .infinity, minHeight: 44)
-            }
-            Button(role: .destructive) { ausblendenFragen = true } label: {
-                Label("Ausblenden", systemImage: "eye.slash").frame(maxWidth: .infinity, minHeight: 44)
-            }
-            if health.habits[habitId]?.istEingebaut == false {
-                Button(role: .destructive) { loeschenFragen = true } label: {
-                    Label("Gewohnheit löschen", systemImage: "trash").frame(maxWidth: .infinity, minHeight: 44)
+            if habitId == Habit.gewicht.id {
+                Button { gewichtTag = nil; blatt = .gewicht } label: {
+                    Label("Gewicht eintragen oder ändern", systemImage: "scalemass").frame(maxWidth: .infinity, minHeight: 44)
                 }
-                .tint(.red)
+            } else {
+                Button { blatt = .vergangeneTage } label: {
+                    Label("Vergangene Tage markieren", systemImage: "calendar.badge.checkmark").frame(maxWidth: .infinity, minHeight: 44)
+                }
             }
         }
         .buttonStyle(.bordered)
@@ -156,7 +172,7 @@ struct HabitDetailView: View {
 }
 
 private enum HabitBlatt: String, Identifiable {
-    case bearbeiten, vergangeneTage
+    case bearbeiten, vergangeneTage, gewicht
     var id: String { rawValue }
 }
 
@@ -253,6 +269,8 @@ struct HabitMonat: View {
     let ziel: Int?
     let heute: String
     let monateZurueck: Int
+    /// Tap on a past day; `nil` = grid is display only.
+    var tippen: ((String) -> Void)?
 
     var body: some View {
         let gitter = HealthLogik.monatsGitter(heute: heute, monateZurueck: monateZurueck)
@@ -270,7 +288,7 @@ struct HabitMonat: View {
     private func feld(_ tag: String?) -> some View {
         if let tag, tag <= heute {
             let anteil = HabitLogik.anteil(habit, wert: werte[tag] ?? 0, ziel: ziel)
-            RoundedRectangle(cornerRadius: 6, style: .continuous)
+            let zelle = RoundedRectangle(cornerRadius: 6, style: .continuous)
                 .fill(habit.tint.opacity(anteil > 0 ? 0.3 + 0.7 * anteil : 0.1))
                 .aspectRatio(1, contentMode: .fit)
                 .overlay {
@@ -279,8 +297,17 @@ struct HabitMonat: View {
                         .monospacedDigit()
                         .foregroundStyle(anteil >= 1 ? Color.aufHabitFarbe : Color.secondary)
                 }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("\(Datum.anzeige(tag)): \(HabitLogik.erledigt(habit, wert: werte[tag] ?? 0, ziel: ziel) ? "erledigt" : "offen")")
+            if let tippen {
+                Button { tippen(tag) } label: { zelle }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Datum.anzeige(tag))
+                    .accessibilityValue(HabitLogik.erledigt(habit, wert: werte[tag] ?? 0, ziel: ziel) ? "erledigt" : "offen")
+                    .accessibilityHint("Zum Markieren antippen")
+            } else {
+                zelle
+                    .accessibilityElement(children: .ignore)
+                    .accessibilityLabel("\(Datum.anzeige(tag)): \(HabitLogik.erledigt(habit, wert: werte[tag] ?? 0, ziel: ziel) ? "erledigt" : "offen")")
+            }
         } else {
             Color.clear.aspectRatio(1, contentMode: .fit)
         }

@@ -50,9 +50,10 @@ struct VergangeneTageView: View {
 
     private func tagKnopf(_ tag: String) -> some View {
         let ziel = health.habitZiel(habit.id, ich)
-        let an = HabitLogik.erledigt(habit, wert: health.habitWert(habit.id, ich, tag), ziel: ziel)
+        let wert = health.habitWert(habit.id, ich, tag)
+        let an = HabitLogik.erledigt(habit, wert: wert, ziel: ziel)
         return Button {
-            health.setzeHabit(habit.id, datum: tag, wert: an ? 0 : (habit.zaehlen ? max(1, ziel ?? habit.tagesziel ?? 1) : 1))
+            health.setzeHabit(habit.id, datum: tag, wert: HabitLogik.umgeschaltet(habit, wert: wert, ziel: ziel))
             if an { Haptik.leicht() } else { Haptik.erfolg() }
         } label: {
             Text(HealthText.tagesnummer(tag))
