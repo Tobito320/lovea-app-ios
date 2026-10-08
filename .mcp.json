@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "lovea": {
+      "command": "node",
+      "args": ["server/mcp.mjs"]
+    }
+  }
+}

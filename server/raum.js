@@ -43,6 +43,7 @@ import {
   spotifyCacheLesen,
   spotifyCacheSchreiben,
 } from "./raum-logic.js";
+import { agentStatistik, agentOps, agentMerker } from "./agent.js";
 import { push } from "./push.js";
 import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
@@ -92,6 +93,21 @@ export class Raum {
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
     if (url.pathname === "/spotify/trennen" && request.method === "POST") return this.#spotifyTrennen(person);
+    if (teile[0] === "agent" && request.method === "GET") return this.#agent(teile[1], url, person);
+    return new Response("not found", { status: 404 });
+  }
+
+  // Nur-Lese-Diagnose für KI-Agenten (server/mcp.mjs), Logik in agent.js.
+  #agent(was, url, person) {
+    if (!PERSONEN.includes(person)) return new Response("unauthorized", { status: 401 });
+    const q = Object.fromEntries(url.searchParams);
+    if (was === "ping") return Response.json({ ok: true, zeit: new Date().toISOString() });
+    if (was === "statistik") {
+      const verbunden = this.ctx.getWebSockets().map((ws) => this.ctx.getTags(ws)[0]);
+      return Response.json({ ...agentStatistik(this.sql), verbunden, dbBytes: this.ctx.storage.sql.databaseSize ?? null });
+    }
+    if (was === "ops") return Response.json(agentOps(this.sql, { ...q, aufsteigend: q.aufsteigend === "1", voll: q.voll === "1" }, person));
+    if (was === "merker" && q.schluessel) return Response.json(agentMerker(this.sql, q.schluessel));
     return new Response("not found", { status: 404 });
   }
 

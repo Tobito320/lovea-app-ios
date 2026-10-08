@@ -670,3 +670,20 @@ test("mehrere Geräte: abgelaufenes Token löscht nur dieses Gerät", async () =
   assert.equal(urls.length, 1);
   assert.match(urls[0], /b{64}$/);
 });
+
+test("GET /agent/*: Nur-Lese-Diagnose ohne Präsenz-Wechsel", async () => {
+  const { raum, websockets } = raumMitVerbindung(["annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "op", op: { id: "a1", art: "nachricht.neu", von: "annika", zeit: "2026-10-08T10:00:00Z", d: { text: "hi" } } }));
+  const vorher = websockets.annika.gesendet.length;
+  const get = (pfad, person = "ahmed") => raum.fetch(new Request(`https://x${pfad}`, { headers: person ? { "X-Lovea-Person": person } : {} }));
+
+  const statistik = await (await get("/agent/statistik")).json();
+  assert.equal(statistik.ops.anzahl, 1);
+  assert.deepEqual(statistik.verbunden, ["annika"]);
+  const ops = await (await get("/agent/ops?art=nachricht.&limit=5")).json();
+  assert.equal(ops.ops[0].d.text, "hi");
+  assert.equal((await (await get("/agent/ping")).json()).ok, true);
+  assert.equal((await get("/agent/merker")).status, 404);
+  assert.equal((await get("/agent/statistik", null)).status, 401);
+  assert.equal(websockets.annika.gesendet.length, vorher, "Annika bekommt keine Präsenz-Meldung");
+});
