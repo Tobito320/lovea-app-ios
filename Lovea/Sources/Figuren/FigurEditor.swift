@@ -18,9 +18,11 @@ struct FigurEditor: View {
         self.onSave = onSave
     }
 
-    /// The look the preview draws.
+    /// The look the preview draws: the editor's own copy, with the shop pieces (bag, watch, jewelry,
+    /// pose, pet) taken from the saved look, like `onSave` does. Without this, a bag put on in the
+    /// shop sheet stays invisible here until the editor is reopened.
     static func vorschauLook(_ aussehen: FigurAussehen, modell: FigurAussehen?) -> FigurAussehen {
-        aussehen
+        aussehen.mitShopTeilen(von: modell ?? aussehen)
     }
 
     /// Z-24.1: gender filter is fixed per person, no switch in this editor — derived from the own
