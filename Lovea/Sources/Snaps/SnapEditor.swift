@@ -53,6 +53,9 @@ struct SnapEditor: View {
     @State private var bleibt = false
     @State private var sendetGerade = false
     @State private var videoSpieler: AVPlayer?
+    /// Ergebnis des Schnitt-Blatts (gekürzt / Teile entfernt / stumm); `nil` = Original unverändert.
+    @State private var geschnitten: URL?
+    @State private var schnittOffen = false
 
     @State private var ausgewaehlterFilter: SnapFilter = .original
     @State private var ausgewaehlterFilterID: SnapFilter? = .original
@@ -101,6 +104,11 @@ struct SnapEditor: View {
             }
         }
         .statusBarHidden()
+        .fullScreenCover(isPresented: $schnittOffen) {
+            if case .video(let url) = inhalt {
+                SnapSchnittBlatt(quelle: url, onFertig: { schnittUebernehmen($0, original: url) }, onAbbruch: { schnittOffen = false })
+            }
+        }
         .sheet(isPresented: $stickerBlattOffen) {
             GifStickerBlatt(ich: ich, antwortAuf: nil, aufBildWahl: { bild in
                 sticker.append(SnapSticker(bild: bild))
@@ -318,11 +326,28 @@ struct SnapEditor: View {
                 zeichnenAktiv: zeichnenAktiv,
                 onText: { textBearbeitenOffen = true },
                 onKritzeln: { zeichnenAktiv.toggle() },
-                onSticker: { stickerBlattOffen = true }
+                onSticker: { stickerBlattOffen = true },
+                onSchnitt: istVideo ? { schnittOffen = true } : nil
             )
         }
         .padding(.horizontal, 12)
         .padding(.top, 8)
+    }
+
+    private var istVideo: Bool {
+        if case .video = inhalt { return true }
+        return false
+    }
+
+    /// Datei, die Vorschau und Senden benutzen: das Schnitt-Ergebnis, sonst das Original.
+    static func sendeQuelle(original: URL, geschnitten: URL?) -> URL { geschnitten ?? original }
+
+    private func schnittUebernehmen(_ neu: URL, original: URL) {
+        geschnitten = neu == original ? nil : neu
+        schnittOffen = false
+        videoSpieler?.pause()
+        videoSpieler = AVPlayer(url: Self.sendeQuelle(original: original, geschnitten: geschnitten))
+        if ausgewaehlterFilter != .original { vorschauAktualisieren(fuer: ausgewaehlterFilter) }
     }
 
     private static let doodleFarbNamen = ["Weiß", "Schwarz", "Rosé", "Gelb", "Grün", "Blau"] // same order as `doodleFarben`
@@ -433,7 +458,7 @@ struct SnapEditor: View {
             }
         case .video(let url):
             vorschauTask = Task {
-                let komposition = await filter.videoKomposition(fuer: AVURLAsset(url: url))
+                let komposition = await filter.videoKomposition(fuer: AVURLAsset(url: Self.sendeQuelle(original: url, geschnitten: geschnitten)))
                 guard !Task.isCancelled else { return }
                 videoSpieler?.currentItem?.videoComposition = komposition
             }
@@ -558,7 +583,7 @@ struct SnapEditor: View {
         case .video(let url):
             Task {
                 defer { onFertig() }
-                guard let exportURL = await SnapExport.video(quelle: url, linien: linien, sticker: sticker, text: text, filter: wirksamerFilter) else { return }
+                guard let exportURL = await SnapExport.video(quelle: Self.sendeQuelle(original: url, geschnitten: geschnitten), linien: linien, sticker: sticker, text: text, filter: wirksamerFilter) else { return }
                 Task { await ChatMedien.snapVideoSenden(quelle: exportURL, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
         }
