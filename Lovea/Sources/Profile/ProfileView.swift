@@ -85,6 +85,8 @@ private struct ProfilInhalt: View {
     @State private var tipps = 0
     @State private var nummerFehlt = 0
     @State private var blatt: ProfilBlatt?
+    /// p60: das offene Blatt der Paar-Signale im Zimmer (Stimmung, Brief, Zettel, Geschenkbox).
+    @State private var signale: SignaleBlatt?
     @State private var backdropOffen = false
     /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
     @State private var karteOffen = false
@@ -225,7 +227,9 @@ private struct ProfilInhalt: View {
     /// replaces the walkers. The bouquets (p59) come in through `straeusse`.
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
-        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZuhauseStraeusse(), paarDa: paarDa) { f in
+        // p60: sagen beide Gute Nacht, ist es im Zimmer Nacht; die Signale (Lampe, Brief, Zettel, Box) liegen darüber.
+        let nacht = NachtLogik.gemeinsamDunkel(FigurenModell.shared.gruss, jetzt: Date())
+        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZuhauseStraeusse(), paarDa: paarDa, nacht: nacht) { f in
             buehnenFigur(f)
         } paar: {
             // Teil 2 (Nähe): the pair's closeness pose (kiss glides into Stufe 3 and back).
@@ -233,6 +237,7 @@ private struct ProfilInhalt: View {
                 figur(p, naehe: pose, ebene: ebene)
             }
         }
+        .overlay { PaarSignaleEbene(blatt: $signale) }
     }
 
     /// A walker, sitter or sleeper of the home scene: their own look and badges, the state and size
@@ -241,10 +246,18 @@ private struct ProfilInhalt: View {
     private func buehnenFigur(_ f: ZuhauseFigur) -> some View {
         let v = FigurView(FigurenModell.shared.aussehen(f.person), zustand: f.zustand, abzeichen: abzeichen(f.person), groesse: f.groesse,
                           animiert: f.animiert, bildrate: 15, ganzkoerper: f.ganzkoerper)
-        if f.person == ich {
-            v.accessibilityLabel("Deine Figur")
-        } else {
-            v.figurGesten(person: f.person) { FigurenModell.shared.gesteSenden($0) }
+        Group {
+            if f.person == ich {
+                v.accessibilityLabel("Deine Figur")
+            } else {
+                v.figurGesten(person: f.person) { FigurenModell.shared.gesteSenden($0) }
+            }
+        }
+        .overlay(alignment: .top) {
+            // p60: the mood bubble above the head; the sleepers in the bed have none.
+            if f.zustand != .schlaeft {
+                StimmungBlase(person: f.person, figurHoehe: f.groesse, ganzkoerper: f.ganzkoerper) { signale = .stimmung }
+            }
         }
     }
 

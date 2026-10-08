@@ -78,11 +78,7 @@ enum SignaleLogik {
             case artGeschenkWeg:
                 guard let d = op.daten(GeschenkWegD.self) else { continue }
                 if let alt = z.geschenke[d.id], !neuer(op.zeit, op.id, alsZeit: alt.zeit, id: alt.opId) { continue }
-                var grab = z.geschenke[d.id] ?? Geschenk(id: d.id, text: "", erledigt: false, von: op.von, zeit: op.zeit, opId: op.id)
-                grab.geloescht = true
-                grab.zeit = op.zeit
-                grab.opId = op.id
-                z.geschenke[d.id] = grab
+                z.geschenke[d.id] = Geschenk(id: d.id, text: "", erledigt: false, von: op.von, zeit: op.zeit, opId: op.id, geloescht: true)
             default:
                 break
             }
@@ -100,17 +96,27 @@ enum SignaleLogik {
         return e.art
     }
 
-    /// Die Box von `person`: nur ihre eigenen, nicht gelöschten Einträge, älteste zuerst.
+    /// Die Box von `person`: nur ihre eigenen, nicht gelöschten Einträge, offene zuerst, je älteste zuerst.
     static func geschenke(_ stand: SignaleStand, von person: Person) -> [Geschenk] {
         stand.geschenke.values
             .filter { $0.von == person && !$0.geloescht }
-            .sorted { $0.zeit != $1.zeit ? $0.zeit < $1.zeit : $0.id < $1.id }
+            .sorted { ($0.erledigt ? 1 : 0, $0.zeit, $0.id) < ($1.erledigt ? 1 : 0, $1.zeit, $1.id) }
     }
 
-    /// Text für die Box: ohne Rand, höchstens `geschenkMaxZeichen` Zeichen, nil wenn leer.
-    static func geschenkText(_ eingabe: String) -> String? {
+    /// Kurzer Text ohne Rand, höchstens `n` Zeichen, nil wenn leer (Geschenkidee, Liebesbrief).
+    static func kurz(_ eingabe: String, hoechstens n: Int) -> String? {
         let t = eingabe.trimmingCharacters(in: .whitespacesAndNewlines)
-        return t.isEmpty ? nil : String(t.prefix(geschenkMaxZeichen))
+        return t.isEmpty ? nil : String(t.prefix(n))
+    }
+
+    /// Ein Liebesbrief ist ein ganz normaler Brief (`BriefeSpeicher`), nur kurz und ohne "Öffne, wenn".
+    static let liebesbriefTitel = "Ein Liebesbrief"
+    static let liebesbriefMaxZeichen = 280
+
+    /// Die Lampe: höchstens ein Tipp alle 10 Sekunden, sonst füllt Dauertippen die Leitung.
+    static let lampePause: TimeInterval = 10
+    static func lampeFrei(zuletzt: Date?, jetzt: Date) -> Bool {
+        zuletzt.map { jetzt.timeIntervalSince($0) >= lampePause } ?? true
     }
 }
 

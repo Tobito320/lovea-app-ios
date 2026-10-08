@@ -59,6 +59,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let dehnung: CGFloat
     private let straeusse: ZuhauseStraeusse
     private let paarDa: Bool
+    private let nacht: Bool
     private let fest: Bool
     private let figur: (ZuhauseFigur) -> Figur
     private let paar: () -> Paar
@@ -71,13 +72,15 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     /// `dehnung`: how far the header is pulled down; the scene grows upwards, the bottom stays.
     /// `paarDa`: they are together for real, `paar` (hug, kiss) replaces the two walkers.
+    /// `nacht`: both said good night (p60), the sky is night and the lamp is out, whatever the clock says.
     /// `fest`: a fixed scene without any driver (render board, previews).
     init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
-         fest: ZuhauseSzenenstand? = nil,
+         nacht: Bool = false, fest: ZuhauseSzenenstand? = nil,
          @ViewBuilder figur: @escaping (ZuhauseFigur) -> Figur, @ViewBuilder paar: @escaping () -> Paar) {
         self.dehnung = dehnung
         self.straeusse = straeusse
         self.paarDa = paarDa
+        self.nacht = nacht
         self.fest = fest != nil
         self.figur = figur
         self.paar = paar
@@ -87,12 +90,15 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     private var aktiv: Bool { !fest && sichtbar && scenePhase == .active && !sparmodus && !reduceMotion }
 
+    /// The time of day the room is drawn in: the clock's, or night once both said good night.
+    private var sicht: Tageszeit { nacht ? .nacht : stand.zeit }
+
     var body: some View {
         GeometryReader { geo in
             let s = geo.size.width / ZuhauseZeichnung.breite
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
-                ZuhauseRaumBild(zeit: stand.zeit)
+                ZuhauseRaumBild(zeit: sicht)
                 schatten
                 ZStack(alignment: .topLeading) {
                     bett(s, oben)
@@ -106,7 +112,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                     }
                 }
                 .colorMultiply(abdunklung)
-                if stand.zeit.dunkel {
+                if stand.zeit.dunkel && !nacht {
                     ZuhauseLicht(zeit: stand.zeit)
                 }
             }
@@ -127,7 +133,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     /// The dark of evening and night for everything above the room drawing (which darkens itself).
     private var abdunklung: Color {
-        switch stand.zeit {
+        switch sicht {
         case .morgen, .tag: .white
         case .abend: Color(red: 0.84, green: 0.80, blue: 0.86)
         case .nacht: Color(red: 0.60, green: 0.62, blue: 0.74)
