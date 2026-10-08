@@ -27,17 +27,17 @@ final class WetterModell {
             while let self {
                 // Background wakes (location, silent push) must not fetch weather nobody sees.
                 if UIApplication.shared.applicationState == .active { await self.aktualisieren() }
-                try? await Task.sleep(for: .seconds(300)) // pollt Standort öfter, ruft Open-Meteo aber höchstens alle 30 min
+                try? await Task.sleep(for: .seconds(300)) // pollt Standort öfter, ruft Open-Meteo aber höchstens stündlich
             }
         }
     }
 
-    /// At most one Open-Meteo call per person every 30 min. The map and the profile preview call this
+    /// At most one Open-Meteo call per person every hour. The map and the profile preview call this
     /// on appear, so the first weather doesn't wait for the next 5-minute poll.
     func aktualisieren() async {
         for person in Person.allCases {
             guard let pos = Standort.shared.positionen[person] else { continue }
-            if let letzte = letzteAbfrage[person], Date().timeIntervalSince(letzte) < 1800 { continue }
+            if let letzte = letzteAbfrage[person], Date().timeIntervalSince(letzte) < 3600 { continue }
             letzteAbfrage[person] = Date()
             if let stand = await Self.laden(lat: pos.lat, lon: pos.lon) { staende[person] = stand }
         }
