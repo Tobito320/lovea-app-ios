@@ -7,7 +7,7 @@ Spec: `docs/superpowers/specs/p65-profil-szene.md`. Order from the vault plan: B
 - [ ] 0 spec + plan committed, branch pushed, draft PR open (target `runde-3`)
 - [ ] B1 `FigurPose.swift` pure logic + `FigurPoseTests` (tests first)
 - [ ] B2 engine: `FigurView(pose:)` sit sofa / sit bed edge / lie / wave; gallery boards per person
-- [ ] A1 `ProfilSlots` + `ProfilPanoramaLayout` pure logic + tests (overlap, 44 pt, zones, two device sizes)
+- [x] A1 (CI offen) `ProfilSlots` + `ProfilPanoramaLayout` pure logic + tests (overlap, 44 pt, zones, two device sizes)
 - [ ] A2 panorama stage: parallax, zones, dots, fixed scene, floating chips, tap actions, one avatar
 - [ ] A3 calm area below + three labelled buttons (Profil, Zimmer, Kleidung)
 - [ ] C1 gender tags fixed, `mitGueltigerKleidung` migration, Ahmed-has-no-women's-items tests
