@@ -357,6 +357,8 @@ private struct Zeichner {
     let straehne: FigurFarbe?
     let frisur, oberteil, brille, bart, gesichtsform, augenform, brauenStil, nasenStil, mundStil: Int
     let ohrring, muetze, jacke, hose, schuhe, koerperform, groesseStufe: Int
+    /// p65 D: real index (39...43) of a worn brand top, 0 otherwise. `oberteil` then holds its base shape.
+    let marke: Int
     let wimpern, sommersprossen, muttermal, rouge: Bool
     // v3 (Z-24.2): worn shop parts, forwarded to the Zubehoer/ drawers as-is (nil = nothing).
     let tascheId, uhrId, tierId: String?
@@ -454,7 +456,9 @@ private struct Zeichner {
         let fotoOberteil = A.fotoOberteile[freiesOberteil]
         let oberteilFarbe = schlafanzug ? FigurFarbe(0xAFC8EE) : (fotoOberteil?.farbe ?? a.oberteilfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.oberteilfarbe).farbe)
         top = oberteilFarbe
-        oberteil = schlafanzug ? 2 : (gym && !mannImGym ? 11 : (fotoOberteil?.basis ?? freiesOberteil))
+        let markenBasis = A.markenBasis[freiesOberteil]
+        marke = markenBasis != nil && !schlafanzug && !gym ? freiesOberteil : 0
+        oberteil = schlafanzug ? 2 : (gym && !mannImGym ? 11 : (fotoOberteil?.basis ?? markenBasis ?? freiesOberteil))
         jacke = schlafanzug || gym ? 0 : grenze(a.jacke, A.jacken.count)
         let freieHose = grenze(a.hose, A.hosen.count)
         let fotoHose = A.fotoHosen[freieHose]
@@ -1018,6 +1022,8 @@ private struct Zeichner {
         default:
             break
         }
+        // p65 D: brand tops on a base shape (39...43) add their logo on top of it.
+        if marke != 0 { zeichneMarkenOberteil(g, h, marke: marke, top: top) }
     }
 
     /// Tops whose pattern runs over the torso edge, so the outline is drawn again on top.
@@ -3970,6 +3976,12 @@ extension Zeichner {
             teil(g, box(x - 15, y + 4, 30, 4, 2), Pal.silber, 1.5)
             teil(g, box(x - 15, y + 8, 30, 4, 2), FigurFarbe(0xD8C3A0), 1.5)
             teil(g, box(x - 14, y + 12, 28, 3, 1.5), Pal.dunkel.mix(Pal.weiss, 0.3), 1)
+        case 16:
+            // p65 D: Air Jordan 1 (Zubehoer/ModeMarken.swift).
+            zeichneJordanSneaker(g, fuss: f, farbe: c)
+        case 17:
+            // p65 D: Nike Dunk Low (Zubehoer/ModeMarken.swift).
+            zeichneDunkSneaker(g, fuss: f, farbe: c)
         default:
             teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
             g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))

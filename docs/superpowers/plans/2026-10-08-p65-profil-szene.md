@@ -12,8 +12,8 @@ Spec: `docs/superpowers/specs/p65-profil-szene.md`. Order from the vault plan: B
 - [x] A3 (CI offen) calm area below + three labelled buttons (Profil, Zimmer, Kleidung)
 - [x] C1 (CI offen) gender tags fixed, `mitGueltigerKleidung` migration, Ahmed-has-no-women's-items tests
 - [x] C2 (CI offen) Settings "Meine Figur" (`FigurEditor.Bereich.figur`); wardrobe in the profile (`.kleidung`: Oberteile, Hosen, Schuhe, Jacken, Accessoires + shop row via `GarderobeLogik`)
-- [ ] D1 free kit (~5 per person) via `*Shop` sets, names, tests updated
-- [ ] D2 vector brand pieces + shoes + `MarkenLogos.an`; Annika women's catalog; `docs/marken-logos.md`
+- [x] D1 (CI offen) free kit (~5 per person) via `*Shop` sets (`Grundausstattung.swift`), real short names, kit-only outfits, tests updated
+- [x] D2 (CI offen) vector brand pieces (`Zubehoer/ModeMarken.swift`: Ralph Lauren, Adidas, Carhartt, The North Face, Nike tops; Air Jordan 1, Nike Dunk Low) built in directly, no switch, no notice; 63 new shop articles incl. Annika's women's catalog; gallery boards `figuren-kleiderschrank-*`, `figuren-marken-nah`
 - [ ] Z testlist in vault, advisor, PR ready, Büro report + Log line
 
 ## Step details
@@ -43,7 +43,7 @@ Spec: `docs/superpowers/specs/p65-profil-szene.md`. Order from the vault plan: B
 
 ### D1/D2
 - Free kit per person (about 5), everything else shop-gated in `*Shop` sets and `katalog.json` with real short names and coin prices.
-- Brand pieces drawn as vector in `Lovea/Sources/Figuren/Marken/`: Nike, Adidas, Jordan, The North Face, Ralph Lauren, Carhartt; shoes AF1, Jordan 1, Dunk, Samba. `MarkenLogos.an` in one file; `docs/marken-logos.md`.
+- Brand pieces drawn as vector in `Lovea/Sources/Figuren/Zubehoer/ModeMarken.swift`: Nike, Adidas, Jordan, The North Face, Ralph Lauren, Carhartt; shoes AF1, Jordan 1, Dunk, Samba. The real logos are built in directly: the app stays private (TestFlight, two users, never the public App Store), so there is no switch and no notice.
 - Tests: `shopTeile` ranges, Ahmed has no women's items, free kit size, every catalog id resolves to a drawable piece.
 
 ## CI routine per step

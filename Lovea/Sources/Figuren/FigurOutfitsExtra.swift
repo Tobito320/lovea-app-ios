@@ -48,22 +48,18 @@ struct FigurOutfit: Sendable, Identifiable {
 }
 
 extension FigurAussehen {
-    /// Ahmed's outfits come from his photos and lean pink and black; "Oben ohne Gym" is the bare
-    /// gym torso. Photo pieces (`fotoOberteile`/`fotoHosen`/`fotoSchuhe`) bring their own color.
+    /// p65 D: presets only use the free kit (`grundausstattung(fuer:)`), so every one of them costs nothing.
+    /// Ahmed's lean all black, all white and pink; the kit colors are free, only the white sneaker is fixed.
     static let outfits: [FigurOutfit] = [
-        FigurOutfit(name: "Pink Knit", geschlecht: .m, oberteil: 31, oberteilHex: "F2A9BA", hose: 19, schuhe: 15),
-        FigurOutfit(name: "All Black", geschlecht: .m, oberteil: 32, hose: 2, hoseHex: "1F1F22", schuhe: 10, schuhHex: "F4F1EE"),
-        FigurOutfit(name: "Pink & Black", geschlecht: .m, oberteil: 31, oberteilHex: "F2A9BA", hose: 2, hoseHex: "1F1F22", schuhe: 10, schuhHex: "F4F1EE"),
-        FigurOutfit(name: "Gym Black", geschlecht: .m, oberteil: 28, hose: 16, schuhe: 2, schuhHex: "F4F1EE"),
-        FigurOutfit(name: "Oben ohne Gym", geschlecht: .m, oberteil: 33, hose: 16, schuhe: 2, schuhHex: "F4F1EE"),
+        FigurOutfit(name: "All Black", geschlecht: .m, oberteil: 32, hose: 1, hoseHex: "1F1F22", schuhe: 15),
+        FigurOutfit(name: "All White", geschlecht: .m, oberteil: 1, oberteilHex: "F4F1EE", hose: 1, hoseHex: "F4F1EE", schuhe: 15),
+        FigurOutfit(name: "Pink", geschlecht: .m, oberteil: 1, oberteilHex: "F2A9BA", hose: 1, hoseHex: "1F1F22", schuhe: 15),
         FigurOutfit(name: "Grey Denim", geschlecht: .m, oberteil: 32, hose: 18, schuhe: 15),
-        FigurOutfit(name: "Brasilien", geschlecht: .m, oberteil: 20, oberteilHex: "F5CE5A", hose: 2, hoseHex: "8E8C93", schuhe: 10, schuhHex: "F4F1EE"),
-        // Fix round 4: Gymshark and the burgundy trucker cap.
-        FigurOutfit(name: "Gymshark Black", geschlecht: .m, oberteil: 34, oberteilHex: "161617", hose: 16, schuhe: 2, schuhHex: "F4F1EE"),
-        FigurOutfit(name: "Gymshark White", geschlecht: .m, oberteil: 35, oberteilHex: "F2F2F0", hose: 16, schuhe: 2, schuhHex: "F4F1EE"),
-        FigurOutfit(name: "Cap Look", geschlecht: .m, oberteil: 34, oberteilHex: "161617", hose: 18, schuhe: 15, kopfbedeckung: 8, muetzenfarbe: 18),
-        FigurOutfit(name: "Date Look", geschlecht: .w, oberteil: 4, oberteilHex: "F7B6C8", jacke: 1, jackeHex: "2B2830", hose: 1, schuhe: 1, schuhHex: "2B2830"),
-        FigurOutfit(name: "Gym Girl", geschlecht: .w, oberteil: 30, hose: 9, hoseHex: "2B2830", schuhe: 2, schuhHex: "F4F1EE"),
+        FigurOutfit(name: "Oben ohne", geschlecht: .m, oberteil: keinOberteil, hose: 18, schuhe: 15),
+        FigurOutfit(name: "Date Look", geschlecht: .w, oberteil: 4, oberteilHex: "F7B6C8", hose: 1, schuhe: 1, schuhHex: "2B2830"),
+        FigurOutfit(name: "Rock Look", geschlecht: .w, oberteil: 4, oberteilHex: "F4F1EE", hose: 7, hoseHex: "2B2830", schuhe: 1, schuhHex: "2B2830"),
+        FigurOutfit(name: "Schwarz", geschlecht: .w, oberteil: 4, oberteilHex: "2B2830", hose: 1, hoseHex: "2B2830", schuhe: 1, schuhHex: "2B2830"),
+        FigurOutfit(name: "Hoodie Creme", geschlecht: .w, oberteil: 1, oberteilHex: "EFE6D6", hose: 1, schuhe: 1, schuhHex: "F4F1EE"),
     ]
 
     static func outfits(fuer person: Person) -> [FigurOutfit] {

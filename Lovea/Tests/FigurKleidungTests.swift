@@ -55,10 +55,14 @@ final class FigurKleidungTests: XCTestCase {
         let angeboten = frei(.annika)
         let oberteile = angeboten.first { $0.feld == "oberteil" }!
         let top = A.oberteile.firstIndex(of: "Top")!, crop = A.oberteile.firstIndex(of: "Crop-Top")!
+        let ballerinas = A.schuhArten.firstIndex(of: "Ballerinas")!
+        // p65 D: Top is in her free kit, Crop-Top and Ballerinas fit her but cost coins in the shop.
         XCTAssertTrue(oberteile.erlaubt.contains(top))
-        XCTAssertTrue(oberteile.erlaubt.contains(crop))
+        XCTAssertFalse(oberteile.erlaubt.contains(crop))
+        XCTAssertTrue(A.passt(crop, A.oberteileGeschlecht, fuer: .annika))
         let schuhe = angeboten.first { $0.feld == "schuhe" }!
-        XCTAssertTrue(schuhe.erlaubt.contains(A.schuhArten.firstIndex(of: "Ballerinas")!))
+        XCTAssertFalse(schuhe.erlaubt.contains(ballerinas))
+        XCTAssertTrue(A.passt(ballerinas, A.schuheGeschlecht, fuer: .annika))
         for i in oberteile.erlaubt { XCTAssertNotEqual(A.oberteileGeschlecht[i], .m, A.oberteile[i]) }
     }
 
@@ -145,7 +149,7 @@ final class FigurKleidungTests: XCTestCase {
     func testMaennerteileBeiAnnikaWerdenZurueckgesetzt() {
         let basis = A.standard(for: .annika)
         var a = basis
-        a.oberteil = A.oberteile.firstIndex(of: "Schwarzes Rundhals-Tee")!
+        a.oberteil = A.oberteile.firstIndex(of: "T-Shirt schwarz")!
         a.hose = A.hosen.firstIndex(of: "Schwarze Gym-Shorts")!
         let neu = A.mitGueltigerKleidung(a, .annika)
         XCTAssertEqual(neu.oberteil, basis.oberteil)
