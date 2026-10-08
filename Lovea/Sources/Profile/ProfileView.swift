@@ -203,6 +203,7 @@ private struct ProfilInhalt: View {
             kopfFiguren(szene, b, paar: false)
                 .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.top, 20)
+            PostObjekte(ich: person)
             HStack(spacing: 12) {
                 avatar
                 Text(person.name).font(.title.bold())
