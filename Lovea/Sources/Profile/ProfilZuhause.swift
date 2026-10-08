@@ -158,4 +158,6 @@ struct ZuhauseStraeusse: Equatable, Sendable {
     var vase: String?
 
     var imSchrank: [String] { Array(schrank.prefix(Self.schrankPlaetze)) }
+
+    var leer: Bool { schrank.isEmpty && vase == nil }
 }

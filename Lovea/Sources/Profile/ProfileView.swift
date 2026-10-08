@@ -129,6 +129,7 @@ private struct ProfilInhalt: View {
                             partnerJetzt
                             chips
                             aktionen
+                            partnerBearbeiten
                             // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
                             abschnitt("Die Karte") { dieKarte }
                             abschnitt("Unser Chat") { unserChat }
@@ -200,7 +201,7 @@ private struct ProfilInhalt: View {
     /// p58: the scene is always the shared home with both of them (`ZuhauseBuehne`), in the partner
     /// profile and the own one. They walk about
     /// by the clock; only when they are together for real (or a kiss plays) the pair's hug and kiss
-    /// replaces the walkers. The bouquets (p59) are Annika's choice for her room, shown in both profiles.
+    /// replaces the walkers. The bouquets (p59) are Annika's choice for her room, shown in both profiles; p68: Ahmed's own stand on his board.
     /// p65: `.panorama`, the wide world the panorama swipes through; a tap on the bed or the sofa sends both there.
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
@@ -212,7 +213,7 @@ private struct ProfilInhalt: View {
         let punkte = PunkteModell.shared
         let katze = ZuhauseKatze(id: ZimmerKatze.id(tiere: Person.allCases.map { FigurenModell.shared.aussehen($0).tier }),
                                  gestreichelt: punkte.katzeGestreichelt(ich), streicheln: { punkte.katzeStreicheln() })
-        return ZuhauseBuehne(straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), nacht: nacht, wahl: ZimmerWahl.aktuell, katze: katze,
+        return ZuhauseBuehne(straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, ahmedStraeusse: ZimmerStraeusse.von(.ahmed).fuerBuehne, paarDa: paarDa, extras: .live(), nacht: nacht, wahl: ZimmerWahl.aktuell, katze: katze,
                              outfit: istEigenes ? { kleidungOffen = true } : nil, welt: .panorama,
                              wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel, welt: .panorama)) }) { f in
             buehnenFigur(f)
@@ -376,6 +377,23 @@ private struct ProfilInhalt: View {
             beschriftet("person.crop.square", "Profil") { figurBearbeitenOffen = true }
             beschriftet("bed.double.fill", "Zimmer") { zimmerGestalten() }
             beschriftet("tshirt.fill", "Kleidung") { kleidungOffen = true }
+        }
+    }
+
+    /// p68: Ahmed changes Annika's figure and clothes from her profile. Only where `figurBearbeitbar`
+    /// allows it, so on Ahmed's profile (seen by Annika) there is nothing to tap.
+    @ViewBuilder private var partnerBearbeiten: some View {
+        if person.figurBearbeitbar(durch: ich) {
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 8) {
+                    beschriftet("person.crop.square", "Figur") { figurBearbeitenOffen = true }
+                    beschriftet("tshirt.fill", "Kleidung") { kleidungOffen = true }
+                }
+                Text("\(person.name) bearbeiten. Was du im Shop für sie kaufst, zahlst du.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 4)
+            }
         }
     }
 

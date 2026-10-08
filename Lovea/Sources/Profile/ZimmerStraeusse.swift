@@ -1,7 +1,7 @@
 import SwiftUI
 
-/// p59: Annikas Blumen im Zuhause. Bis zu 3 Sträuße stehen auf dem Schrank, einer in der Vase auf dem
-/// Tisch. Gespeichert pro Person als `profil.straeusse` = `{schrank: [id], vase: id}` über denselben
+/// p59: Blumen im Zuhause. Bis zu 3 Sträuße stehen auf dem Schrank, einer in der Vase auf dem
+/// Tisch; p68: bei Ahmed auf seinem Bord neben dem Bett. Gespeichert pro Person als `profil.straeusse` = `{schrank: [id], vase: id}` über denselben
 /// Weg wie `profil.raeume` (`EinstellungenModell.setzen`), also ohne eigenen Sync. Lesen ist tolerant:
 /// Unbekanntes, Doppeltes und alles über dem dritten Platz fällt weg.
 struct ZimmerStraeusse: Equatable, Sendable {
@@ -75,11 +75,20 @@ struct StraeusseBlatt: View {
 
     let stelle: Stelle
     @Binding var auswahl: ZimmerStraeusse
+    /// p68: Ahmed's go on his board, Annika's on the dresser and the table.
+    var person: Person = .annika
     @Environment(\.dismiss) private var dismiss
 
-    private var titel: String { stelle == .schrank ? "Auf den Schrank" : "In die Vase" }
+    private var titel: String {
+        switch (stelle, person) {
+        case (.schrank, .ahmed): "Auf das Bord"
+        case (.schrank, _): "Auf den Schrank"
+        case (.vase, _): "In die Vase"
+        }
+    }
     private var hinweis: String {
-        stelle == .schrank ? "Bis zu drei Sträuße, \(auswahl.schrank.count) von \(ZimmerStraeusse.schrankPlaetze) gewählt." : "Ein Strauß für die Vase auf dem Tisch."
+        stelle == .schrank ? "Bis zu drei Sträuße, \(auswahl.schrank.count) von \(ZimmerStraeusse.schrankPlaetze) gewählt."
+            : (person == .ahmed ? "Ein Strauß für die kleine Vase am Bord." : "Ein Strauß für die Vase auf dem Tisch.")
     }
 
     private func gewaehlt(_ art: StraussArt) -> Bool {

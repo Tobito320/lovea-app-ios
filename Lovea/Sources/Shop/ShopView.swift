@@ -5,9 +5,15 @@ import SwiftUI
 struct ShopView: View {
     @Environment(\.dismiss) private var dismiss
     @State private var kategorie = ShopKategorie.mode
-    @State private var geschenkModus = false
+    @State private var geschenkModus: Bool
     @State private var ausgewaehlt: ShopArtikel?
     @State private var gekauft = 0
+
+    /// p68: `ziel` is whose figure the shop dresses at the start; the partner opens the gift mode
+    /// ("Für Annika"), the editor of Annika's figure passes her. nil = the own figure, as before.
+    init(ziel: Person? = nil) {
+        _geschenkModus = State(initialValue: ziel.map { $0 != (Raum.shared.ich ?? .ahmed) } ?? false)
+    }
 
     private var ich: Person { Raum.shared.ich ?? .ahmed }
     private var ziel: Person { geschenkModus ? ich.partner : ich }
@@ -34,7 +40,7 @@ struct ShopView: View {
             .sensoryFeedback(.success, trigger: gekauft)
             .sheet(item: $ausgewaehlt) { artikel in
                 ArtikelDetail(
-                    artikel: artikel, ziel: fuer(artikel), istEigeneFigur: fuer(artikel) == ich,
+                    artikel: artikel, ziel: fuer(artikel), darfTragen: fuer(artikel).figurBearbeitbar(durch: ich), geschenk: fuer(artikel) != ich,
                     besitzt: besitzt(artikel, stand.besitz), verfuegbar: stand.verfuegbar[ich] ?? 0,
                     onKauf: { kaufen(artikel) }, onAnziehen: { anziehen(artikel) }, onAusziehen: { ausziehen(artikel) }
                 )
@@ -45,6 +51,20 @@ struct ShopView: View {
     // MARK: - Kopf
 
     private func kopf(_ info: (verfuegbar: [Person: Int], besitz: BesitzLogik.Ergebnis)) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            kopfZeile(info)
+            if geschenkModus {
+                Text("Geschenk: Du zahlst mit deinen Punkten, \(ziel.name) bekommt es\(ziel.figurBearbeitbar(durch: ich) ? " und trägt es gleich" : "").")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.top, 10)
+        .padding(.bottom, 4)
+    }
+
+    private func kopfZeile(_ info: (verfuegbar: [Person: Int], besitz: BesitzLogik.Ergebnis)) -> some View {
         HStack {
             Label("\(info.verfuegbar[ich] ?? 0) Punkte", systemImage: "sparkles")
                 .font(.headline)
@@ -62,9 +82,6 @@ struct ShopView: View {
             .buttonStyle(.plain)
             .accessibilityLabel(geschenkModus ? "Geschenk-Modus an, für \(ich.partner.name)" : "Geschenk-Modus aus")
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 4)
     }
 
     /// p56: nur Gruppen mit Teilen für die Figur, die gerade eingekleidet wird (Ahmed hat keinen Schmuck).
@@ -125,20 +142,22 @@ struct ShopView: View {
     private func kaufen(_ artikel: ShopArtikel) {
         guard PunkteModell.shared.kaufen(artikel: artikel.id, fuer: fuer(artikel), preis: { ShopKatalog.artikel($0)?.preis }) else { return }
         gekauft += 1
+        // p68: a gift for a figure the buyer may dress (Ahmed for Annika) is worn right away.
+        if artikel.kategorie != ShopKategorie.zimmer.rawValue, ziel != ich, ziel.figurBearbeitbar(durch: ich) { anziehen(artikel) }
     }
 
     private func anziehen(_ artikel: ShopArtikel) {
         guard artikel.kategorie != ShopKategorie.zimmer.rawValue else { return ZimmerWahl.aktuell.einrichten(artikel.id).sichern() }
-        var a = FigurenModell.shared.aussehen(ich)
+        var a = FigurenModell.shared.aussehen(ziel)
         a.anziehen(artikel)
-        FigurenModell.shared.aussehenSichern(a)
+        FigurenModell.shared.aussehenSichern(a, fuer: ziel)
     }
 
     private func ausziehen(_ artikel: ShopArtikel) {
         guard artikel.kategorie != ShopKategorie.zimmer.rawValue else { return ZimmerWahl.aktuell.wegraeumen(artikel.id).sichern() }
-        var a = FigurenModell.shared.aussehen(ich)
-        a.ausziehen(artikel, person: ich)
-        FigurenModell.shared.aussehenSichern(a)
+        var a = FigurenModell.shared.aussehen(ziel)
+        a.ausziehen(artikel, person: ziel)
+        FigurenModell.shared.aussehenSichern(a, fuer: ziel)
     }
 }
 
@@ -217,8 +236,10 @@ struct ArtikelKachel: View {
 private struct ArtikelDetail: View {
     let artikel: ShopArtikel
     let ziel: Person
-    /// Wear/unwear only makes sense on the device's OWN figure — in gift mode you can't dress the partner.
-    let istEigeneFigur: Bool
+    /// Wear/unwear only on a figure the buyer may dress (`figurBearbeitbar`): the own one, and Ahmed for Annika.
+    let darfTragen: Bool
+    /// Bought for the partner: the buyer pays, the partner owns it.
+    let geschenk: Bool
     let besitzt: Bool
     let verfuegbar: Int
     let onKauf: () -> Void
@@ -233,6 +254,14 @@ private struct ArtikelDetail: View {
     /// the sheet — an op sent via `aussehenSichern` applies optimistically before confirmation.
     private var vorschauAussehen: FigurAussehen { FigurenModell.shared.aussehen(ziel).mitVorschau(artikel) }
     private var fehlend: Int { max(0, artikel.preis - verfuegbar) }
+    /// A gift is paid from the buyer's points and says so, in the button and in the question.
+    private var kaufFrage: String {
+        geschenk ? "„\(artikel.name)“ für \(artikel.preis) deiner Punkte kaufen und \(ziel.name) schenken?" : "„\(artikel.name)“ für \(artikel.preis) Punkte kaufen?"
+    }
+    private var kaufText: String {
+        if fehlend > 0 { return "Nicht genug Punkte – dir fehlen \(fehlend)" }
+        return geschenk ? "Für \(ziel.name): \(artikel.preis) Punkte zahlen" : "Für \(artikel.preis) Punkte kaufen"
+    }
     private var zimmer: Bool { artikel.kategorie == ShopKategorie.zimmer.rawValue }
     private var getragen: Bool { zimmer ? ZimmerWahl.aktuell.traegt(artikel.id) : FigurenModell.shared.aussehen(ziel).traegt(artikel) }
 
@@ -251,7 +280,7 @@ private struct ArtikelDetail: View {
         .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .sensoryFeedback(.impact(weight: .medium), trigger: getragen)
-        .confirmationDialog("„\(artikel.name)“ für \(artikel.preis) Punkte kaufen?", isPresented: $bestaetigen, titleVisibility: .visible) {
+        .confirmationDialog(kaufFrage, isPresented: $bestaetigen, titleVisibility: .visible) {
             Button("Kaufen") { onKauf(); dismiss() }
             Button("Abbrechen", role: .cancel) {}
         }
@@ -267,7 +296,7 @@ private struct ArtikelDetail: View {
 
     @ViewBuilder private var aktion: some View {
         if besitzt {
-            if istEigeneFigur {
+            if darfTragen {
                 Button(zimmer ? (getragen ? "Wegräumen" : "Einrichten") : (getragen ? "Ausziehen" : "Anziehen")) {
                     getragen ? onAusziehen() : onAnziehen()
                 }
@@ -277,7 +306,7 @@ private struct ArtikelDetail: View {
                 .frame(maxWidth: .infinity)
                 .padding(.horizontal, 24)
             } else {
-                Label(istEigeneFigur ? "Du besitzt das schon" : "\(ziel.name) besitzt das schon", systemImage: "checkmark.circle.fill")
+                Label("\(ziel.name) besitzt das schon", systemImage: "checkmark.circle.fill")
                     .foregroundStyle(.secondary)
             }
         } else if artikel.exklusiv {
@@ -290,7 +319,7 @@ private struct ArtikelDetail: View {
             Button {
                 bestaetigen = true
             } label: {
-                Text(fehlend > 0 ? "Nicht genug Punkte – dir fehlen \(fehlend)" : "Für \(artikel.preis) Punkte kaufen")
+                Text(kaufText)
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
             .buttonStyle(.borderedProminent)

@@ -228,6 +228,32 @@ enum ZuhauseZeichnung {
         teil(g, herzPfad(P(tisch.x, tisch.y - 11), 3.4), Pal.rose.mix(Pal.weiss, 0.3), 1)
     }
 
+    // MARK: Ahmeds Bord (p68)
+
+    /// Ahmeds wall shelf for his bouquets: free wall right of the bed, in the Schlafen zone, panorama only
+    /// (the stage draws it only while he has a bouquet set). Annika keeps the dresser and the table.
+    static let bord = CGRect(x: 184, y: 196, width: 116, height: 76)
+    /// The board's top edge: the bouquets stand on it.
+    static let bordBrett: CGFloat = 258
+    /// Bottom centres of the four places, left to right: three bouquets, then the small vase's one.
+    static var bordPlaetze: [CGPoint] {
+        (0..<4).map { CGPoint(x: bord.minX + 18 + CGFloat($0) * 28, y: bordBrett) }
+    }
+    /// The vase's bouquet stands in the neck, 20.5 above the board (like the table's vase, 22 above its table).
+    static var bordVasenPlatz: CGPoint { CGPoint(x: bordPlaetze[3].x, y: bordBrett - 20.5) }
+
+    static func bordZeichnen(_ g: GraphicsContext, vase: Bool) {
+        let holz = FigurFarbe(0xD9B48A)
+        for x in [bord.minX + 14, bord.maxX - 22] { teil(g, box(x, bordBrett + 7, 8, 7, 2), holz.mal(0.85), 2) }
+        teil(g, box(bord.minX, bordBrett, bord.width, 7, 3), holz, 2.5)
+        guard vase else { return }
+        let glas = FigurFarbe(0xBFE3F7)
+        let mitte = bordPlaetze[3].x, y0 = bordBrett + 1.5
+        teil(g, box(mitte - 4, y0 - 26, 8, 10, 2), glas, 2)
+        teil(g, oval(P(mitte, y0 - 11), 11, 9.5), glas, 2.5)
+        teil(g, herzPfad(P(mitte, y0 - 11), 3.4), Pal.rose.mix(Pal.weiss, 0.3), 1)
+    }
+
     /// Evening and night: the room goes dark except the window glass, so the sky stays bright.
     private static func abdunkeln(_ g: GraphicsContext, _ zeit: Tageszeit, _ welt: ProfilWelt) {
         let staerke: Double = switch zeit {
