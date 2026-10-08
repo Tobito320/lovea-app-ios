@@ -432,7 +432,10 @@ struct HeuteView: View {
                     .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
                     ZyklusHinweisEinhang(person: ich, tag: heute)
                     abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute)) { raster }
-                    abschnitt("Das fällt mir auf") { hinweisListe }
+                    abschnitt("Das fällt mir auf") {
+                        CoachKachel(person: ich, heute: echtHeute)
+                        hinweisListe
+                    }
                     punkteZeile
                     abschnitt("Körper") { koerper }
                     verlaufKasten
