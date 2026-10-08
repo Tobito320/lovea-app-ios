@@ -113,3 +113,16 @@ test("gym.checkout: Rekorde stehen am Ende des Textes", () => {
   assert.equal(regel("gym.checkout", "ahmed", { status: "ende", minuten: 58, zahl: 12, rekorde: 1 }).text, "Ahmed war 58 min im Gym · 12 Sätze · 1 Rekord");
   assert.equal(regel("gym.checkout", "ahmed", { status: "ende", minuten: 58, zahl: 12, rekorde: 0 }).text, "Ahmed war 58 min im Gym · 12 Sätze");
 });
+
+test("sprachpost.neu und brief.neu: leise, Kategorie chat, kein Ton", () => {
+  const s = regel("sprachpost.neu", "ahmed", { id: "s1" });
+  assert.equal(s.stufe, "leise");
+  assert.equal(s.kategorie, "chat");
+  assert.equal(s.text, "Neue Sprachpost von Ahmed");
+  assert.equal(s.ton, undefined);
+  const b = regel("brief.neu", "ahmed", { id: "b1" });
+  assert.equal(b.stufe, "leise");
+  assert.equal(b.text, "Ahmed hat einen Brief für dich versiegelt");
+  assert.equal(regel("sprachpost.gehoert", "annika", { id: "s1" }), null);
+  assert.equal(regel("brief.geoeffnet", "annika", { id: "b1" }), null);
+});
