@@ -687,3 +687,51 @@ test("GET /agent/*: Nur-Lese-Diagnose ohne Präsenz-Wechsel", async () => {
   assert.equal((await get("/agent/statistik", null)).status, 401);
   assert.equal(websockets.annika.gesendet.length, vorher, "Annika bekommt keine Präsenz-Meldung");
 });
+
+// Denk an dich: jeder Herz-Tipp wird gespeichert, die Push an den Partner geht höchstens alle 10 Minuten.
+test("geste herz: Push höchstens alle 10 Minuten pro Empfänger, jede Op wird trotzdem gespeichert", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+  let pushes = 0;
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async () => { pushes++; return new Response(null, { status: 200 }); };
+  try {
+    for (let i = 0; i < 3; i++) {
+      await raum.webSocketMessage(websockets.ahmed, opNachricht(`herz-${i}`, "geste", "ahmed", { art: "herz" }));
+    }
+    // Eine andere Geste wird von der Herz-Drossel nicht berührt.
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("kuss-1", "geste", "ahmed", { art: "kuss" }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(pushes, 2, "ein Herz plus ein Kuss");
+  const gespeichert = websockets.annika.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.ok(["herz-0", "herz-1", "herz-2"].every((id) => gespeichert.includes(id)), "alle drei Herzen laufen live durch");
+});
+
+test("POST /ops?push=1: Herz aus dem Widget löst eine Push aus, ohne push=1 oder für fremdes von nicht", async () => {
+  const { raum, websockets } = raumMitVerbindung(["annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+  let pushes = 0;
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async () => { pushes++; return new Response(null, { status: 200 }); };
+  const post = (pfad, id, von) => raum.fetch(new Request(`https://x/ops${pfad}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "X-Lovea-Person": "ahmed" },
+    body: JSON.stringify({ ops: [{ id, art: "geste", von, zeit: new Date().toISOString(), d: { art: "herz" } }] }),
+  }));
+  try {
+    await post("", "w-1", "ahmed");
+    assert.equal(pushes, 0, "ohne push=1 keine Push (Migrationsweg)");
+    await post("?push=1", "w-2", "annika");
+    assert.equal(pushes, 0, "fremdes von nie");
+    await post("?push=1", "w-3", "ahmed");
+    assert.equal(pushes, 1);
+    await post("?push=1", "w-3", "ahmed");
+    assert.equal(pushes, 1, "dieselbe id noch einmal: keine zweite Push");
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+});

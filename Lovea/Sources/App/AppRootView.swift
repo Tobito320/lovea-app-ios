@@ -109,6 +109,7 @@ struct AppRootView: View {
         // der Leiste (`gymLeisteOben`: Home, Zeichnen, Health, Profil).
         // Eingeklappt (seitlich weggewischt): kleiner Knopf am Rand, mittig in der Höhe.
         .overlay(alignment: .center) { GymLeisteKnopf() }
+        .overlay { HerzRegen() }
     }
 }
 
