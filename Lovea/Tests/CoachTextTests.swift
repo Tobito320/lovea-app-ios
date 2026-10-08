@@ -64,9 +64,7 @@ final class CoachTextTests: XCTestCase {
     }
 
     func testInlineBehaeltZeilenumbrueche() {
-        XCTAssertEqual(String(CoachText.inline("Zeile eins
-Zeile zwei").characters), "Zeile eins
-Zeile zwei")
+        XCTAssertEqual(String(CoachText.inline("Zeile eins\nZeile zwei").characters), "Zeile eins\nZeile zwei")
     }
 
     // MARK: - Trennzeile
