@@ -5,12 +5,16 @@ import UIKit
 /// category bar, option tiles drawn with the figure itself, color swatches, dice. The caller sends `figur.aussehen` in `onSave`.
 struct FigurEditor: View {
     private let onSave: (FigurAussehen) -> Void
+    /// The saved look right now. The shop sheet writes bag, watch, jewelry, pose and pet straight
+    /// into it while this editor holds its own older copy (`aussehen`).
+    private let modell: FigurAussehen?
     @State private var aussehen: FigurAussehen
     @State private var kategorie = Kategorie.outfits
     @State private var wuerfe = 0
 
-    init(start: FigurAussehen, onSave: @escaping (FigurAussehen) -> Void) {
+    init(start: FigurAussehen, modell: FigurAussehen? = nil, onSave: @escaping (FigurAussehen) -> Void) {
         _aussehen = State(initialValue: start)
+        self.modell = modell
         self.onSave = onSave
     }
 
