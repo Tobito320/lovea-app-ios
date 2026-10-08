@@ -40,6 +40,9 @@ final class FigurenModell {
     /// Z-7.2: last time the partner was seen (`da`), polled below — for "zuletzt online vor …"
     /// once `partnerDa` goes false. `Raum.partnerDa` itself carries no timestamp.
     private(set) var partnerZuletztGesehen: [Person: Date] = [:]
+    /// p71 (31): the newest change of this account's look that the OTHER person made (Ahmed edits Annika), with the look
+    /// before it, so the notice can offer "Zurück". Cleared when the owner saves their own look afterwards.
+    private(set) var fremdesOutfit: FremdesOutfit?
     /// Set by `BannerZentrale` (Z-7.3): called for a fresh, live `anstupsen`/`kuss`/`herz` from the partner.
     var aufFrischeGeste: ((Person, FigurZustand) -> Void)?
     /// Z-27.1 / Brief G fix: newest "Gute Nacht" and "Guten Morgen" per person; `Anwesenheit` feeds
@@ -51,6 +54,9 @@ final class FigurenModell {
         // One observer for both arts, so the log order decides: the last change wins, whoever made it.
         raum.beobachten(["figur.aussehen", "figur.aussehenFuer"]) { [weak self] op in
             guard let ziel = Self.aussehenZiel(op) else { return }
+            if let self {
+                fremdesOutfit = Self.fremdeAenderung(op, ziel: ziel.person, neu: ziel.aussehen, vorher: aussehen[ziel.person], ich: raum.ich, aktuell: fremdesOutfit)
+            }
             self?.aussehen[ziel.person] = ziel.aussehen
         }
         raum.beobachten(["geste"]) { [weak self] op in
@@ -175,6 +181,17 @@ final class FigurenModell {
         return (op.von, a)
     }
 
+    /// p71 (31): what the notice "Ahmed hat dein Outfit geändert" needs after `op`. A change by someone else to
+    /// my look keeps the look before it; my own save ends the notice; a repeated delivery of the same op or a
+    /// change that left the look as it was changes nothing.
+    static func fremdeAenderung(_ op: Op, ziel: Person, neu: FigurAussehen, vorher: FigurAussehen?, ich: Person?, aktuell: FremdesOutfit?) -> FremdesOutfit? {
+        guard let ich, ziel == ich else { return aktuell }
+        if op.von == ich { return nil }
+        let davor = vorher ?? .standard(for: ziel)
+        if aktuell?.opId == op.id || davor == neu { return aktuell }
+        return FremdesOutfit(opId: op.id, von: op.von, vorher: davor, zeit: op.zeit)
+    }
+
     /// Saves a look. `fuer` is whose figure it is; nil or the own person writes the old `figur.aussehen`.
     func aussehenSichern(_ a: FigurAussehen, fuer person: Person? = nil) {
         guard let ich = Raum.shared.ich, let person, person != ich else { Raum.shared.senden("figur.aussehen", a); return }
@@ -224,6 +241,14 @@ final class FigurenModell {
         guard Geraet.wirdGetragen else { return } // the iPhone speaks for the person, see `Geraet`
         Raum.shared.fluechtig("zustand", z)
     }
+}
+
+/// p71 (31): the look before another person's change, see `FigurenModell.fremdesOutfit`.
+struct FremdesOutfit: Equatable, Sendable {
+    let opId: String
+    let von: Person
+    let vorher: FigurAussehen
+    let zeit: Date
 }
 
 extension Calendar {

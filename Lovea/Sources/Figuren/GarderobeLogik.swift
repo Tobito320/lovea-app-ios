@@ -7,6 +7,27 @@ struct GarderobeStueck: Identifiable {
     var id: String { artikel.id }
 }
 
+/// p71: Filter über der Garderobe. `meine`: freie und gekaufte Teile; `shop`: nur Shop-Teile; `marke`: nur Teile
+/// dieser Marke. Die freien Teile zeigt nur `alle` und `meine`.
+enum GarderobeFilter: Equatable, Hashable {
+    case alle, meine, shop, marke(String)
+
+    var zeigtFreies: Bool { self == .alle || self == .meine }
+
+    func laesst(_ s: GarderobeStueck) -> Bool {
+        switch self {
+        case .alle, .shop: true
+        case .meine: s.besitzt
+        case let .marke(m): s.artikel.marke == m
+        }
+    }
+
+    /// Die Marken der Teile, alphabetisch, ohne Doppelte.
+    static func marken(_ stuecke: [GarderobeStueck]) -> [String] {
+        Array(Set(stuecke.compactMap(\.artikel.marke).filter { !$0.isEmpty })).sorted()
+    }
+}
+
 enum GarderobeLogik {
     /// The shop pieces of `feld` that `person` may see: owned ones first, then by price. Challenge rewards
     /// (`exklusiv`) only show once owned, since the wardrobe cannot buy them. Pieces without a figure field
