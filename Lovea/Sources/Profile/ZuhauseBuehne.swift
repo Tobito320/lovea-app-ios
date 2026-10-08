@@ -61,6 +61,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let paarDa: Bool
     private let wandDinge: (Tageszeit) -> AnyView
     private let extras: ZimmerExtrasStand?
+    private let nacht: Bool
     private let fest: Bool
     private let wahl: ZimmerWahl
     private let katze: ZuhauseKatze?
@@ -78,12 +79,13 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     /// `dehnung`: how far the header is pulled down; the scene grows upwards, the bottom stays.
     /// `paarDa`: they are together for real, `paar` (hug, kiss) replaces the two walkers.
+    /// `nacht`: both said good night (p60), the sky is night and the lamp is out, whatever the clock says.
     /// `fest`: a fixed scene without any driver (render board, previews).
     /// p61: `wahl` the room's pieces, `katze` the cat at home (none: no cat), `outfit` opens the outfit
     /// change from the clothes rail and the shoe shelf (none: both just hang there).
     /// `extras` (p63): occasion decoration, sign, shelf and dice, hung in under the figures.
     init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
-         extras: ZimmerExtrasStand? = nil,
+         extras: ZimmerExtrasStand? = nil, nacht: Bool = false,
          fest: ZuhauseSzenenstand? = nil, wahl: ZimmerWahl = .standard, katze: ZuhauseKatze? = nil, outfit: (() -> Void)? = nil,
          wandDinge: @escaping (Tageszeit) -> AnyView = { _ in AnyView(EmptyView()) },
          @ViewBuilder figur: @escaping (ZuhauseFigur) -> Figur, @ViewBuilder paar: @escaping () -> Paar) {
@@ -95,6 +97,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         self.katze = katze
         self.outfit = outfit
         self.extras = extras
+        self.nacht = nacht
         self.fest = fest != nil
         self.figur = figur
         self.paar = paar
@@ -104,13 +107,16 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     private var aktiv: Bool { !fest && sichtbar && scenePhase == .active && !sparmodus && !reduceMotion }
 
+    /// The time of day the room is drawn in: the clock's, or night once both said good night.
+    private var sicht: Tageszeit { nacht ? .nacht : stand.zeit }
+
     var body: some View {
         GeometryReader { geo in
             let s = geo.size.width / ZuhauseZeichnung.breite
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
-                ZuhauseRaumBild(zeit: stand.zeit, wahl: wahl)
-                wandDinge(stand.zeit)
+                ZuhauseRaumBild(zeit: sicht, wahl: wahl)
+                wandDinge(sicht)
                 schatten
                 if let outfit {
                     tippflaeche(ZimmerMoebel.stange, "Kleiderstange, Outfit wechseln", outfit, s, oben)
@@ -132,7 +138,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                     }
                 }
                 .colorMultiply(abdunklung)
-                if stand.zeit.dunkel {
+                if stand.zeit.dunkel && !nacht {
                     ZuhauseLicht(zeit: stand.zeit)
                 }
             }
@@ -153,7 +159,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     /// The dark of evening and night for everything above the room drawing (which darkens itself).
     private var abdunklung: Color {
-        switch stand.zeit {
+        switch sicht {
         case .morgen, .tag: .white
         case .abend: Color(red: 0.84, green: 0.80, blue: 0.86)
         case .nacht: Color(red: 0.60, green: 0.62, blue: 0.74)

@@ -86,6 +86,8 @@ private struct ProfilInhalt: View {
     @State private var tipps = 0
     @State private var nummerFehlt = 0
     @State private var blatt: ProfilBlatt?
+    /// p60: das offene Blatt der Paar-Signale im Zimmer (Stimmung, Brief, Zettel, Geschenkbox).
+    @State private var signale: SignaleBlatt?
     @State private var backdropOffen = false
     /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
     @State private var karteOffen = false
@@ -230,12 +232,14 @@ private struct ProfilInhalt: View {
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
         let zimmer = Zimmer.von(person)
+        // p60: sagen beide Gute Nacht, ist es im Zimmer Nacht; die Signale (Lampe, Brief, Zettel, Box) liegen darüber.
+        let nacht = NachtLogik.gemeinsamDunkel(FigurenModell.shared.gruss, jetzt: Date())
         // p61: the shared room's pieces, the cat (it can be stroked here, once a day each), and in the own
         // profile the clothes rail and the shoe shelf open the outfit change.
         let punkte = PunkteModell.shared
         let katze = ZuhauseKatze(id: ZimmerKatze.id(tiere: Person.allCases.map { FigurenModell.shared.aussehen($0).tier }),
                                  gestreichelt: punkte.katzeGestreichelt(ich), streicheln: { punkte.katzeStreicheln() })
-        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), wahl: ZimmerWahl.aktuell, katze: katze,
+        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), nacht: nacht, wahl: ZimmerWahl.aktuell, katze: katze,
                              outfit: istEigenes ? { figurBearbeitenOffen = true } : nil,
                              wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel)) }) { f in
             buehnenFigur(f)
@@ -247,6 +251,7 @@ private struct ProfilInhalt: View {
         }
         // p62: the room's living objects (wall, shelf, plant, goal); their taps sit on top, small.
         .overlay { ZimmerLebenTippen(zimmer: zimmer, person: person) }
+        .overlay { PaarSignaleEbene(blatt: $signale) }
     }
 
     /// A walker, sitter or sleeper of the home scene: their own look and badges, the state and size
@@ -255,10 +260,18 @@ private struct ProfilInhalt: View {
     private func buehnenFigur(_ f: ZuhauseFigur) -> some View {
         let v = FigurView(FigurenModell.shared.aussehen(f.person), zustand: f.zustand, abzeichen: abzeichen(f.person), groesse: f.groesse,
                           animiert: f.animiert, bildrate: 15, ganzkoerper: f.ganzkoerper)
-        if f.person == ich {
-            v.accessibilityLabel("Deine Figur")
-        } else {
-            v.figurGesten(person: f.person) { FigurenModell.shared.gesteSenden($0) }
+        Group {
+            if f.person == ich {
+                v.accessibilityLabel("Deine Figur")
+            } else {
+                v.figurGesten(person: f.person) { FigurenModell.shared.gesteSenden($0) }
+            }
+        }
+        .overlay(alignment: .top) {
+            // p60: the mood bubble above the head; the sleepers in the bed have none.
+            if f.zustand != .schlaeft {
+                StimmungBlase(person: f.person, figurHoehe: f.groesse, ganzkoerper: f.ganzkoerper) { signale = .stimmung }
+            }
         }
     }
 

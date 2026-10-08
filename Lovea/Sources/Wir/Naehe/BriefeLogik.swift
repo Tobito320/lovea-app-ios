@@ -126,11 +126,12 @@ final class BriefeSpeicher {
     var geschrieben: [Brief] { wer().map { BriefeLogik.geschrieben(stand, ich: $0) } ?? [] }
     var ungeoeffnet: Int { wer().map { BriefeLogik.ungeoeffnet(stand, ich: $0) } ?? 0 }
 
-    /// Neuer Brief. Leerer Titel oder Text (ohne Sprache): nil.
+    /// Neuer Brief. Leerer Titel oder Text (ohne Sprache): nil. `frei`: der Titel steht so da, ohne "Öffne, wenn" (Liebesbrief im Zimmer).
     @discardableResult
-    func schreiben(titel: String, text: String, sprache: String? = nil, dauer: Double? = nil, pegel: [Float]? = nil) -> Brief? {
+    func schreiben(titel: String, text: String, sprache: String? = nil, dauer: Double? = nil, pegel: [Float]? = nil, frei: Bool = false) -> Brief? {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let titel = BriefeLogik.titel(fuer: titel), !t.isEmpty || sprache != nil, let ich = wer() else { return nil }
+        let name: String? = frei ? titel.trimmingCharacters(in: .whitespacesAndNewlines) : BriefeLogik.titel(fuer: titel)
+        guard let titel = name, !titel.isEmpty, !t.isEmpty || sprache != nil, let ich = wer() else { return nil }
         let op = Op.neu(BriefeLogik.artNeu, BriefNeuD(id: "brief-" + UUID().uuidString, titel: titel, text: t, sprache: sprache, dauer: dauer, pegel: pegel), von: ich)
         stand = BriefeLogik.anwenden([op], auf: stand)
         senden(op)
