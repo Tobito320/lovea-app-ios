@@ -177,6 +177,15 @@ struct GymLeisteKnopf: View {
     }
 }
 
+extension View {
+    /// Die Gym-Leiste unter der Navigationsleiste einer Tab-Wurzel (nicht darüber): verdrängt den
+    /// Inhalt, deckt keinen oberen Knopf zu und bleibt ohne Höhe, solange sie nichts zeigt.
+    /// Gehört ans Wurzel-Innere eines `NavigationStack`, nie davor.
+    func gymLeisteOben() -> some View {
+        safeAreaInset(edge: .top, spacing: 0) { GymLeisteView() }
+    }
+}
+
 private extension View {
     func leistenRahmen() -> some View {
         padding(.horizontal, 16)

@@ -415,6 +415,7 @@ struct HeuteView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     kopf
+                    PlantagKarte { pfad.append(HeuteZiel.training) }
                     freitextZeile
                     VStack(spacing: 0) {
                         // Ahmed, 02.10.: die Woche gehört ins Gym. Health zeigt dann immer heute,
@@ -438,6 +439,7 @@ struct HeuteView: View {
                 }
                 .padding(16)
             }
+            .gymLeisteOben()
             .toolbar(.hidden, for: .navigationBar)
             // Ahmed, 01.10.: ohne Navigationsleiste rutschen die Kacheln beim Scrollen unter die
             // Statusleiste/Dynamic Island. Eine Fläche in Hintergrundfarbe deckt das ab.

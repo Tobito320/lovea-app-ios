@@ -22,6 +22,7 @@ struct HomeView: View {
                 }
                 .padding(16)
             }
+            .gymLeisteOben()
             // R6: nur hier (Wurzel des Tabs), nicht auf TagesAnsicht/FrageDesTagesView dahinter.
             .tabWischen(vorheriger: nil, naechster: "chat")
             .navigationTitle("Home")

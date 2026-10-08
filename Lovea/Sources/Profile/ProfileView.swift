@@ -12,6 +12,7 @@ struct ProfileView: View {
     var body: some View {
         NavigationStack {
             ProfilInhalt(person: person, bilanz: bilanz, schliessen: {})
+                .gymLeisteOben()
                 // R6: nur die Profil-Wurzel, nicht Einstellungen dahinter.
                 .tabWischen(vorheriger: "health", naechster: nil)
                 .toolbar {

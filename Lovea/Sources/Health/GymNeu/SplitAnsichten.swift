@@ -75,16 +75,18 @@ struct SplitBibliothekInhalt: View {
     var artWaehlen: (String?) -> Void = { _ in }
     var gefuehrt: () -> Void = {}
     var selbst: () -> Void = {}
+    var frisch: () -> Void = {}
     var waehlen: (SplitVorlage) -> Void = { _ in }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button(action: gefuehrt) { GymPfeilZeile(titel: "Geführt erstellen", unter: "Drei Fragen, dann ein Vorschlag") }.buttonStyle(.plain)
             Divider()
-            Button(action: selbst) {
-                GymPfeilZeile(titel: planLeer ? "Leer anfangen" : "Meinen Plan anpassen", unter: "Tage und Übungen selbst anlegen")
+            Button(action: frisch) { GymPfeilZeile(titel: "Eigenen Split anlegen", unter: "1 bis 6 Tage, jeder mit eigenem Namen") }.buttonStyle(.plain)
+            if !planLeer {
+                Divider()
+                Button(action: selbst) { GymPfeilZeile(titel: "Meinen Plan anpassen", unter: "Tage und Übungen selbst anlegen") }.buttonStyle(.plain)
             }
-            .buttonStyle(.plain)
             Text("FERTIGE SPLITS FÜR \(person.name.uppercased())").font(.caption.weight(.semibold)).foregroundStyle(.secondary).padding(.top, 22)
             chips
             liste
@@ -154,7 +156,7 @@ struct SplitBibliothekInhalt: View {
 }
 
 private enum SplitZiel: Hashable {
-    case gefuehrt, editor
+    case gefuehrt, editor, frisch
     case vorschau(String)
 }
 
@@ -188,7 +190,7 @@ struct SplitBibliothekView: View {
                     Haptik.auswahl()
                     withAnimation(Feder.schnell) { art = a }
                 },
-                gefuehrt: { ziel = .gefuehrt }, selbst: { ziel = .editor }, waehlen: { ziel = .vorschau($0.id) }
+                gefuehrt: { ziel = .gefuehrt }, selbst: { ziel = .editor }, frisch: { ziel = .frisch }, waehlen: { ziel = .vorschau($0.id) }
             )
             .padding(.horizontal, 18)
             .padding(.bottom, 28)
@@ -204,6 +206,7 @@ struct SplitBibliothekView: View {
         switch z {
         case .gefuehrt: SplitGefuehrtView(person: person, fertig: fertig)
         case .editor: SplitEditorView(start: nil)
+        case .frisch: SplitFreiView { ziel = .editor }
         case .vorschau(let id):
             if let v = SplitKatalog.alle.first(where: { $0.id == id }) { SplitVorschauView(vorlage: v, fertig: fertig) }
         }

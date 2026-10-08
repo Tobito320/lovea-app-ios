@@ -102,11 +102,9 @@ struct AppRootView: View {
         // top — stacked in one overlay so a banner pushes the player down instead of covering it.
         // Those two are meant to float briefly over content (capsules with their own top padding).
         .overlay(alignment: .top) { topOverlay }
-        // R7 (Review): die Gym-Leiste ist dagegen dauerhaft/oft sichtbar und soll Navigationstitel
-        // (Home, Chat, …) nicht verdecken — darum `safeAreaInset` statt `overlay`, wie
-        // `SyncStatusZeile` in `ChatTab.swift`: verdrängt den Inhalt, statt ihn zu überdecken, und
-        // bleibt leer (keine Höhe), wenn `GymLeisteView` gerade nichts zeigt.
-        .safeAreaInset(edge: .top, spacing: 0) { GymLeisteView() }
+        // Die Gym-Leiste hängt nicht mehr hier: ein `safeAreaInset` außerhalb der Stapel lag über
+        // der Navigationsleiste (Einstellungen, Zurück). Sie sitzt jetzt in jeder Tab-Wurzel unter
+        // der Leiste (`gymLeisteOben`: Home, Zeichnen, Health, Profil).
         // Eingeklappt (seitlich weggewischt): kleiner Knopf am Rand, mittig in der Höhe.
         .overlay(alignment: .center) { GymLeisteKnopf() }
     }
