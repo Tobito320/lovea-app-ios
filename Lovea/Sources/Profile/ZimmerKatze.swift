@@ -20,13 +20,15 @@ enum ZimmerKatze {
     static let standardId = "tier.katze-schwarz"
     /// On the blanket at the right end of the bed.
     static let bettOrt = CGPoint(x: 140, y: 312)
+    /// Wave 3 (I7): Ahmeds side of the bed, the left end of the blanket. Annika's side is `bettOrt`.
+    static let bettOrtLinks = CGPoint(x: bettOrt.x - 96, y: bettOrt.y)
 
     static func id(tiere: [String?]) -> String {
         tiere.compactMap { $0 }.first { $0.hasPrefix("tier.katze") } ?? standardId
     }
 
-    static func szene(zeit: Tageszeit, annika: Platz, welt: ProfilWelt = .einzel) -> KatzenSzene {
-        let schlaf = KatzenSzene(zustand: .schlaeft, ort: bettOrt, nachRechts: false)
+    static func szene(zeit: Tageszeit, annika: Platz, welt: ProfilWelt = .einzel, ahmedsSeite: Bool = false) -> KatzenSzene {
+        let schlaf = KatzenSzene(zustand: .schlaeft, ort: ahmedsSeite ? bettOrtLinks : bettOrt, nachRechts: ahmedsSeite)
         guard !zeit.dunkel else { return schlaf }
         switch annika {
         case .bett, .sofa:

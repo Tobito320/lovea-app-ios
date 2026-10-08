@@ -321,7 +321,9 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private func katzeSicht(_ k: ZuhauseKatze, _ s: CGFloat, _ oben: CGFloat) -> some View {
         // p70: Annika asleep in bed (offline) is at the bed for the cat, too.
         let annikaImBett = offlineSchlaefer == .annika
-        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: annikaImBett ? .bett : stand.annika, welt: welt)
+        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: annikaImBett ? .bett : stand.annika, welt: welt,
+                                       ahmedsSeite: ZimmerNaeheLogik.katzeBeiAhmed(ich: Raum.shared.ich ?? .ahmed, partnerDa: Raum.shared.partnerDa,
+                                                                          partnerZuletzt: FigurenModell.shared.partnerZuletztGesehen[(Raum.shared.ich ?? .ahmed).partner], jetzt: Date()))
         let wuenscht = ZimmerKatze.wuenscht(szene.zustand, gestreichelt: k.gestreichelt)
         // p70 (44): feeding and mood come from the points model; the fixed boards show a content cat as before.
         let punkte = PunkteModell.shared
