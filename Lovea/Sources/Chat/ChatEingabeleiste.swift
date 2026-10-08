@@ -195,6 +195,28 @@ struct ChatEingabeleiste: View {
         plusOffen = false
     }
 
+    /// Foto-Anhang im Editor. Das Cover-Closure läuft bei jeder Änderung der Leiste neu: dort
+    /// `UIImage(data:)` hieß, bei jedem Tippen ein neues Bild (neue Identität, jedes Mal neu dekodiert,
+    /// Editor ruckelt). Hier wird das Bild einmal gebaut und bleibt.
+    private struct AnhangEditor: View {
+        let daten: Data
+        let ich: Person
+        let onFertig: () -> Void
+        let onUebernehmen: (Data) -> Void
+        @State private var bild: UIImage?
+
+        var body: some View {
+            Group {
+                if let bild {
+                    SnapEditor(inhalt: .foto(bild), ich: ich, antwortAuf: nil, onFertig: onFertig, onUebernehmen: onUebernehmen)
+                } else {
+                    Color.black.ignoresSafeArea()
+                }
+            }
+            .task { if bild == nil { bild = UIImage(data: daten) } }
+        }
+    }
+
     /// Every sheet and cover of the input bar (split out of `body` for the type checker).
     private struct Blaetter: ViewModifier {
         let ich: Person
@@ -216,9 +238,9 @@ struct ChatEingabeleiste: View {
                     }
                 }
                 .fullScreenCover(item: $bearbeiten) { anhang in
-                    if case .foto(let daten) = anhang.inhalt, let bild = UIImage(data: daten) {
-                        SnapEditor(
-                            inhalt: .foto(bild), ich: ich, antwortAuf: nil,
+                    if case .foto(let daten) = anhang.inhalt {
+                        AnhangEditor(
+                            daten: daten, ich: ich,
                             onFertig: { bearbeiten = nil },
                             onUebernehmen: { jpeg in onErsetzen(anhang.id, jpeg) }
                         )

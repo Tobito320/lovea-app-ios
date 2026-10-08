@@ -10,6 +10,20 @@ enum SnapElementRechnung {
     static func imBild(_ x: CGFloat, _ y: CGFloat) -> CGPoint {
         CGPoint(x: min(max(0, x), 1), y: min(max(0, y), 1))
     }
+
+    /// Schatten als Bruchteil der Inhaltsbreite (3 pt bei 390 pt): ein fester Wert war im Export
+    /// bei 2048 px kaum zu sehen, der Text sah dort anders aus als im Editor.
+    static func schattenRadius(breite: CGFloat) -> CGFloat { breite * 0.008 }
+
+    /// Tippfläche des Löschen-x (Apple HIG: mindestens 44 pt); sichtbar bleibt der kleine Kreis.
+    static let loeschenZiel: CGFloat = 44
+
+    /// Ein Zug, der unter der Tippgrenze blieb, ist ein Antippen, kein Verschieben. Auf einem schon
+    /// markierten Element zählt er (Text: Bearbeiten öffnen); war es noch nicht markiert, hat der
+    /// Zugbeginn es markiert, ein zweiter Aufruf würde den Texteditor sofort öffnen.
+    static func zaehltAlsAntippen(verschiebung: CGSize, warAusgewaehlt: Bool) -> Bool {
+        warAusgewaehlt && SnapTextPlatz.istTippen(verschiebung)
+    }
 }
 
 /// Dieselbe View für die Live-Vorschau und `SnapUeberlagerung` im Export. `breite` ist die Breite
@@ -22,7 +36,7 @@ struct SnapTextAnzeige: View {
         Text(text.text)
             .font(.system(size: breite * 0.07 * text.skala, weight: .bold))
             .foregroundStyle(text.farbe)
-            .shadow(radius: 3)
+            .shadow(radius: SnapElementRechnung.schattenRadius(breite: breite))
     }
 }
 
@@ -41,6 +55,7 @@ struct SnapElementHuelle<Inhalt: View>: View {
     @ViewBuilder let inhalt: () -> Inhalt
 
     @State private var ziehStart: CGPoint?
+    @State private var warAusgewaehlt = false
     @State private var skalaStart: CGFloat?
     @State private var winkelStart: Double?
 
@@ -74,8 +89,10 @@ struct SnapElementHuelle<Inhalt: View>: View {
                                     .foregroundStyle(.black)
                                     .frame(width: 26, height: 26)
                                     .background(Color.white, in: Circle())
+                                    .frame(width: SnapElementRechnung.loeschenZiel, height: SnapElementRechnung.loeschenZiel)
+                                    .contentShape(Circle())
                             }
-                            .offset(x: -13, y: -13)
+                            .offset(x: -SnapElementRechnung.loeschenZiel / 2, y: -SnapElementRechnung.loeschenZiel / 2)
                             .accessibilityLabel("Löschen")
                         }
                 }
@@ -90,6 +107,7 @@ struct SnapElementHuelle<Inhalt: View>: View {
             .onChanged { wert in
                 if ziehStart == nil {
                     ziehStart = CGPoint(x: x, y: y)
+                    warAusgewaehlt = ausgewaehlt
                     if !ausgewaehlt { onAntippen() }
                 }
                 guard let start = ziehStart, groesse.width > 0, groesse.height > 0 else { return }
@@ -97,6 +115,15 @@ struct SnapElementHuelle<Inhalt: View>: View {
                 x = neu.x
                 y = neu.y
             }
-            .onEnded { _ in ziehStart = nil }
+            .onEnded { wert in
+                // Die 2-pt-Schwelle schluckt jedes Antippen mit etwas Zittern: dann bleibt das
+                // Element liegen und der Zug gilt als Antippen (sonst ging "Text antippen = bearbeiten" nur mit ruhigem Finger).
+                if let start = ziehStart, SnapTextPlatz.istTippen(wert.translation) {
+                    x = start.x
+                    y = start.y
+                }
+                if SnapElementRechnung.zaehltAlsAntippen(verschiebung: wert.translation, warAusgewaehlt: warAusgewaehlt) { onAntippen() }
+                ziehStart = nil
+            }
     }
 }
