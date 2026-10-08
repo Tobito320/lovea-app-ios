@@ -7,8 +7,8 @@ import Observation
 struct Zug: Codable, Sendable, Equatable {
     var id: String
     var partie = 0
-    var zuege: [Int] = []           // XO cells, SSP hands, Memory flips, Duell word picks, Kennen answers, Reaktion ms
-    var texte: [String]?            // Memory motifs, chosen by the inviter
+    var zuege: [Int] = []           // XO cells, SSP hands, Memory flips, Duell word picks, Kennen answers, Reaktion ms, Eher answers (0 Ahmed, 1 Annika), Wordle ms per guess
+    var texte: [String]?            // Memory motifs, chosen by the inviter; Wordle guesses
     var fragen: [KennenFrage]?      // Kennen questions, chosen by the one asked
     var raus: Bool?                 // left the game
 }
@@ -50,6 +50,8 @@ final class SpieleModell {
         var nachrichtId: String?
         var bilder: [Int: [Person: String]] = [:]      // runde → person → medienId
         var stimmen: [Int: [Person: Person]] = [:]     // runde → voter → voted for
+        var flotten: [Int: [Person: [Schiff]]] = [:]   // Schiffe: partie → person → fleet
+        var schuesse: [Int: [Person: [Int: Int]]] = [:] // Schiffe: partie → person → shot number → cell
         var ergebnis: Ergebnis?
 
         func wartet(jetzt: Date = Date()) -> Bool {
@@ -72,7 +74,7 @@ final class SpieleModell {
 
     static let arten: Set<String> = [
         "spiel.einladung", "spiel.angenommen", "spiel.verfallen", "spiel.abgebrochen", "spiel.bild", "spiel.stimme",
-        "spiel.ergebnis", "nachricht.neu", "einstellung.setzen",
+        "spiel.ergebnis", "spiel.flotte", "spiel.schuss", "nachricht.neu", "einstellung.setzen",
     ]
 
     init(registrieren: Bool = true) {
@@ -114,6 +116,16 @@ final class SpieleModell {
         case "spiel.stimme":
             guard let d = op.daten(SpielStimmeD.self) else { return }
             spiele[d.id]?.stimmen[d.runde, default: [:]][op.von] = d.fuer
+        case "spiel.flotte":
+            // Schiffe: the first valid fleet of a person per round counts.
+            guard let d = op.daten(SpielFlotteD.self), spiele[d.id]?.art == .schiffe, Schiffe.gueltig(d.schiffe),
+                  spiele[d.id]?.flotten[d.partie]?[op.von] == nil else { return }
+            spiele[d.id]?.flotten[d.partie, default: [:]][op.von] = d.schiffe
+        case "spiel.schuss":
+            // Schiffe: shot number `nr` of a person, first one wins (a double tap sends the same nr twice).
+            guard let d = op.daten(SpielSchussD.self), spiele[d.id]?.art == .schiffe, d.nr >= 0, (0..<Schiffe.felder).contains(d.zelle),
+                  spiele[d.id]?.schuesse[d.partie]?[op.von]?[d.nr] == nil else { return }
+            spiele[d.id]?.schuesse[d.partie, default: [:]][op.von, default: [:]][d.nr] = d.zelle
         case "spiel.ergebnis":
             guard let d = op.daten(SpielErgebnisD.self), spiele[d.id] != nil else { return }
             if (spiele[d.id]?.ergebnis?.gespielt ?? -1) < d.gespielt {
@@ -210,6 +222,16 @@ final class SpieleModell {
         Raum.shared.senden("spiel.ergebnis", SpielErgebnisD(id: spielId, gespielt: partie + 1, punkte: basis.punkte + punkte))
     }
 
+    /// Schiffe: send my fleet for this round. Stored like any op, so the game survives restarts.
+    func flotteSenden(_ spielId: String, partie: Int, schiffe: [Schiff]) {
+        Raum.shared.senden("spiel.flotte", SpielFlotteD(id: spielId, partie: partie, schiffe: schiffe))
+    }
+
+    /// Schiffe: my shot number `nr` of this round.
+    func schiessen(_ spielId: String, partie: Int, nr: Int, zelle: Int) {
+        Raum.shared.senden("spiel.schuss", SpielSchussD(id: spielId, partie: partie, nr: nr, zelle: zelle))
+    }
+
     static let woerterSchluessel = "duellWoerter"
 
     func eigeneWoerterSetzen(_ woerter: [String]) {
@@ -275,6 +297,8 @@ struct SpielEinladungD: Codable { var id: String; var art: String; var einstellu
 private struct SpielIdD: Codable { var id: String }
 struct SpielBildD: Codable { var id: String; var runde: Int; var medienId: String }
 struct SpielStimmeD: Codable { var id: String; var runde: Int; var fuer: Person }
+struct SpielFlotteD: Codable { var id: String; var partie: Int; var schiffe: [Schiff] }
+struct SpielSchussD: Codable { var id: String; var partie: Int; var nr: Int; var zelle: Int }
 struct SpielErgebnisD: Codable { var id: String; var gespielt: Int; var punkte: SpielPunkte }
 private struct SpielNachrichtD: Codable { var id: String; var spiel: ChatModell.SpielInfo? }
 private struct SpielWoerterD: Codable { var schluessel: String; var wert: [String]? }

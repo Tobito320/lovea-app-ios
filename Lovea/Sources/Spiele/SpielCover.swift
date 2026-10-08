@@ -33,6 +33,9 @@ struct SpielCover: View {
         case .kennen: kennen(s)
         case .reaktion: reaktion(s)
         case .memory: memory(s)
+        case .eher: eher(s)
+        case .wordle: wordle(s)
+        case .schiffe: schiffe(s)
         }
     }
 
@@ -124,6 +127,54 @@ struct SpielCover: View {
         }
     }
 
+    /// Both heads under a heart, a question bubble above.
+    private func eher(_ s: CGFloat) -> some View {
+        ZStack {
+            FigurKopf(person: ich, groesse: s * 0.34).offset(x: -s * 0.19, y: s * 0.2)
+            FigurKopf(person: partner, groesse: s * 0.34).offset(x: s * 0.19, y: s * 0.2)
+            symbol("heart.fill", s * 0.2).offset(y: s * 0.2)
+            symbol("hand.point.up.left.fill", s * 0.24).offset(y: -s * 0.2)
+        }
+    }
+
+    /// Five letter tiles in the three Wordle colours.
+    private func wordle(_ s: CGFloat) -> some View {
+        let farben: [Color] = [
+            Color(red: 0.33, green: 0.65, blue: 0.38), Color(red: 0.85, green: 0.66, blue: 0.2),
+            Color(red: 0.36, green: 0.37, blue: 0.4), Color(red: 0.33, green: 0.65, blue: 0.38),
+            Color(red: 0.85, green: 0.66, blue: 0.2),
+        ]
+        let buchstaben = Array("LIEBE")
+        let kachel = s * 0.15
+        return VStack(spacing: s * 0.03) {
+            ForEach(0..<2, id: \.self) { reihe in
+                HStack(spacing: s * 0.03) {
+                    ForEach(0..<5, id: \.self) { i in
+                        RoundedRectangle(cornerRadius: s * 0.025, style: .continuous)
+                            .fill(reihe == 0 ? farben[(i + 2) % 5] : farben[i])
+                            .frame(width: kachel, height: kachel)
+                            .overlay(
+                                Text(reihe == 0 ? "" : String(buchstaben[i]))
+                                    .font(.system(size: kachel * 0.6, weight: .heavy, design: .rounded))
+                                    .foregroundStyle(.white)
+                            )
+                            .shadow(color: .black.opacity(0.15), radius: s * 0.01, y: s * 0.008)
+                    }
+                }
+            }
+        }
+    }
+
+    /// A ship with a wake on the water and a hit marker.
+    private func schiffe(_ s: CGFloat) -> some View {
+        ZStack {
+            Capsule().fill(.white.opacity(0.25)).frame(width: s * 0.7, height: s * 0.07).offset(y: s * 0.27)
+            Capsule().fill(.white.opacity(0.15)).frame(width: s * 0.5, height: s * 0.05).offset(y: s * 0.35)
+            symbol("ferry.fill", s * 0.42).offset(y: s * 0.03)
+            symbol("scope", s * 0.2, Color(red: 1, green: 0.85, blue: 0.4)).offset(x: s * 0.22, y: -s * 0.24)
+        }
+    }
+
     private func karte<Inhalt: View>(_ s: CGFloat, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
         RoundedRectangle(cornerRadius: s * 0.05, style: .continuous)
             .fill(.white)
@@ -142,6 +193,9 @@ extension SpielArt {
         case .kennen: [Color(red: 1, green: 0.42, blue: 0.6), Color(red: 0.6, green: 0.34, blue: 0.94)]
         case .reaktion: [Color(red: 1, green: 0.8, blue: 0.2), Color(red: 0.98, green: 0.44, blue: 0.2)]
         case .memory: [Color(red: 0.36, green: 0.84, blue: 0.94), Color(red: 0.3, green: 0.48, blue: 0.95)]
+        case .eher: [Color(red: 0.98, green: 0.45, blue: 0.55), Color(red: 0.95, green: 0.62, blue: 0.3)]
+        case .wordle: [Color(red: 0.22, green: 0.25, blue: 0.34), Color(red: 0.12, green: 0.14, blue: 0.22)]
+        case .schiffe: [Color(red: 0.15, green: 0.5, blue: 0.75), Color(red: 0.05, green: 0.25, blue: 0.5)]
         }
     }
 }
