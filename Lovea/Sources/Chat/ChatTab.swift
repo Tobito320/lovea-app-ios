@@ -589,9 +589,14 @@ private struct NachrichtenListe: View {
             .onScrollGeometryChange(for: ListenLage.self) { geo in
                 ListenLage(
                     sichtbar: geo.containerSize.height - geo.contentInsets.top - geo.contentInsets.bottom,
-                    amEnde: geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24
+                    amEnde: geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24,
+                    nahOben: ListenNachladen.nahOben(abstandOben: geo.contentOffset.y + geo.contentInsets.top)
                 )
             } action: { alt, neu in
+                // Scrolling up: the next page of older messages loads before the top is reached.
+                if ListenNachladen.sollMehr(warNahOben: alt.nahOben, istNahOben: neu.nahOben, nochAelteres: modell.nachrichten.count > fenster.anzahl) {
+                    aeltereLaden(proxy: proxy)
+                }
                 guard ListenAutoScroll.sollNachUntenSpringen(
                     sichtbarGeaendert: alt.sichtbar != neu.sichtbar, warAmEnde: alt.amEnde, nutzerZiehtGerade: nutzerZiehtGerade
                 ), zielID == nil, let letzte = modell.nachrichten.last?.id else { return }
@@ -658,6 +663,17 @@ private struct NachrichtenListe: View {
         return Raum.shared.verbunden ? nil : "Wartet auf Netz"
     }
 
+    /// One more page above, then the list is put back on the row that was on top, so the view does
+    /// not jump when rows appear above it.
+    private func aeltereLaden(proxy: ScrollViewProxy) {
+        guard let anker = ChatStapel.gruppieren(Array(modell.nachrichten.suffix(fenster.anzahl))).first?.id else { return }
+        fenster.mehr(modell, leise: true)
+        Task {
+            try? await Task.sleep(for: .milliseconds(60)) // let the widened window lay out first
+            proxy.scrollTo(anker, anchor: .top)
+        }
+    }
+
     /// Target may sit inside a stack (keyed by its first message) or above the loaded window.
     private func springen(zu id: String, proxy: ScrollViewProxy) {
         let alle = modell.nachrichten
@@ -683,6 +699,7 @@ private struct NachrichtenListe: View {
 private struct ListenLage: Equatable {
     let sichtbar: CGFloat
     let amEnde: Bool
+    let nahOben: Bool
 }
 
 /// How many of the newest messages the list builds; grows by one page per pull at the top.
@@ -692,9 +709,9 @@ final class ChatListenFenster {
     static let seite = 150
     var anzahl = ChatListenFenster.seite
 
-    func mehr(_ modell: ChatModell) {
+    func mehr(_ modell: ChatModell, leise: Bool = false) {
         guard modell.nachrichten.count > anzahl else { return }
         anzahl += Self.seite
-        Haptik.leicht()
+        if !leise { Haptik.leicht() }
     }
 }
