@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
 # Builds Lovea/Sources/Health/uebungen.json: [{id, name (de), en, muskel, koerper, geraet, neben}] from
 # tools/uebungen-roh.json (ExerciseDB rows) and tools/uebungen-namen-de.json ({id: German name}).
+# tools/uebungen-zusatz.json adds own entries (id "lv-...", no GIF, see UebungsKatalog.hatVideo).
 # Only exercises whose GIF was found by uebungen-laden.sh in tools/gifs/ (ExerciseDB has none for 176 ids).
 set -euo pipefail
 hier="$(cd "$(dirname "$0")" && pwd)"
 mit="$(ls "$hier/gifs" | sed -n 's/\.gif$//p' | tr -d '\r' | jq -R . | jq -s 'map({(.): true}) | add // {}')"
-jq --slurpfile de "$hier/uebungen-namen-de.json" --argjson mit "$mit" '
+jq --slurpfile de "$hier/uebungen-namen-de.json" --slurpfile zusatz "$hier/uebungen-zusatz.json" --argjson mit "$mit" '
   def t: {
     "back":"Rücken","cardio":"Cardio","chest":"Brust","lower arms":"Unterarme","lower legs":"Waden","neck":"Nacken",
     "shoulders":"Schultern","upper arms":"Arme","upper legs":"Beine","waist":"Bauch",
@@ -36,6 +37,6 @@ jq --slurpfile de "$hier/uebungen-namen-de.json" --argjson mit "$mit" '
       koerper: de(.bodyParts[0] // ""),
       geraet: de(.equipments[0] // ""),
       neben: ([.secondaryMuscles[] | de(.)] | unique)
-    } ] | sort_by(.name)
+    } ] + $zusatz[0] | sort_by(.name)
 ' "$hier/uebungen-roh.json" > "$hier/../Lovea/Sources/Health/uebungen.json"
 echo "uebungen.json: $(jq length "$hier/../Lovea/Sources/Health/uebungen.json") Eintraege"

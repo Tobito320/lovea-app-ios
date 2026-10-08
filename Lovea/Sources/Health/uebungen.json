@@ -1224,6 +1224,19 @@
     ]
   },
   {
+    "id": "lv-beinpresse-sitzend",
+    "name": "Beinpresse sitzend an der Maschine",
+    "en": "lever seated leg press",
+    "muskel": "Quadrizeps",
+    "koerper": "Beine",
+    "geraet": "Maschine",
+    "neben": [
+      "Beinbeuger",
+      "Po",
+      "Waden"
+    ]
+  },
+  {
     "id": "V07qpXy",
     "name": "Beinpresse wechselseitig an der Maschine",
     "en": "lever alternate leg press",
@@ -2096,6 +2109,32 @@
       "Quadrizeps",
       "Schultern",
       "Trizeps"
+    ]
+  },
+  {
+    "id": "lv-bulgarisch-multipresse",
+    "name": "Bulgarische Kniebeuge an der Multipresse",
+    "en": "smith bulgarian split squat",
+    "muskel": "Quadrizeps",
+    "koerper": "Beine",
+    "geraet": "Multipresse",
+    "neben": [
+      "Beinbeuger",
+      "Po",
+      "Waden"
+    ]
+  },
+  {
+    "id": "lv-bulgarisch-kurzhantel",
+    "name": "Bulgarische Kniebeuge mit Kurzhanteln",
+    "en": "dumbbell bulgarian split squat",
+    "muskel": "Quadrizeps",
+    "koerper": "Beine",
+    "geraet": "Kurzhantel",
+    "neben": [
+      "Beinbeuger",
+      "Po",
+      "Waden"
     ]
   },
   {
@@ -3962,6 +4001,19 @@
     ]
   },
   {
+    "id": "lv-face-pull",
+    "name": "Face Pull am Kabelzug",
+    "en": "cable face pull",
+    "muskel": "Schultern",
+    "koerper": "Schultern",
+    "geraet": "Kabelzug",
+    "neben": [
+      "Rotatorenmanschette",
+      "Trapez",
+      "oberer Rücken"
+    ]
+  },
+  {
     "id": "tZkGYZ9",
     "name": "Fahrrad-Crunches mit Band",
     "en": "band bicycle crunch",
@@ -4885,6 +4937,28 @@
       "Bizeps",
       "Rautenmuskel",
       "hintere Schulter"
+    ]
+  },
+  {
+    "id": "lv-kickback-kabel",
+    "name": "Glute Kickback am Kabelzug",
+    "en": "cable glute kickback",
+    "muskel": "Po",
+    "koerper": "Beine",
+    "geraet": "Kabelzug",
+    "neben": [
+      "Beinbeuger"
+    ]
+  },
+  {
+    "id": "lv-kickback-maschine",
+    "name": "Glute Kickback an der Maschine",
+    "en": "machine glute kickback",
+    "muskel": "Po",
+    "koerper": "Beine",
+    "geraet": "Maschine",
+    "neben": [
+      "Beinbeuger"
     ]
   },
   {
@@ -5845,12 +5919,36 @@
     ]
   },
   {
+    "id": "lv-hip-thrust-maschine",
+    "name": "Hip Thrust an der Maschine",
+    "en": "machine hip thrust",
+    "muskel": "Po",
+    "koerper": "Beine",
+    "geraet": "Maschine",
+    "neben": [
+      "Beinbeuger",
+      "Quadrizeps"
+    ]
+  },
+  {
     "id": "Pjbc0Kt",
     "name": "Hip Thrust kniend mit Band",
     "en": "resistance band hip thrusts on knees (female)",
     "muskel": "Po",
     "koerper": "Beine",
     "geraet": "Widerstandsband",
+    "neben": [
+      "Beinbeuger",
+      "Quadrizeps"
+    ]
+  },
+  {
+    "id": "lv-hip-thrust-kurzhantel",
+    "name": "Hip Thrust mit Kurzhantel",
+    "en": "dumbbell hip thrust",
+    "muskel": "Po",
+    "koerper": "Beine",
+    "geraet": "Kurzhantel",
     "neben": [
       "Beinbeuger",
       "Quadrizeps"
@@ -5953,6 +6051,18 @@
     "neben": [
       "Schultern",
       "seitlicher Bauch"
+    ]
+  },
+  {
+    "id": "lv-hyperextension-45",
+    "name": "Hyperextension an der 45°-Bank",
+    "en": "45 degree hyperextension",
+    "muskel": "Rückenstrecker",
+    "koerper": "Rücken",
+    "geraet": "Körpergewicht",
+    "neben": [
+      "Po",
+      "Beinbeuger"
     ]
   },
   {

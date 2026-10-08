@@ -21,14 +21,12 @@ struct Uebung: Codable, Identifiable, Sendable, Equatable {
     var istCardio: Bool { koerper == "Cardio" }
 }
 
-/// The catalog: 1,324 exercises, each with a 180p GIF at ExerciseDB (`UebungsMedien`), searchable
+/// The catalog: 1,324 ExerciseDB exercises plus own ones (`tools/uebungen-zusatz.json`), each with a 180p GIF at ExerciseDB (`UebungsMedien`), searchable
 /// in German and English.
 enum UebungsKatalog {
     static let alle: [Uebung] = laden(.main)
     static let nachId: [String: Uebung] = Dictionary(alle.map { ($0.id, $0) }, uniquingKeysWith: { erste, _ in erste })
     static let koerperteile: [String] = Array(Set(alle.map(\.koerper))).sorted()
-    /// Normalized search text per id, computed once.
-    private static let suchtexte: [String: String] = Dictionary(alle.map { ($0.id, suchtext($0)) }, uniquingKeysWith: { erste, _ in erste })
 
     static func laden(_ bundle: Bundle) -> [Uebung] {
         guard let url = bundle.url(forResource: "uebungen", withExtension: "json")
@@ -50,22 +48,24 @@ enum UebungsKatalog {
             .replacingOccurrences(of: "-", with: " ")
     }
 
-    /// Every word must appear in name, English name, muscle, equipment or body part. Names starting
-    /// with the first word come first, then shorter names. Empty text: everything by name.
-    static func suchen(_ text: String, in liste: [Uebung] = alle) -> [Uebung] {
-        let woerter = normal(text).split(separator: " ").map(String.init)
-        guard let erstes = woerter.first else { return liste.sorted { $0.name < $1.name } }
-        let treffer = liste.filter { u in
-            let s = suchtexte[u.id] ?? suchtext(u)
-            return woerter.allSatisfy { s.contains($0) }
-        }
-        return treffer.sorted { a, b in
-            let vornA = normal(a.name).hasPrefix(erstes), vornB = normal(b.name).hasPrefix(erstes)
-            if vornA != vornB { return vornA }
-            if a.name.count != b.name.count { return a.name.count < b.name.count }
-            return a.name < b.name
-        }
+    /// Standard im Studio: Freihanteln (Kurz-, Langhantel, SZ-Stange, Trap-Bar) und Maschinen (Kabelzug, Multipresse,
+    /// Beinpresse-Schlitten). Band, Kettlebell, Körpergewicht usw. stehen hinter dem Gerät-Filter.
+    static let standardGeraete: Set<String> = [
+        "Kurzhantel", "Langhantel", "SZ-Stange", "Olympia-Langhantel", "Trap-Bar",
+        "Maschine", "Kabelzug", "Multipresse", "Schlitten",
+    ]
+    /// Filterwert "kein Gerätefilter" (nil heißt Standard: `standardGeraete`).
+    static let alleGeraete = "Alle Geräte"
+    static let standardTitel = "Hanteln & Maschinen"
+
+    /// nil = Standard, `alleGeraete` = alles, sonst genau dieses Gerät.
+    static func passtGeraet(_ u: Uebung, wahl: String?) -> Bool {
+        guard let wahl else { return standardGeraete.contains(u.geraet) }
+        return wahl == alleGeraete || u.geraet == wahl
     }
+
+    /// Eigene Einträge (id "lv-…", `tools/uebungen-zusatz.json`) haben kein Video bei ExerciseDB.
+    static func hatVideo(_ id: String) -> Bool { !id.hasPrefix("lv-") }
 
     /// Gängige Studio-Übungen (ExerciseDB-ids), oben als Vorschläge und bei Alternativen zuerst.
     // ponytail: feste Liste statt Beliebtheit aus Daten; erweitern, wenn eine Kategorie zu dünn ist.
@@ -78,7 +78,7 @@ enum UebungsKatalog {
         "25GPyDY", "slDvUAU", "ae9UoXQ", "3ZflifB", "gAwDzB3", "kont8Ut",                         // Arme
         "TFqbd8t", "I3tsCnC", "WW95auq", "a8VDgLw",                                               // Bauch, Cardio
     ]
-    private static let beliebtRang: [String: Int] = Dictionary(beliebt.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+    static let beliebtRang: [String: Int] = Dictionary(beliebt.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
 
     /// Die zuletzt gemachten Katalog-Übungen: neueste Einheit zuerst, darin die zuletzt gemachte zuerst,
     /// ohne Doppelte. Nur Übungen mit gezählten Sätzen.
@@ -124,9 +124,6 @@ enum UebungsKatalog {
         }
     }
 
-    private static func suchtext(_ u: Uebung) -> String {
-        normal("\(u.name) \(u.en) \(u.muskel) \(u.geraet) \(u.koerper)")
-    }
 }
 
 /// The exercise GIFs are not bundled (they belong to ExerciseDB and the repo can be public): each
@@ -141,6 +138,7 @@ enum UebungsMedien {
     /// The local GIF, downloaded first if needed; nil offline without a copy (or an unknown id).
     // ponytail: Caches may be purged by iOS under storage pressure; the next view or `vorladen` fetches again.
     static func datei(_ id: String) async -> URL? {
+        guard UebungsKatalog.hatVideo(id) else { return nil }
         let ziel = lokal(id)
         if FileManager.default.fileExists(atPath: ziel.path) { return ziel }
         guard let (daten, antwort) = try? await URLSession.shared.data(from: quelle.appending(path: "\(id).gif")),
