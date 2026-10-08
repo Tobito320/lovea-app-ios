@@ -451,9 +451,15 @@ test("Fehler: Netzfehler und Fehlermeldung mit Schlüssel -> 502 ohne Schlüssel
 test("Fehler: Zeitlimit -> 502", async () => {
   const fetchFn = (url, init) =>
     new Promise((_, reject) => init.signal.addEventListener("abort", () => reject(init.signal.reason ?? new Error("abgebrochen"))));
-  const r = await frage(db(), "Hi", { fetchFn, zeitlimitMs: 20 });
-  assert.equal(r.status, 502);
-  assert.equal(typeof r.body.fehler, "string");
+  // AbortSignal.timeout hält die Event-Loop nicht offen (Node 22: Test hängt "pending"); der Timer hält sie.
+  const halten = setTimeout(() => {}, 2000);
+  try {
+    const r = await frage(db(), "Hi", { fetchFn, zeitlimitMs: 20 });
+    assert.equal(r.status, 502);
+    assert.equal(typeof r.body.fehler, "string");
+  } finally {
+    clearTimeout(halten);
+  }
 });
 
 test("Fehler: Fehler beim Bauen des Kontexts (Katalog kaputt) -> 502 ohne Fehlertext und Schlüssel, kein Modellaufruf, nichts gespeichert", async () => {
