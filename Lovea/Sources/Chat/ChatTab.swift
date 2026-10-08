@@ -506,14 +506,14 @@ private struct ChatSuchleiste: View {
 }
 
 /// Message history (Z-4.2): date separators, time groups, photo stacks, anchored to the bottom.
-/// Shows the newest `anzahl` messages; pulling down at the top (or the button there) loads older ones.
+/// The whole local history is one lazy list (rows are built only when they come near the screen), so
+/// scrolling up never hits a page border, button or jump.
 private struct NachrichtenListe: View {
     let modell: ChatModell
     let ich: Person
     @Binding var zielID: String?
     let aktionen: ChatZeilenAktionen
 
-    @State private var fenster = ChatListenFenster()
     @State private var hervorID: String?
     // R7: true while the user is actively dragging the list — including an interactive keyboard
     // dismiss, which is the same drag. See `ListenAutoScroll`.
@@ -521,17 +521,14 @@ private struct NachrichtenListe: View {
 
     var body: some View {
         let alle = modell.nachrichten
-        let sichtbar = Array(alle.suffix(fenster.anzahl))
-        let vorFenster = alle.count > sichtbar.count ? alle[alle.count - sichtbar.count - 1] : nil
-        let gruppen = ChatStapel.gruppieren(sichtbar)
+        let gruppen = ChatStapel.gruppieren(alle)
         // Once per render, not one backwards scan per built row (Z-16.2, 10,000 messages).
         let status = LeseStatus(nachrichten: alle, ich: ich, gelesenBisPartner: modell.gelesenBis[ich.partner])
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(spacing: 0) {
-                    if alle.count > sichtbar.count { aeltereKnopf }
                     ForEach(Array(gruppen.enumerated()), id: \.element.id) { eintrag in
-                        zeile(eintrag.offset, gruppen: gruppen, vorFenster: vorFenster, status: status)
+                        zeile(eintrag.offset, gruppen: gruppen, status: status)
                     }
                 }
                 .padding(.vertical, 8)
@@ -560,8 +557,6 @@ private struct NachrichtenListe: View {
                 if ChatTempo.an { ChatTempo.shared.phase(neu) }
             }
             .onDisappear { ChatTempo.shared.zuruecksetzen() }
-            // Captures only the two main-actor objects, not the view, in the `@Sendable` action.
-            .refreshable { [fenster, modell] in await fenster.mehr(modell) }
             .onChange(of: zielID) { _, id in
                 guard let id else { return }
                 zielID = nil
@@ -590,14 +585,9 @@ private struct NachrichtenListe: View {
             .onScrollGeometryChange(for: ListenLage.self) { geo in
                 ListenLage(
                     sichtbar: geo.containerSize.height - geo.contentInsets.top - geo.contentInsets.bottom,
-                    amEnde: geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24,
-                    nahOben: ListenNachladen.nahOben(abstandOben: geo.contentOffset.y + geo.contentInsets.top)
+                    amEnde: geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24
                 )
             } action: { alt, neu in
-                // Scrolling up: the next page of older messages loads before the top is reached.
-                if ListenNachladen.sollMehr(warNahOben: alt.nahOben, istNahOben: neu.nahOben, nochAelteres: modell.nachrichten.count > fenster.anzahl) {
-                    aeltereLaden(proxy: proxy)
-                }
                 guard ListenAutoScroll.sollNachUntenSpringen(
                     sichtbarGeaendert: alt.sichtbar != neu.sichtbar, warAmEnde: alt.amEnde, nutzerZiehtGerade: nutzerZiehtGerade
                 ), zielID == nil, let letzte = modell.nachrichten.last?.id else { return }
@@ -617,17 +607,8 @@ private struct NachrichtenListe: View {
         }
     }
 
-    private var aeltereKnopf: some View {
-        Button { fenster.mehr(modell) } label: {
-            Label("Ältere Nachrichten", systemImage: "arrow.down")
-                .font(.caption).foregroundStyle(.secondary)
-                .frame(minHeight: 44)
-        }
-        .buttonStyle(.plain)
-    }
-
     @ViewBuilder
-    private func zeile(_ index: Int, gruppen: [ChatStapel.Gruppe], vorFenster: ChatModell.Nachricht?, status: LeseStatus) -> some View {
+    private func zeile(_ index: Int, gruppen: [ChatStapel.Gruppe], status: LeseStatus) -> some View {
         let gruppe = gruppen[index]
         let erste = gruppe.nachrichten[0]
         if let spiel = erste.spiel {
@@ -635,7 +616,7 @@ private struct NachrichtenListe: View {
                 SpielKarte(nachricht: erste).padding(.top, 8).id(gruppe.id)
             }
         } else {
-            let vorher = index > 0 ? gruppen[index - 1].letzte : vorFenster
+            let vorher = index > 0 ? gruppen[index - 1].letzte : nil
             let nachher = index + 1 < gruppen.count ? gruppen[index + 1].nachrichten[0] : nil
             let ids = gruppe.nachrichten.map(\.id)
             let reihe = ChatNachrichtRow(
@@ -664,22 +645,10 @@ private struct NachrichtenListe: View {
         return Raum.shared.verbunden ? nil : "Wartet auf Netz"
     }
 
-    /// One more page above, then the list is put back on the row that was on top, so the view does
-    /// not jump when rows appear above it.
-    private func aeltereLaden(proxy: ScrollViewProxy) {
-        guard let anker = ChatStapel.gruppieren(Array(modell.nachrichten.suffix(fenster.anzahl))).first?.id else { return }
-        fenster.mehr(modell, leise: true)
-        Task {
-            try? await Task.sleep(for: .milliseconds(60)) // let the widened window lay out first
-            proxy.scrollTo(anker, anchor: .top)
-        }
-    }
-
     /// Target may sit inside a stack (keyed by its first message) or above the loaded window.
     private func springen(zu id: String, proxy: ScrollViewProxy) {
         let alle = modell.nachrichten
-        guard let index = alle.firstIndex(where: { $0.id == id }) else { return }
-        if index < alle.count - fenster.anzahl { fenster.anzahl = alle.count - index + 30 }
+        guard alle.contains(where: { $0.id == id }) else { return }
         Task {
             try? await Task.sleep(for: .milliseconds(60)) // let the widened window lay out first
             let ziel = gruppeID(fuer: id)
@@ -691,7 +660,7 @@ private struct NachrichtenListe: View {
     }
 
     private func gruppeID(fuer id: String) -> String {
-        ChatStapel.gruppieren(Array(modell.nachrichten.suffix(fenster.anzahl))).first { gruppe in gruppe.nachrichten.contains { $0.id == id } }?.id ?? id
+        ChatStapel.gruppieren(modell.nachrichten).first { gruppe in gruppe.nachrichten.contains { $0.id == id } }?.id ?? id
     }
 }
 
@@ -700,19 +669,4 @@ private struct NachrichtenListe: View {
 private struct ListenLage: Equatable {
     let sichtbar: CGFloat
     let amEnde: Bool
-    let nahOben: Bool
-}
-
-/// How many of the newest messages the list builds; grows by one page per pull at the top.
-@MainActor
-@Observable
-final class ChatListenFenster {
-    static let seite = 150
-    var anzahl = ChatListenFenster.seite
-
-    func mehr(_ modell: ChatModell, leise: Bool = false) {
-        guard modell.nachrichten.count > anzahl else { return }
-        anzahl += Self.seite
-        if !leise { Haptik.leicht() }
-    }
 }
