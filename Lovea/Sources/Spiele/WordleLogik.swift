@@ -63,14 +63,8 @@ enum Wordle {
 
     // MARK: - Tageswort
 
-    /// "yyyy-MM-dd" in Berlin, gregorianisch: unabhängig von Sprache, Region und Kalender des Geräts.
-    static func tag(_ datum: Date) -> String {
-        var kalender = Calendar(identifier: .gregorian)
-        kalender.timeZone = TimeZone(identifier: "Europe/Berlin") ?? .gmt
-        let c = kalender.dateComponents([.year, .month, .day], from: datum)
-        func zwei(_ n: Int?) -> String { (n ?? 0) < 10 ? "0\(n ?? 0)" : "\(n ?? 0)" }
-        return "\(c.year ?? 0)-\(zwei(c.month))-\(zwei(c.day))"
-    }
+    /// "yyyy-MM-dd" in Berlin.
+    static func tag(_ datum: Date) -> String { Datum.text(datum) }
 
     /// Dasselbe Wort für beide, solange Tag und Partie gleich sind. Jede neue Partie bringt ein anderes.
     static func ziel(woerter w: Woerter, tag: String, partie: Int) -> String {
