@@ -135,24 +135,25 @@ struct ProfilWandSchicht: View {
 }
 
 /// p65 A2: "Annika ist online" as a small chip floating in the scene: the one avatar of the profile with its
-/// green dot, and the words only while the other one is really there.
+/// green dot, and the words only while the other one is really there. Otherwise the chip names the next
+/// milestone ("noch 18 Tage bis 2 Monate"), and the ring round the avatar fills toward it either way.
 struct ProfilOnlineChip: View {
     let person: Person
     let online: Bool
 
     var body: some View {
+        let meilenstein = Meilenstein.naechster(heute: Datum.text(Date()))
         HStack(spacing: 8) {
-            ProfilAvatar(person: person, online: online, d: 30)
-            if online {
-                Text("\(person.name) ist online")
-                    .font(.footnote.weight(.semibold))
-            }
+            ProfilAvatar(person: person, online: online, d: 30, fortschritt: meilenstein.fortschritt)
+            Text(online ? "\(person.name) ist online" : meilenstein.text)
+                .font(.footnote.weight(.semibold))
+                .lineLimit(1)
         }
-        .padding(.leading, 4)
-        .padding(.trailing, online ? 12 : 4)
-        .padding(.vertical, 4)
+        .padding(.leading, 6)
+        .padding(.trailing, 12)
+        .padding(.vertical, 6)
         .background(.ultraThinMaterial, in: Capsule())
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(person.name), \(online ? "online" : "offline")")
+        .accessibilityLabel("\(person.name), \(online ? "online" : "offline"), \(meilenstein.text)")
     }
 }

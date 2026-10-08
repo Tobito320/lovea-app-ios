@@ -82,6 +82,9 @@ private struct ProfilInhalt: View {
     /// p60: das offene Blatt der Paar-Signale im Zimmer (Stimmung, Brief, Zettel, Geschenkbox).
     @State private var signale: SignaleBlatt?
     @State private var backdropOffen = false
+    /// Idee 6: the chat settings sit behind one "Chat-Details" row; their own sheets live inside that sheet.
+    @State private var chatDetailsOffen = false
+    @State private var chatBlatt: ProfilBlatt?
     /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
     @State private var karteOffen = false
     // Z-25.1: eigenes Profil. p65 C: "Profil" opens Meine Figur, "Kleidung" the wardrobe (with the Shop button).
@@ -140,8 +143,6 @@ private struct ProfilInhalt: View {
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
-        // Here and not on a row of the closed "Unser Chat" card: a lazy row can be dropped with its cover.
-        .fullScreenCover(isPresented: $backdropOffen) { BackdropAuswahl() }
         // The partner's song is polled while the profile is on screen (Spec 9), not while one row of it is built:
         // a tab or a lazy row that comes and goes must not start and stop it, and the row can stay away while empty.
         .task { if !istEigenes { SpotifyModell.shared.schauen() } }
@@ -171,7 +172,7 @@ private struct ProfilInhalt: View {
             // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
             ProfilAbschnitt("karte", .wir, titel: "Die Karte") { dieKarte },
             ProfilAbschnitt("wir", .wir, titel: "Wir") { wir },
-            ProfilAbschnitt("chat", .erinnerungen, titel: "Unser Chat") { unserChat },
+            ProfilAbschnitt("chat", .erinnerungen) { chatDetailsZeile },
             challenges,
         ]
     }
@@ -351,9 +352,6 @@ private struct ProfilInhalt: View {
                 chip("🎈", "\(g.tag). \(Self.monate[g.monat - 1])", "Geburtstag \(g.tag). \(Self.monate[g.monat - 1])")
                 chip("💞", "\(tageZusammen) Tage", "\(tageZusammen) Tage zusammen")
                 chip(zeichen.symbol, zeichen.name, "Sternzeichen \(zeichen.name)")
-                if istEigenes {
-                    PunkteKnopf(person: person)
-                }
             }
         }
         .scrollClipDisabled()
@@ -372,23 +370,19 @@ private struct ProfilInhalt: View {
         .accessibilityLabel(vorlesen)
     }
 
-    /// Z-25.1: "Chips (Geburtstag, Tage zusammen, Punkte)" — exactly these three, in one line at normal text size.
+    /// Z-25.1: Geburtstag and Tage zusammen in one line; Idee 5: the points live only in the points card (Quests).
     /// p69: with large Dynamic Type the line would break (the labels wrap or squeeze), so then it slides sideways.
     private var eigeneChips: some View {
         let g = BesondereTage.geburtstag(person)
         let reihe = HStack(spacing: 8) {
             chip("🎈", "\(g.tag). \(Self.monate[g.monat - 1])", "Geburtstag \(g.tag). \(Self.monate[g.monat - 1])")
             chip("💞", "\(tageZusammen) Tage", "\(tageZusammen) Tage zusammen")
-            punkteChip
         }
         return ViewThatFits(in: .horizontal) {
             reihe
             ScrollView(.horizontal, showsIndicators: false) { reihe }.scrollClipDisabled()
         }
     }
-
-    /// Spendable balance (after purchases), same number as the Health tab and the Shop.
-    private var punkteChip: some View { PunkteKnopf(person: person) }
 
     // MARK: - Eigene Aktionen (Z-25.1: Figur bearbeiten, Shop; Brief G: Zimmer gestalten)
 
@@ -449,13 +443,13 @@ private struct ProfilInhalt: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 10) {
                 // Kamera: switches to Chat, which opens the snap camera via `AppNavigation.kameraOeffnen`.
-                aktion("camera.fill", "Kamera") {
+                aktion("camera.fill", "Kamera", "Kamera") {
                     AppNavigation.shared.kameraOeffnen = true
                     navigieren("chat")
                 }
-                aktion("message.fill", "Chat") { navigieren("chat") }
-                aktion("phone.fill", "FaceTime Audio") { anrufen(audio: true) }
-                aktion("video.fill", "FaceTime Video") { anrufen(audio: false) }
+                aktion("message.fill", "Chat", "Chat") { navigieren("chat") }
+                aktion("phone.fill", "Audio", "FaceTime Audio") { anrufen(audio: true) }
+                aktion("video.fill", "Video", "FaceTime Video") { anrufen(audio: false) }
             }
             if FaceTime.url(audio: false, kontakt: partnerKontakt) == nil {
                 Text("\(gegenueber.name) hat noch keine FaceTime-Nummer eingetragen")
@@ -466,11 +460,14 @@ private struct ProfilInhalt: View {
         }
     }
 
-    private func aktion(_ symbol: String, _ titel: String, _ tun: @escaping () -> Void) -> some View {
+    /// Idee 1: the icon carries a short name under it; VoiceOver reads the full one.
+    private func aktion(_ symbol: String, _ kurz: String, _ titel: String, _ tun: @escaping () -> Void) -> some View {
         Button(action: tun) {
-            Image(systemName: symbol)
-                .font(.title3)
-                .frame(maxWidth: .infinity, minHeight: ProfilLayout.tippMinimum)
+            VStack(spacing: 3) {
+                Image(systemName: symbol).font(.title3)
+                Text(kurz).font(.caption2.weight(.semibold)).lineLimit(1).minimumScaleFactor(0.8)
+            }
+            .frame(maxWidth: .infinity, minHeight: ProfilLayout.tippMinimum)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
@@ -526,18 +523,47 @@ private struct ProfilInhalt: View {
 
     private var trenner: some View { Divider().padding(.leading, 58) }
 
+    /// Idee 6: one row instead of five; the chat settings open in their own sheet.
+    private var chatDetailsZeile: some View {
+        zeile("bubble.left.and.text.bubble.right", "Chat-Details", "Backdrop, Wallpaper, Medien, Sterne") { chatDetailsOffen = true }
+            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .sheet(isPresented: $chatDetailsOffen) { chatDetails }
+    }
+
+    /// The sheet stays put while open, so the backdrop cover and the inner sheets hang on it, not on a lazy row.
+    private var chatDetails: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: 0) { unserChat }
+                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .padding()
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle("Chat-Details")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { chatDetailsOffen = false } }
+            }
+        }
+        .sheet(item: $chatBlatt) { b in blattInhalt(b) }
+        .fullScreenCover(isPresented: $backdropOffen) { BackdropAuswahl() }
+    }
+
     /// Z-34.2: Backdrop (full-screen picker, for both), then Medien and Sterne.
     @ViewBuilder
     private var unserChat: some View {
         zeile("photo.artframe", "Backdrop", backdropUntertitel) { backdropOffen = true }
         trenner
-        zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { blatt = .wallpaper }
+        zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { chatBlatt = .wallpaper }
         trenner
-        zeile("photo.stack", "Medien") { blatt = .medien }
+        zeile("photo.stack", "Medien") { chatBlatt = .medien }
         trenner
-        zeile("star", "Sterne") { blatt = .sterne }
+        zeile("star", "Sterne") { chatBlatt = .sterne }
         trenner
-        zeile("magnifyingglass", "Im Chat suchen") { navigieren("chat", suche: true) }
+        zeile("magnifyingglass", "Im Chat suchen") {
+            chatDetailsOffen = false
+            navigieren("chat", suche: true)
+        }
     }
 
     private var backdropUntertitel: String {
@@ -552,6 +578,8 @@ private struct ProfilInhalt: View {
     /// Sterne: close the sheets, switch to the chat and jump to the message (B1's `chatZiel`).
     private func zurNachricht(_ id: String) {
         blatt = nil
+        chatBlatt = nil
+        chatDetailsOffen = false
         AppNavigation.shared.chatZiel = id
         navigieren("chat")
     }
