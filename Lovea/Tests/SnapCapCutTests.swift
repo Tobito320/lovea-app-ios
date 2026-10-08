@@ -5,28 +5,15 @@ import XCTest
 @testable import Lovea
 
 /// Reine Rechnung hinter dem CapCut-Editor: Zeitleiste (Zeit <-> Position, Trim-Grenzen,
-/// Abspiel-Sprünge), Eck-Griff der Elemente und die Filterstärke.
+/// Abspiel-Sprünge), Element-Grenzen und die Filterstärke.
 final class SnapCapCutTests: XCTestCase {
     private let pps = SnapZeitleisteRechnung.punkteProSekunde
 
     // MARK: Zeitleiste
 
-    func testZeitUndPositionSindUmkehrbar() {
-        let x = SnapZeitleisteRechnung.x(zeit: 3.5)
-        XCTAssertEqual(x, 3.5 * pps, accuracy: 0.001)
-        XCTAssertEqual(SnapZeitleisteRechnung.zeit(x: x, dauer: 10), 3.5, accuracy: 0.001)
-    }
-
-    func testZeitWirdAufDauerGeklammert() {
-        XCTAssertEqual(SnapZeitleisteRechnung.zeit(x: -50, dauer: 10), 0)
-        XCTAssertEqual(SnapZeitleisteRechnung.zeit(x: 100_000, dauer: 10), 10)
+    func testPositionIstZeitMalPunkteProSekundeUndNieNegativ() {
+        XCTAssertEqual(SnapZeitleisteRechnung.x(zeit: 3.5), 3.5 * pps, accuracy: 0.001)
         XCTAssertEqual(SnapZeitleisteRechnung.x(zeit: -2), 0)
-    }
-
-    func testStreifenLiegtUnterDerMitteLinie() {
-        // Bei Zeit t liegt der Punkt x(t) genau auf der Mitte.
-        let versatz = SnapZeitleisteRechnung.versatz(zeit: 4, mitte: 195)
-        XCTAssertEqual(versatz + SnapZeitleisteRechnung.x(zeit: 4), 195, accuracy: 0.001)
     }
 
     func testStreifenNachRechtsZiehenGehtZurueckInDerZeit() {
@@ -50,11 +37,6 @@ final class SnapCapCutTests: XCTestCase {
         let kurz = SnapZeitleisteRechnung.ende(start: 10, verschiebung: -pps * 20, plan: plan)
         XCTAssertEqual(kurz, 4 + SnapSchnitt.mindestdauer, accuracy: 0.001)
         XCTAssertEqual(SnapZeitleisteRechnung.ende(start: 8, verschiebung: pps * 20, plan: plan), 10)
-    }
-
-    func testAnzeigeFormat() {
-        XCTAssertEqual(SnapZeitleisteRechnung.anzeige(zeit: 3, dauer: 12), "0:03 / 0:12")
-        XCTAssertEqual(SnapZeitleisteRechnung.anzeige(zeit: 65, dauer: 125), "1:05 / 2:05")
     }
 
     func testSprungZielNurAusserhalbDerBleibendenTeile() {
@@ -86,51 +68,11 @@ final class SnapCapCutTests: XCTestCase {
         XCTAssertEqual(SnapFilmbilder.anzahl(dauer: 600), 40)
     }
 
-    // MARK: Element-Griff
+    // MARK: Elemente
 
-    func testGriffZiehtWeiterWegVergroessert() {
-        let mitte = CGPoint(x: 100, y: 100)
-        let ergebnis = SnapElementRechnung.griff(mitte: mitte, start: CGPoint(x: 150, y: 100), aktuell: CGPoint(x: 200, y: 100),
-                                                 startSkala: 1, startWinkel: 0)
-        XCTAssertEqual(ergebnis.skala, 2, accuracy: 0.001)
-        XCTAssertEqual(ergebnis.winkel, 0, accuracy: 0.001)
-    }
-
-    func testGriffDrehtUmDieMitte() {
-        let mitte = CGPoint(x: 0, y: 0)
-        let ergebnis = SnapElementRechnung.griff(mitte: mitte, start: CGPoint(x: 10, y: 0), aktuell: CGPoint(x: 0, y: 10),
-                                                 startSkala: 1, startWinkel: 30)
-        XCTAssertEqual(ergebnis.skala, 1, accuracy: 0.001)
-        XCTAssertEqual(ergebnis.winkel, 120, accuracy: 0.001)
-    }
-
-    func testGriffKlammertDieSkala() {
-        let mitte = CGPoint.zero
-        let klein = SnapElementRechnung.griff(mitte: mitte, start: CGPoint(x: 100, y: 0), aktuell: CGPoint(x: 1, y: 0), startSkala: 1, startWinkel: 0)
-        XCTAssertEqual(klein.skala, SnapElementRechnung.skalaGrenzen.lowerBound, accuracy: 0.001)
-        let gross = SnapElementRechnung.griff(mitte: mitte, start: CGPoint(x: 10, y: 0), aktuell: CGPoint(x: 1000, y: 0), startSkala: 1, startWinkel: 0)
-        XCTAssertEqual(gross.skala, SnapElementRechnung.skalaGrenzen.upperBound, accuracy: 0.001)
-    }
-
-    func testGriffAufDerMitteBleibtUnveraendert() {
-        let ergebnis = SnapElementRechnung.griff(mitte: .zero, start: .zero, aktuell: CGPoint(x: 50, y: 50), startSkala: 2, startWinkel: 15)
-        XCTAssertEqual(ergebnis.skala, 2)
-        XCTAssertEqual(ergebnis.winkel, 15)
-    }
-
-    func testVerschiebenRechnetInBruchteilenUndBegrenzt() {
-        let ziel = SnapElementRechnung.verschoben(start: CGPoint(x: 0.5, y: 0.5), verschiebung: CGSize(width: 50, height: -100),
-                                                  groesse: CGSize(width: 200, height: 400), begrenzung: SnapElementRechnung.imBild)
-        XCTAssertEqual(ziel.x, 0.75, accuracy: 0.001)
-        XCTAssertEqual(ziel.y, 0.25, accuracy: 0.001)
-        let raus = SnapElementRechnung.verschoben(start: CGPoint(x: 0.9, y: 0.1), verschiebung: CGSize(width: 1000, height: -1000),
-                                                  groesse: CGSize(width: 200, height: 400), begrenzung: SnapElementRechnung.imBild)
-        XCTAssertEqual(raus, CGPoint(x: 1, y: 0))
-    }
-
-    func testHelleFarbeBekommtDunkleBalkenSchrift() {
-        XCTAssertTrue(SnapElementRechnung.istHell(.white))
-        XCTAssertFalse(SnapElementRechnung.istHell(.black))
+    func testElementBleibtImBild() {
+        XCTAssertEqual(SnapElementRechnung.imBild(1.4, -0.2), CGPoint(x: 1, y: 0))
+        XCTAssertEqual(SnapElementRechnung.imBild(0.3, 0.6), CGPoint(x: 0.3, y: 0.6))
     }
 
     // MARK: Panel-Leiste

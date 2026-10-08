@@ -32,8 +32,6 @@ struct SnapEditor: View {
         var y: CGFloat = 0.5
         var skala: CGFloat = 1
         var winkel: Double = 0
-        var schrift = SnapSchrift.fett
-        var stil = SnapTextStil.schlicht
         var farbe = Color.white
     }
     struct SnapSticker: Identifiable {
@@ -138,10 +136,10 @@ struct SnapEditor: View {
             vorschauAktualisieren()
         }
         await aspektErmitteln()
-        await thumbnailsErzeugen()
         if case .video(let url) = inhalt, let dauer = plan?.dauer {
             filmbilder = await SnapFilmbilder.laden(url: url, dauer: dauer)
         }
+        await thumbnailsErzeugen()
     }
 
     /// Same source of truth `SnapExport.video` uses for `upright` — keeps the editor's aspect and
@@ -225,7 +223,6 @@ struct SnapEditor: View {
             ausgewaehlt: auswahl == .sticker(id),
             begrenzung: SnapElementRechnung.imBild,
             onAntippen: { auswahl = .sticker(id) },
-            onBeruehrt: { auswahl = .sticker(id) },
             onLoeschen: { sticker.removeAll { $0.id == id }; auswahl = nil }
         ) {
             Image(uiImage: element.wrappedValue.bild)
@@ -241,7 +238,6 @@ struct SnapEditor: View {
             ausgewaehlt: auswahl == .text,
             begrenzung: { SnapTextPlatz.begrenzt(x: $0, y: $1) },
             onAntippen: { if auswahl == .text { panel = .text } else { auswahl = .text } },
-            onBeruehrt: { auswahl = .text },
             onLoeschen: { text = SnapText(); auswahl = nil }
         ) {
             SnapTextAnzeige(text: text, breite: groesse.width)
@@ -287,7 +283,7 @@ struct SnapEditor: View {
                     .frame(width: 44, height: 40)
             }
             .accessibilityLabel(spielt ? "Pause" : "Abspielen")
-            Text(SnapZeitleisteRechnung.anzeige(zeit: zeit, dauer: plan?.dauer ?? 0))
+            Text(SnapSchnitt.zeit(zeit) + " / " + SnapSchnitt.zeit(plan?.dauer ?? 0))
                 .font(.footnote.monospacedDigit().weight(.medium))
                 .foregroundStyle(.white)
         }
@@ -328,29 +324,16 @@ struct SnapEditor: View {
 
     // MARK: - Zeitleiste
 
-    private static let spurZeile: CGFloat = 26
-
-    private func spurZeilen() -> Int {
-        min((text.text.isEmpty ? 0 : 1) + sticker.count, 3)
-    }
-
     private func zeitleiste(plan: SnapSchnitt) -> some View {
-        let gesamt = SnapZeitleisteRechnung.breite(dauer: plan.dauer)
-        let hoehe = SnapFilmstreifen.hoehe + CGFloat(spurZeilen()) * Self.spurZeile + 14
-        return GeometryReader { geo in
+        GeometryReader { geo in
             ZStack(alignment: .topLeading) {
-                VStack(alignment: .leading, spacing: 4) {
-                    SnapFilmstreifen(bilder: filmbilder, plan: plan, ausgewaehlt: auswahl == .clip, onKuerzen: kuerzen)
-                        .onTapGesture { auswahl = auswahl == .clip ? nil : .clip }
-                    spurBalken(plan: plan, gesamt: gesamt)
-                }
-                .padding(.top, 6)
-                .frame(width: gesamt, alignment: .leading)
-                .offset(x: SnapZeitleisteRechnung.versatz(zeit: zeit, mitte: geo.size.width / 2))
-                Capsule()
-                    .fill(Color.white)
+                SnapFilmstreifen(bilder: filmbilder, plan: plan, ausgewaehlt: auswahl == .clip, onKuerzen: kuerzen)
+                    .onTapGesture { auswahl = auswahl == .clip ? nil : .clip }
+                    .padding(.top, 6)
+                    .offset(x: geo.size.width / 2 - SnapZeitleisteRechnung.x(zeit: zeit))
+                Capsule().fill(Color.white)
                     .frame(width: 2, height: SnapFilmstreifen.hoehe + 12)
-                    .offset(x: geo.size.width / 2 - 1, y: 0)
+                    .offset(x: geo.size.width / 2 - 1)
                     .allowsHitTesting(false)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
@@ -358,23 +341,8 @@ struct SnapEditor: View {
             .contentShape(Rectangle())
             .gesture(scrubGeste(plan: plan))
         }
-        .frame(height: hoehe)
+        .frame(height: SnapFilmstreifen.hoehe + 14)
         .background(Color.black)
-    }
-
-    @ViewBuilder private func spurBalken(plan: SnapSchnitt, gesamt: CGFloat) -> some View {
-        let von = SnapZeitleisteRechnung.x(zeit: plan.anfang)
-        let breite = SnapZeitleisteRechnung.x(zeit: plan.ende - plan.anfang)
-        VStack(alignment: .leading, spacing: 4) {
-            if !text.text.isEmpty {
-                SnapSpurBalken(titel: text.text, farbe: Color.loveaRose, gewaehlt: auswahl == .text,
-                               von: von, breite: breite, gesamtBreite: gesamt, onAntippen: { auswahl = .text })
-            }
-            ForEach(Array(sticker.prefix(max(0, 3 - (text.text.isEmpty ? 0 : 1))))) { element in
-                SnapSpurBalken(titel: "Sticker", farbe: Color.orange, gewaehlt: auswahl == .sticker(element.id),
-                               von: von, breite: breite, gesamtBreite: gesamt, onAntippen: { auswahl = .sticker(element.id) })
-            }
-        }
     }
 
     private func scrubGeste(plan: SnapSchnitt) -> some Gesture {
@@ -418,42 +386,61 @@ struct SnapEditor: View {
     }
 
     @ViewBuilder private func panelAnsicht(_ wahl: SnapPanel) -> some View {
-        SnapPanelRahmen(titel: wahl.titel, onFertig: { panel = nil }) {
+        SnapPanelRahmen(titel: wahl.rawValue, onFertig: { panel = nil }) {
             switch wahl {
             case .bearbeiten: bearbeitenPanel
             case .ton: tonPanel
             case .text: SnapTextPanel(text: $text)
             case .sticker: stickerPanel
-            case .filter: filterPanel
+            case .filter:
+                SnapFilterPanel(vorschauBilder: filterThumbnails, gewaehlt: ausgewaehlterFilter, staerke: $filterStaerke, onWahl: waehleFilter)
             case .zeichnen: zeichnenPanel
             }
         }
     }
 
+    /// Kürzen geht über die Griffe am Clip; hier Teil aus der Mitte entfernen und zurückholen.
     @ViewBuilder private var bearbeitenPanel: some View {
         if let plan {
-            SnapBearbeitenPanel(
-                plan: plan, markeStart: markeStart, hinweis: schnittHinweis,
-                onAnfang: { schnittAendern { $0.kuerzen(anfang: zeit, ende: $0.ende) } },
-                onEnde: { schnittAendern { $0.kuerzen(anfang: $0.anfang, ende: zeit) } },
-                onMarke: markeSetzen,
-                onWiederherstellen: { index in schnittAendern { $0.entfernenRueckgaengig(bei: index); return true } },
-                onZuruecksetzen: {
-                    var neu = SnapSchnitt(dauer: plan.dauer)
-                    neu.stumm = plan.stumm
-                    self.plan = neu
-                    markeStart = nil
-                    schnittHinweis = nil
+            VStack(spacing: 10) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        SnapPanelKnopf(titel: markeStart == nil ? "Teil entfernen: Start" : "Bis hier entfernen",
+                                       symbol: "scissors", aktiv: markeStart != nil, aktion: markeSetzen)
+                        SnapPanelKnopf(titel: "Zurücksetzen", symbol: "arrow.counterclockwise") {
+                            var neu = SnapSchnitt(dauer: plan.dauer)
+                            neu.stumm = plan.stumm
+                            self.plan = neu
+                            markeStart = nil
+                            schnittHinweis = nil
+                        }
+                        ForEach(Array(plan.entfernt.enumerated()), id: \.offset) { index, teil in
+                            SnapPanelKnopf(titel: SnapSchnitt.zeit(teil.von) + "–" + SnapSchnitt.zeit(teil.bis) + " zurück", symbol: "arrow.uturn.backward") {
+                                schnittAendern { $0.entfernenRueckgaengig(bei: index); return true }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
                 }
-            )
+                Text(schnittHinweis ?? "Länge " + SnapSchnitt.zeit(plan.ergebnisDauer))
+                    .font(.caption)
+                    .foregroundStyle(schnittHinweis == nil ? Color.secondary : Color.orange)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
     }
 
     private var tonPanel: some View {
-        SnapTonPanel(stumm: plan?.stumm ?? false, onUmschalten: {
-            plan?.stumm.toggle()
-            videoSpieler?.isMuted = plan?.stumm ?? false
-        })
+        let stumm = plan?.stumm ?? false
+        return HStack {
+            SnapPanelKnopf(titel: stumm ? "Ton an" : "Ton aus", symbol: stumm ? "speaker.wave.2.fill" : "speaker.slash.fill", aktiv: stumm) {
+                plan?.stumm.toggle()
+                videoSpieler?.isMuted = !stumm
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
     }
 
     private var stickerPanel: some View {
@@ -470,17 +457,16 @@ struct SnapEditor: View {
         .frame(height: 300)
     }
 
-    private var filterPanel: some View {
-        SnapFilterPanel(
-            vorschauBilder: filterThumbnails,
-            gewaehlt: ausgewaehlterFilter,
-            staerke: $filterStaerke,
-            onWahl: waehleFilter
-        )
-    }
-
     private var zeichnenPanel: some View {
-        SnapZeichnenPanel(farbe: $doodleFarbe, kannZurueck: !linien.isEmpty, onZurueck: { _ = linien.popLast() })
+        VStack(spacing: 10) {
+            SnapFarbReihe(farbe: $doodleFarbe)
+            HStack {
+                SnapPanelKnopf(titel: "Rückgängig", symbol: "arrow.uturn.backward") { _ = linien.popLast() }
+                    .disabled(linien.isEmpty)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+        }
     }
 
     /// Ändert den Plan; `false` aus der Änderung = zu kurz, dann kurzer Hinweis im Panel.
@@ -595,17 +581,10 @@ struct SnapEditor: View {
         let quellBild: UIImage?
         switch inhalt {
         case .foto(let bild): quellBild = bild
-        case .video(let url): quellBild = await Self.erstesVideoBild(url: url)
+        case .video: quellBild = filmbilder.first
         }
         guard filterAn, let quellBild else { return }
         filterThumbnails = await Self.filterThumbnails(aus: quellBild)
-    }
-
-    private static func erstesVideoBild(url: URL) async -> UIImage? {
-        let generator = AVAssetImageGenerator(asset: AVURLAsset(url: url))
-        generator.appliesPreferredTrackTransform = true
-        guard let ergebnis = try? await generator.image(at: .zero) else { return nil }
-        return UIImage(cgImage: ergebnis.image)
     }
 
     /// Wie `gefiltertesVorschauBild`: nur `SendableCGImage`/`SnapFilter`/`CGSize` queren die

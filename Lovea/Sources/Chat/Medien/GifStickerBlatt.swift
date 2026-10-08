@@ -15,48 +15,39 @@ struct GifStickerBlatt: View {
 
     private enum Reiter: String, CaseIterable { case wir = "Wir", ahmed = "Ahmed", annika = "Annika", favoriten = "Favoriten", gifs = "GIFs" }
     @State private var reiter = Reiter.wir
-
-    /// Snap editor (CapCut-style bottom panel): same tabs and grids, but without the
-    /// `NavigationStack`, title and sheet detents — the editor hosts it in its own panel.
+    /// Snap-Editor-Panel: gleiche Reiter, aber ohne Titelleiste.
     var panel = false
 
     var body: some View {
-        if panel {
-            inhalt.task { await GifSucheCache.trendingVorladen() }
-        } else {
-            NavigationStack {
-                inhalt
-                    .navigationTitle("Sticker & GIFs")
-                    .navigationBarTitleDisplayMode(.inline)
-            }
-            .task { await GifSucheCache.trendingVorladen() }
-            .presentationDetents([.medium, .large])
-        }
-    }
-
-    private var inhalt: some View {
-        VStack(spacing: 0) {
-            Picker("Reiter", selection: $reiter) {
-                // "Favoriten" ist das längste Label unter 5 Segmenten (390pt knapp) — Stern statt Text.
-                ForEach(Reiter.allCases, id: \.self) { eintrag in
-                    if eintrag == .favoriten {
-                        Image(systemName: "star.fill").tag(eintrag).accessibilityLabel("Favoriten")
-                    } else {
-                        Text(eintrag.rawValue).tag(eintrag)
+        NavigationStack {
+            VStack(spacing: 0) {
+                Picker("Reiter", selection: $reiter) {
+                    // "Favoriten" ist das längste Label unter 5 Segmenten (390pt knapp) — Stern statt Text.
+                    ForEach(Reiter.allCases, id: \.self) { eintrag in
+                        if eintrag == .favoriten {
+                            Image(systemName: "star.fill").tag(eintrag).accessibilityLabel("Favoriten")
+                        } else {
+                            Text(eintrag.rawValue).tag(eintrag)
+                        }
                     }
                 }
-            }
-            .pickerStyle(.segmented)
-            .padding(panel ? EdgeInsets(top: 4, leading: 16, bottom: 8, trailing: 16) : EdgeInsets(top: 16, leading: 16, bottom: 16, trailing: 16))
+                .pickerStyle(.segmented)
+                .padding()
 
-            switch reiter {
-            case .wir: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .beide, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
-            case .ahmed: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .ahmed, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
-            case .annika: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .annika, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
-            case .favoriten: FavoritenAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
-            case .gifs: GifSuche(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                switch reiter {
+                case .wir: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .beide, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .ahmed: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .ahmed, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .annika: WirStickerAnsicht(ich: ich, antwortAuf: antwortAuf, wer: .annika, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .favoriten: FavoritenAnsicht(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                case .gifs: GifSuche(ich: ich, antwortAuf: antwortAuf, aufBildWahl: aufBildWahl, onGesendet: onGesendet)
+                }
             }
+            .navigationTitle("Sticker & GIFs")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar(panel ? .hidden : .automatic, for: .navigationBar)
         }
+        .task { await GifSucheCache.trendingVorladen() }
+        .presentationDetents([.medium, .large])
     }
 }
 

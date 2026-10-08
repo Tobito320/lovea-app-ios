@@ -248,7 +248,7 @@ extension SnapFilter {
     /// bewusst INNERHALB gebaut statt von außen hineingereicht (R9-Review). Sicher aus einem
     /// `Task.detached` heraus aufzurufen, weil nur `CGImage` (per `SendableCGImage`) und `SnapFilter`
     /// (beide `Sendable`) die Grenze queren müssen.
-    static func gefiltertesCGBild(aus quelle: CGImage, filter: SnapFilter, zuschnitt: CGRect? = nil, staerke: Double = 1) -> CGImage? {
+    static func gefiltertesCGBild(aus quelle: CGImage, filter: SnapFilter, zuschnitt: CGRect? = nil, staerke: Double) -> CGImage? {
         let ciBasis = CIImage(cgImage: quelle)
         let gefiltert = filter.anwenden(auf: ciBasis, staerke: staerke)
         return SnapFilterKontext.shared.context.createCGImage(gefiltert, from: zuschnitt ?? gefiltert.extent)
@@ -263,7 +263,7 @@ extension SnapFilter {
     /// `anwenden(auf:video:)`). `nil` bei `.original`, ein Composition-Objekt weniger zu bauen und
     /// zuzuweisen ist der einfachste "kein Filter"-Fall.
     @MainActor
-    func videoKomposition(fuer asset: AVAsset, staerke: Double = 1) async -> AVVideoComposition? {
+    func videoKomposition(fuer asset: AVAsset, staerke: Double) async -> AVVideoComposition? {
         guard self != .original, staerke > 0 else { return nil }
         return try? await AVVideoComposition(asset: asset, applyingCIFiltersWithHandler: { anfrage in
             anfrage.finish(with: self.anwenden(auf: anfrage.sourceImage, video: true, staerke: staerke), context: SnapFilterKontext.shared.context)

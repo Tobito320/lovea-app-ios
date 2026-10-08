@@ -15,7 +15,7 @@ enum SnapExport {
     /// Only the SwiftUI overlay render (`ImageRenderer`, main-actor API) stays on the main actor;
     /// compositing and the JPEG encode run detached (Z-16.2).
     @MainActor
-    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double = 1) async -> Data? {
+    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double) async -> Data? {
         let groesse = MedienKodierung.skaliert(quelle.size, langeKante: 2048)
         let renderer = ImageRenderer(content: SnapUeberlagerung(linien: linien, sticker: sticker, text: text, groesse: groesse))
         renderer.scale = 1
@@ -35,7 +35,7 @@ enum SnapExport {
 
     /// Filter vor dem Overlay anwenden (Anforderung: Filter zuerst, Doodle/Text/Sticker obendrauf).
     /// `.original` übersprungen — identisch zum Quellbild, ein Render weniger.
-    private static func gefiltertesBild(quelle: UIImage, filter: SnapFilter, groesse: CGSize, staerke: Double = 1) -> UIImage? {
+    private static func gefiltertesBild(quelle: UIImage, filter: SnapFilter, groesse: CGSize, staerke: Double) -> UIImage? {
         guard filter != .original else { return nil }
         // Erst aufrecht in die Zielgröße zeichnen: `CIImage(image:)` ignoriert `imageOrientation`,
         // das Kamerabild kam dann mit Filter um 90° gedreht und verzerrt an (Ahmed, 01.10., iPad).
@@ -59,7 +59,7 @@ enum SnapExport {
     /// The actual encode work still runs on `AVAssetExportSession`'s own queue either way; nothing
     /// here blocks the main thread beyond waiting on that callback.
     @MainActor
-    static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double = 1) async -> URL? {
+    static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double) async -> URL? {
         // Most snaps have no doodle/sticker/text/filter — nothing to burn in, so skip the full-quality
         // `AVAssetExportSession` pass entirely. For a 19s gallery video that pass alone was the
         // biggest single delay before the Snap editor could dismiss (Z-Report Kamera).
@@ -152,7 +152,7 @@ enum SnapExport {
     /// Eigener Export-Pass, der nur den Filter brennt (kein Overlay) — Baustein für `video(…)` oben.
     /// `preset`: schnell-aware (siehe `video(…)`), mit demselben Sicherheitsnetz auf `HighestQuality`.
     @MainActor
-    private static func gefiltertesVideo(quelle: URL, filter: SnapFilter, preset: String, staerke: Double = 1) async -> URL? {
+    private static func gefiltertesVideo(quelle: URL, filter: SnapFilter, preset: String, staerke: Double) async -> URL? {
         let asset = AVURLAsset(url: quelle)
         guard let komposition = await filter.videoKomposition(fuer: asset, staerke: staerke) else { return nil }
         guard let session = AVAssetExportSession(asset: asset, presetName: preset)
