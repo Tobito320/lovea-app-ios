@@ -110,6 +110,38 @@ final class ZuhauseAblaufTests: XCTestCase {
         }
     }
 
+    func testFigurenPassenZuSofaUndRaum() {
+        // Standing: the head stays well inside the scene.
+        let kopfStehend = ZuhauseOrte.fussY - 0.98 * ZuhauseOrte.figurHoehe
+        XCTAssertGreaterThan(kopfStehend, 60)
+        // Sitting: the head rises above the sofa's back, the lower edge hides behind the front cushion.
+        let sofa = ZuhauseZeichnung.sofa
+        XCTAssertLessThan(ZuhauseOrte.sitzKante - ZuhauseOrte.sitzHoehe, sofa.minY)
+        XCTAssertTrue((sofa.minY + 58...sofa.maxY).contains(ZuhauseOrte.sitzKante))
+        // The pair for real stands inside the room, clear of the screen edges.
+        XCTAssertTrue((100...290).contains(ZuhauseOrte.paarX))
+    }
+
+    func testSzenenstandLiegtNurAbendsUndNachtsImBett() {
+        for zeit in Tageszeit.allCases {
+            let stand = ZuhauseSzenenstand(zeit: zeit, ZuhauseAblauf.ruhestand(zeit))
+            XCTAssertEqual(stand.liegt, zeit.dunkel, "\(zeit)")
+            XCTAssertNil(stand.geste, "in Ruhe keine Geste")
+            XCTAssertTrue(stand.gehende.isEmpty)
+        }
+        let mit = ZuhauseSzenenstand(zeit: .morgen, ZuhauseAblauf.ruhestand(.morgen), mitGeste: true)
+        XCTAssertEqual(mit.geste, .winken)
+        XCTAssertFalse(mit.liegt)
+        XCTAssertEqual(mit.platz(.annika), .fenster)
+        XCTAssertEqual(mit.platz(.ahmed), .sofa)
+    }
+
+    func testGesteHatEinenZustand() {
+        XCTAssertEqual(ZuhauseGeste.winken.zustand, .imChat)
+        XCTAssertEqual(ZuhauseGeste.herz.zustand, .herz)
+        XCTAssertEqual(ZuhauseGeste.kuss.zustand, .kuss)
+    }
+
     func testStraeusseSchrankHatDreiPlaetze() {
         XCTAssertEqual(ZuhauseStraeusse.schrankPlaetze, 3)
         XCTAssertEqual(ZuhauseStraeusse().imSchrank, [])

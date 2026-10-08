@@ -94,6 +94,13 @@ enum ZuhauseAblauf {
 /// Where the feet stand, in the scene's design space (390 x 430, `ZuhauseZeichnung`).
 enum ZuhauseOrte {
     static let fussY: CGFloat = 334
+    /// A standing figure's height; its feet are at 98 % of it.
+    static let figurHoehe: CGFloat = 190
+    /// Sitting on the sofa: head and chest only, the lower edge hides behind the seat's front cushion.
+    static let sitzHoehe: CGFloat = 104
+    static let sitzKante: CGFloat = 298
+    /// Where the pair stands (hug, kiss) when they are together for real.
+    static let paarX: CGFloat = 195
     /// Walking speed in design points per second and the limits of one walk.
     static let tempo: CGFloat = 70
     static let gehgrenzen: ClosedRange<TimeInterval> = 1.4...3.4
@@ -109,7 +116,7 @@ enum ZuhauseOrte {
 
     /// Annika left of Ahmed, so two at one place never stand in the same spot.
     static func fuss(_ p: Platz, _ person: Person) -> CGPoint {
-        let halb: CGFloat = p == .sofa ? 22 : 15
+        let halb: CGFloat = p == .sofa ? 22 : 24
         return CGPoint(x: mitte(p) + (person == .annika ? -halb : halb), y: fussY)
     }
 
