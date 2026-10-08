@@ -15,7 +15,7 @@ enum SnapExport {
     /// Only the SwiftUI overlay render (`ImageRenderer`, main-actor API) stays on the main actor;
     /// compositing and the JPEG encode run detached (Z-16.2).
     @MainActor
-    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double) async -> Data? {
+    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double = 1) async -> Data? {
         let groesse = MedienKodierung.skaliert(quelle.size, langeKante: 2048)
         let renderer = ImageRenderer(content: SnapUeberlagerung(linien: linien, sticker: sticker, text: text, groesse: groesse))
         renderer.scale = 1
@@ -59,7 +59,7 @@ enum SnapExport {
     /// The actual encode work still runs on `AVAssetExportSession`'s own queue either way; nothing
     /// here blocks the main thread beyond waiting on that callback.
     @MainActor
-    static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double) async -> URL? {
+    static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double = 1) async -> URL? {
         // Most snaps have no doodle/sticker/text/filter — nothing to burn in, so skip the full-quality
         // `AVAssetExportSession` pass entirely. For a 19s gallery video that pass alone was the
         // biggest single delay before the Snap editor could dismiss (Z-Report Kamera).
