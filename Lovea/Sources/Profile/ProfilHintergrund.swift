@@ -75,16 +75,12 @@ struct ProfilFoto: View {
 }
 
 /// Z-25.2 picker: a photo (reuses `WallpaperAuswahl`'s upload flow via its `speichern` closure),
-/// ≥12 free backdrops, and purchased `backdrop.*` ones this person owns.
+/// and ≥12 free backdrops.
 struct EigenerHintergrundAuswahl: View {
     let person: Person
     @Environment(\.dismiss) private var dismiss
     @State private var fotoOffen = false
     @State private var gewaehlt = 0
-
-    private var besitz: BesitzLogik.Ergebnis {
-        PunkteModell.shared.einkaufsStand(preis: { ShopKatalog.artikel($0)?.preis }).besitz
-    }
 
     var body: some View {
         NavigationStack {
@@ -101,11 +97,6 @@ struct EigenerHintergrundAuswahl: View {
                     .tint(Color.loveaRose)
 
                     gruppe("Backdrops", BackdropKatalog.kostenlos)
-
-                    let gekauft = BackdropKatalog.gekauft.filter { besitz.besitzt($0.id, person) }
-                    if !gekauft.isEmpty {
-                        gruppe("Deine gekauften Backdrops", gekauft)
-                    }
                 }
                 .padding(16)
             }

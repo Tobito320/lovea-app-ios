@@ -107,6 +107,7 @@ final class PunkteModell {
             let grund = kauf.fuer == kauf.von ? "Kauf: \(name)" : "Geschenk: \(name)"
             eintraege.append(PunkteLogik.Eintrag(datum: Datum.text(kauf.zeit), von: kauf.von, grund: grund, punkte: -preisWert))
         }
+        for e in ShopErstattung.erstattungen(kaeufe, verdient: stand, katalogPreis: preis) { eintraege += [e.kauf, e.rueckgabe] }
         return eintraege.sorted { ($0.datum, $0.von.rawValue) < ($1.datum, $1.von.rawValue) }
     }
 

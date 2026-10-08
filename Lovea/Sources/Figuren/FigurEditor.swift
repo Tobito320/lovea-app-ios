@@ -5,7 +5,7 @@ import UIKit
 /// category bar, option tiles drawn with the figure itself, color swatches, dice. The caller sends `figur.aussehen` in `onSave`.
 struct FigurEditor: View {
     private let onSave: (FigurAussehen) -> Void
-    /// The saved look right now. The shop sheet writes bag, watch, jewelry, pose and pet straight
+    /// The saved look right now. The shop sheet writes bag, watch, jewelry and pet straight
     /// into it while this editor holds its own older copy (`aussehen`).
     private let modell: FigurAussehen?
     @State private var aussehen: FigurAussehen
@@ -19,7 +19,7 @@ struct FigurEditor: View {
     }
 
     /// The look the preview draws: the editor's own copy, with the shop pieces (bag, watch, jewelry,
-    /// pose, pet) taken from the saved look, like `onSave` does. Without this, a bag put on in the
+    /// pet) taken from the saved look, like `onSave` does. Without this, a bag put on in the
     /// shop sheet stays invisible here until the editor is reopened.
     static func vorschauLook(_ aussehen: FigurAussehen, modell: FigurAussehen?) -> FigurAussehen {
         aussehen.mitShopTeilen(von: modell ?? aussehen)
@@ -229,7 +229,6 @@ struct FigurEditor: View {
         a.tasche = aussehen.tasche
         a.uhr = aussehen.uhr
         a.schmuck = aussehen.schmuck
-        a.pose = aussehen.pose
         a.tier = aussehen.tier
         withAnimation(Feder.weich) { aussehen = a }
     }

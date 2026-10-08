@@ -3,8 +3,6 @@ import SwiftUI
 /// Z-41.1: the full-body figure standing on the map - elliptical ground shadow, a soft lift, the map
 /// state (`KarteLogik.kartenZustand`) and the extras from weather and charging. Shared by the map
 /// pins and the profile preview, so both always show the same figure.
-/// No `poseImmer` any more: a bought pose would replace walking, charging and place poses; it still
-/// shows whenever the figure just stands (`.ruhig`), FigurView's default branch.
 struct KartenFigur: View {
     let person: Person
     let daten: StandortDaten

@@ -132,7 +132,7 @@ final class FigurenModell {
     func aussehen(_ p: Person) -> FigurAussehen {
         var a = FigurAussehen.mitNeuemGesicht(aussehen[p] ?? .standard(for: p), p)
         a.person = p
-        return a
+        return a.ohneEntfernteTeile()
     }
 
     /// What to draw for a person right now: fresh gesture > "Gute Nacht" override > live state > offline.

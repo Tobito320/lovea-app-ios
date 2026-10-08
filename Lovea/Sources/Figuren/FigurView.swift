@@ -46,7 +46,6 @@ struct FigurView: View {
     private let animiert: Bool
     private let bildrate: Double
     private let ganzkoerper: Bool
-    private let poseImmer: Bool
     private let extras: Set<FigurExtra>
     private let tisch: Int
     private let umarmung: Umarmung?
@@ -57,13 +56,8 @@ struct FigurView: View {
     @State private var sichtbar = false
 
     /// `bildrate`: frames per second of the loop; lower it where many figures or a map redraw.
-    /// `poseImmer` (Brief I.5): a bought pose/dance normally only shows while `zustand` is otherwise
-    /// idle — set `true` on a still snapshot (profile header, map pin) so it shows regardless of
-    /// state except sleeping/offline/low-battery/bad-mood/a live Geste, which always win. Substitutes
-    /// `.ruhig` for `zustand` in `leinwand` rather than only swapping the arms, so props/scenery/
-    /// pajamas tied to the real `zustand` (barbell, sofa, phone, …) don't linger under the pose.
     /// `extras` (Z-39.4): umbrella, sunglasses, hat and scarf, phone with a white cable, snowflakes.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, poseImmer: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil) {
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil) {
         self.umarmung = umarmung
         self.aussehen = aussehen
         self.zustand = zustand
@@ -72,7 +66,6 @@ struct FigurView: View {
         self.animiert = animiert
         self.bildrate = bildrate
         self.ganzkoerper = ganzkoerper
-        self.poseImmer = poseImmer
         self.extras = extras
         self.tisch = tisch
         self.gymGeste = gymGeste
@@ -105,11 +98,7 @@ struct FigurView: View {
     }
 
     private func zeichner(statisch: Bool) -> Zeichner {
-        // `.ruhig` already falls to the `default:` branch in both `pose()` and `poseGanz()`, so
-        // this reuses that existing "idle" path — with none of `zustand`'s props/scene/pajamas —
-        // instead of teaching `Zeichner` a second pose-priority system.
-        let posiert = poseImmer && aussehen.pose != nil && !Zeichner.keinePoseUeberschreibung.contains(zustand)
-        return Zeichner(aussehen, posiert ? .ruhig : zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung, gymGeste: gymGeste)
+        Zeichner(aussehen, zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung, gymGeste: gymGeste)
     }
 
     private func leinwand(_ basis: Zeichner, _ t: Double) -> some View {
@@ -348,7 +337,7 @@ private struct Zeichner {
     let ohrring, muetze, jacke, hose, schuhe, koerperform, groesseStufe: Int
     let wimpern, sommersprossen, muttermal, rouge: Bool
     // v3 (Z-24.2): worn shop parts, forwarded to the Zubehoer/ drawers as-is (nil = nothing).
-    let tascheId, uhrId, schmuckId, poseId, tierId: String?
+    let tascheId, uhrId, schmuckId, tierId: String?
     /// `hosenFarbe` below hardcodes a denim wash for hose 0/1/2 unless a free color was picked.
     let hosenHexAktiv: Bool
     // v4 (Z-39.3): free everyday jewelry, 0 = none.
@@ -407,7 +396,6 @@ private struct Zeichner {
         tascheId = a.tasche
         uhrId = a.uhr
         schmuckId = a.schmuck
-        poseId = a.pose
         tierId = a.tier
         frisur = grenze(a.frisur, A.frisuren.count)
         let eigeneBrille = grenze(a.brille, A.brillen.count)
@@ -2726,35 +2714,9 @@ private struct Zeichner {
 
     // MARK: Poses
 
-    /// Every `z` with its own scripted arm animation that a static bought pose must never cut off —
-    /// device/mood states, plus live Gesten (kiss lean in `ProfileView`, high-five/laugh/toast/
-    /// trophy), which are meaningful and brief, unlike the all-day Ort/Tageszeit states `FigurView`'s
-    /// `poseImmer` (Brief I.5) substitutes `.ruhig` for.
+    /// Every `z` with its own scripted arm animation: device/mood states, plus live Gesten (kiss lean
+    /// in `ProfileView`, high-five/laugh/toast/trophy). The sleepy extra never shows over these.
     static let keinePoseUeberschreibung: Set<FigurZustand> = Set<FigurZustand>([.schlaeft, .offline, .akkuLeer, .schlecht, .kuss, .herz, .lacht, .anstossen, .pokal]).union(FigurZustand.mimik)
-
-    /// Z-23.3/Z-24.2: a bought pose/dance shows while the figure is just idling (Profil, Karte) —
-    /// it never fights a meaningful activity pose (typing, sleeping, …).
-    func poseUeberschreibung() -> (l: Arm?, r: Arm?)? {
-        guard let id = poseId, !Self.keinePoseUeberschreibung.contains(z) else { return nil }
-        switch id {
-        case "pose.tanz1":
-            let s = w(6)
-            return (Arm(P(42, 216), P(46 + s * 10, 250)), Arm(P(158, 200), P(154 - s * 14, 150)))
-        case "pose.tanz2":
-            let s = w(5)
-            return (Arm(P(42, 200), P(30, 150 + s * 10)), Arm(P(158, 200), P(170, 150 - s * 10)))
-        case "pose.tanz3":
-            let s = w(7, 1.5)
-            return (Arm(P(50, 210), P(70 + s * 10, 190)), Arm(P(150, 210), P(130 - s * 10, 190)))
-        case "pose.tanz4":
-            let s = w(4)
-            return (Arm(P(40, 190 - s * 6), P(30, 140 - s * 10)), Arm(P(160, 190 + s * 6), P(170, 140 + s * 10)))
-        case "pose.model":
-            return (Arm(P(46, 216), P(66, 206)), Arm(P(160, 176), P(178, 130)))
-        default:
-            return nil
-        }
-    }
 
     func pose() -> (l: Arm?, r: Arm?) {
         let v = vForm
@@ -2866,9 +2828,6 @@ private struct Zeichner {
             let s = w(5)
             return (Arm(P(36, 190 - s * 10), P(28 + s * 6, 140 - s * 16)), Arm(P(164, 190 + s * 10), P(172 - s * 6, 140 + s * 16)))
         default:
-            // Z-23.3/Z-24.2: a bought pose/dance shows whenever nothing more specific is going on
-            // (Profil, Karte, "zuhause", …) — it never overrides a real activity pose above.
-            if let o = poseUeberschreibung() { return o }
             return (restL, restR)
         }
     }
@@ -4089,30 +4048,6 @@ extension Zeichner {
 
     // MARK: Arms and props
 
-    /// Full-body counterpart to `poseUeberschreibung()` — same pose ids, coordinates in body space.
-    func poseGanzUeberschreibung(_ m: Masse) -> (l: Arm, r: Arm)? {
-        guard let id = poseId, !Self.keinePoseUeberschreibung.contains(z) else { return nil }
-        let lx: CGFloat = 100 - m.s + 6, rx: CGFloat = 100 + m.s - 6, y = m.schulterY
-        switch id {
-        case "pose.tanz1":
-            let s = w(6)
-            return (Arm(P(lx - 6, y + 50), P(lx - 4, y + 92)), Arm(P(rx + 10, y + 10 - s * 10), P(rx + 30, y - 30 + s * 14)))
-        case "pose.tanz2":
-            let s = w(5)
-            return (Arm(P(lx - 20, y + 10 - s * 8), P(lx - 40, y - 20 + s * 10)), Arm(P(rx + 20, y + 10 + s * 8), P(rx + 40, y - 20 - s * 10)))
-        case "pose.tanz3":
-            let s = w(7, 1.5)
-            return (Arm(P(lx - 10, y + 40), P(lx - 30 + s * 10, y + 10)), Arm(P(rx + 10, y + 40), P(rx + 30 - s * 10, y + 10)))
-        case "pose.tanz4":
-            let s = w(4)
-            return (Arm(P(lx - 10, y + 10 - s * 6), P(lx - 30, y - 30 - s * 10)), Arm(P(rx + 10, y + 10 + s * 6), P(rx + 30, y - 30 + s * 10)))
-        case "pose.model":
-            return (Arm(P(lx - 4, y + 48), P(86, y + 84)), Arm(P(rx + 20, y - 4), P(rx + 34, y - 40)))
-        default:
-            return nil
-        }
-    }
-
     func poseGanz(_ m: Masse) -> (l: Arm, r: Arm) {
         let lx: CGFloat = 100 - m.s + 6
         let rx: CGFloat = 100 + m.s - 6
@@ -4207,9 +4142,7 @@ extension Zeichner {
             let s = w(5)
             return (Arm(P(lx - 16, y + 10 - s * 8), P(lx - 30, y - 24 + s * 14)), Arm(P(rx + 16, y + 10 + s * 8), P(rx + 30, y - 24 - s * 14)))
         default:
-            // Z-23.3/Z-24.2: a bought pose/dance shows whenever nothing more specific is going on
-            // (Profil, Karte, "ruhig", …) — it never overrides a real activity pose above.
-            return poseGanzUeberschreibung(m) ?? (restL, restR)
+            return (restL, restR)
         }
     }
 

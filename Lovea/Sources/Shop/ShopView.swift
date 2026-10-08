@@ -1,7 +1,6 @@
 import SwiftUI
 
-/// Z-23.2: categories, grid of item previews (each tile a live "try-on" on the target figure, or
-/// the backdrop's own preview), a bigger live preview + buy/wear sheet, gift mode.
+/// Z-23.2: categories, grid of item previews (each tile a live "try-on" on the target figure), a bigger live preview + buy/wear sheet, gift mode.
 /// Reachable from the own profile (Profile/) and the figure editor (Einstellungen/).
 struct ShopView: View {
     @Environment(\.dismiss) private var dismiss
@@ -13,7 +12,7 @@ struct ShopView: View {
     private var ich: Person { Raum.shared.ich ?? .ahmed }
     private var ziel: Person { geschenkModus ? ich.partner : ich }
 
-    /// One fold per render instead of one per tile (80+ items) — see `PunkteModell.einkaufsStand`.
+    /// One fold per render instead of one per tile (20 items) — see `PunkteModell.einkaufsStand`.
     private var stand: (verfuegbar: [Person: Int], besitz: BesitzLogik.Ergebnis) {
         PunkteModell.shared.einkaufsStand(preis: { ShopKatalog.artikel($0)?.preis })
     }
@@ -126,19 +125,15 @@ struct ShopView: View {
     }
 }
 
-private enum ShopKategorie: String, CaseIterable, Identifiable {
-    case mode, tasche, uhr, schmuck, brille, backdrop, pose, tier
+/// p47: der Shop hat nur noch diese drei Gruppen.
+enum ShopKategorie: String, CaseIterable, Identifiable {
+    case mode, tasche, tier
     var id: String { rawValue }
 
     var titel: String {
         switch self {
         case .mode: "Mode"
         case .tasche: "Taschen"
-        case .uhr: "Uhren"
-        case .schmuck: "Schmuck"
-        case .brille: "Brillen"
-        case .backdrop: "Backdrops"
-        case .pose: "Posen & Tänze"
         case .tier: "Haustiere"
         }
     }
@@ -147,18 +142,13 @@ private enum ShopKategorie: String, CaseIterable, Identifiable {
         switch self {
         case .mode: "tshirt"
         case .tasche: "bag"
-        case .uhr: "clock"
-        case .schmuck: "sparkles"
-        case .brille: "eyeglasses"
-        case .backdrop: "photo"
-        case .pose: "figure.dance"
         case .tier: "pawprint"
         }
     }
 }
 
-/// One grid tile: a live preview (figure try-on, or the backdrop's own preview).
-private struct ArtikelKachel: View {
+/// One grid tile: a live preview (figure try-on).
+struct ArtikelKachel: View {
     let artikel: ShopArtikel
     let besitzt: Bool
     let vorschauAussehen: FigurAussehen
@@ -190,13 +180,8 @@ private struct ArtikelKachel: View {
         .accessibilityLabel("\(artikel.name), \(besitzt ? "besitzt du schon" : "\(artikel.preis) Punkte")")
     }
 
-    @ViewBuilder private var vorschau: some View {
-        switch artikel.kategorie {
-        case "backdrop":
-            BackdropView(id: artikel.id)
-        default:
-            FigurView(vorschauAussehen, zustand: .ruhig, groesse: 118, animiert: false, ganzkoerper: true)
-        }
+    private var vorschau: some View {
+        FigurView(vorschauAussehen, zustand: .ruhig, groesse: 118, animiert: false, ganzkoerper: true)
     }
 }
 
@@ -221,7 +206,6 @@ private struct ArtikelDetail: View {
     private var vorschauAussehen: FigurAussehen { FigurenModell.shared.aussehen(ziel).mitVorschau(artikel) }
     private var fehlend: Int { max(0, artikel.preis - verfuegbar) }
     private var getragen: Bool { FigurenModell.shared.aussehen(ziel).traegt(artikel) }
-    private var direktTeil: Bool { artikel.kategorie != "backdrop" }
 
     var body: some View {
         VStack(spacing: 18) {
@@ -244,18 +228,13 @@ private struct ArtikelDetail: View {
         }
     }
 
-    @ViewBuilder private var vorschau: some View {
-        switch artikel.kategorie {
-        case "backdrop":
-            BackdropView(id: artikel.id).clipShape(RoundedRectangle(cornerRadius: 18)).padding(.horizontal, 24)
-        default:
-            FigurView(vorschauAussehen, zustand: .ruhig, groesse: 260, animiert: false, ganzkoerper: true)
-        }
+    private var vorschau: some View {
+        FigurView(vorschauAussehen, zustand: .ruhig, groesse: 260, animiert: false, ganzkoerper: true)
     }
 
     @ViewBuilder private var aktion: some View {
         if besitzt {
-            if istEigeneFigur && direktTeil {
+            if istEigeneFigur {
                 Button(getragen ? "Ausziehen" : "Anziehen") {
                     getragen ? onAusziehen() : onAnziehen()
                 }

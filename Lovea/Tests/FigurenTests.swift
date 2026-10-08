@@ -234,7 +234,6 @@ final class FigurenTests: XCTestCase {
         let json = #"{"haut":0,"frisur":0,"haarfarbe":0,"augen":0,"brille":0,"bart":0,"oberteil":0,"oberteilfarbe":0}"#
         let a = try JSONDecoder().decode(FigurAussehen.self, from: Data(json.utf8))
         XCTAssertNil(a.tasche)
-        XCTAssertNil(a.pose)
         XCTAssertNil(a.haarfarbeHex)
     }
 
@@ -333,8 +332,8 @@ final class FigurenTests: XCTestCase {
 
     /// Raw names are the wire format of `geste` ops and chat reactions (B1 maps onto them).
     func testMimikUndExtrasNamen() {
-        XCTAssertEqual(FigurZustand.mimik.map(\.rawValue).sorted(), ["daumen", "denkt", "feiert", "lachtTraenen", "muede", "sauer", "schmollt", "schockiert", "tanzt", "ueberrascht", "verlegen", "verliebt", "weint", "zwinkert"])
-        XCTAssertEqual(Set(FigurZustand.mimik).count, 14)
+        XCTAssertEqual(FigurZustand.mimik.map(\.rawValue).sorted(), ["daumen", "denkt", "feiert", "lachtTraenen", "muede", "sauer", "schmollt", "schockiert", "ueberrascht", "verlegen", "verliebt", "weint", "zwinkert"])
+        XCTAssertEqual(Set(FigurZustand.mimik).count, 13, "kein Tanz in der Gesten-Auswahl (p47)")
         XCTAssertEqual(FigurExtra.allCases.map(\.rawValue), ["schirm", "sonnenbrille", "muetzeSchal", "handyKabel", "schneeflocken", "hanteln", "schlaefrig", "mitzeichnen"])
     }
 
