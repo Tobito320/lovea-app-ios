@@ -159,7 +159,7 @@ struct UebungsSuche: View {
     /// Mit Suchtext zeigt die Suche unter den Standard-Treffern auch andere Geräte (Band, Kettlebell …).
     private func weitereTreffer(_ text: String, muskel: String?) -> [Uebung] {
         guard !text.isEmpty, geraet == nil else { return [] }
-        let rest = UebungsKatalog.alle.filter { !UebungsKatalog.standardGeraete.contains($0.geraet) && (muskel.map { m in $0.muskel == m } ?? true) }
+        let rest = UebungsKatalog.alle.filter { u in !UebungsKatalog.standardGeraete.contains(u.geraet) && (muskel.map { u.muskel == $0 } ?? true) }
         return Array(UebungsKatalog.suchen(text, in: rest).prefix(15))
     }
 
