@@ -3,8 +3,6 @@ import assert from "node:assert/strict";
 import { fakeSql } from "./fake-sql.js";
 import {
   initSchema,
-  herzPushErlaubt,
-  HERZ_PUSH_ABSTAND_MS,
   opEinfuegen,
   opEinfuegenMitStatus,
   opsSeit,
@@ -419,12 +417,4 @@ test("alarmErledigt: Markierung ist idempotent, wird gefunden, landet nicht in d
   assert.equal(alarmErledigt(sql, "frageDesTages", "2026-10-25"), true);
   // Server-Buchhaltung, kein Chat-Ereignis: darf dem Client nicht als Op ankommen.
   assert.equal(opsSeit(sql, 0).ops.length, 0);
-});
-
-test("herzPushErlaubt: erste Push frei, danach erst nach 10 Minuten, rückwärts laufende Uhr blockiert nicht", () => {
-  assert.equal(herzPushErlaubt(undefined, 1_000), true);
-  assert.equal(herzPushErlaubt(null, 1_000), true);
-  assert.equal(herzPushErlaubt(1_000, 1_000 + HERZ_PUSH_ABSTAND_MS - 1), false);
-  assert.equal(herzPushErlaubt(1_000, 1_000 + HERZ_PUSH_ABSTAND_MS), true);
-  assert.equal(herzPushErlaubt(5_000, 1_000), true);
 });

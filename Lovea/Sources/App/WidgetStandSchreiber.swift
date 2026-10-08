@@ -160,12 +160,11 @@ final class WidgetStandSchreiber {
         }
     }
 
-    /// "Partner jetzt": Status, letzter Moment und Herzen heute. Liest nur schon vorhandene Modelle.
     private func tagEintragen(_ stand: inout WidgetStand, partner: Person) {
-        stand.partnerStatus = TagModell.shared.statusText(person: partner)
+        stand.partnerStatus = FigurenModell.shared.anzeige(partner).haupt.titel
         stand.partnerLetzterMoment = TagModell.shared.letzterMoment(person: partner)
         stand.herzDatum = Datum.text(Date())
-        stand.herzHeute = Dictionary(uniqueKeysWithValues: Person.allCases.map { ($0.rawValue, FigurenModell.shared.herzHeute[$0] ?? 0) })
+        stand.herzHeute = FigurenModell.shared.herzHeute[partner.partner] ?? 0
     }
 
     // MARK: - Partner-Figur und -Foto

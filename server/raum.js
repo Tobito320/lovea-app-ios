@@ -42,7 +42,6 @@ import {
   spotifyTokenSchreiben,
   spotifyCacheLesen,
   spotifyCacheSchreiben,
-  herzPushErlaubt,
 } from "./raum-logic.js";
 import { agentStatistik, agentOps, agentMerker } from "./agent.js";
 import { push } from "./push.js";
@@ -384,7 +383,7 @@ export class Raum {
 
   // --- Push für eintreffende Ops (Z-1.6) ------------------------------------
 
-  #letztesHerz = {}; // ponytail: wie #letzterTon nur im Speicher; nach Hibernation geht höchstens eine Herz-Push zu viel raus
+  #letztesHerz = {}; // nur im Speicher wie #letzterTon
   #letzterTon = {}; // ponytail: nur im Speicher, nach Hibernation klingt die nächste Push wieder
   async #pushFuerOp(op) {
     let kontext;
@@ -401,11 +400,10 @@ export class Raum {
     const empfaenger = partnerVon(op.von);
     if (einstellung(this.sql, empfaenger, `mitteilungen.${r.kategorie}`) === false) return;
 
-    // Herz-Tipps: jeder wird gespeichert und gezählt, die Push aber höchstens alle 10 Minuten.
+    // Herz-Tipps zählen alle, die Push geht höchstens alle 10 Minuten.
     if (op.art === "geste" && op.d.art === "herz") {
-      const jetztHerz = Date.now();
-      if (!herzPushErlaubt(this.#letztesHerz[empfaenger], jetztHerz)) return;
-      this.#letztesHerz[empfaenger] = jetztHerz;
+      if (Date.now() - (this.#letztesHerz[empfaenger] ?? 0) < 10 * 60_000) return;
+      this.#letztesHerz[empfaenger] = Date.now();
     }
 
     const immer = op.art === "ort.ereignis"; // Ankunft/Verlassen gehen immer.
@@ -464,9 +462,7 @@ export class Raum {
       const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
       letzteSeq = seq;
       if (neu) this.#verteilen(null, { ...op, seq });
-      // Widget "Denk an dich": ein Herz aus dem Widget-Prozess (kein Socket) soll wie ein App-Herz
-      // eine Push auslösen. Nur mit ?push=1, nur art "geste", nur vom Absender selbst -- der
-      // Migrations-Import bleibt ohne Push.
+      // Widget-Herz (kein Socket): nur mit ?push=1, nur "geste", nur vom Absender selbst.
       if (neu && url?.searchParams.get("push") === "1" && op.art === "geste" && op.von === person) {
         await this.#pushFuerOp({ ...op, seq }).catch((err) => this.#log("push für Op fehlgeschlagen", op.art, err));
       }

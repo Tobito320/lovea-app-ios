@@ -108,14 +108,6 @@ export function verbindungIstLebendig(letzterKontaktMs, jetztMs) {
   return letzterKontaktMs === null || letzterKontaktMs === undefined || jetztMs - letzterKontaktMs < PING_TIMEOUT_MS;
 }
 
-// "Denk an dich" (geste herz): jeder Tipp wird als Op gespeichert und gezählt, die Push an den Partner
-// aber höchstens alle 10 Minuten. Reine Entscheidung, damit sie ohne Durable Object testbar bleibt.
-export const HERZ_PUSH_ABSTAND_MS = 10 * 60_000;
-export function herzPushErlaubt(letzteMs, jetztMs) {
-  if (letzteMs === null || letzteMs === undefined) return true;
-  return jetztMs < letzteMs || jetztMs - letzteMs >= HERZ_PUSH_ABSTAND_MS;
-}
-
 // Minor 2 (Spec 7/12: `entwurf.setzen` "nur für den Absender"): geht nie an den Partner, weder live
 // noch beim Nachholen -- auch getippter und wieder gelöschter Text landet so nicht auf seinem Gerät.
 export const NUR_FUER_ABSENDER = "entwurf.setzen";

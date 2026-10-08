@@ -81,7 +81,6 @@ struct LoveaApp: App {
                 // Mahlzeit in der Query — `essenMahlzeitWunsch` öffnet dafür direkt das Hinzufügen-Blatt.
                 .onOpenURL { url in
                     AppNavigation.shared.tabWunsch = url.host
-                    if url.host == "tag" { AppNavigation.shared.tagOeffnen = true }
                     let teile = URLComponents(url: url, resolvingAgainstBaseURL: false)
                     AppNavigation.shared.essenMahlzeitWunsch = teile?.queryItems?.first { $0.name == "mahlzeit" }?.value
                 }

@@ -13,8 +13,7 @@ enum WidgetOpPoster {
         await senden(WidgetPendingOp(id: UUID().uuidString, von: person, zeit: isoJetzt(), datum: datum, wert: wert, habit: habit))
     }
 
-    /// "Denk an dich" aus dem Widget: `geste herz`. Mit `?push=1`, damit der Server den Push schickt
-    /// (und höchstens alle 10 Minuten); die App-Seite dedupliziert über die Op-`id`.
+    /// "Denk an dich": `geste herz`, mit `?push=1` damit der Server pusht.
     static func herzSenden(von person: String) async {
         await senden(WidgetPendingOp(id: UUID().uuidString, von: person, zeit: isoJetzt(), datum: "", wert: 0, geste: "herz"))
     }
@@ -38,10 +37,7 @@ enum WidgetOpPoster {
         guard let bodyDaten = try? JSONEncoder().encode(WireBody(ops: [WireOp(pending)])) else { return false }
 
         var url = basis.appendingPathComponent("ops")
-        if pending.geste != nil, var teile = URLComponents(url: url, resolvingAgainstBaseURL: false) {
-            teile.queryItems = [URLQueryItem(name: "push", value: "1")]
-            url = teile.url ?? url
-        }
+        if pending.geste != nil { url.append(queryItems: [URLQueryItem(name: "push", value: "1")]) }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.timeoutInterval = 8

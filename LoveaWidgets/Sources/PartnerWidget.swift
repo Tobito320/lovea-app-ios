@@ -52,7 +52,7 @@ private struct PartnerRechteck: View {
     }
 }
 
-private struct PartnerBild: View {
+struct PartnerBild: View {
     let bild: UIImage?
     var body: some View {
         if let bild {
