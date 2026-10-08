@@ -1,11 +1,14 @@
 import Foundation
 import Observation
+import UIKit
+import UserNotifications
 
 // Health-Coach: Zustand des Chats und der Lader für die Regel-Karten.
 //
 // Akku: Nichts davon läuft beim App-Start. `CoachModell.shared` wird erst angefasst, wenn der Chat aufgeht, und
 // hängt sich auch erst dort an den Op-Strom (`oeffnen`). Kein Timer, Netz nur in `frage`. Die Kachel in Heute liest
-// nur schon geladene Modelle (`CoachDaten`).
+// nur schon geladene Modelle (`CoachDaten`). Haken, Daumen, Gemerktes, versteckte Nachrichten und der Entwurf liegen
+// nur in UserDefaults dieses Geräts.
 
 /// Schlüssel an einer Stelle, damit Kachel, Chat und Modell dieselben nehmen.
 enum CoachSchluessel {
@@ -13,10 +16,35 @@ enum CoachSchluessel {
     static let pause = "lovea.coach.pausiert"
     /// Einstellung (`einstellung.setzen`), Wert "1" oder "0"; der Server schreibt nur bei "1" morgens von allein.
     static let morgen = "coach.morgen"
+    /// Einstellungen, die der Server liest: Ton ("locker", "knapp", "direkt", alles andere = Standard) und eigenes Ziel (Text).
+    static let ton = "coach.ton"
+    static let ziel = "coach.ziel"
     static func ausgeblendet(_ person: Person) -> String { "lovea.coach.ausgeblendetBis.\(person.rawValue)" }
+    static func entwurf(_ person: Person) -> String { "lovea.coach.entwurf.\(person.rawValue)" }
 }
 
-private struct CoachFrageBody: Encodable { let text: String }
+/// Kleine Listen, die nur auf diesem Gerät liegen. Einträge sind `CoachLokal.schluessel` des Textes (Aufgabe,
+/// Nachricht) oder die Id einer Server-Nachricht (versteckt).
+enum CoachMerkliste: String, CaseIterable {
+    case haken, daumenHoch, daumenRunter, gemerkt, versteckt, erinnerungen
+
+    var maximal: Int {
+        switch self {
+        case .haken: 300
+        case .daumenHoch, .daumenRunter, .versteckt: 200
+        case .gemerkt: 100
+        case .erinnerungen: 20
+        }
+    }
+
+    func schluessel(_ person: Person) -> String { "lovea.coach.\(rawValue).\(person.rawValue)" }
+}
+
+private struct CoachFrageBody: Encodable {
+    let text: String
+    /// Die App versteht die Marker am Antwort-Ende (`CoachMarker`); ältere Builds schicken das Feld nicht.
+    let marker: Bool
+}
 private struct CoachAntwortBody: Decodable { let text: String }
 
 @MainActor @Observable
@@ -36,14 +64,108 @@ final class CoachModell {
     private(set) var fehler: CoachFehler?
     /// Alles vor diesem Zeitpunkt ist auf diesem Gerät ausgeblendet ("Verlauf ausblenden").
     private(set) var ausgeblendetBis: Date?
+    /// Die letzte gesendete Frage, für "Nochmal versuchen" nach einem Fehler.
+    private(set) var letzteFrage: String?
+    private var listen: [CoachMerkliste: [String]] = [:]
+    /// Wann eine Antwort eingetroffen ist (Schlüssel = `CoachLokal.schluessel` des Textes, nicht die Id: aus dem lokalen
+    /// Eintrag wird später die Op vom Server). Nur für das Einblenden; ältere Einträge werden weggeräumt.
+    private var frisch: [String: Date] = [:]
 
     private init() {}
 
     private var ich: Person { Raum.shared.ich ?? .ahmed }
 
-    /// Sichtbarer Verlauf: Server-Ops plus noch unbestätigte lokale Einträge, ohne den ausgeblendeten Teil.
+    /// Server-Ops plus noch unbestätigte lokale Einträge, ohne Rücksicht auf Ausblenden.
+    private var alle: [CoachNachricht] {
+        CoachVerlauf.zusammenfuehren(ops: Array(ausOps.values), lokal: lokal)
+    }
+
+    /// Sichtbarer Verlauf: ohne den ausgeblendeten Teil und ohne einzeln versteckte Nachrichten.
     var liste: [CoachNachricht] {
-        CoachVerlauf.sichtbar(CoachVerlauf.zusammenfuehren(ops: Array(ausOps.values), lokal: lokal), ausgeblendetBis: ausgeblendetBis)
+        let weg = Set(listen[.versteckt] ?? [])
+        let sichtbar = CoachVerlauf.sichtbar(alle, ausgeblendetBis: ausgeblendetBis)
+        return weg.isEmpty ? sichtbar : sichtbar.filter { !weg.contains($0.id) }
+    }
+
+    /// Angeheftete Nachrichten, auch wenn der Verlauf ausgeblendet ist.
+    var gemerkteNachrichten: [CoachNachricht] {
+        let schluessel = Set(listen[.gemerkt] ?? [])
+        guard !schluessel.isEmpty else { return [] }
+        return alle.filter { schluessel.contains(CoachLokal.schluessel($0.text)) }
+    }
+
+    // MARK: - Nur auf diesem Gerät
+
+    func hat(_ liste: CoachMerkliste, _ eintrag: String) -> Bool { listen[liste]?.contains(eintrag) ?? false }
+
+    func setzen(_ liste: CoachMerkliste, _ eintrag: String, an: Bool) {
+        let neu = CoachLokal.setzen(listen[liste] ?? [], eintrag, an: an, maximal: liste.maximal)
+        listen[liste] = neu
+        UserDefaults.standard.set(neu, forKey: liste.schluessel(ich))
+    }
+
+    /// Daumen hoch oder runter; ein zweiter Tipp nimmt ihn zurück, der andere Daumen fällt weg. Nur lokal, der Server erfährt nichts.
+    func daumen(_ eintrag: String, hoch: Bool) {
+        let war = hat(hoch ? .daumenHoch : .daumenRunter, eintrag)
+        setzen(.daumenHoch, eintrag, an: hoch && !war)
+        setzen(.daumenRunter, eintrag, an: !hoch && !war)
+    }
+
+    /// Seit wann diese Antwort frisch ist (nur kurz nach dem Eintreffen), sonst `nil`.
+    func frischSeit(_ text: String) -> Date? { frisch[CoachLokal.schluessel(text)] }
+
+    // MARK: - Erinnerungen (lokale Mitteilungen)
+
+    /// Kennungen der Erinnerungen, die der Coach vorgeschlagen hat und die hier gesetzt wurden.
+    var erinnerungen: [String] { listen[.erinnerungen] ?? [] }
+
+    /// Täglich zur gewählten Uhrzeit eine lokale Mitteilung. Fragt die Berechtigung erst jetzt, auf Tipp. `false` =
+    /// nicht erlaubt. Kein Netz, kein Hintergrundlauf: iOS löst die Mitteilung selbst aus.
+    func erinnerungPlanen(stunde: Int, minute: Int, text: String) async -> Bool {
+        let kennung = CoachLokal.erinnerungsKennung(stunde: stunde, minute: minute, text: text)
+        let center = UNUserNotificationCenter.current()
+        var status = await center.notificationSettings().authorizationStatus
+        if status == .notDetermined {
+            _ = try? await center.requestAuthorization(options: [.alert, .sound])
+            status = await center.notificationSettings().authorizationStatus
+        }
+        guard status == .authorized || status == .provisional || status == .ephemeral else { return false }
+
+        let bisher = erinnerungen
+        if bisher.count >= CoachMerkliste.erinnerungen.maximal, !bisher.contains(kennung), let aeltestes = bisher.first {
+            center.removePendingNotificationRequests(withIdentifiers: [aeltestes])
+        }
+        let inhalt = UNMutableNotificationContent()
+        inhalt.title = "Coach"
+        inhalt.body = String(text.prefix(140))
+        inhalt.sound = .default
+        var teile = DateComponents()
+        teile.hour = stunde
+        teile.minute = minute
+        teile.timeZone = Datum.kalender.timeZone
+        let ausloeser = UNCalendarNotificationTrigger(dateMatching: teile, repeats: true)
+        try? await center.add(UNNotificationRequest(identifier: kennung, content: inhalt, trigger: ausloeser))
+        setzen(.erinnerungen, kennung, an: true)
+        return true
+    }
+
+    func erinnerungenEntfernen() {
+        UNUserNotificationCenter.current().removePendingNotificationRequests(withIdentifiers: erinnerungen)
+        listen[.erinnerungen] = []
+        UserDefaults.standard.set([String](), forKey: CoachMerkliste.erinnerungen.schluessel(ich))
+    }
+
+    // MARK: - Entwurf
+
+    func entwurfLesen() -> String { UserDefaults.standard.string(forKey: CoachSchluessel.entwurf(ich)) ?? "" }
+
+    func entwurfSpeichern(_ text: String) {
+        let schluessel = CoachSchluessel.entwurf(ich)
+        if text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            UserDefaults.standard.removeObject(forKey: schluessel)
+        } else {
+            UserDefaults.standard.set(String(text.prefix(Self.maxZeichen)), forKey: schluessel)
+        }
     }
 
     // MARK: - Öffnen
@@ -56,6 +178,9 @@ final class CoachModell {
         geoeffnet = true
         let zeitpunkt = UserDefaults.standard.double(forKey: CoachSchluessel.ausgeblendet(ich))
         ausgeblendetBis = zeitpunkt > 0 ? Date(timeIntervalSince1970: zeitpunkt) : nil
+        for art in CoachMerkliste.allCases {
+            listen[art] = UserDefaults.standard.stringArray(forKey: art.schluessel(ich)) ?? []
+        }
         Raum.shared.beobachten(["coach.nachricht"]) { [weak self] op in
             guard let self, op.von == Raum.shared.ich, let nachricht = CoachNachricht.aus(op) else { return }
             // Nach `id` ersetzen: kommt dieselbe Op noch einmal mit `seq`, gilt die neue Fassung.
@@ -74,6 +199,7 @@ final class CoachModell {
         oeffnen()
         sendet = true
         fehler = nil
+        letzteFrage = text
         defer { sendet = false }
 
         let eigene = CoachNachricht(id: "lokal-\(UUID().uuidString)", rolle: .du, text: text, zeit: Date(), lokal: true)
@@ -83,10 +209,18 @@ final class CoachModell {
         if let problem = CoachFehler.aus(status: status) {
             lokal.removeAll { $0.id == eigene.id }
             fehler = problem
+            Haptik.warnung()
             return problem
         }
         if let antwort, !antwort.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            lokal.append(CoachNachricht(id: "lokal-\(UUID().uuidString)", rolle: .coach, text: antwort, zeit: Date(), lokal: true))
+            let jetzt = Date()
+            frisch = frisch.filter { jetzt.timeIntervalSince($0.value) < 60 }
+            frisch[CoachLokal.schluessel(antwort)] = jetzt
+            lokal.append(CoachNachricht(id: "lokal-\(UUID().uuidString)", rolle: .coach, text: antwort, zeit: jetzt, lokal: true))
+            Haptik.erfolg()
+            if UIAccessibility.isVoiceOverRunning {
+                UIAccessibility.post(notification: .announcement, argument: "Coach hat geantwortet")
+            }
         }
         return nil
     }
@@ -95,7 +229,7 @@ final class CoachModell {
     /// eingerichtet). Ein Erfolg mit unlesbarem Body zählt als Erfolg ohne Blase; die Antwort kommt dann über die Op.
     private func senden(_ text: String) async -> (status: Int, antwort: String?) {
         guard let konfig = Raum.shared.httpKonfiguration(),
-              let body = try? JSONEncoder().encode(CoachFrageBody(text: text)) else { return (0, nil) }
+              let body = try? JSONEncoder().encode(CoachFrageBody(text: text, marker: true)) else { return (0, nil) }
         var anfrage = URLRequest(url: konfig.basis.appendingPathComponent("coach/frage"))
         anfrage.httpMethod = "POST"
         anfrage.timeoutInterval = Self.wartezeit
@@ -116,6 +250,25 @@ final class CoachModell {
 
     func morgenSetzen(_ an: Bool) {
         EinstellungenModell.shared.setzen(CoachSchluessel.morgen, .string(an ? "1" : "0"))
+    }
+
+    /// Ton der Antworten. Der Server kennt "locker", "knapp" und "direkt"; alles andere (auch leer) ist der Standardton.
+    static let toene: [(wert: String, name: String)] = [("", "Standard"), ("locker", "Locker"), ("knapp", "Knapp"), ("direkt", "Direkt")]
+
+    var ton: String { EinstellungenModell.shared.string(CoachSchluessel.ton, default: "") }
+
+    func tonSetzen(_ wert: String) {
+        EinstellungenModell.shared.setzen(CoachSchluessel.ton, .string(wert))
+    }
+
+    /// Eigenes Ziel in einem Satz (der Server nimmt höchstens 200 Zeichen). Leer = keins.
+    static let maxZielZeichen = 200
+
+    var ziel: String { EinstellungenModell.shared.string(CoachSchluessel.ziel, default: "") }
+
+    func zielSetzen(_ text: String) {
+        let sauber = String(text.trimmingCharacters(in: .whitespacesAndNewlines).prefix(Self.maxZielZeichen))
+        EinstellungenModell.shared.setzen(CoachSchluessel.ziel, .string(sauber))
     }
 
     /// Ops lassen sich nicht löschen. Der Verlauf wird deshalb nur auf diesem Gerät ausgeblendet; der Server und

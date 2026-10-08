@@ -110,8 +110,11 @@ private struct ProfilInhalt: View {
     /// p65: the scene stands fixed on top and is always whole, the panorama swipes sideways; only the calm
     /// part under it scrolls. The wall bleeds under the status bar, the scene itself starts below it.
     var body: some View {
-        layout
-        .ignoresSafeArea(edges: .top)
+        // p72: the inset is read out here, outside `ignoresSafeArea`: inside it reads 0 and the gear sat at the top edge.
+        GeometryReader { aussen in
+            layout(aussenOben: aussen.safeAreaInsets.top)
+                .ignoresSafeArea(edges: .top)
+        }
         .background(Color(uiColor: .systemGroupedBackground))
         .toolbar(istEigenes ? .hidden : .automatic, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
@@ -130,15 +133,17 @@ private struct ProfilInhalt: View {
 
     /// p69: the scene and the part under it. `ProfilLayout` decides from the room the screen gives whether the
     /// scene stands still on top (only the rest scrolls) or the whole profile scrolls as one.
-    private var layout: some View {
+    private func layout(aussenOben: CGFloat) -> some View {
         GeometryReader { geo in
-            let oben = geo.safeAreaInsets.top
-            let szene = ProfilLayout.szene(breite: geo.size.width, hoehe: geo.size.height, oben: oben)
+            let oben = ProfilLayout.oben(
+                eigenes: istEigenes, innen: geo.safeAreaInsets.top, aussen: aussenOben, statusleiste: statusleiste
+            )
+            let szene = ProfilLayout.szene(breite: geo.size.width, hoehe: geo.size.height, oben: oben.szene)
             ProfilUnterbau(abschnitte: abschnitte, klebt: szene.klebt, start: istEigenes ? nil : .wir) {
                 ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: szene.breite, hoehe: szene.hoehe) {
                     zuhause(paar: !istEigenes)
                 } schwebend: {
-                    schwebend(oben: oben)
+                    schwebend(oben: oben.chrome)
                 }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
@@ -147,6 +152,14 @@ private struct ProfilInhalt: View {
         // a tab or a lazy row that comes and goes must not start and stop it, and the row can stay away while empty.
         .task { if !istEigenes { SpotifyModell.shared.schauen() } }
         .onDisappear { if !istEigenes { SpotifyModell.shared.wegschauen() } }
+    }
+
+    /// p72: the real status bar of the active scene, as in `HeuteView.statusleistenHoehe` (`54` when there is no scene).
+    @MainActor
+    private var statusleiste: CGFloat {
+        let szenen = UIApplication.shared.connectedScenes
+        let szene = (szenen.first { $0.activationState == .foregroundActive } ?? szenen.first) as? UIWindowScene
+        return szene?.statusBarManager?.statusBarFrame.height ?? 54
     }
 
     /// p69: what stands under the scene, in four tabs. Blocks without a title are bars of buttons and chips;
@@ -193,7 +206,7 @@ private struct ProfilInhalt: View {
 
     /// p65: the two small things that float over the scene and do not move with the swipe: the one avatar
     /// of the profile with its online dot ("Annika ist online"), and in the own profile the gear.
-    /// `oben` is the status bar the wall bleeds into; both sit just under it.
+    /// `oben` is the status bar the wall bleeds into (and the Gym bar while it shows); both sit just under it.
     private func schwebend(oben: CGFloat) -> some View {
         HStack(alignment: .top) {
             ProfilOnlineChip(person: gegenueber, online: Raum.shared.partnerDa)
