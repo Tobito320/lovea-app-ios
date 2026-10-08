@@ -14,7 +14,7 @@ Spec: `docs/superpowers/specs/p65-profil-szene.md`. Order from the vault plan: B
 - [x] C2 (CI offen) Settings "Meine Figur" (`FigurEditor.Bereich.figur`); wardrobe in the profile (`.kleidung`: Oberteile, Hosen, Schuhe, Jacken, Accessoires + shop row via `GarderobeLogik`)
 - [x] D1 (CI offen) free kit (~5 per person) via `*Shop` sets (`Grundausstattung.swift`), real short names, kit-only outfits, tests updated
 - [x] D2 (CI offen) vector brand pieces (`Zubehoer/ModeMarken.swift`: Ralph Lauren, Adidas, Carhartt, The North Face, Nike tops; Air Jordan 1, Nike Dunk Low) built in directly, no switch, no notice; 63 new shop articles incl. Annika's women's catalog; gallery boards `figuren-kleiderschrank-*`, `figuren-marken-nah`
-- [ ] Z testlist in vault, advisor, PR ready, Büro report + Log line
+- [x] Z testlist in vault (`19 Bastelprojekte/Lovea – p65 Profil-Szene Testliste.md`), CI green (run 37771977904 on 9826bed, 2123 tests), boards viewed, PR ready, Büro report + Log line
 
 ## Step details
 
