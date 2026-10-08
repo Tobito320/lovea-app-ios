@@ -59,7 +59,8 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let dehnung: CGFloat
     private let straeusse: ZuhauseStraeusse
     private let paarDa: Bool
-    private let wandDinge: (Tageszeit) -> AnyView
+    private let wandDinge: (Tageszeit) -> AnyView
+    private let extras: ZimmerExtrasStand?
     private let fest: Bool
     private let wahl: ZimmerWahl
     private let katze: ZuhauseKatze?
@@ -80,17 +81,20 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// `fest`: a fixed scene without any driver (render board, previews).
     /// p61: `wahl` the room's pieces, `katze` the cat at home (none: no cat), `outfit` opens the outfit
     /// change from the clothes rail and the shoe shelf (none: both just hang there).
+    /// `extras` (p63): occasion decoration, sign, shelf and dice, hung in under the figures.
     init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
+         extras: ZimmerExtrasStand? = nil,
          fest: ZuhauseSzenenstand? = nil, wahl: ZimmerWahl = .standard, katze: ZuhauseKatze? = nil, outfit: (() -> Void)? = nil,
          wandDinge: @escaping (Tageszeit) -> AnyView = { _ in AnyView(EmptyView()) },
          @ViewBuilder figur: @escaping (ZuhauseFigur) -> Figur, @ViewBuilder paar: @escaping () -> Paar) {
         self.dehnung = dehnung
         self.straeusse = straeusse
         self.paarDa = paarDa
-        self.wandDinge = wandDinge
-        self.wahl = wahl
-        self.katze = katze
-        self.outfit = outfit
+        self.wandDinge = wandDinge
+        self.wahl = wahl
+        self.katze = katze
+        self.outfit = outfit
+        self.extras = extras
         self.fest = fest != nil
         self.figur = figur
         self.paar = paar
@@ -113,6 +117,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                     tippflaeche(ZimmerMoebel.regal, "Schuhregal, Outfit wechseln", outfit, s, oben)
                 }
                 ZStack(alignment: .topLeading) {
+                    if let extras { ZimmerExtras(stand: extras, s: s, oben: oben) }
                     bett(s, oben)
                     straeusseSicht(s, oben)
                     if let katze {
