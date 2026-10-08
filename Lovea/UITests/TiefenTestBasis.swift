@@ -194,7 +194,7 @@ class TiefenTestBasis: XCTestCase {
         let knopf = app.tabBars.buttons[name].firstMatch
         // Vollbild-Editor (z. B. Foto-Import) verdeckt die Tab-Leiste: erst herausgehen
         if !knopf.waitForExistence(timeout: 3) {
-            for ausweg in ["Abbrechen", "Schließen", "Zurück", "Fertig"] where app.buttons[ausweg].firstMatch.exists {
+            for ausweg in ["BackButton", "Abbrechen", "Schließen", "Zurück", "Fertig"] where app.buttons[ausweg].firstMatch.exists {
                 app.buttons[ausweg].firstMatch.tap()
                 ruhe(1)
                 if knopf.exists { break }
