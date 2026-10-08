@@ -11,19 +11,11 @@ struct ProfileView: View {
 
     var body: some View {
         NavigationStack {
-            ProfilInhalt(person: person, bilanz: bilanz, schliessen: {})
+            // p65: the gear floats in the scene (own profile hides the navigation bar), so `session` goes in.
+            ProfilInhalt(person: person, bilanz: bilanz, schliessen: {}, session: session)
                 .gymLeisteOben()
                 // R6: nur die Profil-Wurzel, nicht Einstellungen dahinter.
                 .tabWischen(vorheriger: "health", naechster: nil)
-                .toolbar {
-                    if person == session.person {
-                        ToolbarItem(placement: .primaryAction) {
-                            NavigationLink { EinstellungenView(person: person, session: session) } label: {
-                                Label("Einstellungen", systemImage: "gearshape.fill")
-                            }
-                        }
-                    }
-                }
         }
     }
 }
@@ -80,9 +72,10 @@ private struct ProfilInhalt: View {
     let bilanz: [(spiel: String, ahmed: Int, annika: Int, paar: String?)]
     /// Closes the partner sheet before a tab switch; no-op in the tab.
     let schliessen: () -> Void
+    /// p65: the own profile's session, for the gear in the scene that opens Einstellungen (none: no gear).
+    var session: PersonSession?
 
     @Environment(\.openURL) private var openURL
-    @State private var dehnung: CGFloat = 0
     @State private var tipps = 0
     @State private var nummerFehlt = 0
     @State private var blatt: ProfilBlatt?
@@ -104,7 +97,6 @@ private struct ProfilInhalt: View {
     @State private var geschenkArtikel: ShopArtikel?
     @State private var geschenkHaptik = 0
 
-    private static let kopfHoehe: CGFloat = 430
     private static let monate = ["Januar", "Februar", "März", "April", "Mai", "Juni", "Juli", "August", "September", "Oktober", "November", "Dezember"]
 
     private var ich: Person { Raum.shared.ich ?? person }
@@ -112,43 +104,51 @@ private struct ProfilInhalt: View {
     private var gegenueber: Person { ich.partner }
     private var istEigenes: Bool { person == ich }
 
+    /// p65: the scene stands fixed on top and is always whole, the panorama swipes sideways; only the calm
+    /// part under it scrolls. The wall bleeds under the status bar, the scene itself starts below it.
     var body: some View {
-        ScrollView {
+        GeometryReader { geo in
+            let breite = geo.size.width
+            let oben = geo.safeAreaInsets.top
             VStack(spacing: 0) {
-                if istEigenes { eigenerKopf } else { kopf }
-                VStack(alignment: .leading, spacing: 24) {
-                    if istEigenes {
-                        eigeneChips
-                        eigeneAktionen
-                        ZyklusProfilZeile(person: person)
-                        ProfilPunkteKarte(person: person)
-                        abschnitt("Spiele-Bilanz") { spieleAbschnittInhalt }
-                    } else {
-                        chips
-                        aktionen
-                        // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
-                        abschnitt("Die Karte") { dieKarte }
-                        abschnitt("Unser Chat") { unserChat }
-                        abschnitt("Wir") { wir }
-                    }
+                ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: breite,
+                               hoehe: oben + ProfilPanoramaLayout.szeneHoehe(breite: breite)) {
+                    zuhause(paar: !istEigenes)
+                } schwebend: {
+                    schwebend(oben: oben)
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 14)
-                .padding(.bottom, 32)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 24) {
+                        if istEigenes {
+                            eigeneChips
+                            eigeneAktionen
+                            ZyklusProfilZeile(person: person)
+                            ProfilPunkteKarte(person: person)
+                            abschnitt("Spiele-Bilanz") { spieleAbschnittInhalt }
+                        } else {
+                            partnerJetzt
+                            chips
+                            aktionen
+                            // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
+                            abschnitt("Die Karte") { dieKarte }
+                            abschnitt("Unser Chat") { unserChat }
+                            abschnitt("Wir") { wir }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 6)
+                    .padding(.bottom, 32)
+                }
             }
+            .frame(width: breite, height: geo.size.height, alignment: .top)
         }
         .ignoresSafeArea(edges: .top)
-        .onScrollGeometryChange(for: CGFloat.self) { geo in
-            max(0, -(geo.contentOffset.y + geo.contentInsets.top))
-        } action: { _, neu in
-            dehnung = neu
-        }
         .background(Color(uiColor: .systemGroupedBackground))
+        .toolbar(istEigenes ? .hidden : .automatic, for: .navigationBar)
         .toolbarBackground(.hidden, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .sensoryFeedback(.impact(weight: .medium), trigger: tipps)
         .sensoryFeedback(.warning, trigger: nummerFehlt)
-        .sensoryFeedback(.impact(weight: .light), trigger: dehnung > 90) { _, neu in neu }
         .sheet(item: $blatt) { b in blattInhalt(b) }
         .fullScreenCover(isPresented: $karteOffen) { KarteTab(schliessen: { karteOffen = false }) }
         .sheet(isPresented: $figurBearbeitenOffen) { NavigationStack { FigurEditorSeite(person: person) } }
@@ -171,64 +171,37 @@ private struct ProfilInhalt: View {
         }
     }
 
-    // MARK: - Header (stretchy scene, both figures, avatar + name)
+    // MARK: - Scene (fixed panorama, both figures)
 
-    /// The container keeps a fixed height; only the scene behind it grows upwards while pulling
-    /// down, so nothing below shifts and feeds back into the scroll offset.
-    private var kopf: some View {
-        ZStack(alignment: .bottomLeading) {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 10) {
-                    ProfilPaarAvatare(ich: ich)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(ProfilPaarAvatare.titel).font(.title2.bold())
-                        Text("zusammen seit 26.08.2026").font(.subheadline.weight(.medium)).opacity(0.9)
-                    }
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
+    /// p65: the two small things that float over the scene and do not move with the swipe: the one avatar
+    /// of the profile with its online dot ("Annika ist online"), and in the own profile the gear.
+    /// `oben` is the status bar the wall bleeds into; both sit just under it.
+    private func schwebend(oben: CGFloat) -> some View {
+        HStack(alignment: .top) {
+            ProfilOnlineChip(person: gegenueber, online: Raum.shared.partnerDa)
+            Spacer(minLength: 8)
+            if let session, person == session.person {
+                NavigationLink { EinstellungenView(person: person, session: session) } label: {
+                    Image(systemName: "gearshape.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .contentShape(Circle())
                 }
-                partnerJetzt
+                .buttonStyle(.plain)
+                .accessibilityLabel("Einstellungen")
             }
-            .padding(16)
         }
-        .frame(maxWidth: .infinity)
-        .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) { zuhause(paar: true) }
+        .padding(.horizontal, 12)
+        .padding(.top, oben + 4)
     }
 
-    /// Z-25.1: own profile only — the shared home with both of them, name and a "Zimmer gestalten"
-    /// tap target (no "Unser Chat", no steps).
-    private var eigenerKopf: some View {
-        ZStack(alignment: .bottomLeading) {
-            HStack(spacing: 10) {
-                ProfilPaarAvatare(ich: ich)
-                Text(ProfilPaarAvatare.titel).font(.title2.bold())
-                    .foregroundStyle(.white)
-                    .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
-            }
-            .padding(16)
-            .onTapGesture { zimmerGestalten() }
-            .accessibilityAddTraits(.isButton)
-            .accessibilityHint("Gestaltet dein Zimmer")
-            Image(systemName: "pencil.circle.fill")
-                .font(.title2)
-                .foregroundStyle(.white)
-                .shadow(color: .black.opacity(0.5), radius: 4)
-                .padding(14)
-                .onTapGesture { zimmerGestalten() }
-                .accessibilityLabel("Zimmer gestalten")
-                .accessibilityAddTraits(.isButton)
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) { zuhause(paar: false) }
-    }
-
-    /// p58: the stretchy header scene is always the shared home with both of them (`ZuhauseBuehne`),
-    /// in the partner profile and the own one. It grows upward while pulling down. They walk about
+    /// p58: the scene is always the shared home with both of them (`ZuhauseBuehne`), in the partner
+    /// profile and the own one. They walk about
     /// by the clock; only when they are together for real (or a kiss plays) the pair's hug and kiss
     /// replaces the walkers. The bouquets (p59) are Annika's choice for her room, shown in both profiles.
+    /// p65: `.panorama`, the wide world the panorama swipes through; a tap on the bed or the sofa sends both there.
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
         let zimmer = Zimmer.von(person)
@@ -239,9 +212,9 @@ private struct ProfilInhalt: View {
         let punkte = PunkteModell.shared
         let katze = ZuhauseKatze(id: ZimmerKatze.id(tiere: Person.allCases.map { FigurenModell.shared.aussehen($0).tier }),
                                  gestreichelt: punkte.katzeGestreichelt(ich), streicheln: { punkte.katzeStreicheln() })
-        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), nacht: nacht, wahl: ZimmerWahl.aktuell, katze: katze,
-                             outfit: istEigenes ? { figurBearbeitenOffen = true } : nil,
-                             wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel)) }) { f in
+        return ZuhauseBuehne(straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), nacht: nacht, wahl: ZimmerWahl.aktuell, katze: katze,
+                             outfit: istEigenes ? { figurBearbeitenOffen = true } : nil, welt: .panorama,
+                             wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel, welt: .panorama)) }) { f in
             buehnenFigur(f)
         } paar: {
             // Teil 2 (Nähe): the pair's closeness pose (kiss glides into Stufe 3 and back).
@@ -250,17 +223,20 @@ private struct ProfilInhalt: View {
             }
         }
         // p62: the room's living objects (wall, shelf, plant, goal); their taps sit on top, small.
-        .overlay { ZimmerLebenTippen(zimmer: zimmer, person: person) }
-        .overlay { PaarSignaleEbene(blatt: $signale) }
-        .overlay { AlltagEbene() }
+        .overlay { ZimmerLebenTippen(zimmer: zimmer, person: person, welt: .panorama) }
+        .overlay { PaarSignaleEbene(blatt: $signale, welt: .panorama) }
+        .overlay { AlltagEbene(welt: .panorama) }
     }
 
     /// A walker, sitter or sleeper of the home scene: their own look and badges, the state and size
     /// the stage asks for. Tapping the partner opens the gesture menu, like the figure always did.
     @ViewBuilder
     private func buehnenFigur(_ f: ZuhauseFigur) -> some View {
-        let v = FigurView(FigurenModell.shared.aussehen(f.person), zustand: f.zustand, abzeichen: abzeichen(f.person), groesse: f.groesse,
-                          animiert: f.animiert, bildrate: 15, ganzkoerper: f.ganzkoerper)
+        let aussehen = FigurenModell.shared.aussehen(f.person)
+        let v = FigurView(aussehen, zustand: f.zustand, abzeichen: abzeichen(f.person), groesse: f.groesse,
+                          animiert: f.animiert, bildrate: 15, ganzkoerper: f.ganzkoerper, pose: f.pose)
+        // p65: a sitter on the sofa is placed for a middle-sized body; the others move by the difference of their seat height.
+        let sitzKorrektur = f.pose == .sitzenSofa ? FigurPoseLogik.sitzKorrektur(stufe: aussehen.groesse, hoehe: f.groesse) : 0
         Group {
             if f.person == ich {
                 v.accessibilityLabel("Deine Figur")
@@ -274,6 +250,7 @@ private struct ProfilInhalt: View {
                 StimmungBlase(person: f.person, figurHoehe: f.groesse, ganzkoerper: f.ganzkoerper) { signale = .stimmung }
             }
         }
+        .offset(y: sitzKorrektur)
     }
 
     /// Brief G: the editor for the place the person is at right now (home, office, classroom),
@@ -283,15 +260,14 @@ private struct ProfilInhalt: View {
         blatt = .zimmer
     }
 
-    /// Z-34.2: weather and "hört gerade" moved here from the chat header. Glass fits: they float
-    /// over the header picture (dark scheme, it sits on the dark bottom shade). Spotify is polled
+    /// Z-34.2: weather and "hört gerade" moved here from the chat header. p65: they sit in the calm part
+    /// under the scene now, not on the picture, so they use the normal scheme. Spotify is polled
     /// only while this is on screen (Spec 9).
     private var partnerJetzt: some View {
         HStack(spacing: 6) {
             if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
             SpotifyHoertGeradeChip()
         }
-        .environment(\.colorScheme, .dark)
         .task { SpotifyModell.shared.schauen() }
         .onDisappear { SpotifyModell.shared.wegschauen() }
     }
@@ -393,12 +369,28 @@ private struct ProfilInhalt: View {
 
     // MARK: - Eigene Aktionen (Z-25.1: Figur bearbeiten, Shop; Brief G: Zimmer gestalten)
 
+    /// p65: the three buttons carry their names now (Profil, Zimmer, Kleidung). "Kleidung" opens the
+    /// shop sheet until the wardrobe of C has its own place.
     private var eigeneAktionen: some View {
-        HStack(spacing: 10) {
-            aktion("person.crop.square", "Figur bearbeiten") { figurBearbeitenOffen = true }
-            aktion("bed.double.fill", "Zimmer gestalten") { zimmerGestalten() }
-            aktion("bag.fill", "Shop") { shopOffen = true }
+        HStack(spacing: 8) {
+            beschriftet("person.crop.square", "Profil") { figurBearbeitenOffen = true }
+            beschriftet("bed.double.fill", "Zimmer") { zimmerGestalten() }
+            beschriftet("tshirt.fill", "Kleidung") { shopOffen = true }
         }
+    }
+
+    private func beschriftet(_ symbol: String, _ titel: String, _ tun: @escaping () -> Void) -> some View {
+        Button(action: tun) {
+            Label(titel, systemImage: symbol)
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.8)
+                .frame(maxWidth: .infinity, minHeight: 36)
+        }
+        .buttonStyle(.bordered)
+        .buttonBorderShape(.capsule)
+        .controlSize(.large)
+        .tint(Color.loveaRose)
     }
 
     // MARK: - Actions (Kamera · Chat · FaceTime Audio · FaceTime Video)

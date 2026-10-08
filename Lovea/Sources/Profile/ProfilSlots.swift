@@ -42,6 +42,28 @@ enum ProfilWelt {
     }
 }
 
+extension ProfilDing {
+    /// The photo frame of slot 0 to 2 of `Zimmer.rahmen`.
+    static func rahmen(_ slot: Int) -> ProfilDing { [.rahmen0, .rahmen1, .rahmen2][slot] }
+}
+
+extension ProfilWelt {
+    /// Draws one object at its place in this world: `f` draws it where it used to be, the context is shifted.
+    func zeichne(_ g: GraphicsContext, _ d: ProfilDing, _ f: (GraphicsContext) -> Void) {
+        let v = versatz(d)
+        guard v != .zero else { return f(g) }
+        var h = g
+        h.translateBy(x: v.width, y: v.height)
+        f(h)
+    }
+
+    /// A point of an object, moved to its place in this world.
+    func ort(_ p: CGPoint, _ d: ProfilDing) -> CGPoint {
+        let v = versatz(d)
+        return CGPoint(x: p.x + v.width, y: p.y + v.height)
+    }
+}
+
 enum ProfilSlots {
     static let weltBreite: CGFloat = 975
     static let hoehe: CGFloat = SzenenZeichnung.hoehe

@@ -4090,10 +4090,10 @@ extension Zeichner {
         let wiege: CGFloat = statisch ? 0 : w(1.3) * 1.5
         let restL = Arm(P(lx - 6, y + 50), P(lx - 4 + wiege, y + 92))
         let restR = Arm(P(rx + 6, y + 50), P(rx + 4 - wiege, y + 92))
-        // p65: seated on the stage. Sofa: hands rest in the lap. Bed edge: hands on the mattress beside the hips.
+        // p65: seated on the stage. Sofa: hands rest on the thighs, not clasped. Bed edge: hands on the mattress beside the hips.
         if let p = figurPose, p.sitzt, z == .ruhig {
             if p == .sitzenSofa {
-                return (Arm(P(lx - 4, y + 50), P(88, y + 88 + wiege)), Arm(P(rx + 4, y + 50), P(112, y + 88 + wiege)))
+                return (Arm(P(lx - 6, y + 52), P(lx + 4, y + 100 + wiege)), Arm(P(rx + 6, y + 52), P(rx - 4, y + 100 + wiege)))
             }
             return (Arm(P(lx - 10, y + 52), P(lx - 14, y + 90 + wiege)), Arm(P(rx + 10, y + 52), P(rx + 14, y + 90 + wiege)))
         }

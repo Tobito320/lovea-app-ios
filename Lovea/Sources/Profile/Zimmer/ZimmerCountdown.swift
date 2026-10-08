@@ -87,6 +87,8 @@ enum ZimmerCountdownZeichnung {
 /// wird von einer einzigen Animation gefahren, danach steht nichts mehr.
 struct ZimmerFeierBild: View, @MainActor Animatable {
     var fortschritt: Double
+    /// p65: in the panorama the sign is somewhere else, and the confetti rises from there.
+    var welt: ProfilWelt = .einzel
 
     var animatableData: Double {
         get { fortschritt }
@@ -96,10 +98,10 @@ struct ZimmerFeierBild: View, @MainActor Animatable {
     var body: some View {
         Canvas { g, groesse in
             guard fortschritt > 0, fortschritt < 1 else { return }
-            let w = SzenenZeichnung.raum(g, groesse)
+            let w = SzenenZeichnung.raum(g, groesse, welt: welt)
             let p = CGFloat(fortschritt)
             let farben = [Pal.rose, Pal.gelb, Pal.himmel, Pal.mint, Pal.decke]
-            let start = ZimmerCountdownZeichnung.ort
+            let start = welt.ort(ZimmerCountdownZeichnung.ort, .countdown)
             for i in 0..<22 {
                 let seite = CGFloat((i * 37) % 17) / 8 - 1
                 let tempo = 0.55 + CGFloat((i * 13) % 7) / 10

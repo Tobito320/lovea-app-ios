@@ -37,6 +37,8 @@ struct ZimmerExtras: View {
     let stand: ZimmerExtrasStand
     let s: CGFloat
     let oben: CGFloat
+    /// p65: `.panorama` setzt Schild, Regal, Würfel und Deko an ihre Plätze in der breiten Welt.
+    var welt: ProfilWelt = .einzel
 
     private enum Blatt: String, Identifiable {
         case wuerfel, globus, album
@@ -54,20 +56,25 @@ struct ZimmerExtras: View {
     var body: some View {
         ZStack(alignment: .topLeading) {
             let stand = stand
+            let welt = welt
             Canvas { g, groesse in
-                let w = SzenenZeichnung.raum(g, groesse)
-                ZimmerDekoZeichnung.zeichne(w, stand.deko)
-                regal(w, stand)
-                ZimmerCountdownZeichnung.zeichne(w, text: ZimmerCountdown.text(stand.countdown), heute: stand.countdown == .heute)
-                ZimmerWuerfelZeichnung.zeichne(w, mitte: ZimmerWuerfelZeichnung.ort, kante: ZimmerWuerfelZeichnung.kante, augen: stand.augen, drehung: 0.22)
+                let w = SzenenZeichnung.raum(g, groesse, welt: welt)
+                welt.zeichne(w, .fenster) { ZimmerDekoZeichnung.zeichne($0, stand.deko) }
+                welt.zeichne(w, .regalDeko) { regal($0, stand) }
+                welt.zeichne(w, .countdown) {
+                    ZimmerCountdownZeichnung.zeichne($0, text: ZimmerCountdown.text(stand.countdown), heute: stand.countdown == .heute)
+                }
+                welt.zeichne(w, .kommode) {
+                    ZimmerWuerfelZeichnung.zeichne($0, mitte: ZimmerWuerfelZeichnung.ort, kante: ZimmerWuerfelZeichnung.kante, augen: stand.augen, drehung: 0.22)
+                }
             }
             .allowsHitTesting(false)
             .accessibilityHidden(true)
-            ZimmerFeierBild(fortschritt: feier)
-            flaeche(ZimmerWuerfelZeichnung.ort, 34, 34, "Date-Würfel") { blatt = .wuerfel }
-            flaeche(Self.regalGlobus, 40, 48, "Globus mit Wunschliste") { blatt = .globus }
-            flaeche(Self.regalAlbum, 44, 44, "Erinnerungsalbum") { blatt = .album }
-            flaeche(CGPoint(x: ZimmerCountdownZeichnung.ort.x, y: ZimmerCountdownZeichnung.ort.y + 18), 76, 74, ZimmerCountdown.text(stand.countdown) + " bis zum Wiedersehen") { hinweis = true }
+            ZimmerFeierBild(fortschritt: feier, welt: welt)
+            flaeche(welt.ort(ZimmerWuerfelZeichnung.ort, .kommode), 34, 34, "Date-Würfel") { blatt = .wuerfel }
+            flaeche(welt.ort(Self.regalGlobus, .regalDeko), 40, 48, "Globus mit Wunschliste") { blatt = .globus }
+            flaeche(welt.ort(Self.regalAlbum, .regalDeko), 44, 44, "Erinnerungsalbum") { blatt = .album }
+            flaeche(welt.ort(CGPoint(x: ZimmerCountdownZeichnung.ort.x, y: ZimmerCountdownZeichnung.ort.y + 18), .countdown), 76, 74, ZimmerCountdown.text(stand.countdown) + " bis zum Wiedersehen") { hinweis = true }
         }
         .sheet(item: $blatt) { b in
             switch b {
@@ -106,9 +113,11 @@ struct ZimmerExtras: View {
 
     /// Unsichtbare Tipp-Fläche um einen Punkt des Entwurfsraums.
     private func flaeche(_ mitte: CGPoint, _ b: CGFloat, _ h: CGFloat, _ name: String, _ aktion: @escaping () -> Void) -> some View {
-        Button(action: aktion) { Color.clear }
+        // In the panorama every tap area is at least 44 pt (the slots leave room for it).
+        let mindest: CGFloat = welt == .panorama ? ProfilSlots.tippMinimum : 0
+        return Button(action: aktion) { Color.clear }
             .buttonStyle(.plain)
-            .frame(width: b * s, height: h * s)
+            .frame(width: max(b * s, mindest), height: max(h * s, mindest))
             .contentShape(Rectangle())
             .position(x: mitte.x * s, y: oben + mitte.y * s)
             .accessibilityLabel(name)

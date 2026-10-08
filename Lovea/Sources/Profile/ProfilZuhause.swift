@@ -101,29 +101,48 @@ enum ZuhauseOrte {
     static let sitzKante: CGFloat = 298
     /// Where the pair stands (hug, kiss) when they are together for real.
     static let paarX: CGFloat = 195
+    /// Panorama: a whole-body sitter's soles are this far above the floor line, because the sofa's seat
+    /// plane (58 below its top) is the height of the knees: the seat plane plus the pose's seat height.
+    static var sitzSohleHoeher: CGFloat {
+        let sitzflaeche = ProfilSlots.nativ(.sofa).minY + 58
+        return fussY - (sitzflaeche + FigurPoseLogik.sitzHoehe(stufe: FigurPoseLogik.mittelStufe, hoehe: figurHoehe))
+    }
     /// Walking speed in design points per second and the limits of one walk.
     static let tempo: CGFloat = 70
     static let gehgrenzen: ClosedRange<TimeInterval> = 1.4...3.4
 
-    private static func mitte(_ p: Platz) -> CGFloat {
-        switch p {
-        case .bett: 110
-        case .blumen: 158
-        case .fenster: 252
-        case .sofa: 338
+    /// p65: in the panorama the places move with the things they belong to (bed stays, the dresser's
+    /// flowers and the window move right, the sofa is the widened one).
+    private static func mitte(_ p: Platz, _ welt: ProfilWelt) -> CGFloat {
+        switch (p, welt) {
+        case (.bett, _): 110
+        case (.blumen, .einzel): 158
+        case (.blumen, .panorama): 158 + ProfilSlots.versatz(.kommode).width
+        case (.fenster, .einzel): 252
+        case (.fenster, .panorama): 252 + ProfilSlots.versatz(.fenster).width
+        case (.sofa, .einzel): 338
+        case (.sofa, .panorama): ProfilSlots.welt(.sofa).midX
         }
     }
 
-    /// Annika left of Ahmed, so two at one place never stand in the same spot.
-    static func fuss(_ p: Platz, _ person: Person) -> CGPoint {
-        let halb: CGFloat = p == .sofa ? 22 : 24
-        return CGPoint(x: mitte(p) + (person == .annika ? -halb : halb), y: fussY)
+    /// Annika left of Ahmed, so two at one place never stand in the same spot. The widened sofa seats two
+    /// whole bodies, so they sit further apart.
+    static func fuss(_ p: Platz, _ person: Person, welt: ProfilWelt = .einzel) -> CGPoint {
+        let halb: CGFloat = p == .sofa ? (welt == .panorama ? 30 : 22) : 24
+        return CGPoint(x: mitte(p, welt) + (person == .annika ? -halb : halb), y: fussY)
     }
 
-    static func gehdauer(von: Platz, nach: Platz, _ person: Person) -> TimeInterval {
+    /// Where the pair stands for a hug or a kiss.
+    static func paarMitte(welt: ProfilWelt = .einzel) -> CGFloat {
+        welt == .einzel ? paarX : paarX + ProfilSlots.anker(.wohn)
+    }
+
+    static func gehdauer(von: Platz, nach: Platz, _ person: Person, welt: ProfilWelt = .einzel) -> TimeInterval {
         guard von != nach else { return 0 }
-        let weg = abs(fuss(von, person).x - fuss(nach, person).x)
-        return min(max(TimeInterval(weg / tempo), gehgrenzen.lowerBound), gehgrenzen.upperBound)
+        let weg = abs(fuss(von, person, welt: welt).x - fuss(nach, person, welt: welt).x)
+        // The panorama is wider, so a long walk may take longer than on the single sheet.
+        let hoechstens = welt == .panorama ? 6.0 : gehgrenzen.upperBound
+        return min(max(TimeInterval(weg / tempo), gehgrenzen.lowerBound), hoechstens)
     }
 }
 

@@ -39,31 +39,41 @@ enum ZuhauseZeichnung {
     private static var scheibe: CGRect { fenster.insetBy(dx: 7, dy: 7) }
 
     /// Reaches far above the design space, so a stretched header never shows a gap.
-    private static var alles: Path { box(0, -2000, breite, 2800) }
+    private static func alles(_ breite: CGFloat = ZuhauseZeichnung.breite) -> Path { box(0, -2000, breite, 2800) }
 
     private static func c(_ hex: UInt32) -> Color { FigurFarbe(hex).farbe }
 
     // MARK: Room (standing still)
 
     /// `wahl` (p61): wall, rug and lamp of the shop's room pieces; the standard is the room as it was.
-    static func raum(_ g: GraphicsContext, zeit: Tageszeit, wahl: ZimmerWahl = .standard) {
-        wandUndBoden(g, wahl)
-        fensterZeichnen(g, zeit)
-        sofaHinten(g)
-        schrankZeichnen(g)
-        tischZeichnen(g)
-        ZimmerMoebel.lampe(g, ort: lampe, wahl.teil(.lampe))
-        ZimmerMoebel.kleiderstange(g)
-        ZimmerMoebel.schuhregal(g)
-        abdunkeln(g, zeit)
+    /// p65: in the panorama the wall is its own, slower layer (`wand`); here are floor and furniture.
+    static func raum(_ g: GraphicsContext, zeit: Tageszeit, wahl: ZimmerWahl = .standard, welt: ProfilWelt = .einzel) {
+        if welt == .einzel { wand(g, wahl, breite: breite) }
+        boden(g, wahl, welt)
+        welt.zeichne(g, .fenster) { fensterZeichnen($0, zeit) }
+        sofaHinten(g, welt.rect(.sofa), sitzfront: welt == .panorama)
+        welt.zeichne(g, .kommode) {
+            schrankZeichnen($0)
+            tischZeichnen($0)
+        }
+        welt.zeichne(g, .lampe) { ZimmerMoebel.lampe($0, ort: lampe, wahl.teil(.lampe)) }
+        welt.zeichne(g, .kleiderschrank) {
+            ZimmerMoebel.kleiderstange($0)
+            ZimmerMoebel.schuhregal($0)
+        }
+        abdunkeln(g, zeit, welt)
     }
 
-    private static func wandUndBoden(_ g: GraphicsContext, _ wahl: ZimmerWahl) {
+    /// The bare wall (colour, pattern, soft shade) over `breite` design units.
+    static func wand(_ g: GraphicsContext, _ wahl: ZimmerWahl, breite: CGFloat) {
         let t = wahl.teil(.wand)
-        g.fill(alles, with: .color(FigurFarbe(t.farbe).farbe))
+        g.fill(alles(breite), with: .color(FigurFarbe(t.farbe).farbe))
         ZimmerMoebel.wandMuster(g, t, breite: breite)
         g.fill(box(0, 150, breite, 150), with: .linearGradient(Gradient(colors: [.clear, .black.opacity(0.07)]), startPoint: P(0, 150), endPoint: P(0, 300)))
+    }
 
+    private static func boden(_ g: GraphicsContext, _ wahl: ZimmerWahl, _ welt: ProfilWelt) {
+        let breite = welt.breite
         let holz = FigurFarbe(0xE6C9A0)
         g.fill(box(0, 300, breite, 500), with: .linearGradient(Gradient(colors: [holz.mal(0.9).farbe, holz.farbe]), startPoint: P(0, 300), endPoint: P(0, 430)))
         // Rows get taller toward the viewer: a little perspective without a full grid.
@@ -81,7 +91,7 @@ enum ZuhauseZeichnung {
         teil(g, box(-4, 292, breite + 8, 10, 2), Pal.weiss, 2)
 
         // The rug under the table (a round pink one unless the shop's is chosen).
-        ZimmerMoebel.teppich(g, mitte: P(tisch.x, tisch.y + 12), wahl.teil(.teppich))
+        welt.zeichne(g, .kommode) { ZimmerMoebel.teppich($0, mitte: P(tisch.x, tisch.y + 12), wahl.teil(.teppich)) }
     }
 
     // MARK: Window
@@ -164,20 +174,35 @@ enum ZuhauseZeichnung {
     private static var sofaFarbe: FigurFarbe { FigurFarbe(0x8ED8BE) }
 
     /// Back and arms of the mint sofa; the seat's front cushion is drawn over the sitters (`sofaVorn`).
-    private static func sofaHinten(_ g: GraphicsContext) {
+    /// `sitzfront`: with whole-body sitters (panorama) the seat's front face is drawn here, behind the
+    /// figures, so the shins hang in front of it; with half-body sitters it is `sofaVorn`, over them.
+    private static func sofaHinten(_ g: GraphicsContext, _ sofa: CGRect, sitzfront: Bool) {
         let m = sofaFarbe
         teil(g, box(sofa.minX + 4, sofa.minY, sofa.width - 8, 62, 16), m)
         teil(g, box(sofa.minX, sofa.minY + 30, 20, 56, 9), m.mal(0.93))
         teil(g, box(sofa.maxX - 20, sofa.minY + 30, 20, 56, 9), m.mal(0.93))
         teil(g, box(sofa.minX + 18, sofa.minY + 52, sofa.width - 36, 14, 6), m.mix(Pal.weiss, 0.25))
         for x in [sofa.minX + 8, sofa.maxX - 14] { teil(g, box(x, sofa.maxY - 2, 8, 6, 2), Pal.holz.mal(0.9), 2) }
+        if sitzfront { sitzFront(g, sofa) }
     }
 
-    /// In front of the sitters: hides the legs of whoever sits on the sofa.
-    static func sofaVorn(_ g: GraphicsContext) {
+    private static func sitzFront(_ g: GraphicsContext, _ sofa: CGRect) {
         let m = sofaFarbe.mix(Pal.weiss, 0.15)
         teil(g, box(sofa.minX + 12, sofa.minY + 58, sofa.width - 24, 28, 10), m)
         linie(g, strich(P(sofa.midX, sofa.minY + 63), P(sofa.midX, sofa.minY + 82)), m.mal(0.82).farbe, 1.5)
+    }
+
+    /// In front of the sitters. Half-body sitters: the seat's front hides their legs. Whole-body sitters
+    /// (panorama): only the arms' front faces, which stand before the hips.
+    static func sofaVorn(_ g: GraphicsContext, welt: ProfilWelt = .einzel) {
+        let sofa = welt.rect(.sofa)
+        if welt == .einzel {
+            sitzFront(g, sofa)
+        } else {
+            let arm = sofaFarbe.mal(0.93)
+            teil(g, box(sofa.minX, sofa.minY + 40, 20, 46, 9), arm)
+            teil(g, box(sofa.maxX - 20, sofa.minY + 40, 20, 46, 9), arm)
+        }
     }
 
     private static func schrankZeichnen(_ g: GraphicsContext) {
@@ -204,7 +229,7 @@ enum ZuhauseZeichnung {
     }
 
     /// Evening and night: the room goes dark except the window glass, so the sky stays bright.
-    private static func abdunkeln(_ g: GraphicsContext, _ zeit: Tageszeit) {
+    private static func abdunkeln(_ g: GraphicsContext, _ zeit: Tageszeit, _ welt: ProfilWelt) {
         let staerke: Double = switch zeit {
         case .morgen, .tag: 0
         case .abend: 0.2
@@ -212,17 +237,18 @@ enum ZuhauseZeichnung {
         }
         guard staerke > 0 else { return }
         var d = g
-        d.clip(to: Path(scheibe), options: .inverse)
-        d.fill(alles, with: .color(c(0x141833).opacity(staerke)))
+        let v = welt.versatz(.fenster)
+        d.clip(to: Path(scheibe.offsetBy(dx: v.width, dy: v.height)), options: .inverse)
+        d.fill(alles(welt.breite), with: .color(c(0x141833).opacity(staerke)))
     }
 
     // MARK: Light
 
     /// The lamp's warm pool of light, drawn over everything while it is dark.
-    static func licht(_ g: GraphicsContext, zeit: Tageszeit) {
+    static func licht(_ g: GraphicsContext, zeit: Tageszeit, welt: ProfilWelt = .einzel) {
         guard zeit.dunkel else { return }
         let st = zeit == .nacht ? 0.42 : 0.3
-        let mitte = P(lampe.x, lampe.y)
+        let mitte = welt.ort(P(lampe.x, lampe.y), .lampe)
         g.fill(kreis(mitte, 150), with: .radialGradient(Gradient(colors: [c(0xFFC96B).opacity(st), c(0xFFB347).opacity(st * 0.3), .clear]), center: mitte, startRadius: 6, endRadius: 150))
     }
 }

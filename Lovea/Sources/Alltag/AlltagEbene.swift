@@ -16,27 +16,35 @@ struct AlltagEbene: View {
     /// Nur für die Render-Tafel: fester Tag statt heute und kein Abgleich der Wärme mit dem Zyklus.
     private let heute: String
     private let pruefen: Bool
+    /// p65: `.panorama` setzt jedes Ding an seinen Platz in der breiten Welt (`ProfilSlots`).
+    private let welt: ProfilWelt
 
     @State private var blatt: AlltagBlatt?
     @State private var dreht = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("lovea.gruss.morgenTag") private var morgenTag = ""
 
-    init(speicher: AlltagSpeicher = .shared, heute: String = Datum.text(Date()), pruefen: Bool = true) {
+    init(speicher: AlltagSpeicher = .shared, heute: String = Datum.text(Date()), pruefen: Bool = true, welt: ProfilWelt = .einzel) {
         self.speicher = speicher
         self.heute = heute
         self.pruefen = pruefen
+        self.welt = welt
     }
 
-    private static let platteOrt = P(45, 113) // auf dem Wandregal links über dem Bett
-    private static let spiegelOrt = P(338, 80) // an der Wand rechts über dem Sofa
-    private static let nachttischOrt = P(322, 402)
-    private static let kuehlOrt = P(366, 396)
-    private static let waermeOrt = P(284, 339) // auf dem Teppich neben dem Tisch
+    private static let platteOrt = ProfilSlots.platteMitte // auf dem Wandregal links über dem Bett
+    private static let spiegelOrt = ProfilSlots.spiegelMitte // an der Wand rechts über dem Sofa
+    private static let nachttischOrt = ProfilSlots.nachttischMitte
+    private static let kuehlOrt = ProfilSlots.kuehlMitte
+    private static let waermeOrt = ProfilSlots.waermeMitte // auf dem Teppich neben dem Tisch
+
+    private func versetzt(_ mitte: CGPoint, _ d: ProfilDing) -> CGPoint {
+        let v = welt.versatz(d)
+        return CGPoint(x: mitte.x + v.width, y: mitte.y + v.height)
+    }
 
     var body: some View {
         GeometryReader { geo in
-            let s = geo.size.width / ZuhauseZeichnung.breite
+            let s = geo.size.width / welt.breite
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
                 if waermeDa { waermeSet(s, oben) }
@@ -92,7 +100,7 @@ struct AlltagEbene: View {
     private func plattenspieler(_ s: CGFloat, _ oben: CGFloat) -> some View {
         let platte = speicher.stand.platte
         let name = platte.map { "Plattenspieler: \($0.titel)" } ?? "Plattenspieler, noch keine Platte"
-        return ding(Self.platteOrt, s, oben, name: name, tippen: { blatt = .platte }) {
+        return ding(versetzt(Self.platteOrt, .platte), s, oben, name: name, tippen: { blatt = .platte }) {
             TimelineView(.animation(minimumInterval: 0.1, paused: !dreht)) { zeit in
                 bild(AlltagZeichnung.platteRaster, breite: 78, s) {
                     AlltagZeichnung.plattenspieler($0, winkel: dreht ? zeit.date.timeIntervalSinceReferenceDate * 2 : 0, bespielt: platte != nil)
@@ -108,7 +116,7 @@ struct AlltagEbene: View {
         let partner = speicher.ich?.partner
         let haengt = partner.flatMap { AlltagLogik.outfit(speicher.stand, von: $0, heute: heute) } != nil
         let name = haengt ? "Spiegel, \(partner?.name ?? "") hat ein Outfit aufgehängt" : "Spiegel mit Outfit des Tages"
-        return ding(Self.spiegelOrt, s, oben, name: name, tippen: { blatt = .spiegel }) {
+        return ding(versetzt(Self.spiegelOrt, .spiegel), s, oben, name: name, tippen: { blatt = .spiegel }) {
             bild(AlltagZeichnung.spiegelRaster, breite: 46, s) { AlltagZeichnung.spiegel($0, haengt: haengt) }
         }
     }
@@ -119,7 +127,7 @@ struct AlltagEbene: View {
         let morgen = GrussFenster.knopf(stunde: Calendar.berlin.component(.hour, from: Date()), jetzt: Date(), letzteNacht: nil,
                                         morgenGesendetHeute: morgenTag == heute) == "morgen"
         let name = zeit.map { "Wecker von \(partner?.name ?? ""): \($0)" } ?? "Wecker"
-        return ding(Self.nachttischOrt, s, oben, name: name, tippen: { blatt = .wecker }) {
+        return ding(versetzt(Self.nachttischOrt, .nachttisch), s, oben, name: name, tippen: { blatt = .wecker }) {
             bild(AlltagZeichnung.nachttischRaster, breite: 40, s) { AlltagZeichnung.nachttisch($0, gestellt: zeit != nil) }
                 .overlay(alignment: .top) {
                     if let zeit { pille(zeit, s, hoechstens: 40).offset(y: -14 * s) }
@@ -134,7 +142,7 @@ struct AlltagEbene: View {
         let alle = AlltagLogik.zettelListe(speicher.stand)
         let offen = AlltagLogik.offene(speicher.stand)
         let name = offen > 0 ? "Kühlschrank, \(offen) offen" : "Kühlschrank mit Zetteln"
-        return ding(Self.kuehlOrt, s, oben, name: name, tippen: { blatt = .kuehlschrank }) {
+        return ding(versetzt(Self.kuehlOrt, .kuehl), s, oben, name: name, tippen: { blatt = .kuehlschrank }) {
             bild(AlltagZeichnung.kuehlRaster, breite: 36, s) { AlltagZeichnung.kuehlschrank($0, zettel: alle.count) }
                 .overlay(alignment: .topTrailing) {
                     if offen > 0 {
@@ -151,8 +159,9 @@ struct AlltagEbene: View {
 
     /// Tee, Wärmflasche und Keks: nur zum Ansehen, kein Tippen.
     private func waermeSet(_ s: CGFloat, _ oben: CGFloat) -> some View {
-        bild(AlltagZeichnung.waermeRaster, breite: 40, s, AlltagZeichnung.waermeSet)
-            .position(x: Self.waermeOrt.x * s, y: oben + Self.waermeOrt.y * s)
+        let m = versetzt(Self.waermeOrt, .waerme)
+        return bild(AlltagZeichnung.waermeRaster, breite: 40, s, AlltagZeichnung.waermeSet)
+            .position(x: m.x * s, y: oben + m.y * s)
             .allowsHitTesting(false)
     }
 
