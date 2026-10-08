@@ -20,6 +20,7 @@ struct HomeView: View {
                     PuenktlichCard()
                     KalenderKarte(pfad: $pfad)
                     DatesKarte()
+                    NaeheKarte()
                 }
                 .padding(16)
             }

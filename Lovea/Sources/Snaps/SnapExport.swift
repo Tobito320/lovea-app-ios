@@ -15,14 +15,14 @@ enum SnapExport {
     /// Only the SwiftUI overlay render (`ImageRenderer`, main-actor API) stays on the main actor;
     /// compositing and the JPEG encode run detached (Z-16.2).
     @MainActor
-    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter) async -> Data? {
+    static func foto(quelle: UIImage, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double = 1) async -> Data? {
         let groesse = MedienKodierung.skaliert(quelle.size, langeKante: 2048)
         let renderer = ImageRenderer(content: SnapUeberlagerung(linien: linien, sticker: sticker, text: text, groesse: groesse))
         renderer.scale = 1
         let overlayBild = renderer.uiImage
 
         return await Task.detached(priority: .userInitiated) { () -> Data? in
-            let basis = Self.gefiltertesBild(quelle: quelle, filter: filter, groesse: groesse) ?? quelle
+            let basis = Self.gefiltertesBild(quelle: quelle, filter: filter, groesse: groesse, staerke: filterStaerke) ?? quelle
             let format = UIGraphicsImageRendererFormat()
             format.scale = 1
             let flach = UIGraphicsImageRenderer(size: groesse, format: format).image { _ in
@@ -35,7 +35,7 @@ enum SnapExport {
 
     /// Filter vor dem Overlay anwenden (Anforderung: Filter zuerst, Doodle/Text/Sticker obendrauf).
     /// `.original` übersprungen — identisch zum Quellbild, ein Render weniger.
-    private static func gefiltertesBild(quelle: UIImage, filter: SnapFilter, groesse: CGSize) -> UIImage? {
+    private static func gefiltertesBild(quelle: UIImage, filter: SnapFilter, groesse: CGSize, staerke: Double) -> UIImage? {
         guard filter != .original else { return nil }
         // Erst aufrecht in die Zielgröße zeichnen: `CIImage(image:)` ignoriert `imageOrientation`,
         // das Kamerabild kam dann mit Filter um 90° gedreht und verzerrt an (Ahmed, 01.10., iPad).
@@ -45,7 +45,7 @@ enum SnapExport {
             quelle.draw(in: CGRect(origin: .zero, size: groesse))
         }
         guard let cgAufrecht = aufrecht.cgImage else { return nil }
-        let gefiltert = filter.anwenden(auf: CIImage(cgImage: cgAufrecht))
+        let gefiltert = filter.anwenden(auf: CIImage(cgImage: cgAufrecht), staerke: staerke)
         guard let cgBild = SnapFilterKontext.shared.context.createCGImage(gefiltert, from: gefiltert.extent) else { return nil }
         return UIImage(cgImage: cgBild)
     }
@@ -59,7 +59,7 @@ enum SnapExport {
     /// The actual encode work still runs on `AVAssetExportSession`'s own queue either way; nothing
     /// here blocks the main thread beyond waiting on that callback.
     @MainActor
-    static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter) async -> URL? {
+    static func video(quelle: URL, linien: [SnapEditor.SnapLinie], sticker: [SnapEditor.SnapSticker], text: SnapEditor.SnapText, filter: SnapFilter, filterStaerke: Double = 1) async -> URL? {
         // Most snaps have no doodle/sticker/text/filter — nothing to burn in, so skip the full-quality
         // `AVAssetExportSession` pass entirely. For a 19s gallery video that pass alone was the
         // biggest single delay before the Snap editor could dismiss (Z-Report Kamera).
@@ -84,7 +84,7 @@ enum SnapExport {
         var quelle = quelle
         var zwischenDatei: URL?
         if filter != .original {
-            guard let gefiltert = await Self.gefiltertesVideo(quelle: quelle, filter: filter, preset: preset) else { return nil }
+            guard let gefiltert = await Self.gefiltertesVideo(quelle: quelle, filter: filter, preset: preset, staerke: filterStaerke) else { return nil }
             quelle = gefiltert
             zwischenDatei = gefiltert
         }
@@ -152,9 +152,9 @@ enum SnapExport {
     /// Eigener Export-Pass, der nur den Filter brennt (kein Overlay) — Baustein für `video(…)` oben.
     /// `preset`: schnell-aware (siehe `video(…)`), mit demselben Sicherheitsnetz auf `HighestQuality`.
     @MainActor
-    private static func gefiltertesVideo(quelle: URL, filter: SnapFilter, preset: String) async -> URL? {
+    private static func gefiltertesVideo(quelle: URL, filter: SnapFilter, preset: String, staerke: Double) async -> URL? {
         let asset = AVURLAsset(url: quelle)
-        guard let komposition = await filter.videoKomposition(fuer: asset) else { return nil }
+        guard let komposition = await filter.videoKomposition(fuer: asset, staerke: staerke) else { return nil }
         guard let session = AVAssetExportSession(asset: asset, presetName: preset)
             ?? (preset != AVAssetExportPresetHighestQuality ? AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHighestQuality) : nil)
         else { return nil }
@@ -191,15 +191,13 @@ private struct SnapUeberlagerung: View {
             }
             ForEach(sticker) { element in
                 Image(uiImage: element.bild).resizable().scaledToFit()
-                    .frame(width: groesse.width * 0.28)
+                    .frame(width: groesse.width * 0.28 * element.skala)
+                    .rotationEffect(.degrees(element.winkel))
                     .position(x: element.x * groesse.width, y: element.y * groesse.height)
             }
             if !text.text.isEmpty {
-                Text(text.text)
-                    .font(.system(size: groesse.width * 0.07, weight: .bold))
-                    .foregroundStyle(.white)
-                    .shadow(radius: 3)
-                    .scaleEffect(text.skala)
+                SnapTextAnzeige(text: text, breite: groesse.width)
+                    .rotationEffect(.degrees(text.winkel))
                     .position(x: text.x * groesse.width, y: text.y * groesse.height)
             }
         }

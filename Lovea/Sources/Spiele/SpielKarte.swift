@@ -106,7 +106,7 @@ struct SpielKarte: View {
             let uhr = "\(rest / 60):\(rest % 60 < 10 ? "0" : "")\(rest % 60)"
             return eingeladen ? "\(spiel.von.name) fordert dich heraus · \(uhr)" : "Warte auf \(partner) · \(uhr)"
         }
-        if let e = spiel.ergebnis { return e.punkte.text }
+        if let e = spiel.ergebnis { return spiel.art.bilanzText(e.punkte) }
         return "Läuft gerade"
     }
 

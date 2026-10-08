@@ -15,6 +15,8 @@ struct GifStickerBlatt: View {
 
     private enum Reiter: String, CaseIterable { case wir = "Wir", ahmed = "Ahmed", annika = "Annika", favoriten = "Favoriten", gifs = "GIFs" }
     @State private var reiter = Reiter.wir
+    /// Snap-Editor-Panel: gleiche Reiter, aber ohne Titelleiste.
+    var panel = false
 
     var body: some View {
         NavigationStack {
@@ -42,6 +44,7 @@ struct GifStickerBlatt: View {
             }
             .navigationTitle("Sticker & GIFs")
             .navigationBarTitleDisplayMode(.inline)
+            .toolbar(panel ? .hidden : .automatic, for: .navigationBar)
         }
         .task { await GifSucheCache.trendingVorladen() }
         .presentationDetents([.medium, .large])

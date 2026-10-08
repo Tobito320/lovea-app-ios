@@ -109,6 +109,9 @@ const TABELLE = {
     titel: "Lovea",
     text: `${NAME[von]} ${AUFNAHME_TEXT[d.art] ?? "hat einen Screenshot gemacht"}`,
   }),
+  // Nähe: leise, ohne Ton. Die Sprachpost spielt nie von allein ab, die Push sagt nur, dass etwas wartet.
+  "sprachpost.neu": (von) => ({ stufe: "leise", kategorie: "chat", titel: "Lovea", text: `Neue Sprachpost von ${NAME[von]}` }),
+  "brief.neu": (von) => ({ stufe: "leise", kategorie: "chat", titel: "Lovea", text: `${NAME[von]} hat einen Brief für dich versiegelt` }),
   // Z-23.2: nur bei einem Geschenk (fuer != von) - ein Kauf fuer sich selbst loest keine Push aus.
   "shop.kauf": (von, d) => (d.fuer === von ? null : { stufe: "laut", kategorie: "shop", titel: "Lovea", text: `${NAME[von]} hat dir etwas geschenkt` }),
 };
