@@ -11,18 +11,21 @@ struct PaarSignaleEbene: View {
     /// Nur für die Render-Tafel: feste Grüße und feste Uhrzeit statt Live-Stand und Jetzt.
     private let gruesse: NachtLogik.Gruesse?
     private let jetzt: Date?
+    /// p65: `.panorama` setzt jedes Ding an seinen Platz in der breiten Welt (Tippfläche mindestens 44 pt).
+    private let welt: ProfilWelt
 
     @Binding private var blatt: SignaleBlatt?
     @State private var leuchtet: Bool
     @State private var lampeZuletzt: Date?
 
     init(blatt: Binding<SignaleBlatt?>, speicher: SignaleSpeicher = .shared, briefe: BriefeSpeicher = .shared,
-         gruesse: NachtLogik.Gruesse? = nil, jetzt: Date? = nil, leuchtet: Bool = false) {
+         gruesse: NachtLogik.Gruesse? = nil, jetzt: Date? = nil, leuchtet: Bool = false, welt: ProfilWelt = .einzel) {
         _blatt = blatt
         self.speicher = speicher
         self.briefe = briefe
         self.gruesse = gruesse
         self.jetzt = jetzt
+        self.welt = welt
         _leuchtet = State(initialValue: leuchtet)
     }
 
@@ -35,10 +38,10 @@ struct PaarSignaleEbene: View {
 
     var body: some View {
         GeometryReader { geo in
-            let s = geo.size.width / ZuhauseZeichnung.breite
+            let s = geo.size.width / welt.breite
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
-                if leuchtet { LampenGlanz().transition(.opacity) }
+                if leuchtet { LampenGlanz(welt: welt).transition(.opacity) }
                 lampenTaste(s, oben)
                 zettel(s, oben)
                 if briefe.ungeoeffnet > 0, let neu = briefe.erhalten.first { umschlag(neu, s, oben) }
@@ -64,7 +67,8 @@ struct PaarSignaleEbene: View {
     /// Ein antippbares Ding an einer Stelle des Entwurfsraums. Das Polster macht die Tippfläche groß genug.
     private func ding<V: View>(_ mitte: CGPoint, _ s: CGFloat, _ oben: CGFloat, name: String, tippen: @escaping () -> Void,
                                @ViewBuilder _ inhalt: () -> V) -> some View {
-        Button(action: tippen) { inhalt().padding(8).contentShape(.rect) }
+        let mindest: CGFloat = welt == .panorama ? ProfilSlots.tippMinimum : 0
+        return Button(action: tippen) { inhalt().padding(8).frame(minWidth: mindest, minHeight: mindest).contentShape(.rect) }
             .buttonStyle(.plain)
             .accessibilityLabel(name)
             .position(x: mitte.x * s, y: oben + mitte.y * s)
@@ -76,14 +80,14 @@ struct PaarSignaleEbene: View {
     }
 
     private func lampenTaste(_ s: CGFloat, _ oben: CGFloat) -> some View {
-        ding(P(Self.lampe.x, Self.lampe.y - 22), s, oben, name: "Lampe. Denk an dich", tippen: lampeTippen) {
+        ding(welt.ort(P(Self.lampe.x, Self.lampe.y - 22), .lampe), s, oben, name: "Lampe. Denk an dich", tippen: lampeTippen) {
             Color.clear.frame(width: 44 * s, height: 50 * s)
         }
     }
 
     private func zettel(_ s: CGFloat, _ oben: CGFloat) -> some View {
         let offen = wir.heute.map { wir.meineAntwort($0.id) == nil } ?? false
-        return ding(Self.zettelOrt, s, oben, name: offen ? "Frage des Tages, noch offen" : "Frage des Tages", tippen: { blatt = .zettel }) {
+        return ding(welt.ort(Self.zettelOrt, .zettel), s, oben, name: offen ? "Frage des Tages, noch offen" : "Frage des Tages", tippen: { blatt = .zettel }) {
             bild(SignaleZeichnung.zettelRaster, breite: 30, s, SignaleZeichnung.zettel)
                 .overlay(alignment: .top) {
                     Text("?")
@@ -98,7 +102,7 @@ struct PaarSignaleEbene: View {
     }
 
     private func umschlag(_ brief: Brief, _ s: CGFloat, _ oben: CGFloat) -> some View {
-        ding(Self.umschlagOrt, s, oben, name: "Ungeöffneter Brief von \(brief.von.name)", tippen: { blatt = .brief(brief) }) {
+        ding(welt.ort(Self.umschlagOrt, .kommode), s, oben, name: "Ungeöffneter Brief von \(brief.von.name)", tippen: { blatt = .brief(brief) }) {
             bild(CGSize(width: 40, height: 40), breite: 26, s, SignaleZeichnung.umschlag)
                 .overlay(alignment: .topTrailing) {
                     if briefe.ungeoeffnet > 1 {
@@ -114,20 +118,20 @@ struct PaarSignaleEbene: View {
     }
 
     private func stapel(_ s: CGFloat, _ oben: CGFloat) -> some View {
-        ding(Self.stapelOrt, s, oben, name: "Briefstapel", tippen: { blatt = .liebesbrief }) {
+        ding(welt.ort(Self.stapelOrt, .kommode), s, oben, name: "Briefstapel", tippen: { blatt = .liebesbrief }) {
             bild(CGSize(width: 40, height: 40), breite: 26, s, SignaleZeichnung.stapel)
         }
     }
 
     private func geschenkBox(_ s: CGFloat, _ oben: CGFloat) -> some View {
-        ding(Self.boxOrt, s, oben, name: "Geschenkbox unter dem Bett", tippen: { blatt = .geschenke }) {
+        ding(welt.ort(Self.boxOrt, .geschenkbox), s, oben, name: "Geschenkbox unter dem Bett", tippen: { blatt = .geschenke }) {
             bild(SignaleZeichnung.geschenkRaster, breite: 36, s, SignaleZeichnung.geschenkBox)
         }
     }
 
     private func schalter(_ ich: Person, _ s: CGFloat, _ oben: CGFloat) -> some View {
         let gesagt = NachtLogik.gedrueckt(ich, gruesse ?? figuren.gruss, jetzt: jetzt ?? Date())
-        return ding(Self.schalterOrt, s, oben, name: gesagt ? "Gute Nacht gesagt" : "Gute Nacht sagen", tippen: { nachtSagen(gesagt) }) {
+        return ding(welt.ort(Self.schalterOrt, .schalter), s, oben, name: gesagt ? "Gute Nacht gesagt" : "Gute Nacht sagen", tippen: { nachtSagen(gesagt) }) {
             bild(SignaleZeichnung.schalterRaster, breite: 18, s) { SignaleZeichnung.schalter($0, an: gesagt) }
         }
     }
@@ -161,10 +165,13 @@ struct PaarSignaleEbene: View {
 
 /// Der warme Schein der Lampe, solange sie leuchtet.
 private struct LampenGlanz: View {
+    var welt: ProfilWelt = .einzel
+
     var body: some View {
+        let welt = welt
         Canvas { g, groesse in
-            let k = SzenenZeichnung.raum(g, groesse)
-            let mitte = ZuhauseZeichnung.lampe
+            let k = SzenenZeichnung.raum(g, groesse, welt: welt)
+            let mitte = welt.ort(ZuhauseZeichnung.lampe, .lampe)
             let stufen = Gradient(colors: [FigurFarbe(0xFFE9A8).farbe.opacity(0.9), FigurFarbe(0xFFC96B).farbe.opacity(0.35), .clear])
             k.fill(kreis(mitte, 140), with: .radialGradient(stufen, center: mitte, startRadius: 4, endRadius: 140))
             k.fill(oval(P(mitte.x, mitte.y - 4), 10, 5.5), with: .color(.white))

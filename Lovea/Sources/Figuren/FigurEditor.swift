@@ -3,19 +3,32 @@ import UIKit
 
 /// Bitmoji-style figure builder: big live full-body preview (zooms to the head for face categories),
 /// category bar, option tiles drawn with the figure itself, color swatches, dice. The caller sends `figur.aussehen` in `onSave`.
+/// p65 C: two halves of one editor. `.figur` (Einstellungen, "Meine Figur") is face, skin, hair, eyes, beard and
+/// body shape; `.kleidung` (Profil, "Kleidung") is outfits, tops, pants, shoes, jackets and accessories.
 struct FigurEditor: View {
+    enum Bereich { case figur, kleidung }
+
     private let onSave: (FigurAussehen) -> Void
     /// The saved look right now. The shop sheet writes bag, watch, jewelry and pet straight
     /// into it while this editor holds its own older copy (`aussehen`).
     private let modell: FigurAussehen?
+    private let bereich: Bereich
     @State private var aussehen: FigurAussehen
-    @State private var kategorie = Kategorie.outfits
+    @State private var kategorie: Kategorie
     @State private var wuerfe = 0
+    @State private var shopOffen = false
 
-    init(start: FigurAussehen, modell: FigurAussehen? = nil, onSave: @escaping (FigurAussehen) -> Void) {
+    init(start: FigurAussehen, modell: FigurAussehen? = nil, bereich: Bereich = .figur, onSave: @escaping (FigurAussehen) -> Void) {
         _aussehen = State(initialValue: start)
+        _kategorie = State(initialValue: bereich == .figur ? .gesicht : .outfits)
         self.modell = modell
+        self.bereich = bereich
         self.onSave = onSave
+    }
+
+    /// Tab names of one half, in display order (the tabs themselves are private to the editor).
+    static func tabs(fuer person: Person, bereich: Bereich) -> [String] {
+        Kategorie.sichtbar(fuer: person, bereich: bereich).map(\.rawValue)
     }
 
     /// The look the preview draws: the editor's own copy, with the shop pieces (bag, watch, jewelry,
@@ -48,12 +61,14 @@ struct FigurEditor: View {
         case schalter(String, WritableKeyPath<FigurAussehen, Bool>)
         /// Fix round 3: one-tap outfit presets.
         case outfits([FigurOutfit])
+        /// p65 C2: the shop pieces of one part, under the free ones. Owned ones tap to wear, the rest opens the shop.
+        case shop(ShopFeld)
     }
 
     fileprivate enum Kategorie: String, CaseIterable, Identifiable {
         case outfits = "Outfits"
         case gesicht = "Gesicht", haare = "Haare", augen = "Augen", bart = "Bart"
-        case oberteil = "Oberteil", jacke = "Jacke", hose = "Hose", schuhe = "Schuhe"
+        case oberteil = "Oberteile", jacke = "Jacken", hose = "Hosen", schuhe = "Schuhe"
         case accessoires = "Accessoires", schmuck = "Schmuck", koerper = "Körper"
 
         var id: String { rawValue }
@@ -65,9 +80,14 @@ struct FigurEditor: View {
             }
         }
 
-        /// Bart only makes sense for Ahmed (männlich) — Annika would see just "Keiner".
-        static func sichtbar(fuer person: Person) -> [Kategorie] {
-            person.figurGeschlecht == .m ? allCases : allCases.filter { $0 != .bart }
+        /// p65 C: the tabs of each half, in the order the wardrobe shows them (Oberteile, Hosen, Schuhe, Jacken,
+        /// Accessoires; Outfits first as the quick start, Schmuck last). Bart only makes sense for Ahmed
+        /// (männlich) — Annika would see just "Keiner".
+        static func sichtbar(fuer person: Person, bereich: Bereich) -> [Kategorie] {
+            let liste: [Kategorie] = bereich == .figur
+                ? [.gesicht, .haare, .augen, .bart, .koerper]
+                : [.outfits, .oberteil, .hose, .schuhe, .jacke, .accessoires, .schmuck]
+            return person.figurGeschlecht == .m ? liste : liste.filter { $0 != .bart }
         }
 
         func abschnitte(fuer person: Person) -> [Abschnitt] {
@@ -108,29 +128,34 @@ struct FigurEditor: View {
                 return [
                     .optionen("Oberteil", \.oberteil, A.oberteile, .koerper, erlaubte: A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person)),
                     .farben("Farbe", \.oberteilfarbe, kleidung, hexPfad: \.oberteilfarbeHex),
+                    .shop(.oberteil),
                 ]
             case .jacke:
                 return [
-                    .optionen("Jacke", \.jacke, A.jacken, .koerper, erlaubte: A.erlaubt(A.jacken, shop: A.jackenShop, fuer: person)),
+                    .optionen("Jacke", \.jacke, A.jacken, .koerper, erlaubte: A.erlaubt(A.jacken, geschlecht: A.jackenGeschlecht, shop: A.jackenShop, fuer: person)),
                     .farben("Farbe", \.jackenfarbe, kleidung, hexPfad: \.jackenfarbeHex),
+                    .shop(.jacke),
                 ]
             case .hose:
                 return [
                     .optionen("Hose oder Rock", \.hose, A.hosen, .koerper, erlaubte: A.erlaubt(A.hosen, geschlecht: A.hosenGeschlecht, shop: A.hosenShop, fuer: person)),
                     .farben("Farbe", \.hosenfarbe, kleidung, hexPfad: \.hosenfarbeHex),
+                    .shop(.hose),
                 ]
             case .schuhe:
                 return [
-                    .optionen("Schuhe", \.schuhe, A.schuhArten, .koerper, erlaubte: A.erlaubt(A.schuhArten, shop: A.schuheShop, fuer: person)),
+                    .optionen("Schuhe", \.schuhe, A.schuhArten, .koerper, erlaubte: A.erlaubt(A.schuhArten, geschlecht: A.schuheGeschlecht, shop: A.schuheShop, fuer: person)),
                     .farben("Farbe", \.schuhfarbe, kleidung, hexPfad: \.schuhfarbeHex),
+                    .shop(.schuhe),
                 ]
             case .accessoires:
                 return [
-                    .optionen("Brille", \.brille, A.brillen, .gesicht, erlaubte: A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person)),
+                    .optionen("Brille", \.brille, A.brillen, .gesicht, erlaubte: A.erlaubt(A.brillen, geschlecht: A.brillenGeschlecht, shop: A.brillenShop, fuer: person)),
                     .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht, erlaubte: A.erlaubt(A.ohrringArten, geschlecht: A.ohrringeGeschlecht, fuer: person)),
-                    .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf, erlaubte: nil),
+                    .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf, erlaubte: A.erlaubt(A.kopfbedeckungen, geschlecht: A.kopfbedeckungenGeschlecht, fuer: person)),
                     .farben("Farbe der Kopfbedeckung", \.muetzenfarbe, kleidung, hexPfad: nil),
                     .schalter("AirPods", \.airpods),
+                    .shop(.brille),
                 ]
             case .schmuck:
                 // Z-39.3: free everyday jewelry; luxury pieces come from the shop.
@@ -169,7 +194,7 @@ struct FigurEditor: View {
             Button {
                 onSave(aussehen)
             } label: {
-                Text("Figur sichern")
+                Text(bereich == .figur ? "Figur sichern" : "Kleidung sichern")
                     .font(.headline)
                     .frame(maxWidth: .infinity, minHeight: 50)
             }
@@ -181,9 +206,11 @@ struct FigurEditor: View {
         .sensoryFeedback(.selection, trigger: kategorie)
         .sensoryFeedback(.impact(weight: .medium), trigger: wuerfe)
         .onAppear {
-            if !Kategorie.sichtbar(fuer: person).contains(kategorie) { kategorie = .gesicht }
-            aussehen = FigurAussehen.mitGueltigemGesicht(aussehen, person)
+            let tabs = Kategorie.sichtbar(fuer: person, bereich: bereich)
+            if !tabs.contains(kategorie), let erster = tabs.first { kategorie = erster }
+            aussehen = FigurAussehen.mitGueltigerKleidung(FigurAussehen.mitGueltigemGesicht(aussehen, person), person)
         }
+        .sheet(isPresented: $shopOffen) { ShopView() }
     }
 
     private var vorschau: some View {
@@ -213,7 +240,7 @@ struct FigurEditor: View {
     private var kategorienLeiste: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(Kategorie.sichtbar(fuer: person)) { k in
+                ForEach(Kategorie.sichtbar(fuer: person, bereich: bereich)) { k in
                     Button(k.rawValue) {
                         withAnimation(.snappy) { kategorie = k }
                     }
@@ -253,6 +280,52 @@ struct FigurEditor: View {
                 Text("Outfits").font(.headline)
                 outfitKacheln(liste)
             }
+        case let .shop(feld):
+            shopReihe(feld)
+        }
+    }
+
+    /// p65 C2: shop pieces of one part under the free ones. Worn ones carry a ring, owned ones a check mark,
+    /// the rest their price; an unowned piece opens the shop. A shop piece lives in the same index as a
+    /// free one, so wearing it here changes this editor's copy and is saved with "Kleidung sichern".
+    @ViewBuilder
+    private func shopReihe(_ feld: ShopFeld) -> some View {
+        let besitz = PunkteModell.shared.einkaufsStand(preis: { ShopKatalog.artikel($0)?.preis }).besitz
+        let stuecke = GarderobeLogik.shopStuecke(feld: feld, person: person, besitzt: { besitz.besitzt($0, person) })
+        if !stuecke.isEmpty {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Aus dem Shop").font(.headline)
+                    Spacer()
+                    Button("Shop öffnen") { shopOffen = true }
+                        .font(.subheadline.weight(.semibold))
+                        .tint(Self.akzent)
+                        .frame(minHeight: 44)
+                }
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 12)], spacing: 14) {
+                    ForEach(stuecke) { s in
+                        let getragen = aussehen.traegt(s.artikel)
+                        Button {
+                            if s.besitzt { tragen(s.artikel) } else { shopOffen = true }
+                        } label: {
+                            ArtikelKachel(artikel: s.artikel, besitzt: s.besitzt, vorschauAussehen: aussehen.mitVorschau(s.artikel))
+                                .overlay(alignment: .top) {
+                                    RoundedRectangle(cornerRadius: 14)
+                                        .strokeBorder(getragen ? Self.akzent : Color.clear, lineWidth: 3)
+                                        .frame(width: 84, height: 96)
+                                }
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(getragen ? .isSelected : [])
+                    }
+                }
+            }
+        }
+    }
+
+    private func tragen(_ artikel: ShopArtikel) {
+        withAnimation(Feder.weich) {
+            if aussehen.traegt(artikel) { aussehen.ausziehen(artikel, person: person) } else { aussehen.anziehen(artikel) }
         }
     }
 
@@ -388,31 +461,37 @@ struct FigurEditor: View {
         return kanal(r) + kanal(g) + kanal(b)
     }
 
-    /// New look: hair, clothes and accessories; face, skin and body stay. Only picks options this
-    /// person's gender filter allows, and never a shop-only item (that would make buying pointless).
+    /// New look: in the figure half only hair, in the wardrobe only clothes and accessories; face, skin and
+    /// body stay. Only picks options this person's gender filter allows, and never a shop-only item
+    /// (that would make buying pointless).
     private func zufall() {
         typealias A = FigurAussehen
         func eins(_ erlaubte: [Int]) -> Int { erlaubte.randomElement() ?? 0 }
         func oftKeins(_ erlaubte: [Int]) -> Int { Bool.random() ? 0 : eins(erlaubte) }
         var a = aussehen
-        a.frisur = eins(A.frisurenAuswahl(fuer: person))
-        a.haarfarbe = eins(Array(A.haarfarben.indices))
-        a.haarfarbeHex = nil
+        if bereich == .figur {
+            a.frisur = eins(A.frisurenAuswahl(fuer: person))
+            a.haarfarbe = eins(Array(A.haarfarben.indices))
+            a.haarfarbeHex = nil
+            withAnimation(.snappy) { aussehen = a }
+            wuerfe += 1
+            return
+        }
         a.oberteil = eins(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person))
         a.oberteilfarbe = eins(Array(A.farben.indices))
         a.oberteilfarbeHex = nil
-        a.jacke = oftKeins(A.erlaubt(A.jacken, shop: A.jackenShop, fuer: person))
+        a.jacke = oftKeins(A.erlaubt(A.jacken, geschlecht: A.jackenGeschlecht, shop: A.jackenShop, fuer: person))
         a.jackenfarbe = eins(Array(A.farben.indices))
         a.jackenfarbeHex = nil
         a.hose = eins(A.erlaubt(A.hosen, geschlecht: A.hosenGeschlecht, shop: A.hosenShop, fuer: person))
         a.hosenfarbe = eins(Array(A.farben.indices))
         a.hosenfarbeHex = nil
-        a.schuhe = eins(A.erlaubt(A.schuhArten, shop: A.schuheShop, fuer: person))
+        a.schuhe = eins(A.erlaubt(A.schuhArten, geschlecht: A.schuheGeschlecht, shop: A.schuheShop, fuer: person))
         a.schuhfarbe = eins(Array(A.farben.indices))
         a.schuhfarbeHex = nil
-        a.kopfbedeckung = oftKeins(Array(A.kopfbedeckungen.indices))
+        a.kopfbedeckung = oftKeins(A.erlaubt(A.kopfbedeckungen, geschlecht: A.kopfbedeckungenGeschlecht, fuer: person))
         a.muetzenfarbe = eins(Array(A.farben.indices))
-        a.brille = oftKeins(A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person))
+        a.brille = oftKeins(A.erlaubt(A.brillen, geschlecht: A.brillenGeschlecht, shop: A.brillenShop, fuer: person))
         withAnimation(.snappy) { aussehen = a }
         wuerfe += 1
     }

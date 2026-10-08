@@ -277,9 +277,9 @@ enum SzenenZeichnung {
         rahmenRects.indices.contains(slot) ? rahmenRects[slot].insetBy(dx: 7, dy: 7) : nil
     }
 
-    static func raum(_ g: GraphicsContext, _ size: CGSize) -> GraphicsContext {
+    static func raum(_ g: GraphicsContext, _ size: CGSize, welt: ProfilWelt = .einzel) -> GraphicsContext {
         var r = g
-        let s = size.width / breite
+        let s = size.width / welt.breite
         r.translateBy(x: 0, y: size.height - hoehe * s)
         r.scaleBy(x: s, y: s)
         return r

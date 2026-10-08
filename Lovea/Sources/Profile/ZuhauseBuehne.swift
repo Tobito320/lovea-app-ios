@@ -8,6 +8,8 @@ struct ZuhauseFigur {
     let groesse: CGFloat
     let animiert: Bool
     let ganzkoerper: Bool
+    /// p65: how the whole body is posed (sitting on the sofa); `nil` leaves it to the state.
+    var pose: FigurPose? = nil
 }
 
 extension ZuhauseGeste {
@@ -30,6 +32,8 @@ struct ZuhauseSzenenstand: Equatable {
     var geste: ZuhauseGeste?
     /// Both in the bed (sitting up in the evening, asleep at night), not standing at its edge.
     var liegt: Bool
+    /// p65: lying down on a tap on the bed, also by day: they lie with closed eyes, not sit up.
+    var hingelegt = false
 
     /// `mitGeste`: also show the step's gesture; the resting scene (low power) has none.
     init(zeit: Tageszeit, _ aufstellung: Aufstellung, mitGeste: Bool = false) {
@@ -66,6 +70,8 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let wahl: ZimmerWahl
     private let katze: ZuhauseKatze?
     private let outfit: (() -> Void)?
+    /// p65: `.panorama` is the wide scene (975 units) with the sofa widened and the objects in their slots.
+    private let welt: ProfilWelt
     private let figur: (ZuhauseFigur) -> Figur
     private let paar: () -> Paar
 
@@ -84,11 +90,15 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// p61: `wahl` the room's pieces, `katze` the cat at home (none: no cat), `outfit` opens the outfit
     /// change from the clothes rail and the shoe shelf (none: both just hang there).
     /// `extras` (p63): occasion decoration, sign, shelf and dice, hung in under the figures.
+    /// `welt` (p65): the panorama takes its height from the space it gets, draws no wall (its own slower
+    /// layer) and lets a tap on the bed or the sofa send both there.
     init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
          extras: ZimmerExtrasStand? = nil, nacht: Bool = false,
          fest: ZuhauseSzenenstand? = nil, wahl: ZimmerWahl = .standard, katze: ZuhauseKatze? = nil, outfit: (() -> Void)? = nil,
+         welt: ProfilWelt = .einzel,
          wandDinge: @escaping (Tageszeit) -> AnyView = { _ in AnyView(EmptyView()) },
          @ViewBuilder figur: @escaping (ZuhauseFigur) -> Figur, @ViewBuilder paar: @escaping () -> Paar) {
+        self.welt = welt
         self.dehnung = dehnung
         self.straeusse = straeusse
         self.paarDa = paarDa
@@ -112,25 +122,26 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     var body: some View {
         GeometryReader { geo in
-            let s = geo.size.width / ZuhauseZeichnung.breite
+            let s = geo.size.width / welt.breite
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
-                ZuhauseRaumBild(zeit: sicht, wahl: wahl)
+                ZuhauseRaumBild(zeit: sicht, wahl: wahl, welt: welt)
                 wandDinge(sicht)
-                schatten
+                if welt == .einzel { schatten }
                 if let outfit {
-                    tippflaeche(ZimmerMoebel.stange, "Kleiderstange, Outfit wechseln", outfit, s, oben)
-                    tippflaeche(ZimmerMoebel.regal, "Schuhregal, Outfit wechseln", outfit, s, oben)
+                    let schrank = welt.versatz(.kleiderschrank)
+                    tippflaeche(ZimmerMoebel.stange.offsetBy(dx: schrank.width, dy: schrank.height), "Kleiderstange, Outfit wechseln", outfit, s, oben)
+                    tippflaeche(ZimmerMoebel.regal.offsetBy(dx: schrank.width, dy: schrank.height), "Schuhregal, Outfit wechseln", outfit, s, oben)
                 }
                 ZStack(alignment: .topLeading) {
-                    if let extras { ZimmerExtras(stand: extras, s: s, oben: oben) }
+                    if let extras { ZimmerExtras(stand: extras, s: s, oben: oben, welt: welt) }
                     bett(s, oben)
                     straeusseSicht(s, oben)
                     if let katze {
                         katzeSicht(katze, s, oben)
                     }
                     personen(sitzend: true, s, oben)
-                    ZuhauseSofaVorn()
+                    ZuhauseSofaVorn(welt: welt)
                     if paarDa {
                         paarSicht(s, oben)
                     } else {
@@ -139,11 +150,12 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                 }
                 .colorMultiply(abdunklung)
                 if stand.zeit.dunkel && !nacht {
-                    ZuhauseLicht(zeit: stand.zeit)
+                    ZuhauseLicht(zeit: stand.zeit, welt: welt)
                 }
+                if welt == .panorama { moebelTippen(s, oben) }
             }
         }
-        .frame(height: ZuhauseZeichnung.hoehe + dehnung)
+        .frame(height: welt == .einzel ? ZuhauseZeichnung.hoehe + dehnung : nil)
         .clipped()
         .onAppear { sichtbar = true }
         .onDisappear { sichtbar = false }
@@ -181,7 +193,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private func bett(_ s: CGFloat, _ oben: CGFloat) -> some View {
         let k = ZuhauseZeichnung.bettMass * s
         let liegt = stand.liegt && !paarDa
-        let schlaeft = stand.zeit == .nacht
+        let schlaeft = stand.zeit == .nacht || stand.hingelegt
         // Empty pillows: both while the bed is empty and behind those sitting up; sleepers bring their own.
         let kissen: [CGFloat] = liegt && schlaeft ? [] : [112, 188]
         let stil = ZuhauseZeichnung.bettStil
@@ -209,13 +221,14 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// Up to 3 bouquets on the dresser and one in the vase, each in its own 24 x 40 frame.
     private func straeusseSicht(_ s: CGFloat, _ oben: CGFloat) -> some View {
         let imSchrank = straeusse.imSchrank
-        let plaetze = ZuhauseZeichnung.schrankPlaetze
+        let plaetze = ZuhauseZeichnung.schrankPlaetze.map { welt.ort($0, .kommode) }
+        let vasenPlatz = welt.ort(ZuhauseZeichnung.vasenPlatz, .kommode)
         return ZStack(alignment: .topLeading) {
             ForEach(imSchrank.indices, id: \.self) { n in
                 strauss(imSchrank[n], plaetze[n], s, oben)
             }
             if let vase = straeusse.vase {
-                strauss(vase, ZuhauseZeichnung.vasenPlatz, s, oben)
+                strauss(vase, vasenPlatz, s, oben)
             }
         }
     }
@@ -241,7 +254,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// The cat follows the scene state only: where it is and what it does comes from `stand`, so it
     /// changes with p58's step and has no timer of its own.
     private func katzeSicht(_ k: ZuhauseKatze, _ s: CGFloat, _ oben: CGFloat) -> some View {
-        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: stand.annika)
+        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: stand.annika, welt: welt)
         return ZimmerKatzeSicht(id: k.id, szene: szene, wuenscht: ZimmerKatze.wuenscht(szene.zustand, gestreichelt: k.gestreichelt),
                                 geht: stand.gehende.contains(.annika), streichelt: streichelt, s: s, oben: oben) {
             streichelt = k.streicheln()
@@ -265,15 +278,21 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// One figure, always the same view, so a step is a plain move of its position. Sitting: head and
     /// chest only (the half figure) with its lower edge behind the cushion. Standing: the whole body,
     /// feet at 98 % of its height on the floor line.
+    /// Panorama: every figure is whole. Whoever sits on the sofa gets the pose `.sitzenSofa`; the soles
+    /// are as high over the floor line as the seat plane of the widened sofa (a middle-sized body; the
+    /// profile moves other sizes by `sitzKorrektur`).
     private func person(_ p: Person, _ s: CGFloat, _ oben: CGFloat) -> some View {
         let sitzend = sitzt(p)
-        let hoehe = sitzend ? ZuhauseOrte.sitzHoehe : ZuhauseOrte.figurHoehe
-        let unten = sitzend ? ZuhauseOrte.sitzKante : ZuhauseOrte.fussY + 0.02 * hoehe
-        let x = ZuhauseOrte.fuss(stand.platz(p), p).x
+        let ganz = welt == .panorama || !sitzend
+        let hoehe = ganz ? ZuhauseOrte.figurHoehe : ZuhauseOrte.sitzHoehe
+        let sohle = ZuhauseOrte.fussY - (sitzend && welt == .panorama ? ZuhauseOrte.sitzSohleHoeher : 0)
+        let unten = ganz ? sohle + 0.02 * hoehe : ZuhauseOrte.sitzKante
+        let x = ZuhauseOrte.fuss(stand.platz(p), p, welt: welt).x
         let geht = stand.gehende.contains(p)
         let gestik = p == .annika ? stand.geste : nil
         let zustand: FigurZustand = geht ? .laeuft : (gestik?.zustand ?? .ruhig)
-        return figur(ZuhauseFigur(person: p, zustand: zustand, groesse: hoehe * s, animiert: geht || gestik != nil, ganzkoerper: !sitzend))
+        let pose: FigurPose? = sitzend && welt == .panorama ? .sitzenSofa : nil
+        return figur(ZuhauseFigur(person: p, zustand: zustand, groesse: hoehe * s, animiert: geht || gestik != nil, ganzkoerper: ganz, pose: pose))
             .position(x: x * s, y: oben + (unten - hoehe / 2) * s)
     }
 
@@ -283,7 +302,46 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         return paar()
             .frame(width: 276, height: 340)
             .scaleEffect(m, anchor: .bottom)
-            .position(x: ZuhauseOrte.paarX * s, y: oben + ZuhauseOrte.fussY * s + 0.02 * 340 * m - 170)
+            .position(x: ZuhauseOrte.paarMitte(welt: welt) * s, y: oben + ZuhauseOrte.fussY * s + 0.02 * 340 * m - 170)
+    }
+
+    // MARK: Taps on the furniture (panorama)
+
+    /// Bed and sofa as buttons: a tap sends both there, to lie down or to sit. The tap areas are at least
+    /// 44 pt (`ProfilSlots.tippFlaeche`) and lie on top of the figures, which only look.
+    private func moebelTippen(_ s: CGFloat, _ oben: CGFloat) -> some View {
+        ZStack(alignment: .topLeading) {
+            moebelFlaeche(.bett, "Bett, beide legen sich hin", s, oben) { antippen(.bett) }
+            moebelFlaeche(.sofa, "Sofa, beide setzen sich", s, oben) { antippen(.sofa) }
+        }
+    }
+
+    private func moebelFlaeche(_ d: ProfilDing, _ name: String, _ s: CGFloat, _ oben: CGFloat, tun: @escaping () -> Void) -> some View {
+        let r = ProfilSlots.tippFlaeche(d, massstab: s)
+        return Color.clear
+            .frame(width: r.width * s, height: r.height * s)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: tun)
+            .position(x: r.midX * s, y: oben + r.midY * s)
+            .accessibilityLabel(name)
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// Both walk to the piece of furniture and stay: at the bed they lie, at the sofa they sit. Ignored
+    /// while someone walks, for the pair's real hug and in the fixed boards.
+    private func antippen(_ ziel: Platz) {
+        guard !fest, !paarDa, stand.gehende.isEmpty else { return }
+        if reduceMotion || sparmodus {
+            // No walk: they are simply there.
+            stand.annika = ziel
+            stand.ahmed = ziel
+            stand.geste = nil
+            stand.liegt = ziel == .bett
+            stand.hingelegt = ziel == .bett
+            return
+        }
+        let neu = Aufstellung(annika: ziel, ahmed: ziel, geste: nil)
+        Task { await gehen(zu: neu, hinlegen: ziel == .bett) }
     }
 
     // MARK: Driver
@@ -328,16 +386,26 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     }
 
     /// Stand up where they are, walk in one animation, arrive, show the gesture for a moment, stand still.
-    private func gehen(zu neu: Aufstellung) async {
+    /// `hinlegen` (a tap on the bed): they lie down there, also by day, with closed eyes.
+    private func gehen(zu neu: Aufstellung, hinlegen: Bool = false) async {
+        guard stand.gehende.isEmpty else { return }
         var gehende = Set<Person>()
         var dauer: TimeInterval = 0
         for p in [Person.annika, .ahmed] where stand.platz(p) != neu.platz(p) {
             gehende.insert(p)
-            dauer = max(dauer, ZuhauseOrte.gehdauer(von: stand.platz(p), nach: neu.platz(p), p))
+            dauer = max(dauer, ZuhauseOrte.gehdauer(von: stand.platz(p), nach: neu.platz(p), p, welt: welt))
         }
-        guard dauer > 0 else { return }
+        guard dauer > 0 else {
+            // Already there: a tap on the bed lies them down, nothing else changes.
+            if hinlegen, !stand.liegt {
+                stand.liegt = true
+                stand.hingelegt = true
+            }
+            return
+        }
         stand.geste = nil
         stand.liegt = false
+        stand.hingelegt = false
         stand.gehende = gehende
         // One beat so the standing pose is on screen before the position starts to move.
         try? await Task.sleep(for: .milliseconds(120))
@@ -349,7 +417,8 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         try? await Task.sleep(for: .seconds(dauer))
         guard !Task.isCancelled else { return }
         stand.gehende = []
-        stand.liegt = stand.zeit.dunkel && neu.annika == .bett && neu.ahmed == .bett
+        stand.liegt = (stand.zeit.dunkel || hinlegen) && neu.annika == .bett && neu.ahmed == .bett
+        stand.hingelegt = hinlegen && stand.liegt
         stand.geste = neu.geste
         guard neu.geste != nil else { return }
         try? await Task.sleep(for: .seconds(3.5))
@@ -363,12 +432,14 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 private struct ZuhauseRaumBild: View {
     let zeit: Tageszeit
     let wahl: ZimmerWahl
+    var welt: ProfilWelt = .einzel
 
     var body: some View {
         let zeit = zeit
         let wahl = wahl
+        let welt = welt
         Canvas { g, groesse in
-            ZuhauseZeichnung.raum(SzenenZeichnung.raum(g, groesse), zeit: zeit, wahl: wahl)
+            ZuhauseZeichnung.raum(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, wahl: wahl, welt: welt)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -377,9 +448,12 @@ private struct ZuhauseRaumBild: View {
 
 /// The sofa's seat cushion in front of whoever sits.
 private struct ZuhauseSofaVorn: View {
+    var welt: ProfilWelt = .einzel
+
     var body: some View {
+        let welt = welt
         Canvas { g, groesse in
-            ZuhauseZeichnung.sofaVorn(SzenenZeichnung.raum(g, groesse))
+            ZuhauseZeichnung.sofaVorn(SzenenZeichnung.raum(g, groesse, welt: welt), welt: welt)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
@@ -388,11 +462,13 @@ private struct ZuhauseSofaVorn: View {
 
 private struct ZuhauseLicht: View {
     let zeit: Tageszeit
+    var welt: ProfilWelt = .einzel
 
     var body: some View {
         let zeit = zeit
+        let welt = welt
         Canvas { g, groesse in
-            ZuhauseZeichnung.licht(SzenenZeichnung.raum(g, groesse), zeit: zeit)
+            ZuhauseZeichnung.licht(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, welt: welt)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

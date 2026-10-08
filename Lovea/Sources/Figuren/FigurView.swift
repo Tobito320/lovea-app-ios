@@ -51,13 +51,18 @@ struct FigurView: View {
     private let umarmung: Umarmung?
     /// Teil 4: the exercise the gym scene shows; nil picks one at random per person.
     private let gymGeste: GymGeste?
+    /// p65: where the whole body is (sits on the sofa or the bed edge, lies); nil = as the state says.
+    private let pose: FigurPose?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
 
     /// `bildrate`: frames per second of the loop; lower it where many figures or a map redraw.
     /// `extras` (Z-39.4): umbrella, sunglasses, hat and scarf, phone with a white cable, snowflakes.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil) {
+    /// `pose` (p65): whole body only. Sitting drops the hips to the seat; lying turns the body by 90
+    /// degrees and the frame becomes `FigurPoseLogik.rahmen` (wide).
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil, pose: FigurPose? = nil) {
+        self.pose = ganzkoerper ? pose : nil
         self.umarmung = umarmung
         self.aussehen = aussehen
         self.zustand = zustand
@@ -85,7 +90,7 @@ struct FigurView: View {
                 leinwand(basis, 0.4)
             }
         }
-        .frame(width: ganzkoerper ? groesse / 2 : groesse * 5 / 6, height: groesse)
+        .frame(width: rahmen.width, height: rahmen.height)
         .saturation(zustand == .offline ? 0.15 : 1)
         .opacity(zustand == .offline ? 0.7 : 1)
         .onAppear { sichtbar = true }
@@ -97,13 +102,30 @@ struct FigurView: View {
         .accessibilityValue(zustand.titel)
     }
 
+    private var rahmen: CGSize {
+        if ganzkoerper { return FigurPoseLogik.rahmen(pose ?? .stehen, hoehe: groesse) }
+        return CGSize(width: groesse * 5 / 6, height: groesse)
+    }
+
     private func zeichner(statisch: Bool) -> Zeichner {
-        Zeichner(aussehen, zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung, gymGeste: gymGeste)
+        Zeichner(aussehen, zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung, gymGeste: gymGeste, pose: pose)
     }
 
     private func leinwand(_ basis: Zeichner, _ t: Double) -> some View {
         let zeichner = basis.bei(t)
-        return Canvas { g, size in zeichner.zeichne(g, size) }
+        let drehung = pose.map(FigurPoseLogik.drehung) ?? 0
+        return Canvas { g, size in
+            guard drehung != 0 else {
+                zeichner.zeichne(g, size)
+                return
+            }
+            // Lying: the standing body is drawn in a tall frame (size swapped) and turned around its centre.
+            var d = g
+            d.translateBy(x: size.width / 2, y: size.height / 2)
+            d.rotate(by: .degrees(drehung))
+            d.translateBy(x: -size.height / 2, y: -size.width / 2)
+            zeichner.zeichne(d, CGSize(width: size.height, height: size.width))
+        }
     }
 }
 
@@ -319,7 +341,7 @@ fileprivate struct Masse {
     let hueftY: CGFloat
     let schulterY: CGFloat
     let knieY: CGFloat
-    static let fussY: CGFloat = 372
+    static let fussY: CGFloat = FigurPoseLogik.fussY
 }
 
 // MARK: - Drawing (half figure 200 x 240, full body 200 x 400 with the head drawn in the half space)
@@ -335,6 +357,8 @@ private struct Zeichner {
     let straehne: FigurFarbe?
     let frisur, oberteil, brille, bart, gesichtsform, augenform, brauenStil, nasenStil, mundStil: Int
     let ohrring, muetze, jacke, hose, schuhe, koerperform, groesseStufe: Int
+    /// p65 D: real index (39...43) of a worn brand top, 0 otherwise. `oberteil` then holds its base shape.
+    let marke: Int
     let wimpern, sommersprossen, muttermal, rouge: Bool
     // v3 (Z-24.2): worn shop parts, forwarded to the Zubehoer/ drawers as-is (nil = nothing).
     let tascheId, uhrId, tierId: String?
@@ -360,8 +384,11 @@ private struct Zeichner {
     let neu: NeuesGesicht?
     /// Teil 4: the running exercise, forwarded as-is (nil = pick one at random per person, see `gymGeste`).
     let gymFest: GymGeste?
+    /// p65: where the body is on the stage (sits, lies); nil = the state decides.
+    let figurPose: FigurPose?
 
-    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil) {
+    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil, pose: FigurPose? = nil) {
+        self.figurPose = pose
         self.gymFest = gymGeste
         typealias A = FigurAussehen
         self.umarmung = ganz ? umarmung : nil
@@ -429,7 +456,9 @@ private struct Zeichner {
         let fotoOberteil = A.fotoOberteile[freiesOberteil]
         let oberteilFarbe = schlafanzug ? FigurFarbe(0xAFC8EE) : (fotoOberteil?.farbe ?? a.oberteilfarbeHex.flatMap { FigurFarbe(hex: $0) } ?? A.farben.wahl(a.oberteilfarbe).farbe)
         top = oberteilFarbe
-        oberteil = schlafanzug ? 2 : (gym && !mannImGym ? 11 : (fotoOberteil?.basis ?? freiesOberteil))
+        let markenBasis = A.markenBasis[freiesOberteil]
+        marke = markenBasis != nil && !schlafanzug && !gym ? freiesOberteil : 0
+        oberteil = schlafanzug ? 2 : (gym && !mannImGym ? 11 : (fotoOberteil?.basis ?? markenBasis ?? freiesOberteil))
         jacke = schlafanzug || gym ? 0 : grenze(a.jacke, A.jacken.count)
         let freieHose = grenze(a.hose, A.hosen.count)
         let fotoHose = A.fotoHosen[freieHose]
@@ -993,6 +1022,8 @@ private struct Zeichner {
         default:
             break
         }
+        // p65 D: brand tops on a base shape (39...43) add their logo on top of it.
+        if marke != 0 { zeichneMarkenOberteil(g, h, marke: marke, top: top) }
     }
 
     /// Tops whose pattern runs over the torso edge, so the outline is drawn again on top.
@@ -3629,9 +3660,8 @@ extension Zeichner {
     }
 
     func masse() -> Masse {
-        let beinLaengen: [CGFloat] = [112, 124, 136]
         let k = km
-        let beinL = beinLaengen[groesseStufe]
+        let beinL = FigurPoseLogik.beinLaenge(stufe: groesseStufe)
         let hueftY = Masse.fussY - beinL
         return Masse(s: k.s * (neu == .b && z != .gym ? 0.92 : 1), t: k.t, h: k.h, arm: k.arm, bein: k.bein,
                      hueftY: hueftY, schulterY: hueftY - 96, knieY: hueftY + beinL * 0.5)
@@ -3639,6 +3669,7 @@ extension Zeichner {
 
     var haltung: Haltung {
         if let g = gymGeste { return gymHaltung(g) }
+        if figurPose?.sitzt == true { return .sitzen }
         return switch z {
         case .laeuft, .tanzt: .gehen
         case .rennt: .rennen
@@ -3657,7 +3688,7 @@ extension Zeichner {
             if g == .ausfallschritt { return wdh * 26 }
         }
         return switch hal {
-        case .sitzen, .fahren: m.knieY - m.hueftY - 4
+        case .sitzen, .fahren: FigurPoseLogik.sitzVersatz(beinLaenge: (m.knieY - m.hueftY) * 2)
         case .rad: 40
         default: 0
         }
@@ -3945,6 +3976,12 @@ extension Zeichner {
             teil(g, box(x - 15, y + 4, 30, 4, 2), Pal.silber, 1.5)
             teil(g, box(x - 15, y + 8, 30, 4, 2), FigurFarbe(0xD8C3A0), 1.5)
             teil(g, box(x - 14, y + 12, 28, 3, 1.5), Pal.dunkel.mix(Pal.weiss, 0.3), 1)
+        case 16:
+            // p65 D: Air Jordan 1 (Zubehoer/ModeMarken.swift).
+            zeichneJordanSneaker(g, fuss: f, farbe: c)
+        case 17:
+            // p65 D: Nike Dunk Low (Zubehoer/ModeMarken.swift).
+            zeichneDunkSneaker(g, fuss: f, farbe: c)
         default:
             teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
             g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
@@ -4065,6 +4102,13 @@ extension Zeichner {
         let wiege: CGFloat = statisch ? 0 : w(1.3) * 1.5
         let restL = Arm(P(lx - 6, y + 50), P(lx - 4 + wiege, y + 92))
         let restR = Arm(P(rx + 6, y + 50), P(rx + 4 - wiege, y + 92))
+        // p65: seated on the stage. Sofa: hands rest on the thighs, not clasped. Bed edge: hands on the mattress beside the hips.
+        if let p = figurPose, p.sitzt, z == .ruhig {
+            if p == .sitzenSofa {
+                return (Arm(P(lx - 6, y + 52), P(lx + 4, y + 100 + wiege)), Arm(P(rx + 6, y + 52), P(rx - 4, y + 100 + wiege)))
+            }
+            return (Arm(P(lx - 10, y + 52), P(lx - 14, y + 90 + wiege)), Arm(P(rx + 10, y + 52), P(rx + 14, y + 90 + wiege)))
+        }
         switch z {
         case .imChat:
             let welle: CGFloat = zyklus(5) < 0.45 ? w(9) * 7 : 0

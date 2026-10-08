@@ -25,16 +25,16 @@ enum ZimmerKatze {
         tiere.compactMap { $0 }.first { $0.hasPrefix("tier.katze") } ?? standardId
     }
 
-    static func szene(zeit: Tageszeit, annika: Platz) -> KatzenSzene {
+    static func szene(zeit: Tageszeit, annika: Platz, welt: ProfilWelt = .einzel) -> KatzenSzene {
         let schlaf = KatzenSzene(zustand: .schlaeft, ort: bettOrt, nachRechts: false)
         guard !zeit.dunkel else { return schlaf }
         switch annika {
         case .bett, .sofa:
             return schlaf
         case .fenster:
-            return KatzenSzene(zustand: .folgt, ort: P(ZuhauseOrte.fuss(.fenster, .annika).x - 38, ZuhauseOrte.fussY), nachRechts: true)
+            return KatzenSzene(zustand: .folgt, ort: P(ZuhauseOrte.fuss(.fenster, .annika, welt: welt).x - 38, ZuhauseOrte.fussY), nachRechts: true)
         case .blumen:
-            return KatzenSzene(zustand: .will, ort: P(ZuhauseOrte.fuss(.blumen, .annika).x + 40, ZuhauseOrte.fussY), nachRechts: false)
+            return KatzenSzene(zustand: .will, ort: P(ZuhauseOrte.fuss(.blumen, .annika, welt: welt).x + 40, ZuhauseOrte.fussY), nachRechts: false)
         }
     }
 

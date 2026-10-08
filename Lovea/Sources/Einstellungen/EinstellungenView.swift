@@ -25,7 +25,7 @@ struct EinstellungenView: View {
                 NavigationLink("Mitteilungen") { MitteilungenListe() }
             }
             Section("Figur") {
-                NavigationLink("Figuren-Editor") { FigurEditorSeite(person: person) }
+                NavigationLink("Meine Figur") { FigurEditorSeite(person: person) }
                 NavigationLink("Szenen gestalten") { SzenenUebersicht(person: person) }
             }
             Section {
@@ -198,23 +198,27 @@ private struct MitteilungenListe: View {
 
 // MARK: - Figuren-Editor-Seite
 
-/// Internal (not `private`): Profile/ProfileView.swift's "Figur bearbeiten" reuses this exact
-/// wrapper (Shop button included) instead of duplicating the `FigurEditor` navigation chrome.
+/// Internal (not `private`): Profile/ProfileView.swift reuses this exact wrapper instead of duplicating the
+/// `FigurEditor` navigation chrome. p65 C: `.figur` is "Meine Figur" (Einstellungen and the profile's "Profil"
+/// button), `.kleidung` is the wardrobe behind the profile's "Kleidung" button, with the Shop button.
 struct FigurEditorSeite: View {
     let person: Person
+    var bereich: FigurEditor.Bereich = .figur
     @Environment(\.dismiss) private var dismiss
     @State private var shopOffen = false
 
     var body: some View {
-        FigurEditor(start: FigurenModell.shared.aussehen(person), modell: FigurenModell.shared.aussehen(person)) { neu in
+        FigurEditor(start: FigurenModell.shared.aussehen(person), modell: FigurenModell.shared.aussehen(person), bereich: bereich) { neu in
             FigurenModell.shared.aussehenSichern(neu.mitShopTeilen(von: FigurenModell.shared.aussehen(person)))
             dismiss()
         }
-        .navigationTitle("Figuren-Editor")
+        .navigationTitle(bereich == .figur ? "Meine Figur" : "Kleidung")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // Z-23.2: Shop reachable from the figure editor too (Spec §4.3).
-            ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
+            // Z-23.2: Shop reachable from the wardrobe too (Spec §4.3).
+            if bereich == .kleidung {
+                ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
+            }
         }
         .sheet(isPresented: $shopOffen) { ShopView() }
     }

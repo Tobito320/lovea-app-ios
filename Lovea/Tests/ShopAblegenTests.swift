@@ -45,11 +45,25 @@ final class ShopAblegenTests: XCTestCase {
     }
 
     /// Indizes, die auch der freie Editor wählen kann, sind kein Shop-Teil: die bleiben.
+    /// p65 D: bei Kleidung ist das nur noch das Gratis-Kit, darum hier nur Brillen.
     func testFreieEditorWahlBleibt() {
-        for id in ["mode.bomberjacke", "brille.sport", "brille.guess", "mode.cargohose", "mode.jeansjacke"] {
+        for id in ["brille.sport", "brille.guess"] {
             var a = annika()
             a.anziehen(id)
             XCTAssertEqual(a.ohneEntfernteTeile(), a, id)
+        }
+    }
+
+    /// p65 D: Bomberjacke, Cargohose und Jeansjacke waren frei wählbar. Jetzt gehört jede Jacke und jede Hose
+    /// außerhalb des Kits dem Shop, also legt das Aufräumen die entfernten Teile ab.
+    func testFrueherFreieKleidungIstJetztShopTeil() {
+        for (id, pruefe) in [("mode.bomberjacke", \FigurAussehen.jacke), ("mode.jeansjacke", \FigurAussehen.jacke),
+                             ("mode.cargohose", \FigurAussehen.hose)] {
+            var a = annika()
+            a.anziehen(id)
+            XCTAssertNotEqual(a, annika(), id)
+            let b = a.ohneEntfernteTeile()
+            XCTAssertEqual(b[keyPath: pruefe], annika()[keyPath: pruefe], "\(id) bleibt hängen")
         }
     }
 
