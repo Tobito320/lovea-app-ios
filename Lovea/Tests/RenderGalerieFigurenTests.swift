@@ -263,6 +263,18 @@ final class RenderGalerieFigurenTests: XCTestCase {
             a.anziehen(id)
             zellen.append((titel: String(id.dropFirst(5)), ansicht: figur(a, groesse: 240)))
         }
+        // Brand jackets (chest) and pants (whole body) were drawn in Z-39.1; the board proves they show the brand.
+        for id in ["mode.adidas-trainingsjacke", "mode.tnf-puffer", "mode.carhartt-jacke"] {
+            var a = A.standard(for: .ahmed)
+            a.anziehen(id)
+            zellen.append((titel: String(id.dropFirst(5)), ansicht: figur(a, groesse: 240)))
+        }
+        for id in ["mode.adidas-trainingshose", "mode.levis-501", "mode.nike-tech-jogger", "mode.puma-leggings"] {
+            var a = A.standard(for: id == "mode.puma-leggings" ? .annika : .ahmed)
+            a.jacke = 0
+            a.anziehen(id)
+            zellen.append((titel: String(id.dropFirst(5)), ansicht: figur(a, groesse: 360, ganz: true)))
+        }
         let schuhe = ["mode.nike-af1", "mode.adidas-samba", "mode.new-balance-550", "mode.jordan-1-rot",
                       "mode.jordan-1-schwarz", "mode.nike-dunk-panda"]
         for id in schuhe {
