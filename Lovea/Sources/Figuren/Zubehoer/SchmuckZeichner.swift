@@ -102,6 +102,13 @@ func zeichneSchmuck(_ g: GraphicsContext, _ stil: SchmuckStil, _ farbe: FigurFar
     }
 }
 
+/// p71: one piece large in the 200 x 260 close-up field (shop detail, editor tiles). Neck, wrist and hand pieces
+/// hang from a virtual collar (100|70) and forearm (100|30 to 100|130), scaled up per place.
+func zeichneSchmuckGross(_ g: GraphicsContext, _ stil: SchmuckStil, _ farbe: FigurFarbe) {
+    let z: CGFloat = stil.ort == .hals ? 5 : stil.ort == .hand ? 12 : 7
+    zeichneSchmuck(g, stil, farbe, hals: P(100, 70), arm: (ellbogen: P(100, 30), hand: P(100, 130)), bei: 1, groesse: z)
+}
+
 /// Shop pieces by catalog id (unknown ids draw nothing).
 func zeichneSchmuck(_ g: GraphicsContext, id: String, hals: CGPoint, arm: (ellbogen: CGPoint, hand: CGPoint)?, groesse: CGFloat = 1) {
     guard let e = schmuckKatalog[id] else { return }

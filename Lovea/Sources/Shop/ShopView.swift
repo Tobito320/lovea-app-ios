@@ -353,22 +353,33 @@ struct Nahaufnahme: View {
     let id: String
 
     var body: some View {
-        Canvas { c, s in
-            let k = min(s.width / 200, s.height / 260)
-            var g = c
-            g.translateBy(x: (s.width - 200 * k) / 2, y: (s.height - 260 * k) / 2)
-            g.scaleBy(x: k, y: k)
-            guard let e = schmuckKatalog[id] else { return zeichneJeansRueckseite(g, farbe: FigurFarbe(0x3F6EAF)) }
+        NahFeld { f in
+            guard let e = schmuckKatalog[id] else { return zeichneJeansRueckseite(f, farbe: FigurFarbe(0x3F6EAF)) }
             if e.stil.ort == .ohr {
                 // Ein Ohr, groß: (42, 117) wandert in die Feldmitte.
+                var g = f
                 g.translateBy(x: 100, y: 130)
                 g.scaleBy(x: 7, y: 7)
                 g.translateBy(x: -42, y: -117)
                 zeichneOhrschmuck(g, id: id)
             } else {
-                let z: CGFloat = e.stil.ort == .hals ? 5 : e.stil.ort == .hand ? 12 : 7
-                zeichneSchmuck(g, e.stil, e.farbe, hals: P(100, 70), arm: (ellbogen: P(100, 30), hand: P(100, 130)), bei: 1, groesse: z)
+                zeichneSchmuckGross(f, e.stil, e.farbe)
             }
+        }
+    }
+}
+
+/// p71: das 200 x 260 Feld der Nahaufnahmen, mittig und passend in die Größe gesetzt (Shop und Editor-Kacheln).
+struct NahFeld: View {
+    let zeichne: (GraphicsContext) -> Void
+
+    var body: some View {
+        Canvas { c, s in
+            let k = min(s.width / 200, s.height / 260)
+            var g = c
+            g.translateBy(x: (s.width - 200 * k) / 2, y: (s.height - 260 * k) / 2)
+            g.scaleBy(x: k, y: k)
+            zeichne(g)
         }
     }
 }

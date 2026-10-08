@@ -37,19 +37,21 @@ extension Zeichner {
     func vRumpf(_ ausschnitt: Int) -> Path {
         let v = vForm
         let a = v.achselL
+        // p71: `delt` grows the shoulder cap out and up (1 = the old cap).
+        let e = (v.delt - 1) * 10
         return Path { p in
             // 25.09. (schulter.py S4): the torso carries the whole round shoulder, the sleeve only
             // hangs below it, so there is no notch and no second shoulder.
             p.move(to: P(v.taille, 240))
             p.addLine(to: a)
-            p.addCurve(to: P(v.sch - 16, 180), control1: P(a.x - 2, a.y - 14), control2: P(v.sch - 17, 190))
-            p.addCurve(to: P(v.sch + 10, 162), control1: P(v.sch - 15, 170), control2: P(v.sch - 5, 163))
+            p.addCurve(to: P(v.sch - 16 - e, 180), control1: P(a.x - 2, a.y - 14), control2: P(v.sch - 17 - e, 190))
+            p.addCurve(to: P(v.sch + 10, 162), control1: P(v.sch - 15 - e, 170 - e), control2: P(v.sch - 5, 163 - e / 2))
             p.addQuadCurve(to: P(72, 164), control: P(66, 161))
             halsAusschnitt(&p, ausschnitt)
             p.addLine(to: P(128, 164))
             p.addQuadCurve(to: P(200 - v.sch - 10, 162), control: P(134, 161))
-            p.addCurve(to: P(200 - v.sch + 16, 180), control1: P(200 - v.sch + 5, 163), control2: P(200 - v.sch + 15, 170))
-            p.addCurve(to: P(200 - a.x, a.y), control1: P(200 - v.sch + 17, 190), control2: P(200 - a.x + 2, a.y - 14))
+            p.addCurve(to: P(200 - v.sch + 16 + e, 180), control1: P(200 - v.sch + 5, 163 - e / 2), control2: P(200 - v.sch + 15 + e, 170 - e))
+            p.addCurve(to: P(200 - a.x, a.y), control1: P(200 - v.sch + 17 + e, 190), control2: P(200 - a.x + 2, a.y - 14))
             p.addLine(to: P(200 - v.taille, 240))
             p.closeSubpath()
         }
@@ -144,17 +146,40 @@ extension Zeichner {
             // Kräftig: the round belly shows as a soft fold.
             linie(h, bogen(P(62, 254), P(138, 254), P(100, 274)), (nackt ? haut.kontur : top.kontur).opacity(0.32), 2.2)
         }
-        guard nackt else { return }
+        guard nackt else {
+            // p71: a chosen belly also shows faintly under a fitted top (nil and smooth draw nothing).
+            if !bauchZeilen.isEmpty { bauchLinien(h, top.kontur.opacity(0.16)) }
+            return
+        }
         for seite in [CGFloat(-1), 1] {
             linie(h, bogen(P(100 + seite * 8, 172), P(100 + seite * 30, 170), P(100 + seite * 18, 176)), farbe, 2)
-            // Outer edges of the abs.
+        }
+        if bauch != 0 { bauchLinien(h, farbe) }
+        h.fill(oval(P(100, 284), 2, 3), with: .color(haut.kontur.opacity(0.6)))
+    }
+
+    /// p71: the rows of the abs for the chosen belly: 4 = two rows, 6 = three (the old look), 8 = four.
+    /// Smooth (0) has none; `nil` on the bare torso keeps the old three, under a top none.
+    var bauchZeilen: [CGFloat] {
+        switch bauch {
+        case 0: []
+        case 4: [240, 258]
+        case 6: [234, 252, 268]
+        case 8: [228, 242, 256, 270]
+        default: []
+        }
+    }
+
+    /// The abs lines in the half-figure torso space: outer edges, the middle line and one arc per row.
+    func bauchLinien(_ h: GraphicsContext, _ farbe: Color) {
+        let zeilen = bauch == nil ? [234, 252, 268] : bauchZeilen
+        for seite in [CGFloat(-1), 1] {
             linie(h, bogen(P(100 + seite * 22, 222), P(100 + seite * 16, 286), P(100 + seite * 25, 256)), farbe, 2)
         }
         linie(h, strich(P(100, 214), P(100, 280)), farbe, 2)
-        for y in [CGFloat(234), 252, 268] {
+        for y in zeilen {
             linie(h, bogen(P(84, y), P(116, y), P(100, y + 4)), farbe, 1.8)
         }
-        h.fill(oval(P(100, 284), 2, 3), with: .color(haut.kontur.opacity(0.6)))
     }
 
     func hemdKragen(_ g: GraphicsContext) {

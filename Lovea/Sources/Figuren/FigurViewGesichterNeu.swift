@@ -452,7 +452,8 @@ extension Zeichner {
         aufRumpf.clip(to: rumpf)
         switch aermel {
         case .kurz:
-            let stoff = armUmriss(s, a.ellbogen, a.hand, 34 * d, 29 * d, 27 * d, kappeS: 0.55, kappeH: 0.4)
+            // p71: Ahmed's sleeve cap is lower, so shoulder and sleeve read as one form.
+            let stoff = armUmriss(s, a.ellbogen, a.hand, 34 * d, 29 * d, 27 * d, kappeS: neu == .b ? 0.3 : 0.55, kappeH: 0.4)
             var k = g
             k.clip(to: schulterSeite(s, a.ellbogen, saum: 0.5))
             teil(k, stoff, aermelFarbe, 3.2 * min(d, 1))

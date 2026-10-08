@@ -148,8 +148,8 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "T-Shirt schwarz")
         XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Baggy Jeans hellgrau")
         XCTAssertEqual(FigurAussehen.schuhArten[ahmed.schuhe], "Sneaker weiß")
-        XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Mushroom Taper")
-        XCTAssertEqual(FigurAussehen.haarfarben[ahmed.haarfarbe].name, "Fast schwarz")
+        XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Welliger Seitenschwung")
+        XCTAssertEqual(FigurAussehen.haarfarben[ahmed.haarfarbe].name, "Dunkelbraun")
         XCTAssertEqual(FigurAussehen.hautToene[ahmed.haut].name, "Hell warm")
         XCTAssertEqual(FigurAussehen.gesichtsformen[ahmed.gesichtsform], "Schmal markant") // Brief F2: option B
         XCTAssertEqual(FigurAussehen.augenbrauen[ahmed.brauen], "Dick gerade")

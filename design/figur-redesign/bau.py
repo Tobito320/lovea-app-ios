@@ -191,8 +191,9 @@ def ahmed_B(p=""):
     # 25.09. (Ahmed: "Wangen bissl sharper"): Wangenknochen bei y 112, gerade Kante zur Kieferecke (137|133).
     # 25.09. (Ahmed: "Kinn zu klein und nicht scharf"): breites, eckiges Kinn mit flacher Unterkante.
     # 25.09. (Ahmed: "Abstand Kinn zu Mund zu gering"): Kinn 5 tiefer, Kieferecke 3 tiefer.
-    gesicht = ("M100,26 C127,26 147,44 147,77 C147,95 146,106 144,114 L137,136 L117,153.5 Q100,158 83,153.5 "
-               "L63,136 L56,114 C54,106 53,95 53,77 C53,44 73,26 100,26 Z")
+    # 08.10. (Ahmed, Fotos): kantigerer Kiefer, breiteres eckiges Kinn.
+    gesicht = ("M100,26 C127,26 147,44 147,77 C147,95 146,106 144,114 L139,134 L123,153.5 Q100,157.5 77,153.5 "
+               "L61,134 L56,114 C54,106 53,95 53,77 C53,44 73,26 100,26 Z")
     n = len(AH_B_AUSSEN)
     s.g("hair-back", teil(wolke(AH_B_AUSSEN + [(151, 97), (49, 97)], (100, 62), beulen(n + 2, 3.2)), haar))
     hals_und_rumpf(s, haut, c["top"])

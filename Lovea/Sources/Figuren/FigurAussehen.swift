@@ -33,6 +33,9 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     var muttermale = false, airpods = false
     // v7 (Brief F2): nil = saved before the redesigned faces, so `mitNeuemGesicht` switches it once.
     var gesichtV2: Bool?
+    // v8 (p71): the abs of the bare torso. nil = as before (a light six-pack), 0 = smooth, otherwise 4, 6 or 8.
+    // Optional on purpose: older looks and older builds simply do not have it.
+    var bauch: Int?
     /// Whose figure this is. Not synced (missing from `CodingKeys`): `standard(for:)` and
     /// `FigurenModell.aussehen(_:)` set it, so the drawing can dress Ahmed and Annika differently
     /// in the gym. `nil` = unknown, draws the chosen outfit.
@@ -49,6 +52,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         case kinnbart
         case muttermale, airpods
         case gesichtV2
+        case bauch
     }
 
     /// Z-38.4: the looks of Ahmed's and Annika's Bitmojis (`docs/figuren-vorlage/`). Whoever never sent
@@ -65,8 +69,8 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             // chin stubble, AirPods, black tee, grey wide jeans, white low tops.
             a.haut = 12          // Hell warm
             a.gesichtsform = 7   // Schmal markant (Brief F2, option B)
-            a.frisur = 79        // Mushroom Taper (Locken-Wolke mit Pony)
-            a.haarfarbe = 16     // Fast schwarz
+            a.frisur = 80        // p71: dunkelbraunes welliges Haar (Welliger Seitenschwung), nach seinen Fotos
+            a.haarfarbe = 1      // Dunkelbraun
             a.augen = 0          // Dunkelbraun
             a.augenform = 4      // Verträumt (schwere, entspannte Lider)
             a.brauen = 8         // Dick gerade
@@ -284,6 +288,17 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         Koerper(name: "Sportlich", geschlecht: .w, breite: 0.95, armHalb: 0.96, s: 38, t: 23, h: 30, arm: 0.6, bein: 16, muskel: 0.35, kurve: 0.35),
         Koerper(name: "Kurvig", geschlecht: .w, breite: 1, armHalb: 1, s: 39, t: 25, h: 50, arm: 0.66, bein: 22, muskel: 0, kurve: 1),
     ]
+    /// p71: the belly choices in tile order. `bauchWerte[i]` is the stored `bauch` of tile `i`.
+    static let bauchNamen = ["Standard", "Glatt", "4er", "6er", "8er"]
+    static let bauchWerte: [Int?] = [nil, 0, 4, 6, 8]
+
+    /// The editor works on tile indices; this maps them to the stored optional value and back
+    /// (an unknown stored value shows as "Standard").
+    var bauchStufe: Int {
+        get { Self.bauchWerte.firstIndex(where: { $0 == bauch }) ?? 0 }
+        set { bauch = Self.bauchWerte[Swift.min(Swift.max(newValue, 0), Self.bauchWerte.count - 1)] }
+    }
+
     static let koerperformen = koerper.map(\.name)
     static let koerperformenGeschlecht = koerper.map(\.geschlecht)
     /// "Normal" stays for old looks but is hidden in the editor (Z-38.2).
@@ -457,6 +472,7 @@ extension FigurAussehen {
         try lies(.muttermale, &muttermale)
         try lies(.airpods, &airpods)
         try lies(.gesichtV2, &gesichtV2)
+        try lies(.bauch, &bauch)
     }
 }
 

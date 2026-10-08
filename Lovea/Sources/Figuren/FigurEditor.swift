@@ -46,7 +46,21 @@ struct FigurEditor: View {
     private static let akzent = Color(red: 1, green: 59 / 255, blue: 92 / 255)
 
     /// How an option tile shows the figure.
-    fileprivate enum Kachel { case gesicht, kopf, koerper, koerperMitName, schmuck }
+    /// p71: `oberteil` draws without the jacket on top; `kette`/`ring`/`armband`/`uhr` zoom onto neck, hand and wrist
+    /// like the shop's close-ups; `bauch` shows the bare torso.
+    fileprivate enum Kachel {
+        case gesicht, kopf, koerper, koerperMitName, oberteil, bauch, kette, ring, armband, uhr
+
+        /// Small, head-sized tiles; the rest are full-body tiles.
+        var klein: Bool {
+            switch self {
+            case .gesicht, .kopf, .kette, .ring, .armband, .uhr: true
+            default: false
+            }
+        }
+
+        var mitName: Bool { self == .koerperMitName || self == .bauch }
+    }
 
     fileprivate struct Farbwahl {
         let name: String
@@ -127,7 +141,7 @@ struct FigurEditor: View {
                 ]
             case .oberteil:
                 return [
-                    .optionen("Oberteil", \.oberteil, A.oberteile, .koerper, erlaubte: A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person)),
+                    .optionen("Oberteil", \.oberteil, A.oberteile, .oberteil, erlaubte: A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person)),
                     .farben("Farbe", \.oberteilfarbe, kleidung, hexPfad: \.oberteilfarbeHex),
                     .shop(.oberteil),
                 ]
@@ -161,18 +175,23 @@ struct FigurEditor: View {
             case .schmuck:
                 // Z-39.3: free everyday jewelry; luxury pieces come from the shop.
                 return [
-                    .optionen("Kette", \.kette, A.ketten, .schmuck, erlaubte: A.erlaubt(A.ketten, geschlecht: A.kettenGeschlecht, fuer: person)),
-                    .optionen("Ring", \.ring, A.ringe, .schmuck, erlaubte: A.erlaubt(A.ringe, geschlecht: A.ringeGeschlecht, fuer: person)),
-                    .optionen("Armband", \.armband, A.armbaender, .schmuck, erlaubte: A.erlaubt(A.armbaender, geschlecht: A.armbaenderGeschlecht, fuer: person)),
-                    .optionen("Uhr", \.uhrAlltag, A.uhrenAlltag, .schmuck, erlaubte: nil),
+                    .optionen("Kette", \.kette, A.ketten, .kette, erlaubte: A.erlaubt(A.ketten, geschlecht: A.kettenGeschlecht, fuer: person)),
+                    .optionen("Ring", \.ring, A.ringe, .ring, erlaubte: A.erlaubt(A.ringe, geschlecht: A.ringeGeschlecht, fuer: person)),
+                    .optionen("Armband", \.armband, A.armbaender, .armband, erlaubte: A.erlaubt(A.armbaender, geschlecht: A.armbaenderGeschlecht, fuer: person)),
+                    .optionen("Uhr", \.uhrAlltag, A.uhrenAlltag, .uhr, erlaubte: nil),
                 ]
             case .koerper:
                 // Z-38.2: body types per person; "Normal" stays for old looks but is hidden.
                 let formen = A.erlaubt(A.koerperformen, geschlecht: A.koerperformenGeschlecht, shop: A.koerperformenVersteckt, fuer: person)
-                return [
+                var liste: [Abschnitt] = [
                     .optionen("Körperform", \.koerperform, A.koerperformen, .koerperMitName, erlaubte: formen),
                     .optionen("Größe", \.groesse, A.groessen, .koerperMitName, erlaubte: nil),
                 ]
+                // p71: the belly choice (abs) is Ahmed's.
+                if person.figurGeschlecht == .m {
+                    liste.append(.optionen("Bauch", \.bauchStufe, A.bauchNamen, .bauch, erlaubte: nil))
+                }
+                return liste
             }
         }
     }
@@ -190,8 +209,12 @@ struct FigurEditor: View {
                     }
                 }
                 .padding()
+                .padding(.bottom, 24)
             }
             .id(kategorie)
+        }
+        // p71: the save button sits in the bottom safe area, so the last tiles scroll clear of it.
+        .safeAreaInset(edge: .bottom, spacing: 0) {
             Button {
                 onSave(aussehen)
             } label: {
@@ -202,6 +225,7 @@ struct FigurEditor: View {
             .buttonStyle(.borderedProminent)
             .tint(Self.akzent)
             .padding()
+            .background(.bar)
         }
         .sensoryFeedback(.selection, trigger: aussehen)
         .sensoryFeedback(.selection, trigger: kategorie)
@@ -309,7 +333,7 @@ struct FigurEditor: View {
                         Button {
                             if s.besitzt { tragen(s.artikel) } else { shopOffen = true }
                         } label: {
-                            ArtikelKachel(artikel: s.artikel, besitzt: s.besitzt, vorschauAussehen: aussehen.mitVorschau(s.artikel))
+                            ArtikelKachel(artikel: s.artikel, besitzt: s.besitzt, vorschauAussehen: shopVorschau(feld, s.artikel))
                                 .overlay(alignment: .top) {
                                     RoundedRectangle(cornerRadius: 14)
                                         .strokeBorder(getragen ? Self.akzent : Color.clear, lineWidth: 3)
@@ -322,6 +346,25 @@ struct FigurEditor: View {
                 }
             }
         }
+    }
+
+    private static func ohneJacke(_ a: FigurAussehen) -> FigurAussehen {
+        var b = a
+        b.jacke = 0
+        return b
+    }
+
+    /// The bare torso (Oberteil 33, "Oben ohne"), so the belly choice shows.
+    private static func obenOhne(_ a: FigurAussehen) -> FigurAussehen {
+        var b = ohneJacke(a)
+        b.oberteil = 33
+        return b
+    }
+
+    /// A top from the shop is shown without the jacket over it, like the free tops.
+    private func shopVorschau(_ feld: ShopFeld, _ artikel: ShopArtikel) -> FigurAussehen {
+        let a = aussehen.mitVorschau(artikel)
+        return feld == .oberteil ? Self.ohneJacke(a) : a
     }
 
     private func tragen(_ artikel: ShopArtikel) {
@@ -356,11 +399,11 @@ struct FigurEditor: View {
                 } label: {
                     VStack(spacing: 2) {
                         kachelBild(probe(pfad, i), kachel)
-                        if kachel == .koerperMitName {
+                        if kachel.mitName {
                             Text(namen[i]).font(.caption2.weight(.semibold)).padding(.bottom, 6)
                         }
                     }
-                    .frame(width: 76, height: kachel == .gesicht || kachel == .kopf || kachel == .schmuck ? 92 : 128)
+                    .frame(width: 76, height: kachel.klein ? 92 : 128)
                     .background(Color(uiColor: .secondarySystemBackground))
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                     .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(gewaehlt ? Self.akzent : Color.clear, lineWidth: 3))
@@ -388,12 +431,46 @@ struct FigurEditor: View {
             FigurView(a, zustand: .ruhig, groesse: 120, animiert: false, ganzkoerper: true)
         case .koerperMitName:
             FigurView(a, zustand: .ruhig, groesse: 104, animiert: false, ganzkoerper: true)
-        case .schmuck:
-            // Chest to hands of a larger full body, so rings and bracelets are visible.
-            FigurView(a, zustand: .ruhig, groesse: 230, animiert: false, ganzkoerper: true)
-                .frame(width: 76, height: 92)
-                .clipped()
+        case .oberteil:
+            // The jacket would cover the top that the tile is about.
+            FigurView(Self.ohneJacke(a), zustand: .ruhig, groesse: 120, animiert: false, ganzkoerper: true)
+        case .bauch:
+            FigurView(Self.obenOhne(a), zustand: .ruhig, groesse: 104, animiert: false, ganzkoerper: true)
+        case .kette:
+            schmuckNah(alltagsKetten, a.kette)
+        case .ring:
+            schmuckNah(alltagsRinge, a.ring)
+        case .armband:
+            schmuckNah(alltagsArmbaender, a.armband)
+        case .uhr:
+            if alltagsUhren.indices.contains(a.uhrAlltag - 1) {
+                let u = alltagsUhren[a.uhrAlltag - 1]
+                let haut = FigurAussehen.hautToene.wahl(a.haut).farbe
+                NahFeld { zeichneUhrGross($0, u.stil, band: u.band, gehaeuse: u.gehaeuse, haut: haut) }
+                    .frame(width: 76, height: 92)
+            } else {
+                keinSchmuck
+            }
         }
+    }
+
+    /// p71: the piece large, with the same drawing the shop uses for its jewelry close-ups.
+    @ViewBuilder
+    private func schmuckNah(_ tabelle: [SchmuckEintrag], _ i: Int) -> some View {
+        if tabelle.indices.contains(i - 1) {
+            let e = tabelle[i - 1]
+            NahFeld { zeichneSchmuckGross($0, e.stil, e.farbe) }
+                .frame(width: 76, height: 92)
+        } else {
+            keinSchmuck
+        }
+    }
+
+    private var keinSchmuck: some View {
+        Image(systemName: "nosign")
+            .font(.title2)
+            .foregroundStyle(.secondary)
+            .frame(width: 76, height: 92)
     }
 
     private func farbReihe(_ pfad: WritableKeyPath<FigurAussehen, Int>, _ liste: [Farbwahl], _ hexPfad: WritableKeyPath<FigurAussehen, String?>?) -> some View {
