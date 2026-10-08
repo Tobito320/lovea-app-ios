@@ -52,7 +52,6 @@ test("Faltung: neuester Plan gilt, gelöschte und zurückgenommene Einheiten, Au
   const a = f.sessions[1];
   assert.equal(a.laeufe[0].saetze.length, 2);
   assert.equal(a.laeufe[0].fertig, true);
-  assert.equal(a.laeufe[0].ende, null, "ein Satz offen: Übung läuft noch");
   assert.equal(Math.round((a.ende - a.start) / 6e4), 60);
 });
 

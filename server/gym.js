@@ -71,49 +71,26 @@ function session(id, liste) {
   if (!checkin) return null;
   const aus = liste.findLast((e) => e.art === "gym.checkout" && (e.d.ende != null || e.d.status === "wieder"))?.d;
   const s = { id, tag: checkin.d.tag ?? null, start: ausSwift(checkin.d.start), ende: ausSwift(aus?.ende), kcal: aus?.kcal ?? null, puls: aus?.puls ?? null, laeufe: [] };
-  let L = s.laeufe;
-  const offenerIndex = (f = () => true) => L.findLastIndex((l) => f(l) && l.start != null && l.ende == null);
+  // ponytail: ohne Zeiten je Übung (TrainingLogik.Lauf.start/ende), die liest kein Werkzeug.
+  const lauf = (e) => {
+    let l = s.laeufe.findLast((x) => x.plan === e.d.plan);
+    if (!l || e.d.status === "start") s.laeufe.push((l = { plan: e.d.plan, uebung: e.d.uebung ?? "", fertig: false, saetze: null, name: e.d.name }));
+    return l;
+  };
   for (const e of liste) {
     if (e.art !== "gym.uebung" || !e.d.plan) continue;
-    const { plan } = e.d;
-    switch (e.d.status) {
-      case "start": {
-        const i = offenerIndex();
-        if (i >= 0) L[i].ende = e.zeit;
-        L.push({ plan, uebung: e.d.uebung ?? "", start: e.zeit, ende: null, fertig: false, saetze: null });
-        break;
-      }
-      case "fertig": {
-        const i = offenerIndex((l) => l.plan === plan);
-        if (i >= 0) Object.assign(L[i], { ende: e.zeit, fertig: true, saetze: e.d.saetze ?? null });
-        else L.push({ plan, uebung: e.d.uebung ?? "", start: null, ende: e.zeit, fertig: true, saetze: e.d.saetze ?? null });
-        break;
-      }
-      case "offen":
-        for (const l of L) if (l.plan === plan) l.fertig = false;
-        break;
-      case "satz": {
-        const stand = e.d.saetze ?? [];
-        const gezaehlt = stand.filter(zaehlt);
-        let i = L.findLastIndex((l) => l.plan === plan);
-        if (i < 0) {
-          L.push({ plan, uebung: e.d.uebung ?? "", start: e.zeit, ende: null, fertig: false, saetze: null, name: e.d.name });
-          i = L.length - 1;
-        }
-        L.forEach((l, j) => {
-          if (j !== i && l.start != null && l.ende == null) l.ende = e.zeit;
-        });
-        if (e.d.uebung && e.d.uebung !== L[i].uebung) L[i].uebung = e.d.uebung;
-        if (e.d.ersatzFuer) L[i].ersatzFuer = e.d.ersatzFuer;
-        else if (L[i].ersatzFuer === L[i].uebung) L[i].ersatzFuer = undefined;
-        Object.assign(L[i], { stand, saetze: gezaehlt.length ? gezaehlt : null, fertig: gezaehlt.length > 0 });
-        if (L[i].start == null) L[i].start = e.zeit;
-        L[i].ende = stand.every((x) => x.ok === true) ? e.zeit : null;
-        break;
-      }
-      case "weg":
-        L = s.laeufe = L.filter((l) => l.plan !== plan);
-        break;
+    const { plan, status } = e.d;
+    if (status === "start") lauf(e);
+    else if (status === "fertig") Object.assign(lauf(e), { fertig: true, saetze: e.d.saetze ?? null });
+    else if (status === "offen") s.laeufe.forEach((l) => l.plan === plan && (l.fertig = false));
+    else if (status === "weg") s.laeufe = s.laeufe.filter((l) => l.plan !== plan);
+    else if (status === "satz") {
+      const l = lauf(e);
+      const gezaehlt = (e.d.saetze ?? []).filter(zaehlt);
+      if (e.d.uebung) l.uebung = e.d.uebung;
+      if (e.d.ersatzFuer) l.ersatzFuer = e.d.ersatzFuer;
+      else if (l.ersatzFuer === l.uebung) l.ersatzFuer = undefined;
+      Object.assign(l, { saetze: gezaehlt.length ? gezaehlt : null, fertig: gezaehlt.length > 0 });
     }
   }
   return s;
@@ -471,21 +448,19 @@ export function planPruefen(eingabe, kat) {
       const cardio = u.minuten != null || istCardio(k);
       let saetze = [];
       if (!cardio) {
-        if (Array.isArray(u.saetze)) {
-          saetze = u.saetze.map((s, si) => {
-            if (!Number.isInteger(s?.wdh) || s.wdh < 1 || s.wdh > 100) fehler.push(`${wo2}, Satz ${si + 1}: wdh muss 1-100 sein`);
-            if (s?.kg != null && !(s.kg >= 0 && s.kg <= 500)) fehler.push(`${wo2}, Satz ${si + 1}: kg ungültig`);
-            if (s?.typ != null && s.typ !== "w" && s.typ !== "d") fehler.push(`${wo2}, Satz ${si + 1}: typ nur "w" oder "d"`);
-            return { wdh: s?.wdh, ...(s?.kg != null ? { kg: s.kg } : {}), failure: s?.failure === true, ...(s?.typ ? { typ: s.typ } : {}), ...(s?.rpe != null ? { rpe: s.rpe } : {}) };
-          });
-        } else {
-          const n = u.saetze ?? 3;
-          const wdh = u.wdh ?? 10;
+        let roh = u.saetze;
+        if (!Array.isArray(roh)) {
+          // Kurzform {saetze: 3, wdh: 10, kg: 60} wird zur App-Form und läuft durch dieselbe Prüfung.
+          const n = roh ?? 3;
           if (!Number.isInteger(n) || n < 1 || n > 20) fehler.push(`${wo2}: saetze muss 1-20 sein`);
-          if (!Number.isInteger(wdh) || wdh < 1 || wdh > 100) fehler.push(`${wo2}: wdh muss 1-100 sein`);
-          if (u.kg != null && !(u.kg >= 0 && u.kg <= 500)) fehler.push(`${wo2}: kg ungültig`);
-          saetze = Array.from({ length: Math.max(0, Math.min(20, n | 0)) }, () => ({ wdh, ...(u.kg != null ? { kg: u.kg } : {}), failure: false }));
+          roh = Array.from({ length: Math.max(0, Math.min(20, n | 0)) }, () => ({ wdh: u.wdh ?? 10, kg: u.kg }));
         }
+        saetze = roh.map((s, si) => {
+          if (!Number.isInteger(s?.wdh) || s.wdh < 1 || s.wdh > 100) fehler.push(`${wo2}, Satz ${si + 1}: wdh muss 1-100 sein`);
+          if (s?.kg != null && !(s.kg >= 0 && s.kg <= 500)) fehler.push(`${wo2}, Satz ${si + 1}: kg ungültig`);
+          if (s?.typ != null && s.typ !== "w" && s.typ !== "d") fehler.push(`${wo2}, Satz ${si + 1}: typ nur "w" oder "d"`);
+          return { wdh: s?.wdh, ...(s?.kg != null ? { kg: s.kg } : {}), failure: s?.failure === true, ...(s?.typ ? { typ: s.typ } : {}), ...(s?.rpe != null ? { rpe: s.rpe } : {}) };
+        });
         if (!saetze.length) fehler.push(`${wo2}: keine Sätze`);
       }
       return {
@@ -522,4 +497,4 @@ export function planUnterschied(alt, neu, kat) {
   return zeilen.length ? zeilen : ["keine Änderung"];
 }
 
-export const planOp = (plan, person, jetzt = new Date()) => ({ id: neueId(), art: "gym.plan", von: person, zeit: jetzt.toISOString(), d: plan });
+export const planOp = (plan, person) => ({ id: neueId(), art: "gym.plan", von: person, zeit: new Date().toISOString(), d: plan });
