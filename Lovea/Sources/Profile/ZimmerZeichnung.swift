@@ -1096,7 +1096,7 @@ enum SzenenZeichnung {
     }
 
     /// Frame with a mat and a drawn stand-in; the real photo is laid over it (`ProfilSzeneHintergrund`).
-    private static func rahmen(_ g: GraphicsContext, _ r: CGRect) {
+    static func rahmen(_ g: GraphicsContext, _ r: CGRect) {
         let nagel = P(r.midX, r.minY - 10)
         linie(g, strich(P(r.minX + 8, r.minY), nagel), Pal.dunkel.farbe.opacity(0.5), 1.2)
         linie(g, strich(P(r.maxX - 8, r.minY), nagel), Pal.dunkel.farbe.opacity(0.5), 1.2)

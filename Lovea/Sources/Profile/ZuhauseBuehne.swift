@@ -59,6 +59,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let dehnung: CGFloat
     private let straeusse: ZuhauseStraeusse
     private let paarDa: Bool
+    private let wandDinge: (Tageszeit) -> AnyView
     private let fest: Bool
     private let figur: (ZuhauseFigur) -> Figur
     private let paar: () -> Paar
@@ -74,10 +75,12 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// `fest`: a fixed scene without any driver (render board, previews).
     init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
          fest: ZuhauseSzenenstand? = nil,
+         wandDinge: @escaping (Tageszeit) -> AnyView = { _ in AnyView(EmptyView()) },
          @ViewBuilder figur: @escaping (ZuhauseFigur) -> Figur, @ViewBuilder paar: @escaping () -> Paar) {
         self.dehnung = dehnung
         self.straeusse = straeusse
         self.paarDa = paarDa
+        self.wandDinge = wandDinge
         self.fest = fest != nil
         self.figur = figur
         self.paar = paar
@@ -93,6 +96,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
                 ZuhauseRaumBild(zeit: stand.zeit)
+                wandDinge(stand.zeit)
                 schatten
                 ZStack(alignment: .topLeading) {
                     bett(s, oben)
