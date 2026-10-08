@@ -96,8 +96,10 @@ struct ZimmerSpielEbene: View {
         let mitte = CGPoint(x: p == .ahmed ? sofa.minX - 20 : sofa.maxX + 20, y: sofa.maxY - 24)
         let stand = pflanzenStand(p)
         let eigener = p == ich
-        let name = "Stimmungs-Pflanze von \(p.name): " + (stand.haengt ? "lässt die Blätter hängen" : stand.serie > 0 ? "\(stand.serie) Tage gegossen" : "noch nicht gegossen")
-            + (stand.heuteGegossen ? ", heute gegossen" : ", heute noch nicht gegossen")
+        let zustand: String
+        if stand.haengt { zustand = "lässt die Blätter hängen" } else if stand.serie > 0 { zustand = "\(stand.serie) Tage gegossen" } else { zustand = "noch nicht gegossen" }
+        let heuteText: String = stand.heuteGegossen ? ", heute gegossen" : ", heute noch nicht gegossen"
+        let name: String = "Stimmungs-Pflanze von \(p.name): " + zustand + heuteText
         var menue = [Aktion(titel: "Zahlen von \(p.name)", symbol: "chart.bar.fill") { statistik = ZimmerStatistikZiel(person: p) }]
         if eigener { menue.insert(Aktion(titel: "Stimmung wählen und gießen", symbol: "drop.fill") { signale = .stimmung }, at: 0) }
         return ding(mitte, s, oben, name: name, menue: menue, tippen: {

@@ -49,7 +49,7 @@ struct PartnerProfilView: View {
 }
 
 private enum ProfilBlatt: String, Identifiable {
-    case zimmer
+    case zimmer, chatDetails
     var id: String { rawValue }
 }
 
@@ -193,6 +193,11 @@ private struct ProfilInhalt: View {
     private func blattInhalt(_ b: ProfilBlatt) -> some View {
         switch b {
         case .zimmer: NavigationStack { ZimmerEditor(person: person, ort: zimmerOrt) }
+        case .chatDetails: ZimmerChatDetailsBlatt(ich: ich) { suche, ziel in
+            blatt = nil
+            if let ziel { AppNavigation.shared.chatZiel = ziel }
+            navigieren("chat", suche: suche)
+        }
         }
     }
 
@@ -205,6 +210,16 @@ private struct ProfilInhalt: View {
         HStack(alignment: .top) {
             zimmerKopf
             Spacer(minLength: 8)
+            Button { tipps += 1; blatt = .chatDetails } label: {
+                Image(systemName: "bubble.left.and.text.bubble.right")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Chat-Details")
             if istEigenes {
                 Button { tipps += 1; zimmerGestalten() } label: {
                     Image(systemName: "paintbrush.pointed.fill")
@@ -280,7 +295,7 @@ private struct ProfilInhalt: View {
             ForEach(Person.allCases, id: \.self) { p in
                 Button { tipps += 1; statistik = ZimmerStatistikZiel(person: p) } label: {
                     ProfilAvatar(person: p, online: p == ich ? Raum.shared.verbunden : Raum.shared.partnerDa, d: 30)
-                        .frame(minWidth: 36, minHeight: 36)
+                        .frame(minWidth: 44, minHeight: 44)
                         .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
