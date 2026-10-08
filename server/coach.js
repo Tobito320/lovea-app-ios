@@ -104,15 +104,27 @@ function essenKontext(sql, person, heute) {
   }
   const gestern = gym.addTage(heute, -1);
   const tageMitEintraegen = jeTag.length;
+  const schnittKcal = tageMitEintraegen ? runden(mittel(jeTag.map((t) => t.kcal))) : null;
+  if (tageMitEintraegen < MIN_TAGE_IM_LOG) {
+    // Wer selten trackt, isst nicht wenig: Teiltage würden als Aufnahme gelesen. Dem Modell keine Mengen zeigen.
+    return {
+      tageMitEintraegen,
+      schnittKcal,
+      essen: {
+        letzte14Tage: { tageGeprueft: 14, tageMitEintraegen },
+        hinweis: "Essens-Log lückenhaft: Die Person trackt nur selten. Mengen sind keine Aufnahme und werden deshalb nicht gezeigt. Nichts daraus schließen.",
+      },
+    };
+  }
   return {
     tageMitEintraegen,
-    schnittKcal: tageMitEintraegen ? runden(mittel(jeTag.map((t) => t.kcal))) : null,
+    schnittKcal,
     essen: {
       letzte14Tage: {
         tageGeprueft: 14,
         tageMitEintraegen,
-        schnittKcal: tageMitEintraegen ? runden(mittel(jeTag.map((t) => t.kcal))) : null,
-        schnittProtein: tageMitEintraegen ? runden(mittel(jeTag.map((t) => t.protein))) : null,
+        schnittKcal,
+        schnittProtein: runden(mittel(jeTag.map((t) => t.protein))),
       },
       jeTag,
       gestern: { datum: gestern, ...essenTag(nachTag.get(gestern) ?? []) },
@@ -234,10 +246,10 @@ function begrenzen(k) {
   const stufen = [
     () => k.training?.letzteEinheiten.length > 1 && k.training.letzteEinheiten.pop(),
     () => k.training?.uebungen.length > 3 && k.training.uebungen.pop(),
-    () => k.essen.gestern.eintraege.length > 4 && k.essen.gestern.eintraege.pop(),
-    () => k.essen.heute.eintraege.length > 6 && k.essen.heute.eintraege.pop(),
+    () => k.essen.gestern?.eintraege.length > 4 && k.essen.gestern.eintraege.pop(),
+    () => k.essen.heute?.eintraege.length > 6 && k.essen.heute.eintraege.pop(),
     () => k.gewicht?.verlauf.length > 4 && k.gewicht.verlauf.shift(),
-    () => k.essen.jeTag.length > 7 && k.essen.jeTag.shift(),
+    () => k.essen.jeTag?.length > 7 && k.essen.jeTag.shift(),
   ];
   for (const stufe of stufen) while (JSON.stringify(k).length > KONTEXT_MAX && stufe()) ;
   return k;
