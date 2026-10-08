@@ -36,6 +36,8 @@ struct Zeichner {
     let person: Person?
     /// Gym look (Brief D addendum): Ahmed trains shirtless, Annika in a sleeveless sports top.
     let oberkoerperFrei, sportTop: Bool
+    /// p71: the abs (nil = the old light six-pack of the bare torso, 0 = smooth, 4, 6 or 8).
+    let bauch: Int?
     /// Brief F2: set for the redesigned faces, nil draws the old face.
     let neu: NeuesGesicht?
     /// Teil 4: the running exercise, forwarded as-is (nil = pick one at random per person, see `gymGeste`).
@@ -63,6 +65,7 @@ struct Zeichner {
         kinnbart = grenze(a.kinnbart, A.kinnbaerte.count)
         muttermale = a.muttermale
         airpods = a.airpods
+        bauch = a.bauch.flatMap { [0, 4, 6, 8].contains($0) ? $0 : nil }
         let gym = z == .gym && a.person != nil
         let mannImGym = gym && a.person?.figurGeschlecht == .m
         // Fix round 3: "Oben ohne" (oberteil 33) is the bare torso outside the gym too.

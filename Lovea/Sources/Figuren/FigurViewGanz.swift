@@ -126,7 +126,8 @@ extension Zeichner {
         let k = km
         let beinL = FigurPoseLogik.beinLaenge(stufe: groesseStufe)
         let hueftY = Masse.fussY - beinL
-        return Masse(s: k.s * (neu == .b && z != .gym ? 0.92 : 1), t: k.t, h: k.h, arm: k.arm, bein: k.bein,
+        // p71: Ahmed's V-taper: the hips are narrower than the waist.
+        return Masse(s: k.s * (neu == .b && z != .gym ? 0.92 : 1), t: k.t, h: neu == .b ? min(k.h, k.t - 1) : k.h, arm: k.arm, bein: k.bein,
                      hueftY: hueftY, schulterY: hueftY - 96, knieY: hueftY + beinL * 0.5)
     }
 
@@ -457,6 +458,8 @@ extension Zeichner {
 
     func rumpfPfad(_ m: Masse, unten: CGFloat) -> Path {
         let sY = m.schulterY
+        // p71: Ahmed's round shoulder reaches the arm's outer edge, so the arm sits on the shoulder without a notch.
+        let sB: CGFloat = m.s + (neu == .b ? 4 : 0)
         let taille: CGFloat = min(sY + 58, unten - 4)
         let saum: CGFloat = unten < m.hueftY ? m.t + 1 : m.h
         // Z-38.2: chest (muscular) or bust (curvy) bows the flank outward; 0 keeps the old straight flank.
@@ -469,13 +472,13 @@ extension Zeichner {
         let bauchY: CGFloat = (taille + unten) / 2
         return Path { p in
             p.move(to: P(89, sY - 2))
-            p.addQuadCurve(to: P(100 - m.s, sY + 14), control: P(104 - m.s, sY - 2))
+            p.addQuadCurve(to: P(100 - sB, sY + 14), control: P(104 - sB, sY - 2))
             p.addQuadCurve(to: P(100 - m.t, taille), control: P(100 - flankeX, flankeY))
             p.addQuadCurve(to: P(100 - saum, unten), control: P(100 - bauchX, bauchY))
             p.addQuadCurve(to: P(100 + saum, unten), control: P(100, unten + 4))
             p.addQuadCurve(to: P(100 + m.t, taille), control: P(100 + bauchX, bauchY))
-            p.addQuadCurve(to: P(100 + m.s, sY + 14), control: P(100 + flankeX, flankeY))
-            p.addQuadCurve(to: P(111, sY - 2), control: P(96 + m.s, sY - 2))
+            p.addQuadCurve(to: P(100 + sB, sY + 14), control: P(100 + flankeX, flankeY))
+            p.addQuadCurve(to: P(111, sY - 2), control: P(96 + sB, sY - 2))
             p.addQuadCurve(to: P(89, sY - 2), control: P(100, sY + 10))
             p.closeSubpath()
         }

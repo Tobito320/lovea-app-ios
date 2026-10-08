@@ -183,8 +183,9 @@ enum NeuesGesicht: Equatable {
 struct VForm {
     let sch, taille, armB, delt, dick: CGFloat
 
-    static let alltag = VForm(sch: 50, taille: 68, armB: 13.5, delt: 1, dick: 1)
-    static let gym = VForm(sch: 46, taille: 70, armB: 15, delt: 1.2, dick: 1.1)
+    // p71: broader shoulders (sch smaller = further out), narrower waist (taille larger = further in), round deltoids.
+    static let alltag = VForm(sch: 47, taille: 71, armB: 13.5, delt: 1.25, dick: 1)
+    static let gym = VForm(sch: 44, taille: 72, armB: 15, delt: 1.35, dick: 1.1)
 
     var schulterL: CGPoint { P(sch, 182) }
     var ellbogenL: CGPoint { P(sch - 18, 228) }

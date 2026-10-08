@@ -30,6 +30,15 @@ func zeichneUhr(_ g: GraphicsContext, id: String, an punkt: CGPoint, winkel: Dou
     zeichneUhr(g, e.stil, band: e.band, gehaeuse: e.gehaeuse, an: punkt, winkel: winkel, groesse: groesse)
 }
 
+/// p71: a watch large on a bare forearm in the 200 x 260 close-up field (editor tiles), like the jewelry close-ups.
+func zeichneUhrGross(_ g: GraphicsContext, _ stil: UhrenStil, band: FigurFarbe, gehaeuse: FigurFarbe, haut: FigurFarbe) {
+    var h = g
+    h.translateBy(x: 100, y: 130)
+    h.scaleBy(x: 6, y: 6)
+    teil(h, box(-8, -30, 16, 60, 6), haut, 0.7)
+    zeichneUhr(h, stil, band: band, gehaeuse: gehaeuse, an: .zero)
+}
+
 /// Fix round 1: a band wrapped around the wrist with a small face on top, instead of a floating icon.
 func zeichneUhr(_ g: GraphicsContext, _ stil: UhrenStil, band: FigurFarbe, gehaeuse: FigurFarbe, an punkt: CGPoint, winkel: Double = 0, groesse: CGFloat = 1) {
     var h = g
