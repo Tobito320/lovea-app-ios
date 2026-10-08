@@ -30,6 +30,11 @@ private struct PartnerJetztView: View {
         entry.stand.herzDatum == WidgetDatum.heute(entry.date) ? (entry.stand.herzHeute?[ich] ?? 0) : 0
     }
 
+    /// Herzen, die der Partner heute geschickt hat: dieselbe Zahl wie "heute n×" in seinem Tag.
+    private var vomPartner: Int {
+        entry.stand.herzDatum == WidgetDatum.heute(entry.date) ? (entry.stand.herzHeute?[partner] ?? 0) : 0
+    }
+
     var body: some View {
         Group {
             switch family {
@@ -45,7 +50,7 @@ private struct PartnerJetztView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("\(WidgetStil.name(partner)): \(status)").font(.caption).bold().lineLimit(1)
                     Text(moment).font(.caption2).lineLimit(2)
-                    Label("heute \(meineHerzen)×", systemImage: "heart.fill").font(.caption2)
+                    Label("heute \(vomPartner)×", systemImage: "heart.fill").font(.caption2)
                 }
             case .systemMedium:
                 breit
@@ -87,7 +92,11 @@ private struct PartnerJetztView: View {
             }
             Text(moment).widgetEtikett().lineLimit(2)
             Spacer(minLength: 0)
-            herzKnopf
+            HStack {
+                herzKnopf
+                Spacer(minLength: 0)
+                Text("heute \(vomPartner)×").widgetEtikett().monospacedDigit()
+            }
         }
     }
 
@@ -99,7 +108,11 @@ private struct PartnerJetztView: View {
                 Text(status).font(.title3.weight(.bold)).fontDesign(.rounded).lineLimit(2)
                 Text(moment).widgetEtikett().lineLimit(2)
                 Spacer(minLength: 0)
-                herzKnopf
+                HStack {
+                    herzKnopf
+                    Spacer(minLength: 0)
+                    Text("heute \(vomPartner)×").widgetEtikett().monospacedDigit()
+                }
             }
             Spacer(minLength: 0)
         }

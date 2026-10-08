@@ -108,11 +108,11 @@ final class TagModell {
             ablegen(TagRoh(id: op.id, zeit: start, art: .gymStart(session: d.session)), von: op.von)
         case "gym.uebung":
             guard let d = op.daten(GymD.self) else { return }
-            let name = Self.uebungsName(d)
-            if let name, ["start", "satz", "fertig"].contains(d.status ?? ""), op.zeit >= (aktuelleUebung[op.von]?.zeit ?? .distantPast) {
+            let kandidat = Self.uebungsName(d)
+            if let name = kandidat, ["start", "satz", "fertig"].contains(d.status ?? ""), op.zeit >= (aktuelleUebung[op.von]?.zeit ?? .distantPast) {
                 aktuelleUebung[op.von] = (name, op.zeit)
             }
-            guard Self.uebungZaehlt(d), let name else { return }
+            guard Self.uebungZaehlt(d), let name = kandidat else { return }
             ablegen(TagRoh(id: op.id, zeit: op.zeit, art: .gymUebung(session: d.session, name: name)), von: op.von)
         case "gym.checkout":
             // Nur das echte Beenden; reine Zeitkorrekturen tragen weder Dauer noch Sätze.
