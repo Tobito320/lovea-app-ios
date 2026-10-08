@@ -17,6 +17,7 @@ struct ChatTab: View {
                     // R6: nur auf der Liste, nicht in der offenen Unterhaltung (dort ist der
                     // Rand-Wisch "zurück").
                     .tabWischen(vorheriger: "home", naechster: "drawing")
+                    .gymLeisteOben()
                     .navigationDestination(isPresented: $offen) {
                         Unterhaltung(ich: ich) { offen = false }
                     }
