@@ -208,11 +208,11 @@ struct FigurEditorSeite: View {
     @State private var shopOffen = false
 
     var body: some View {
-        FigurEditor(start: FigurenModell.shared.aussehen(person), modell: FigurenModell.shared.aussehen(person), bereich: bereich) { neu in
-            FigurenModell.shared.aussehenSichern(neu.mitShopTeilen(von: FigurenModell.shared.aussehen(person)))
+        FigurEditor(start: FigurenModell.shared.aussehen(person), modell: FigurenModell.shared.aussehen(person), bereich: bereich, person: person) { neu in
+            FigurenModell.shared.aussehenSichern(neu.mitShopTeilen(von: FigurenModell.shared.aussehen(person)), fuer: person)
             dismiss()
         }
-        .navigationTitle(bereich == .figur ? "Meine Figur" : "Kleidung")
+        .navigationTitle(titel)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             // Z-23.2: Shop reachable from the wardrobe too (Spec §4.3).
@@ -220,7 +220,14 @@ struct FigurEditorSeite: View {
                 ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
             }
         }
-        .sheet(isPresented: $shopOffen) { ShopView() }
+        .sheet(isPresented: $shopOffen) { ShopView(ziel: person) }
+    }
+
+    /// p68: Ahmed edits Annika's figure from her profile; the title says whose it is.
+    private var titel: String {
+        let fremd = person != (Raum.shared.ich ?? .ahmed)
+        if bereich == .figur { return fremd ? "\(person.name)s Figur" : "Meine Figur" }
+        return fremd ? "\(person.name)s Kleidung" : "Kleidung"
     }
 }
 

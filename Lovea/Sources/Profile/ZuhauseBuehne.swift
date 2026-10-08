@@ -62,6 +62,8 @@ struct ZuhauseSzenenstand: Equatable {
 struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let dehnung: CGFloat
     private let straeusse: ZuhauseStraeusse
+    /// p68: Ahmeds Bord (panorama only), empty = not drawn.
+    private let ahmedStraeusse: ZuhauseStraeusse
     private let paarDa: Bool
     private let wandDinge: (Tageszeit) -> AnyView
     private let extras: ZimmerExtrasStand?
@@ -92,7 +94,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// `extras` (p63): occasion decoration, sign, shelf and dice, hung in under the figures.
     /// `welt` (p65): the panorama takes its height from the space it gets, draws no wall (its own slower
     /// layer) and lets a tap on the bed or the sofa send both there.
-    init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
+    init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), ahmedStraeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
          extras: ZimmerExtrasStand? = nil, nacht: Bool = false,
          fest: ZuhauseSzenenstand? = nil, wahl: ZimmerWahl = .standard, katze: ZuhauseKatze? = nil, outfit: (() -> Void)? = nil,
          welt: ProfilWelt = .einzel,
@@ -101,6 +103,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         self.welt = welt
         self.dehnung = dehnung
         self.straeusse = straeusse
+        self.ahmedStraeusse = ahmedStraeusse
         self.paarDa = paarDa
         self.wandDinge = wandDinge
         self.wahl = wahl
@@ -137,6 +140,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                     if let extras { ZimmerExtras(stand: extras, s: s, oben: oben, welt: welt) }
                     bett(s, oben)
                     straeusseSicht(s, oben)
+                    if welt == .panorama, !ahmedStraeusse.leer { bordSicht(s, oben) }
                     if let katze {
                         katzeSicht(katze, s, oben)
                     }
@@ -229,6 +233,28 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             }
             if let vase = straeusse.vase {
                 strauss(vase, vasenPlatz, s, oben)
+            }
+        }
+    }
+
+    /// p68: Ahmeds board on the wall right of the bed: up to 3 bouquets and the small vase's one.
+    private func bordSicht(_ s: CGFloat, _ oben: CGFloat) -> some View {
+        let imBord = ahmedStraeusse.imSchrank
+        let plaetze = ZuhauseZeichnung.bordPlaetze
+        let vase = ahmedStraeusse.vase
+        return ZStack(alignment: .topLeading) {
+            Canvas { g, _ in
+                var h = g
+                h.translateBy(x: 0, y: oben)
+                h.scaleBy(x: s, y: s)
+                ZuhauseZeichnung.bordZeichnen(h, vase: vase != nil)
+            }
+            .allowsHitTesting(false)
+            ForEach(imBord.indices, id: \.self) { n in
+                strauss(imBord[n], plaetze[n], s, oben)
+            }
+            if let vase {
+                strauss(vase, ZuhauseZeichnung.bordVasenPlatz, s, oben)
             }
         }
     }

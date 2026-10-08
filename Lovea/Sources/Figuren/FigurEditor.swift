@@ -18,7 +18,8 @@ struct FigurEditor: View {
     @State private var wuerfe = 0
     @State private var shopOffen = false
 
-    init(start: FigurAussehen, modell: FigurAussehen? = nil, bereich: Bereich = .figur, onSave: @escaping (FigurAussehen) -> Void) {
+    init(start: FigurAussehen, modell: FigurAussehen? = nil, bereich: Bereich = .figur, person: Person? = nil, onSave: @escaping (FigurAussehen) -> Void) {
+        self.person = person ?? Raum.shared.ich ?? .ahmed
         _aussehen = State(initialValue: start)
         _kategorie = State(initialValue: bereich == .figur ? .gesicht : .outfits)
         self.modell = modell
@@ -38,9 +39,9 @@ struct FigurEditor: View {
         aussehen.mitShopTeilen(von: modell ?? aussehen)
     }
 
-    /// Z-24.1: gender filter is fixed per person, no switch in this editor — derived from the own
-    /// account rather than a parameter, so callers (Profil, Einstellungen) stay unchanged.
-    private var person: Person { Raum.shared.ich ?? .ahmed }
+    /// Z-24.1: gender filter is fixed per person, no switch in this editor. p68: whose figure this is;
+    /// the own account unless Ahmed edits Annika's (`FigurEditorSeite`).
+    private let person: Person
 
     private static let akzent = Color(red: 1, green: 59 / 255, blue: 92 / 255)
 
@@ -210,7 +211,7 @@ struct FigurEditor: View {
             if !tabs.contains(kategorie), let erster = tabs.first { kategorie = erster }
             aussehen = FigurAussehen.mitGueltigerKleidung(FigurAussehen.mitGueltigemGesicht(aussehen, person), person)
         }
-        .sheet(isPresented: $shopOffen) { ShopView() }
+        .sheet(isPresented: $shopOffen) { ShopView(ziel: person) }
     }
 
     private var vorschau: some View {

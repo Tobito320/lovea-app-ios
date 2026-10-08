@@ -48,11 +48,10 @@ final class FigurenModell {
 
     private init() {
         let raum = Raum.shared
-        raum.beobachten(["figur.aussehen"]) { [weak self] op in
-            guard var a = op.daten(FigurAussehen.self) else { return }
-            // v1 ops (before Figuren v2) have no v2 keys: fill the new parts from the person's standard.
-            if op.daten(V2Kennung.self)?.augenform == nil { a = .ausV1(a, fuer: op.von) }
-            self?.aussehen[op.von] = a
+        // One observer for both arts, so the log order decides: the last change wins, whoever made it.
+        raum.beobachten(["figur.aussehen", "figur.aussehenFuer"]) { [weak self] op in
+            guard let ziel = Self.aussehenZiel(op) else { return }
+            self?.aussehen[ziel.person] = ziel.aussehen
         }
         raum.beobachten(["geste"]) { [weak self] op in
             let d = op.daten([String: String].self)
@@ -162,7 +161,26 @@ final class FigurenModell {
         kussEreignis += 1
     }
 
-    func aussehenSichern(_ a: FigurAussehen) { Raum.shared.senden("figur.aussehen", a) }
+    /// Whose look an op sets, or nil when it is not allowed or unreadable. `figur.aussehen` is always the
+    /// sender's own; `figur.aussehenFuer` (Ahmed edits Annika) only counts if `figurBearbeitbar` allows it,
+    /// so a forged or buggy op from Annika can never change Ahmed's figure.
+    static func aussehenZiel(_ op: Op) -> (person: Person, aussehen: FigurAussehen)? {
+        if op.art == "figur.aussehenFuer" {
+            guard let d = op.daten(AussehenFuerD.self), d.fuer.figurBearbeitbar(durch: op.von) else { return nil }
+            return (d.fuer, d.aussehen)
+        }
+        guard var a = op.daten(FigurAussehen.self) else { return nil }
+        // v1 ops (before Figuren v2) have no v2 keys: fill the new parts from the person's standard.
+        if op.daten(V2Kennung.self)?.augenform == nil { a = .ausV1(a, fuer: op.von) }
+        return (op.von, a)
+    }
+
+    /// Saves a look. `fuer` is whose figure it is; nil or the own person writes the old `figur.aussehen`.
+    func aussehenSichern(_ a: FigurAussehen, fuer person: Person? = nil) {
+        guard let ich = Raum.shared.ich, let person, person != ich else { Raum.shared.senden("figur.aussehen", a); return }
+        guard person.figurBearbeitbar(durch: ich) else { return }
+        Raum.shared.senden("figur.aussehenFuer", AussehenFuerD(fuer: person, aussehen: a))
+    }
 
     /// Z-24.3: for "kuss" this also echoes optimistically into `geste`/`letzterKuss` — the replay
     /// guard above (`op.von != raum.ich`) intentionally skips the sender's own round-tripped op, so
@@ -223,3 +241,15 @@ private struct V2Kennung: Decodable {
 }
 
 private struct GrussPayload: Codable { let art: String }
+
+/// p68: Ahmed sets Annika's look. A separate art on purpose: old builds ignore it instead of
+/// writing it over the sender's own `figur.aussehen`.
+struct AussehenFuerD: Codable {
+    let fuer: Person
+    let aussehen: FigurAussehen
+}
+
+extension Person {
+    /// The one rule for editing a figure: everyone edits their own, and only Ahmed edits Annika's.
+    func figurBearbeitbar(durch: Person) -> Bool { self == durch || durch == .ahmed }
+}

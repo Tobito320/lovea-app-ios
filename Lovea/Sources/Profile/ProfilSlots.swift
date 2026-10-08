@@ -22,6 +22,8 @@ enum ProfilDing: CaseIterable {
     case rahmen0, rahmen1, rahmen2, platte, countdown, bett, geschenkbox, nachttisch
     case lampe, schalter, pflanze, fenster, kommode, waerme, sofa, fernseher, kalender
     case spiegel, zettel, regalDeko, pinnwand, pokale, kleiderschrank, ziel, kuehl
+    /// p68: Ahmeds Bord für seine Blumen (nur im Panorama gezeichnet, nur wenn er welche gewählt hat).
+    case bord
 }
 
 /// Which world a layer draws: the old single sheet or the panorama. Every layer takes one, default `.einzel`.
@@ -138,6 +140,7 @@ enum ProfilSlots {
             CGRect(x: ZuhauseZeichnung.fenster.minX - 16, y: ZuhauseZeichnung.fenster.minY - 17,
                    width: ZuhauseZeichnung.fenster.width + 32, height: ZuhauseZeichnung.fenster.height + 25)
         case .kommode: kommode
+        case .bord: ZuhauseZeichnung.bord
         case .waerme: mitte(waermeMitte, breite: waermeBreite, raster: AlltagZeichnung.waermeRaster)
         case .sofa:
             CGRect(x: ZuhauseZeichnung.sofa.minX, y: ZuhauseZeichnung.sofa.minY, width: sofaBreite, height: ZuhauseZeichnung.sofa.height)
@@ -175,6 +178,7 @@ enum ProfilSlots {
         case .bett: Slot(dx: 0, dy: 0, zone: .schlaf, tippbar: true)
         case .geschenkbox: Slot(dx: 100, dy: 0, zone: .schlaf, tippbar: true)
         case .nachttisch: Slot(dx: -122, dy: 0, zone: .schlaf, tippbar: true)
+        case .bord: Slot(dx: 0, dy: 0, zone: .schlaf, tippbar: false)
         // Wohnen
         case .lampe: Slot(dx: 173, dy: 0, zone: .wohn, tippbar: true)
         case .schalter: Slot(dx: 133, dy: 0, zone: .wohn, tippbar: true)
