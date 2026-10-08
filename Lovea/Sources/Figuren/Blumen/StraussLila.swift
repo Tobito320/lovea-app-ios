@@ -13,13 +13,10 @@ enum StraussLila {
         blumeStiele(g, mitteX: 100, unten: 238)
         blumePapier(g, [P(52, 118), P(148, 112), P(120, 228), P(80, 228)], oben: papierOben, unten: papierUnten, kante: kante,
                     falten: [(P(78, 130), P(92, 226)), (P(122, 126), P(108, 226))])
-        blumePapier(g, a.pfad([(330, 1255), (420, 1275), (520, 1235), (600, 1150), (450, 1030), (330, 1000)]),
-                    oben: papierOben, unten: papierUnten, kante: kante)
-        blumePapier(g, a.pfad([(112, 930), (125, 800), (330, 700), (430, 760), (380, 1000), (330, 1255), (215, 1160), (118, 1010)]),
-                    oben: papierOben, unten: papierUnten, kante: kante, falten: [(a.p(330, 700), a.p(250, 1000))])
-        blumePapier(g, a.pfad([(560, 595), (730, 508), (800, 610), (900, 740), (1000, 860), (1040, 1000), (1000, 1090), (905, 1160), (700, 1110), (640, 820)]),
-                    oben: papierOben, unten: papierUnten, kante: kante,
-                    falten: [(a.p(730, 508), a.p(790, 800)), (a.p(900, 740), a.p(820, 980))])
+        // One white square sheet with pointed corners (top right, right, left, bottom left).
+        blumePapier(g, [P(30, 40), P(134, 8), P(146, 52), P(197, 104), P(152, 132), P(122, 162), P(80, 166), P(58, 154), P(24, 130), P(10, 90)],
+                    oben: FigurFarbe(0xFFFFFF), unten: papierUnten, kante: kante, kanteBreite: 1,
+                    falten: [(P(134, 8), P(124, 60)), (P(197, 104), P(150, 98)), (P(10, 90), P(48, 104))])
         if fein {
             // The faint flower print on the right sheet.
             for (x, y, w) in [(CGFloat(850), CGFloat(820), CGFloat(0.5)), (900, 930, 2.4), (800, 960, 4.0)] {
@@ -30,8 +27,9 @@ enum StraussLila {
             }
         }
 
-        blumenMasse(g, [P(22, 80), P(40, 45), P(75, 28), P(120, 28), P(160, 48), P(188, 95), P(172, 140), P(125, 160), P(75, 160), P(36, 132)],
-                    oben: FigurFarbe(0x9A5E98), unten: FigurFarbe(0x663A70))
+        // The gaps between the blooms are full of light green leaves, not one patch of colour.
+        blumeLaubFeld(g, mitte: P(100, 96), rx: 78, ry: 62, fuss: P(100, 170), anzahl: 110, laenge: 26, breite: 9,
+                      farben: [FigurFarbe(0x7DBB4F), FigurFarbe(0x5CA441), FigurFarbe(0x93C85F), FigurFarbe(0x3F8F3A)], seed: 31, fein: fein)
 
         // Ruscus leaves behind the flowers: the tall group top left, a few on the right.
         let laub = FigurFarbe(0x3F8F3A)

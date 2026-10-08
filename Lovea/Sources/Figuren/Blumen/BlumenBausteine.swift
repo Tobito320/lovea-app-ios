@@ -355,6 +355,22 @@ func blumeZweig(_ g: GraphicsContext, _ a: CGPoint, _ b: CGPoint, blatt f: Figur
     blumeLaub(g, b, P(b.x + dx / l * groesse * 0.9, b.y + dy / l * groesse * 0.9), breite: groesse * 0.34, f, rund: 0.7, fein: false)
 }
 
+/// Many single leaves scattered over an ellipse, each pointing away from the stem point `fuss`: the
+/// green that fills the gaps between the blooms (no flat patch, every leaf keeps its own shape).
+func blumeLaubFeld(_ g: GraphicsContext, mitte: CGPoint, rx: CGFloat, ry: CGFloat, fuss: CGPoint, anzahl: Int, laenge: CGFloat, breite: CGFloat,
+                   farben: [FigurFarbe], seed: UInt64, fein: Bool = true) {
+    guard !farben.isEmpty else { return }
+    var z = BlumenZufall(seed)
+    for i in 0..<anzahl {
+        let w = z.zwischen(0, 2 * CGFloat.pi)
+        let d = z.next().squareRoot()
+        let a = P(mitte.x + cos(w) * rx * d, mitte.y + sin(w) * ry * d)
+        let richtung = atan2(a.y - fuss.y, a.x - fuss.x) + z.zwischen(-0.8, 0.8)
+        blumeLaub(g, a, blWeg(a, richtung, laenge * z.zwischen(0.7, 1.2)), breite: breite * z.zwischen(0.8, 1.2), farben[i % farben.count],
+                  rund: 0.3, fein: fein)
+    }
+}
+
 /// The dense dark mass of leaves and stems under the blooms: in the photos the flowers sit shoulder
 /// to shoulder, so the gaps between them show this and not the paper. A smooth blob through `pts`.
 func blumenMasse(_ g: GraphicsContext, _ pts: [CGPoint], oben: FigurFarbe, unten: FigurFarbe) {

@@ -19,8 +19,9 @@ enum StraussRosaGerbera {
         blumePapier(g, a.pfad([(650, 1330), (880, 1300), (890, 1600), (790, 1740), (620, 1640)]), oben: tuchOben, unten: tuchUnten, kante: kante,
                     falten: [(a.p(880, 1300), a.p(760, 1650))])
 
-        blumenMasse(g, [P(30, 70), P(80, 40), P(150, 50), P(182, 90), P(174, 150), P(140, 186), P(75, 186), P(30, 150)],
-                    oben: FigurFarbe(0x5A7E45), unten: FigurFarbe(0x2F5F3A))
+        // Leaves and twigs fill the whole area, no green background behind the blooms.
+        blumeLaubFeld(g, mitte: P(106, 114), rx: 78, ry: 72, fuss: P(100, 170), anzahl: 130, laenge: 26, breite: 9,
+                      farben: [FigurFarbe(0x73934F), FigurFarbe(0x2F5F3A), FigurFarbe(0x4F7B3F), FigurFarbe(0x2A5648), FigurFarbe(0x8FAE5C)], seed: 32, fein: fein)
 
         // Spiky dark palm leaves fanning out of the top, thin grass blades.
         let palme = FigurFarbe(0x2A5648)
@@ -64,6 +65,9 @@ enum StraussRosaGerbera {
             (60, 1330, 75), (140, 1440, 65), (100, 1160, 90), (200, 1050, 80), (270, 1385, 80), (230, 1240, 120), (330, 1090, 105),
         ]
         for (i, m) in margeriten.enumerated() { blumeMargerite(g, a.p(m.0, m.1), a.r(m.2), winkel: CGFloat(i) * 0.6, fein: fein) }
+        // A few more daisies in the middle so blooms and leaves fill the area (design units).
+        let mitte: [(CGFloat, CGFloat, CGFloat)] = [(104, 122, 11), (128, 134, 10), (84, 140, 10), (116, 104, 9)]
+        for (i, m) in mitte.enumerated() { blumeMargerite(g, P(m.0, m.1), m.2, winkel: CGFloat(i) * 0.7 + 0.2, fein: fein) }
 
         // Hot pink gerberas.
         let gerHell = FigurFarbe(0xF03C9C)
