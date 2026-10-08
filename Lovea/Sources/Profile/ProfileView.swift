@@ -107,42 +107,7 @@ private struct ProfilInhalt: View {
     /// p65: the scene stands fixed on top and is always whole, the panorama swipes sideways; only the calm
     /// part under it scrolls. The wall bleeds under the status bar, the scene itself starts below it.
     var body: some View {
-        GeometryReader { geo in
-            let breite = geo.size.width
-            let oben = geo.safeAreaInsets.top
-            VStack(spacing: 0) {
-                ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: breite,
-                               hoehe: oben + ProfilPanoramaLayout.szeneHoehe(breite: breite)) {
-                    zuhause(paar: !istEigenes)
-                } schwebend: {
-                    schwebend(oben: oben)
-                }
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 24) {
-                        if istEigenes {
-                            eigeneChips
-                            eigeneAktionen
-                            ZyklusProfilZeile(person: person)
-                            ProfilPunkteKarte(person: person)
-                            abschnitt("Spiele-Bilanz") { spieleAbschnittInhalt }
-                        } else {
-                            partnerJetzt
-                            chips
-                            aktionen
-                            partnerBearbeiten
-                            // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
-                            abschnitt("Die Karte") { dieKarte }
-                            abschnitt("Unser Chat") { unserChat }
-                            abschnitt("Wir") { wir }
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                    .padding(.top, 6)
-                    .padding(.bottom, 32)
-                }
-            }
-            .frame(width: breite, height: geo.size.height, alignment: .top)
-        }
+        layout
         .ignoresSafeArea(edges: .top)
         .background(Color(uiColor: .systemGroupedBackground))
         .toolbar(istEigenes ? .hidden : .automatic, for: .navigationBar)
@@ -158,6 +123,57 @@ private struct ProfilInhalt: View {
             istEigenes: istEigenes, person: person, kussBasislinie: $kussBasislinie, kussHaptik: $kussHaptik,
             geschenkArtikel: $geschenkArtikel, geschenkHaptik: $geschenkHaptik
         ))
+    }
+
+    /// p69: the scene and the part under it. `ProfilLayout` decides from the room the screen gives whether the
+    /// scene stands still on top (only the rest scrolls) or the whole profile scrolls as one.
+    private var layout: some View {
+        GeometryReader { geo in
+            let oben = geo.safeAreaInsets.top
+            let szene = ProfilLayout.szene(breite: geo.size.width, hoehe: geo.size.height, oben: oben)
+            ProfilUnterbau(abschnitte: abschnitte, klebt: szene.klebt, start: istEigenes ? nil : .wir) {
+                ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: szene.breite, hoehe: szene.hoehe) {
+                    zuhause(paar: !istEigenes)
+                } schwebend: {
+                    schwebend(oben: oben)
+                }
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
+        }
+        // Here and not on a row of the closed "Unser Chat" card: a lazy row can be dropped with its cover.
+        .fullScreenCover(isPresented: $backdropOffen) { BackdropAuswahl() }
+        // The partner's song is polled while the profile is on screen (Spec 9), not while one row of it is built:
+        // a tab or a lazy row that comes and goes must not start and stop it, and the row can stay away while empty.
+        .task { if !istEigenes { SpotifyModell.shared.schauen() } }
+        .onDisappear { if !istEigenes { SpotifyModell.shared.wegschauen() } }
+    }
+
+    /// p69: what stands under the scene, in four tabs. Blocks without a title are bars of buttons and chips;
+    /// blocks with one fold open and shut, shut at the start, and build their content only when opened.
+    /// A block with nothing to show is left out (`sichtbar`), and a tab with no block is not drawn.
+    private var abschnitte: [ProfilAbschnitt] {
+        let challenges = ProfilAbschnitt("challenges", .quests, sichtbar: LaufendeChallengesCard.vorhanden) { LaufendeChallengesCard() }
+        if istEigenes {
+            return [
+                ProfilAbschnitt("chips", .zimmer) { eigeneChips },
+                ProfilAbschnitt("aktionen", .zimmer) { eigeneAktionen },
+                ProfilAbschnitt("zyklus", .wir) { ZyklusProfilZeile(person: person) },
+                ProfilAbschnitt("bilanz", .wir, titel: "Spiele-Bilanz", sichtbar: !bilanz.isEmpty) { spieleAbschnittInhalt },
+                ProfilAbschnitt("punkte", .quests) { ProfilPunkteKarte(person: person) },
+                challenges,
+            ]
+        }
+        return [
+            ProfilAbschnitt("bearbeiten", .zimmer, sichtbar: person.figurBearbeitbar(durch: ich)) { partnerBearbeiten },
+            ProfilAbschnitt("jetzt", .wir, sichtbar: WetterModell.shared.partner != nil || SpotifyModell.shared.partner != nil) { partnerJetzt },
+            ProfilAbschnitt("chips", .wir) { chips },
+            ProfilAbschnitt("aktionen", .wir) { aktionen },
+            // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
+            ProfilAbschnitt("karte", .wir, titel: "Die Karte") { dieKarte },
+            ProfilAbschnitt("wir", .wir, titel: "Wir") { wir },
+            ProfilAbschnitt("chat", .erinnerungen, titel: "Unser Chat") { unserChat },
+            challenges,
+        ]
     }
 
     /// common.md warns a long `body` modifier chain risks "unable to type-check in reasonable
@@ -196,6 +212,8 @@ private struct ProfilInhalt: View {
         }
         .padding(.horizontal, 12)
         .padding(.top, oben + 4)
+        // Chrome over the scene: its letters stop growing with Dynamic Type so it never covers the room.
+        .dynamicTypeSize(ProfilLayout.leistenSchrift)
     }
 
     /// p58: the scene is always the shared home with both of them (`ZuhauseBuehne`), in the partner
@@ -269,8 +287,6 @@ private struct ProfilInhalt: View {
             if let stand = WetterModell.shared.partner { WetterChip(stand: stand) }
             SpotifyHoertGeradeChip()
         }
-        .task { SpotifyModell.shared.schauen() }
-        .onDisappear { SpotifyModell.shared.wegschauen() }
     }
 
     /// Z-24.3: while a `kuss` is live (fresh receive, own optimistic send, or a missed-kiss replay
@@ -354,14 +370,18 @@ private struct ProfilInhalt: View {
         .accessibilityLabel(vorlesen)
     }
 
-    /// Z-25.1: "Chips (Geburtstag, Tage zusammen, Punkte)" — exactly these three, and no
-    /// `ScrollView` (kein seitliches Scrollen): three chips fit one line at any phone width.
+    /// Z-25.1: "Chips (Geburtstag, Tage zusammen, Punkte)" — exactly these three, in one line at normal text size.
+    /// p69: with large Dynamic Type the line would break (the labels wrap or squeeze), so then it slides sideways.
     private var eigeneChips: some View {
         let g = BesondereTage.geburtstag(person)
-        return HStack(spacing: 8) {
+        let reihe = HStack(spacing: 8) {
             chip("🎈", "\(g.tag). \(Self.monate[g.monat - 1])", "Geburtstag \(g.tag). \(Self.monate[g.monat - 1])")
             chip("💞", "\(tageZusammen) Tage", "\(tageZusammen) Tage zusammen")
             punkteChip
+        }
+        return ViewThatFits(in: .horizontal) {
+            reihe
+            ScrollView(.horizontal, showsIndicators: false) { reihe }.scrollClipDisabled()
         }
     }
 
@@ -403,7 +423,7 @@ private struct ProfilInhalt: View {
                 .font(.subheadline.weight(.semibold))
                 .lineLimit(1)
                 .minimumScaleFactor(0.8)
-                .frame(maxWidth: .infinity, minHeight: 36)
+                .frame(maxWidth: .infinity, minHeight: ProfilLayout.tippMinimum)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
@@ -447,7 +467,7 @@ private struct ProfilInhalt: View {
         Button(action: tun) {
             Image(systemName: symbol)
                 .font(.title3)
-                .frame(maxWidth: .infinity, minHeight: 36)
+                .frame(maxWidth: .infinity, minHeight: ProfilLayout.tippMinimum)
         }
         .buttonStyle(.bordered)
         .buttonBorderShape(.capsule)
@@ -473,15 +493,6 @@ private struct ProfilInhalt: View {
     }
 
     // MARK: - Sections
-
-    private func abschnitt<Inhalt: View>(_ titel: String, @ViewBuilder _ inhalt: () -> Inhalt) -> some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(titel).font(.title3.bold()).padding(.horizontal, 4)
-            VStack(spacing: 0) { inhalt() }
-                .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
-                .clipShape(RoundedRectangle(cornerRadius: 18))
-        }
-    }
 
     private func zeile(_ symbol: String, _ titel: String, _ untertitel: String? = nil, farbe: Color = .loveaRose, _ tun: @escaping () -> Void) -> some View {
         Button {
@@ -516,7 +527,6 @@ private struct ProfilInhalt: View {
     @ViewBuilder
     private var unserChat: some View {
         zeile("photo.artframe", "Backdrop", backdropUntertitel) { backdropOffen = true }
-            .fullScreenCover(isPresented: $backdropOffen) { BackdropAuswahl() }
         trenner
         zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { blatt = .wallpaper }
         trenner
