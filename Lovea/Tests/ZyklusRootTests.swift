@@ -40,10 +40,10 @@ final class ZyklusRootTests: XCTestCase {
         XCTAssertFalse(s.gesperrt)
     }
 
-    func testBannerNurDemo() {
-        XCTAssertTrue(ZyklusRootLogik.zeigtBanner(.demo))
-        XCTAssertFalse(ZyklusRootLogik.zeigtBanner(.echt))
-        XCTAssertEqual(ZyklusRootLogik.demoBanner, "Testdaten, nur zum Ausprobieren")
+    func testBannerNurBeiNurLesen() {
+        XCTAssertTrue(ZyklusRootLogik.zeigtBanner(nurLesen: true))
+        XCTAssertFalse(ZyklusRootLogik.zeigtBanner(nurLesen: false))
+        XCTAssertEqual(ZyklusRootLogik.leseBanner, "Annikas Zyklus, nur ansehen")
     }
 
     func testGrenzen() {
@@ -56,10 +56,10 @@ final class ZyklusRootTests: XCTestCase {
     func testLoeschenNurEcht() {
         XCTAssertTrue(ZyklusEinstellungenLogik.darfLoeschen(.echt))
         XCTAssertFalse(ZyklusEinstellungenLogik.darfLoeschen(.demo))
-        let demo = DemoZyklusSpeicher(heute: "2026-10-04")
-        let vorher = demo.tage.count
+        let demo = EchterZyklusSpeicher(datei: nil, ich: { .ahmed }, sende: { _ in })
+        demo.empfangen(ZyklusOps.tagOp(ZyklusTag(id: "2026-10-01", blutung: .leicht), von: .annika))
         ZyklusEinstellungenLogik.alleLoeschen(demo)
-        XCTAssertEqual(demo.tage.count, vorher)
+        XCTAssertEqual(demo.tage.count, 1)
     }
 
     func testExport() {

@@ -1,7 +1,8 @@
 import Foundation
+@testable import Lovea
 
-/// Feste Beispieldaten für Ahmeds Testansicht: etwa 8 Monate, 8 Zyklen, deterministisch (kein Zufall).
-/// Der laufende Zyklus ist bei `heute` am 10. Tag. Wird nie gesendet und nie in HealthKit geschrieben.
+/// Feste Beispieldaten nur für Tests: etwa 8 Monate, 8 Zyklen, deterministisch (kein Zufall).
+/// Der laufende Zyklus ist bei `heute` am 10. Tag. Gehört nicht zur App.
 enum ZyklusDemoDaten {
     static let einstellung = ZyklusEinstellung(zyklusLaenge: 28, periodenLaenge: 5, modus: .zyklus)
 

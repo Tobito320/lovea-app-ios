@@ -1,8 +1,7 @@
 import Foundation
 
-/// Ops `zyklus.tag` und `zyklus.einstellung`. Nur Annikas Geräte wenden sie an.
-/// Der Server-Filter (Ops nicht an Ahmed ausliefern) ist nicht deployt; bis dahin schützt allein
-/// der Client: Ahmeds Gerät verwirft jede `zyklus.*`-Op, bevor sie angewendet oder gespeichert wird.
+/// Ops `zyklus.tag` und `zyklus.einstellung`. Nur Annika schreibt (Absender muss Annika sein).
+/// Ahmeds Gerät wendet sie an, um Annikas Zyklus nur anzusehen; er sendet nie eine.
 enum ZyklusOps {
     static let tagArt = "zyklus.tag"
     static let einstellungArt = "zyklus.einstellung"
@@ -46,11 +45,11 @@ struct ZyklusStand: Codable, Equatable {
     var einstellung = ZyklusEinstellung()
     var einstellungStempel: Stempel?
 
-    /// `ich` ist die Person dieses Geräts. Nur Annika wendet an, und nur Ops von Annika.
+    /// `ich` ist die Person dieses Geräts (Annika oder Ahmed zum Ansehen). Angewendet werden nur Ops von Annika.
     /// Gibt zurück, ob sich etwas geändert hat.
     @discardableResult
     mutating func anwenden(_ op: Op, ich: Person?) -> Bool {
-        guard ich == .annika, op.von == .annika, ZyklusOps.istZyklus(op.art) else { return false }
+        guard ich != nil, op.von == .annika, ZyklusOps.istZyklus(op.art) else { return false }
         let s = Stempel(zeit: op.zeit, id: op.id)
         switch op.art {
         case ZyklusOps.tagArt:

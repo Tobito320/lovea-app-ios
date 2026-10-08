@@ -76,7 +76,7 @@ struct FigurEditor: View {
             switch self {
             case .gesicht:
                 return [
-                    .optionen("Gesichtsform", \.gesichtsform, A.gesichtsformen, .gesicht, erlaubte: nil),
+                    .optionen("Gesichtsform", \.gesichtsform, A.gesichtsformen, .gesicht, erlaubte: A.gesichter(fuer: person)),
                     .farben("Hautton", \.haut, A.hautToene.map { Farbwahl(name: $0.name, farbe: $0.farbe) }, hexPfad: nil),
                     .optionen("Nase", \.nase, A.nasen, .gesicht, erlaubte: nil),
                     .optionen("Mund", \.mund, A.muender, .gesicht, erlaubte: nil),
@@ -87,7 +87,7 @@ struct FigurEditor: View {
                 ]
             case .haare:
                 return [
-                    .optionen("Frisur", \.frisur, A.frisuren, .kopf, erlaubte: A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person).filter { !A.halbglatze.contains($0) }),
+                    .optionen("Frisur", \.frisur, A.frisuren, .kopf, erlaubte: A.frisurenAuswahl(fuer: person)),
                     .farben("Haarfarbe", \.haarfarbe, A.haarfarben.map { Farbwahl(name: $0.name, farbe: $0.farbe, straehne: $0.straehne) }, hexPfad: \.haarfarbeHex),
                 ]
             case .augen:
@@ -182,6 +182,7 @@ struct FigurEditor: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: wuerfe)
         .onAppear {
             if !Kategorie.sichtbar(fuer: person).contains(kategorie) { kategorie = .gesicht }
+            aussehen = FigurAussehen.mitGueltigemGesicht(aussehen, person)
         }
     }
 
@@ -206,31 +207,7 @@ struct FigurEditor: View {
             .padding(12)
             .accessibilityLabel("Zufälliger Look")
         }
-        .overlay(alignment: .topLeading) { bitmojiKnopf }
         .background(LinearGradient(colors: [Self.akzent.opacity(0.16), Self.akzent.opacity(0.02)], startPoint: .top, endPoint: .bottom))
-    }
-
-    private var bitmojiKnopf: some View {
-        Button(action: wieBitmoji) {
-            Label("Wie mein Bitmoji", systemImage: "person.crop.circle.badge.checkmark")
-                .font(.subheadline.weight(.semibold))
-                .padding(.horizontal, 14)
-                .frame(minHeight: 44)
-                .background(.regularMaterial, in: Capsule())
-        }
-        .buttonStyle(.federnd)
-        .foregroundStyle(Self.akzent)
-        .padding(12)
-    }
-
-    /// Z-38.4: back to the Bitmoji look; bought shop pieces stay on.
-    private func wieBitmoji() {
-        var a = FigurAussehen.standard(for: person)
-        a.tasche = aussehen.tasche
-        a.uhr = aussehen.uhr
-        a.schmuck = aussehen.schmuck
-        a.tier = aussehen.tier
-        withAnimation(Feder.weich) { aussehen = a }
     }
 
     private var kategorienLeiste: some View {
@@ -418,7 +395,7 @@ struct FigurEditor: View {
         func eins(_ erlaubte: [Int]) -> Int { erlaubte.randomElement() ?? 0 }
         func oftKeins(_ erlaubte: [Int]) -> Int { Bool.random() ? 0 : eins(erlaubte) }
         var a = aussehen
-        a.frisur = eins(A.erlaubt(A.frisuren, geschlecht: A.frisurenGeschlecht, fuer: person).filter { !A.halbglatze.contains($0) })
+        a.frisur = eins(A.frisurenAuswahl(fuer: person))
         a.haarfarbe = eins(Array(A.haarfarben.indices))
         a.haarfarbeHex = nil
         a.oberteil = eins(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person))

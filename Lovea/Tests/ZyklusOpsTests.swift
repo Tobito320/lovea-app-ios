@@ -33,25 +33,34 @@ final class ZyklusOpsTests: XCTestCase {
         XCTAssertEqual(zweit.einstellung.zyklusLaenge, 31)
     }
 
-    func testAhmedVerwirftOpsUndSendetNie() {
+    func testAhmedSiehtAnnikasOpsAendertUndSendetNie() {
         var gesendet: [Op] = []
         let a = speicher(.ahmed) { gesendet.append($0) }
+        XCTAssertTrue(a.nurLesen)
         a.empfangen(op(ZyklusTag(id: "2026-10-01", blutung: .stark), id: "1", zeit: Date()))
         a.empfangen(ZyklusOps.einstellungOp(ZyklusEinstellung(zyklusLaenge: 40), von: .annika))
+        XCTAssertEqual(a.tage["2026-10-01"]?.blutung, .stark)
+        XCTAssertEqual(a.einstellung.zyklusLaenge, 40)
         a.setze(ZyklusTag(id: "2026-10-02", blutung: .leicht))
         a.einstellung = ZyklusEinstellung(zyklusLaenge: 22)
-        XCTAssertTrue(a.tage.isEmpty)
-        XCTAssertEqual(a.einstellung, ZyklusEinstellung())
+        XCTAssertNil(a.tage["2026-10-02"])
+        XCTAssertEqual(a.einstellung.zyklusLaenge, 40)
         XCTAssertTrue(gesendet.isEmpty)
     }
 
-    func testAhmedsDemoSendetKeineOp() {
-        let w = ZyklusSpeicherWahl.fuer(person: .ahmed)
-        XCTAssertEqual(w.quelle, .demo)
-        XCTAssertTrue(w is DemoZyklusSpeicher)
-        let vorher = w.tage.count
-        w.setze(ZyklusTag(id: "2030-01-01", blutung: .leicht))
-        XCTAssertEqual(w.tage.count, vorher + 1)
+    func testAhmedUebernimmtKeineOpsVonAhmed() {
+        let a = speicher(.ahmed)
+        a.empfangen(op(ZyklusTag(id: "2026-10-01", blutung: .stark), id: "1", zeit: Date(), von: .ahmed))
+        XCTAssertTrue(a.tage.isEmpty)
+    }
+
+    func testAnnikaIstNichtNurLesen() {
+        XCTAssertFalse(speicher(.annika).nurLesen)
+    }
+
+    func testBeideNutzenDenEchtenSpeicher() {
+        XCTAssertTrue(ZyklusSpeicherWahl.fuer(person: .ahmed) is EchterZyklusSpeicher)
+        XCTAssertEqual(ZyklusSpeicherWahl.fuer(person: .annika).quelle, .echt)
     }
 
     func testLastWriterWinsJeTag() {
