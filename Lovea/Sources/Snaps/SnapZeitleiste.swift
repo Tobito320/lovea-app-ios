@@ -166,29 +166,23 @@ struct SnapFilmstreifen: View {
             .overlay(Image(systemName: links ? "chevron.compact.left" : "chevron.compact.right")
                 .font(.system(size: 16, weight: .bold)).foregroundStyle(.black))
             .contentShape(Rectangle())
-            .highPriorityGesture(links ? anfangGeste : endeGeste)
+            .highPriorityGesture(griffGeste(links: links))
             .accessibilityLabel(links ? "Anfang kürzen" : "Ende kürzen")
     }
 
     // `.global`: der Griff wandert beim Ziehen mit, im lokalen Raum würde die Strecke zurückspringen.
-    private var anfangGeste: some Gesture {
+    private func griffGeste(links: Bool) -> some Gesture {
         DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { wert in
-                if anfangStart == nil { anfangStart = plan.anfang }
-                let neu = SnapZeitleisteRechnung.anfang(start: anfangStart ?? plan.anfang, verschiebung: wert.translation.width, plan: plan)
-                onKuerzen(neu, plan.ende)
+                if links {
+                    if anfangStart == nil { anfangStart = plan.anfang }
+                    onKuerzen(SnapZeitleisteRechnung.anfang(start: anfangStart ?? plan.anfang, verschiebung: wert.translation.width, plan: plan), plan.ende)
+                } else {
+                    if endeStart == nil { endeStart = plan.ende }
+                    onKuerzen(plan.anfang, SnapZeitleisteRechnung.ende(start: endeStart ?? plan.ende, verschiebung: wert.translation.width, plan: plan))
+                }
             }
-            .onEnded { _ in anfangStart = nil }
-    }
-
-    private var endeGeste: some Gesture {
-        DragGesture(minimumDistance: 1, coordinateSpace: .global)
-            .onChanged { wert in
-                if endeStart == nil { endeStart = plan.ende }
-                let neu = SnapZeitleisteRechnung.ende(start: endeStart ?? plan.ende, verschiebung: wert.translation.width, plan: plan)
-                onKuerzen(plan.anfang, neu)
-            }
-            .onEnded { _ in endeStart = nil }
+            .onEnded { _ in anfangStart = nil; endeStart = nil }
     }
 }
 
