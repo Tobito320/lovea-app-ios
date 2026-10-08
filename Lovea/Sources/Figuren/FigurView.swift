@@ -51,13 +51,18 @@ struct FigurView: View {
     private let umarmung: Umarmung?
     /// Teil 4: the exercise the gym scene shows; nil picks one at random per person.
     private let gymGeste: GymGeste?
+    /// p65: where the whole body is (sits on the sofa or the bed edge, lies); nil = as the state says.
+    private let pose: FigurPose?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.scenePhase) private var scenePhase
     @State private var sichtbar = false
 
     /// `bildrate`: frames per second of the loop; lower it where many figures or a map redraw.
     /// `extras` (Z-39.4): umbrella, sunglasses, hat and scarf, phone with a white cable, snowflakes.
-    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil) {
+    /// `pose` (p65): whole body only. Sitting drops the hips to the seat; lying turns the body by 90
+    /// degrees and the frame becomes `FigurPoseLogik.rahmen` (wide).
+    init(_ aussehen: FigurAussehen, zustand: FigurZustand, abzeichen: [String] = [], groesse: CGFloat, animiert: Bool = true, bildrate: Double = 30, ganzkoerper: Bool = false, extras: Set<FigurExtra> = [], tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil, pose: FigurPose? = nil) {
+        self.pose = ganzkoerper ? pose : nil
         self.umarmung = umarmung
         self.aussehen = aussehen
         self.zustand = zustand
@@ -85,7 +90,7 @@ struct FigurView: View {
                 leinwand(basis, 0.4)
             }
         }
-        .frame(width: ganzkoerper ? groesse / 2 : groesse * 5 / 6, height: groesse)
+        .frame(width: rahmen.width, height: rahmen.height)
         .saturation(zustand == .offline ? 0.15 : 1)
         .opacity(zustand == .offline ? 0.7 : 1)
         .onAppear { sichtbar = true }
@@ -97,13 +102,30 @@ struct FigurView: View {
         .accessibilityValue(zustand.titel)
     }
 
+    private var rahmen: CGSize {
+        if ganzkoerper { return FigurPoseLogik.rahmen(pose ?? .stehen, hoehe: groesse) }
+        return CGSize(width: groesse * 5 / 6, height: groesse)
+    }
+
     private func zeichner(statisch: Bool) -> Zeichner {
-        Zeichner(aussehen, zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung, gymGeste: gymGeste)
+        Zeichner(aussehen, zustand, abzeichen, t: 0.4, statisch: statisch, ganz: ganzkoerper, extras: extras, tisch: tisch, umarmung: umarmung, gymGeste: gymGeste, pose: pose)
     }
 
     private func leinwand(_ basis: Zeichner, _ t: Double) -> some View {
         let zeichner = basis.bei(t)
-        return Canvas { g, size in zeichner.zeichne(g, size) }
+        let drehung = pose.map(FigurPoseLogik.drehung) ?? 0
+        return Canvas { g, size in
+            guard drehung != 0 else {
+                zeichner.zeichne(g, size)
+                return
+            }
+            // Lying: the standing body is drawn in a tall frame (size swapped) and turned around its centre.
+            var d = g
+            d.translateBy(x: size.width / 2, y: size.height / 2)
+            d.rotate(by: .degrees(drehung))
+            d.translateBy(x: -size.height / 2, y: -size.width / 2)
+            zeichner.zeichne(d, CGSize(width: size.height, height: size.width))
+        }
     }
 }
 
@@ -319,7 +341,7 @@ fileprivate struct Masse {
     let hueftY: CGFloat
     let schulterY: CGFloat
     let knieY: CGFloat
-    static let fussY: CGFloat = 372
+    static let fussY: CGFloat = FigurPoseLogik.fussY
 }
 
 // MARK: - Drawing (half figure 200 x 240, full body 200 x 400 with the head drawn in the half space)
@@ -360,8 +382,11 @@ private struct Zeichner {
     let neu: NeuesGesicht?
     /// Teil 4: the running exercise, forwarded as-is (nil = pick one at random per person, see `gymGeste`).
     let gymFest: GymGeste?
+    /// p65: where the body is on the stage (sits, lies); nil = the state decides.
+    let pose: FigurPose?
 
-    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil) {
+    init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil, pose: FigurPose? = nil) {
+        self.pose = pose
         self.gymFest = gymGeste
         typealias A = FigurAussehen
         self.umarmung = ganz ? umarmung : nil
@@ -3629,9 +3654,8 @@ extension Zeichner {
     }
 
     func masse() -> Masse {
-        let beinLaengen: [CGFloat] = [112, 124, 136]
         let k = km
-        let beinL = beinLaengen[groesseStufe]
+        let beinL = FigurPoseLogik.beinLaenge(stufe: groesseStufe)
         let hueftY = Masse.fussY - beinL
         return Masse(s: k.s * (neu == .b && z != .gym ? 0.92 : 1), t: k.t, h: k.h, arm: k.arm, bein: k.bein,
                      hueftY: hueftY, schulterY: hueftY - 96, knieY: hueftY + beinL * 0.5)
@@ -3639,6 +3663,7 @@ extension Zeichner {
 
     var haltung: Haltung {
         if let g = gymGeste { return gymHaltung(g) }
+        if pose?.sitzt == true { return .sitzen }
         return switch z {
         case .laeuft, .tanzt: .gehen
         case .rennt: .rennen
@@ -3657,7 +3682,7 @@ extension Zeichner {
             if g == .ausfallschritt { return wdh * 26 }
         }
         return switch hal {
-        case .sitzen, .fahren: m.knieY - m.hueftY - 4
+        case .sitzen, .fahren: FigurPoseLogik.sitzVersatz(beinLaenge: (m.knieY - m.hueftY) * 2)
         case .rad: 40
         default: 0
         }
@@ -4065,6 +4090,13 @@ extension Zeichner {
         let wiege: CGFloat = statisch ? 0 : w(1.3) * 1.5
         let restL = Arm(P(lx - 6, y + 50), P(lx - 4 + wiege, y + 92))
         let restR = Arm(P(rx + 6, y + 50), P(rx + 4 - wiege, y + 92))
+        // p65: seated on the stage. Sofa: hands rest in the lap. Bed edge: hands on the mattress beside the hips.
+        if let p = pose, p.sitzt, z == .ruhig {
+            if p == .sitzenSofa {
+                return (Arm(P(lx - 4, y + 50), P(88, y + 88 + wiege)), Arm(P(rx + 4, y + 50), P(112, y + 88 + wiege)))
+            }
+            return (Arm(P(lx - 10, y + 52), P(lx - 14, y + 90 + wiege)), Arm(P(rx + 10, y + 52), P(rx + 14, y + 90 + wiege)))
+        }
         switch z {
         case .imChat:
             let welle: CGFloat = zyklus(5) < 0.45 ? w(9) * 7 : 0
