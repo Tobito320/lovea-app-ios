@@ -95,6 +95,16 @@ test("gruss: laut, Text je nach nacht/morgen, Kategorie geste", () => {
   assert.equal(regel("gruss", "ahmed", { art: "morgen" }).text, "Ahmed sagt Guten Morgen");
 });
 
+// p64: Wärmflasche und Tee. Leise, ohne Ton, und der Text verrät nichts über den Grund.
+test("waerme.setzen: nur bei an eine leise Push ohne Zyklus-Wörter", () => {
+  const an = regel("waerme.setzen", "annika", { tag: "2026-10-08", an: true });
+  assert.equal(an.stufe, "leise");
+  assert.equal(an.kategorie, "geste");
+  assert.equal(an.text, "Annika könnte heute etwas Süßes und Warmes brauchen");
+  assert.doesNotMatch(an.text, /Periode|Zyklus|Regel|Krämpfe|Blutung|Schmerz/i);
+  assert.equal(regel("waerme.setzen", "annika", { tag: "2026-10-08", an: false }), null);
+});
+
 // Z-27.2: ein Brief darf seinen Inhalt nie im Push-Text preisgeben, auch wenn `text`/`medien`
 // zusätzlich gesetzt sind.
 test("nachricht.neu mit brief verrät den Inhalt nicht im Push-Text", () => {
