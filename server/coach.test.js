@@ -294,13 +294,19 @@ test("Datenschutz: ans Modell geht nur Eigenes -- nie Chat, Zyklus, Standort, Ga
   schreibe(sql, "habit.setzen", { art: "gewicht", datum: HEUTE, wert: 555 }, { von: "annika" });
   schreibe(sql, "coach.nachricht", { rolle: "du", text: "GEHEIM-COACH-ANNIKA", tag: HEUTE }, { von: "annika" });
   einstellung(sql, "ziel.ernaehrung.kcal", 7777, { von: "annika" });
+  // Training: eigene Einheit mit Tag T1; Annikas Plan nennt T1 anders, ihre Einheit hat eine Sentinel-Übung.
+  einheit(sql, "S1", "2026-10-06", [arbeitssatz(10, 60)]);
+  schreibe(sql, "gym.plan", { tage: [{ id: "T1", name: "GEHEIM-PLAN-ANNIKA" }] }, { von: "annika" });
+  einheit(sql, "FREMD", "2026-10-07", [arbeitssatz(10, 4242)]);
+  sql.exec(`UPDATE ops SET von = 'annika' WHERE art LIKE 'gym.%' AND d LIKE '%FREMD%'`);
 
   const { fetchFn, calls } = fakeModell();
   const r = await frage(sql, "Wie läuft mein Essen?", { fetchFn });
   assert.equal(r.status, 200);
   const alles = JSON.stringify(calls[0].body);
   assert.doesNotMatch(alles, /GEHEIM/, "kein Sentinel darf im Modell-Request stehen");
-  assert.doesNotMatch(alles, /7777|555/);
+  assert.doesNotMatch(alles, /7777|555|4242/);
+  assert.match(alles, /trainings8Wochen\\?":1,/, "das eigene Training kommt an");
   assert.match(alles, /Haferbrei/, "eigene Daten kommen an");
   assert.match(alles, /Meine frühere Frage/, "der eigene Coach-Verlauf kommt an");
   assert.equal(calls[0].init.body.includes(KEY), false, "der Schlüssel steht nicht im Body");
@@ -448,6 +454,25 @@ test("Fehler: Zeitlimit -> 502", async () => {
   const r = await frage(db(), "Hi", { fetchFn, zeitlimitMs: 20 });
   assert.equal(r.status, 502);
   assert.equal(typeof r.body.fehler, "string");
+});
+
+test("Fehler: Fehler beim Bauen des Kontexts (Katalog kaputt) -> 502 ohne Fehlertext und Schlüssel, kein Modellaufruf, nichts gespeichert", async () => {
+  const sql = db();
+  einheit(sql, "S1", "2026-10-06", [arbeitssatz(10, 60)]);
+  const { fetchFn, calls } = fakeModell();
+  const katalog = async () => {
+    throw new Error(`Katalog kaputt ${KEY}`);
+  };
+  const r = await frage(sql, "Hi", { fetchFn, katalog });
+  assert.equal(r.status, 502);
+  assert.equal(typeof r.body.fehler, "string");
+  assert.ok(!JSON.stringify(r).includes(KEY) && !JSON.stringify(r).includes("Katalog kaputt"));
+  assert.equal(calls.length, 0);
+  assert.equal(alleOpsVon(sql, "ahmed", "coach.nachricht").length, 0);
+
+  einstellung(sql, "coach.morgen", "1");
+  const m = await morgen(sql, { fetchFn, katalog });
+  assert.equal(m.gesendet, false, "Morgen-Nachricht wirft nicht, der Tag ist markiert");
 });
 
 test("Fehler: unvollständige, leere oder verweigerte Antwort -> 502, nichts gespeichert", async () => {

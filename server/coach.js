@@ -310,7 +310,12 @@ function textAus(antwort) {
 
 /** Ruft das Modell. Gibt { text } oder { fehler: {status, body, grund} } zurück; nie Roh-Antwort, nie der Schlüssel. */
 async function modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage }) {
-  const kontext = await coachKontext(sql, person, jetztMs, { katalog });
+  let kontext;
+  try {
+    kontext = await coachKontext(sql, person, jetztMs, { katalog });
+  } catch {
+    return { fehler: fehler(502, "Der Coach konnte deine Daten gerade nicht lesen.", "kontext") }; // nie err.message: kann Daten enthalten
+  }
   const anfrage = {
     model: env.COACH_MODELL || STANDARD_MODELL,
     instructions: `${ANWEISUNG}\n\nKONTEXT\n${JSON.stringify(kontext)}`,
