@@ -18,6 +18,8 @@ final class AppNavigation {
     /// Switch tab from anywhere ("home", "chat", "drawing", "health", "profile"); AppRootView clears it.
     /// "training", "koerper", "verlauf" open Health and that page (`healthSeite`).
     var tabWunsch: String?
+    /// Nach einem Wisch: Startversatz, mit dem der neue Tab hereinfedert (siehe `TabWischGeste`).
+    var wischEinflug: CGFloat?
     /// Page inside Health to open ("training", "koerper", "verlauf"); the Health tab clears it.
     var healthSeite: String?
     /// Live Activity, Mahlzeiten-Zeile angetippt: `Mahlzeit.rawValue` aus `lovea://essen?mahlzeit=…`.
@@ -94,7 +96,7 @@ struct AppRootView: View {
             } else if tab != .zurueck {
                 // R6: animiert wie bei Snapchat/Instagram, auch wenn der Wunsch von einem
                 // Deep-Link statt der Wisch-Geste kommt — stört dort nicht.
-                withAnimation(Feder.weich) { selectedTab = tab }
+                withAnimation(Feder.wisch) { selectedTab = tab }
             }
         }
         // audit-chat #2: voice round (app-wide voice playback outside the conversation) and the
