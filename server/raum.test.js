@@ -753,3 +753,157 @@ test("POST /ops?push=1: Herz aus dem Widget löst eine Push aus, ohne push=1 ode
     globalThis.fetch = echterFetch;
   }
 });
+
+// --- Health-Coach (POST /coach/frage, Morgen-Nachricht) ------------------------------------------------------
+
+const JETZT_MORGEN = Date.parse("2026-10-12T06:30:00.000Z"); // 08:30 Berlin (Sommerzeit)
+const coachAntwortJson = (text) => Response.json({ status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text }] }] });
+const raumMitCoach = (personen, env = { OPENAI_API_KEY: "sk-test-nicht-echt" }) => {
+  const ctx = fakeCtx();
+  const raum = new Raum(ctx, { ...fakeEnv(), ...env });
+  const websockets = {};
+  for (const person of personen) {
+    websockets[person] = new FakeWs();
+    ctx.acceptWebSocket(websockets[person], [person]);
+  }
+  return { raum, ctx, websockets };
+};
+const coachFrage = (raum, person, body) =>
+  raum.fetch(new Request("https://x/coach/frage", {
+    method: "POST",
+    headers: { "content-type": "application/json", "X-Lovea-Person": person },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  }));
+const mitFetch = async (fn, lauf) => {
+  const echter = globalThis.fetch;
+  globalThis.fetch = fn;
+  try { return await lauf(); } finally { globalThis.fetch = echter; }
+};
+const coachOpsVon = (ws) => ws.gesendet.filter((m) => m.t === "ops").flatMap((m) => m.ops).filter((o) => o.art === "coach.nachricht");
+
+test("POST /coach/frage: ohne OPENAI_API_KEY 503 nicht eingerichtet, kein Netzaufruf", async () => {
+  const { raum } = raumMitCoach(["ahmed"], {});
+  let aufrufe = 0;
+  const res = await mitFetch(async () => { aufrufe++; return coachAntwortJson("x"); }, () => coachFrage(raum, "ahmed", { text: "Hallo" }));
+  assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { fehler: "nicht eingerichtet" });
+  assert.equal(aufrufe, 0);
+});
+
+test("POST /coach/frage: kaputtes JSON, fehlender Text und unbekannte Person werden abgelehnt", async () => {
+  const { raum } = raumMitCoach(["ahmed"]);
+  assert.equal((await coachFrage(raum, "ahmed", "{kaputt")).status, 400);
+  assert.equal((await coachFrage(raum, "ahmed", {})).status, 400, "Text fehlt");
+  assert.equal((await coachFrage(raum, "fremd", { text: "Hi" })).status, 400);
+});
+
+test("POST /coach/frage: 200 mit Antwort, Frage und Antwort nur an die eigenen Geräte, nie an den Partner", async () => {
+  const { raum, ctx, websockets } = raumMitCoach(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "ahmed");
+  const res = await mitFetch(async () => coachAntwortJson("Steigere das Gewicht um 2,5 kg."), () => coachFrage(raum, "ahmed", { text: "Wie trainiere ich Brust?" }));
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { text: "Steigere das Gewicht um 2,5 kg." });
+
+  assert.deepEqual(coachOpsVon(ipad).map((o) => o.d.rolle), ["du", "coach"], "zweites Gerät der Person bekommt beide live");
+  assert.deepEqual(coachOpsVon(websockets.ahmed).map((o) => o.d.rolle), ["du", "coach"]);
+  assert.equal(coachOpsVon(websockets.annika).length, 0, "Partner bekommt nichts live");
+
+  // Nachholen: die Person sieht den Verlauf, der Partner nicht.
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "nachholen", seit: 0 }));
+  assert.equal(coachOpsVon(websockets.annika).length, 0, "Partner sieht den Coach-Verlauf auch beim Nachholen nicht");
+  const vorher = coachOpsVon(websockets.ahmed).length;
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "nachholen", seit: 0 }));
+  assert.equal(coachOpsVon(websockets.ahmed).length, vorher + 2, "eigenes Nachholen liefert den Verlauf");
+});
+
+test("POST /coach/frage: Tageslimit 30 Aufrufe, danach 429", async () => {
+  const { raum } = raumMitCoach(["ahmed"]);
+  const echtesNow = Date.now;
+  Date.now = () => JETZT_MORGEN; // fester Tag, sonst könnte die Mitternachtsgrenze den Zähler mitten im Test zurücksetzen
+  try {
+    const letzte = await mitFetch(async () => coachAntwortJson("ok"), async () => {
+      for (let i = 0; i < 30; i++) assert.equal((await coachFrage(raum, "ahmed", { text: `Frage ${i}` })).status, 200);
+      return coachFrage(raum, "ahmed", { text: "noch eine" });
+    });
+    assert.equal(letzte.status, 429);
+  } finally {
+    Date.now = echtesNow;
+  }
+});
+
+test("POST /coach/frage: Modellfehler wird 502 ohne Rohantwort und ohne Schlüssel", async () => {
+  const { raum } = raumMitCoach(["ahmed"]);
+  const res = await mitFetch(async () => new Response("GEHEIME-ROHANTWORT sk-test-nicht-echt", { status: 500 }), () => coachFrage(raum, "ahmed", { text: "Hallo" }));
+  assert.equal(res.status, 502);
+  const text = await res.text();
+  assert.ok(!text.includes("GEHEIME-ROHANTWORT") && !text.includes("sk-test-nicht-echt"));
+});
+
+async function morgenLauf(env, { optIn = ["ahmed"], zeitMs = JETZT_MORGEN } = {}) {
+  const { raum, ctx, websockets } = raumMitCoach(["ahmed", "annika"], env);
+  const modell = [];
+  const pushes = [];
+  const echtesNow = Date.now;
+  const token = { ahmed: "a".repeat(64), annika: "b".repeat(64) };
+  try {
+    Date.now = () => zeitMs;
+    for (const person of ["ahmed", "annika"]) await raum.webSocketMessage(websockets[person], JSON.stringify({ t: "geraet", token: token[person] }));
+    for (const person of optIn) await raum.webSocketMessage(websockets[person], opNachricht(`opt-${person}`, "einstellung.setzen", person, { schluessel: "coach.morgen", wert: "1" }));
+    // Jede Nachricht zählt als Lebenszeichen -- erst danach die Sockets "tot" setzen, sonst geht keine Push raus.
+    for (const person of ["ahmed", "annika"]) websockets[person].serializeAttachment({ letzterKontakt: zeitMs - 61_000, token: token[person] });
+    await mitFetch(async (url, init) => {
+      if (String(url).includes("api.openai.com")) { modell.push(JSON.parse(init.body)); return coachAntwortJson("Guten Morgen, dein Bericht."); }
+      pushes.push({ url: String(url), body: JSON.parse(init.body) });
+      return new Response(null, { status: 200 });
+    }, async () => {
+      await raum.alarm();
+      await raum.alarm(); // zweiter Lauf am selben Tag: nichts mehr
+    });
+  } finally {
+    Date.now = echtesNow;
+  }
+  return { raum, ctx, websockets, modell, pushes };
+}
+
+test("Morgen-Nachricht: mit Opt-in und Schlüssel genau eine, Push ohne Inhalt nur an die Person, Op nur an ihre Geräte", async () => {
+  const { websockets, modell, pushes } = await morgenLauf({ OPENAI_API_KEY: "sk-test-nicht-echt" });
+  assert.equal(modell.length, 1, "ein Modellaufruf, einmal je Person und Tag");
+  const coachPushes = pushes.filter((p) => p.body.art === "coach.nachricht");
+  assert.equal(coachPushes.length, 1);
+  assert.ok(coachPushes[0].url.endsWith("a".repeat(64)), "nur Ahmeds Gerät");
+  assert.equal(coachPushes[0].body.aps.alert.body, "Dein Coach hat geschrieben");
+  assert.ok(!JSON.stringify(coachPushes[0].body).includes("Guten Morgen"), "kein Coach-Text in der Push");
+  assert.deepEqual(coachOpsVon(websockets.ahmed).map((o) => o.d.text), ["Guten Morgen, dein Bericht."]);
+  assert.equal(coachOpsVon(websockets.annika).length, 0);
+});
+
+test("Morgen-Nachricht: ohne Opt-in oder ohne Schlüssel kein Modellaufruf und keine Push", async () => {
+  const ohneOptIn = await morgenLauf({ OPENAI_API_KEY: "sk-test-nicht-echt" }, { optIn: [] });
+  assert.equal(ohneOptIn.modell.length, 0);
+  assert.ok(!ohneOptIn.pushes.some((p) => p.body.art === "coach.nachricht"));
+  const ohneSchluessel = await morgenLauf({}, { optIn: ["ahmed"] });
+  assert.equal(ohneSchluessel.modell.length, 0);
+  assert.ok(!ohneSchluessel.pushes.some((p) => p.body.art === "coach.nachricht"));
+});
+
+test("Morgen-Nachricht: mitteilungen.coach = false unterdrückt die Push, die Nachricht liegt trotzdem im Chat", async () => {
+  const { raum, websockets } = raumMitCoach(["ahmed"]);
+  const pushes = [];
+  const echtesNow = Date.now;
+  try {
+    Date.now = () => JETZT_MORGEN;
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "geraet", token: "a".repeat(64) }));
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("o1", "einstellung.setzen", "ahmed", { schluessel: "coach.morgen", wert: "1" }));
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("o2", "einstellung.setzen", "ahmed", { schluessel: "mitteilungen.coach", wert: false }));
+    websockets.ahmed.serializeAttachment({ letzterKontakt: JETZT_MORGEN - 61_000, token: "a".repeat(64) }); // "tot": ohne die Einstellung ginge eine Push raus
+    await mitFetch(async (url, init) => {
+      if (String(url).includes("api.openai.com")) return coachAntwortJson("Guten Morgen.");
+      pushes.push(JSON.parse(init.body));
+      return new Response(null, { status: 200 });
+    }, () => raum.alarm());
+  } finally {
+    Date.now = echtesNow;
+  }
+  assert.ok(!pushes.some((b) => b.art === "coach.nachricht"));
+  assert.ok(coachOpsVon(websockets.ahmed).length === 1);
+});

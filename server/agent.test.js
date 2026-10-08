@@ -78,6 +78,27 @@ test("Ops zeigt private Arten der anderen Person nicht", () => {
   assert.deepEqual(agentOps(sql, {}, "ahmed").ops.map((o) => o.seq), [3]);
 });
 
+test("Coach: coach.nachricht der anderen Person bleibt unsichtbar -- Ops, Statistik und Merker", () => {
+  const sql = raumMit([
+    { art: "coach.nachricht", von: "annika", d: { rolle: "du", text: "GEHEIM-COACH", tag: "2026-10-08" } },
+    { art: "coach.nachricht", von: "ahmed", d: { rolle: "du", text: "meine Frage", tag: "2026-10-08" } },
+    { art: "nachricht.neu", von: "annika", d: { text: "offen" } },
+  ]);
+  assert.deepEqual(agentOps(sql, {}, "ahmed").ops.map((o) => o.seq), [3, 2]);
+  assert.deepEqual(agentOps(sql, { art: "coach.", von: "annika" }, "ahmed").ops, []);
+  assert.deepEqual(agentOps(sql, { suche: "GEHEIM-COACH" }, "ahmed").ops, []);
+  assert.deepEqual(agentOps(sql, { art: "coach." }, "annika").ops.map((o) => o.seq), [1]);
+  merkerSchreiben(sql, "coach.nutzung.annika.2026-10-08", "3");
+  merkerSchreiben(sql, "alarm.coachMorgen.annika.2026-10-08", "2026-10-08T06:00:00Z");
+  merkerSchreiben(sql, "alarm.vorabend", "2026-10-07");
+  const s = agentStatistik(sql);
+  assert.ok(!s.ops.jeArt.some((r) => r.art.startsWith("coach.")), "keine Coach-Zeile in der Statistik");
+  assert.deepEqual(s.merker, ["alarm.vorabend"]);
+  assert.deepEqual(agentMerker(sql, "coach.nutzung.annika.2026-10-08"), { fehler: "gesperrt" });
+  assert.deepEqual(agentMerker(sql, "alarm.coachMorgen.annika.2026-10-08"), { fehler: "gesperrt" });
+  assert.equal(agentMerker(sql, "alarm.vorabend").wert, "2026-10-07");
+});
+
 test("Limit wird auf 1 bis 200 geklemmt", () => {
   const sql = raumMit(Array.from({ length: 3 }, () => ({ art: "a", von: "ahmed", d: {} })));
   assert.equal(agentOps(sql, { limit: 0 }, "ahmed").ops.length, 1);
