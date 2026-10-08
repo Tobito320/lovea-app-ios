@@ -31,7 +31,7 @@ struct ChatNachUnten: Equatable {
 
     /// Partner messages among `neue` that count for the badge (own rows, grey system rows and
     /// deleted or hidden game rows do not).
-    static func vomPartner(_ neue: [ChatModell.Nachricht], ich: Person) -> Int {
+    @MainActor static func vomPartner(_ neue: [ChatModell.Nachricht], ich: Person) -> Int {
         neue.filter { $0.von != ich && $0.system == nil && !$0.geloescht && ChatModell.sichtbar($0) }.count
     }
 
