@@ -205,7 +205,7 @@ struct FigurEditorSeite: View {
     @State private var shopOffen = false
 
     var body: some View {
-        FigurEditor(start: FigurenModell.shared.aussehen(person)) { neu in
+        FigurEditor(start: FigurenModell.shared.aussehen(person), modell: FigurenModell.shared.aussehen(person)) { neu in
             FigurenModell.shared.aussehenSichern(neu.mitShopTeilen(von: FigurenModell.shared.aussehen(person)))
             dismiss()
         }
