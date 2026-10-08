@@ -24,15 +24,18 @@ struct SnapEditor: View {
     var onUebernehmen: ((Data) -> Void)? = nil
     /// X button. Defaults to `onFertig`; the camera flow uses it to go back to the camera (Snapchat).
     var onVerwerfen: (() -> Void)? = nil
+    /// Filter picked on the camera screen; applied once when the editor opens.
+    var startFilter: SnapFilter = .original
 
-    struct SnapText { var text = ""; var y: CGFloat = 0.5; var skala: CGFloat = 1 }
+    struct SnapText { var text = ""; var x: CGFloat = 0.5; var y: CGFloat = 0.5; var skala: CGFloat = 1 }
     struct SnapSticker: Identifiable { let id = UUID(); let bild: UIImage; var x: CGFloat = 0.5; var y: CGFloat = 0.5 }
     struct SnapLinie { var punkte: [CGPoint]; var farbe: Color } // `punkte` are fractions too
 
     @State private var text = SnapText()
     @State private var textBearbeitenOffen = false
     @State private var textZiehtGerade = false
-    @State private var textYStart: CGFloat = 0.5
+    @State private var textStart: CGPoint = CGPoint(x: 0.5, y: 0.5)
+    @FocusState private var textFokus: Bool
     @State private var textSkaliertGerade = false
     @State private var textSkalaStart: CGFloat = 1
 
@@ -107,6 +110,10 @@ struct SnapEditor: View {
             NavigationStack {
                 TextField("Text", text: $text.text)
                     .textFieldStyle(.roundedBorder)
+                    .focused($textFokus)
+                    .submitLabel(.done)
+                    .onSubmit { textBearbeitenOffen = false }
+                    .onAppear { textFokus = true }
                     .padding()
                     .navigationTitle("Text")
                     .navigationBarTitleDisplayMode(.inline)
@@ -116,6 +123,11 @@ struct SnapEditor: View {
         }
         .task {
             if case .video(let url) = inhalt { videoSpieler = AVPlayer(url: url) }
+            if filterAn, startFilter != .original {
+                ausgewaehlterFilter = startFilter
+                ausgewaehlterFilterID = startFilter
+                vorschauAktualisieren(fuer: startFilter)
+            }
             await aspektErmitteln()
             await thumbnailsErzeugen()
         }
@@ -185,7 +197,7 @@ struct SnapEditor: View {
                 .foregroundStyle(.white)
                 .shadow(radius: 3)
                 .scaleEffect(text.skala)
-                .position(x: groesse.width / 2, y: text.y * groesse.height)
+                .position(x: text.x * groesse.width, y: text.y * groesse.height)
                 .highPriorityGesture(textDragGeste(groesse: groesse))
                 .simultaneousGesture(textSkaliergeste)
                 .onTapGesture { textBearbeitenOffen = true }
@@ -222,9 +234,22 @@ struct SnapEditor: View {
                     aktuelleLinie = []
                     return
                 }
+                if SnapTextPlatz.istTippen(wert.translation) {
+                    textPlatzieren(bei: wert.location, groesse: groesse)
+                    return
+                }
                 guard filterAn, abs(wert.translation.width) > 40, abs(wert.translation.width) > abs(wert.translation.height) else { return }
                 filterWechseln(vorwaerts: wert.translation.width < 0)
             }
+    }
+
+    /// Tap on the photo: the text goes there and opens for typing (one text, a second tap moves it).
+    private func textPlatzieren(bei punkt: CGPoint, groesse: CGSize) {
+        let ort = SnapTextPlatz.bruchteil(punkt: punkt, groesse: groesse)
+        text.x = ort.x
+        text.y = ort.y
+        UISelectionFeedbackGenerator().selectionChanged()
+        textBearbeitenOffen = true
     }
 
     /// Filter aus (Einstellungen): immer das Original, egal was vorher gewählt war.
@@ -256,12 +281,15 @@ struct SnapEditor: View {
             .onEnded { _ in ziehendeStickerID = nil }
     }
 
-    /// Text bar: vertical drag only (Snapchat style), plus pinch to scale.
+    /// Text: drag anywhere on the photo, plus pinch to scale.
     private func textDragGeste(groesse: CGSize) -> some Gesture {
         DragGesture()
             .onChanged { wert in
-                if !textZiehtGerade { textZiehtGerade = true; textYStart = text.y }
-                text.y = min(max(0.1, textYStart + wert.translation.height / groesse.height), 0.9)
+                if !textZiehtGerade { textZiehtGerade = true; textStart = CGPoint(x: text.x, y: text.y) }
+                let ort = SnapTextPlatz.begrenzt(x: textStart.x + wert.translation.width / groesse.width,
+                                                 y: textStart.y + wert.translation.height / groesse.height)
+                text.x = ort.x
+                text.y = ort.y
             }
             .onEnded { _ in textZiehtGerade = false }
     }
@@ -277,23 +305,24 @@ struct SnapEditor: View {
 
     // MARK: - Chrome
 
+    /// X left, tool column right; the colour strip hangs under the top bar while doodling.
     private var obereLeiste: some View {
-        HStack {
-            Button { UIImpactFeedbackGenerator(style: .light).impactOccurred(); (onVerwerfen ?? onFertig)() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                .accessibilityLabel(onVerwerfen == nil ? "Abbrechen" : "Verwerfen")
+        HStack(alignment: .top) {
+            Button { Haptik.leicht(); (onVerwerfen ?? onFertig)() } label: {
+                Image(systemName: "xmark").font(.body.weight(.semibold)).foregroundStyle(.white).frame(width: 44, height: 44)
+            }
+            .glassEffect(.regular.tint(Color.black.opacity(0.3)).interactive(), in: .circle)
+            .accessibilityLabel(onVerwerfen == nil ? "Abbrechen" : "Verwerfen")
             Spacer()
-            Button { textBearbeitenOffen = true } label: { Image(systemName: "textformat").frame(width: 44, height: 44) }
-                .accessibilityLabel("Text hinzufügen")
-            Button { zeichnenAktiv.toggle() } label: { Image(systemName: zeichnenAktiv ? "pencil.circle.fill" : "pencil.circle").frame(width: 44, height: 44) }
-                .accessibilityLabel("Kritzeln")
-                .accessibilityValue(zeichnenAktiv ? "an" : "aus")
-            Button { stickerBlattOffen = true } label: { Image(systemName: "face.smiling").frame(width: 44, height: 44) }
-                .accessibilityLabel("Sticker hinzufügen")
+            SnapEditorWerkzeuge(
+                zeichnenAktiv: zeichnenAktiv,
+                onText: { textBearbeitenOffen = true },
+                onKritzeln: { zeichnenAktiv.toggle() },
+                onSticker: { stickerBlattOffen = true }
+            )
         }
-        .font(.title2)
-        .foregroundStyle(.white)
-        .shadow(color: .black.opacity(0.5), radius: 3) // stays readable over a bright photo
-        .padding()
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
     }
 
     private static let doodleFarbNamen = ["Weiß", "Schwarz", "Rosé", "Gelb", "Grün", "Blau"] // same order as `doodleFarben`
@@ -493,30 +522,12 @@ struct SnapEditor: View {
     }
 
     private var untereLeiste: some View {
-        HStack {
-            if onUebernehmen == nil {
-                Toggle("bleibt im Chat", isOn: $bleibt)
-                    .toggleStyle(.switch)
-                    .tint(Color.loveaRose)
-                    .fixedSize()
-                    .foregroundStyle(.white)
-            }
-
-            Spacer()
-
-            Button { senden() } label: {
-                if sendetGerade {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: onUebernehmen == nil ? "arrow.up.circle.fill" : "checkmark.circle.fill")
-                        .font(.system(size: 40)).foregroundStyle(.white)
-                }
-            }
-            .disabled(sendetGerade)
-            .accessibilityLabel(onUebernehmen == nil ? "Senden" : "Übernehmen")
-        }
-        .padding()
-        .background(.black.opacity(0.35))
+        SnapSendenLeiste(
+            bleibt: onUebernehmen == nil ? $bleibt : nil,
+            sendetGerade: sendetGerade,
+            tray: onUebernehmen != nil,
+            onSenden: senden
+        )
     }
 
     // MARK: - Send (Z-6.2: flatten, then reuse Block 5's upload helpers)
@@ -527,7 +538,7 @@ struct SnapEditor: View {
     private func senden() {
         guard !sendetGerade else { return }
         sendetGerade = true
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        Haptik.leicht()
         if let onUebernehmen {
             // ponytail: tray mode edits photos only (videos in the tray aren't editable yet).
             guard case .foto(let bild) = inhalt else { onFertig(); return }

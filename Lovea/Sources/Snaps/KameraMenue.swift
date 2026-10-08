@@ -48,10 +48,13 @@ struct KameraSeitenMenu: View {
     @Binding var rasterAn: Bool
     @Binding var freihandAn: Bool
     @Binding var multiSnapAn: Bool
+    @Binding var filterOffen: Bool
+    /// A filter other than Original is picked: the button lights up.
+    let filterGewaehlt: Bool
     let nimmtVideoAuf: Bool
 
     var body: some View {
-        VStack(spacing: 18) {
+        VStack(spacing: 6) {
             knopf("arrow.triangle.2.circlepath.camera") { onWechseln() }
                 .accessibilityLabel("Kamera wechseln")
                 .disabled(nimmtVideoAuf)
@@ -60,6 +63,14 @@ struct KameraSeitenMenu: View {
                 .foregroundStyle(steuerung.blitzAn ? .yellow : .white)
                 .accessibilityLabel("Blitz")
                 .accessibilityValue(steuerung.blitzAn ? "an" : "aus")
+
+            knopf("camera.filters") {
+                Haptik.auswahl()
+                withAnimation(Feder.schnell) { filterOffen.toggle() }
+            }
+            .foregroundStyle(filterGewaehlt || filterOffen ? Color.loveaRose : .white)
+            .accessibilityLabel("Filter")
+            .accessibilityValue(filterGewaehlt ? "gewählt" : "Original")
 
             if erweitert {
                 zeile(label: timer.label, symbol: "timer") { timer = timer.naechster }
@@ -85,8 +96,10 @@ struct KameraSeitenMenu: View {
         }
         .font(.title3)
         .foregroundStyle(.white)
-        .shadow(color: .black.opacity(0.5), radius: 3)
-        .padding(.trailing, 14)
+        .padding(.vertical, 6)
+        .padding(.horizontal, erweitert ? 10 : 0)
+        .glassEffect(.regular.tint(Color.black.opacity(0.3)), in: .rect(cornerRadius: 26))
+        .padding(.trailing, 12)
     }
 
     private func knopf(_ symbol: String, aktion: @escaping () -> Void) -> some View {

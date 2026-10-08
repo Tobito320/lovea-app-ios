@@ -200,7 +200,7 @@ private struct SnapUeberlagerung: View {
                     .foregroundStyle(.white)
                     .shadow(radius: 3)
                     .scaleEffect(text.skala)
-                    .position(x: groesse.width / 2, y: text.y * groesse.height)
+                    .position(x: text.x * groesse.width, y: text.y * groesse.height)
             }
         }
         .frame(width: groesse.width, height: groesse.height)
