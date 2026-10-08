@@ -27,6 +27,9 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
     /// Starts in the middle (living), where the sofa and the TV are.
     @State private var position = ScrollPosition(edge: .leading)
     @State private var zone = ProfilZone.wohn
+    /// The start position is set once. `.task` runs again whenever the profile comes back (a pushed page
+    /// closes, the tab is chosen again) and would swing the panorama back to the middle each time.
+    @State private var gestartet = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(wahl: ZimmerWahl, breite: CGFloat, hoehe: CGFloat, @ViewBuilder welt: () -> Welt, @ViewBuilder schwebend: () -> Schwebend) {
@@ -36,9 +39,6 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         self.welt = welt()
         self.schwebend = schwebend()
     }
-
-    /// Height of the zone tabs under the scene.
-    static var leistenHoehe: CGFloat { 36 }
 
     var body: some View {
         let k = ProfilPanoramaLayout.massstab(breite: breite)
@@ -70,7 +70,11 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
                 if abs(wert.translation.width) > abs(wert.translation.height) { TabWischSperre.shared.beanspruchen() }
             }
         )
-        .task { position.scrollTo(x: ProfilSlots.anker(.wohn) * k) }
+        .task {
+            guard !gestartet else { return }
+            gestartet = true
+            position.scrollTo(x: ProfilSlots.anker(.wohn) * k)
+        }
         .background(FigurFarbe(wahl.teil(.wand).farbe).farbe)
         .overlay(alignment: .top) { schwebend }
         .frame(width: breite, height: hoehe)
@@ -92,26 +96,7 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
     // MARK: Zone tabs
 
     private func zonenLeiste(_ k: CGFloat) -> some View {
-        HStack(spacing: 6) {
-            ForEach(ProfilZone.allCases, id: \.self) { z in
-                let aktiv = z == zone
-                Button { gehe(z, k) } label: {
-                    Text(z.titel)
-                        .font(.footnote.weight(.semibold))
-                        .foregroundStyle(aktiv ? Color.loveaRose : .secondary)
-                        .padding(.horizontal, 14)
-                        .frame(height: 28)
-                        .background(aktiv ? Color.loveaRose.opacity(0.16) : .clear, in: Capsule())
-                        // 28 pt to look at, 44 pt to hit.
-                        .contentShape(Rectangle().inset(by: -8))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(z.titel)
-                .accessibilityAddTraits(aktiv ? [.isButton, .isSelected] : .isButton)
-            }
-        }
-        .frame(maxWidth: .infinity)
-        .frame(height: Self.leistenHoehe)
+        ProfilZonenLeiste(zone: zone) { gehe($0, k) }
     }
 
     private func gehe(_ z: ProfilZone, _ k: CGFloat) {

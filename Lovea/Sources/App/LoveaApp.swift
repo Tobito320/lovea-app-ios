@@ -110,6 +110,7 @@ struct LoveaApp: App {
         StartProtokoll.marke("modelle.falten.nach")
         StartProtokoll.marke("raum.start.vor")
         Raum.shared.start()
+        AppKann.shared.melden()
         StartProtokoll.marke("raum.start.nach")
         Standort.shared.start()
         // Z-28.2/Z-28.3: wartende Gym-Ops aus den Widgets abholen.

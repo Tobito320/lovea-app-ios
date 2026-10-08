@@ -147,15 +147,8 @@ final class ProfilSlotsTests: XCTestCase {
         XCTAssertEqual(ProfilWelt.panorama.breite, S.weltBreite)
     }
 
-    func testSzeneHoehePasstOhneZiehenAufDreiGeraete() {
-        // (Breite, Hoehe, oberer Rand, Tab-Leiste) in pt.
-        let geraete: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [(375, 667, 20, 49), (390, 844, 47, 83), (430, 932, 59, 83)]
-        for (b, h, oben, tab) in geraete {
-            let szene = ProfilPanoramaLayout.szeneHoehe(breite: b)
-            XCTAssertLessThanOrEqual(oben + szene + tab + ProfilPanoramaLayout.untenMinimum, h, "\(b) x \(h)")
-            XCTAssertGreaterThan(szene, 300, "\(b) x \(h)")
-        }
-    }
+    // p69: the old test here added up scene, tab bar and a "room below" for three phones, but left the zone
+    // strip and the iPad out of the sum; it moved to ProfilLayoutTests with the strip, more devices and a fallback.
 
     func testSzeneHoeheFolgtDerBreite() {
         XCTAssertEqual(ProfilPanoramaLayout.szeneHoehe(breite: 390), 430, accuracy: 0.001)
