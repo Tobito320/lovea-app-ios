@@ -12,7 +12,7 @@ struct ZimmerSammlungEbene: View {
     static let wunschrolleRect = CGRect(x: 318, y: 6, width: 34, height: 44)
     static let regenbogenRect = CGRect(x: 676, y: 22, width: 84, height: 48)
     static let massRect = CGRect(x: 748, y: 178, width: 16, height: 84)
-    static let rezeptRect = CGRect(x: 570, y: 372, width: 40, height: 30)
+    static let rezeptRect = CGRect(x: 852, y: 374, width: 40, height: 30)
     static let baumRect = CGRect(x: 806, y: 290, width: 44, height: 64)
     static let alleRects: [CGRect] = [kassetteRect, wunschrolleRect, regenbogenRect, massRect, rezeptRect, baumRect]
 
