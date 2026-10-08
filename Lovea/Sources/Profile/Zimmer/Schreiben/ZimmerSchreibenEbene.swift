@@ -173,15 +173,18 @@ struct ZimmerSchreibenEbene: View {
         .position(x: x * s, y: oben + y * s)
     }
 
-    /// Ein einziger langer Lauf (kein Takt). Läuft nur, solange ein Brief fliegt und die Szene zu sehen ist.
+    /// Ein Flug alle 20 s (kein Takt). Läuft nur, solange ein Brief fliegt und die Szene zu sehen ist; endet mit der Aufgabe.
     private func fliegen() async {
         var aus = Transaction()
         aus.disablesAnimations = true
-        withTransaction(aus) { flugX = 0 }
-        guard fliegt, sichtbar, !reduceMotion else { return }
-        try? await Task.sleep(for: .seconds(1))
-        guard !Task.isCancelled else { return }
-        withAnimation(.linear(duration: 18).repeatForever(autoreverses: false)) { flugX = 1 }
+        while !Task.isCancelled {
+            withTransaction(aus) { flugX = 0 }
+            guard fliegt, sichtbar, !reduceMotion else { return }
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            withAnimation(.linear(duration: 18)) { flugX = 1 }
+            try? await Task.sleep(for: .seconds(19))
+        }
     }
 }
 

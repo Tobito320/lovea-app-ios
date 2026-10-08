@@ -266,7 +266,7 @@ struct ZimmerObjekteEbene: View {
             }
             .overlay(alignment: .topLeading) {
                 if let start = konfettiStart {
-                    TimelineView(.animation) { zeit in
+                    TimelineView(.animation(minimumInterval: 1.0 / 30, paused: reduceMotion)) { zeit in
                         let phase = min(max(zeit.date.timeIntervalSince(start) / 2.5, 0), 1)
                         bild(ZimmerObjekteZeichnung.kalenderRaster, breite: 42, s, { ZimmerObjekteZeichnung.konfetti($0, phase: phase) })
                     }

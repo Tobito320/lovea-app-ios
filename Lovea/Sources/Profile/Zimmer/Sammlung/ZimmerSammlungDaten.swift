@@ -73,8 +73,7 @@ enum ZimmerSammlungDaten {
         guard lang > 0 else { return nil }
         let faktor = min(1, 72 / lang)
         let groesse = CGSize(width: bild.size.width * faktor, height: bild.size.height * faktor)
-        let klein = UIGraphicsImageRenderer(size: groesse).image { _ in bild.draw(in: CGRect(origin: .zero, size: groesse)) }
-        return klein.jpegData(compressionQuality: 0.5)
+        return (bild.preparingThumbnail(of: groesse) ?? bild).jpegData(compressionQuality: 0.5)
     }
 
     // MARK: Wunschrolle
