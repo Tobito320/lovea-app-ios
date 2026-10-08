@@ -76,4 +76,33 @@ final class GewichtLogikTests: XCTestCase {
         XCTAssertTrue(GewichtLogik.mittelReihe([:]).isEmpty)
         XCTAssertTrue(GewichtLogik.mittelReihe(["2026-09-27": 0]).isEmpty)
     }
+
+    // MARK: Tageslog
+
+    func testLogIstEinEintragJeTagNeuesterZuerst() {
+        let log = GewichtLogik.log(["2026-09-20": 800, "2026-09-27": 785, "2026-09-24": 790, "2026-09-25": 0])
+        XCTAssertEqual(log.map(\.tag), ["2026-09-27", "2026-09-24", "2026-09-20"])
+        XCTAssertEqual(log.map(\.zehntel), [785, 790, 800])
+    }
+
+    func testStartFeldNimmtWertDesTages() {
+        let werte = ["2026-09-20": 800, "2026-09-24": 790, "2026-09-27": 785]
+        XCTAssertEqual(GewichtLogik.startFeld(werte, tag: "2026-09-24"), "79,0")
+    }
+
+    func testStartFeldOhneEintragNimmtLetztenDavor() {
+        let werte = ["2026-09-20": 800, "2026-09-27": 785]
+        XCTAssertEqual(GewichtLogik.startFeld(werte, tag: "2026-09-23"), "80,0")
+        // Vor dem ersten Eintrag: der letzte ueberhaupt.
+        XCTAssertEqual(GewichtLogik.startFeld(werte, tag: "2026-09-01"), "78,5")
+        XCTAssertEqual(GewichtLogik.startFeld([:], tag: "2026-09-01"), "")
+    }
+
+    func testEintragNachtragenAendertNurDiesenTag() {
+        var werte = ["2026-09-20": 800, "2026-09-27": 785]
+        werte["2026-09-23"] = 795
+        XCTAssertEqual(GewichtLogik.log(werte).map(\.tag), ["2026-09-27", "2026-09-23", "2026-09-20"])
+        werte["2026-09-20"] = 0
+        XCTAssertEqual(GewichtLogik.log(werte).map(\.tag), ["2026-09-27", "2026-09-23"])
+    }
 }

@@ -1,20 +1,30 @@
 import Charts
 import SwiftUI
 
-/// Gewicht eintragen. Oben der letzte Wert groß mit der Änderung zur Messung davor, dann das Feld (mit dem letzten
+/// Gewicht eintragen, ein Eintrag je Tag. Mit `tagWaehlbar` wählt man den Tag (nie in der Zukunft) und ändert oder
+/// löscht den Eintrag dieses Tages; unten steht der Tageslog. Oben der letzte Wert groß mit der Änderung zur Messung davor, dann das Feld (mit dem letzten
 /// Wert vorbelegt) mit Plus und Minus in 0,1 kg, unten die Kurve. "78,4" wird als 784 Zehntel-kg gespeichert
 /// (`GewichtText`). Akku: kein Timer und kein Netz, Halten wiederholt der Button selbst.
 struct GewichtBlatt: View {
     let werte: [String: Int]
-    let speichern: (Int) -> Void
+    let tagWaehlbar: Bool
+    let speichern: (String, Int) -> Void
+    @State private var tag: String
     @State private var text: String
     @Environment(\.dismiss) private var dismiss
     @FocusState private var fokus: Bool
 
+    /// Nur heute (Heute-Kachel).
     init(werte: [String: Int], speichern: @escaping (Int) -> Void) {
+        self.init(werte: werte, tag: Datum.text(Date()), tagWaehlbar: false) { speichern($1) }
+    }
+
+    init(werte: [String: Int], tag: String, tagWaehlbar: Bool, speichern: @escaping (String, Int) -> Void) {
         self.werte = werte
+        self.tagWaehlbar = tagWaehlbar
         self.speichern = speichern
-        _text = State(initialValue: MessLogik.punkte(werte).last.map { GewichtText.feld($0.zehntel) } ?? "")
+        _tag = State(initialValue: tag)
+        _text = State(initialValue: GewichtLogik.startFeld(werte, tag: tag))
     }
 
     private var zehntel: Int? { GewichtText.zehntel(text) }
@@ -25,8 +35,11 @@ struct GewichtBlatt: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     if let letzter = punkte.last { stand(letzter) }
+                    if tagWaehlbar { tagWahl }
                     eingabe
+                    if (werte[tag] ?? 0) > 0 { loeschenKnopf }
                     if punkte.count > 1 { kurve(punkte) }
+                    if tagWaehlbar, !punkte.isEmpty { log }
                 }
                 .padding()
             }
@@ -38,7 +51,7 @@ struct GewichtBlatt: View {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Sichern") {
-                        if let zehntel { speichern(zehntel) }
+                        if let zehntel { speichern(tag, zehntel) }
                         dismiss()
                     }
                     .disabled(zehntel == nil)
@@ -60,6 +73,40 @@ struct GewichtBlatt: View {
             Text(Datum.anzeige(letzter.tag)).font(.subheadline).foregroundStyle(.secondary)
         }
         .accessibilityElement(children: .combine)
+    }
+
+    private var tagWahl: some View {
+        DatePicker("Tag", selection: Binding(get: { Datum.datum(tag) }, set: { tag = Datum.text($0) }), in: ...Date(), displayedComponents: .date)
+            .onChange(of: tag) { _, neu in text = GewichtLogik.startFeld(werte, tag: neu) }
+    }
+
+    private var loeschenKnopf: some View {
+        Button("Eintrag vom \(Datum.anzeige(tag)) löschen", role: .destructive) {
+            speichern(tag, 0)
+            dismiss()
+        }
+        .frame(minHeight: 44)
+    }
+
+    /// Tageslog, neueste zuerst; Tippen lädt den Tag ins Feld. Die Kurve darüber zeigt den Verlauf.
+    private var log: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Einträge").font(.headline).padding(.bottom, 8)
+            ForEach(GewichtLogik.log(werte).prefix(30)) { p in
+                Button { tag = p.tag } label: {
+                    HStack {
+                        Text(Datum.anzeige(p.tag)).foregroundStyle(p.tag == tag ? Color.accentColor : Color.primary)
+                        Spacer()
+                        Text(GewichtText.anzeige(p.zehntel)).monospacedDigit().foregroundStyle(.secondary)
+                    }
+                    .frame(minHeight: 44)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(Datum.anzeige(p.tag)), \(GewichtText.anzeige(p.zehntel))")
+                .accessibilityHint("Zum Ändern antippen")
+            }
+        }
     }
 
     private var eingabe: some View {

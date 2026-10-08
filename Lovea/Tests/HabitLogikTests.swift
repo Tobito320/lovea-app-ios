@@ -308,4 +308,28 @@ final class HabitLogikTests: XCTestCase {
         XCTAssertTrue(HabitSymbole.alle.contains(Habit.gym.symbol))
         XCTAssertTrue(HabitSymbole.alle.contains(Habit.wasser.symbol))
     }
+
+    // MARK: - Vergangene Tage nachtragen
+
+    func testUmschaltenHakenSetztEinsUndNimmtZurueck() {
+        let habit = Habit(id: "h-test", name: "Test", symbol: "star.fill", farbe: "amber", zaehlen: false, tagesziel: nil, haeufigkeit: .taeglich, fuer: "ich")
+        XCTAssertEqual(HabitLogik.umgeschaltet(habit, wert: 0, ziel: nil), 1)
+        XCTAssertEqual(HabitLogik.umgeschaltet(habit, wert: 1, ziel: nil), 0)
+    }
+
+    func testUmschaltenZaehlendSetztDasTagesziel() {
+        let habit = Habit(id: "h-test", name: "Test", symbol: "star.fill", farbe: "amber", zaehlen: true, tagesziel: 20, haeufigkeit: .taeglich, fuer: "ich")
+        XCTAssertEqual(HabitLogik.umgeschaltet(habit, wert: 0, ziel: nil), 20)
+        XCTAssertEqual(HabitLogik.umgeschaltet(habit, wert: 5, ziel: nil), 20, "unter dem Ziel: auffuellen")
+        XCTAssertEqual(HabitLogik.umgeschaltet(habit, wert: 20, ziel: nil), 0)
+        XCTAssertEqual(HabitLogik.umgeschaltet(habit, wert: 0, ziel: 8), 8, "eigenes Ziel schlaegt Habit-Ziel")
+    }
+
+    func testNachtragenIstImVerlaufSichtbar() {
+        let habit = Habit(id: "h-test", name: "Test", symbol: "star.fill", farbe: "amber", zaehlen: false, tagesziel: nil, haeufigkeit: .taeglich, fuer: "ich")
+        var werte: [String: Int] = ["2026-09-25": 1, "2026-09-27": 1]
+        XCTAssertEqual(HabitLogik.serie(habit, werte: werte, ziel: nil, heute: "2026-09-27"), 1)
+        werte["2026-09-26"] = HabitLogik.umgeschaltet(habit, wert: 0, ziel: nil)
+        XCTAssertEqual(HabitLogik.serie(habit, werte: werte, ziel: nil, heute: "2026-09-27"), 3)
+    }
 }

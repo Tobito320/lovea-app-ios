@@ -206,6 +206,17 @@ enum GewichtLogik {
         return GewichtText.feld(min(max(zehntel + delta, 1), 9999))
     }
 
+    /// Feldtext beim Öffnen für `tag`: der Wert dieses Tages, sonst die letzte Messung davor, sonst die letzte
+    /// überhaupt, sonst leer. So ändert man einen alten Eintrag oder startet ein Nachtragen nahe am Verlauf.
+    static func startFeld(_ werte: [String: Int], tag: String) -> String {
+        let punkte = MessLogik.punkte(werte)
+        let p = punkte.first { $0.tag == tag } ?? punkte.last { $0.tag < tag } ?? punkte.last
+        return p.map { GewichtText.feld($0.zehntel) } ?? ""
+    }
+
+    /// Der Verlauf als Tageslog: ein Eintrag je Tag, neuester zuerst. Tage ohne Wert (0) fehlen.
+    static func log(_ werte: [String: Int]) -> [MessPunkt] { MessLogik.punkte(werte).reversed() }
+
     /// Letzte Messung minus die Messung davor (Zehntel-kg) und der Tag der Messung davor. Unter zwei Messungen: nil.
     static func aenderung(_ werte: [String: Int]) -> (zehntel: Int, seit: String)? {
         let punkte = MessLogik.punkte(werte)

@@ -95,6 +95,12 @@ enum HabitLogik {
         }
     }
 
+    /// Tap on a past day: done -> cleared (0), open -> done (counting habits: the daily goal, others 1).
+    static func umgeschaltet(_ habit: Habit, wert: Int, ziel: Int?) -> Int {
+        if erledigt(habit, wert: wert, ziel: ziel) { return 0 }
+        return habit.zaehlen ? tagesziel(habit, ziel) : 1
+    }
+
     // MARK: - Intern
 
     private static func tagesziel(_ habit: Habit, _ ziel: Int?) -> Int {
