@@ -23,8 +23,8 @@ struct ZimmerSpielEbene: View {
     private var ich: Person { Raum.shared.ich ?? .ahmed }
     private var heute: String { Datum.text(Date()) }
 
-    /// Pinnwand der Termine: rechts neben der Foto-Pinnwand (`.pinnwand` = 775, 58, 84 x 60).
-    private static let termineBrett = CGRect(x: 865, y: 58, width: 84, height: 60)
+    /// Pinnwand der Termine: oben rechts über der Kleiderstange (frei von Kalender und Herzglas).
+    static let termineBrett = CGRect(x: 877, y: 6, width: 84, height: 60)
 
     var body: some View {
         GeometryReader { geo in

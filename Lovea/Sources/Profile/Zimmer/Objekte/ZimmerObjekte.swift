@@ -42,12 +42,28 @@ struct ZimmerObjekteEbene: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Mitten der Objekte in der Welt (Entwurfseinheiten, y von oben in den 430).
-    private static let briefkastenOrt = CGPoint(x: 34, y: 388)
-    private static let kalenderOrt = CGPoint(x: 911, y: 46)
-    private static let rahmenOrt = CGPoint(x: 710, y: 198)
-    private static let anrufOrt = CGPoint(x: 806, y: 256)
-    private static let glasOrt = CGPoint(x: 918, y: 244)
-    private static let schweinOrt = CGPoint(x: 803, y: 396)
+    static let briefkastenOrt = CGPoint(x: 34, y: 388)
+    static let kalenderOrt = CGPoint(x: 811, y: 28)
+    static let rahmenOrt = CGPoint(x: 710, y: 198)
+    static let anrufOrt = CGPoint(x: 806, y: 256)
+    static let glasOrt = CGPoint(x: 922, y: 384)
+    static let schweinOrt = CGPoint(x: 803, y: 396)
+
+    /// Die sichtbaren Flächen der sechs Objekte (Breite wie gezeichnet, Höhe nach Raster), für `ZimmerPlatzLogik`.
+    static var flaechen: [String: CGRect] {
+        func um(_ m: CGPoint, _ raster: CGSize, breite: CGFloat) -> CGRect {
+            let h = breite * raster.height / raster.width
+            return CGRect(x: m.x - breite / 2, y: m.y - h / 2, width: breite, height: h)
+        }
+        return [
+            "briefkasten": um(briefkastenOrt, ZimmerObjekteZeichnung.briefkastenRaster, breite: 48),
+            "kalender": um(kalenderOrt, ZimmerObjekteZeichnung.kalenderRaster, breite: 42),
+            "rahmen": um(rahmenOrt, ZimmerObjekteZeichnung.rahmenRaster, breite: 64),
+            "anrufbeantworter": um(anrufOrt, ZimmerObjekteZeichnung.anrufRaster, breite: 64),
+            "herzglas": um(glasOrt, ZimmerObjekteZeichnung.glasRaster, breite: 52),
+            "sparschwein": um(schweinOrt, ZimmerObjekteZeichnung.schweinRaster, breite: 56),
+        ]
+    }
 
     private var ich: Person? { Raum.shared.ich }
     private var heute: String { Datum.text(Date()) }
