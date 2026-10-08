@@ -133,7 +133,7 @@ struct FigurEditor: View {
             return person.figurGeschlecht == .m ? liste : liste.filter { $0 != .bart }
         }
 
-        func abschnitte(fuer person: Person) -> [Abschnitt] {
+        func abschnitte(fuer person: Person, eigeneFigur: Bool) -> [Abschnitt] {
             typealias A = FigurAussehen
             let kleidung = A.farben.map { Farbwahl(name: $0.name, farbe: $0.farbe) }
             switch self {
@@ -163,7 +163,7 @@ struct FigurEditor: View {
             case .outfits:
                 // p71: day outfit and stored looks are the own account's; Ahmed editing Annika sees only the presets.
                 var liste: [Abschnitt] = [.outfits(A.outfits(fuer: person))]
-                if person == Raum.shared.ich { liste += [.tagesOutfit, .looks] }
+                if eigeneFigur { liste += [.tagesOutfit, .looks] }
                 return liste
             case .bart:
                 return [
@@ -232,7 +232,7 @@ struct FigurEditor: View {
             vorschau
             kategorienLeiste
             Divider()
-            let liste = kategorie.abschnitte(fuer: person)
+            let liste = kategorie.abschnitte(fuer: person, eigeneFigur: !fremdeFigur)
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     if let feld = liste.compactMap(\.shopFeld).first { filterLeiste(feld) }
