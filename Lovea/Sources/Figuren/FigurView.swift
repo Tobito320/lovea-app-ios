@@ -675,12 +675,15 @@ private struct Zeichner {
         if jacke > 0 { return .lang }
         switch oberteil {
         case 1, 2, 3, 5, 10, 13, 14, 16, 18, 19, 24, 25, 26, 31, 35: return .lang
-        case 6: return .keine
+        case 6, 36, 37: return .keine
         default: return .kurz
         }
     }
 
     var aermelFarbe: FigurFarbe { jacke > 0 ? jackeF : top }
+
+    /// p56: Camisole und Off-Shoulder-Top liegen als Stoff auf nackter Haut, darunter ist der Körper Haut.
+    var oberteilBasis: FigurFarbe { [36, 37].contains(oberteil) ? haut : top }
 
     /// Face shapes keep the cheekbone width, so hair, ears, glasses and hats fit every shape.
     static let formen: [(stirn: CGFloat, kieferX: CGFloat, kieferY: CGFloat, kinnB: CGFloat, kinnY: CGFloat)] = [
@@ -765,7 +768,7 @@ private struct Zeichner {
 
     var ausschnitt: Int {
         switch oberteil {
-        case 2, 12, 13, 20, 25: 1
+        case 2, 12, 13, 20, 25, 38: 1
         case 4, 8, 11, 18: 2
         default: 0
         }
@@ -815,7 +818,7 @@ private struct Zeichner {
             }
         } else {
             let form = rumpf(ausschnitt)
-            basis(g, k, form, top)
+            basis(g, k, form, oberteilBasis)
             var h = k
             h.clip(to: form)
             if oberteil == 11 {
@@ -978,6 +981,13 @@ private struct Zeichner {
         case 16:
             // Seidenbluse and Dior-Bluse: p48 drawing in Zubehoer/ModeZeichner.swift.
             zeichneBluse(g, h, top: top)
+        case 36:
+            // p56: Camisole, Off-Shoulder-Top und Wickelkleid: Zubehoer/ModeElegant.swift.
+            zeichneCamisole(g, h, top: top, haut: haut)
+        case 37:
+            zeichneOffShoulder(g, h, top: top, haut: haut)
+        case 38:
+            zeichneWickelkleid(g, h, top: top, haut: haut)
         case 17...26, 31, 34, 35:
             markenOberteil(g, h)
         default:
@@ -1139,18 +1149,21 @@ private struct Zeichner {
 
     /// Open jacket: two front panels cut from the torso `form`, the top shows in the middle.
     /// `s` scales details (1 in the half figure, smaller on the full-body torso).
-    func jackeZeichnen(_ g: GraphicsContext, form: Path, oben: CGFloat, unten: CGFloat, s: CGFloat) {
+    func jackeZeichnen(_ g: GraphicsContext, form: Path, oben: CGFloat, unten untenRoh: CGFloat, s: CGFloat) {
         let f = jackeF
+        // p56: der Perlen-Cardigan (14) endet an der Taille und lässt das Oberteil frei, die anderen Jacken laufen bis zur Hüfte.
+        let unten = jacke == 14 ? oben + (s >= 1 ? 66 : 53) : untenRoh
+        let zugabe: CGFloat = jacke == 14 ? 0 : 30
         // Zipped jackets (Adidas, The North Face, Moncler) close in the middle.
         let zu = [6, 8, 9, 11].contains(jacke)
-        let innenO: CGFloat = zu ? 100 : 100 - 12 * s
-        let innenU: CGFloat = zu ? 100 : 100 - 20 * s
+        let innenO: CGFloat = zu ? 100 : 100 - (jacke == 14 ? 14 : 12) * s
+        let innenU: CGFloat = zu ? 100 : 100 - (jacke == 14 ? 24 : 20) * s
         let links = Path { p in
             p.move(to: P(-20, oben - 60))
             p.addLine(to: P(innenO, oben - 60))
             p.addLine(to: P(innenO, oben))
-            p.addLine(to: P(innenU, unten + 30))
-            p.addLine(to: P(-20, unten + 30))
+            p.addLine(to: P(innenU, unten + zugabe))
+            p.addLine(to: P(-20, unten + zugabe))
             p.closeSubpath()
         }
         let rechts = gespiegelt(links)
@@ -1212,6 +1225,9 @@ private struct Zeichner {
             linie(g, bund, f.mal(0.75).farbe, 6.5 * s)
             teil(innen, box(0, unten - 12 * s, 200, 40), f.mal(0.75), 2)
             teil(g, kreis(P(100, oben + 6 * s), 4 * s), Pal.gold, 1.5)
+        case 14:
+            // Perlen-Cardigan: p56 drawing in Zubehoer/ModeElegant.swift.
+            zeichneCardigan(g, innen: innen, f: f, oben: oben, unten: unten, s: s, innenO: innenO, innenU: innenU)
         case 8...13:
             markenJacke(g, innen, oben: oben, unten: unten, s: s)
         default:
@@ -1372,6 +1388,10 @@ private struct Zeichner {
         } else if jacke == 0 && oberteil == 20 && aermel == .kurz {
             let band = strich(zwischen(s, a.ellbogen, 0.8), zwischen(s, a.ellbogen, 0.97))
             linie(g, band, trikotBesatz.farbe, 19 * d)
+        } else if jacke == 14 {
+            zeichneCardiganBuendchen(g, ellbogen: a.ellbogen, hand: a.hand, d: d, farbe: jackeF)
+        } else if jacke == 0 && oberteil == 37 && aermel == .keine && !sportTop && !oberkoerperFrei {
+            zeichneRueschenAermel(g, von: s, nach: a.ellbogen, d: d, farbe: top)
         }
     }
 
@@ -3709,7 +3729,7 @@ extension Zeichner {
     func beine(_ g: GraphicsContext, _ m: Masse, _ hal: Haltung, _ oben: CGFloat) {
         let (l, r) = beinGelenke(hal, m, oben)
         let b = m.bein
-        let kleid = oberteil == 8
+        let kleid = oberteil == 8 || oberteil == 38
         let nackt = kleid || (6...8).contains(hose)
         let stiefelUeber = schuhe == 3 && hose != 2
         if nackt {
@@ -3761,6 +3781,7 @@ extension Zeichner {
         case 2: breiten = (0.64, 0.6, 0.84)
         case 4, 14: breiten = (0.66, 0.56, 0.42)
         case 9, 15: breiten = (0.54, 0.42, 0.34)
+        case 20: breiten = (0.58, 0.44, 0.36)
         case 12: breiten = (0.64, 0.56, 0.5)
         default: breiten = (0.62, 0.5, 0.45)
         }
@@ -3791,6 +3812,10 @@ extension Zeichner {
             linie(g, strich(P(100 - m.h, hy - 8), P(100 + m.h, hy - 8)), Pal.dunkel.farbe, 3)
         case 12...15:
             markenHose(g, seiten, m, hy)
+        case 20:
+            // Skinny Jeans mit Blumen: p56 drawing in Zubehoer/ModeElegant.swift.
+            zeichneBlumenJeans(g, beine: seiten.map { (h: $0.bein.h, k: $0.bein.k, f: $0.bein.f, seite: $0.seite) },
+                               b: b, farbe: farbe, hy: hy, halbBreite: m.h)
         case 11:
             // Glitzerhose: scattered sparkles over the whole leg.
             for i in 0..<10 {
@@ -3993,7 +4018,7 @@ extension Zeichner {
             teil(g, form, top)
         default:
             form = voll
-            teil(g, form, top)
+            teil(g, form, oberteilBasis)
         }
         if oberteil != 6 {
             // Top details are drawn in the half-figure torso space, mapped onto this torso.
@@ -4023,6 +4048,10 @@ extension Zeichner {
                 p.closeSubpath()
             }
             teil(g, rock, top)
+        }
+        if oberteil == 38 {
+            // p56: Wickelkleid, Rock und Knoten: Zubehoer/ModeElegant.swift.
+            zeichneWickelRock(g, top: top, taille: sY + 58, saum: m.knieY - 6, t: m.t, h: m.h, knotenX: 100 - 18.5 * m.s / 41)
         }
         if jacke > 0 { jackeZeichnen(g, form: voll, oben: sY - 2, unten: unten, s: 0.66) }
     }
@@ -6184,6 +6213,7 @@ private extension Zeichner {
             } else if aermel == .keine && !oberkoerperFrei {
                 // Sleeveless top (Annika's gym top): bare arm in front of the top's edge.
                 teil(g, armForm(arm.s, arm.a, arm.d), haut, 3 * min(arm.d, 1))
+                if oberteil == 37 { aermelDetails(g, arm.s, arm.a, arm.d) }
             }
         }
     }

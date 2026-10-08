@@ -514,10 +514,10 @@ extension FigurAussehen {
         "mode.gucci-ace": (.schuhe, 13, "F4F1EE"),
         "mode.balenciaga-triple-s": (.schuhe, 14, "D8C3A0"),
         // p56: elegant. Satin in Champagner, Jeans mittelblau, Kleid und Cardigan in Zeichnung eigener Indizes.
-        "mode.satin-camisole": (.oberteil, 36, "E8D3B9"),
+        "mode.satin-camisole": (.oberteil, 36, "2B6B58"),
         "mode.off-shoulder": (.oberteil, 37, "F4F1EE"),
         "mode.wickelkleid": (.oberteil, 38, "7A1F3A"),
-        "mode.cardigan": (.jacke, 14, "EFE6D6"),
+        "mode.cardigan": (.jacke, 14, "C9A07A"),
         "mode.blumen-jeans": (.hose, 20, "3F6EAF"),
     ]
 }
