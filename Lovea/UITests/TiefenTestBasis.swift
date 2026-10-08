@@ -26,7 +26,7 @@ class TiefenTestBasis: XCTestCase {
     /// Wird vom Durchklicker nie angetippt: Daten weg, Konto weg, Dinge, die den Test selbst kappen.
     static let gesperrt = ["lösch", "entfern", "abmeld", "person wechseln", "zurücksetzen", "konto", "entwickler", "absturz", "beenden", "verlassen", "abbrechen", "fertig", "schließen", "zurück", "close", "done", "nicht jetzt"]
     static let schliessWorte = ["fertig", "schließen", "abbrechen", "zurück", "close", "done", "nicht jetzt", "später", "ok", "verwerfen", "abbruch"]
-    static let dialogKnoepfe = ["Beim Verwenden der App erlauben", "Beim Verwenden der App", "Erlauben", "Zulassen", "Allow While Using App", "Allow", "OK", "Alle Kategorien aktivieren", "Nicht erlauben", "Don’t Allow"]
+    static let dialogKnoepfe = ["Beim Verwenden der App erlauben", "Beim Verwenden der App", "Erlauben", "Zulassen", "Allow While Using App", "Keep Only While Using", "Change to Always Allow", "Nur beim Verwenden der App", "Immer erlauben", "Allow", "OK", "Alle Kategorien aktivieren", "Nicht erlauben", "Don’t Allow"]
 
     // MARK: - Start
 
@@ -279,16 +279,25 @@ class TiefenTestBasis: XCTestCase {
     }
 
     @MainActor
-    func systemDialog() {
+    func systemDialog(warten: TimeInterval = 0) {
         let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
         let alert = springboard.alerts.firstMatch
-        guard alert.exists else { return }
-        for name in Self.dialogKnoepfe where alert.buttons[name].exists {
-            alert.buttons[name].tap()
+        if warten > 0 { _ = alert.waitForExistence(timeout: warten) }
+        if alert.exists {
+            for name in Self.dialogKnoepfe where alert.buttons[name].exists {
+                alert.buttons[name].tap()
+                ruhe(0.8)
+                return
+            }
+            if alert.buttons.count > 0 { alert.buttons.element(boundBy: alert.buttons.count - 1).tap(); ruhe(0.8) }
+            return
+        }
+        // Standort-Dialoge (iOS 26) erscheinen nicht immer als alert-Element
+        for name in Self.dialogKnoepfe where springboard.buttons[name].exists {
+            springboard.buttons[name].tap()
             ruhe(0.8)
             return
         }
-        if alert.buttons.count > 0 { alert.buttons.element(boundBy: alert.buttons.count - 1).tap(); ruhe(0.8) }
     }
 
     @MainActor

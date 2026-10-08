@@ -17,13 +17,12 @@ final class TiefenTestUITests: TiefenTestBasis {
         oeffne(["Weiter"], name: "figur-weiter", hart: true, typen: ["Button"])
         erwarte("Mitteilungen", hart: true)
         oeffne(["Erlauben"], name: "mitteilungen-erlauben", hart: true, typen: ["Button"])
-        ruhe(2)
-        systemDialog()
+        systemDialog(warten: 5)
         erwarte("Standort", hart: false)
         oeffne(["Erlauben"], name: "standort-erlauben", hart: false, typen: ["Button"])
-        ruhe(2)
-        systemDialog()
-        systemDialog()
+        // erst "Beim Verwenden", dann "Immer"-Nachfrage
+        systemDialog(warten: 5)
+        systemDialog(warten: 5)
         ruhe(2)
         pruefe("nach-erststart", dauer: 0)
         XCTAssertTrue(app.tabBars.buttons["Home"].waitForExistence(timeout: 15), "Nach dem Erststart fehlt die Tab-Leiste")
@@ -43,8 +42,11 @@ final class TiefenTestUITests: TiefenTestBasis {
         starten("chat")
         wechsleTab("Chat")
         pruefe("chat-offen", dauer: 0)
-        erwarte("Hallo aus dem Test-Raum", hart: true)
         erwarte("Bis später", hart: false)
+        // Chat-Tab zeigt zuerst die Konversationsliste
+        guard oeffne(["Annika, Bis später", "Annika"], name: "chat-konversation", hart: true, typen: ["Button"]) else { return }
+        ruhe(1)
+        erwarte("Hallo aus dem Test-Raum", hart: true)
         nachricht("Tiefentest Nachricht eins")
         erwarte("Tiefentest Nachricht eins", hart: true)
         nachricht("Zweite Nachricht mit etwas mehr Text, damit der Umbruch in der Blase geprüft wird und nichts abgeschnitten wird.")
@@ -65,6 +67,8 @@ final class TiefenTestUITests: TiefenTestBasis {
     func testChatPlusMedienSpiele() {
         starten("chatplus")
         wechsleTab("Chat")
+        ruhe(1)
+        guard oeffne(["Annika, Bis später", "Annika"], name: "chatplus-konversation", hart: true, typen: ["Button"]) else { return }
         ruhe(1)
         let wurzel = signatur(lesen())
         for ziel in ["Fotos", "GIFs", "Spiele", "Effekte"] {
