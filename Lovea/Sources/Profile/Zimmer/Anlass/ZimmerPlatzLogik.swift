@@ -22,7 +22,8 @@ enum ZimmerPlatzLogik {
         r["kleiderschrank"] = kleiderschrank
         r["termine"] = ZimmerSpielEbene.termineBrett
         r["radio"] = ZimmerAnlassEbene.radioFlaeche
-        // Erweiterung für Rituale (D) und Erinnerung (E): hier eine Zeile je festes Ding anfügen.
+        for (i, rect) in ZimmerErinnerungEbene.alleRects.enumerated() { r["erinnerung\(i)"] = rect }
+        // Erweiterung für Rituale (D): hier eine Zeile je festes Ding anfügen.
         return r
     }
 }
