@@ -4,6 +4,7 @@ import SwiftUI
 enum HealthZiel: Hashable {
     case habit(String), schritte(Person), schritteVergleich, punkte
     case trainingsPlan(Person), gymSession(String), gymVerlauf
+    case coach
 }
 
 /// Die Seite zu einem `HealthZiel`, registriert im Stapel von Health.
@@ -19,6 +20,7 @@ struct HealthZielAnsicht: View {
         case .trainingsPlan(let person): GymStartZiel(person: person)
         case .gymSession(let id): GymSessionView(sessionId: id)
         case .gymVerlauf: GymVerlaufView()
+        case .coach: CoachChatView()
         }
     }
 }
