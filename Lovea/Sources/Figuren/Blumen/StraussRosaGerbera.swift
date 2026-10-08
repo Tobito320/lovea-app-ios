@@ -20,7 +20,7 @@ enum StraussRosaGerbera {
                     falten: [(a.p(880, 1300), a.p(760, 1650))])
 
         blumenMasse(g, [P(30, 70), P(80, 40), P(150, 50), P(182, 90), P(174, 150), P(140, 186), P(75, 186), P(30, 150)],
-                    oben: FigurFarbe(0x2F5F3A), unten: FigurFarbe(0x234A2E))
+                    oben: FigurFarbe(0x5A7E45), unten: FigurFarbe(0x2F5F3A))
 
         // Spiky dark palm leaves fanning out of the top, thin grass blades.
         let palme = FigurFarbe(0x2A5648)
@@ -43,6 +43,11 @@ enum StraussRosaGerbera {
             (520, 1150, 160, 990), (430, 1100, 470, 880), (540, 1400, 720, 1250), (480, 1450, 150, 1500), (560, 1200, 770, 1420), (430, 1250, 330, 1450),
         ]
         for z in zweige { blumeZweig(g, a.p(z.0, z.1), a.p(z.2, z.3), blatt: olive, anzahl: 6, groesse: a.r(48), fein: fein) }
+        // More twigs over the middle, so the green reads as leaves and not as one flat patch (design units).
+        let mehr: [(CGFloat, CGFloat, CGFloat, CGFloat)] = [
+            (100, 160, 60, 112), (100, 160, 142, 122), (96, 164, 98, 108), (104, 150, 150, 150), (94, 156, 48, 162), (100, 128, 128, 92), (110, 170, 130, 140),
+        ]
+        for z in mehr { blumeZweig(g, P(z.0, z.1), P(z.2, z.3), blatt: olive, anzahl: 6, groesse: 9, fein: fein) }
 
         // Pompon asters at the right and the small dark buds at the top left.
         let pomponHell = FigurFarbe(0xB02A8C)

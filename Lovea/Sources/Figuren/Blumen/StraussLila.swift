@@ -31,7 +31,7 @@ enum StraussLila {
         }
 
         blumenMasse(g, [P(22, 80), P(40, 45), P(75, 28), P(120, 28), P(160, 48), P(188, 95), P(172, 140), P(125, 160), P(75, 160), P(36, 132)],
-                    oben: FigurFarbe(0x3A7A3A), unten: FigurFarbe(0x25502A))
+                    oben: FigurFarbe(0x9A5E98), unten: FigurFarbe(0x663A70))
 
         // Ruscus leaves behind the flowers: the tall group top left, a few on the right.
         let laub = FigurFarbe(0x3F8F3A)
@@ -48,6 +48,13 @@ enum StraussLila {
         ]
         for (i, c) in chrys.enumerated() {
             blumeChrysantheme(g, a.p(c.0, c.1), a.r(c.2), hell: FigurFarbe(0xD9A2E2), dunkel: FigurFarbe(0x9A52B0), winkel: CGFloat(i) * 0.7, fein: fein)
+        }
+        // More pompons in the gaps, so the dome is full like in the photo (design units).
+        let luecken: [(CGFloat, CGFloat, CGFloat)] = [
+            (58, 56, 12), (120, 44, 11), (140, 120, 12), (118, 142, 11), (92, 152, 11), (58, 118, 11), (150, 66, 11), (82, 126, 10), (36, 98, 11),
+        ]
+        for (i, c) in luecken.enumerated() {
+            blumeChrysantheme(g, P(c.0, c.1), c.2, hell: FigurFarbe(0xDDA8E4), dunkel: FigurFarbe(0x9A52B0), winkel: CGFloat(i) * 0.9 + 0.3, fein: fein)
         }
 
         // Alstroemeria, pale pink with dark streaks.
