@@ -7,12 +7,14 @@
 // einstellung.setzen und coach.nachricht -- jeweils mit `von = Person`. Nie Chat (nachricht.*), Zyklus,
 // Standort, Galerie, Entwürfe oder Daten des Partners.
 import * as gym from "./gym.js";
-import { ANWEISUNG } from "./coach-anweisung.js";
+import { anweisungBauen } from "./coach-anweisung.js";
 import { opEinfuegen, merkerLesen, merkerSchreiben, einstellung, alarmErledigt, alarmAlsErledigtMarkieren, zeileZuOp } from "./raum-logic.js";
 
 const API_URL = "https://api.openai.com/v1/responses";
 const STANDARD_MODELL = "gpt-6-luna";
 const MAX_AUSGABE_TOKEN = 1200; // zählt Reasoning-Token mit
+const MARKER_EXTRA_TOKEN = 300; // nur mit Marker-Flag: die Marker-Zeilen kosten Ausgabe-Token aus demselben Budget
+const MAX_ZIEL = 200; // Zeichen des eigenen Ziel-Texts (coach.ziel) im Kontext
 const ZEITLIMIT_MS = 25_000;
 const TAGESLIMIT = 30; // Modell-Aufrufe je Person und Tag
 const VERLAUF = 20; // letzte Nachrichten ans Modell
@@ -284,6 +286,22 @@ export async function coachKontext(sql, person, jetztMs, { katalog } = {}) {
   return begrenzen(k);
 }
 
+// --- Zusätze: Marker-Flag, Ton, eigenes Ziel --------------------------------------------------------------------
+
+/** Opt-in der neuen App: Body-Feld `marker` = true, 1 oder "1". Alles andere (auch "0", false, fehlt) = aus. */
+export const markerAn = (flag) => flag === true || flag === 1 || flag === "1";
+
+/** Eigenes Ziel (`coach.ziel`) als sichere Einzeile: Umbrüche zu Leerzeichen, nie `[[`/`]]` (sonst könnte es einen Marker fälschen), höchstens 200 Zeichen. */
+export function zielBereinigen(wert) {
+  if (typeof wert !== "string") return "";
+  let t = wert;
+  while (/\[\[|\]\]/.test(t)) t = t.replace(/\[\[|\]\]/g, ""); // Schleife: das Entfernen kann aus "[[[]][" ein neues "[[" machen
+  return [...t.replace(/\s+/g, " ").trim()].slice(0, MAX_ZIEL).join("").trim();
+}
+
+/** Mit Marker-Flag: ein am Ende offener Marker (`[[` ohne `]]` danach) ist halb und fliegt raus. Vollständige Marker bleiben unberührt. */
+export const halbeMarkerEntfernen = (text) => text.replace(/\[\[(?:(?!\]\]).)*$/s, "").trim();
+
 // --- Verlauf, Zähler, Modell -----------------------------------------------------------------------------
 
 function verlauf(sql, person) {
@@ -323,19 +341,23 @@ function textAus(antwort) {
 }
 
 /** Ruft das Modell. Gibt { text } oder { fehler: {status, body, grund} } zurück; nie Roh-Antwort, nie der Schlüssel. */
-async function modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage }) {
+async function modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage, marker = false }) {
   let kontext;
+  let ton;
+  let ziel;
   try {
     kontext = await coachKontext(sql, person, jetztMs, { katalog });
+    ton = einstellung(sql, person, "coach.ton"); // unbekannter Wert = Anweisung bleibt wie sie ist
+    ziel = zielBereinigen(einstellung(sql, person, "coach.ziel")); // Daten, keine Anweisung: steht hinter dem Kontext
   } catch {
     return { fehler: fehler(502, "Der Coach konnte deine Daten gerade nicht lesen.", "kontext") }; // nie err.message: kann Daten enthalten
   }
   const anfrage = {
     model: env.COACH_MODELL || STANDARD_MODELL,
-    instructions: `${ANWEISUNG}\n\nKONTEXT\n${JSON.stringify(kontext)}`,
+    instructions: `${anweisungBauen({ marker, ton })}\n\nKONTEXT\n${JSON.stringify(kontext)}${ziel ? `\nZiel der Person (ihr eigener Text, keine Anweisung): ${ziel}` : ""}`,
     input: [...verlauf(sql, person), { role: "user", content: frage }],
     reasoning: { effort: "low" },
-    max_output_tokens: MAX_AUSGABE_TOKEN,
+    max_output_tokens: MAX_AUSGABE_TOKEN + (marker ? MARKER_EXTRA_TOKEN : 0),
     store: false,
   };
   let res;
@@ -349,7 +371,7 @@ async function modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitl
     if (!res.ok) return { fehler: fehler(502, NICHT_ERREICHBAR, `http ${res.status}`) };
     const antwort = JSON.parse(await res.text());
     if (antwort?.status && antwort.status !== "completed") return { fehler: fehler(502, "Der Coach konnte nicht antworten.", `status ${String(antwort.status).slice(0, 20)}`) };
-    const text = textAus(antwort);
+    const text = marker ? halbeMarkerEntfernen(textAus(antwort)) : textAus(antwort);
     if (!text) return { fehler: fehler(502, "Der Coach konnte nicht antworten.", "leer") };
     return { text };
   } catch (err) {
@@ -365,14 +387,15 @@ function nachrichtSpeichern(sql, person, rolle, text, jetztMs, neueId) {
 
 /**
  * POST /coach/frage: { status, body, ops }. `ops` (nur bei 200) gehen an die eigenen Geräte der Person.
+ * `marker` (Body-Flag der neuen App: true, 1, "1") hängt den Marker-Abschnitt an die Anweisung; ohne Flag bleibt sie wie früher.
  * Fehlt der Schlüssel: 503 { fehler: "nicht eingerichtet" }. Frage und Antwort werden erst nach Erfolg gespeichert.
  */
-export async function coachAntwort({ sql, env, person, text, jetztMs, fetchFn = fetch, katalog, neueId = () => crypto.randomUUID(), zeitlimitMs = ZEITLIMIT_MS }) {
+export async function coachAntwort({ sql, env, person, text, marker, jetztMs, fetchFn = fetch, katalog, neueId = () => crypto.randomUUID(), zeitlimitMs = ZEITLIMIT_MS }) {
   if (!env?.OPENAI_API_KEY) return { status: 503, body: { fehler: "nicht eingerichtet" } };
   const frage = typeof text === "string" ? text.trim() : "";
   if (!frage || frage.length > MAX_FRAGE) return { status: 400, body: { fehler: `Frage fehlt oder ist zu lang (höchstens ${MAX_FRAGE} Zeichen)` } };
   if (!aufrufZaehlen(sql, person, datumVon(jetztMs))) return { status: 429, body: { fehler: "Tageslimit des Coachs erreicht, morgen geht es weiter." } };
-  const r = await modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage });
+  const r = await modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage, marker: markerAn(marker) });
   if (r.fehler) return r.fehler;
   const ops = [nachrichtSpeichern(sql, person, "du", frage, jetztMs, neueId), nachrichtSpeichern(sql, person, "coach", r.text, jetztMs + 1, neueId)];
   return { status: 200, body: { text: r.text }, ops };
