@@ -31,7 +31,7 @@ struct PaarSignaleEbene: View {
     private static let stapelOrt = P(248, 314)
     private static let zettelOrt = P(332, 150)
     private static let schalterOrt = P(150, 176)
-    private static let boxOrt = P(46, 340)
+    private static let boxOrt = P(118, 338) // unter dem Bett, rechts neben dem Profilbild im Kopf
 
     var body: some View {
         GeometryReader { geo in
