@@ -19,6 +19,7 @@
   {"id": "tier.hund-schwarz", "name": "Hund (schwarz)", "marke": null, "kategorie": "tier", "preis": 3500, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.katze-grau", "name": "Katze (grau)", "marke": null, "kategorie": "tier", "preis": 3200, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.katze-orange", "name": "Katze (orange)", "marke": null, "kategorie": "tier", "preis": 3200, "geschlecht": "n", "exklusiv": false},
+  {"id": "tier.katze-schwarz", "name": "Kuschelkatze (schwarz)", "marke": null, "kategorie": "tier", "preis": 4200, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.hase-weiss", "name": "Hase (weiß)", "marke": null, "kategorie": "tier", "preis": 3800, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.vogel-blau", "name": "Vogel (blau)", "marke": null, "kategorie": "tier", "preis": 4000, "geschlecht": "n", "exklusiv": true}
 ]
