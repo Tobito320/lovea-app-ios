@@ -36,7 +36,7 @@ final class ShopAblegenTests: XCTestCase {
     func testEntfernteKleidungKehrtZumStandardZurueck() {
         let basis = annika()
         for id in ["mode.balenciaga-hoodie", "mode.dior-cape", "mode.glitzerhose", "mode.balenciaga-triple-s", "brille.cartier-sonnenbrille",
-                   "mode.cargohose", "mode.seidenbluse", "mode.moncler-jacke", "mode.nike-sneaker"] {
+                   "mode.seidenbluse", "mode.moncler-jacke", "mode.nike-sneaker"] {
             var a = basis
             a.anziehen(id)
             XCTAssertNotEqual(a, basis, id)
@@ -46,7 +46,7 @@ final class ShopAblegenTests: XCTestCase {
 
     /// Indizes, die auch der freie Editor wählen kann, sind kein Shop-Teil: die bleiben.
     func testFreieEditorWahlBleibt() {
-        for id in ["mode.bomberjacke", "brille.sport", "brille.guess"] {
+        for id in ["mode.bomberjacke", "brille.sport", "brille.guess", "mode.cargohose", "mode.jeansjacke"] {
             var a = annika()
             a.anziehen(id)
             XCTAssertEqual(a.ohneEntfernteTeile(), a, id)

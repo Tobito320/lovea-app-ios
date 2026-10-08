@@ -64,8 +64,8 @@ private func stickBluete(_ g: GraphicsContext, _ c: CGPoint, _ r: CGFloat, blatt
 /// Haut als Basis (die Figur zeichnet den Torso in Hautfarbe), darauf das Satin-Top: Spaghettiträger mit
 /// Schiebern, Spitzenkante und kleine Schleife am Ausschnitt, Glanz auf der Brust, Falten, Abnäher.
 func zeichneCamisole(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFarbe, haut: FigurFarbe) {
-    // Der Halsrand des Hautkörpers verschwindet unter Haut.
-    g.fill(box(80, 150, 40, 28), with: .color(haut.farbe))
+    // Der Halsrand des Hautkörpers verschwindet unter Haut (innerhalb der Halskontur, unter dem Kinnschatten).
+    g.fill(box(88, 157, 24, 21), with: .color(haut.farbe))
     let oberkante = Path { p in
         p.move(to: P(20, 226))
         p.addQuadCurve(to: P(74, 192), control: P(42, 196))
@@ -135,7 +135,7 @@ func zeichneCamisole(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFarbe
 /// Haut als Basis, Schultern und Schlüsselbein frei. Darunter ein enges gerippt-gestricktes Top mit
 /// Rüschenband über der Brust; das Band läuft auf den Oberarmen weiter (`zeichneRueschenAermel`).
 func zeichneOffShoulder(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFarbe, haut: FigurFarbe) {
-    g.fill(box(80, 150, 40, 28), with: .color(haut.farbe))
+    g.fill(box(88, 157, 24, 21), with: .color(haut.farbe))
     let a = P(14, 194)
     let b = P(186, 194)
     let c = P(100, 206)
@@ -254,7 +254,6 @@ func zeichneWickelkleid(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFa
         linie(h, bogen(P(73.6, 232), P(85.4 + dx, 204 - dx * 0.2), P(75.6 + dx * 0.4, 218)), .white.opacity(0.16), 1.4)
     }
     for seite: CGFloat in [-1, 1] {
-        h.fill(oval(P(100 + seite * 24, 206), 7, 9), with: .color(.white.opacity(0.14)))
         linie(h, bogen(P(100 + seite * 30, 214), P(100 + seite * 22, 226), P(100 + seite * 30, 222)), top.kontur.opacity(0.22), 1.2)
     }
     // Paspel am V-Ausschnitt.

@@ -250,14 +250,14 @@ private func neueOhrringe(_ g: GraphicsContext, _ stil: SchmuckStil, _ f: FigurF
     for x in [CGFloat(42), 158] {
         if stil == .ohrCreole {
             let reif = kreis(P(x, 117), 5.6)
-            linie(g, reif, f.kontur, 3.6)
-            linie(g, reif, f.farbe, 2.2)
+            linie(g, reif, f.kontur, 3)
+            linie(g, reif, f.farbe, 1.7)
             linie(g, Path { p in p.addArc(center: P(x, 117), radius: 5.6, startAngle: .degrees(200), endAngle: .degrees(260), clockwise: false) }, .white.opacity(0.7), 0.9)
         } else {
             teil(g, kreis(P(x, 111), 1.6), Pal.gold, 0.7)
             linie(g, strich(P(x, 112), P(x, 114.4)), Pal.gold.farbe, 1)
-            teil(g, kreis(P(x, 117.4), 3.2), f, 0.9)
-            g.fill(kreis(P(x - 1, 116.2), 0.9), with: .color(.white.opacity(0.9)))
+            teil(g, kreis(P(x, 118), 3.9), f, 0.9)
+            g.fill(kreis(P(x - 1.2, 116.6), 1), with: .color(.white.opacity(0.9)))
         }
     }
 }
