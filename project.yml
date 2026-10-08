@@ -50,6 +50,7 @@ targets:
         NSPhotoLibraryAddUsageDescription: "Lovea speichert deine fertigen Bilder in Fotos."
         NSLocationWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auf der Karte, solange du die App offen hast."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auch im Hintergrund und meldet Ankunft und Abfahrt an euren Orten."
+        NSBluetoothAlwaysUsageDescription: "Lovea verbindet sich auf deinen Wunsch mit deinem Fitness-Tracker und zeigt dir dessen Akku und Werte. Alles bleibt auf deinem iPhone."
         NSMotionUsageDescription: "Lovea erkennt Bewegung wie Laufen oder Fahren, damit eure Figuren euren Alltag zeigen."
         LSApplicationQueriesSchemes:
           - x-apple-health
