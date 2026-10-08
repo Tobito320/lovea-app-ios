@@ -192,6 +192,14 @@ class TiefenTestBasis: XCTestCase {
     func wechsleTab(_ name: String, melden: Bool = true) {
         tabAktuell = name
         let knopf = app.tabBars.buttons[name].firstMatch
+        // Vollbild-Editor (z. B. Foto-Import) verdeckt die Tab-Leiste: erst herausgehen
+        if !knopf.waitForExistence(timeout: 3) {
+            for ausweg in ["Abbrechen", "Schließen", "Zurück", "Fertig"] where app.buttons[ausweg].firstMatch.exists {
+                app.buttons[ausweg].firstMatch.tap()
+                ruhe(1)
+                if knopf.exists { break }
+            }
+        }
         if knopf.waitForExistence(timeout: 8) {
             knopf.tap()
         } else if let e = lesen().first(where: { $0.typ == "Button" && $0.label == name && $0.rahmen.midY > 600 }) {
@@ -327,8 +335,8 @@ class TiefenTestBasis: XCTestCase {
         if !erwartetLeer && inhalt.count < 2 { befund("leere Ansicht bei \(name)", hart: true) }
         for e in sicht where e.typ == "StaticText" && !e.label.isEmpty && e.rahmen.width > 0 && e.rahmen.height > 0 {
             // System-Text (Diktat-Hinweis, Foto-Auswahl, Standort-Hinweis), nicht aus der App
-            let systemText = ["Learn More…", "Weitere Infos …", "Mediathek durchsuchen …", "Loading..."]
-            if systemText.contains(e.label) || e.label.hasPrefix("Location Services") || e.label.hasPrefix("Standortdienste") { continue }
+            let systemText = ["Learn More", "Weitere Infos", "Mediathek durchsuchen", "Loading"]
+            if systemText.contains(where: { e.label.hasPrefix($0) }) || e.label.hasPrefix("Location Services") || e.label.hasPrefix("Standortdienste") { continue }
             if e.label.hasSuffix("…") || e.label.hasSuffix("...") {
                 befund("Text endet mit Auslassung bei \(name): '\(e.label)'", hart: true)
                 continue
