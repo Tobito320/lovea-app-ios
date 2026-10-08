@@ -12,10 +12,10 @@ final class ZimmerRenderTests: XCTestCase {
         FigurView(.standard(for: f.person), zustand: f.zustand, groesse: f.groesse, animiert: false, ganzkoerper: f.ganzkoerper)
     }
 
-    private func raum(_ zeit: Tageszeit, schritt: Int = 0, _ wahl: ZimmerWahl = .standard, katze: ZuhauseKatze? = nil, outfit: Bool = false) -> AnyView {
+    private func raum(_ zeit: Tageszeit, _ schritt: Int = 0, _ wahl: ZimmerWahl = .standard, katze: ZuhauseKatze? = nil, outfit: Bool = false) -> AnyView {
         let stand = ZuhauseSzenenstand(zeit: zeit, ZuhauseAblauf.aufstellung(zeit, schritt: schritt), mitGeste: true)
         let szene = ZuhauseBuehne(fest: stand, wahl: wahl, katze: katze, outfit: outfit ? {} : nil) { f in
-            figuren(f)
+            self.figuren(f)
         } paar: {
             EmptyView()
         }
