@@ -130,6 +130,12 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         return Person.allCases.first { ZuhauseSzeneLogik.schlaeftOffline($0, ich: ich, verbunden: verbunden, partnerDa: da) }
     }
 
+    /// p70 (40): the lamp glows warmer for every goal of the day that is done; never in the fixed boards.
+    private var lampenStaerke: Double {
+        guard !fest, let ich = Raum.shared.ich else { return 1 }
+        return ZimmerLebenModell.tagesZiele(ich: ich, heute: Datum.text(Date())).lampenFaktor
+    }
+
     /// The time of day the room is drawn in: the clock's, or night once both said good night.
     private var sicht: Tageszeit { nacht ? .nacht : stand.zeit }
 
@@ -164,7 +170,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                 }
                 .colorMultiply(abdunklung)
                 if stand.zeit.dunkel && !nacht {
-                    ZuhauseLicht(zeit: stand.zeit, welt: welt)
+                    ZuhauseLicht(zeit: stand.zeit, welt: welt, staerke: lampenStaerke)
                 }
                 if welt == .panorama { moebelTippen(s, oben) }
             }
@@ -297,9 +303,17 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         // p70: Annika asleep in bed (offline) is at the bed for the cat, too.
         let annikaImBett = offlineSchlaefer == .annika
         let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: annikaImBett ? .bett : stand.annika, welt: welt)
-        return ZimmerKatzeSicht(id: k.id, szene: szene, wuenscht: ZimmerKatze.wuenscht(szene.zustand, gestreichelt: k.gestreichelt),
-                                geht: stand.gehende.contains(.annika) && !annikaImBett, streichelt: streichelt, s: s, oben: oben) {
-            streichelt = k.streicheln()
+        let wuenscht = ZimmerKatze.wuenscht(szene.zustand, gestreichelt: k.gestreichelt)
+        // p70 (44): feeding and mood come from the points model; the fixed boards show a content cat as before.
+        let punkte = PunkteModell.shared
+        let pflege = !fest
+        let satt = !pflege || punkte.katzeGefuettert()
+        let stimmung = pflege ? punkte.katzeStimmung() : nil
+        return ZimmerKatzeSicht(id: k.id, szene: szene, wuenscht: wuenscht,
+                                geht: stand.gehende.contains(.annika) && !annikaImBett, streichelt: streichelt, s: s, oben: oben,
+                                hunger: KatzePflege.hungert(szene.zustand, gefuettert: satt, wuenscht: wuenscht),
+                                schnurrt: stimmung.map { KatzePflege.schnurrt(szene.zustand, $0) } ?? false, stimmung: stimmung) {
+            streichelt = KatzePflege.fuettertBeimTippen(gestreichelt: k.gestreichelt, gefuettert: satt) ? punkte.katzeFuettern() : k.streicheln()
             Task {
                 try? await Task.sleep(for: .seconds(2.5))
                 streichelt = nil
@@ -509,12 +523,14 @@ private struct ZuhauseSofaVorn: View {
 private struct ZuhauseLicht: View {
     let zeit: Tageszeit
     var welt: ProfilWelt = .einzel
+    var staerke: Double = 1
 
     var body: some View {
         let zeit = zeit
         let welt = welt
+        let staerke = staerke
         Canvas { g, groesse in
-            ZuhauseZeichnung.licht(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, welt: welt)
+            ZuhauseZeichnung.licht(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, welt: welt, staerke: staerke)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

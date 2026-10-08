@@ -259,6 +259,19 @@ enum ZimmerLebenZeichnung {
         }
         teil(k, topf, farbe(0xE59A74), 2.5)
         teil(k, box(-13, -20, 26, 6, 3), farbe(0xEDAE8C), 2.5)
+        kerze(k, flamme: ZimmerKerze.flamme(serie: s.serie))
+    }
+
+    /// p70 (41): the streak candle on the sill, right of the pot. Out without a streak, the flame grows with it.
+    private static func kerze(_ k: GraphicsContext, flamme: Int) {
+        teil(k, box(16, -15, 8, 15, 2), farbe(0xF6EEDC), 2)
+        linie(k, strich(P(20, -15), P(20, -18)), Pal.dunkel.farbe, 1.6)
+        guard flamme > 0 else { return }
+        let hoehe: CGFloat = [0, 6, 9, 12][min(flamme, 3)]
+        let mitte = P(20, -19 - hoehe / 2)
+        k.fill(kreis(mitte, hoehe * 1.1), with: .color(Pal.gelb.farbe.opacity(0.25)))
+        teil(k, oval(mitte, 2.8, hoehe / 2), Pal.gelb, 1.4)
+        k.fill(oval(P(20, mitte.y + hoehe * 0.15), 1.1, hoehe * 0.22), with: .color(Pal.gold.farbe))
     }
 
     // MARK: Ziel (9)

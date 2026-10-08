@@ -44,7 +44,7 @@ enum ZimmerLebenModell {
             polaroids: ZimmerFotos.letzte(ChatModell.shared.nachrichten),
             pokale: ZimmerPokale.aus(SpieleModell.shared.bilanz),
             film: ZimmerFilme.laeuft(filme()),
-            pflanze: pflanze(ich: Raum.shared.ich ?? person, heute: heute),
+            pflanze: pflanze(ich: Raum.shared.ich ?? person, heute: heute).mit(tagesZiele(ich: Raum.shared.ich ?? person, heute: heute)),
             ziel: lesen(zielSchluessel, als: ZimmerZiel.self)
         )
     }
@@ -54,6 +54,16 @@ enum ZimmerLebenModell {
         let ort: String? = ProfilSzene.geteilterZustand(p) == .gym ? "gym"
             : Standort.shared.positionen[p].flatMap { OrteModell.shared.ortBei(lat: $0.lat, lon: $0.lon)?.kategorie }
         return ZimmerAndere.bestimmen(schlaf: ProfilSzene.schlafGerade(p), ort: ort, gymHeute: HealthModell.shared.gymAbgehakt(p, heute), stunde: stunde)
+    }
+
+    /// p70 (40): what `ich` did today: gym, enough water, a letter written.
+    static func tagesZiele(ich: Person, heute: String) -> ZimmerTagesZiele {
+        let health = HealthModell.shared
+        return ZimmerTagesZiele(
+            gym: health.gymAbgehakt(ich, heute),
+            wasser: ZimmerTagesZiele.wasserErreicht(anzahl: health.wasserAnzahl(ich, heute), ziel: health.zielWasser(ich)),
+            brief: ZimmerTagesZiele.briefGeschrieben(Array(BriefeSpeicher.shared.stand.briefe.values), von: ich, heute: heute)
+        )
     }
 
     /// The habits both share (`fuer == "beide"`: Gym, Wasser and the own ones made for both).
