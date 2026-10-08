@@ -10,12 +10,16 @@ final class PersonSession: ObservableObject {
 
     init(schluesselbund: Schluesselbund = .shared) {
         self.schluesselbund = schluesselbund
-        person = schluesselbund.get().flatMap(Person.init(rawValue:))
+        if let ueberschreibung = TiefenTest.personUeberschreibung {
+            person = ueberschreibung // Tiefentest: nie Schlüsselbund lesen oder schreiben
+        } else {
+            person = schluesselbund.get().flatMap(Person.init(rawValue:))
+        }
     }
 
     /// First start, or "Person wechseln" in Profil → Entwickler.
     func waehlen(_ person: Person) {
-        schluesselbund.set(person.rawValue)
+        if !TiefenTest.aktiv { schluesselbund.set(person.rawValue) }
         self.person = person
     }
 }

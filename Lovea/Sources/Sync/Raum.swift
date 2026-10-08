@@ -95,7 +95,7 @@ final class Raum {
     }
 
     nonisolated static func plistServer() -> URL? {
-        guard let text = Bundle.main.object(forInfoDictionaryKey: "LoveaServer") as? String, !text.isEmpty else { return nil }
+        guard !TiefenTest.aktiv, let text = Bundle.main.object(forInfoDictionaryKey: "LoveaServer") as? String, !text.isEmpty else { return nil }
         return URL(string: text)
     }
 
@@ -296,6 +296,9 @@ final class Raum {
         guard let ich else { return }
         einreihen(Op.neu(art, d, von: ich))
     }
+
+    /// Tiefentest ("Test-Raum"): Ops nur an die Faltungen, nie in Warteschlange oder Netz.
+    func lokalEinspielen(_ ops: [Op]) { liefereBatch(ops) }
 
     /// Same as `senden`, but for a caller that already built the `Op` itself — e.g. the widgets'
     /// pending-op merge (`WidgetPendingOpsMerge`), which reuses the exact `id` an App Intent wrote

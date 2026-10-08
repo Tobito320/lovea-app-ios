@@ -136,6 +136,7 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea.uitests
         TEST_TARGET_NAME: Lovea
+        SWIFT_VERSION: "5.0"
 schemes:
   Lovea:
     build:
