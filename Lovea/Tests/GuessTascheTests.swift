@@ -139,11 +139,18 @@ final class GuessTascheTests: XCTestCase {
 
     /// "Figur anpassen": die Vorschau im Editor hält eine ältere Kopie. Zieht Annika im Shop (Sheet im
     /// Editor) die Tasche an, muss die Editor-Vorschau sie sofort zeigen, nicht erst nach dem Sichern.
+    /// Reiner Look-Vergleich: ein Pixelvergleich des ganzen Editors ist unbrauchbar, weil die Vorschau
+    /// animiert (Atmen, Blinzeln) und zwei Renderings sich auch ohne Tasche unterscheiden.
     func testEditorVorschauZeigtImShopAngezogeneTasche() {
-        func editor(modell: FigurAussehen) -> AnyView {
-            AnyView(FigurEditor(start: annika(false), modell: modell) { _ in }.frame(width: 390, height: 900))
-        }
-        pruefe("Editor-Vorschau", ohne: editor(modell: annika(false)), mit: editor(modell: annika(true)))
+        let look = FigurEditor.vorschauLook(annika(false), modell: annika(true))
+        XCTAssertEqual(look.tasche, guess)
+    }
+
+    func testEditorVorschauBehaeltFreieFelderDesEditors() {
+        var start = annika(false)
+        start.frisur = 7
+        XCTAssertEqual(FigurEditor.vorschauLook(start, modell: annika(true)).frisur, 7)
+        XCTAssertEqual(FigurEditor.vorschauLook(start, modell: nil), start)
     }
 
     // MARK: - Tafel

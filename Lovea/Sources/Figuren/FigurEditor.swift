@@ -18,6 +18,11 @@ struct FigurEditor: View {
         self.onSave = onSave
     }
 
+    /// The look the preview draws.
+    static func vorschauLook(_ aussehen: FigurAussehen, modell: FigurAussehen?) -> FigurAussehen {
+        aussehen
+    }
+
     /// Z-24.1: gender filter is fixed per person, no switch in this editor — derived from the own
     /// account rather than a parameter, so callers (Profil, Einstellungen) stay unchanged.
     private var person: Person { Raum.shared.ich ?? .ahmed }
@@ -180,7 +185,7 @@ struct FigurEditor: View {
 
     private var vorschau: some View {
         ZStack(alignment: .topTrailing) {
-            FigurView(aussehen, zustand: .ruhig, groesse: 290, ganzkoerper: true)
+            FigurView(Self.vorschauLook(aussehen, modell: modell), zustand: .ruhig, groesse: 290, ganzkoerper: true)
                 .scaleEffect(kategorie.zoomt ? 1.9 : 1, anchor: .top)
                 .frame(maxWidth: .infinity)
                 .frame(height: 290, alignment: .top)
