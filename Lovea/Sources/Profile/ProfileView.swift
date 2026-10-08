@@ -372,8 +372,6 @@ private struct ProfilInhalt: View {
         // The kiss needs its arm: no umbrella or dumbbells for those 4 s.
         let szenenExtras: Set<FigurExtra> = kuesst ? [] : szene?.extras(zustand, wetterCode: wetter?.code, temperatur: wetter?.temperatur) ?? []
         let extras = spaet ? szenenExtras.union([.schlaefrig]) : szenenExtras
-        // A bought pose would replace the curls, the desk or the tablet, so these keep their own.
-        let pose = (szene.map { $0 != .gym && $0 != .schule && $0 != .arbeit } ?? true) && zustand != .zeichnet
         let tisch = szene?.raumOrt.map { Zimmer.von(person, ort: $0).tisch } ?? 0
         // Alone (own profile, next to a bed) the kiss is still the lean; the pair's closeness pose replaces it.
         let lehnt = kuesst && naehe == nil
@@ -386,7 +384,7 @@ private struct ProfilInhalt: View {
             return um
         }
         let v = FigurView(FigurenModell.shared.aussehen(p), zustand: gezeigt, abzeichen: abzeichen(p), groesse: 340, bildrate: gezeigt == .zeichnet ? 15 : 30,
-                          ganzkoerper: true, poseImmer: pose && naehe == nil, extras: paarExtras, tisch: tisch, umarmung: umarmung,
+                          ganzkoerper: true, extras: paarExtras, tisch: tisch, umarmung: umarmung,
                           gymGeste: gezeigt == .gym ? GymGeste.fuer(id: TrainingModell.shared.aktiveUebung(p)) : nil)
             .rotationEffect(.degrees(lehnt ? Double(richtung) * 7 : 0), anchor: .bottom)
             .offset(x: lehnt ? richtung * 38 : 0)

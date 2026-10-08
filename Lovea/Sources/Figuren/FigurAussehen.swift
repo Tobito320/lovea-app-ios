@@ -22,7 +22,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     var jacke = 0, jackenfarbe = 3, hose = 1, hosenfarbe = 3, schuhe = 0, schuhfarbe = 2
     var koerperform = 1, groesse = 1
     // v3 (Z-23.1/Z-24.2): getragene Shop-Teile, String-IDs aus `ShopKatalog`, nil = nichts.
-    var tasche: String?, uhr: String?, schmuck: String?, pose: String?, tier: String?
+    var tasche: String?, uhr: String?, schmuck: String?, tier: String?
     // v3 (Z-24.1): freie Farbwahl für Haare und Kleidung, Hex "RRGGBB". nil = weiter der Index oben.
     var haarfarbeHex: String?, oberteilfarbeHex: String?, jackenfarbeHex: String?, hosenfarbeHex: String?, schuhfarbeHex: String?
     // v4 (Z-39.3): freier Alltagsschmuck, Indizes in `ketten`/`ringe`/`armbaender`/`uhrenAlltag`, 0 = keiner.
@@ -43,7 +43,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         case gesichtsform, augenform, brauen, nase, mund, wimpern, sommersprossen, muttermal, rouge
         case ohrringe, kopfbedeckung, muetzenfarbe
         case jacke, jackenfarbe, hose, hosenfarbe, schuhe, schuhfarbe, koerperform, groesse
-        case tasche, uhr, schmuck, pose, tier
+        case tasche, uhr, schmuck, tier
         case haarfarbeHex, oberteilfarbeHex, jackenfarbeHex, hosenfarbeHex, schuhfarbeHex
         case kette, ring, armband, uhrAlltag
         case kinnbart
@@ -368,7 +368,6 @@ extension FigurAussehen {
         try lies(.tasche, &tasche)
         try lies(.uhr, &uhr)
         try lies(.schmuck, &schmuck)
-        try lies(.pose, &pose)
         try lies(.tier, &tier)
         try lies(.haarfarbeHex, &haarfarbeHex)
         try lies(.oberteilfarbeHex, &oberteilfarbeHex)
@@ -394,7 +393,6 @@ extension FigurAussehen {
         a.tasche = aktuell.tasche
         a.uhr = aktuell.uhr
         a.schmuck = aktuell.schmuck
-        a.pose = aktuell.pose
         a.tier = aktuell.tier
         return a
     }
@@ -408,7 +406,7 @@ enum ShopFeld: Sendable { case oberteil, jacke, hose, schuhe, brille }
 extension FigurAussehen {
     /// Z-23.1: wears a purchased "mode"/"brille" shop item — those categories have no dedicated
     /// field, they reuse the existing int index (see `oberteileShop` etc.). Unknown ids are ignored.
-    /// `tasche`/`uhr`/`schmuck`/`pose`/`tier` need no mapping, the shop id is stored directly.
+    /// `tasche`/`uhr`/`schmuck`/`tier` need no mapping, the shop id is stored directly.
     mutating func anziehen(_ artikelId: String) {
         guard let e = FigurAussehen.shopTeile[artikelId] else { return }
         // Always assign the hex (even nil): several ids share one (feld, index) with different

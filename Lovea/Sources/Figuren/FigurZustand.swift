@@ -28,7 +28,7 @@ enum FigurZustand: String, Codable, Sendable, CaseIterable {
 
     /// The Runde-3 expressions, in picker order.
     static let mimik: [FigurZustand] = [
-        .zwinkert, .verliebt, .lachtTraenen, .daumen, .feiert, .tanzt, .denkt,
+        .zwinkert, .verliebt, .lachtTraenen, .daumen, .feiert, .denkt,
         .ueberrascht, .schockiert, .verlegen, .schmollt, .sauer, .weint, .muede,
     ]
 

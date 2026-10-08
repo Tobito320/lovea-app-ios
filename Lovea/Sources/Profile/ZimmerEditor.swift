@@ -66,7 +66,7 @@ struct ZimmerEditor: View {
         let s = hoehe / SzenenZeichnung.hoehe
         return ZStack(alignment: .bottom) {
             ProfilSzeneHintergrund(szene: szene, zimmer: zimmer, nacht: nachtVorschau && ort == .zuhause)
-            FigurView(FigurenModell.shared.aussehen(person), zustand: szene.figur(.ruhig), groesse: 340 * s, ganzkoerper: true, poseImmer: ort == .zuhause, extras: ort == .gym ? [.hanteln] : [], tisch: zimmer.tisch)
+            FigurView(FigurenModell.shared.aussehen(person), zustand: szene.figur(.ruhig), groesse: 340 * s, ganzkoerper: true, extras: ort == .gym ? [.hanteln] : [], tisch: zimmer.tisch)
         }
         .frame(width: SzenenZeichnung.breite * s, height: hoehe)
         .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))

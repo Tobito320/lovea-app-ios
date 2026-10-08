@@ -1,8 +1,7 @@
 import SwiftUI
 
-/// Z-25.2/Z-23.3: profile backgrounds — ≥12 free ones plus the catalog's 8 purchased `backdrop.*`
-/// items (2 animated). Free ids are prefixed `frei.` so they never collide with `backdrop.*`;
-/// `profil.hintergrund.id` (Profile/ProfilHintergrund.swift) can hold either kind.
+/// Z-25.2: profile backgrounds — ≥12 free ones. Free ids are prefixed `frei.`.
+/// p47: the shop no longer sells backdrops; a stored `backdrop.*` id falls back to the Lovea gradient.
 enum BackdropStil: Sendable { case verlauf, sonne, berge, sterne, wolken, wellen, punkte, streifen }
 
 struct BackdropEintrag: Identifiable, Sendable {
@@ -41,27 +40,7 @@ enum BackdropKatalog {
                          farben: [FigurFarbe(0x6B2A4A), FigurFarbe(0xFF3B5C)], stil: .streifen),
     ]
 
-    /// One entry per `ShopKatalog` `backdrop.*` id (`ShopKatalogTests.testAlleTeileHabenEineZeichnungOderZuordnung`).
-    static let gekauft: [BackdropEintrag] = [
-        BackdropEintrag(id: "backdrop.stadt-nacht", name: "Stadt bei Nacht",
-                         farben: [FigurFarbe(0x1A1830), FigurFarbe(0x3D2A5A)], stil: .sterne),
-        BackdropEintrag(id: "backdrop.strand", name: "Strand-Sonnenuntergang",
-                         farben: [FigurFarbe(0xF08A4B), FigurFarbe(0xFF3B5C)], stil: .wellen),
-        BackdropEintrag(id: "backdrop.regen-fenster", name: "Regen am Fenster",
-                         farben: [FigurFarbe(0x6D7B86), FigurFarbe(0x2C3E6B)], stil: .streifen),
-        BackdropEintrag(id: "backdrop.neon", name: "Neon-Skyline",
-                         farben: [FigurFarbe(0x221C1C), FigurFarbe(0x9B7BD8)], stil: .berge),
-        BackdropEintrag(id: "backdrop.konfetti", name: "Konfetti-Party",
-                         farben: [FigurFarbe(0x9B7BD8), FigurFarbe(0xF5C542)], stil: .punkte),
-        BackdropEintrag(id: "backdrop.wolken-animiert", name: "Wolken (animiert)",
-                         farben: [FigurFarbe(0x7FB6E8), FigurFarbe(0xF4F1EE)], stil: .wolken, animiert: true),
-        BackdropEintrag(id: "backdrop.sternenhimmel-animiert", name: "Sternenhimmel (animiert)",
-                         farben: [FigurFarbe(0x0A0E2A), FigurFarbe(0x2C3E6B)], stil: .sterne, animiert: true),
-        BackdropEintrag(id: "backdrop.herbstwald", name: "Herbstwald",
-                         farben: [FigurFarbe(0xB5552B), FigurFarbe(0x7A5234)], stil: .berge),
-    ]
-
-    private static let nachId: [String: BackdropEintrag] = Dictionary(uniqueKeysWithValues: (kostenlos + gekauft).map { ($0.id, $0) })
+    private static let nachId: [String: BackdropEintrag] = Dictionary(uniqueKeysWithValues: kostenlos.map { ($0.id, $0) })
     static func eintrag(_ id: String) -> BackdropEintrag? { nachId[id] }
 }
 

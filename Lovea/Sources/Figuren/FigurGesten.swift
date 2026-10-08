@@ -47,7 +47,7 @@ private struct FigurGesten: ViewModifier {
     /// The own figure making each expression; a tap sends it like the other gestures.
     private var mimikGitter: some View {
         let aussehen = FigurenModell.shared.aussehen(Raum.shared.ich ?? person.partner)
-        // Two rows visible, the rest scrolls — all 14 at once was too much.
+        // Two rows visible, the rest scrolls — all 13 at once was too much.
         return ScrollView {
         LazyVGrid(columns: Array(repeating: GridItem(.fixed(66), spacing: 6), count: 4), spacing: 6) {
             ForEach(FigurZustand.mimik, id: \.self) { z in
