@@ -52,7 +52,8 @@ final class SnapEditorPositionTests: XCTestCase {
 
     /// The editor's own recipe (`SnapEditor.stickerElement`) inside the live shell.
     private func live(_ sticker: SnapEditor.SnapSticker) -> UIImage? {
-        bild(
+        let flaeche = self.flaeche
+        return bild(
             ZStack {
                 SnapElementHuelle(
                     x: .constant(sticker.x), y: .constant(sticker.y), skala: .constant(sticker.skala), winkel: .constant(sticker.winkel),
