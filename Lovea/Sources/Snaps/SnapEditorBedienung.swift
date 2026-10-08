@@ -34,6 +34,8 @@ struct SnapEditorWerkzeuge: View {
     let onText: () -> Void
     let onKritzeln: () -> Void
     let onSticker: () -> Void
+    /// Nur bei Video: öffnet das Schnitt-Blatt (kürzen, Teile entfernen, stumm).
+    var onSchnitt: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 6) {
@@ -42,6 +44,7 @@ struct SnapEditorWerkzeuge: View {
                 .foregroundStyle(zeichnenAktiv ? Color.loveaRose : .white)
                 .accessibilityValue(zeichnenAktiv ? "an" : "aus")
             knopf("face.smiling", "Sticker hinzufügen", onSticker)
+            if let onSchnitt { knopf("scissors", "Video schneiden", onSchnitt) }
         }
         .padding(.vertical, 6)
         .glassEffect(.regular.tint(Color.black.opacity(0.3)), in: .capsule)
