@@ -238,6 +238,7 @@ private struct ProfilInhalt: View {
             }
         }
         .overlay { PaarSignaleEbene(blatt: $signale) }
+        .overlay { AlltagEbene() }
     }
 
     /// A walker, sitter or sleeper of the home scene: their own look and badges, the state and size

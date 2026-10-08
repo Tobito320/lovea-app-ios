@@ -80,6 +80,7 @@ struct ZyklusEinstellungenBlatt: View {
     @State private var einst: ZyklusEinstellung
     @State private var erinnerung = ErinnerungsEinstellung.laden()
     @AppStorage(ZyklusSchalter.imTraining) private var imTraining = false
+    @AppStorage(ZyklusSchalter.waerme) private var waerme = false
     @AppStorage(ZyklusZeitraum.schluessel) private var zeitraumWahl = -1
     @State private var loeschenFrage = false
     @Environment(\.dismiss) private var dismiss
@@ -147,6 +148,20 @@ struct ZyklusEinstellungenBlatt: View {
                     }
                 }
                 .tint(ZyklusFarbe.himbeere.farbe(schema))
+            }
+            if !speicher.nurLesen {
+                ZyklusKarte {
+                    Toggle(isOn: $waerme) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Wärmflasche und Tee im Zimmer").font(.system(.headline, design: .rounded).weight(.bold))
+                            Text("An schweren Tagen steht etwas Süßes und Warmes im gemeinsamen Zimmer, dein Schatz bekommt einen leisen Hinweis. Mehr als das erfährt er nicht.")
+                                .font(.footnote)
+                                .foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                        }
+                    }
+                    .tint(ZyklusFarbe.himbeere.farbe(schema))
+                    .onChange(of: waerme) { _, _ in AlltagSpeicher.shared.waermePruefen() }
+                }
             }
             ZyklusKarte {
                 VStack(alignment: .leading, spacing: 6) {

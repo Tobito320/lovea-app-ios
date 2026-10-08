@@ -76,6 +76,8 @@ enum AlltagLogik {
 
     static let zettelMaxZeichen = 80
     static let notizMaxZeichen = 200
+    /// So lange dreht sich die Platte im Zimmer, danach steht sie still (Akku).
+    static let drehDauer: TimeInterval = 30
 
     struct PlatteD: Codable { var id: String; var titel: String; var kuenstler: String?; var cover: String? }
     struct WeckerD: Codable { var min: Int?; var an: Bool }
