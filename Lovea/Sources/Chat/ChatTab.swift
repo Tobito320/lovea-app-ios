@@ -273,6 +273,7 @@ private struct Unterhaltung: View {
 
     private var unten: some View {
         VStack(spacing: 0) {
+            AhmedHilfeLeiste(ich: ich, modell: modell)
             PartnerFigurLeiste(partner: ich.partner)
             ChatEingabeleiste(ich: ich, antwortAuf: $antwortAuf)
         }
