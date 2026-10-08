@@ -6,6 +6,8 @@ import UIKit
 enum Feder {
     static let schnell: Animation = .snappy(duration: 0.28)
     static let weich: Animation = .smooth(duration: 0.38)
+    /// Tab-Wisch und Zurückfedern nach dem Loslassen.
+    static let wisch: Animation = .spring(response: 0.35, dampingFraction: 0.86)
     static let federnd: Animation = .bouncy(duration: 0.42, extraBounce: 0.12)
 }
 
