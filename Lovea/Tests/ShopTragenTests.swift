@@ -44,6 +44,49 @@ final class ShopTragenTests: XCTestCase {
         XCTAssertEqual(a.jacke, FigurAussehen.standard(for: .ahmed).jacke)
     }
 
+    /// p56: je Platz ein Stück (Ohr, Hals, Handgelenk), Ringe liegen nebeneinander, alles bleibt einzeln ablegbar.
+    func testJuwelenPlatzWechselUndRinge() {
+        var a = FigurAussehen.standard(for: .annika)
+        let creolen = artikel("juwel.creolen", kategorie: "schmuck", geschlecht: "w")
+        let perlen = artikel("juwel.perlenohrringe", kategorie: "schmuck", geschlecht: "w")
+        let kette = artikel("juwel.herzkette", kategorie: "schmuck", geschlecht: "w")
+        let ring = artikel("juwel.steinring", kategorie: "schmuck", geschlecht: "w")
+        let stapel = artikel("juwel.stapelringe", kategorie: "schmuck", geschlecht: "w")
+        a.anziehen(creolen)
+        a.anziehen(kette)
+        a.anziehen(ring)
+        a.anziehen(stapel)
+        XCTAssertTrue([creolen, kette, ring, stapel].allSatisfy { a.traegt($0) }, "alle vier gleichzeitig")
+        a.anziehen(perlen)
+        XCTAssertTrue(a.traegt(perlen))
+        XCTAssertFalse(a.traegt(creolen), "ein Ohrschmuck zur Zeit")
+        XCTAssertTrue(a.traegt(ring) && a.traegt(stapel))
+        a.ausziehen(ring, person: .annika)
+        XCTAssertFalse(a.traegt(ring))
+        XCTAssertTrue(a.traegt(stapel))
+        a.ausziehen(perlen, person: .annika)
+        a.ausziehen(kette, person: .annika)
+        a.ausziehen(stapel, person: .annika)
+        XCTAssertNil(a.schmuck, "leer heißt nil, kein leerer Text")
+    }
+
+    func testUnbekannteJuwelIdWirdNichtGespeichert() {
+        var a = FigurAussehen.standard(for: .annika)
+        a.anziehen(artikel("juwel.gibt-es-nicht", kategorie: "schmuck"))
+        XCTAssertNil(a.schmuck)
+    }
+
+    /// p56: ein Shop-Oberteil räumt die freie Lederjacke weg, eine Shop-Jacke bleibt.
+    func testShopOberteilRaeumtFreieJackeWeg() {
+        var a = FigurAussehen.standard(for: .annika)
+        a.jacke = 1
+        a.anziehen("mode.satin-camisole")
+        XCTAssertEqual(a.jacke, 0)
+        a.anziehen("mode.cardigan")
+        a.anziehen("mode.off-shoulder")
+        XCTAssertEqual(a.jacke, 14, "der Cardigan gehört zum Shop und bleibt über dem Oberteil")
+    }
+
     func testAusziehenOhneAnzuhabenTutNichts() {
         var a = FigurAussehen.standard(for: .ahmed)
         let vorher = a

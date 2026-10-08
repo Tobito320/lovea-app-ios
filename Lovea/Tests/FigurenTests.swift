@@ -97,7 +97,7 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(a.frisur, 8)
         XCTAssertEqual(a.haut, 2)
         XCTAssertEqual(a.oberteilfarbe, 1)
-        XCTAssertEqual(a.jacke, 1)
+        XCTAssertEqual(a.jacke, FigurAussehen.standard(for: .annika).jacke)
         XCTAssertEqual(a.hose, FigurAussehen.standard(for: .annika).hose)
     }
 
@@ -159,7 +159,7 @@ final class FigurenTests: XCTestCase {
         XCTAssertTrue(ahmed.airpods)
         let annika = FigurAussehen.standard(for: .annika)
         XCTAssertEqual(FigurAussehen.frisuren[annika.frisur], "Lang glatt Mittelscheitel")
-        XCTAssertEqual(FigurAussehen.jacken[annika.jacke], "Lederjacke")
+        XCTAssertEqual(annika.jacke, 0, "p56: keine Jacke im Standard, sie verdeckte jedes Oberteil")
         XCTAssertTrue(FigurAussehen.hosen[annika.hose].contains("Jeans"))
         XCTAssertFalse(annika.airpods)
     }

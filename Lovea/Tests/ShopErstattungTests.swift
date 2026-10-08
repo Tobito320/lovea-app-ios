@@ -74,6 +74,19 @@ final class ShopErstattungTests: XCTestCase {
         XCTAssertTrue(nachher.besitzt("tasche.guess-tasche", .annika))
     }
 
+    /// p56: Cargohose und die anderen Bahnhof-Teile werden erstattet, die Hoodies bleiben im Katalog.
+    func testBahnhofTeileWerdenErstattetHoodiesBleiben() {
+        for (id, preis) in [("mode.cargohose", 300), ("mode.seidenbluse", 900), ("mode.jeansjacke", 350),
+                            ("mode.moncler-jacke", 5200), ("mode.nike-sneaker", 1300)] {
+            let e = erstattungen([kauf("k-\(id)", id)])
+            XCTAssertEqual(e.count, 1, id)
+            XCTAssertEqual(e.first?.rueckgabe.punkte, preis, id)
+        }
+        for id in ["mode.nike-hoodie", "mode.guess-hoodie", "mode.dior-bluse"] {
+            XCTAssertNil(ShopErstattung.entfernt[id], "\(id) bleibt im Katalog")
+        }
+    }
+
     func testTabelleHatKeinenBehaltenenUndKeinenExklusivenArtikel() {
         for id in katalog.keys { XCTAssertNil(ShopErstattung.entfernt[id], id) }
         XCTAssertNil(ShopErstattung.entfernt["uhr.rolex-submariner"], "Challenge-Belohnung wurde nie gekauft")

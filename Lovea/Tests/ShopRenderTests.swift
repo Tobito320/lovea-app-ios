@@ -16,7 +16,7 @@ final class ShopRenderTests: XCTestCase {
     }
 
     func testShopHatVierGruppenOhnePoseUndTanz() {
-        XCTAssertEqual(ShopKategorie.allCases.map(\.titel), ["Mode", "Taschen", "Haustiere", "Zimmer"])
+        XCTAssertEqual(ShopKategorie.allCases.map(\.titel), ["Mode", "Schmuck", "Taschen", "Haustiere", "Zimmer"])
         XCTAssertFalse(ShopKategorie.allCases.contains { $0.titel.contains("Pose") || $0.titel.contains("Tänze") })
     }
 

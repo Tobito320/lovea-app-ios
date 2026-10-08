@@ -74,6 +74,12 @@ enum ShopErstattung {
         "schmuck.cartier-love": ("Cartier Love Armreif", 12000),
         "schmuck.cartier-love-ring": ("Cartier Love Ring", 8800),
         "schmuck.chanel-ohrringe": ("Chanel CC Ohrringe", 9200),
+        // p56: Mode neu, elegant. Raus ist alles, was nach Bahnhof aussah (Hoodies und Dior-Bluse bleiben).
+        "mode.seidenbluse": ("Seidenbluse", 900),
+        "mode.jeansjacke": ("Jeansjacke", 350),
+        "mode.moncler-jacke": ("Moncler Steppjacke", 5200),
+        "mode.cargohose": ("Cargohose", 300),
+        "mode.nike-sneaker": ("Nike Sneaker", 1300),
     ]
 
     /// Eine Erstattung als zwei Verlaufszeilen: der alte Kauf (minus, Datum des Kaufs) und die Rückgabe
