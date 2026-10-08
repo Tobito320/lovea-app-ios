@@ -323,7 +323,7 @@ final class HealthModell {
     /// Satz an (Flag in `UserDefaults`, überlebt Neustarts). Danach bei jedem Erscheinen nur noch der
     /// Nachtrag-Versuch (läuft erst, sobald das Nachholen fertig ist, und dann genau einmal).
     func sicherstellen() {
-        guard HKHealthStore.isHealthDataAvailable() else { return }
+        guard HKHealthStore.isHealthDataAvailable(), !TiefenTest.aktiv else { return } // Tiefentest: kein Health-Dialog
         guard !berechtigungAngefragt else {
             beobachtenStartenFallsErlaubt()
             Task { await nachtragenFallsNoetig() }

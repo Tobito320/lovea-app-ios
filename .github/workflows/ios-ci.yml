@@ -4,6 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
 
 jobs:
   patterns:
@@ -56,6 +57,7 @@ jobs:
             -project Lovea.xcodeproj \
             -scheme Lovea \
             -destination "platform=iOS Simulator,id=$IPHONE_ID" \
+            -skip-testing:LoveaUITests/TiefenTestUITests \
             CODE_SIGNING_ALLOWED=NO SWIFT_TREAT_WARNINGS_AS_ERRORS=NO 2>&1 | tee iphone.log
           COUNT=$(grep "warning:" iphone.log | sort -u | wc -l | tr -d ' ')
           echo "### Compiler-Warnungen: $COUNT" >> "$GITHUB_STEP_SUMMARY"
@@ -76,4 +78,65 @@ jobs:
             -project Lovea.xcodeproj \
             -scheme Lovea \
             -destination "platform=iOS Simulator,id=$IPAD_ID" \
+            -skip-testing:LoveaUITests/TiefenTestUITests \
             CODE_SIGNING_ALLOWED=NO
+
+  # Tiefentest (Lovea/UITests/TiefenTest*): klickt jeden Tab und Kernablauf durch, Screenshot pro Schritt.
+  # Nur von Hand (workflow_dispatch) oder im PR des Zweigs tiefentest-ui, nie in den normalen Läufen.
+  tiefentest:
+    if: github.event_name == 'workflow_dispatch' || github.head_ref == 'tiefentest-ui'
+    runs-on: macos-26
+    timeout-minutes: 100
+    steps:
+      - uses: actions/checkout@v5
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate project
+        run: xcodegen generate
+      - name: Simulator vorbereiten
+        run: |
+          set -euo pipefail
+          IPHONE_ID=$(xcrun simctl list devices available -j | jq -r '[.devices[][] | select(.name | startswith("iPhone"))][0].udid')
+          test -n "$IPHONE_ID"
+          echo "IPHONE_ID=$IPHONE_ID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$IPHONE_ID" || true
+          xcrun simctl bootstatus "$IPHONE_ID" -b
+          xcrun simctl privacy "$IPHONE_ID" grant photos || true
+          xcrun simctl addmedia "$IPHONE_ID" docs/figuren-vorlage/*.png || true
+      - name: Tiefentest
+        run: |
+          set +e
+          xcodebuild test \
+            -project Lovea.xcodeproj \
+            -scheme Lovea \
+            -destination "platform=iOS Simulator,id=$IPHONE_ID" \
+            -only-testing:LoveaUITests/TiefenTestUITests \
+            -parallel-testing-enabled NO \
+            -resultBundlePath tiefentest.xcresult \
+            CODE_SIGNING_ALLOWED=NO SWIFT_TREAT_WARNINGS_AS_ERRORS=NO 2>&1 | tee tiefentest.log
+          echo "XCODE_STATUS=${PIPESTATUS[0]}" >> "$GITHUB_ENV"
+          exit 0
+      - name: Screenshots und Befunde exportieren
+        if: always()
+        run: |
+          mkdir -p tiefentest-bilder
+          xcrun xcresulttool export attachments --path tiefentest.xcresult --output-path tiefentest-bilder || true
+          xcrun xcresulttool get test-results summary --path tiefentest.xcresult --compact > tiefentest-bilder/summary.json || true
+          xcrun xcresulttool get test-results tests --path tiefentest.xcresult --compact > tiefentest-bilder/tests.json || true
+          cp tiefentest.log tiefentest-bilder/ || true
+          {
+            echo "### Tiefentest"
+            echo "Exit-Status xcodebuild: ${XCODE_STATUS:-unbekannt}"
+            echo "Bilder: $(find tiefentest-bilder -name '*.jpg' | wc -l | tr -d ' ')"
+            grep -E "error:|failed" tiefentest.log | sort -u | head -80 | sed 's/^/    /'
+          } >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Ergebnis hochladen
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiefentest-screenshots
+          path: tiefentest-bilder/
+          retention-days: 14
+      - name: Ergebnis prüfen
+        if: always()
+        run: test "${XCODE_STATUS:-1}" = "0"

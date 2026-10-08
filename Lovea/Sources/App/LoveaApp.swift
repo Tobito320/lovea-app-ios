@@ -18,10 +18,12 @@ struct LoveaApp: App {
     /// zählte jeder Testlauf als Absturz) oder über `-uiTestStudio` (kein echter Launch-Pfad).
     private static var istTest: Bool {
         ProcessInfo.processInfo.arguments.contains("-uiTestStudio")
+            || TiefenTest.aktiv
             || ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
     }
 
     init() {
+        TiefenTest.vorbereiten()
         guard !Self.istTest else {
             _abgesichert = State(initialValue: false)
             _bericht = State(initialValue: nil)
@@ -110,6 +112,7 @@ struct LoveaApp: App {
         StartProtokoll.marke("modelle.falten.nach")
         StartProtokoll.marke("raum.start.vor")
         Raum.shared.start()
+        TiefenTest.einspielen(ich: person)
         StartProtokoll.marke("raum.start.nach")
         Standort.shared.start()
         // Z-28.2/Z-28.3: wartende Gym-Ops aus den Widgets abholen.
