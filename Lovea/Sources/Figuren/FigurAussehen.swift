@@ -296,16 +296,21 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     /// Fix round 3: chin hair on its own, so it combines with every mustache (Bart tab, men only).
     static let kinnbaerte = ["Keiner", "Leichter Kinnbart", "Kinnbart"]
 
-    /// Only "Kleid"/"Rock"/"Minirock", the Zara top and the Puma leggings are gender-tagged (Spec §5).
+    /// p65 C1: women's cuts are `.w` (Top, Trägertop, Crop-Top, Kleid, Seidenbluse, Zara top, ...), so Ahmed is
+    /// never offered them (Spec §5); Ahmed wore crop tops because Top/Trägertop/Crop-Top were neutral.
     static let oberteileGeschlecht: [FigurGeschlecht] = [
-        .n, .n, .n, .n, .n, .n, .n, .n, .w, .n, .n, .n, .n, .n, .n, .n, .n,
+        .n, .n, .n, .n, .w, .n, .w, .n, .w, .n, .n, .w, .n, .n, .n, .n, .w,
         .n, .w, .n, .n, .n, .n, .n, .n, .n, .n,
         .m, .m, .m, .w,
         .m, .m, .m,
         .n, .n,
         .w, .w, .w,
     ]
-    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n, .n, .n, .n, .w, .m, .m, .m, .m, .w]
+    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .w, .n, .w, .n, .n, .n, .w, .m, .m, .m, .m, .w]
+    static let jackenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n, .n, .w, .n, .w]
+    static let schuheGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .n, .n, .n, .n, .n, .n, .n, .n, .n]
+    static let brillenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .w, .n, .n, .n, .w, .n, .n, .n]
+    static let kopfbedeckungenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .n, .n]
     /// Z-23.1: indices appended for shop "mode"/"brille" items (`shopTeile` below) — hidden from the
     /// free editor and `zufall()` so buying is the only way to wear them.
     static let oberteileShop: Set<Int> = [14, 15, 16, 23, 24, 25, 26, 36, 37, 38]
@@ -317,10 +322,45 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     /// Indices of `liste` allowed for `person`: gender-appropriate (tag missing = always allowed)
     /// and not shop-only. Keeps the original index so a filtered tile still sets the right int.
     static func erlaubt<T>(_ liste: [T], geschlecht: [FigurGeschlecht] = [], shop: Set<Int> = [], fuer person: Person) -> [Int] {
-        let g = person.figurGeschlecht
-        return liste.indices.filter { i in
-            !shop.contains(i) && (i >= geschlecht.count || geschlecht[i] == .n || geschlecht[i] == g)
+        liste.indices.filter { !shop.contains($0) && passt($0, geschlecht, fuer: person) }
+    }
+
+    /// Whether index `i` of a list with gender tags `geschlecht` may be worn by `person` (tag missing = yes).
+    static func passt(_ i: Int, _ geschlecht: [FigurGeschlecht], fuer person: Person) -> Bool {
+        i >= geschlecht.count || geschlecht[i] == .n || geschlecht[i] == person.figurGeschlecht
+    }
+
+    /// p65 C1: a saved look that wears a piece its person may not wear (a women's cut on Ahmed, a men's cut
+    /// on Annika, an index no list has) gets that part, with its colors, reset to the person's default.
+    /// Shop-only pieces stay: the shop hides what a person may not wear. Face, hair and body stay as saved.
+    /// Pure, so both phones come to the same picture, like `ohneEntfernteTeile`.
+    static func mitGueltigerKleidung(_ a: FigurAussehen, _ p: Person) -> FigurAussehen {
+        let basis = standard(for: p)
+        var b = a
+        func gueltig(_ i: Int, _ anzahl: Int, _ tags: [FigurGeschlecht]) -> Bool {
+            (0..<anzahl).contains(i) && passt(i, tags, fuer: p)
         }
+        if !gueltig(a.oberteil, oberteile.count, oberteileGeschlecht) {
+            b.oberteil = basis.oberteil; b.oberteilfarbe = basis.oberteilfarbe; b.oberteilfarbeHex = basis.oberteilfarbeHex
+        }
+        if !gueltig(a.jacke, jacken.count, jackenGeschlecht) {
+            b.jacke = basis.jacke; b.jackenfarbe = basis.jackenfarbe; b.jackenfarbeHex = basis.jackenfarbeHex
+        }
+        if !gueltig(a.hose, hosen.count, hosenGeschlecht) {
+            b.hose = basis.hose; b.hosenfarbe = basis.hosenfarbe; b.hosenfarbeHex = basis.hosenfarbeHex
+        }
+        if !gueltig(a.schuhe, schuhArten.count, schuheGeschlecht) {
+            b.schuhe = basis.schuhe; b.schuhfarbe = basis.schuhfarbe; b.schuhfarbeHex = basis.schuhfarbeHex
+        }
+        if !gueltig(a.kopfbedeckung, kopfbedeckungen.count, kopfbedeckungenGeschlecht) {
+            b.kopfbedeckung = basis.kopfbedeckung; b.muetzenfarbe = basis.muetzenfarbe
+        }
+        if !gueltig(a.brille, brillen.count, brillenGeschlecht) { b.brille = basis.brille }
+        if !gueltig(a.ohrringe, ohrringArten.count, ohrringeGeschlecht) { b.ohrringe = basis.ohrringe }
+        if !gueltig(a.kette, ketten.count, kettenGeschlecht) { b.kette = basis.kette }
+        if !gueltig(a.ring, ringe.count, ringeGeschlecht) { b.ring = basis.ring }
+        if !gueltig(a.armband, armbaender.count, armbaenderGeschlecht) { b.armband = basis.armband }
+        return b
     }
 
     /// Shared clothing palette: Oberteil, Jacke, Hose, Schuhe, Kopfbedeckung. The first 12 were the v1 top colors.

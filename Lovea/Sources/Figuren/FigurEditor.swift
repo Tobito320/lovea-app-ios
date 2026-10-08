@@ -111,7 +111,7 @@ struct FigurEditor: View {
                 ]
             case .jacke:
                 return [
-                    .optionen("Jacke", \.jacke, A.jacken, .koerper, erlaubte: A.erlaubt(A.jacken, shop: A.jackenShop, fuer: person)),
+                    .optionen("Jacke", \.jacke, A.jacken, .koerper, erlaubte: A.erlaubt(A.jacken, geschlecht: A.jackenGeschlecht, shop: A.jackenShop, fuer: person)),
                     .farben("Farbe", \.jackenfarbe, kleidung, hexPfad: \.jackenfarbeHex),
                 ]
             case .hose:
@@ -121,14 +121,14 @@ struct FigurEditor: View {
                 ]
             case .schuhe:
                 return [
-                    .optionen("Schuhe", \.schuhe, A.schuhArten, .koerper, erlaubte: A.erlaubt(A.schuhArten, shop: A.schuheShop, fuer: person)),
+                    .optionen("Schuhe", \.schuhe, A.schuhArten, .koerper, erlaubte: A.erlaubt(A.schuhArten, geschlecht: A.schuheGeschlecht, shop: A.schuheShop, fuer: person)),
                     .farben("Farbe", \.schuhfarbe, kleidung, hexPfad: \.schuhfarbeHex),
                 ]
             case .accessoires:
                 return [
-                    .optionen("Brille", \.brille, A.brillen, .gesicht, erlaubte: A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person)),
+                    .optionen("Brille", \.brille, A.brillen, .gesicht, erlaubte: A.erlaubt(A.brillen, geschlecht: A.brillenGeschlecht, shop: A.brillenShop, fuer: person)),
                     .optionen("Ohrringe", \.ohrringe, A.ohrringArten, .gesicht, erlaubte: A.erlaubt(A.ohrringArten, geschlecht: A.ohrringeGeschlecht, fuer: person)),
-                    .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf, erlaubte: nil),
+                    .optionen("Kopfbedeckung", \.kopfbedeckung, A.kopfbedeckungen, .kopf, erlaubte: A.erlaubt(A.kopfbedeckungen, geschlecht: A.kopfbedeckungenGeschlecht, fuer: person)),
                     .farben("Farbe der Kopfbedeckung", \.muetzenfarbe, kleidung, hexPfad: nil),
                     .schalter("AirPods", \.airpods),
                 ]
@@ -182,7 +182,7 @@ struct FigurEditor: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: wuerfe)
         .onAppear {
             if !Kategorie.sichtbar(fuer: person).contains(kategorie) { kategorie = .gesicht }
-            aussehen = FigurAussehen.mitGueltigemGesicht(aussehen, person)
+            aussehen = FigurAussehen.mitGueltigerKleidung(FigurAussehen.mitGueltigemGesicht(aussehen, person), person)
         }
     }
 
@@ -401,18 +401,18 @@ struct FigurEditor: View {
         a.oberteil = eins(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: person))
         a.oberteilfarbe = eins(Array(A.farben.indices))
         a.oberteilfarbeHex = nil
-        a.jacke = oftKeins(A.erlaubt(A.jacken, shop: A.jackenShop, fuer: person))
+        a.jacke = oftKeins(A.erlaubt(A.jacken, geschlecht: A.jackenGeschlecht, shop: A.jackenShop, fuer: person))
         a.jackenfarbe = eins(Array(A.farben.indices))
         a.jackenfarbeHex = nil
         a.hose = eins(A.erlaubt(A.hosen, geschlecht: A.hosenGeschlecht, shop: A.hosenShop, fuer: person))
         a.hosenfarbe = eins(Array(A.farben.indices))
         a.hosenfarbeHex = nil
-        a.schuhe = eins(A.erlaubt(A.schuhArten, shop: A.schuheShop, fuer: person))
+        a.schuhe = eins(A.erlaubt(A.schuhArten, geschlecht: A.schuheGeschlecht, shop: A.schuheShop, fuer: person))
         a.schuhfarbe = eins(Array(A.farben.indices))
         a.schuhfarbeHex = nil
-        a.kopfbedeckung = oftKeins(Array(A.kopfbedeckungen.indices))
+        a.kopfbedeckung = oftKeins(A.erlaubt(A.kopfbedeckungen, geschlecht: A.kopfbedeckungenGeschlecht, fuer: person))
         a.muetzenfarbe = eins(Array(A.farben.indices))
-        a.brille = oftKeins(A.erlaubt(A.brillen, shop: A.brillenShop, fuer: person))
+        a.brille = oftKeins(A.erlaubt(A.brillen, geschlecht: A.brillenGeschlecht, shop: A.brillenShop, fuer: person))
         withAnimation(.snappy) { aussehen = a }
         wuerfe += 1
     }
