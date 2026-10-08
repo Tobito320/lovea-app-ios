@@ -147,6 +147,20 @@ final class ErnaehrungModell {
         }
     }
 
+    /// Gespeicherte Mahlzeit in einen Slot dieses Tags: ein Eintrag je Zutat, Vorlage bleibt unverändert.
+    func mahlzeitEintragen(_ r: Rezept, mahlzeit: Mahlzeit, datum: String) {
+        for e in ErnaehrungLogik.eintraege(r, mahlzeit: mahlzeit, datum: datum) {
+            eintragen(e.lebensmittel, menge: e.menge, einheit: e.einheit, mahlzeit: mahlzeit, datum: datum, id: e.id)
+        }
+    }
+
+    /// Rezept hinter einer `rezept-…`-ID, wenn es eine Mahlzeit ist.
+    func mahlzeitVorlage(_ lebensmittelId: String) -> Rezept? {
+        guard lebensmittelId.hasPrefix("rezept-") else { return nil }
+        let id = String(lebensmittelId.dropFirst("rezept-".count))
+        return rezepte.first { $0.id == id && $0.istMahlzeit }
+    }
+
     func eigenesSichern(_ l: Lebensmittel) { Raum.shared.senden("lebensmittel.setzen", LebensmittelD(lebensmittel: l, geloescht: nil)) }
     func eigenesLoeschen(_ l: Lebensmittel) { Raum.shared.senden("lebensmittel.setzen", LebensmittelD(lebensmittel: l, geloescht: true)) }
     func favoritSetzen(_ l: Lebensmittel, an: Bool) { Raum.shared.senden("lebensmittel.favorit", FavoritD(lebensmittel: l, an: an)) }
