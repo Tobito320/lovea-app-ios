@@ -227,6 +227,8 @@ private struct ProfilInhalt: View {
         .overlay { ZimmerLebenTippen(zimmer: zimmer, person: person, welt: .panorama) }
         .overlay { PaarSignaleEbene(blatt: $signale, welt: .panorama) }
         .overlay { AlltagEbene(welt: .panorama) }
+        // p71: Briefkasten und Telefon (Briefe, Sprachpost), nur im eigenen Profil.
+        .overlay { if istEigenes { PostObjekte() } }
     }
 
     /// A walker, sitter or sleeper of the home scene: their own look and badges, the state and size
