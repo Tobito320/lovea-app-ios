@@ -11,7 +11,7 @@ Spec: `docs/superpowers/specs/p65-profil-szene.md`. Order from the vault plan: B
 - [x] A2 (CI offen) panorama stage: parallax, zones, dots, fixed scene, floating chips, tap actions, one avatar
 - [x] A3 (CI offen) calm area below + three labelled buttons (Profil, Zimmer, Kleidung)
 - [x] C1 (CI offen) gender tags fixed, `mitGueltigerKleidung` migration, Ahmed-has-no-women's-items tests
-- [ ] C2 Settings "Meine Figur"; wardrobe view in profile with 5 categories
+- [x] C2 (CI offen) Settings "Meine Figur" (`FigurEditor.Bereich.figur`); wardrobe in the profile (`.kleidung`: Oberteile, Hosen, Schuhe, Jacken, Accessoires + shop row via `GarderobeLogik`)
 - [ ] D1 free kit (~5 per person) via `*Shop` sets, names, tests updated
 - [ ] D2 vector brand pieces + shoes + `MarkenLogos.an`; Annika women's catalog; `docs/marken-logos.md`
 - [ ] Z testlist in vault, advisor, PR ready, Büro report + Log line

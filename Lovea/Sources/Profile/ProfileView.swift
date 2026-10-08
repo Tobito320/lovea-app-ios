@@ -84,9 +84,9 @@ private struct ProfilInhalt: View {
     @State private var backdropOffen = false
     /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
     @State private var karteOffen = false
-    // Z-25.1: eigenes Profil (Figur bearbeiten, Shop).
+    // Z-25.1: eigenes Profil. p65 C: "Profil" opens Meine Figur, "Kleidung" the wardrobe (with the Shop button).
     @State private var figurBearbeitenOffen = false
-    @State private var shopOffen = false
+    @State private var kleidungOffen = false
     /// Brief G: the place whose editor opens (where the person is right now, else home).
     @State private var zimmerOrt = RaumOrt.zuhause
     // Z-24.3: Kuss-Animation im Partner-Profil. `kussBasislinie` liest den Ausgangswert beim
@@ -152,7 +152,7 @@ private struct ProfilInhalt: View {
         .sheet(item: $blatt) { b in blattInhalt(b) }
         .fullScreenCover(isPresented: $karteOffen) { KarteTab(schliessen: { karteOffen = false }) }
         .sheet(isPresented: $figurBearbeitenOffen) { NavigationStack { FigurEditorSeite(person: person) } }
-        .sheet(isPresented: $shopOffen) { ShopView() }
+        .sheet(isPresented: $kleidungOffen) { NavigationStack { FigurEditorSeite(person: person, bereich: .kleidung) } }
         .modifier(KussUndGeschenkReaktionen(
             istEigenes: istEigenes, person: person, kussBasislinie: $kussBasislinie, kussHaptik: $kussHaptik,
             geschenkArtikel: $geschenkArtikel, geschenkHaptik: $geschenkHaptik
@@ -213,7 +213,7 @@ private struct ProfilInhalt: View {
         let katze = ZuhauseKatze(id: ZimmerKatze.id(tiere: Person.allCases.map { FigurenModell.shared.aussehen($0).tier }),
                                  gestreichelt: punkte.katzeGestreichelt(ich), streicheln: { punkte.katzeStreicheln() })
         return ZuhauseBuehne(straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), nacht: nacht, wahl: ZimmerWahl.aktuell, katze: katze,
-                             outfit: istEigenes ? { figurBearbeitenOffen = true } : nil, welt: .panorama,
+                             outfit: istEigenes ? { kleidungOffen = true } : nil, welt: .panorama,
                              wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel, welt: .panorama)) }) { f in
             buehnenFigur(f)
         } paar: {
@@ -369,13 +369,13 @@ private struct ProfilInhalt: View {
 
     // MARK: - Eigene Aktionen (Z-25.1: Figur bearbeiten, Shop; Brief G: Zimmer gestalten)
 
-    /// p65: the three buttons carry their names now (Profil, Zimmer, Kleidung). "Kleidung" opens the
-    /// shop sheet until the wardrobe of C has its own place.
+    /// p65: the three buttons carry their names (Profil, Zimmer, Kleidung). "Profil" is the figure only,
+    /// "Kleidung" the wardrobe.
     private var eigeneAktionen: some View {
         HStack(spacing: 8) {
             beschriftet("person.crop.square", "Profil") { figurBearbeitenOffen = true }
             beschriftet("bed.double.fill", "Zimmer") { zimmerGestalten() }
-            beschriftet("tshirt.fill", "Kleidung") { shopOffen = true }
+            beschriftet("tshirt.fill", "Kleidung") { kleidungOffen = true }
         }
     }
 
