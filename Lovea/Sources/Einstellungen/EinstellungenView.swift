@@ -47,6 +47,7 @@ struct EinstellungenView: View {
                 Text("Schont das Scrollen im Chat. Gilt ab dem nächsten Öffnen des Chats. Aus: wie vorher.")
             }
             if person == .ahmed { AhmedHilfeEinstellungen() }
+            if person == .ahmed { TrackerEinstellungen() }
             Section("Wir") {
                 NavigationLink("Orte") { OrteListeView() }
                 NavigationLink("Jahrestag") { JahrestagEditor() }
