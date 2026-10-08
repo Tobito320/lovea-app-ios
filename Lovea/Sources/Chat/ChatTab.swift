@@ -12,6 +12,7 @@ struct ChatTab: View {
         NavigationStack {
             if let ich = Raum.shared.ich {
                 ChatListe(ich: ich) { offen = true }
+                    .gymLeisteOben()
                     // Follows `offen`: hidden in the conversation, back at once on the pop.
                     .toolbar(offen ? .hidden : .visible, for: .tabBar)
                     // R6: nur auf der Liste, nicht in der offenen Unterhaltung (dort ist der
