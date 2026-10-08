@@ -36,7 +36,7 @@ final class AlltagRenderTests: XCTestCase {
         } paar: {
             EmptyView()
         }
-        let alltag = AlltagEbene(speicher: speicher, heute: heute)
+        let alltag = AlltagEbene(speicher: speicher, heute: heute, pruefen: false)
         let signaleEbene = PaarSignaleEbene(blatt: .constant(nil), speicher: SignaleSpeicher(ich: { ich }, senden: { _ in }),
                                             briefe: BriefeSpeicher(ich: { ich }, senden: { _ in }), gruesse: [:], jetzt: abend)
         return AnyView(ZStack { szene; if signale { signaleEbene }; alltag }.frame(width: 390, height: 430).clipped())
@@ -64,11 +64,11 @@ final class AlltagRenderTests: XCTestCase {
         let zellen: [(titel: String, ansicht: AnyView)] = [
             (titel: "Plattenspieler leer, mit Platte gedreht, Tee und Wärmflasche", ansicht: dinge),
             (titel: "Nachttisch aus und mit Wecker, Kühlschrank leer und mit Zetteln, Spiegel leer und mit Outfit", ansicht: moebel),
-            (titel: "Zimmer Mittag, noch nichts gesetzt", ansicht: zimmer(.tag)),
-            (titel: "Annika: Platte, Ahmeds Wecker, sein Outfit, Zettel", ansicht: zimmer(.tag, ops: belegt())),
-            (titel: "Ahmed: Annikas Wecker, kein Outfit von ihr, Zettel", ansicht: zimmer(.tag, ich: .ahmed, ops: belegt())),
-            (titel: "Schwerer Tag: Tee, Wärmflasche und etwas Süßes", ansicht: zimmer(.abend, ops: belegt() + waerme())),
-            (titel: "Mit Paar-Signalen zusammen, Überdeckung prüfen", ansicht: zimmer(.abend, ops: belegt() + waerme(), signale: true)),
+            (titel: "Mittag, leer", ansicht: zimmer(.tag)),
+            (titel: "Annika, belegt", ansicht: zimmer(.tag, ops: belegt())),
+            (titel: "Ahmed, belegt", ansicht: zimmer(.tag, ich: .ahmed, ops: belegt())),
+            (titel: "Schwerer Tag", ansicht: zimmer(.abend, ops: belegt() + waerme())),
+            (titel: "Mit Signalen", ansicht: zimmer(.abend, ops: belegt() + waerme(), signale: true)),
             (titel: "Nacht", ansicht: zimmer(.nacht, nacht: true, ops: belegt())),
         ]
         RenderTafel.speichern("p64-alltag", spalten: 2, zellen: zellen)

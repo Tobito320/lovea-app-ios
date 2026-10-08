@@ -13,17 +13,19 @@ enum AlltagBlatt: String, Identifiable {
 /// in den Blättern, nur die Platte dreht sich einmal 30 Sekunden, wenn ein Song aufliegt.
 struct AlltagEbene: View {
     private let speicher: AlltagSpeicher
-    /// Nur für die Render-Tafel: fester Tag statt heute.
+    /// Nur für die Render-Tafel: fester Tag statt heute und kein Abgleich der Wärme mit dem Zyklus.
     private let heute: String
+    private let pruefen: Bool
 
     @State private var blatt: AlltagBlatt?
     @State private var dreht = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("lovea.gruss.morgenTag") private var morgenTag = ""
 
-    init(speicher: AlltagSpeicher = .shared, heute: String = Datum.text(Date())) {
+    init(speicher: AlltagSpeicher = .shared, heute: String = Datum.text(Date()), pruefen: Bool = true) {
         self.speicher = speicher
         self.heute = heute
+        self.pruefen = pruefen
     }
 
     private static let platteOrt = P(45, 113) // auf dem Wandregal links über dem Bett
@@ -44,7 +46,7 @@ struct AlltagEbene: View {
                 kuehlschrank(s, oben)
             }
         }
-        .task { speicher.waermePruefen(heute: heute) }
+        .task { if pruefen { speicher.waermePruefen(heute: heute) } }
         .task(id: speicher.stand.platte?.opId) { await plattenDrehen() }
         .sheet(item: $blatt) { b in
             switch b {
