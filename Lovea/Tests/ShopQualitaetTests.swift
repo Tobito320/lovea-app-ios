@@ -6,7 +6,8 @@ import XCTest
 /// p48: Shop-Qualität. Taschen, Haustiere und Mode sind größer und genauer gezeichnet. Die Tests zählen
 /// sichtbare Pixel (Tasche in der 44-pt-Leiste braucht eine klare Mindestfläche) und schreiben drei
 /// Tafeln `p48-taschen`, `p48-mode`, `p48-tiere`: je Teil auf Annika in Profil, Halbfigur, Leiste 44 pt,
-/// Shop-Kachel und Shop-Detail.
+/// Shop-Kachel und Shop-Detail. p56: Mode und Schmuck als `p56-mode` und `p56-schmuck`; Kachel und Detail
+/// sind die echten Shop-Ansichten (`ArtikelKachel`, `ArtikelBild` mit Jeans von hinten bzw. Schmuck groß).
 @MainActor
 final class ShopQualitaetTests: XCTestCase {
     private typealias Zelle = (titel: String, ansicht: AnyView)
@@ -17,8 +18,16 @@ final class ShopQualitaetTests: XCTestCase {
                         "mode.satin-camisole", "mode.off-shoulder", "mode.wickelkleid", "mode.cardigan"]
     private let tiere = ["tier.hund-braun", "tier.hund-schwarz", "tier.katze-grau",
                          "tier.katze-orange", "tier.hase-weiss", "tier.vogel-blau"]
+    private let schmuck = ["juwel.creolen", "juwel.perlenohrringe", "juwel.herzkette", "juwel.perlenkette",
+                           "juwel.cartier-love", "juwel.charm-armband", "juwel.steinring", "juwel.stapelringe"]
 
     private func annika() -> FigurAussehen { FigurAussehen.standard(for: .annika) }
+
+    private func mitSchmuck(_ id: String) -> FigurAussehen {
+        var a = annika()
+        a.juwelAnziehen(id)
+        return a
+    }
 
     private func mitTasche(_ id: String?) -> FigurAussehen {
         var a = annika()
@@ -124,6 +133,19 @@ final class ShopQualitaetTests: XCTestCase {
         }
     }
 
+    /// p56: jedes Schmuckstück verändert das Bild der Figur (Ohr und Hals schon in der Halbfigur, alles am ganzen Körper).
+    func testSchmuckIstAnDerFigurSichtbar() {
+        for id in schmuck {
+            let ort = schmuckKatalog[id]?.stil.ort
+            pruefe("Profil 220 \(id)", mindestens: 6,
+                   ohne: figur(annika(), groesse: 220, ganz: true), mit: figur(mitSchmuck(id), groesse: 220, ganz: true))
+            if ort == .ohr || ort == .hals {
+                pruefe("Halbfigur 140 \(id)", mindestens: 6,
+                       ohne: figur(annika(), groesse: 140, ganz: false), mit: figur(mitSchmuck(id), groesse: 140, ganz: false))
+            }
+        }
+    }
+
     // MARK: - Tafeln
 
     private func zeilen(_ ids: [String], look: (String) -> FigurAussehen, vorschau: (String) -> FigurAussehen) -> [Zelle] {
@@ -134,8 +156,9 @@ final class ShopQualitaetTests: XCTestCase {
             zellen.append((titel: "\(name): Profil", ansicht: figur(a, groesse: 220, ganz: true)))
             zellen.append((titel: "\(name): Halbfigur", ansicht: figur(a, groesse: 140, ganz: false)))
             zellen.append((titel: "\(name): Leiste 44 pt", ansicht: figur(a, groesse: 44, ganz: false)))
-            zellen.append((titel: "\(name): Shop-Kachel", ansicht: figur(vorschau(id), groesse: 118, ganz: true)))
-            zellen.append((titel: "\(name): Shop-Detail", ansicht: figur(vorschau(id), groesse: 260, ganz: true)))
+            let artikel = ShopArtikel(id: id, name: name, marke: nil, kategorie: "", preis: 1, geschlecht: "n", exklusiv: false)
+            zellen.append((titel: "\(name): Shop-Kachel", ansicht: AnyView(ArtikelKachel(artikel: artikel, besitzt: false, vorschauAussehen: vorschau(id)))))
+            zellen.append((titel: "\(name): Shop-Detail", ansicht: AnyView(ArtikelBild(id: id, aussehen: vorschau(id)))))
         }
         return zellen
     }
@@ -145,7 +168,11 @@ final class ShopQualitaetTests: XCTestCase {
     }
 
     func testTafelMode() {
-        RenderTafel.speichern("p48-mode", spalten: 5, zellen: zeilen(mode, look: { self.mitMode($0) }, vorschau: { self.mitMode($0) }))
+        RenderTafel.speichern("p56-mode", spalten: 5, zellen: zeilen(mode, look: { self.mitMode($0) }, vorschau: { self.mitMode($0) }))
+    }
+
+    func testTafelSchmuck() {
+        RenderTafel.speichern("p56-schmuck", spalten: 5, zellen: zeilen(schmuck, look: { self.mitSchmuck($0) }, vorschau: { self.mitSchmuck($0) }))
     }
 
     func testTafelTiere() {

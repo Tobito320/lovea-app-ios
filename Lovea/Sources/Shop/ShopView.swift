@@ -189,8 +189,13 @@ struct ArtikelKachel: View {
         .accessibilityLabel("\(artikel.name), \(besitzt ? "besitzt du schon" : "\(artikel.preis) Punkte")")
     }
 
-    private var vorschau: some View {
-        FigurView(vorschauAussehen, zustand: .ruhig, groesse: 118, animiert: false, ganzkoerper: true)
+    /// p56: Schmuck ist an der ganzen Figur zu klein für die Kachel, hier steht das Stück groß.
+    @ViewBuilder private var vorschau: some View {
+        if schmuckKatalog[artikel.id] != nil {
+            Nahaufnahme(id: artikel.id)
+        } else {
+            FigurView(vorschauAussehen, zustand: .ruhig, groesse: 118, animiert: false, ganzkoerper: true)
+        }
     }
 }
 
@@ -218,7 +223,7 @@ private struct ArtikelDetail: View {
 
     var body: some View {
         VStack(spacing: 18) {
-            vorschau.frame(height: 220).frame(maxWidth: .infinity)
+            ArtikelBild(id: artikel.id, aussehen: vorschauAussehen)
             VStack(spacing: 4) {
                 if let marke = artikel.marke { Text(marke).font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
                 Text(artikel.name).font(.title3.bold())
@@ -228,17 +233,13 @@ private struct ArtikelDetail: View {
             Spacer(minLength: 0)
         }
         .padding(.top, 24)
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .sensoryFeedback(.impact(weight: .medium), trigger: getragen)
         .confirmationDialog("„\(artikel.name)“ für \(artikel.preis) Punkte kaufen?", isPresented: $bestaetigen, titleVisibility: .visible) {
             Button("Kaufen") { onKauf(); dismiss() }
             Button("Abbrechen", role: .cancel) {}
         }
-    }
-
-    private var vorschau: some View {
-        FigurView(vorschauAussehen, zustand: .ruhig, groesse: 260, animiert: false, ganzkoerper: true)
     }
 
     @ViewBuilder private var aktion: some View {
@@ -273,6 +274,49 @@ private struct ArtikelDetail: View {
             .tint(Color.loveaRose)
             .disabled(fehlend > 0)
             .padding(.horizontal, 24)
+        }
+    }
+}
+
+/// Vorschau im Detail: die Figur groß; p56: bei der Jeans (Blumen auf den Gesäßtaschen) und beim Schmuck daneben die Nahaufnahme.
+struct ArtikelBild: View {
+    let id: String
+    let aussehen: FigurAussehen
+
+    var body: some View {
+        HStack(spacing: 12) {
+            FigurView(aussehen, zustand: .ruhig, groesse: 300, animiert: false, ganzkoerper: true)
+            if id == "mode.blumen-jeans" || schmuckKatalog[id] != nil {
+                Nahaufnahme(id: id)
+                    .frame(width: 180, height: 234)
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+            }
+        }
+        .frame(height: 300)
+    }
+}
+
+/// p56: Jeans von hinten und Schmuck groß, mit den Zeichnern der Figur (Vektor, scharf in jeder Größe). Feld 200 x 260.
+struct Nahaufnahme: View {
+    let id: String
+
+    var body: some View {
+        Canvas { c, s in
+            let k = min(s.width / 200, s.height / 260)
+            var g = c
+            g.translateBy(x: (s.width - 200 * k) / 2, y: (s.height - 260 * k) / 2)
+            g.scaleBy(x: k, y: k)
+            guard let e = schmuckKatalog[id] else { return zeichneJeansRueckseite(g, farbe: FigurFarbe(0x3F6EAF)) }
+            if e.stil.ort == .ohr {
+                // Ein Ohr, groß: (42, 117) wandert in die Feldmitte.
+                g.translateBy(x: 100, y: 130)
+                g.scaleBy(x: 7, y: 7)
+                g.translateBy(x: -42, y: -117)
+                zeichneOhrschmuck(g, id: id)
+            } else {
+                let z: CGFloat = e.stil.ort == .hals ? 5 : e.stil.ort == .hand ? 12 : 7
+                zeichneSchmuck(g, e.stil, e.farbe, hals: P(100, 70), arm: (ellbogen: P(100, 30), hand: P(100, 130)), bei: 1, groesse: z)
+            }
         }
     }
 }

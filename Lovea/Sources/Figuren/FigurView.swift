@@ -1156,8 +1156,8 @@ private struct Zeichner {
         let zugabe: CGFloat = jacke == 14 ? 0 : 30
         // Zipped jackets (Adidas, The North Face, Moncler) close in the middle.
         let zu = [6, 8, 9, 11].contains(jacke)
-        let innenO: CGFloat = zu ? 100 : 100 - (jacke == 14 ? 14 : 12) * s
-        let innenU: CGFloat = zu ? 100 : 100 - (jacke == 14 ? 24 : 20) * s
+        let innenO: CGFloat = zu ? 100 : 100 - 12 * s
+        let innenU: CGFloat = zu ? 100 : 100 - 20 * s
         let links = Path { p in
             p.move(to: P(-20, oben - 60))
             p.addLine(to: P(innenO, oben - 60))

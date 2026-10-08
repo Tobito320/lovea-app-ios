@@ -11,6 +11,16 @@ private func verlaufX(_ x0: CGFloat, _ x1: CGFloat, _ stops: [Gradient.Stop]) ->
     .linearGradient(Gradient(stops: stops), startPoint: CGPoint(x: x0, y: 0), endPoint: CGPoint(x: x1, y: 0))
 }
 
+/// Stoff von links nach rechts: an den Rändern dunkel, links der Mitte ein Lichtstreifen.
+private func stoffVerlauf(_ f: FigurFarbe, _ x0: CGFloat, _ x1: CGFloat, dunkel: Double, hell: Double) -> GraphicsContext.Shading {
+    verlaufX(x0, x1, [
+        .init(color: f.mal(dunkel).farbe, location: 0),
+        .init(color: f.mix(Pal.weiss, hell).farbe, location: 0.35),
+        .init(color: f.farbe, location: 0.6),
+        .init(color: f.mal(dunkel - 0.04).farbe, location: 1),
+    ])
+}
+
 /// Punkt auf der Bogenkurve a -> b mit Kontrollpunkt c bei t (0 bis 1).
 private func punktAufBogen(_ a: CGPoint, _ b: CGPoint, _ c: CGPoint, _ t: CGFloat) -> CGPoint {
     let u = 1 - t
@@ -140,12 +150,7 @@ func zeichneOffShoulder(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFa
     stoff.addLine(to: P(b.x, 340))
     stoff.addLine(to: P(a.x, 340))
     stoff.closeSubpath()
-    h.fill(stoff, with: verlaufX(30, 170, [
-        .init(color: top.mal(0.8).farbe, location: 0),
-        .init(color: top.mix(Pal.weiss, 0.3).farbe, location: 0.35),
-        .init(color: top.farbe, location: 0.55),
-        .init(color: top.mal(0.78).farbe, location: 1),
-    ]))
+    h.fill(stoff, with: stoffVerlauf(top, 30, 170, dunkel: 0.8, hell: 0.3))
     var k = h
     k.clip(to: stoff)
     // Rippenstrick und Taillen-Raffung.
@@ -234,12 +239,7 @@ func zeichneWickelkleid(_ g: GraphicsContext, _ h: GraphicsContext, top: FigurFa
         p.closeSubpath()
     }
     g.fill(v, with: .color(haut.farbe))
-    h.fill(box(0, 150, 200, 200), with: verlaufX(30, 170, [
-        .init(color: top.mal(0.8).farbe, location: 0),
-        .init(color: top.mix(Pal.weiss, 0.1).farbe, location: 0.35),
-        .init(color: top.farbe, location: 0.6),
-        .init(color: top.mal(0.76).farbe, location: 1),
-    ]))
+    h.fill(box(0, 150, 200, 200), with: stoffVerlauf(top, 30, 170, dunkel: 0.8, hell: 0.1))
     g.fill(v, with: .color(haut.farbe))
     // Untere Lage (links) liegt im Schatten, die obere Lage kreuzt von rechts zum Knoten.
     let unterLage = Path { p in
@@ -294,12 +294,7 @@ func zeichneWickelRock(_ g: GraphicsContext, top: FigurFarbe, taille: CGFloat, s
     teil(g, rock, top)
     var k = g
     k.clip(to: rock)
-    k.fill(Path(CGRect(x: 0, y: taille - 2, width: 200, height: saum - taille + 16)), with: verlaufX(100 - weite, 100 + weite, [
-        .init(color: top.mal(0.8).farbe, location: 0),
-        .init(color: top.mix(Pal.weiss, 0.1).farbe, location: 0.35),
-        .init(color: top.farbe, location: 0.6),
-        .init(color: top.mal(0.74).farbe, location: 1),
-    ]))
+    k.fill(Path(CGRect(x: 0, y: taille - 2, width: 200, height: saum - taille + 16)), with: stoffVerlauf(top, 100 - weite, 100 + weite, dunkel: 0.8, hell: 0.1))
     // Fließende Falten von der Taille zum Saum.
     for i in 0..<6 {
         let f = CGFloat(i) / 5

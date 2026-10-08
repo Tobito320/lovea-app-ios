@@ -28,6 +28,6 @@
   {"id": "juwel.perlenkette", "name": "Perlenkette", "marke": "Mikimoto", "kategorie": "schmuck", "preis": 5200, "geschlecht": "w", "exklusiv": false},
   {"id": "juwel.cartier-love", "name": "Love Armreif", "marke": "Cartier", "kategorie": "schmuck", "preis": 9500, "geschlecht": "w", "exklusiv": false},
   {"id": "juwel.charm-armband", "name": "Charm-Armband", "marke": "Pandora", "kategorie": "schmuck", "preis": 1800, "geschlecht": "w", "exklusiv": false},
-  {"id": "juwel.solitaer", "name": "Solitär-Ring", "marke": "Tiffany & Co.", "kategorie": "schmuck", "preis": 4800, "geschlecht": "w", "exklusiv": false},
+  {"id": "juwel.steinring", "name": "Goldring mit Stein", "marke": "Tiffany & Co.", "kategorie": "schmuck", "preis": 4800, "geschlecht": "w", "exklusiv": false},
   {"id": "juwel.stapelringe", "name": "Stapelringe Gold", "marke": null, "kategorie": "schmuck", "preis": 800, "geschlecht": "w", "exklusiv": false}
 ]

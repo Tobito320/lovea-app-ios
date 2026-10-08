@@ -50,7 +50,7 @@ final class ShopTragenTests: XCTestCase {
         let creolen = artikel("juwel.creolen", kategorie: "schmuck", geschlecht: "w")
         let perlen = artikel("juwel.perlenohrringe", kategorie: "schmuck", geschlecht: "w")
         let kette = artikel("juwel.herzkette", kategorie: "schmuck", geschlecht: "w")
-        let ring = artikel("juwel.solitaer", kategorie: "schmuck", geschlecht: "w")
+        let ring = artikel("juwel.steinring", kategorie: "schmuck", geschlecht: "w")
         let stapel = artikel("juwel.stapelringe", kategorie: "schmuck", geschlecht: "w")
         a.anziehen(creolen)
         a.anziehen(kette)

@@ -9,17 +9,17 @@ enum SchmuckStil: Sendable {
     case armreif, armreifLove, perlenArmband, lederArmband, kettchen, freundschaftsband
     case ring, ringStein, siegelring, stapelringe, ringLove
     case ohrringCC
-    // p56: elegant jewelry (`juwel.*`), drawn larger so it reads on the 44 pt figure.
-    case herzAnhaenger, perlenstrang, charmArmband, solitaer, ohrCreole, ohrPerle
+    // p56: elegant jewelry (`juwel.*`) that the older styles do not cover.
+    case herzAnhaenger, charmArmband, ohrCreole, ohrPerle
 
     enum Ort: Sendable { case hals, handgelenk, hand, ohr }
 
     var ort: Ort {
         switch self {
         case .kette, .ketteHerz, .kettePerlen, .ketteEdelstein, .kugelkette, .panzerkette, .lederband, .choker, .layering,
-             .herzAnhaenger, .perlenstrang: .hals
+             .herzAnhaenger: .hals
         case .armreif, .armreifLove, .perlenArmband, .lederArmband, .kettchen, .freundschaftsband, .charmArmband: .handgelenk
-        case .ring, .ringStein, .siegelring, .stapelringe, .ringLove, .solitaer: .hand
+        case .ring, .ringStein, .siegelring, .stapelringe, .ringLove: .hand
         case .ohrringCC, .ohrCreole, .ohrPerle: .ohr
         }
     }
@@ -42,10 +42,10 @@ let schmuckKatalog: [String: (stil: SchmuckStil, farbe: FigurFarbe)] = [
     "juwel.creolen": (.ohrCreole, Pal.gold),
     "juwel.perlenohrringe": (.ohrPerle, FigurFarbe(0xF4F1EE)),
     "juwel.herzkette": (.herzAnhaenger, Pal.gold),
-    "juwel.perlenkette": (.perlenstrang, FigurFarbe(0xF4F1EE)),
+    "juwel.perlenkette": (.kettePerlen, FigurFarbe(0xF4F1EE)),
     "juwel.cartier-love": (.armreifLove, Pal.gold),
     "juwel.charm-armband": (.charmArmband, Pal.silber),
-    "juwel.solitaer": (.solitaer, Pal.gold),
+    "juwel.steinring": (.ringStein, Pal.gold),
     "juwel.stapelringe": (.stapelringe, Pal.gold),
 ]
 
@@ -120,8 +120,12 @@ private func halsSchmuck(_ h: GraphicsContext, _ stil: SchmuckStil, _ f: FigurFa
         teil(h, herzPfad(P(0, 16), 4), Pal.rose, 1)
     case .kettePerlen:
         linie(h, kette, f.farbe, 2)
-        for dx in stride(from: CGFloat(-14), through: 14, by: 5) {
-            teil(h, kreis(P(dx, 10 - abs(dx) * 0.3), 2.2), f, 1)
+        for i in 0...6 {
+            // p56: gleichmäßig auf dem Bogen der Kette (vorher hingen sie schief darunter), mit Glanzpunkt.
+            let dx = CGFloat(i - 3) * 14 / 3
+            let m = P(dx, 7 - dx * dx / 28)
+            teil(h, kreis(m, 2.4), f, 1)
+            h.fill(kreis(P(m.x - 0.7, m.y - 0.7), 0.6), with: .color(.white.opacity(0.85)))
         }
     case .ketteEdelstein:
         linie(h, kette, f.farbe, 2)
@@ -153,6 +157,14 @@ private func halsSchmuck(_ h: GraphicsContext, _ stil: SchmuckStil, _ f: FigurFa
         linie(h, bogen(P(-13, -1), P(13, -1), P(0, 9)), f.farbe, 1.4)
         linie(h, bogen(P(-15, 1), P(15, 1), P(0, 21)), f.farbe, 1.4)
         teil(h, kreis(P(0, 11), 1.8), f, 0.8)
+    case .herzAnhaenger:
+        // p56: goldene Kette mit glattem Herz (Tiffany-Stil), größer als die Alltagsketten.
+        let lang = bogen(P(-19, -3), P(19, -3), P(0, 22))
+        linie(h, lang, f.kontur, 3.4)
+        linie(h, lang, f.farbe, 2)
+        linie(h, strich(P(0, 9.5), P(0, 12.6)), f.kontur, 1.4)
+        teil(h, herzPfad(P(0, 16.5), 6.4), f, 1.4)
+        h.fill(oval(P(-2.6, 14.2), 1.8, 1.1), with: .color(.white.opacity(0.7)))
     default:
         break
     }
@@ -170,6 +182,15 @@ private func armSchmuck(_ h: GraphicsContext, _ stil: SchmuckStil, _ f: FigurFar
                 linie(h, strich(P(x - 0.7, 0.2), P(x + 0.7, 0.2)), f.mix(Pal.weiss, 0.6).farbe, 0.5)
             }
         }
+    case .charmArmband:
+        // p56: Silberkette mit vier Anhängern (Pandora).
+        let glieder = bogen(P(-10, -1), P(10, -1), P(0, 2.4))
+        linie(h, glieder, f.kontur, 3.2)
+        linie(h, glieder, f.farbe, 1.8)
+        teil(h, herzPfad(P(-6, 5.4), 2.5), Pal.rose, 0.7)
+        teil(h, kreis(P(-2, 5.6), 1.9), Pal.himmel, 0.7)
+        teil(h, herzPfad(P(2, 5.6), 2.1), Pal.gold, 0.7)
+        teil(h, kreis(P(6, 5.2), 1.8), FigurFarbe(0xF4B6C6), 0.7)
     case .perlenArmband:
         for x in stride(from: CGFloat(-8), through: 8, by: 4) { teil(h, kreis(P(x, 0), 2.2), f, 0.8) }
     case .lederArmband:
@@ -210,7 +231,8 @@ private func ringSchmuck(_ h: GraphicsContext, _ stil: SchmuckStil, _ f: FigurFa
 
 /// Earrings from the shop, in the head space (ears at x 42 and 158, y ≈ 110).
 func zeichneOhrschmuck(_ g: GraphicsContext, id: String) {
-    guard let e = schmuckKatalog[id], e.stil == .ohrringCC else { return }
+    guard let e = schmuckKatalog[id] else { return }
+    if e.stil != .ohrringCC { return neueOhrringe(g, e.stil, e.farbe) }
     for x in [CGFloat(42), 158] {
         // Two C's back to back: the left one opens to the left, the right one to the right.
         let links = Path { p in p.addArc(center: P(x - 1.6, 115), radius: 3.6, startAngle: .degrees(230), endAngle: .degrees(130), clockwise: false) }
@@ -220,5 +242,22 @@ func zeichneOhrschmuck(_ g: GraphicsContext, id: String) {
             linie(g, bogenC, e.farbe.farbe, 1.6)
         }
         linie(g, strich(P(x, 108), P(x, 111.4)), e.farbe.farbe, 1.4)
+    }
+}
+
+/// p56: Creolen und Perlen-Ohrringe an den Ohren (x 42 und 158).
+private func neueOhrringe(_ g: GraphicsContext, _ stil: SchmuckStil, _ f: FigurFarbe) {
+    for x in [CGFloat(42), 158] {
+        if stil == .ohrCreole {
+            let reif = kreis(P(x, 117), 5.6)
+            linie(g, reif, f.kontur, 3.6)
+            linie(g, reif, f.farbe, 2.2)
+            linie(g, Path { p in p.addArc(center: P(x, 117), radius: 5.6, startAngle: .degrees(200), endAngle: .degrees(260), clockwise: false) }, .white.opacity(0.7), 0.9)
+        } else {
+            teil(g, kreis(P(x, 111), 1.6), Pal.gold, 0.7)
+            linie(g, strich(P(x, 112), P(x, 114.4)), Pal.gold.farbe, 1)
+            teil(g, kreis(P(x, 117.4), 3.2), f, 0.9)
+            g.fill(kreis(P(x - 1, 116.2), 0.9), with: .color(.white.opacity(0.9)))
+        }
     }
 }
