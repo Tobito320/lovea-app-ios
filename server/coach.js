@@ -17,6 +17,7 @@ const ZEITLIMIT_MS = 25_000;
 const TAGESLIMIT = 30; // Modell-Aufrufe je Person und Tag
 const VERLAUF = 20; // letzte Nachrichten ans Modell
 const MAX_FRAGE = 2000;
+const MIN_TAGE_IM_LOG = 10; // von 14 Tagen: darunter ist das Essens-Log lückenhaft
 const KONTEXT_MAX = 16_000; // Zeichen, rund 4.000 Token
 const MORGEN_BIS_STUNDE = 12; // danach keine verspätete Morgen-Nachricht mehr
 const PERSON_NAME = { ahmed: "Ahmed", annika: "Annika" };
@@ -256,9 +257,10 @@ export async function coachKontext(sql, person, jetztMs, { katalog } = {}) {
     person: PERSON_NAME[person] ?? person,
     sicherheit: {
       kcalUntergrenze,
-      essenLueckig: tageMitEintraegen < 10,
+      essenLueckig: tageMitEintraegen < MIN_TAGE_IM_LOG,
       essenTageMitEintraegen: tageMitEintraegen,
-      sehrWenigGegessen: tageMitEintraegen >= 5 && schnittKcal < kcalUntergrenze,
+      // Nur bei brauchbarem Log: wer selten trackt, hat keine Aufnahme, die man bewerten könnte.
+      sehrWenigGegessen: tageMitEintraegen >= MIN_TAGE_IM_LOG && schnittKcal < kcalUntergrenze,
     },
     ziele: zieleKontext(werte),
     essen,

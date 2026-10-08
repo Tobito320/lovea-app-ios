@@ -90,11 +90,11 @@ final class CoachRegelnTests: XCTestCase {
         XCTAssertFalse(CoachRegeln.essenStand(e).lueckig)
     }
 
-    func testSehrWenigBrauchtFuenfGeloggteTage() {
+    func testSehrWenigBrauchtZehnGeloggteTage() {
         var e = CoachEingabe(heute: heute)
-        essen(&e, tage: 4, kcal: 800)
-        XCTAssertFalse(CoachRegeln.essenStand(e).sehrWenig, "vier Tage sind zu wenig Grundlage")
-        essen(&e, tage: 5, kcal: 800)
+        essen(&e, tage: 9, kcal: 800)
+        XCTAssertFalse(CoachRegeln.essenStand(e).sehrWenig, "neun Tage sind ein lückenhaftes Log, keine Aufnahme")
+        essen(&e, tage: 10, kcal: 800)
         XCTAssertTrue(CoachRegeln.essenStand(e).sehrWenig)
     }
 
@@ -134,10 +134,11 @@ final class CoachRegelnTests: XCTestCase {
         XCTAssertTrue(text.contains("Vielleicht fehlt nur Essen im Log"))
     }
 
-    func testSicherheitsKarteAuchBeiNurFuenfTagenImLog() {
+    func testWenigeLogTageMitNiedrigenWertenGebenKeineSicherheitsKarte() {
         var e = CoachEingabe(heute: heute)
         essen(&e, tage: 5, kcal: 700)
-        XCTAssertEqual(CoachRegeln.karten(e).first?.art, .sicherheit)
+        XCTAssertEqual(CoachRegeln.karten(e).first?.art, .essenLog, "wer selten trackt, isst nicht automatisch zu wenig")
+        XCTAssertFalse(arten(CoachRegeln.karten(e)).contains(.sicherheit))
     }
 
     func testLueckigGibtEssenLogKarteUndKeineProteinKarte() {

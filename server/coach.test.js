@@ -142,13 +142,13 @@ test("Sicherheit: essenLueckig bei weniger als 10 von 14 Tagen mit Einträgen", 
   assert.equal(s.essenTageMitEintraegen, 9);
 });
 
-test("Sicherheit: sehrWenigGegessen = Schnitt unter der Untergrenze an mindestens 5 geloggten Tagen", async () => {
+test("Sicherheit: sehrWenigGegessen = Schnitt unter der Untergrenze, aber nur bei brauchbarem Log (mindestens 10 von 14 Tagen)", async () => {
   const fuenfNiedrig = db();
-  mitEssenTagen(fuenfNiedrig, 5, 1000);
+  mitEssenTagen(fuenfNiedrig, 10, 1000);
   const vierNiedrig = db();
-  mitEssenTagen(vierNiedrig, 4, 1000);
+  mitEssenTagen(vierNiedrig, 9, 1000);
   const fuenfOk = db();
-  mitEssenTagen(fuenfOk, 5, 1600);
+  mitEssenTagen(fuenfOk, 10, 1600);
   assert.equal((await coachKontext(fuenfNiedrig, "ahmed", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, true);
   assert.equal((await coachKontext(vierNiedrig, "ahmed", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, false);
   assert.equal((await coachKontext(fuenfOk, "ahmed", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, false);
@@ -156,10 +156,10 @@ test("Sicherheit: sehrWenigGegessen = Schnitt unter der Untergrenze an mindesten
 
 test("Sicherheit: die Untergrenze der Frau (1200) gilt für den Vergleich, nicht die des Mannes", async () => {
   const sql = db();
-  mitEssenTagen(sql, 5, 1300, { von: "annika" });
+  mitEssenTagen(sql, 10, 1300, { von: "annika" });
   assert.equal((await coachKontext(sql, "annika", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, false);
   const sql2 = db();
-  mitEssenTagen(sql2, 5, 1300, { von: "ahmed" });
+  mitEssenTagen(sql2, 10, 1300, { von: "ahmed" });
   assert.equal((await coachKontext(sql2, "ahmed", JETZT, { katalog: KATALOG })).sicherheit.sehrWenigGegessen, true);
 });
 
