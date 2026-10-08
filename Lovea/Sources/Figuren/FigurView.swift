@@ -383,10 +383,10 @@ private struct Zeichner {
     /// Teil 4: the running exercise, forwarded as-is (nil = pick one at random per person, see `gymGeste`).
     let gymFest: GymGeste?
     /// p65: where the body is on the stage (sits, lies); nil = the state decides.
-    let pose: FigurPose?
+    let figurPose: FigurPose?
 
     init(_ a: FigurAussehen, _ z: FigurZustand, _ abz: [String], t: Double, statisch: Bool, ganz: Bool, extras: Set<FigurExtra>, tisch: Int = 0, umarmung: Umarmung? = nil, gymGeste: GymGeste? = nil, pose: FigurPose? = nil) {
-        self.pose = pose
+        self.figurPose = pose
         self.gymFest = gymGeste
         typealias A = FigurAussehen
         self.umarmung = ganz ? umarmung : nil
@@ -3663,7 +3663,7 @@ extension Zeichner {
 
     var haltung: Haltung {
         if let g = gymGeste { return gymHaltung(g) }
-        if pose?.sitzt == true { return .sitzen }
+        if figurPose?.sitzt == true { return .sitzen }
         return switch z {
         case .laeuft, .tanzt: .gehen
         case .rennt: .rennen
@@ -4091,7 +4091,7 @@ extension Zeichner {
         let restL = Arm(P(lx - 6, y + 50), P(lx - 4 + wiege, y + 92))
         let restR = Arm(P(rx + 6, y + 50), P(rx + 4 - wiege, y + 92))
         // p65: seated on the stage. Sofa: hands rest in the lap. Bed edge: hands on the mattress beside the hips.
-        if let p = pose, p.sitzt, z == .ruhig {
+        if let p = figurPose, p.sitzt, z == .ruhig {
             if p == .sitzenSofa {
                 return (Arm(P(lx - 4, y + 50), P(88, y + 88 + wiege)), Arm(P(rx + 4, y + 50), P(112, y + 88 + wiege)))
             }
