@@ -27,6 +27,8 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
     /// Starts in the middle (living), where the sofa and the TV are.
     @State private var position = ScrollPosition(edge: .leading)
     @State private var zone = ProfilZone.wohn
+    /// p70: when a tab last sent the scroll, so the jump it causes gets no second haptic.
+    @State private var letzterTab = Date.distantPast
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     init(wahl: ZimmerWahl, breite: CGFloat, hoehe: CGFloat, @ViewBuilder welt: () -> Welt, @ViewBuilder schwebend: () -> Schwebend) {
@@ -60,6 +62,10 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         .scrollIndicators(.hidden)
         .scrollPosition($position)
         .scrollTargetBehavior(ProfilZonenSnap())
+        // p70: a swipe that comes to rest in another zone clicks once, like the tabs.
+        .onChange(of: zone) { _, _ in
+            if ZuhauseSzeneLogik.zonenHaptik(sekundenSeitTab: Date().timeIntervalSince(letzterTab)) { Haptik.auswahl() }
+        }
         // Only a change of zone invalidates this, not every point of the swipe.
         .onScrollGeometryChange(for: ProfilZone.self) { ProfilPanoramaLayout.zone(offset: $0.contentOffset.x / k) } action: { _, neu in
             zone = neu
@@ -116,6 +122,7 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
 
     private func gehe(_ z: ProfilZone, _ k: CGFloat) {
         Haptik.auswahl()
+        letzterTab = Date()
         withAnimation(reduceMotion ? nil : Feder.weich) { position.scrollTo(x: ProfilSlots.anker(z) * k) }
     }
 }
