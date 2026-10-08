@@ -20,11 +20,14 @@ final class SnapEditorPositionTests: XCTestCase {
         try XCTUnwrap(bild(Color.red.frame(width: breite, height: hoehe)))
     }
 
-    /// Box around all fully red pixels, in pixels from the top left (the same axes as `.position`).
+    /// Box around all pixels with more than half coverage, in pixels from the top left (the same axes as `.position`).
+    /// By alpha, not by colour: the overlay has no background, and colour management changes the
+    /// "pure red" of a re-rendered image between draw paths.
     private func rotUmriss(_ bild: UIImage?) throws -> CGRect {
         let cg = try XCTUnwrap(bild?.cgImage)
         let breite = cg.width, hoehe = cg.height
         var daten = [UInt8](repeating: 0, count: breite * hoehe * 4)
+        var fehlerhinweis = ""
         let umriss: CGRect? = daten.withUnsafeMutableBytes { zeiger in
             guard let kontext = CGContext(
                 data: zeiger.baseAddress, width: breite, height: hoehe, bitsPerComponent: 8, bytesPerRow: breite * 4,
@@ -32,18 +35,22 @@ final class SnapEditorPositionTests: XCTestCase {
             ) else { return nil }
             kontext.draw(cg, in: CGRect(x: 0, y: 0, width: breite, height: hoehe))
             let bytes = zeiger.bindMemory(to: UInt8.self)
-            var minX = breite, minY = hoehe, maxX = -1, maxY = -1
+            var minX = breite, minY = hoehe, maxX = -1, maxY = -1, hoechsteDeckung = 0, beste = 0
             for y in 0..<hoehe {
                 for x in 0..<breite {
                     let i = (y * breite + x) * 4
-                    guard bytes[i + 3] > 200, bytes[i] > 200, bytes[i + 1] < 60, bytes[i + 2] < 60 else { continue }
+                    if Int(bytes[i + 3]) > hoechsteDeckung { hoechsteDeckung = Int(bytes[i + 3]); beste = i }
+                    guard bytes[i + 3] > 127 else { continue }
                     minX = min(minX, x); maxX = max(maxX, x); minY = min(minY, y); maxY = max(maxY, y)
                 }
             }
-            guard maxX >= 0 else { return nil }
+            guard maxX >= 0 else {
+                fehlerhinweis = "highest alpha \(hoechsteDeckung), rgba there \(bytes[beste]) \(bytes[beste + 1]) \(bytes[beste + 2]) \(bytes[beste + 3])"
+                return nil
+            }
             return CGRect(x: minX, y: minY, width: maxX - minX + 1, height: maxY - minY + 1)
         }
-        return try XCTUnwrap(umriss, "no red pixels in the render")
+        return try XCTUnwrap(umriss, "nothing drawn in the \(breite) x \(hoehe) render: \(fehlerhinweis)")
     }
 
     private func export(sticker: [SnapEditor.SnapSticker] = [], text: SnapEditor.SnapText = .init()) -> UIImage? {
@@ -119,9 +126,9 @@ final class SnapEditorPositionTests: XCTestCase {
     func testTextSchriftWaechstMitDerBreite() throws {
         var text = SnapEditor.SnapText()
         text.text = "MMMM"; text.farbe = .red
-        let schmal = try rotUmriss(bild(SnapTextAnzeige(text: text, breite: 200)))
-        let breit = try rotUmriss(bild(SnapTextAnzeige(text: text, breite: 400)))
-        XCTAssertEqual(breit.width / schmal.width, 2, accuracy: 0.15, "same fraction of the content width at any export size")
+        let schmal = try rotUmriss(bild(SnapTextAnzeige(text: text, breite: 400)))
+        let breit = try rotUmriss(bild(SnapTextAnzeige(text: text, breite: 800)))
+        XCTAssertEqual(breit.width / schmal.width, 2, accuracy: 0.1, "same fraction of the content width at any export size (\(schmal.width) px at 400, \(breit.width) px at 800)")
     }
 
     // MARK: - Shadow is relative too
