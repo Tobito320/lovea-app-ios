@@ -116,6 +116,8 @@ const TABELLE = {
   "brief.neu": (von) => ({ stufe: "leise", kategorie: "chat", titel: "Lovea", text: `${NAME[von]} hat einen Brief für dich versiegelt` }),
   // Z-23.2: nur bei einem Geschenk (fuer != von) - ein Kauf fuer sich selbst loest keine Push aus.
   "shop.kauf": (von, d) => (d.fuer === von ? null : { stufe: "laut", kategorie: "shop", titel: "Lovea", text: `${NAME[von]} hat dir etwas geschenkt` }),
+  // p64: Wärmflasche und Tee. Die Op sagt nur Tag und an/aus; der Text nennt den Grund nie. "aus" bleibt still.
+  "waerme.setzen": (von, d) => (d.an === true ? { stufe: "leise", kategorie: "geste", titel: "Lovea", text: `${NAME[von]} könnte heute etwas Süßes und Warmes brauchen` } : null),
 };
 
 // Liefert die Push-Regel für eine Op, oder null, wenn diese Art keine Push
