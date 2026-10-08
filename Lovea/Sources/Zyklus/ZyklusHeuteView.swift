@@ -235,6 +235,9 @@ struct ZyklusHeuteView: View {
                         .foregroundStyle(ZyklusFarbe.tinte(schema))
                 }
             }
+            if speicher.nurLesen, let b = ZyklusUebersetzer.fuer(phase: logik.phase(am: heute), tag: speicher.tage[heute]) {
+                uebersetzerKarte(b, ton: ring.ton)
+            }
             if logik.verspaetung == nil, let r = logik.periodeZeitraum(breite: ZyklusZeitraum.breite(zeitraumWahl), spaeter: alltag?.spaeter ?? 0) {
                 vorhersageKarte(r, logik: logik, alltag: alltag)
             }
@@ -271,6 +274,29 @@ struct ZyklusHeuteView: View {
                     }
                 }
             }
+        }
+    }
+
+    /// Nur für Ahmed: was Annikas Körper sich heute wünscht, mit konkreten kleinen Taten.
+    private func uebersetzerKarte(_ b: ZyklusUebersetzer.Botschaft, ton: ZyklusPhasenTon) -> some View {
+        ZyklusKarte(akzent: ton.farbe(schema)) {
+            VStack(alignment: .leading, spacing: 10) {
+                Label("Heute wünscht sie sich", systemImage: b.symbol)
+                    .font(.system(.subheadline, design: .rounded).weight(.semibold))
+                    .foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                Text(b.wunsch)
+                    .font(.system(.title2, design: .rounded).weight(.bold))
+                    .foregroundStyle(ZyklusFarbe.tinte(schema))
+                Text(b.satz)
+                    .font(.system(.subheadline, design: .rounded))
+                    .foregroundStyle(ZyklusFarbe.tinte(schema))
+                ForEach(b.tipps, id: \.self) { t in
+                    Label(t, systemImage: "heart")
+                        .font(.system(.footnote, design: .rounded))
+                        .foregroundStyle(ZyklusFarbe.tinte(schema))
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 

@@ -143,10 +143,6 @@ final class WirModell {
         Raum.shared.senden("frage.antwort", FrageAntwortD(frageId: frageId, text: text))
     }
 
-    func eigeneFrageStellen(_ text: String) {
-        Raum.shared.senden("frage.eigene", FrageEigeneD(id: UUID().uuidString, text: text, kategorie: nil))
-    }
-
     struct FruehereFrage: Identifiable { var frage: Frage; var meine: String?; var deine: String?; var id: String { frage.id } }
 
     /// Frühere, bereits beantwortete Fragen (aus dem Vorrat, neueste zuerst).

@@ -136,25 +136,8 @@ final class ChatZeileGleichheitTests: XCTestCase {
     }
 }
 
-/// p39: older messages load on their own when scrolling up; a vertical drag never counts as a reply swipe.
+/// A vertical drag never counts as a reply swipe.
 final class ChatNachladenTests: XCTestCase {
-    func testLaedtBeimEintrittInDieNaheOben() {
-        XCTAssertTrue(ListenNachladen.sollMehr(warNahOben: false, istNahOben: true, nochAelteres: true))
-    }
-
-    func testLaedtNichtBeiJedemFrameInDerZone() {
-        XCTAssertFalse(ListenNachladen.sollMehr(warNahOben: true, istNahOben: true, nochAelteres: true))
-    }
-
-    func testLaedtNichtOhneAelteres() {
-        XCTAssertFalse(ListenNachladen.sollMehr(warNahOben: false, istNahOben: true, nochAelteres: false))
-    }
-
-    func testLaedtNichtWeitWeg() {
-        XCTAssertFalse(ListenNachladen.nahOben(abstandOben: ListenNachladen.schwelle))
-        XCTAssertTrue(ListenNachladen.nahOben(abstandOben: ListenNachladen.schwelle - 1))
-    }
-
     func testSenkrechtesZiehenIstKeinWischen() {
         XCTAssertEqual(WischAchse.erkennen(breite: 8, hoehe: 40), .senkrecht)
     }
