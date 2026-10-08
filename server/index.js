@@ -2,6 +2,7 @@
 // Objekt "Raum" weiter, proxyt GET /gif zu Klipy. Reine fetch(request, env)
 // -Funktion ohne cloudflare:workers-Import -> unter Node testbar.
 export { Raum } from "./raum.js";
+import { handleKi } from "./ki.js";
 
 const PERSONEN = new Set(["ahmed", "annika"]);
 
@@ -46,6 +47,9 @@ export async function handleFetch(request, env) {
   if (!person) return new Response("unauthorized", { status: 401 });
 
   if (url.pathname === "/gif") return gifProxy(url, env);
+  // Interne DO-Pfade nie nach außen reichen; KI-Funktionen laufen hier im Worker.
+  if (url.pathname.startsWith("/ki-intern")) return new Response("not found", { status: 404 });
+  if (url.pathname.startsWith("/ki/")) return handleKi(request, env, person);
 
   const id = env.RAUM.idFromName("wir");
   const stub = env.RAUM.get(id, { locationHint: "weur" });

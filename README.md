@@ -67,6 +67,7 @@ Worker-Secrets (nur die Namen, Werte stehen nie im Repo oder in Notizen):
 - `APNS_KEY_ID`
 - `APNS_TEAM_ID`
 - `KLIPY_KEY`
+- `OPENAI_API_KEY` (KI-Funktionen, siehe Abschnitt "KI")
 
 Tests:
 
@@ -85,6 +86,28 @@ node server/pruefen.mjs https://lovea-test.<konto>.workers.dev
 
 ```sh
 node --env-file=C:\Users\ahmed\code\lovea-app\.env server/umzug.mjs --ziel test --trocken
+```
+
+## KI (Essen, Coach, Tagesbericht)
+
+Alle drei laufen im Worker über OpenAI (Responses API, Modell `gpt-6-luna`). Der Schlüssel liegt nur als Worker-Secret `OPENAI_API_KEY`, nie im Repo oder in der App. Code: `server/ki.js` (Anfragen) und `server/ki-raum.js` (Tageszähler und Portionsgedächtnis im Durable Object, Tabelle `merker`, keine Migration).
+
+| Pfad | Zweck |
+|---|---|
+| `POST /ki/essen` | Foto (Base64, höchstens ca. 1 MB, JPEG/PNG/WebP) -> Zutaten mit Gramm, kcal, Makros, Bereich, versteckte Kalorien, Rückfrage |
+| `POST /ki/coach` | Chat mit Tageskontext; `stream: true` liefert `data: {"t":"delta","text":...}` bis `{"t":"ende"}` |
+| `POST /ki/bericht` | Tagesbericht (Titel, Kurzfassung, was gut, was besser, morgen) |
+| `POST /ki/korrektur` | Korrigierte Mengen speichern; die nächste Analyse nutzt sie als Portionsgedächtnis |
+| `GET /ki/status` | Modell, Tageslimits und was heute noch übrig ist |
+
+Tageslimits pro Person (Berliner Tag): 40 Fotos, 150 Coach-Nachrichten, 6 Berichte. Fehlgeschlagene KI-Aufrufe zählen nicht. Antworten an die App enthalten nie OpenAI-Fehlertexte. Es wird nichts geloggt und `store: false` gesetzt.
+
+Die Coach-Anweisung begrenzt Empfehlungen nach unten (mindestens 1200 kcal) und verweist bei Anzeichen für Essstörungen an Ärztin, Arzt oder Beratung.
+
+Prüfen gegen einen laufenden Worker (kostet ein paar Hundertstel Cent):
+
+```sh
+node --env-file=.env server/pruefen-ki.mjs https://lovea-test.<konto>.workers.dev ahmed foto.jpg
 ```
 
 ## Architektur

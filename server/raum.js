@@ -45,6 +45,7 @@ import {
   spotifyCacheSchreiben,
 } from "./raum-logic.js";
 import { push } from "./push.js";
+import { kiIntern } from "./ki-raum.js";
 import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
 import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt } from "./spotify.js";
@@ -92,6 +93,7 @@ export class Raum {
     if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request);
     if (url.pathname === "/fl" && request.method === "POST") return this.#flHttp(request, person);
     if (teile[0] === "medien") return this.#medien(request, teile, person);
+    if (teile[0] === "ki-intern") return kiIntern(this.sql, request, person);
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
     return new Response("not found", { status: 404 });
