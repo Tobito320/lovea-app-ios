@@ -15,7 +15,11 @@ struct UebungVorschau: View {
     var body: some View {
         ZStack {
             Color.white
-            if let bild { Image(uiImage: bild).resizable().scaledToFit() }
+            if let bild {
+                Image(uiImage: bild).resizable().scaledToFit()
+            } else if !UebungsKatalog.hatVideo(id) {
+                Image(systemName: "figure.strengthtraining.traditional").font(.title3).foregroundStyle(Color.gray)
+            }
         }
         .task(id: id) {
             guard bild == nil, let url = await UebungsMedien.datei(id) else { return }
@@ -55,6 +59,7 @@ struct UebungsSuche: View {
 
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    /// nil = Hanteln & Maschinen (Standard), `UebungsKatalog.alleGeraete` oder ein einzelnes Gerät.
     @State private var geraet: String?
     @State private var muskel: String?
     @State private var filterOffen: FilterArt?
@@ -100,12 +105,13 @@ struct UebungsSuche: View {
     }
 
     private func passt(_ u: Uebung, geraet: String?, muskel: String?) -> Bool {
-        (geraet.map { u.geraet == $0 } ?? true) && (muskel.map { u.muskel == $0 } ?? true)
+        UebungsKatalog.passtGeraet(u, wahl: geraet) && (muskel.map { u.muskel == $0 } ?? true)
     }
 
     private var liste: some View {
         let basis = UebungsKatalog.alle.filter { passt($0, geraet: geraet, muskel: muskel) }
         let treffer = UebungsKatalog.suchen(text, in: basis)
+        let weitere = weitereTreffer(text, muskel: muskel)
         let zuletzt = text.isEmpty ? zuletztBenutzt(geraet: geraet, muskel: muskel) : []
         let bekannt = Set(zuletzt.map(\.id))
         let vorschlaege = text.isEmpty ? UebungsKatalog.vorschlaege(in: basis).filter { !bekannt.contains($0.id) } : []
@@ -123,14 +129,23 @@ struct UebungsSuche: View {
                     ForEach(vorschlaege) { u in zeile(u) }
                 }
             }
-            Section(treffer.isEmpty ? "Nichts gefunden" : text.isEmpty ? "\(treffer.count) Übungen" : "Suchergebnisse") {
+            Section(treffer.isEmpty && weitere.isEmpty ? "Nichts gefunden" : text.isEmpty ? "\(treffer.count) Übungen" : "Suchergebnisse") {
                 ForEach(treffer) { u in zeile(u) }
+            }
+            if !weitere.isEmpty {
+                Section("Mit anderem Gerät") {
+                    ForEach(weitere) { u in zeile(u) }
+                }
             }
         }
         .sheet(item: $filterOffen) { art in
             switch art {
             case .geraet:
-                FilterBlatt(titel: "Gerät", gruppen: [("", UebungsKatalog.geraete)], auswahl: $geraet) { g in
+                FilterBlatt(titel: "Gerät", gruppen: [
+                    ("", [UebungsKatalog.standardTitel, UebungsKatalog.alleGeraete]),
+                    ("Freihanteln und Maschinen", UebungsKatalog.geraete.filter(UebungsKatalog.standardGeraete.contains)),
+                    ("Weitere Geräte", UebungsKatalog.geraete.filter { !UebungsKatalog.standardGeraete.contains($0) }),
+                ], auswahl: $geraet, vorgabe: UebungsKatalog.standardTitel) { g in
                     UebungsKatalog.alle.filter { passt($0, geraet: g, muskel: muskel) }.count
                 }
             case .muskel:
@@ -141,15 +156,22 @@ struct UebungsSuche: View {
         }
     }
 
-    /// Die eigenen letzten Übungen, auch nach Gerät und Muskel gefiltert.
+    /// Mit Suchtext zeigt die Suche unter den Standard-Treffern auch andere Geräte (Band, Kettlebell …).
+    private func weitereTreffer(_ text: String, muskel: String?) -> [Uebung] {
+        guard !text.isEmpty, geraet == nil else { return [] }
+        let rest = UebungsKatalog.alle.filter { u in !UebungsKatalog.standardGeraete.contains(u.geraet) && (muskel.map { u.muskel == $0 } ?? true) }
+        return Array(UebungsKatalog.suchen(text, in: rest).prefix(15))
+    }
+
+    /// Die eigenen letzten Übungen, auch nach Gerät und Muskel gefiltert; ohne Gerätewahl jedes Gerät.
     private func zuletztBenutzt(geraet: String?, muskel: String?) -> [Uebung] {
-        UebungsKatalog.zuletzt(TrainingModell.shared.sessions(Raum.shared.ich ?? .ahmed)).filter { passt($0, geraet: geraet, muskel: muskel) }
+        UebungsKatalog.zuletzt(TrainingModell.shared.sessions(Raum.shared.ich ?? .ahmed)).filter { passt($0, geraet: geraet ?? UebungsKatalog.alleGeraete, muskel: muskel) }
     }
 
     /// Wie in Hevy: zwei gleich breite Knöpfe, jeder öffnet ein Blatt mit Kacheln.
     private var filter: some View {
         HStack(spacing: 10) {
-            filterKnopf(geraet ?? "Alle Geräte", an: geraet != nil) { filterOffen = .geraet }
+            filterKnopf(geraet ?? UebungsKatalog.standardTitel, an: geraet != nil) { filterOffen = .geraet }
             filterKnopf(muskel ?? "Alle Muskeln", an: muskel != nil) { filterOffen = .muskel }
         }
     }
@@ -212,6 +234,11 @@ struct UebungGif: View {
             Color.white
             if let url {
                 AnimiertesGif(url: url, fuellen: false)
+            } else if !UebungsKatalog.hatVideo(id) {
+                Label("Kein Video für diese Übung", systemImage: "figure.strengthtraining.traditional")
+                    .font(.footnote)
+                    .foregroundStyle(Color.gray)
+                    .padding()
             } else if fehlt {
                 Label("Video lädt, sobald du Netz hast", systemImage: "wifi.slash")
                     .font(.footnote)
@@ -223,7 +250,7 @@ struct UebungGif: View {
         }
         .task(id: id) {
             url = await UebungsMedien.datei(id)
-            fehlt = url == nil
+            fehlt = url == nil && UebungsKatalog.hatVideo(id)
         }
     }
 }
@@ -240,6 +267,8 @@ struct FilterBlatt: View {
     /// Überschrift (leer = keine) und ihre Einträge.
     let gruppen: [(String, [String])]
     @Binding var auswahl: String?
+    /// Eintrag, der gilt, solange nichts gewählt ist (`auswahl == nil`); ein Tipp darauf löscht die Wahl.
+    var vorgabe: String? = nil
     let zahl: (String?) -> Int
 
     @Environment(\.dismiss) private var dismiss
@@ -284,9 +313,9 @@ struct FilterBlatt: View {
     }
 
     private func kachel(_ eintrag: String) -> some View {
-        let an = auswahl == eintrag
+        let an = auswahl == eintrag || (auswahl == nil && eintrag == vorgabe)
         return Button {
-            auswahl = an ? nil : eintrag
+            auswahl = an || eintrag == vorgabe ? nil : eintrag
             Haptik.auswahl()
         } label: {
             Text(eintrag)
