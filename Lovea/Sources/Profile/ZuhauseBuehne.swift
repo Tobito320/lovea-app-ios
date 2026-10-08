@@ -59,8 +59,8 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let dehnung: CGFloat
     private let straeusse: ZuhauseStraeusse
     private let paarDa: Bool
-    private let wandDinge: (Tageszeit) -> AnyView
-    private let extras: ZimmerExtrasStand?
+    private let wandDinge: (Tageszeit) -> AnyView
+    private let extras: ZimmerExtrasStand?
     private let fest: Bool
     private let wahl: ZimmerWahl
     private let katze: ZuhauseKatze?
@@ -90,11 +90,11 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         self.dehnung = dehnung
         self.straeusse = straeusse
         self.paarDa = paarDa
-        self.wandDinge = wandDinge
-        self.wahl = wahl
-        self.katze = katze
-        self.outfit = outfit
-        self.extras = extras
+        self.wandDinge = wandDinge
+        self.wahl = wahl
+        self.katze = katze
+        self.outfit = outfit
+        self.extras = extras
         self.fest = fest != nil
         self.figur = figur
         self.paar = paar

@@ -229,15 +229,15 @@ private struct ProfilInhalt: View {
     /// replaces the walkers. The bouquets (p59) are Annika's choice for her room, shown in both profiles.
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
-        let zimmer = Zimmer.von(person)
-        // p61: the shared room's pieces, the cat (it can be stroked here, once a day each), and in the own
-        // profile the clothes rail and the shoe shelf open the outfit change.
-        let punkte = PunkteModell.shared
-        let katze = ZuhauseKatze(id: ZimmerKatze.id(tiere: Person.allCases.map { FigurenModell.shared.aussehen($0).tier }),
-                                 gestreichelt: punkte.katzeGestreichelt(ich), streicheln: { punkte.katzeStreicheln() })
-        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), wahl: ZimmerWahl.aktuell, katze: katze,
-                             outfit: istEigenes ? { figurBearbeitenOffen = true } : nil,
-                             wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel)) }) { f in
+        let zimmer = Zimmer.von(person)
+        // p61: the shared room's pieces, the cat (it can be stroked here, once a day each), and in the own
+        // profile the clothes rail and the shoe shelf open the outfit change.
+        let punkte = PunkteModell.shared
+        let katze = ZuhauseKatze(id: ZimmerKatze.id(tiere: Person.allCases.map { FigurenModell.shared.aussehen($0).tier }),
+                                 gestreichelt: punkte.katzeGestreichelt(ich), streicheln: { punkte.katzeStreicheln() })
+        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), wahl: ZimmerWahl.aktuell, katze: katze,
+                             outfit: istEigenes ? { figurBearbeitenOffen = true } : nil,
+                             wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel)) }) { f in
             buehnenFigur(f)
         } paar: {
             // Teil 2 (Nähe): the pair's closeness pose (kiss glides into Stufe 3 and back).
