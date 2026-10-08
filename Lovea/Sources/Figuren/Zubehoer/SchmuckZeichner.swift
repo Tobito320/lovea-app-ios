@@ -9,15 +9,18 @@ enum SchmuckStil: Sendable {
     case armreif, armreifLove, perlenArmband, lederArmband, kettchen, freundschaftsband
     case ring, ringStein, siegelring, stapelringe, ringLove
     case ohrringCC
+    // p56: elegant jewelry (`juwel.*`), drawn larger so it reads on the 44 pt figure.
+    case herzAnhaenger, perlenstrang, charmArmband, solitaer, ohrCreole, ohrPerle
 
     enum Ort: Sendable { case hals, handgelenk, hand, ohr }
 
     var ort: Ort {
         switch self {
-        case .kette, .ketteHerz, .kettePerlen, .ketteEdelstein, .kugelkette, .panzerkette, .lederband, .choker, .layering: .hals
-        case .armreif, .armreifLove, .perlenArmband, .lederArmband, .kettchen, .freundschaftsband: .handgelenk
-        case .ring, .ringStein, .siegelring, .stapelringe, .ringLove: .hand
-        case .ohrringCC: .ohr
+        case .kette, .ketteHerz, .kettePerlen, .ketteEdelstein, .kugelkette, .panzerkette, .lederband, .choker, .layering,
+             .herzAnhaenger, .perlenstrang: .hals
+        case .armreif, .armreifLove, .perlenArmband, .lederArmband, .kettchen, .freundschaftsband, .charmArmband: .handgelenk
+        case .ring, .ringStein, .siegelring, .stapelringe, .ringLove, .solitaer: .hand
+        case .ohrringCC, .ohrCreole, .ohrPerle: .ohr
         }
     }
 }
@@ -35,6 +38,15 @@ let schmuckKatalog: [String: (stil: SchmuckStil, farbe: FigurFarbe)] = [
     "schmuck.cartier-love": (.armreifLove, Pal.gold),
     "schmuck.cartier-love-ring": (.ringLove, Pal.gold),
     "schmuck.chanel-ohrringe": (.ohrringCC, Pal.gold),
+    // p56: the elegant pieces of the jewelry tab.
+    "juwel.creolen": (.ohrCreole, Pal.gold),
+    "juwel.perlenohrringe": (.ohrPerle, FigurFarbe(0xF4F1EE)),
+    "juwel.herzkette": (.herzAnhaenger, Pal.gold),
+    "juwel.perlenkette": (.perlenstrang, FigurFarbe(0xF4F1EE)),
+    "juwel.cartier-love": (.armreifLove, Pal.gold),
+    "juwel.charm-armband": (.charmArmband, Pal.silber),
+    "juwel.solitaer": (.solitaer, Pal.gold),
+    "juwel.stapelringe": (.stapelringe, Pal.gold),
 ]
 
 /// Z-39.3: free everyday jewelry. Index + 1 = the stored `kette`/`ring`/`armband` value (0 = none).

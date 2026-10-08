@@ -8,17 +8,26 @@
 
   {"id": "mode.nike-hoodie", "name": "Nike Hoodie", "marke": "Nike", "kategorie": "mode", "preis": 1400, "geschlecht": "n", "exklusiv": false},
   {"id": "mode.guess-hoodie", "name": "Guess Hoodie", "marke": "Guess", "kategorie": "mode", "preis": 1200, "geschlecht": "n", "exklusiv": false},
-  {"id": "mode.seidenbluse", "name": "Seidenbluse", "marke": null, "kategorie": "mode", "preis": 900, "geschlecht": "w", "exklusiv": false},
   {"id": "mode.dior-bluse", "name": "Dior Seidenbluse", "marke": "Dior", "kategorie": "mode", "preis": 4200, "geschlecht": "w", "exklusiv": false},
-  {"id": "mode.jeansjacke", "name": "Jeansjacke", "marke": null, "kategorie": "mode", "preis": 350, "geschlecht": "n", "exklusiv": false},
-  {"id": "mode.moncler-jacke", "name": "Moncler Steppjacke", "marke": "Moncler", "kategorie": "mode", "preis": 5200, "geschlecht": "n", "exklusiv": false},
-  {"id": "mode.cargohose", "name": "Cargohose", "marke": null, "kategorie": "mode", "preis": 300, "geschlecht": "n", "exklusiv": false},
-  {"id": "mode.nike-sneaker", "name": "Nike Sneaker", "marke": "Nike", "kategorie": "mode", "preis": 1300, "geschlecht": "n", "exklusiv": false},
+  {"id": "mode.blumen-jeans", "name": "Skinny Jeans mit Blumen", "marke": "Guess", "kategorie": "mode", "preis": 1500, "geschlecht": "w", "exklusiv": false},
+  {"id": "mode.satin-camisole", "name": "Satin-Camisole", "marke": "Zara", "kategorie": "mode", "preis": 900, "geschlecht": "w", "exklusiv": false},
+  {"id": "mode.off-shoulder", "name": "Off-Shoulder-Top", "marke": "Mango", "kategorie": "mode", "preis": 1100, "geschlecht": "w", "exklusiv": false},
+  {"id": "mode.wickelkleid", "name": "Wickelkleid", "marke": "Diane von Fürstenberg", "kategorie": "mode", "preis": 4500, "geschlecht": "w", "exklusiv": false},
+  {"id": "mode.cardigan", "name": "Perlen-Cardigan", "marke": "Zara", "kategorie": "mode", "preis": 1600, "geschlecht": "w", "exklusiv": false},
 
   {"id": "tier.hund-braun", "name": "Hund (braun)", "marke": null, "kategorie": "tier", "preis": 3500, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.hund-schwarz", "name": "Hund (schwarz)", "marke": null, "kategorie": "tier", "preis": 3500, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.katze-grau", "name": "Katze (grau)", "marke": null, "kategorie": "tier", "preis": 3200, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.katze-orange", "name": "Katze (orange)", "marke": null, "kategorie": "tier", "preis": 3200, "geschlecht": "n", "exklusiv": false},
   {"id": "tier.hase-weiss", "name": "Hase (weiß)", "marke": null, "kategorie": "tier", "preis": 3800, "geschlecht": "n", "exklusiv": false},
-  {"id": "tier.vogel-blau", "name": "Vogel (blau)", "marke": null, "kategorie": "tier", "preis": 4000, "geschlecht": "n", "exklusiv": true}
+  {"id": "tier.vogel-blau", "name": "Vogel (blau)", "marke": null, "kategorie": "tier", "preis": 4000, "geschlecht": "n", "exklusiv": true},
+
+  {"id": "juwel.creolen", "name": "Gold-Creolen", "marke": null, "kategorie": "schmuck", "preis": 350, "geschlecht": "w", "exklusiv": false},
+  {"id": "juwel.perlenohrringe", "name": "Perlen-Ohrringe", "marke": "Pandora", "kategorie": "schmuck", "preis": 900, "geschlecht": "w", "exklusiv": false},
+  {"id": "juwel.herzkette", "name": "Herzkette Gold", "marke": "Tiffany & Co.", "kategorie": "schmuck", "preis": 3600, "geschlecht": "w", "exklusiv": false},
+  {"id": "juwel.perlenkette", "name": "Perlenkette", "marke": "Mikimoto", "kategorie": "schmuck", "preis": 5200, "geschlecht": "w", "exklusiv": false},
+  {"id": "juwel.cartier-love", "name": "Love Armreif", "marke": "Cartier", "kategorie": "schmuck", "preis": 9500, "geschlecht": "w", "exklusiv": false},
+  {"id": "juwel.charm-armband", "name": "Charm-Armband", "marke": "Pandora", "kategorie": "schmuck", "preis": 1800, "geschlecht": "w", "exklusiv": false},
+  {"id": "juwel.solitaer", "name": "Solitär-Ring", "marke": "Tiffany & Co.", "kategorie": "schmuck", "preis": 4800, "geschlecht": "w", "exklusiv": false},
+  {"id": "juwel.stapelringe", "name": "Stapelringe Gold", "marke": null, "kategorie": "schmuck", "preis": 800, "geschlecht": "w", "exklusiv": false}
 ]

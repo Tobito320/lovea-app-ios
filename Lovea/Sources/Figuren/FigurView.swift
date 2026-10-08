@@ -337,7 +337,9 @@ private struct Zeichner {
     let ohrring, muetze, jacke, hose, schuhe, koerperform, groesseStufe: Int
     let wimpern, sommersprossen, muttermal, rouge: Bool
     // v3 (Z-24.2): worn shop parts, forwarded to the Zubehoer/ drawers as-is (nil = nothing).
-    let tascheId, uhrId, schmuckId, tierId: String?
+    let tascheId, uhrId, tierId: String?
+    /// p56: the worn shop jewelry (`juwel.*`), one per place.
+    let juwelen: [String]
     /// `hosenFarbe` below hardcodes a denim wash for hose 0/1/2 unless a free color was picked.
     let hosenHexAktiv: Bool
     // v4 (Z-39.3): free everyday jewelry, 0 = none.
@@ -395,7 +397,7 @@ private struct Zeichner {
         iris = A.augenfarben.wahl(a.augen).farbe
         tascheId = a.tasche
         uhrId = a.uhr
-        schmuckId = a.schmuck
+        juwelen = a.schmuckListe
         tierId = a.tier
         frisur = grenze(a.frisur, A.frisuren.count)
         let eigeneBrille = grenze(a.brille, A.brillen.count)
@@ -572,8 +574,9 @@ private struct Zeichner {
             let e = alltagsArmbaender[armband - 1]
             zeichneSchmuck(g, e.stil, e.farbe, hals: hals, arm: rechts, groesse: groesse)
         }
-        if let id = schmuckId, let e = schmuckKatalog[id] {
-            let unterarm = e.stil.ort == .hand ? rechts : links
+        for id in juwelen {
+            guard let e = schmuckKatalog[id] else { continue }
+            let unterarm = e.stil.ort == .hand && e.stil != .stapelringe ? rechts : links
             zeichneSchmuck(g, id: id, hals: hals, arm: unterarm, groesse: groesse)
         }
     }
@@ -2533,7 +2536,7 @@ private struct Zeichner {
 
     func ohrringeZeichnen(_ g: GraphicsContext) {
         // A shop earring (Z-39.2) replaces the free pair.
-        if let id = schmuckId, schmuckKatalog[id]?.stil.ort == .ohr {
+        if let id = juwelen.first(where: { schmuckKatalog[$0]?.stil.ort == .ohr }) {
             zeichneOhrschmuck(g, id: id)
             return
         }

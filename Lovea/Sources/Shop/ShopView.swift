@@ -67,10 +67,17 @@ struct ShopView: View {
         .padding(.bottom, 4)
     }
 
+    /// p56: nur Gruppen mit Teilen für die Figur, die gerade eingekleidet wird (Ahmed hat keinen Schmuck).
+    private var kategorien: [ShopKategorie] {
+        ShopKategorie.allCases.filter { k in
+            ShopKatalog.alle.contains { $0.kategorie == k.rawValue && $0.sichtbar(fuer: ziel) }
+        }
+    }
+
     private var kategorienLeiste: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(ShopKategorie.allCases) { k in
+                ForEach(kategorien) { k in
                     Button {
                         withAnimation(.snappy) { kategorie = k }
                     } label: {
@@ -125,14 +132,15 @@ struct ShopView: View {
     }
 }
 
-/// p47: der Shop hat nur noch diese drei Gruppen.
+/// p47: der Shop hat nur noch diese Gruppen; p56 bringt den Schmuck zurück (neue `juwel.*`-IDs).
 enum ShopKategorie: String, CaseIterable, Identifiable {
-    case mode, tasche, tier
+    case mode, schmuck, tasche, tier
     var id: String { rawValue }
 
     var titel: String {
         switch self {
         case .mode: "Mode"
+        case .schmuck: "Schmuck"
         case .tasche: "Taschen"
         case .tier: "Haustiere"
         }
@@ -141,6 +149,7 @@ enum ShopKategorie: String, CaseIterable, Identifiable {
     var symbol: String {
         switch self {
         case .mode: "tshirt"
+        case .schmuck: "sparkle"
         case .tasche: "bag"
         case .tier: "pawprint"
         }

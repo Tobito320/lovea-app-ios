@@ -13,8 +13,8 @@ final class ShopQualitaetTests: XCTestCase {
 
     private let taschen = ["tasche.guess-tasche", "tasche.chanel-classic", "tasche.lv-speedy",
                            "tasche.gucci-tasche", "tasche.dior-clutch", "tasche.canvas-tote"]
-    private let mode = ["mode.nike-hoodie", "mode.guess-hoodie", "mode.seidenbluse", "mode.dior-bluse",
-                        "mode.jeansjacke", "mode.moncler-jacke", "mode.cargohose", "mode.nike-sneaker"]
+    private let mode = ["mode.nike-hoodie", "mode.guess-hoodie", "mode.dior-bluse", "mode.blumen-jeans",
+                        "mode.satin-camisole", "mode.off-shoulder", "mode.wickelkleid", "mode.cardigan"]
     private let tiere = ["tier.hund-braun", "tier.hund-schwarz", "tier.katze-grau",
                          "tier.katze-orange", "tier.hase-weiss", "tier.vogel-blau"]
 

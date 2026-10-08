@@ -94,7 +94,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
             a.koerperform = 5    // Sportlich
             a.oberteil = 4       // Top
             a.oberteilfarbe = 12 // Hellrosa
-            a.jacke = 1          // Lederjacke
+            a.jacke = 0          // p56: keine Jacke im Standard, sie verdeckte jedes Oberteil
             a.jackenfarbe = 3    // Schwarz
             a.hose = 1           // Jeans dunkel
             a.schuhe = 1         // High-Top
@@ -235,11 +235,14 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         "Rosa Strickpulli mit Grafik", "Schwarzes Rundhals-Tee", "Oben ohne",
         // Fix round 4: Gymshark (own drawing with the logo).
         "Gymshark Tee schwarz", "Gymshark Longsleeve weiß",
+        // p56: elegant, nur Shop (siehe `oberteileShop`).
+        "Satin-Camisole", "Off-Shoulder-Top", "Wickelkleid",
     ]
     static let jacken = [
         "Keine", "Lederjacke", "Jeansjacke", "Bomberjacke", "Blazer", "Pufferjacke", "Pelzkragen-Jacke", "Cape",
         "Adidas Trainingsjacke", "The North Face Puffer", "Carhartt Jacke",
         "Moncler Maya", "Chanel Tweed-Jacke", "Prada Re-Nylon Jacke",
+        "Perlen-Cardigan",
     ]
     static let hosen = [
         "Jeans hell", "Jeans dunkel", "Weite Jeans", "Stoffhose", "Jogginghose", "Cargohose", "Shorts", "Rock", "Minirock", "Leggings",
@@ -247,6 +250,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         "Adidas Trainingshose", "Levi's 501", "Nike Tech Fleece Jogger", "Puma Leggings",
         "Schwarze Gym-Shorts", "Hellgraue Wide-Jogger", "Hellgraue Baggy-Jeans",
         "Rosa Weite Jeans",
+        "Skinny Jeans mit Blumen",
     ]
     static let schuhArten = [
         "Sneaker", "High-Top", "Laufschuhe", "Stiefel", "Chelsea-Boots", "Sandalen", "Ballerinas", "Slipper", "Logo-Sneaker", "Two-Tone-Sneaker",
@@ -299,13 +303,14 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         .m, .m, .m, .w,
         .m, .m, .m,
         .n, .n,
+        .w, .w, .w,
     ]
-    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n, .n, .n, .n, .w, .m, .m, .m, .m]
+    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n, .n, .n, .n, .w, .m, .m, .m, .m, .w]
     /// Z-23.1: indices appended for shop "mode"/"brille" items (`shopTeile` below) — hidden from the
     /// free editor and `zufall()` so buying is the only way to wear them.
-    static let oberteileShop: Set<Int> = [14, 15, 16, 23, 24, 25, 26]
-    static let jackenShop: Set<Int> = [6, 7, 11, 12, 13]
-    static let hosenShop: Set<Int> = [10, 11]
+    static let oberteileShop: Set<Int> = [14, 15, 16, 23, 24, 25, 26, 36, 37, 38]
+    static let jackenShop: Set<Int> = [6, 7, 11, 12, 13, 14]
+    static let hosenShop: Set<Int> = [10, 11, 20]
     static let schuheShop: Set<Int> = [8, 9, 13, 14]
     static let brillenShop: Set<Int> = [11, 12]
 
@@ -417,6 +422,30 @@ extension FigurAussehen {
     }
 }
 
+extension FigurAussehen {
+    /// p56: `schmuck` holds the worn shop jewelry as a comma list of `juwel.*` ids, at most one per place
+    /// (ear, neck, wrist, hand). Older builds read the whole text as one unknown id and draw nothing.
+    var schmuckListe: [String] { (schmuck ?? "").split(separator: ",").map(String.init) }
+
+    /// Rings may be worn together (each has its own place); every other place holds one piece.
+    private static func juwelPlatz(_ id: String) -> String {
+        guard let ort = schmuckKatalog[id]?.stil.ort else { return id }
+        return ort == .hand ? id : "\(ort)"
+    }
+
+    mutating func juwelAnziehen(_ id: String) {
+        guard schmuckKatalog[id] != nil else { return }
+        var liste = schmuckListe.filter { Self.juwelPlatz($0) != Self.juwelPlatz(id) }
+        liste.append(id)
+        schmuck = liste.joined(separator: ",")
+    }
+
+    mutating func juwelAblegen(_ id: String) {
+        let liste = schmuckListe.filter { $0 != id }
+        schmuck = liste.isEmpty ? nil : liste.joined(separator: ",")
+    }
+}
+
 /// Which int field a "mode"/"brille" shop item sets (see `FigurAussehen.shopTeile`).
 /// ponytail: a plain enum instead of a `WritableKeyPath` — key paths carry Swift-6-Sendable risk
 /// in a static global table, and CI is the only compiler here, so the simpler type wins.
@@ -433,7 +462,11 @@ extension FigurAussehen {
         // 14) — leaving a stale hex from a PREVIOUS item would make Z-23.2's "is this worn?" check
         // match the wrong one of them.
         switch e.feld {
-        case .oberteil: oberteil = e.index; oberteilfarbeHex = e.hex
+        case .oberteil:
+            oberteil = e.index
+            oberteilfarbeHex = e.hex
+            // p56: eine freie Jacke (die alte schwarze Lederjacke) deckt das neue Oberteil zu; Shop-Jacken bleiben.
+            if !Self.jackenShop.contains(jacke) { jacke = 0 }
         case .jacke: jacke = e.index; jackenfarbeHex = e.hex
         case .hose: hose = e.index; hosenfarbeHex = e.hex
         case .schuhe: schuhe = e.index; schuhfarbeHex = e.hex
@@ -480,6 +513,12 @@ extension FigurAussehen {
         "mode.prada-nylon": (.jacke, 13, "2B2830"),
         "mode.gucci-ace": (.schuhe, 13, "F4F1EE"),
         "mode.balenciaga-triple-s": (.schuhe, 14, "D8C3A0"),
+        // p56: elegant. Satin in Champagner, Jeans mittelblau, Kleid und Cardigan in Zeichnung eigener Indizes.
+        "mode.satin-camisole": (.oberteil, 36, "E8D3B9"),
+        "mode.off-shoulder": (.oberteil, 37, "F4F1EE"),
+        "mode.wickelkleid": (.oberteil, 38, "7A1F3A"),
+        "mode.cardigan": (.jacke, 14, "EFE6D6"),
+        "mode.blumen-jeans": (.hose, 20, "3F6EAF"),
     ]
 }
 
