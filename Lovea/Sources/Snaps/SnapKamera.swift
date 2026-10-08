@@ -579,6 +579,8 @@ struct SnapKameraView: View {
     /// one photo after another (see `mehrfachAufnehmen`'s doc comment for the reduced scope).
     let onMultiFoto: ([UIImage]) -> Void
     let onAbbrechen: () -> Void
+    /// Picked here, applied in the editor (no live filter on the preview, see `KameraFilterLeiste`).
+    @Binding var filter: SnapFilter
 
     // Z-26.5/Z-34.4: the conversation's shared instance, already configured, so this view only
     // has to start it running.
@@ -593,6 +595,7 @@ struct SnapKameraView: View {
     // indirectly (freihand/multiSnap change which gesture branch runs; timer delays the capture
     // call that's already there).
     @State private var menueErweitert = false
+    @State private var filterOffen = false
     @State private var timer: KameraTimer = .aus
     @State private var rasterAn = false
     @State private var freihandAn = false
@@ -628,6 +631,7 @@ struct SnapKameraView: View {
             VStack {
                 obereLeiste
                 Spacer()
+                if filterOffen { KameraFilterLeiste(auswahl: $filter).padding(.bottom, 12).transition(.opacity) }
                 KameraLinsenPille(werte: steuerung.linsenWerte, aktuellerZoom: steuerung.zoom, onWahl: { wert in
                     // Review Important fix (2026-10-01): without this, `zoomStart` (the pinch
                     // baseline) stayed at the lens we left — the next pinch's first frame would jump
@@ -638,11 +642,6 @@ struct SnapKameraView: View {
                 })
                     .padding(.bottom, 14)
                 untereLeiste
-            }
-
-            HStack {
-                Spacer()
-                menu
             }
 
             if let countdown {
@@ -663,20 +662,18 @@ struct SnapKameraView: View {
         }
     }
 
+    /// X left, the control column right: both float as glass over the preview, nothing else on top.
     private var obereLeiste: some View {
-        HStack {
-            Button { onAbbrechen() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                .accessibilityLabel("Abbrechen")
+        HStack(alignment: .top) {
+            KameraSchliessenKnopf { onAbbrechen() }
             Spacer()
+            menu
         }
-        .font(.title2)
-        .foregroundStyle(.white)
-        .shadow(color: .black.opacity(0.5), radius: 3) // stays readable over a bright scene
-        .padding()
+        .padding(.horizontal, 12)
+        .padding(.top, 8)
     }
 
-    /// Z-R9: Wechseln/Blitz/Timer/Raster/Freihand/Multi-Snap/Stabilisierung/Schönheit, vertically
-    /// centred on the right edge like `snap-01`/`snap-03`.
+    /// Z-R9: Wechseln/Blitz/Filter, expandable to Timer/Raster/Freihand/Multi-Snap/Stabilisierung/Schönheit.
     private var menu: some View {
         KameraSeitenMenu(
             steuerung: steuerung,
@@ -693,6 +690,8 @@ struct SnapKameraView: View {
             rasterAn: $rasterAn,
             freihandAn: $freihandAn,
             multiSnapAn: $multiSnapAn,
+            filterOffen: $filterOffen,
+            filterGewaehlt: filter != .original,
             nimmtVideoAuf: steuerung.nimmtVideoAuf
         )
     }
@@ -710,20 +709,9 @@ struct SnapKameraView: View {
     /// A photo or video from the gallery goes through the same editor and snap path as a capture.
     private var galerieKnopf: some View {
         PhotosPicker(selection: $galerieAuswahl, matching: .any(of: [.images, .videos])) {
-            Group {
-                if galerieLaedt {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: "photo.on.rectangle")
-                }
-            }
-            .font(.title2)
-            .foregroundStyle(.white)
-            .frame(width: 52, height: 52)
-            .background(.black.opacity(0.35), in: .rect(cornerRadius: 14))
+            KameraMemoriesKnopf(laedt: galerieLaedt)
         }
         .disabled(galerieLaedt || steuerung.nimmtVideoAuf)
-        .accessibilityLabel("Foto oder Video aus der Galerie")
         .onChange(of: galerieAuswahl) { _, item in galerieLaden(item) }
     }
 
@@ -752,16 +740,7 @@ struct SnapKameraView: View {
     }
 
     private var ausloeser: some View {
-        ZStack {
-            Circle().stroke(.white.opacity(0.4), lineWidth: 4).frame(width: 76, height: 76)
-            Circle()
-                .trim(from: 0, to: steuerung.videoFortschritt)
-                .stroke(Color.loveaRose, style: StrokeStyle(lineWidth: 4, lineCap: .round))
-                .frame(width: 76, height: 76)
-                .rotationEffect(.degrees(-90))
-            Circle().fill(.white).frame(width: 62, height: 62)
-        }
-        .contentShape(Circle())
+        KameraAusloeserBild(fortschritt: steuerung.videoFortschritt)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Auslöser")
         .accessibilityHint("Tippen für ein Foto, halten für ein Video")
@@ -899,6 +878,7 @@ struct SnapKameraFluss: View {
     @State private var schritt: Schritt = .kamera
     /// Z-R9 Multi-Snap: photos still waiting for their turn in the editor, after the one on screen.
     @State private var warteschlange: [SnapInhalt] = []
+    @State private var filter: SnapFilter = .original
 
     var body: some View {
         switch schritt {
@@ -912,7 +892,8 @@ struct SnapKameraFluss: View {
                     schritt = .editor(inhalte.removeFirst())
                     warteschlange = inhalte
                 },
-                onAbbrechen: onFertig
+                onAbbrechen: onFertig,
+                filter: $filter
             )
         case .editor(let inhalt):
             // Never sent straight from the camera: the editor's send button is the only way out
@@ -922,7 +903,8 @@ struct SnapKameraFluss: View {
             SnapEditor(
                 inhalt: inhalt, ich: ich, antwortAuf: antwortAuf,
                 onFertig: naechstesAusWarteschlangeOderFertig,
-                onVerwerfen: { warteschlange = []; schritt = .kamera }
+                onVerwerfen: { warteschlange = []; schritt = .kamera },
+                startFilter: filter
             )
         }
     }
