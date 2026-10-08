@@ -27,6 +27,8 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
     /// Starts in the middle (living), where the sofa and the TV are.
     @State private var position = ScrollPosition(edge: .leading)
     @State private var zone = ProfilZone.wohn
+    /// p70: when a tab last sent the scroll, so the jump it causes gets no second haptic.
+    @State private var letzterTab = Date.distantPast
     /// The start position is set once. `.task` runs again whenever the profile comes back (a pushed page
     /// closes, the tab is chosen again) and would swing the panorama back to the middle each time.
     @State private var gestartet = false
@@ -60,6 +62,10 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         .scrollIndicators(.hidden)
         .scrollPosition($position)
         .scrollTargetBehavior(ProfilZonenSnap())
+        // p70: a swipe that comes to rest in another zone clicks once, like the tabs.
+        .onChange(of: zone) { _, _ in
+            if ZuhauseSzeneLogik.zonenHaptik(sekundenSeitTab: Date().timeIntervalSince(letzterTab)) { Haptik.auswahl() }
+        }
         // Only a change of zone invalidates this, not every point of the swipe.
         .onScrollGeometryChange(for: ProfilZone.self) { ProfilPanoramaLayout.zone(offset: $0.contentOffset.x / k) } action: { _, neu in
             zone = neu
@@ -77,6 +83,8 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         }
         .background(FigurFarbe(wahl.teil(.wand).farbe).farbe)
         .overlay(alignment: .top) { schwebend }
+        // p70: a gift waiting in the vase, and "Annika hat etwas gestellt".
+        .overlay(alignment: .bottom) { ZimmerHinweisLeiste() }
         .frame(width: breite, height: hoehe)
         .clipped()
     }
@@ -101,6 +109,7 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
 
     private func gehe(_ z: ProfilZone, _ k: CGFloat) {
         Haptik.auswahl()
+        letzterTab = Date()
         withAnimation(reduceMotion ? nil : Feder.weich) { position.scrollTo(x: ProfilSlots.anker(z) * k) }
     }
 }

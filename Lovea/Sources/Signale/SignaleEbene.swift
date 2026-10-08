@@ -189,6 +189,18 @@ struct StimmungBlase: View {
     let ganzkoerper: Bool
     var speicher = SignaleSpeicher.shared
     let setzen: () -> Void
+    /// p70: when the partner's bubble was tapped, to the second.
+    @State private var letztesHerz: Date?
+
+    /// A tap on the other one's mood sends a heart (the "Denk an dich" gesture) and a haptic; within
+    /// ten seconds a second tap only gives the haptic.
+    private func herzSchicken() {
+        Haptik.mittel()
+        let jetzt = Date()
+        guard ZuhauseSzeneLogik.herzErlaubt(letztes: letztesHerz, jetzt: jetzt) else { return }
+        letztesHerz = jetzt
+        FigurenModell.shared.gesteSenden("herz")
+    }
 
     var body: some View {
         let art = speicher.stimmung(von: person)
@@ -203,9 +215,10 @@ struct StimmungBlase: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel(art.map { "Deine Stimmung: \($0.name)" } ?? "Stimmung setzen")
                 } else {
-                    blase
-                        .allowsHitTesting(false)
+                    Button(action: herzSchicken) { blase.contentShape(Rectangle().inset(by: -6)) }
+                        .buttonStyle(.plain)
                         .accessibilityLabel("\(person.name): \(art?.name ?? "")")
+                        .accessibilityHint("Tippen schickt ein Herz")
                 }
             }
             .offset(y: figurHoehe * (ganzkoerper ? 0.06 : 0.04) - hoehe)

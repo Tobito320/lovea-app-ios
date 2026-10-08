@@ -270,10 +270,11 @@ enum ZuhauseZeichnung {
 
     // MARK: Light
 
-    /// The lamp's warm pool of light, drawn over everything while it is dark.
-    static func licht(_ g: GraphicsContext, zeit: Tageszeit, welt: ProfilWelt = .einzel) {
+    /// The lamp's warm pool of light, drawn over everything while it is dark. p70 (40): `staerke` above 1
+    /// (the day's goals done) makes it glow warmer.
+    static func licht(_ g: GraphicsContext, zeit: Tageszeit, welt: ProfilWelt = .einzel, staerke: Double = 1) {
         guard zeit.dunkel else { return }
-        let st = zeit == .nacht ? 0.42 : 0.3
+        let st = min((zeit == .nacht ? 0.42 : 0.3) * staerke, 0.7)
         let mitte = welt.ort(P(lampe.x, lampe.y), .lampe)
         g.fill(kreis(mitte, 150), with: .radialGradient(Gradient(colors: [c(0xFFC96B).opacity(st), c(0xFFB347).opacity(st * 0.3), .clear]), center: mitte, startRadius: 6, endRadius: 150))
     }

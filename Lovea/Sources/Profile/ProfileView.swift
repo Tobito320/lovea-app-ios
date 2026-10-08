@@ -253,7 +253,7 @@ private struct ProfilInhalt: View {
     private func buehnenFigur(_ f: ZuhauseFigur) -> some View {
         let aussehen = FigurenModell.shared.aussehen(f.person)
         let v = FigurView(aussehen, zustand: f.zustand, abzeichen: abzeichen(f.person), groesse: f.groesse,
-                          animiert: f.animiert, bildrate: 15, ganzkoerper: f.ganzkoerper, pose: f.pose)
+                          animiert: f.animiert, bildrate: f.bildrate, ganzkoerper: f.ganzkoerper, pose: f.pose)
         // p65: a sitter on the sofa is placed for a middle-sized body; the others move by the difference of their seat height.
         let sitzKorrektur = f.pose == .sitzenSofa ? FigurPoseLogik.sitzKorrektur(stufe: aussehen.groesse, hoehe: f.groesse) : 0
         Group {
