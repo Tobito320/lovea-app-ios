@@ -116,6 +116,7 @@ struct AhmedHilfeEinstellungen: View {
 /// Short, kind rules of thumb. Static text, nothing is read from the chat.
 struct AhmedTippsSeite: View {
     private struct Tipp { let titel: String, text: String }
+    private struct Satz { let statt: String, besser: String }
 
     private static let tipps = [
         Tipp(titel: "Warten sichtbar machen", text: "Kannst du nicht gleich antworten, schreib kurz wann. Ein Satz reicht: Gesehen, melde mich um 20 Uhr."),
@@ -125,19 +126,54 @@ struct AhmedTippsSeite: View {
         Tipp(titel: "Gym und Freunde", text: "Vorher kurz Bescheid: Bin bis 22 Uhr im Gym, melde mich danach."),
         Tipp(titel: "Wenn dich etwas stört", text: "Sag es ruhig und frag, was sie braucht: Rat oder nur zuhören?"),
     ]
+    private static let glueck = [
+        Tipp(titel: "Eine Nachricht, die sie nicht erwartet", text: "Persönlich und aus dir selbst, ohne Anlass. Das trifft mehr als jede Show."),
+        Tipp(titel: "Selbst gemacht", text: "Etwas Eigenes aus Liebe zählt mehr als etwas Gekauftes. Blumen gern, aber nicht aus Pflicht."),
+        Tipp(titel: "Ruhige Zeit", text: "Park, zusammen kochen, ausschlafen. Zeit zählt mehr als Geld."),
+        Tipp(titel: "Kleinigkeiten bemerken", text: "Sag, was dir an ihr auffällt, zum Beispiel ihr Lächeln."),
+        Tipp(titel: "Deine Stimme bei Stress", text: "Ruf an, wenn es ihr nicht gut geht. Nähe und Stimme beruhigen sie."),
+        Tipp(titel: "Ein Bild von dir", text: "Ein Foto aus deinem Tag freut sie."),
+    ]
+    private static let dates = [
+        "Park, spazieren, reden.",
+        "Zusammen kochen, ohne Kalorien zu zählen.",
+        "Wochenende zum Ausschlafen.",
+        "Zusammen zeichnen oder ein Brief in Lovea.",
+        "Wochenende früh klären, mit Zeit und Ort: Samstag 14 Uhr, Park.",
+    ]
+    private static let saetze = [
+        Satz(statt: "Ich antworte, wenn ich kann.", besser: "Ich schaffe das heute nicht vor 20 Uhr, melde mich dann."),
+        Satz(statt: "Das ist wieder eine Beschwerde.", besser: "Danke, dass du es sagst. Erzähl mir mehr."),
+        Satz(statt: "Bin eingeschlafen.", besser: "Ich bin müde. Morgen um 10 reden wir in Ruhe weiter."),
+        Satz(statt: "Mein Lieblingsmensch aktuell, dazu eine Aufzählung.", besser: "Du bist mein Lieblingsmensch."),
+        Satz(statt: "Plane noch 10 Minuten Gym.", besser: "Eher 40 Minuten, ich rufe um 21 Uhr an."),
+    ]
     private static let besserNicht = [
         "Eine Nachricht als Beschwerde oder Drama abtun.",
         "Späte Abend-Scherze mit Spitze.",
+        "Mitten im Streit offline gehen, ohne zu sagen, wann du antwortest.",
+        "Auf ihr Lob oder ihre Frage nichts antworten: ein Herz oder Danke reicht.",
         "Zahlen oder Ziele nennen, wenn es um Körper oder Essen geht: zuhören, bestätigen, fragen.",
     ]
 
     var body: some View {
         List {
-            Section("Besser") {
-                ForEach(Self.tipps, id: \.titel) { tipp in
+            Section("Jeden Tag") { tippZeilen(Self.tipps) }
+            Section {
+                tippZeilen(Self.glueck)
+            } header: {
+                Text("Was sie glücklich macht")
+            } footer: {
+                Text("Hilfe, kein Skript. Echt und eigener Einfall schlägt jede Liste.")
+            }
+            Section("Date-Ideen") {
+                ForEach(Self.dates, id: \.self) { Text($0).font(.footnote) }
+            }
+            Section("Statt, besser") {
+                ForEach(Self.saetze, id: \.statt) { satz in
                     VStack(alignment: .leading, spacing: 3) {
-                        Text(tipp.titel).font(.subheadline.weight(.semibold))
-                        Text(tipp.text).font(.footnote).foregroundStyle(.secondary)
+                        Text("Statt: \(satz.statt)").font(.footnote).foregroundStyle(.secondary)
+                        Text(satz.besser).font(.subheadline)
                     }
                     .padding(.vertical, 2)
                 }
@@ -148,5 +184,15 @@ struct AhmedTippsSeite: View {
         }
         .navigationTitle("Tipps für dich")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func tippZeilen(_ liste: [Tipp]) -> some View {
+        ForEach(liste, id: \.titel) { tipp in
+            VStack(alignment: .leading, spacing: 3) {
+                Text(tipp.titel).font(.subheadline.weight(.semibold))
+                Text(tipp.text).font(.footnote).foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 2)
+        }
     }
 }
