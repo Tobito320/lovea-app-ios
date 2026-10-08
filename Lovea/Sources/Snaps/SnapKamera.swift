@@ -127,7 +127,7 @@ private final class KameraSitzung: @unchecked Sendable {
 
     /// Adds the mic, then records. false when the session can't record yet (not running, no
     /// active video connection) — `startRecording` would throw "No active/enabled connections".
-    func aufnehmen(nach ziel: URL, position: AVCaptureDevice.Position, spiegeln: Bool, delegate: any AVCaptureFileOutputRecordingDelegate) -> Bool {
+    func aufnehmen(nach ziel: URL, position: AVCaptureDevice.Position, spiegeln: Bool, winkel: CGFloat, delegate: any AVCaptureFileOutputRecordingDelegate) -> Bool {
         guard session.isRunning, let verbindung = film.connection(with: .video), verbindung.isActive else { return false }
         audioSitzungVorbereiten()
         mikroDazu()
@@ -137,8 +137,8 @@ private final class KameraSitzung: @unchecked Sendable {
             mikroWeg()
             mikroDazu()
         }
-        // App is portrait-only but a connection defaults to landscape (angle 0).
-        if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
+        // An output connection defaults to landscape (angle 0): turn it like the preview shows it.
+        if verbindung.isVideoRotationAngleSupported(winkel) { verbindung.videoRotationAngle = winkel }
         // Only this OUTPUT connection: the preview mirrors the front camera on its own connection.
         SnapBildAusrichtung.anwenden(auf: verbindung, gespiegelt: SnapBildAusrichtung.videoGespiegelt(position: position, spiegeln: spiegeln))
         film.maxRecordedDuration = CMTime(seconds: 30, preferredTimescale: 600)
@@ -188,6 +188,12 @@ final class SnapKameraSteuerung: NSObject {
     /// visible (`KameraVorschauUIView` isn't recreated while `SnapKameraView` is on screen, only its
     /// `session`/`videoGravity` get re-applied), so it's non-nil by the time a tap can happen.
     private weak var vorschauEbene: AVCaptureVideoPreviewLayer?
+    /// iPad only (all four orientations; the iPhone app is portrait-only and keeps its fixed 90):
+    /// the angle that makes the preview upright for how the screen is turned right now. Photo,
+    /// video and the orientation tag use the SAME angle, so what is shot is what the preview showed
+    /// (and the crop rect, which comes from that preview, still fits).
+    @ObservationIgnored private var drehung: AVCaptureDevice.RotationCoordinator?
+    @ObservationIgnored private var drehungBeobachter: NSKeyValueObservation?
     /// The preview's visible rect AND camera position for the photo currently in flight — both read
     /// right before `capturePhoto`, not in the delegate, so the crop never depends on `vorschauEbene`
     /// (or `position`) still being what they were at tap time once the delegate callback fires later.
@@ -199,6 +205,32 @@ final class SnapKameraSteuerung: NSObject {
 
     func vorschauEbeneSetzen(_ ebene: AVCaptureVideoPreviewLayer) {
         vorschauEbene = ebene
+        drehungErneuern()
+    }
+
+    /// iPad only. Needs the layer AND the device, so it runs whenever either one appears or changes,
+    /// and again once frames flow (the layer is in its window by then).
+    private func drehungErneuern() {
+        guard UIDevice.current.userInterfaceIdiom == .pad, let geraet, let ebene = vorschauEbene else { return }
+        let koordinator = AVCaptureDevice.RotationCoordinator(device: geraet, previewLayer: ebene)
+        drehung = koordinator
+        drehungBeobachter = koordinator.observe(\.videoRotationAngleForHorizonLevelPreview) { @Sendable [weak self] _, _ in
+            Task { @MainActor in self?.vorschauDrehen() }
+        }
+        vorschauDrehen()
+    }
+
+    /// Winkel für Vorschau, Foto und Video: iPhone immer Hochformat (90), iPad folgt der Drehung.
+    private var aufnahmeWinkel: CGFloat {
+        drehung?.videoRotationAngleForHorizonLevelPreview ?? 90
+    }
+
+    /// The preview connection is (re)built with the session and on every camera switch, so the angle
+    /// is set again after both, not only when the screen turns. No-op on iPhone (no coordinator).
+    private func vorschauDrehen() {
+        guard drehung != nil, let verbindung = vorschauEbene?.connection else { return }
+        let winkel = aufnahmeWinkel
+        if verbindung.isVideoRotationAngleSupported(winkel) { verbindung.videoRotationAngle = winkel }
     }
 
     /// Shared instance (Z-26.5): the conversation configures it ahead of time, `SnapKameraView`
@@ -253,7 +285,10 @@ final class SnapKameraSteuerung: NSObject {
         guard !laeuft else { return }
         laeuft = true
         vorbereitet = true
-        if geraet == nil { geraet = SnapKameraGeraet.waehlen(position: position) }
+        if geraet == nil {
+            geraet = SnapKameraGeraet.waehlen(position: position)
+            drehungErneuern()
+        }
         let sitzung = sitzung, position = position, stabil = stabilisierungAn
         sessionSchlange.async {
             sitzung.starten(position, stabilisierung: stabil)
@@ -265,6 +300,7 @@ final class SnapKameraSteuerung: NSObject {
     private func bildBereit() {
         guard laeuft else { return }
         bildDa = true
+        drehungErneuern()
     }
 
     /// The camera UI closing: the session stops right away (camera dot off, mic gone) and
@@ -322,7 +358,10 @@ final class SnapKameraSteuerung: NSObject {
         geraet = SnapKameraGeraet.waehlen(position: position)
         zoom = 1
         let sitzung = sitzung, position = position, stabil = stabilisierungAn
-        sessionSchlange.async { sitzung.wechseln(position, stabilisierung: stabil) }
+        sessionSchlange.async {
+            sitzung.wechseln(position, stabilisierung: stabil)
+            Task { @MainActor in self.drehungErneuern() } // new input, new preview connection
+        }
     }
 
     func zoomSetzen(_ wert: CGFloat) {
@@ -364,7 +403,8 @@ final class SnapKameraSteuerung: NSObject {
         // A tap before the first frames (first open, mid camera switch) would throw inside
         // `capturePhoto`; a second tap while one is in flight would drop its continuation.
         guard fotoContinuation == nil, let verbindung = sitzung.foto.connection(with: .video), verbindung.isActive else { return nil }
-        if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
+        let winkel = aufnahmeWinkel
+        if verbindung.isVideoRotationAngleSupported(winkel) { verbindung.videoRotationAngle = winkel }
         // "Selfie spiegeln": read once at tap time and frozen for the delegate (like the crop).
         // Photo: the connection is always UNmirrored, so `cgImageRepresentation()` is the plain
         // sensor image whatever the connection would do; the orientation tag below is the only
@@ -380,7 +420,7 @@ final class SnapKameraSteuerung: NSObject {
         // rect rotation is needed; only the final `UIImage` orientation tag (set from `position`,
         // not the rect) turns it upright and mirrored for display.
         zuschnittAusstehend = vorschauEbene.map { $0.metadataOutputRectConverted(fromLayerRect: $0.bounds) }
-        ausrichtungAusstehend = SnapBildAusrichtung.fuer(position: position, spiegeln: spiegeln)
+        ausrichtungAusstehend = SnapBildAusrichtung.fuer(position: position, spiegeln: spiegeln, winkel: winkel)
         schoenheitAusstehend = schoenheitAn && position == .front
         // Front has no flash hardware, so `supportedFlashModes` never includes `.on` there — the
         // ring light is the front's stand-in, triggered here instead. Review Important fix
@@ -432,9 +472,9 @@ final class SnapKameraSteuerung: NSObject {
         let ziel = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString).appendingPathExtension("mov")
         return await withCheckedContinuation { continuation in
             videoContinuation = continuation
-            let sitzung = sitzung, spiegeln = SnapBildAusrichtung.spiegeln(), position = position
+            let sitzung = sitzung, spiegeln = SnapBildAusrichtung.spiegeln(), position = position, winkel = aufnahmeWinkel
             sessionSchlange.async {
-                guard sitzung.aufnehmen(nach: ziel, position: position, spiegeln: spiegeln, delegate: self) else {
+                guard sitzung.aufnehmen(nach: ziel, position: position, spiegeln: spiegeln, winkel: winkel, delegate: self) else {
                     Task { @MainActor in self.aufnahmeBeendet(nil) }
                     return
                 }
@@ -555,9 +595,9 @@ enum SnapZuschnitt {
 
 /// Pure orientation mapping (Z-R7): turns the sensor-native `CGImage` from
 /// `AVCapturePhoto.cgImageRepresentation()` upright, exactly like `verbindung.videoRotationAngle =
-/// 90` (always set, for portrait) plus the connection's mirroring would tag the EXIF-oriented file.
-/// Portrait-only, so the orientation only depends on `position` and the switch below — no per-photo
-/// metadata lookup needed.
+/// winkel` plus the connection's mirroring would tag the EXIF-oriented file. `winkel` is the angle
+/// the preview uses (90 on iPhone, which is portrait-only; 0/90/180/270 on iPad), so the tag
+/// depends on `winkel`, `position` and the switch below — no per-photo metadata lookup needed.
 ///
 /// Schalter "Selfie-Foto und -Video gespiegelt" (Einstellungen, Standard AUS, Ahmed 01.10.): AUS = Foto
 /// und Video von der Frontkamera ungespiegelt wie in der iOS-Kamera, nur die Live-Vorschau bleibt
@@ -570,8 +610,16 @@ enum SnapBildAusrichtung {
         defaults.bool(forKey: schluessel)
     }
 
-    static func fuer(position: AVCaptureDevice.Position, spiegeln: Bool) -> UIImage.Orientation {
-        position == .front && spiegeln ? .leftMirrored : .right
+    /// Spiegeln = erst um `winkel` drehen, dann links/rechts tauschen (so zeigt es die Vorschau).
+    /// Unbekannte Winkel fallen auf Hochformat (90) zurück, wie vor der iPad-Drehung.
+    static func fuer(position: AVCaptureDevice.Position, spiegeln: Bool, winkel: CGFloat = 90) -> UIImage.Orientation {
+        let gespiegelt = position == .front && spiegeln
+        switch ((Int(winkel.rounded()) % 360) + 360) % 360 {
+        case 0: return gespiegelt ? .upMirrored : .up
+        case 180: return gespiegelt ? .downMirrored : .down
+        case 270: return gespiegelt ? .rightMirrored : .left
+        default: return gespiegelt ? .leftMirrored : .right
+        }
     }
 
     /// Video: gespiegelt nur vorne und nur bei AN, sonst nie (Rückkamera ändert der Schalter nie).
