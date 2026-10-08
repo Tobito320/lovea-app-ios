@@ -77,11 +77,12 @@ final class ShopTragenTests: XCTestCase {
     }
 
     /// p56: ein Shop-Oberteil räumt die freie Lederjacke weg, eine Shop-Jacke bleibt.
-    func testShopOberteilRaeumtFreieJackeWeg() {
+    func testShopOberteilLaesstShopJackeStehen() {
         var a = FigurAussehen.standard(for: .annika)
         a.jacke = 1
         a.anziehen("mode.satin-camisole")
-        XCTAssertEqual(a.jacke, 0)
+        XCTAssertEqual(a.jacke, 1, "p65 D: keine Jacke ist frei, jede Jacke außer Keine ist ein Shop-Teil und bleibt")
+        a.jacke = 0
         a.anziehen("mode.cardigan")
         a.anziehen("mode.off-shoulder")
         XCTAssertEqual(a.jacke, 14, "der Cardigan gehört zum Shop und bleibt über dem Oberteil")
