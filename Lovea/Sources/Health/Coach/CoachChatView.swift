@@ -77,7 +77,7 @@ private struct CoachRueckruf {
 }
 
 /// Wohin der Verlauf scrollen soll. Ein einziger Weg für Suche, Tagessprung, "Nach unten" und neue Antworten.
-private struct CoachSprung: Equatable {
+private struct CoachSprung: Equatable, Sendable {
     let id: String
     let anker: UnitPoint
 
@@ -611,8 +611,10 @@ private struct CoachOrb: View {
 
     var body: some View {
         let farben = palette
+        let staerke: Double = lebhaft ? 1.7 : 1.0
         TimelineView(.animation(minimumInterval: 1.0 / 20, paused: !aktiv || reduceMotion)) { zeit in
-            kugel(farben: farben, atem: aktiv && !reduceMotion ? sin(zeit.date.timeIntervalSinceReferenceDate * 2.2) * (lebhaft ? 1.7 : 1) : 0)
+            let atem: Double = aktiv && !reduceMotion ? sin(zeit.date.timeIntervalSinceReferenceDate * 2.2) * staerke : 0
+            kugel(farben: farben, atem: atem)
         }
         .frame(width: groesse, height: groesse)
         .accessibilityHidden(true)
@@ -638,12 +640,14 @@ private struct CoachDenkPunkte: View {
 
     var body: some View {
         TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { zeit in
+            let takt: Double = zeit.date.timeIntervalSinceReferenceDate * 5
             HStack(spacing: 5) {
                 ForEach(0..<3, id: \.self) { index in
+                    let hub: Double = reduceMotion ? 0 : max(0, sin(takt - Double(index) * 0.7))
                     Circle()
                         .fill(Color.secondary)
                         .frame(width: 6, height: 6)
-                        .offset(y: reduceMotion ? 0 : -3 * max(0, sin(zeit.date.timeIntervalSinceReferenceDate * 5 - Double(index) * 0.7)))
+                        .offset(y: CGFloat(-3 * hub))
                 }
             }
             .frame(height: 12)
