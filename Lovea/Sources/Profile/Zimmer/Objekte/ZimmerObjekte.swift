@@ -85,7 +85,7 @@ struct ZimmerObjekteEbene: View {
         .task(id: konfettiStart) {
             guard konfettiStart != nil else { return }
             try? await Task.sleep(for: .seconds(2.6))
-            konfettiStart = nil
+            if !Task.isCancelled { konfettiStart = nil }
         }
         .task {
             if ZimmerObjekteLogik.istMeilensteinTag(heute: heute), !reduceMotion { konfettiStart = Date() }
