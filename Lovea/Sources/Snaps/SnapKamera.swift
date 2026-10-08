@@ -85,6 +85,18 @@ private final class KameraSitzung: @unchecked Sendable {
         }
     }
 
+    /// Sprachspieler leaves the shared audio session on `.playback` (and may have deactivated it); a
+    /// mic needs `.playAndRecord` that is active BEFORE the input joins, otherwise the file gets a
+    /// video track and no sound. Same options as the voice recorder; no-op when already set.
+    private func audioSitzungVorbereiten() {
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else { return }
+        let audio = AVAudioSession.sharedInstance()
+        if audio.category != .playAndRecord {
+            try? audio.setCategory(.playAndRecord, mode: .videoRecording, options: [.defaultToSpeaker, .allowBluetooth])
+        }
+        try? audio.setActive(true)
+    }
+
     /// Mic joins only for a video, inside its own configuration block on this queue.
     private func mikroDazu() {
         guard mikro == nil, let geraet = AVCaptureDevice.default(for: .audio),
@@ -117,7 +129,14 @@ private final class KameraSitzung: @unchecked Sendable {
     /// active video connection) — `startRecording` would throw "No active/enabled connections".
     func aufnehmen(nach ziel: URL, position: AVCaptureDevice.Position, spiegeln: Bool, delegate: any AVCaptureFileOutputRecordingDelegate) -> Bool {
         guard session.isRunning, let verbindung = film.connection(with: .video), verbindung.isActive else { return false }
+        audioSitzungVorbereiten()
         mikroDazu()
+        // The movie output gets its audio connection only if the mic input really joined. If not
+        // (audio session busy right after voice playback), one more try, else it would record silent.
+        if mikro != nil, film.connection(with: .audio) == nil {
+            mikroWeg()
+            mikroDazu()
+        }
         // App is portrait-only but a connection defaults to landscape (angle 0).
         if verbindung.isVideoRotationAngleSupported(90) { verbindung.videoRotationAngle = 90 }
         // Only this OUTPUT connection: the preview mirrors the front camera on its own connection.
