@@ -58,16 +58,16 @@ private func kuschelSchwanz(_ h: GraphicsContext, _ k: KuschelFarben, _ a: CGPoi
     }
     let form = linieForm.strokedPath(StrokeStyle(lineWidth: breite, lineCap: .round, lineJoin: .round))
     var teile: [Path] = [form]
-    for t: CGFloat in [0.2, 0.34, 0.48, 0.62, 0.76, 0.9] {
+    for t: CGFloat in [0.3, 0.55, 0.8] {
         let m = kubisch(t, a, b, c, d)
         let r = m.grad * Double.pi / 180
         for s: CGFloat in [-1, 1] {
             let basis = P(m.punkt.x - CGFloat(sin(r)) * s * breite * 0.42, m.punkt.y + CGFloat(cos(r)) * s * breite * 0.42)
-            teile.append(tierBuschel(basis, laenge: 6.5, breite: 4.2, grad: m.grad + Double(s) * 50, biegung: 0.15 * s))
+            teile.append(tierBuschel(basis, laenge: 8, breite: 7, grad: m.grad + Double(s) * 45, biegung: 0.25 * s))
         }
     }
     for w in [-90.0, -60, -120] {
-        teile.append(tierBuschel(d, laenge: 6, breite: 4.4, grad: w))
+        teile.append(tierBuschel(d, laenge: 7.5, breite: 6.5, grad: w))
     }
     kVerbunden(h, teile, k.fell, k, 2)
     linie(h, linieForm.applying(CGAffineTransform(translationX: 2.2, y: 0)), k.glanz.farbe.opacity(0.35), 1.6)
@@ -92,7 +92,7 @@ func kuschelKatze(_ h: GraphicsContext, _ f: FigurFarbe, pose: HaustierPose) {
 
 private func kuschelSteht(_ h: GraphicsContext, _ k: KuschelFarben) {
     let f = k.fell
-    kuschelSchwanz(h, k, P(-9, -5), P(-22, -2), P(-29, -24), P(-21, -46), breite: 10.5)
+    kuschelSchwanz(h, k, P(-9, -5), P(-20, -2), P(-26, -22), P(-19, -44), breite: 12)
     let torso = oval(P(0, -19), 15.5, 19)
     var teile: [Path] = [torso, oval(P(-11.5, -9.5), 9.5, 9.5), oval(P(11.5, -9.5), 9.5, 9.5)]
     for x in stride(from: CGFloat(-16), through: 16, by: 4.4) {
@@ -118,7 +118,7 @@ private func kuschelSteht(_ h: GraphicsContext, _ k: KuschelFarben) {
 
 private func kuschelLiegt(_ h: GraphicsContext, _ k: KuschelFarben) {
     let f = k.fell
-    kuschelSchwanz(h, k, P(-19, -8), P(-40, -10), P(-36, 0.5), P(-8, -1.5), breite: 9)
+    kuschelSchwanz(h, k, P(-19, -9), P(-38, -12), P(-36, -3), P(-8, -4), breite: 11)
     let koerper = oval(P(0, -11), 22, 11)
     var teile: [Path] = [koerper, oval(P(-11, -12), 12, 11)]
     for x in stride(from: CGFloat(-22), through: 22, by: 4.4) {

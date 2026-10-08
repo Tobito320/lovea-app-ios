@@ -26,11 +26,11 @@ let haustierKatalog: [String: (art: HaustierArt, farbe: FigurFarbe)] = [
 /// half width of its soft ground shadow.
 private func haustierMass(_ art: HaustierArt) -> (skala: CGFloat, schatten: CGFloat) {
     switch art {
-    case .hund: (1.06, 31)
-    case .katze: (1.18, 19)
-    case .kuschelkatze: (1.14, 25)
-    case .hase: (1.32, 19)
-    case .vogel: (1.5, 12)
+    case .hund: (1.12, 33)
+    case .katze: (1.28, 20)
+    case .kuschelkatze: (1.25, 26)
+    case .hase: (1.45, 20)
+    case .vogel: (1.75, 13)
     }
 }
 
@@ -133,7 +133,7 @@ func tierAuge(_ h: GraphicsContext, _ c: CGPoint, rx: CGFloat, ry: CGFloat, iris
         .init(color: iris.mix(Pal.weiss, 0.45).farbe, location: 1),
     ]))
     h.fill(oval(c, rx * schlitz, ry * 0.78), with: .color(Pal.tinte.farbe))
-    h.fill(kreis(P(c.x + rx * 0.3, c.y - ry * 0.38), rx * 0.3), with: .color(.white))
+    h.fill(kreis(P(c.x + rx * 0.5, c.y - ry * 0.4), rx * 0.26), with: .color(.white))
     h.fill(kreis(P(c.x - rx * 0.3, c.y + ry * 0.35), rx * 0.14), with: .color(.white.opacity(0.8)))
 }
 
@@ -371,7 +371,7 @@ private func katzeKopf(_ h: GraphicsContext, _ c: KatzenFarben) {
             p.addLine(to: P(s * 3, -56))
             p.closeSubpath()
         }
-        verbunden(h, [ohr, tierBuschel(P(s * 11, -63.5), laenge: 3.4, breite: 2.6, grad: -90 + Double(s) * 8)], f, 2.2)
+        verbunden(h, [ohr, tierBuschel(P(s * 11, -63.5), laenge: 2, breite: 2.4, grad: -90 + Double(s) * 8)], f, 2.2)
         let innenOhr = Path { p in
             p.move(to: P(s * 11.2, -52.5))
             p.addLine(to: P(s * 10.2, -60.5))
@@ -399,7 +399,7 @@ private func katzeKopf(_ h: GraphicsContext, _ c: KatzenFarben) {
     gesicht.stroke(stirn, with: .color(c.streifen), style: StrokeStyle(lineWidth: 1.3, lineCap: .round))
     tierFell(h, in: kopf, bereich: CGRect(x: -14, y: -56, width: 28, height: 22), abstand: 3.6, laenge: 2.6, grad: 90, farbe: .white.opacity(0.18))
     for s: CGFloat in [-1, 1] {
-        tierAuge(h, P(s * 5.6, -46.5), rx: 3.7, ry: 4.1, iris: c.iris, schlitz: 0.3)
+        tierAuge(h, P(s * 5.6, -46.5), rx: 3.7, ry: 4.1, iris: c.iris, schlitz: 0.26)
         linie(h, bogen(P(s * 2.6, -41.6), P(s * 5.6, -41.2), P(s * 4, -40.4)), Pal.tinte.farbe.opacity(0.65), 0.7)
         for i in 0..<3 {
             let dy = CGFloat(i) * 1.6

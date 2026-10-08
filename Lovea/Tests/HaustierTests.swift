@@ -69,13 +69,13 @@ final class HaustierTests: XCTestCase {
 
     /// Mindesthöhe je Tier in Figurenpunkten bei Größe 1 (Hase und Vogel waren im Profil zu klein).
     func testTiereSindGrossGenugUndNichtAmRand() throws {
-        let minHoehe: [String: Int] = ["tier.hund-braun": 50, "tier.hund-schwarz": 50, "tier.katze-grau": 70,
-                                       "tier.katze-orange": 70, "tier.katze-schwarz": 72, "tier.hase-weiss": 90,
-                                       "tier.vogel-blau": 72]
+        let minHoehe: [String: Int] = ["tier.hund-braun": 55, "tier.hund-schwarz": 55, "tier.katze-grau": 80,
+                                       "tier.katze-orange": 80, "tier.katze-schwarz": 85, "tier.hase-weiss": 100,
+                                       "tier.vogel-blau": 85]
         for id in tiere {
             let box = try XCTUnwrap(vermesse(id, pose: .steht), id)
             XCTAssertGreaterThanOrEqual(box.hoehe, minHoehe[id] ?? 0, "\(id): nur \(box.hoehe) hoch")
-            XCTAssertLessThanOrEqual(box.breite, 110, "\(id): \(box.breite) breit, stößt an die Figur")
+            XCTAssertLessThanOrEqual(box.breite, 125, "\(id): \(box.breite) breit, stößt an die Figur")
             XCTAssertGreaterThanOrEqual(box.sichtbar, 1000, "\(id): zu wenig sichtbare Fläche")
             XCTAssertFalse(box.amRand, "\(id): ragt aus der Zeichenfläche")
         }
@@ -87,7 +87,7 @@ final class HaustierTests: XCTestCase {
             let liegt = try XCTUnwrap(vermesse(id, pose: .liegt), id)
             XCTAssertGreaterThanOrEqual(liegt.sichtbar, 900, "\(id) liegt: zu wenig sichtbar")
             XCTAssertFalse(liegt.amRand, "\(id) liegt: ragt aus der Zeichenfläche")
-            XCTAssertLessThanOrEqual(liegt.breite, 110, "\(id) liegt: \(liegt.breite) breit")
+            XCTAssertLessThanOrEqual(liegt.breite, 125, "\(id) liegt: \(liegt.breite) breit")
             XCTAssertNotEqual(liegt.hoehe, steht.hoehe, "\(id): liegt sieht aus wie steht")
         }
     }
@@ -134,7 +134,7 @@ final class HaustierTests: XCTestCase {
         func zelle(_ id: String, _ pose: HaustierPose, dunkel: Bool) -> AnyView {
             AnyView(
                 Canvas { ctx, _ in
-                    zeichneHaustier(ctx, id: id, boden: P(130, 205), groesse: 1.9, nachLinks: false, pose: pose)
+                    zeichneHaustier(ctx, id: id, boden: P(130, 205), groesse: 1.7, nachLinks: false, pose: pose)
                 }
                 .frame(width: 260, height: 225)
                 .background(dunkel ? Color(white: 0.14) : Color(white: 0.95))
