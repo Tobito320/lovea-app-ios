@@ -242,10 +242,10 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         let vasenPlatz = welt.ort(ZuhauseZeichnung.vasenPlatz, .kommode)
         return ZStack(alignment: .topLeading) {
             ForEach(imSchrank.indices, id: \.self) { n in
-                strauss(imSchrank[n], plaetze[n], s, oben)
+                strauss(imSchrank[n], plaetze[n], straeusse.frische[imSchrank[n]] ?? .frisch, s, oben)
             }
             if let vase = straeusse.vase {
-                strauss(vase, vasenPlatz, s, oben)
+                strauss(vase, vasenPlatz, straeusse.frische[vase] ?? .frisch, s, oben)
             }
         }
     }
@@ -264,18 +264,19 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             }
             .allowsHitTesting(false)
             ForEach(imBord.indices, id: \.self) { n in
-                strauss(imBord[n], plaetze[n], s, oben)
+                strauss(imBord[n], plaetze[n], ahmedStraeusse.frische[imBord[n]] ?? .frisch, s, oben)
             }
             if let vase {
-                strauss(vase, ZuhauseZeichnung.bordVasenPlatz, s, oben)
+                strauss(vase, ZuhauseZeichnung.bordVasenPlatz, ahmedStraeusse.frische[vase] ?? .frisch, s, oben)
             }
         }
     }
 
-    private func strauss(_ id: String, _ fuss: CGPoint, _ s: CGFloat, _ oben: CGFloat) -> some View {
+    private func strauss(_ id: String, _ fuss: CGPoint, _ frische: StraussFrische, _ s: CGFloat, _ oben: CGFloat) -> some View {
         let mass = ZuhauseZeichnung.strauss
         return StraussView(id: id)
             .frame(width: mass.width * s, height: mass.height * s)
+            .modifier(StraussWelke(frische: frische))
             .position(x: fuss.x * s, y: oben + (fuss.y - mass.height / 2) * s)
     }
 

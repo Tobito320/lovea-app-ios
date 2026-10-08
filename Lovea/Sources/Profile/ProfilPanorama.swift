@@ -79,6 +79,8 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         .task { position.scrollTo(x: ProfilSlots.anker(.wohn) * k) }
         .background(FigurFarbe(wahl.teil(.wand).farbe).farbe)
         .overlay(alignment: .top) { schwebend }
+        // p70: a gift waiting in the vase, and "Annika hat etwas gestellt".
+        .overlay(alignment: .bottom) { ZimmerHinweisLeiste() }
         .frame(width: breite, height: hoehe)
         .clipped()
     }
