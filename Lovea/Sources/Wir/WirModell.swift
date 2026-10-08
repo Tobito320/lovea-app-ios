@@ -47,6 +47,33 @@ final class WirModell {
             var faltung = self.faltung
             self.zustand = Self.einarbeiten(ops, faltung: &faltung, zustand: self.zustand)
             self.faltung = faltung
+            self.migrationPruefen()
+        }
+        aufNachholenWarten()
+    }
+
+    @ObservationIgnored private var migrationLaeuft = false
+
+    /// Erst wenn der Log vollständig nachgeholt ist, sonst fehlte der spätere Stand (geschafft). Danach
+    /// bei jedem Stapel: Einträge, die ein altes Handy noch in die Liste schreibt, wandern auch um.
+    private func migrationPruefen() {
+        guard !migrationLaeuft, Raum.shared.nachgeholt, let ich = Raum.shared.ich else { return }
+        let plan = WirMigration.plan(zustand.liste)
+        guard !plan.isEmpty else { return }
+        migrationLaeuft = true // `einreihen` liefert synchron zurück in diesen Stapel-Beobachter
+        defer { migrationLaeuft = false }
+        for op in WirMigration.ops(plan, von: ich) { Raum.shared.einreihen(op) }
+    }
+
+    /// Ohne Timer: `Raum.nachgeholt` ist `@Observable`, der Wechsel auf true stößt die Prüfung an.
+    private func aufNachholenWarten() {
+        withObservationTracking {
+            _ = Raum.shared.nachgeholt
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self else { return }
+                if Raum.shared.nachgeholt { self.migrationPruefen() } else { self.aufNachholenWarten() }
+            }
         }
     }
 
@@ -133,17 +160,9 @@ final class WirModell {
             .map { FruehereFrage(frage: $0, meine: meineAntwort($0.id), deine: partnerAntwort($0.id)) }
     }
 
-    // MARK: - Unsere Liste und Würfel (Z-10.5)
+    // MARK: - Würfel und alte Wunschliste (Z-10.5; die Liste wandert per `WirMigration` in Date-Ideen und Notizen)
 
     struct WuerfelEintrag: Identifiable, Hashable { var id: String; var text: String }
-
-    func listeHinzufuegen(_ text: String) {
-        Raum.shared.senden("liste.setzen", ListeD(id: UUID().uuidString, text: text, geschafft: false))
-    }
-
-    func listeAbhaken(_ eintrag: ListenEintrag, geschafft: Bool) {
-        Raum.shared.senden("liste.setzen", ListeD(id: eintrag.id, text: eintrag.text, geschafft: geschafft))
-    }
 
     /// Offene Listen-Einträge und Ideen (Bundle + eigene), ohne die letzten 5 gezogenen.
     var wuerfelPool: [WuerfelEintrag] {
