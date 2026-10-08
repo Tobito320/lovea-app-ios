@@ -98,6 +98,7 @@ struct CoachChatView: View {
     @State private var ungelesen = false
     @State private var sprung: CoachSprung?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var schema
 
     private var modell: CoachModell { CoachModell.shared }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
@@ -142,8 +143,8 @@ struct CoachChatView: View {
     private var hintergrund: some View {
         ZStack {
             Color(uiColor: .systemBackground)
-            RadialGradient(colors: [HabitFarbe.mint.farbe.opacity(0.2), Color.clear], center: .top, startRadius: 0, endRadius: 460)
-            RadialGradient(colors: [HabitFarbe.himmel.farbe.opacity(0.12), Color.clear], center: .bottomTrailing, startRadius: 0, endRadius: 380)
+            RadialGradient(colors: [HabitFarbe.mint.farbe.opacity(schema == .dark ? 0.28 : 0.2), Color.clear], center: .top, startRadius: 0, endRadius: 460)
+            RadialGradient(colors: [HabitFarbe.himmel.farbe.opacity(schema == .dark ? 0.18 : 0.12), Color.clear], center: .bottomTrailing, startRadius: 0, endRadius: 380)
         }
         .ignoresSafeArea()
     }
@@ -277,7 +278,7 @@ struct CoachChatView: View {
     private func leerAnsicht(_ fragen: [String]) -> some View {
         ScrollView {
             VStack(spacing: 8) {
-                CoachOrb(groesse: 84, aktiv: true).padding(.bottom, 16)
+                CoachOrb(groesse: 84, aktiv: true, lebhaft: !entwurf.isEmpty).padding(.bottom, 16)
                 Text("\(CoachText.begruessung(stunde: Datum.kalender.component(.hour, from: Date()))), \(ich.name)")
                     .font(.title2.weight(.bold))
                     .multilineTextAlignment(.center)
@@ -375,6 +376,10 @@ struct CoachChatView: View {
                 if letzte.rolle == .coach, letzte.lokal || modell.frischSeit(letzte.text) != nil {
                     // Eine Antwort, auf die der Nutzer wartet: ihr Anfang kommt in Sicht, nicht ihr Ende.
                     sprung = CoachSprung(id: letzte.id, anker: .top)
+                    Haptik.leicht()
+                    if UIAccessibility.isVoiceOverRunning {
+                        UIAccessibility.post(notification: .announcement, argument: "Coach: " + CoachText.vorschau(letzte.text, maximal: 280))
+                    }
                 } else if (letzte.rolle == .du && letzte.lokal) || amEnde {
                     sprung = .ende
                 } else {
@@ -428,8 +433,10 @@ struct CoachChatView: View {
         HStack(spacing: 10) {
             CoachOrb(groesse: 24, aktiv: true)
             Text("Coach denkt nach").font(.subheadline).foregroundStyle(.secondary)
+            CoachDenkPunkte()
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Coach denkt nach")
     }
 
     // MARK: Unten: Fehler, Schnellfragen, Eingabe
@@ -439,6 +446,7 @@ struct CoachChatView: View {
             if let fehler = modell.fehler { fehlerZeile(fehler) }
             if !leer && !amEnde { nachUntenKnopf }
             if !leer { schnellfragenLeiste(fragen) }
+            if entwurf.count >= 800 { zaehler }
             eingabe(fragen)
             Text("KI-Coach, kein Arzt")
                 .font(.caption)
@@ -519,6 +527,15 @@ struct CoachChatView: View {
         .scrollClipDisabled()
     }
 
+    private var zaehler: some View {
+        Text("\(entwurf.count) von \(CoachModell.maxZeichen)")
+            .font(.caption)
+            .monospacedDigit()
+            .foregroundStyle(entwurf.count >= CoachModell.maxZeichen - 50 ? HabitFarbe.amber.farbe : Color.secondary)
+            .frame(maxWidth: .infinity, alignment: .trailing)
+            .padding(.trailing, 8)
+    }
+
     private var kannSenden: Bool {
         !entwurf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !modell.sendet
     }
@@ -578,7 +595,10 @@ struct CoachChatView: View {
 private struct CoachOrb: View {
     let groesse: CGFloat
     var aktiv = false
+    /// Der Nutzer tippt: der Orb pulsiert kräftiger.
+    var lebhaft = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var schema
 
     private var palette: (innen: Color, aussen: Color) {
         switch CoachText.tageszeit(stunde: Datum.kalender.component(.hour, from: Date())) {
@@ -592,7 +612,7 @@ private struct CoachOrb: View {
     var body: some View {
         let farben = palette
         TimelineView(.animation(minimumInterval: 1.0 / 20, paused: !aktiv || reduceMotion)) { zeit in
-            kugel(farben: farben, atem: aktiv && !reduceMotion ? sin(zeit.date.timeIntervalSinceReferenceDate * 2.2) : 0)
+            kugel(farben: farben, atem: aktiv && !reduceMotion ? sin(zeit.date.timeIntervalSinceReferenceDate * 2.2) * (lebhaft ? 1.7 : 1) : 0)
         }
         .frame(width: groesse, height: groesse)
         .accessibilityHidden(true)
@@ -607,8 +627,28 @@ private struct CoachOrb: View {
                                              startRadius: 0, endRadius: groesse * 0.6))
             }
             .overlay { Circle().strokeBorder(Color.white.opacity(0.3), lineWidth: 1) }
-            .shadow(color: farben.innen.opacity(0.4), radius: groesse * 0.22, y: groesse * 0.06)
+            .shadow(color: farben.innen.opacity(schema == .dark ? 0.65 : 0.4), radius: groesse * 0.22, y: groesse * 0.06)
             .scaleEffect(1 + 0.06 * atem)
+    }
+}
+
+/// Drei Punkte, die nacheinander hüpfen, solange der Coach denkt. Mit "Bewegung reduzieren" stehen sie still.
+private struct CoachDenkPunkte: View {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    var body: some View {
+        TimelineView(.animation(minimumInterval: 1.0 / 20, paused: reduceMotion)) { zeit in
+            HStack(spacing: 5) {
+                ForEach(0..<3, id: \.self) { index in
+                    Circle()
+                        .fill(Color.secondary)
+                        .frame(width: 6, height: 6)
+                        .offset(y: reduceMotion ? 0 : -3 * max(0, sin(zeit.date.timeIntervalSinceReferenceDate * 5 - Double(index) * 0.7)))
+                }
+            }
+            .frame(height: 12)
+        }
+        .accessibilityHidden(true)
     }
 }
 
@@ -675,7 +715,8 @@ private struct CoachZeile: View {
                     .foregroundStyle(Color.personText(person))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color.person(person), in: UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22, bottomTrailingRadius: 6, topTrailingRadius: 22))
+                    .background(LinearGradient(colors: [Color.person(person), Color.person(person).opacity(0.88)], startPoint: .top, endPoint: .bottom),
+                                in: UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22, bottomTrailingRadius: 6, topTrailingRadius: 22))
             }
             if zeigtZeit { zeitZeile }
         }
@@ -768,18 +809,18 @@ private struct CoachZeile: View {
     private func ansicht(_ zeile: CoachText.Zeile) -> some View {
         switch zeile.art {
         case .absatz:
-            Text(CoachAnzeige.hervorgehoben(zeile.text))
+            Text(CoachAnzeige.hervorgehoben(zeile.text)).monospacedDigit()
         case .ueberschrift:
             Text(CoachText.inline(zeile.text)).font(.headline).padding(.top, 4)
         case .punkt:
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Text(verbatim: "•").foregroundStyle(HabitFarbe.mint.farbe).accessibilityHidden(true)
-                Text(CoachAnzeige.hervorgehoben(zeile.text))
+                Text(CoachAnzeige.hervorgehoben(zeile.text)).monospacedDigit()
             }
         case .nummer(let n):
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Text(verbatim: "\(n).").monospacedDigit().foregroundStyle(.secondary).frame(minWidth: 22, alignment: .trailing)
-                Text(CoachAnzeige.hervorgehoben(zeile.text))
+                Text(CoachAnzeige.hervorgehoben(zeile.text)).monospacedDigit()
             }
         case .aufgabe:
             CoachAufgabeZeile(text: zeile.text, erledigt: modell.hat(.haken, hakenSchluessel(zeile.text))) { haken(zeile.text) }
@@ -870,6 +911,9 @@ private struct CoachZeile: View {
     private var aktionen: some View {
         let angeheftet = modell.hat(.gemerkt, schluessel)
         Button("Kopieren", systemImage: "doc.on.doc") { kopieren() }
+        ShareLink(item: eigene ? nachricht.text : CoachAnzeige.kopierText(nachricht.text)) {
+            Label("Teilen", systemImage: "square.and.arrow.up")
+        }
         Button(angeheftet ? "Lösen" : "Anheften", systemImage: angeheftet ? "pin.slash" : "pin") {
             modell.setzen(.gemerkt, schluessel, an: !angeheftet)
             Haptik.leicht()
