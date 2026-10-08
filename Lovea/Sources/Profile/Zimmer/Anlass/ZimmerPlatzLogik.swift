@@ -24,6 +24,7 @@ enum ZimmerPlatzLogik {
         r["radio"] = ZimmerAnlassEbene.radioFlaeche
         for (i, rect) in ZimmerErinnerungEbene.alleRects.enumerated() { r["erinnerung\(i)"] = rect }
         for (i, rect) in ZimmerRitualeEbene.alleRects.enumerated() { r["rituale\(i)"] = rect }
+        for (i, rect) in ZimmerSchreibenEbene.alleRects.enumerated() { r["schreiben\(i)"] = rect }
         return r
     }
 }
