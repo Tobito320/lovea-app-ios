@@ -505,6 +505,12 @@ private struct Zeichner {
             if let r = arme.r { teil(g, kreis(r.hand, hand), haut) }
         }
         zubehoer(g, arme)
+        if let id = tierId {
+            // p48: the pet stands in the lower left corner, still while the figure breathes.
+            var boden = ctx
+            boden.scaleBy(x: size.width / 200, y: size.height / 240)
+            zeichneHaustier(boden, id: id, boden: P(46, 236), groesse: 1.05, nachLinks: false)
+        }
         effekte(g)
         abzeichenVorn(g)
     }
@@ -516,8 +522,13 @@ private struct Zeichner {
             // Fix round 1: bags were drawn at hand-circle size on the hand, i.e. tiny, and in the
             // half figure the resting hand sits below the frame. Now: carried in a raised hand,
             // otherwise on a shoulder strap at the hip.
+            let gr = taschenGroesse(id: id, ganz: false)
             if let hand = arme.r?.hand, hand.y < 226 {
-                zeichneTasche(g, id: id, an: P(hand.x + 2, hand.y + 26), groesse: 1.3)
+                zeichneTasche(g, id: id, an: P(hand.x + 2, hand.y + taschenGriff(id: id) * gr), groesse: gr)
+            } else if taschenNeu(id: id) {
+                // p48: the detailed bags hang from a strap that meets the top of the bag (no handle of their own).
+                zeichneTaschenRiemen(g, id: id, von: P(128, 168), nach: P(150, 206 - 12 * gr), kontrolle: P(160, 176))
+                zeichneTasche(g, id: id, an: P(150, 206), groesse: gr, henkel: false)
             } else {
                 let strap = bogen(P(128, 168), P(162, 190), P(158, 170))
                 linie(g, strap, Pal.dunkel.kontur, 5)
@@ -954,27 +965,16 @@ private struct Zeichner {
             for y in stride(from: CGFloat(172), to: 320, by: 16) { h.fill(box(20, y, 160, 6), with: .color(streifen)) }
             hemdKragen(g)
         case 14:
-            // Logo-Hoodie: reuses the hoodie hood (case 1) plus a small round chest patch.
-            let kapuze = bogen(P(70, 164), P(130, 164), P(100, 196))
-            linie(g, kapuze, top.kontur, 13)
-            linie(g, kapuze, top.mal(0.88).farbe, 8.5)
-            teil(h, kreis(P(100, 210), 9), Pal.gold, 2)
+            // Logo-Hoodie (Nike, Guess): p48 drawing in Zubehoer/ModeZeichner.swift.
+            zeichneHoodie(g, h, top: top)
         case 15:
             // Statement-Shirt: bold diagonal brand stripe across the chest.
             var streifenH = h
             streifenH.rotate(by: .degrees(-18))
             streifenH.fill(box(50, 180, 100, 16, 4), with: .color(top.mix(Pal.weiss, 0.7).farbe))
         case 16:
-            // Seidenbluse: soft sheen band plus a tie-neck bow.
-            for y in stride(from: CGFloat(176), to: 300, by: 20) { h.fill(box(20, y, 160, 4), with: .color(.white.opacity(0.18))) }
-            let schleife = Path { p in
-                p.move(to: P(100, 178))
-                p.addLine(to: P(88, 170))
-                p.addLine(to: P(88, 186))
-                p.closeSubpath()
-            }
-            teil(g, schleife, top.mal(0.85), 2)
-            teil(g, gespiegelt(schleife), top.mal(0.85), 2)
+            // Seidenbluse and Dior-Bluse: p48 drawing in Zubehoer/ModeZeichner.swift.
+            zeichneBluse(g, h, top: top)
         case 17...26, 31, 34, 35:
             markenOberteil(g, h)
         default:
@@ -1139,7 +1139,7 @@ private struct Zeichner {
     func jackeZeichnen(_ g: GraphicsContext, form: Path, oben: CGFloat, unten: CGFloat, s: CGFloat) {
         let f = jackeF
         // Zipped jackets (Adidas, The North Face, Moncler) close in the middle.
-        let zu = [8, 9, 11].contains(jacke)
+        let zu = [6, 8, 9, 11].contains(jacke)
         let innenO: CGFloat = zu ? 100 : 100 - 12 * s
         let innenU: CGFloat = zu ? 100 : 100 - 20 * s
         let links = Path { p in
@@ -1182,18 +1182,8 @@ private struct Zeichner {
                 teil(g, kreis(P(innenU + 2 * s, unten - 30 * s), 3.5 * s), f.mal(0.7), 1.5)
             }
         case 2:
-            let kragen = Path { p in
-                p.move(to: P(innenO, oben))
-                p.addLine(to: P(100 - 32 * s, oben - 4 * s))
-                p.addLine(to: P(100 - 24 * s, oben + 20 * s))
-                p.closeSubpath()
-            }
-            teil(g, kragen, f.mix(Pal.weiss, 0.12), 2)
-            teil(g, gespiegelt(kragen), f.mix(Pal.weiss, 0.12), 2)
-            for seite in [CGFloat(-1), 1] {
-                let x: CGFloat = 100 + seite * 32 * s - 9 * s
-                teil(innen, box(x, oben + 34 * s, 18 * s, 13 * s, 3 * s), f.mal(0.88), 1.8)
-            }
+            // Jeansjacke: p48 drawing in Zubehoer/ModeZeichner.swift.
+            zeichneJeansjacke(g, innen: innen, f: f, oben: oben, unten: unten, s: s, innenO: innenO, innenU: innenU)
         case 3:
             let bund = bogen(P(100 - 26 * s, oben + 1), P(100 + 26 * s, oben + 1), P(100, oben + 24 * s))
             linie(g, bund, f.kontur, 9 * s)
@@ -1210,18 +1200,8 @@ private struct Zeichner {
                 }
             }
         case 6:
-            // Pelzkragen-Jacke: puffer trim (case 5) plus a fluffy dotted collar.
-            for seite in [links, rechts] {
-                var h = innen
-                h.clip(to: seite)
-                for i in 0..<9 {
-                    let y: CGFloat = oben + (18 + CGFloat(i) * 17) * s
-                    linie(h, bogen(P(0, y), P(200, y), P(100, y + 6 * s)), f.kontur, 2)
-                }
-            }
-            for dx in stride(from: CGFloat(-26), through: 26, by: 9) {
-                teil(g, kreis(P(100 + dx * s, oben + 2 * s), 4 * s), Pal.weiss, 1)
-            }
+            // Moncler Steppjacke: p48 drawing in Zubehoer/ModeZeichner.swift (closed, zipped in the middle).
+            zeichneSteppjacke(g, innen: innen, f: f, oben: oben, unten: unten, s: s)
         case 7:
             // Cape: poncho bund (case 3) with a gem clasp instead of the zip strap.
             let bund = bogen(P(100 - 30 * s, oben + 1), P(100 + 30 * s, oben + 1), P(100, oben + 30 * s))
@@ -3576,7 +3556,8 @@ extension Zeichner {
             if !paarSeiteRechts { teil(u, kreis(arme.r.hand, hand), haut, 2.5) }
         }
         zubehoerGanz(u, arme, m)
-        if let id = tierId { zeichneHaustier(g, id: id, boden: P(174, Masse.fussY), groesse: 0.8) }
+        // p48: bigger and on the figure's left, so it does not hide behind the carried bag.
+        if let id = tierId { zeichneHaustier(g, id: id, boden: P(40, Masse.fussY + 3), groesse: 0.95, nachLinks: false) }
         auto(g, m, oben)
         switch z {
         case .laeuft, .rennt, .rad, .scooter: tempoStriche(g, m.schulterY + oben)
@@ -3617,7 +3598,8 @@ extension Zeichner {
         let s: CGFloat = 0.66
         if let id = tascheId {
             // Hangs from the right hand, the handle in the fist, big enough to read (fix round 1).
-            zeichneTasche(g, id: id, an: P(arme.r.hand.x + 2, arme.r.hand.y + 22), groesse: 1.15)
+            let gr = taschenGroesse(id: id, ganz: true)
+            zeichneTasche(g, id: id, an: P(arme.r.hand.x + 2, arme.r.hand.y + taschenGriff(id: id) * gr), groesse: gr)
         }
         uhrZeichnen(g, arme.l, groesse: m.arm)
         schmuckZeichnen(g, hals: P(100, m.schulterY - 6), linkerArm: arme.l, rechterArm: arme.r, groesse: s)
@@ -3797,11 +3779,9 @@ extension Zeichner {
             }
             for dx in [CGFloat(-3), 3] { linie(g, strich(P(100 + dx, hy - 4), P(100 + dx * 1.6, hy + 8)), .white, 1.5) }
         case 5:
-            for s in seiten {
-                let mp = zwischen(s.bein.h, s.bein.k, 0.75)
-                let x: CGFloat = mp.x + s.seite * b * 0.25 - 6
-                teil(g, box(x, mp.y - 8, 12, 16, 3), farbe.mal(0.88), 1.8)
-            }
+            // Cargohose: p48 drawing in Zubehoer/ModeZeichner.swift.
+            zeichneCargohose(g, beine: seiten.map { (h: $0.bein.h, k: $0.bein.k, f: $0.bein.f, seite: $0.seite) },
+                             b: b, farbe: farbe, hy: hy, halbBreite: m.h)
         case 10:
             // Anzughose: crease line plus a thin belt at the waist.
             for bn in [l, r] { linie(g, strich(P(bn.h.x, bn.h.y + 14), P(bn.f.x, bn.f.y - 4)), farbe.kontur.opacity(0.4), 1.2) }
@@ -3896,10 +3876,8 @@ extension Zeichner {
             g.fill(box(x - 7, y, 14, 4, 2), with: .color(c.mal(0.75).farbe))
             g.fill(box(x - 12, y + 8, 24, 3, 1.5), with: .color(c.mal(0.55).farbe))
         case 8:
-            // Logo-Sneaker: base sneaker plus a diagonal side swoosh.
-            teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
-            g.fill(box(x - 12, y + 6, 24, 4, 2), with: .color(sohle.farbe))
-            linie(g, bogen(P(x - 9, y + 3), P(x + 6, y - 4), P(x - 3, y - 2)), Pal.gold.farbe, 2.5)
+            // Logo-Sneaker (Nike, Jordan): p48 drawing in Zubehoer/ModeZeichner.swift.
+            zeichneNikeSneaker(g, fuss: f, farbe: c)
         case 9:
             // Two-Tone-Sneaker: base sneaker with a contrasting toe cap.
             teil(g, box(x - 12, y - 5, 24, 15, 7), c, 3)
