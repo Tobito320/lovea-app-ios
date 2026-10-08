@@ -157,9 +157,10 @@ final class SnapKameraSteuerung: NSObject {
     /// For the preview layer, set once; it shows frames as soon as the session runs.
     var session: AVCaptureSession { sitzung.session }
 
-    private(set) var laeuft = false
+    private var lauf = KameraLauf()
+    var laeuft: Bool { lauf.laeuft }
     /// True once `startRunning` returned (frames flow); the preview fades in on it.
-    private(set) var bildDa = false
+    var bildDa: Bool { lauf.bildDa }
     private var vorbereitet = false
     private(set) var nimmtVideoAuf = false
     private(set) var videoFortschritt: Double = 0 // 0...1 of the 30s cap
@@ -241,35 +242,39 @@ final class SnapKameraSteuerung: NSObject {
         sessionSchlange.async { sitzung.konfigurieren(position) }
     }
 
-    /// Camera UI opening (Z-6.1): may prompt, then runs the (usually already configured) session.
+    /// Camera UI opening (Z-6.1): may prompt for the camera, then runs the (usually already
+    /// configured) session. The mic is asked only after that: a pending mic prompt used to hold the
+    /// first start back even though the camera was already allowed.
     func start() async {
         // After the prompt: only if the camera is still wanted, else this start would land after a stop.
-        guard await berechtigung(), !Task.isCancelled, haltungen > 0 else { return }
+        guard await berechtigungFuer(.video), !Task.isCancelled, haltungen > 0 else { return }
         laufenLassen()
         FigurenModell.shared.zustandSenden(.init(haupt: .kamera))
+        // A "no" only means silent video, like the system Camera app.
+        _ = await berechtigungFuer(.audio)
     }
 
     private func laufenLassen() {
-        guard !laeuft else { return }
-        laeuft = true
+        guard let nummer = lauf.starten() else { return }
         vorbereitet = true
         if geraet == nil { geraet = SnapKameraGeraet.waehlen(position: position) }
         let sitzung = sitzung, position = position, stabil = stabilisierungAn
         sessionSchlange.async {
             sitzung.starten(position, stabilisierung: stabil)
-            Task { @MainActor in self.bildBereit() }
+            StartProtokoll.marke("kamera.laeuft")
+            Task { @MainActor in self.bildBereit(nummer) }
         }
     }
 
-    /// A stop requested meanwhile wins: the queue already stopped the session again.
-    private func bildBereit() {
-        guard laeuft else { return }
-        bildDa = true
+    /// Only the callback of the current run counts: a stop or restart requested meanwhile wins.
+    private func bildBereit(_ nummer: Int) {
+        if lauf.bildBereit(nummer: nummer) { StartProtokoll.marke("kamera.bild") }
     }
 
     /// The camera UI closing: the session stops right away (camera dot off, mic gone) and
     /// `.imChat` is signaled. The configuration stays, so the next open only has to start running.
     func kameraVerlassen() {
+        StartProtokoll.marke("kamera.zu")
         stop()
         ringlichtSetzen(an: false)
         FigurenModell.shared.zustandSenden(.init(haupt: .imChat))
@@ -278,9 +283,7 @@ final class SnapKameraSteuerung: NSObject {
 
     /// Stops running (mic removed first); the configuration stays. No figure-state signal.
     func stop() {
-        guard laeuft else { return }
-        laeuft = false
-        bildDa = false
+        guard lauf.stoppen() else { return }
         let sitzung = sitzung
         sessionSchlange.async { sitzung.stoppen() }
     }
@@ -298,14 +301,6 @@ final class SnapKameraSteuerung: NSObject {
             UIScreen.main.brightness = ursprung
             ringlichtUrsprungsHelligkeit = nil
         }
-    }
-
-    /// Camera is required; the mic (videos have sound) is asked too, but a "no" only means silent
-    /// video, like the system Camera app.
-    private func berechtigung() async -> Bool {
-        let kamera = await berechtigungFuer(.video)
-        _ = await berechtigungFuer(.audio)
-        return kamera
     }
 
     private func berechtigungFuer(_ typ: AVMediaType) async -> Bool {

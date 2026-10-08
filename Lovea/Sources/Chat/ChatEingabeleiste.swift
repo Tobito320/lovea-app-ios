@@ -131,6 +131,7 @@ struct ChatEingabeleiste: View {
             HStack(alignment: .bottom, spacing: 8) {
                 Button {
                     Haptik.leicht()
+                    StartProtokoll.marke("kamera.tippen")
                     kameraOffen = true
                 } label: {
                     Image(systemName: "camera.fill")
