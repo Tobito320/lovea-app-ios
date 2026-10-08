@@ -16,7 +16,7 @@ final class ShopQualitaetTests: XCTestCase {
     private let mode = ["mode.nike-hoodie", "mode.guess-hoodie", "mode.seidenbluse", "mode.dior-bluse",
                         "mode.jeansjacke", "mode.moncler-jacke", "mode.cargohose", "mode.nike-sneaker"]
     private let tiere = ["tier.hund-braun", "tier.hund-schwarz", "tier.katze-grau",
-                         "tier.katze-orange", "tier.hase-weiss", "tier.vogel-blau"]
+                         "tier.katze-orange", "tier.katze-schwarz", "tier.hase-weiss", "tier.vogel-blau"]
 
     private func annika() -> FigurAussehen { FigurAussehen.standard(for: .annika) }
 

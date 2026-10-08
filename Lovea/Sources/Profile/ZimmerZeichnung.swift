@@ -1243,9 +1243,9 @@ enum SzenenZeichnung {
 
     /// Blanket up to the chin with the sheet folded over it, the bed frame in front; `herz` sits
     /// between two heads.
-    static func bettVorn(_ g: GraphicsContext, _ i: Int, herz: Bool) {
+    static func bettVorn(_ g: GraphicsContext, _ i: Int, herz: Bool, decke: UInt32? = nil) {
         let s = stil(i)
-        let d = FigurFarbe(s.decke)
+        let d = FigurFarbe(decke ?? s.decke)
         let kante = Path { p in
             p.move(to: P(4, 156))
             p.addCurve(to: P(150, 150), control1: P(40, 140), control2: P(110, 142))
@@ -1262,7 +1262,7 @@ enum SzenenZeichnung {
             linie(innen, strich(P(x, 150), P(x + 56, 206)), d.mal(0.9).farbe, 1.5)
             linie(innen, strich(P(x + 56, 150), P(x, 206)), d.mal(0.9).farbe, 1.5)
         }
-        if i == 2 {
+        if i == 2 && decke == nil {
             for x in stride(from: CGFloat(16), to: 290, by: 28) { innen.fill(kreis(P(x, 180), 2.5), with: .color(.white.opacity(0.7))) }
         }
         linie(g, kante, Pal.weiss.kontur, 17)

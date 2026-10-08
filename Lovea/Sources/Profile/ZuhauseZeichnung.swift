@@ -45,23 +45,23 @@ enum ZuhauseZeichnung {
 
     // MARK: Room (standing still)
 
-    static func raum(_ g: GraphicsContext, zeit: Tageszeit) {
-        wandUndBoden(g)
+    /// `wahl` (p61): wall, rug and lamp of the shop's room pieces; the standard is the room as it was.
+    static func raum(_ g: GraphicsContext, zeit: Tageszeit, wahl: ZimmerWahl = .standard) {
+        wandUndBoden(g, wahl)
         fensterZeichnen(g, zeit)
         sofaHinten(g)
         schrankZeichnen(g)
         tischZeichnen(g)
-        lampeZeichnen(g)
+        ZimmerMoebel.lampe(g, ort: lampe, wahl.teil(.lampe))
+        ZimmerMoebel.kleiderstange(g)
+        ZimmerMoebel.schuhregal(g)
         abdunkeln(g, zeit)
     }
 
-    private static func wandUndBoden(_ g: GraphicsContext) {
-        let wand = FigurFarbe(0xFBEFE0)
-        g.fill(alles, with: .color(wand.farbe))
-        let herz = wand.mix(Pal.rose, 0.07).farbe
-        for (n, y) in stride(from: CGFloat(-380), to: 290, by: 44).enumerated() {
-            for x in stride(from: CGFloat(n % 2 == 0 ? 20 : 42), to: breite, by: 44) { g.fill(herzPfad(P(x, y), 4), with: .color(herz)) }
-        }
+    private static func wandUndBoden(_ g: GraphicsContext, _ wahl: ZimmerWahl) {
+        let t = wahl.teil(.wand)
+        g.fill(alles, with: .color(FigurFarbe(t.farbe).farbe))
+        ZimmerMoebel.wandMuster(g, t, breite: breite)
         g.fill(box(0, 150, breite, 150), with: .linearGradient(Gradient(colors: [.clear, .black.opacity(0.07)]), startPoint: P(0, 150), endPoint: P(0, 300)))
 
         let holz = FigurFarbe(0xE6C9A0)
@@ -80,9 +80,8 @@ enum ZuhauseZeichnung {
         }
         teil(g, box(-4, 292, breite + 8, 10, 2), Pal.weiss, 2)
 
-        // A round pink rug under the table.
-        teil(g, oval(P(tisch.x, tisch.y + 12), 112, 15), FigurFarbe(0xF4C9D4), 2.5)
-        linie(g, oval(P(tisch.x, tisch.y + 12), 94, 10), Pal.weiss.farbe.opacity(0.65), 2)
+        // The rug under the table (a round pink one unless the shop's is chosen).
+        ZimmerMoebel.teppich(g, mitte: P(tisch.x, tisch.y + 12), wahl.teil(.teppich))
     }
 
     // MARK: Window
@@ -202,17 +201,6 @@ enum ZuhauseZeichnung {
         teil(g, box(tisch.x - 4, tisch.y - 26, 8, 10, 2), vase, 2)
         teil(g, oval(P(tisch.x, tisch.y - 11), 11, 9.5), vase, 2.5)
         teil(g, herzPfad(P(tisch.x, tisch.y - 11), 3.4), Pal.rose.mix(Pal.weiss, 0.3), 1)
-    }
-
-    private static func lampeZeichnen(_ g: GraphicsContext) {
-        linie(g, strich(P(lampe.x, -2000), P(lampe.x, lampe.y - 28)), Pal.dunkel.farbe.opacity(0.55), 2)
-        let schirm = Path { p in
-            p.move(to: P(lampe.x - 21, lampe.y - 4))
-            p.addQuadCurve(to: P(lampe.x + 21, lampe.y - 4), control: P(lampe.x, lampe.y - 54))
-            p.closeSubpath()
-        }
-        teil(g, schirm, Pal.gelb, 3)
-        g.fill(oval(P(lampe.x, lampe.y - 4), 9, 5), with: .color(c(0xFFF8DC)))
     }
 
     /// Evening and night: the room goes dark except the window glass, so the sky stays bright.

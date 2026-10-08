@@ -175,17 +175,17 @@ private struct ProfilInhalt: View {
     /// down, so nothing below shifts and feeds back into the scroll offset.
     private var kopf: some View {
         ZStack(alignment: .bottomLeading) {
-            HStack(spacing: 12) {
-                avatar
-                VStack(alignment: .leading, spacing: 8) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    ProfilPaarAvatare(ich: ich)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(person.name).font(.title.bold())
+                        Text(ProfilPaarAvatare.titel).font(.title2.bold())
                         Text("zusammen seit 26.08.2026").font(.subheadline.weight(.medium)).opacity(0.9)
                     }
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
-                    partnerJetzt
                 }
+                partnerJetzt
             }
             .padding(16)
         }
@@ -198,26 +198,29 @@ private struct ProfilInhalt: View {
     /// tap target (no "Unser Chat", no steps).
     private var eigenerKopf: some View {
         ZStack(alignment: .bottomLeading) {
-            HStack(spacing: 12) {
-                avatar
-                Text(person.name).font(.title.bold())
+            HStack(spacing: 10) {
+                ProfilPaarAvatare(ich: ich)
+                Text(ProfilPaarAvatare.titel).font(.title2.bold())
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
             }
             .padding(16)
+            .onTapGesture { zimmerGestalten() }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Gestaltet dein Zimmer")
             Image(systemName: "pencil.circle.fill")
                 .font(.title2)
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 4)
                 .padding(14)
+                .onTapGesture { zimmerGestalten() }
+                .accessibilityLabel("Zimmer gestalten")
+                .accessibilityAddTraits(.isButton)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
         .background(alignment: .bottom) { zuhause(paar: false) }
-        .onTapGesture { zimmerGestalten() }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Gestaltet dein Zimmer")
     }
 
     /// p58: the stretchy header scene is always the shared home with both of them (`ZuhauseBuehne`),
@@ -227,7 +230,13 @@ private struct ProfilInhalt: View {
     private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
         let zimmer = Zimmer.von(person)
-        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa,
+        // p61: the shared room's pieces, the cat (it can be stroked here, once a day each), and in the own
+        // profile the clothes rail and the shoe shelf open the outfit change.
+        let punkte = PunkteModell.shared
+        let katze = ZuhauseKatze(id: ZimmerKatze.id(tiere: Person.allCases.map { FigurenModell.shared.aussehen($0).tier }),
+                                 gestreichelt: punkte.katzeGestreichelt(ich), streicheln: { punkte.katzeStreicheln() })
+        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, wahl: ZimmerWahl.aktuell, katze: katze,
+                             outfit: istEigenes ? { figurBearbeitenOffen = true } : nil,
                              wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel)) }) { f in
             buehnenFigur(f)
         } paar: {
@@ -321,29 +330,6 @@ private struct ProfilInhalt: View {
         } else {
             v.figurGesten(person: p) { FigurenModell.shared.gesteSenden($0) }
         }
-    }
-
-    /// Round head crop of the figure. The head sits at y 30…152 of FigurView's 240-unit canvas,
-    /// centre ≈ 0.38 of the height — at `groesse = 1.6d` that is 0.19·d above the view centre.
-    private var avatar: some View {
-        let d: CGFloat = 84
-        let online = istEigenes ? Raum.shared.verbunden : Raum.shared.partnerDa
-        return FigurView(FigurenModell.shared.aussehen(person), zustand: .ruhig, groesse: d * 1.6, animiert: false)
-            .offset(y: d * 0.19)
-            .frame(width: d, height: d)
-            .background(Color(uiColor: .secondarySystemBackground))
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white, lineWidth: 3))
-            .overlay(alignment: .bottomTrailing) {
-                if online {
-                    Circle().fill(.green)
-                        .frame(width: 18, height: 18)
-                        .overlay(Circle().stroke(.white, lineWidth: 2.5))
-                        .offset(x: -2, y: -2)
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(person.name), \(online ? "online" : "offline")")
     }
 
     // MARK: - Chips

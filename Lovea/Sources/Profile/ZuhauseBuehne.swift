@@ -61,10 +61,15 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private let paarDa: Bool
     private let wandDinge: (Tageszeit) -> AnyView
     private let fest: Bool
+    private let wahl: ZimmerWahl
+    private let katze: ZuhauseKatze?
+    private let outfit: (() -> Void)?
     private let figur: (ZuhauseFigur) -> Figur
     private let paar: () -> Paar
 
     @State private var stand: ZuhauseSzenenstand
+    /// The points the last stroke gave, for a moment (0: stroked again today, hearts only).
+    @State private var streichelt: Int?
     @State private var sichtbar = false
     @State private var sparmodus = ProcessInfo.processInfo.isLowPowerModeEnabled
     @Environment(\.scenePhase) private var scenePhase
@@ -73,14 +78,19 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// `dehnung`: how far the header is pulled down; the scene grows upwards, the bottom stays.
     /// `paarDa`: they are together for real, `paar` (hug, kiss) replaces the two walkers.
     /// `fest`: a fixed scene without any driver (render board, previews).
+    /// p61: `wahl` the room's pieces, `katze` the cat at home (none: no cat), `outfit` opens the outfit
+    /// change from the clothes rail and the shoe shelf (none: both just hang there).
     init(dehnung: CGFloat = 0, straeusse: ZuhauseStraeusse = ZuhauseStraeusse(), paarDa: Bool = false,
-         fest: ZuhauseSzenenstand? = nil,
+         fest: ZuhauseSzenenstand? = nil, wahl: ZimmerWahl = .standard, katze: ZuhauseKatze? = nil, outfit: (() -> Void)? = nil,
          wandDinge: @escaping (Tageszeit) -> AnyView = { _ in AnyView(EmptyView()) },
          @ViewBuilder figur: @escaping (ZuhauseFigur) -> Figur, @ViewBuilder paar: @escaping () -> Paar) {
         self.dehnung = dehnung
         self.straeusse = straeusse
         self.paarDa = paarDa
         self.wandDinge = wandDinge
+        self.wahl = wahl
+        self.katze = katze
+        self.outfit = outfit
         self.fest = fest != nil
         self.figur = figur
         self.paar = paar
@@ -95,12 +105,19 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             let s = geo.size.width / ZuhauseZeichnung.breite
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
-                ZuhauseRaumBild(zeit: stand.zeit)
+                ZuhauseRaumBild(zeit: stand.zeit, wahl: wahl)
                 wandDinge(stand.zeit)
                 schatten
+                if let outfit {
+                    tippflaeche(ZimmerMoebel.stange, "Kleiderstange, Outfit wechseln", outfit, s, oben)
+                    tippflaeche(ZimmerMoebel.regal, "Schuhregal, Outfit wechseln", outfit, s, oben)
+                }
                 ZStack(alignment: .topLeading) {
                     bett(s, oben)
                     straeusseSicht(s, oben)
+                    if let katze {
+                        katzeSicht(katze, s, oben)
+                    }
                     personen(sitzend: true, s, oben)
                     ZuhauseSofaVorn()
                     if paarDa {
@@ -171,7 +188,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             Canvas { g, _ in
                 var b = g
                 b.scaleBy(x: k, y: k)
-                SzenenZeichnung.bettVorn(b, stil, herz: liegt)
+                ZimmerMoebel.bettVorn(b, stil, wahl, herz: liegt)
             }
         }
         .frame(width: 300 * k, height: 220 * k)
@@ -197,6 +214,31 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         return StraussView(id: id)
             .frame(width: mass.width * s, height: mass.height * s)
             .position(x: fuss.x * s, y: oben + (fuss.y - mass.height / 2) * s)
+    }
+
+    /// A transparent touch area over a wall piece, at least 44 points high.
+    private func tippflaeche(_ r: CGRect, _ name: String, _ tun: @escaping () -> Void, _ s: CGFloat, _ oben: CGFloat) -> some View {
+        Color.clear
+            .frame(width: r.width * s, height: max(r.height * s, 44))
+            .contentShape(Rectangle())
+            .onTapGesture(perform: tun)
+            .position(x: r.midX * s, y: oben + r.midY * s)
+            .accessibilityLabel(name)
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// The cat follows the scene state only: where it is and what it does comes from `stand`, so it
+    /// changes with p58's step and has no timer of its own.
+    private func katzeSicht(_ k: ZuhauseKatze, _ s: CGFloat, _ oben: CGFloat) -> some View {
+        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: stand.annika)
+        return ZimmerKatzeSicht(id: k.id, szene: szene, wuenscht: ZimmerKatze.wuenscht(szene.zustand, gestreichelt: k.gestreichelt),
+                                geht: stand.gehende.contains(.annika), streichelt: streichelt, s: s, oben: oben) {
+            streichelt = k.streicheln()
+            Task {
+                try? await Task.sleep(for: .seconds(2.5))
+                streichelt = nil
+            }
+        }
     }
 
     private func sitzt(_ p: Person) -> Bool {
@@ -309,11 +351,13 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
 private struct ZuhauseRaumBild: View {
     let zeit: Tageszeit
+    let wahl: ZimmerWahl
 
     var body: some View {
         let zeit = zeit
+        let wahl = wahl
         Canvas { g, groesse in
-            ZuhauseZeichnung.raum(SzenenZeichnung.raum(g, groesse), zeit: zeit)
+            ZuhauseZeichnung.raum(SzenenZeichnung.raum(g, groesse), zeit: zeit, wahl: wahl)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
