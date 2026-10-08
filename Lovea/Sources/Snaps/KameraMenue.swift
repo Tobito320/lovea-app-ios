@@ -98,7 +98,7 @@ struct KameraSeitenMenu: View {
         .foregroundStyle(.white)
         .padding(.vertical, 6)
         .padding(.horizontal, erweitert ? 10 : 0)
-        .glassEffect(.regular, in: .rect(cornerRadius: 26))
+        .glassEffect(.regular.tint(Color.black.opacity(0.3)), in: .rect(cornerRadius: 26))
         .padding(.trailing, 12)
     }
 

@@ -311,7 +311,7 @@ struct SnapEditor: View {
             Button { Haptik.leicht(); (onVerwerfen ?? onFertig)() } label: {
                 Image(systemName: "xmark").font(.body.weight(.semibold)).foregroundStyle(.white).frame(width: 44, height: 44)
             }
-            .glassEffect(.regular.interactive(), in: .circle)
+            .glassEffect(.regular.tint(Color.black.opacity(0.3)).interactive(), in: .circle)
             .accessibilityLabel(onVerwerfen == nil ? "Abbrechen" : "Verwerfen")
             Spacer()
             SnapEditorWerkzeuge(

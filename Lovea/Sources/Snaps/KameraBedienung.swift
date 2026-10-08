@@ -14,7 +14,7 @@ struct KameraSchliessenKnopf: View {
                 .foregroundStyle(.white)
                 .frame(width: 44, height: 44)
         }
-        .glassEffect(.regular.interactive(), in: .circle)
+        .glassEffect(.regular.tint(Color.black.opacity(0.3)).interactive(), in: .circle)
         .accessibilityLabel("Abbrechen")
     }
 }
@@ -73,7 +73,7 @@ struct KameraMemoriesKnopf: View {
             .font(.title3)
             .foregroundStyle(.white)
             .frame(width: 52, height: 52)
-            .glassEffect(.regular.interactive(), in: .rect(cornerRadius: 16))
+            .glassEffect(.regular.tint(Color.black.opacity(0.3)).interactive(), in: .rect(cornerRadius: 16))
             Text("Memories")
                 .font(.caption2.weight(.semibold))
                 .foregroundStyle(.white)

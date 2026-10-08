@@ -44,7 +44,7 @@ struct SnapEditorWerkzeuge: View {
             knopf("face.smiling", "Sticker hinzufügen", onSticker)
         }
         .padding(.vertical, 6)
-        .glassEffect(.regular, in: .capsule)
+        .glassEffect(.regular.tint(Color.black.opacity(0.3)), in: .capsule)
     }
 
     private func knopf(_ symbol: String, _ label: String, _ aktion: @escaping () -> Void) -> some View {
@@ -84,14 +84,14 @@ struct SnapSendenLeiste: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: bleibt.wrappedValue ? "pin.fill" : "pin")
-                Text("bleibt im Chat")
+                Text("bleibt im Chat").lineLimit(1).fixedSize()
             }
             .font(.footnote.weight(.semibold))
             .foregroundStyle(bleibt.wrappedValue ? Color.loveaRose : .white)
             .padding(.horizontal, 14)
             .frame(minHeight: 44)
         }
-        .glassEffect(.regular.interactive(), in: .capsule)
+        .glassEffect(.regular.tint(Color.black.opacity(0.3)).interactive(), in: .capsule)
         .accessibilityLabel("bleibt im Chat")
         .accessibilityValue(bleibt.wrappedValue ? "an" : "aus")
     }
@@ -102,7 +102,7 @@ struct SnapSendenLeiste: View {
                 if sendetGerade {
                     ProgressView().tint(.white)
                 } else {
-                    Text(tray ? "Übernehmen" : "Senden")
+                    Text(tray ? "Übernehmen" : "Senden").lineLimit(1).fixedSize()
                     Image(systemName: tray ? "checkmark" : "paperplane.fill")
                 }
             }
