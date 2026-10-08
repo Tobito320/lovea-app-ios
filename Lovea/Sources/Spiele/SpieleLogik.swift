@@ -5,7 +5,7 @@ import Foundation
 // without a referee.
 
 enum SpielArt: String, Codable, CaseIterable, Identifiable, Sendable {
-    case duell, xo, ssp, kennen, reaktion, memory
+    case duell, xo, ssp, kennen, reaktion, memory, eher, wordle, schiffe
 
     var id: String { rawValue }
 
@@ -17,6 +17,9 @@ enum SpielArt: String, Codable, CaseIterable, Identifiable, Sendable {
         case .kennen: "Wie gut kennst du mich?"
         case .reaktion: "Reaktions-Duell"
         case .memory: "Memory"
+        case .eher: "Wer von uns ist eher?"
+        case .wordle: "Wordle-Duell"
+        case .schiffe: "Schiffe versenken"
         }
     }
 
@@ -28,7 +31,19 @@ enum SpielArt: String, Codable, CaseIterable, Identifiable, Sendable {
         case .kennen: "heart.text.square.fill"
         case .reaktion: "bolt.fill"
         case .memory: "square.grid.2x2.fill"
+        case .eher: "person.2.fill"
+        case .wordle: "textformat.abc"
+        case .schiffe: "ferry.fill"
         }
+    }
+
+    /// Zählt für das Paar statt gegeneinander: "Wer von uns ist eher?" hat keinen Sieger.
+    /// `SpielPunkte.ahmed` ist dort die Zahl der gleichen Antworten, `annika` die der verschiedenen.
+    var paarWertung: Bool { self == .eher }
+
+    /// Bilanz-Text für Chat-Karte und Profil.
+    func bilanzText(_ p: SpielPunkte) -> String {
+        paarWertung ? "\(p.ahmed) von \(p.ahmed + p.annika) gleich" : p.text
     }
 }
 
