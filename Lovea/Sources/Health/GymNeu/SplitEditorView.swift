@@ -10,6 +10,8 @@ struct SplitEditorAktionen {
     var wochentag: (Int) -> Void = { _ in }
     var aufklappen: (String) -> Void = { _ in }
     var bearbeiten: (PlanUebung) -> Void = { _ in }
+    /// Schnell geändert (Stepper für Sätze, Wiederholungen, kg, Minuten): die neue Übung.
+    var aendern: (PlanUebung) -> Void = { _ in }
     var hinzufuegen: () -> Void = {}
 }
 
@@ -42,17 +44,19 @@ struct SplitEditorInhalt: View {
                         .buttonStyle(.plain)
                         .accessibilityAddTraits(t.id == tagId ? .isSelected : [])
                 }
-                Button(action: aktionen.neuerTag) {
-                    Image(systemName: "plus")
-                        .font(.footnote.weight(.bold))
-                        .frame(width: 38, height: 32)
-                        .foregroundStyle(Color.secondary)
-                        .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                        .frame(minHeight: 44)
-                        .contentShape(.rect)
+                if plan.tage.count < SplitFrei.tageBereich.upperBound {
+                    Button(action: aktionen.neuerTag) {
+                        Image(systemName: "plus")
+                            .font(.footnote.weight(.bold))
+                            .frame(width: 38, height: 32)
+                            .foregroundStyle(Color.secondary)
+                            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+                            .frame(minHeight: 44)
+                            .contentShape(.rect)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Trainingstag hinzufügen")
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Trainingstag hinzufügen")
             }
         }
     }
@@ -98,6 +102,7 @@ struct SplitEditorInhalt: View {
 
     private func saetze(_ u: PlanUebung) -> some View {
         VStack(alignment: .leading, spacing: 0) {
+            schnell(u)
             if let minuten = u.minuten {
                 Text("\(minuten) min").font(.subheadline).foregroundStyle(.secondary).frame(minHeight: 36)
             }
@@ -114,6 +119,38 @@ struct SplitEditorInhalt: View {
             Button { aktionen.bearbeiten(u) } label: { GymChip(text: "Sätze ändern") }.buttonStyle(.plain)
         }
         .padding(.bottom, 8)
+    }
+}
+
+extension SplitEditorInhalt {
+    /// Sätze, Wiederholungen und kg für die ganze Übung mit je einem Stepper (Cardio: Minuten).
+    @ViewBuilder
+    fileprivate func schnell(_ u: PlanUebung) -> some View {
+        if let minuten = u.minuten {
+            zeile("Dauer", "\(minuten) min", Stepper("", value: Binding(get: { minuten }, set: { aktionen.aendern(SplitFrei.dauer(u, $0)) }), in: 5...180, step: 5))
+        } else {
+            zeile("Sätze", "\(u.saetze.count)", Stepper("", value: Binding(get: { u.saetze.count }, set: { aktionen.aendern(SplitFrei.saetzeAnzahl(u, $0)) }), in: 1...SplitFrei.maxSaetze))
+            zeile("Wiederholungen", Set(u.saetze.map(\.wdh)).count > 1 ? "gemischt" : "\(u.saetze.first?.wdh ?? 10)",
+                  Stepper("", value: Binding(get: { u.saetze.first?.wdh ?? 10 }, set: { aktionen.aendern(SplitFrei.alleWdh(u, $0)) }), in: 1...100))
+            zeile("Gewicht", kgText(u), Stepper("", value: Binding(get: { u.saetze.first?.kg ?? 0 }, set: { aktionen.aendern(SplitFrei.alleKg(u, $0)) }), in: 0...500, step: 2.5))
+        }
+    }
+
+    private func kgText(_ u: PlanUebung) -> String {
+        let kg = Set(u.saetze.map(\.kg))
+        guard kg.count == 1, let eins = kg.first else { return kg.count > 1 ? "gemischt" : "ohne" }
+        return eins.map { "\(TrainingLogik.kgText($0)) kg" } ?? "ohne"
+    }
+
+    private func zeile(_ titel: String, _ wert: String, _ stepper: some View) -> some View {
+        HStack(spacing: 10) {
+            Text(titel).font(.subheadline)
+            Spacer(minLength: 8)
+            Text(wert).font(.subheadline.weight(.semibold)).monospacedDigit()
+            stepper.labelsHidden().fixedSize()
+        }
+        .frame(minHeight: 44)
+        .accessibilityElement(children: .combine)
     }
 }
 
@@ -187,6 +224,11 @@ struct SplitEditorView: View {
             },
             aufklappen: { id in withAnimation(Feder.schnell) { offen = offen == id ? nil : id } },
             bearbeiten: { bearbeiten = $0 },
+            aendern: { neu in
+                aendern { t in
+                    if let i = t.uebungen.firstIndex(where: { $0.id == neu.id }) { t.uebungen[i] = neu }
+                }
+            },
             hinzufuegen: { sucheOffen = true }
         )
     }
