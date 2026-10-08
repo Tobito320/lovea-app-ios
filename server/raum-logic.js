@@ -113,8 +113,9 @@ export function verbindungIstLebendig(letzterKontaktMs, jetztMs) {
 export const NUR_FUER_ABSENDER = "entwurf.setzen";
 // 27.09.: auch die private Galerie (`galerie.*`) -- sie syncht nur zwischen den Geräten ihres Besitzers.
 // Ebenso die Geschenkbox (`geschenkbox.*`): der Partner soll die Wünsche nie sehen, bis sie ausgepackt sind.
+// Und der Health-Coach (`coach.*`): Fragen und Antworten gehören nur der Person selbst.
 export function nurFuerAbsender(art) {
-  return art === NUR_FUER_ABSENDER || art.startsWith("galerie.") || art.startsWith("geschenkbox.");
+  return art === NUR_FUER_ABSENDER || art.startsWith("galerie.") || art.startsWith("geschenkbox.") || art.startsWith("coach.");
 }
 
 // Speichert eine Op. Doppelte id -> vorhandene seq zurück (INSERT OR IGNORE).
@@ -141,7 +142,7 @@ export function opEinfuegenMitStatus(sql, op) {
   return { seq, neu: true };
 }
 
-function zeileZuOp(row) {
+export function zeileZuOp(row) {
   return { seq: row.seq, id: row.id, art: row.art, von: row.von, zeit: row.zeit, d: JSON.parse(row.d) };
 }
 
@@ -156,7 +157,7 @@ export function opsSeit(sql, seit, limit = SEITE, maxBytes = SEITE_BYTES, fuer =
   let bytes = 0;
   const zeilen = sql.exec(
     `SELECT seq, id, art, von, zeit, d FROM ops
-     WHERE seq > ? AND (? IS NULL OR NOT ((art = ? OR art LIKE 'galerie.%' OR art LIKE 'geschenkbox.%') AND von != ?))
+     WHERE seq > ? AND (? IS NULL OR NOT ((art = ? OR art LIKE 'galerie.%' OR art LIKE 'geschenkbox.%' OR art LIKE 'coach.%') AND von != ?))
      ORDER BY seq ASC LIMIT ?`,
     seit,
     fuer,

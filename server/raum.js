@@ -48,6 +48,8 @@ import { push } from "./push.js";
 import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
 import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe } from "./spotify.js";
+import { coachAntwort, coachMorgen, coachMorgenAn } from "./coach.js";
+import { katalog as coachKatalog } from "./coach-katalog.js";
 
 const PERSONEN = ["ahmed", "annika"];
 const partnerVon = (person) => (person === "ahmed" ? "annika" : "ahmed");
@@ -62,6 +64,8 @@ const ALARM_TEXT = {
   challengeEndeWoche: { titel: "Lovea", text: "Die Wochen-Challenges sind vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
   challengeEndspurtMonat: { titel: "Lovea", text: "Letzter Tag für Gemeinsam Monat!", stufe: "laut", kategorie: "challenge" },
   challengeEndeMonat: { titel: "Lovea", text: "Der Monats-Challenge ist vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
+  // Health-Coach: Push ohne Inhalt (der Coach-Text steht nur im Chat), nur an die Person, die es eingeschaltet hat.
+  coachMorgen: { titel: "Lovea", text: "Dein Coach hat geschrieben", stufe: "leise", kategorie: "coach" },
 };
 
 export class Raum {
@@ -93,6 +97,7 @@ export class Raum {
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
     if (url.pathname === "/spotify/trennen" && request.method === "POST") return this.#spotifyTrennen(person);
+    if (url.pathname === "/coach/frage" && request.method === "POST") return this.#coachFrage(request, person);
     if (teile[0] === "agent" && request.method === "GET") return this.#agent(teile[1], url, person);
     return new Response("not found", { status: 404 });
   }
@@ -578,6 +583,29 @@ export class Raum {
     return Response.json({ ok: true });
   }
 
+  // --- Health-Coach (Logik in coach.js) -----------------------------------------
+
+  async #coachFrage(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    const body = await request.json().catch(() => null);
+    const r = await coachAntwort({ sql: this.sql, env: this.env, person, text: body?.text, jetztMs: Date.now(), katalog: coachKatalog });
+    if (r.grund) this.#log("Coach", person, r.grund); // nur der kurze Grund, nie Rohantwort oder Schlüssel
+    if (r.ops) this.#coachVerteilen(person, r.ops);
+    return Response.json(r.body, { status: r.status });
+  }
+
+  // coach.nachricht ist privat: nur die Geräte der Person selbst (iPhone + iPad), nie der Partner.
+  #coachVerteilen(person, ops) {
+    this.#sendeAn(this.ctx.getWebSockets(person), { t: "ops", ops, mehr: false });
+  }
+
+  // Für zeitplan.js: aktiv = jemand hat die Morgen-Nachricht an UND der Schlüssel ist da.
+  #coachMorgenKontext(heute) {
+    if (!this.env.OPENAI_API_KEY) return { aktiv: false, erledigt: true };
+    const an = PERSONEN.filter((p) => coachMorgenAn(this.sql, p));
+    return { aktiv: an.length > 0, erledigt: an.every((p) => alarmErledigt(this.sql, "coachMorgen", `${p}.${heute}`)) };
+  }
+
   // --- Alarme (Z-1.7) ---------------------------------------------------------
 
   async #alarmAktualisieren() {
@@ -601,6 +629,7 @@ export class Raum {
       erinnerungenHeute: {
         frage: alarmErledigt(this.sql, "frageDesTages", heute),
       },
+      coachMorgen: this.#coachMorgenKontext(heute),
       challengeErledigt: {
         endspurtWoche: alarmErledigt(this.sql, "challengeEndspurtWoche", montagDerWoche(heute)),
         endeWoche: alarmErledigt(this.sql, "challengeEndeWoche", montagDerWoche(heute)),
@@ -642,6 +671,23 @@ export class Raum {
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
         await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
+        break;
+      }
+      case "coachMorgen": {
+        // coachMorgen() markiert den Tag je Person selbst, bevor es arbeitet: ein Fehler löst keine Alarm-Schleife aus.
+        const { titel, text, stufe, kategorie } = ALARM_TEXT.coachMorgen;
+        for (const person of PERSONEN) {
+          try {
+            const r = await coachMorgen({ sql: this.sql, env: this.env, person, jetztMs, katalog: coachKatalog });
+            if (r.grund) this.#log("Coach Morgen", person, r.grund);
+            if (!r.gesendet) continue;
+            this.#coachVerteilen(person, r.ops);
+            if (einstellung(this.sql, person, `mitteilungen.${kategorie}`) === false) continue;
+            await this.#pushAn(person, { titel, text, stufe, daten: { art: "coach.nachricht" } });
+          } catch (err) {
+            this.#log("Coach Morgen fehlgeschlagen", person, err);
+          }
+        }
         break;
       }
       case "nachrichtLoesen": {

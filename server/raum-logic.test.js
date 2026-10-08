@@ -6,6 +6,7 @@ import {
   opEinfuegen,
   opEinfuegenMitStatus,
   opsSeit,
+  nurFuerAbsender,
   medienTeilSpeichern,
   medienFertig,
   medienFehlend,
@@ -336,6 +337,19 @@ test("opsSeit: fremde Entwürfe werden für `fuer` im SQL ausgefiltert, eigene b
   assert.deepEqual(opsSeit(sql, 0, 500, 512 * 1024, "annika").ops.map((o) => o.id), ["e-annika", "n-1"]);
   assert.deepEqual(opsSeit(sql, 0, 500, 512 * 1024, "ahmed").ops.map((o) => o.id), ["e-ahmed", "n-1"]);
   assert.equal(opsSeit(sql, 0).ops.length, 3, "ohne `fuer` (Tests/Tools) ungefiltert");
+});
+
+// Health-Coach: `coach.*` ist nur für den Absender -- Frage und Antwort sieht der Partner nie, auch nicht beim Nachholen.
+test("coach.*: nurFuerAbsender und opsSeit filtern die Coach-Nachrichten der anderen Person", () => {
+  assert.equal(nurFuerAbsender("coach.nachricht"), true);
+  assert.equal(nurFuerAbsender("coach.irgendwas"), true);
+  assert.equal(nurFuerAbsender("coachen.neu"), false);
+  const sql = raum();
+  opEinfuegen(sql, op("c-ahmed", "coach.nachricht", "ahmed", { rolle: "du", text: "geheim", tag: "2026-10-08" }));
+  opEinfuegen(sql, op("c-annika", "coach.nachricht", "annika", { rolle: "du", text: "auch geheim", tag: "2026-10-08" }));
+  opEinfuegen(sql, op("n-1", "nachricht.neu", "ahmed", { id: "m1", text: "hi" }));
+  assert.deepEqual(opsSeit(sql, 0, 500, 512 * 1024, "annika").ops.map((o) => o.id), ["c-annika", "n-1"]);
+  assert.deepEqual(opsSeit(sql, 0, 500, 512 * 1024, "ahmed").ops.map((o) => o.id), ["c-ahmed", "n-1"]);
 });
 
 test("Spotify: Token und Cache im Merker, roundtrip", () => {
