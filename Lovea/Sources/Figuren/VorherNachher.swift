@@ -20,9 +20,9 @@ struct VorherNachherView: View {
             let breite = geo.size.width
             let x = breite * anteil
             ZStack(alignment: .topLeading) {
-                figur(nachher, geo.size)
                 figur(vorher, geo.size)
-                    .mask(alignment: .leading) { Rectangle().frame(width: x) }
+                figur(nachher, geo.size)
+                    .mask(alignment: .trailing) { Rectangle().frame(width: breite - x) }
                 Rectangle()
                     .fill(.white)
                     .frame(width: 3, height: geo.size.height)
