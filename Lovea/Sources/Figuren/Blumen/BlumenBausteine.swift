@@ -71,7 +71,7 @@ func blumenKranz(_ g: GraphicsContext, _ c: CGPoint, n: Int, innen: CGFloat, aus
 }
 
 private func blumenSchatten(_ g: GraphicsContext, _ c: CGPoint, _ r: CGFloat, _ deckung: Double = 0.16) {
-    g.fill(kreis(P(c.x + r * 0.05, c.y + r * 0.1), r * 1.04), with: .color(.black.opacity(deckung)))
+    g.fill(kreis(P(c.x + r * 0.07, c.y + r * 0.12), r * 0.93), with: .color(.black.opacity(deckung)))
 }
 
 private func blumenPunkt(_ g: GraphicsContext, _ c: CGPoint, _ r: CGFloat, _ f: Color) {
