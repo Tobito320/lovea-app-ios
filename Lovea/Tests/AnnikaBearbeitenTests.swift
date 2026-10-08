@@ -23,6 +23,7 @@ final class AnnikaBearbeitenTests: XCTestCase {
     private func look(_ person: Person, oberteil: Int) -> FigurAussehen {
         var a = FigurAussehen.standard(for: person)
         a.oberteil = oberteil
+        a.person = nil // `person` wird nicht mitgesendet, die Op trägt es nicht
         return a
     }
 
