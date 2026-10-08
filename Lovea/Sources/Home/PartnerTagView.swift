@@ -20,7 +20,6 @@ struct PartnerTagView: View {
                     }
                     .accessibilityElement(children: .combine)
                 }
-                if person != Raum.shared.ich { DenkAnDichKnopf(partner: person) }
             }
             .padding(16)
         }

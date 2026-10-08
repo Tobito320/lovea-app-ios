@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Home-Karte "Ahmeds Tag": Figur, Status, letzter Moment und der "Denk an dich"-Knopf.
+/// Home-Karte "Ahmeds Tag": Figur, Status und letzter Moment.
 /// Tippen auf die Kopfzeile öffnet die Zeitleiste (`navigationDestination(for: Person.self)` in `HomeView`).
 struct PartnerTagCard: View {
     let person: Person
@@ -24,33 +24,8 @@ struct PartnerTagCard: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            DenkAnDichKnopf(partner: partner)
         }
         .padding(16)
         .healthKarte()
-    }
-}
-
-/// "Denk an dich": schickt `geste herz` an den Partner (Push serverseitig höchstens alle 10 Minuten,
-/// jeder Tipp zählt). Rechts: wie oft du heute getippt hast.
-struct DenkAnDichKnopf: View {
-    let partner: Person
-    @State private var getippt = 0
-
-    var body: some View {
-        let heute = FigurenModell.shared.herzHeute[partner.partner] ?? 0
-        Button {
-            Haptik.leicht()
-            FigurenModell.shared.gesteSenden("herz")
-            getippt += 1
-        } label: {
-            HStack {
-                Label("Denk an dich", systemImage: "heart.fill").symbolEffect(.bounce, value: getippt)
-                if heute > 0 { Text("heute \(heute)×").font(.footnote).opacity(0.85) }
-            }
-            .frame(maxWidth: .infinity, minHeight: 44)
-        }
-        .buttonStyle(.borderedProminent)
-        .tint(Color.loveaRose)
     }
 }
