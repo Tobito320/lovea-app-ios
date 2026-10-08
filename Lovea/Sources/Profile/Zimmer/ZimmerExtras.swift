@@ -80,7 +80,7 @@ struct ZimmerExtras: View {
             switch b {
             case .wuerfel: ZimmerWuerfelBlatt()
             case .globus: ZimmerGlobusBlatt()
-            case .album: ZimmerAlbumBlatt(nachrichten: ChatModell.shared.nachrichten, ich: Raum.shared.ich)
+            case .album: ZimmerAlbumBlatt(nachrichten: ChatModell.shared.nachrichten, ich: Raum.shared.ich, briefe: ZimmerAlbumLogik.liebesbriefe(BriefeSpeicher.shared.stand))
             }
         }
         .alert("Wiedersehen", isPresented: $hinweis) {

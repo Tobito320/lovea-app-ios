@@ -240,8 +240,6 @@ enum ProfilSlots {
 
 /// How the panorama sits on the screen: scale, scene height, the slow wall, the snap points.
 enum ProfilPanoramaLayout {
-    /// Room left below the scene for the date line and the buttons before it scrolls (pt).
-    static let untenMinimum: CGFloat = 160
     /// The wall moves at this share of the furniture's speed (1 = no depth).
     static let wandFaktor: CGFloat = 0.6
 

@@ -156,6 +156,8 @@ struct ZuhauseStraeusse: Equatable, Sendable {
     var schrank: [String] = []
     /// The one vase on the table, empty without an ID.
     var vase: String?
+    /// p70: the tired and wilted bouquets by ID; every other one is fresh and drawn as before.
+    var frische: [String: StraussFrische] = [:]
 
     var imSchrank: [String] { Array(schrank.prefix(Self.schrankPlaetze)) }
 

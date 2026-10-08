@@ -240,6 +240,8 @@ struct SpotifyHoertGeradeChip: View {
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
                     .glassEffect(.regular, in: .capsule)
+                    // p69: the pill is about 22 pt tall; twelve points more on every side make the hit area 44 pt.
+                    .contentShape(Rectangle().inset(by: -12))
             }
             .buttonStyle(.plain)
             .disabled(song.oeffnenURL == nil)

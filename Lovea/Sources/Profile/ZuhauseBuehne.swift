@@ -10,6 +10,8 @@ struct ZuhauseFigur {
     let ganzkoerper: Bool
     /// p65: how the whole body is posed (sitting on the sofa); `nil` leaves it to the state.
     var pose: FigurPose? = nil
+    /// p70: frames per second of the figure's loop; standing about is slower than walking.
+    var bildrate: Double = ZuhauseSzeneLogik.bewegtRate
 }
 
 extension ZuhauseGeste {
@@ -120,6 +122,20 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     private var aktiv: Bool { !fest && sichtbar && scenePhase == .active && !sparmodus && !reduceMotion }
 
+    /// p70: the partner who is not there sleeps in the bed, whoever is there stands in the room. Not in
+    /// the fixed boards and not while they are together for real.
+    private var offlineSchlaefer: Person? {
+        guard !fest, !paarDa else { return nil }
+        let ich = Raum.shared.ich, verbunden = Raum.shared.verbunden, da = Raum.shared.partnerDa
+        return Person.allCases.first { ZuhauseSzeneLogik.schlaeftOffline($0, ich: ich, verbunden: verbunden, partnerDa: da) }
+    }
+
+    /// p70 (40): the lamp glows warmer for every goal of the day that is done; never in the fixed boards.
+    private var lampenStaerke: Double {
+        guard !fest, let ich = Raum.shared.ich else { return 1 }
+        return ZimmerLebenModell.tagesZiele(ich: ich, heute: Datum.text(Date())).lampenFaktor
+    }
+
     /// The time of day the room is drawn in: the clock's, or night once both said good night.
     private var sicht: Tageszeit { nacht ? .nacht : stand.zeit }
 
@@ -154,7 +170,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                 }
                 .colorMultiply(abdunklung)
                 if stand.zeit.dunkel && !nacht {
-                    ZuhauseLicht(zeit: stand.zeit, welt: welt)
+                    ZuhauseLicht(zeit: stand.zeit, welt: welt, staerke: lampenStaerke)
                 }
                 if welt == .panorama { moebelTippen(s, oben) }
             }
@@ -198,10 +214,13 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         let k = ZuhauseZeichnung.bettMass * s
         let liegt = stand.liegt && !paarDa
         let schlaeft = stand.zeit == .nacht || stand.hingelegt
+        // p70: the offline partner lies here asleep, also by day and when the other one is up.
+        let schlaefer = offlineSchlaefer
+        let liegende = ZuhauseSzeneLogik.liegende(beide: liegt, schlaefer: schlaefer)
+        let schlafen: (Person) -> Bool = { schlaeft || $0 == schlaefer }
         // Empty pillows: both while the bed is empty and behind those sitting up; sleepers bring their own.
-        let kissen: [CGFloat] = liegt && schlaeft ? [] : [112, 188]
+        let kissen = ZuhauseSzeneLogik.leereKissen(schlafende: Set(liegende.filter(schlafen)))
         let stil = ZuhauseZeichnung.bettStil
-        let liegende: [Person] = liegt ? [.annika, .ahmed] : []
         return ZStack {
             Canvas { g, _ in
                 var b = g
@@ -209,8 +228,8 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                 SzenenZeichnung.bettHinten(b, stil, kissen: kissen, bild: nil)
             }
             ForEach(liegende, id: \.self) { p in
-                figur(ZuhauseFigur(person: p, zustand: schlaeft ? .schlaeft : .sitztImBett, groesse: 140 * k, animiert: false, ganzkoerper: false))
-                    .position(x: (p == .annika ? 112 : 188) * k, y: (schlaeft ? 123.1 : 89.1) * k)
+                figur(ZuhauseFigur(person: p, zustand: schlafen(p) ? .schlaeft : .sitztImBett, groesse: 140 * k, animiert: false, ganzkoerper: false))
+                    .position(x: ZuhauseSzeneLogik.kissenX(p) * k, y: (schlafen(p) ? 123.1 : 89.1) * k)
             }
             Canvas { g, _ in
                 var b = g
@@ -229,10 +248,10 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         let vasenPlatz = welt.ort(ZuhauseZeichnung.vasenPlatz, .kommode)
         return ZStack(alignment: .topLeading) {
             ForEach(imSchrank.indices, id: \.self) { n in
-                strauss(imSchrank[n], plaetze[n], s, oben)
+                strauss(imSchrank[n], plaetze[n], straeusse.frische[imSchrank[n]] ?? .frisch, s, oben)
             }
             if let vase = straeusse.vase {
-                strauss(vase, vasenPlatz, s, oben)
+                strauss(vase, vasenPlatz, straeusse.frische[vase] ?? .frisch, s, oben)
             }
         }
     }
@@ -251,18 +270,19 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             }
             .allowsHitTesting(false)
             ForEach(imBord.indices, id: \.self) { n in
-                strauss(imBord[n], plaetze[n], s, oben)
+                strauss(imBord[n], plaetze[n], ahmedStraeusse.frische[imBord[n]] ?? .frisch, s, oben)
             }
             if let vase {
-                strauss(vase, ZuhauseZeichnung.bordVasenPlatz, s, oben)
+                strauss(vase, ZuhauseZeichnung.bordVasenPlatz, ahmedStraeusse.frische[vase] ?? .frisch, s, oben)
             }
         }
     }
 
-    private func strauss(_ id: String, _ fuss: CGPoint, _ s: CGFloat, _ oben: CGFloat) -> some View {
+    private func strauss(_ id: String, _ fuss: CGPoint, _ frische: StraussFrische, _ s: CGFloat, _ oben: CGFloat) -> some View {
         let mass = ZuhauseZeichnung.strauss
         return StraussView(id: id)
             .frame(width: mass.width * s, height: mass.height * s)
+            .modifier(StraussWelke(frische: frische))
             .position(x: fuss.x * s, y: oben + (fuss.y - mass.height / 2) * s)
     }
 
@@ -280,10 +300,20 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// The cat follows the scene state only: where it is and what it does comes from `stand`, so it
     /// changes with p58's step and has no timer of its own.
     private func katzeSicht(_ k: ZuhauseKatze, _ s: CGFloat, _ oben: CGFloat) -> some View {
-        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: stand.annika, welt: welt)
-        return ZimmerKatzeSicht(id: k.id, szene: szene, wuenscht: ZimmerKatze.wuenscht(szene.zustand, gestreichelt: k.gestreichelt),
-                                geht: stand.gehende.contains(.annika), streichelt: streichelt, s: s, oben: oben) {
-            streichelt = k.streicheln()
+        // p70: Annika asleep in bed (offline) is at the bed for the cat, too.
+        let annikaImBett = offlineSchlaefer == .annika
+        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: annikaImBett ? .bett : stand.annika, welt: welt)
+        let wuenscht = ZimmerKatze.wuenscht(szene.zustand, gestreichelt: k.gestreichelt)
+        // p70 (44): feeding and mood come from the points model; the fixed boards show a content cat as before.
+        let punkte = PunkteModell.shared
+        let pflege = !fest
+        let satt = !pflege || punkte.katzeGefuettert()
+        let stimmung = pflege ? punkte.katzeStimmung() : nil
+        return ZimmerKatzeSicht(id: k.id, szene: szene, wuenscht: wuenscht,
+                                geht: stand.gehende.contains(.annika) && !annikaImBett, streichelt: streichelt, s: s, oben: oben,
+                                hunger: KatzePflege.hungert(szene.zustand, gefuettert: satt, wuenscht: wuenscht),
+                                schnurrt: stimmung.map { KatzePflege.schnurrt(szene.zustand, $0) } ?? false, stimmung: stimmung) {
+            streichelt = KatzePflege.fuettertBeimTippen(gestreichelt: k.gestreichelt, gefuettert: satt) ? punkte.katzeFuettern() : k.streicheln()
             Task {
                 try? await Task.sleep(for: .seconds(2.5))
                 streichelt = nil
@@ -297,7 +327,8 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     /// Sitters sit behind the sofa's front cushion, everyone else stands in front of it.
     private func personen(sitzend: Bool, _ s: CGFloat, _ oben: CGFloat) -> some View {
-        let wer: [Person] = stand.liegt || paarDa ? [] : [Person.annika, .ahmed].filter { sitzt($0) == sitzend }
+        let schlaefer = offlineSchlaefer
+        let wer: [Person] = stand.liegt || paarDa ? [] : [Person.annika, .ahmed].filter { sitzt($0) == sitzend && $0 != schlaefer }
         return ForEach(wer, id: \.self) { p in person(p, s, oben) }
     }
 
@@ -318,7 +349,9 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         let gestik = p == .annika ? stand.geste : nil
         let zustand: FigurZustand = geht ? .laeuft : (gestik?.zustand ?? .ruhig)
         let pose: FigurPose? = sitzend && welt == .panorama ? .sitzenSofa : nil
-        return figur(ZuhauseFigur(person: p, zustand: zustand, groesse: hoehe * s, animiert: geht || gestik != nil, ganzkoerper: ganz, pose: pose))
+        // p70: standing about blinks and breathes at a low rate, only while the scene is active.
+        let bewegung = ZuhauseSzeneLogik.bewegung(geht: geht, geste: gestik != nil, aktiv: aktiv)
+        return figur(ZuhauseFigur(person: p, zustand: zustand, groesse: hoehe * s, animiert: bewegung.animiert, ganzkoerper: ganz, pose: pose, bildrate: bewegung.bildrate))
             .position(x: x * s, y: oben + (unten - hoehe / 2) * s)
     }
 
@@ -339,6 +372,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         ZStack(alignment: .topLeading) {
             moebelFlaeche(.bett, "Bett, beide legen sich hin", s, oben) { antippen(.bett) }
             moebelFlaeche(.sofa, "Sofa, beide setzen sich", s, oben) { antippen(.sofa) }
+            moebelFlaeche(.kommode, "Kommode, beide gehen zu den Blumen", s, oben) { antippen(.blumen) }
         }
     }
 
@@ -489,12 +523,14 @@ private struct ZuhauseSofaVorn: View {
 private struct ZuhauseLicht: View {
     let zeit: Tageszeit
     var welt: ProfilWelt = .einzel
+    var staerke: Double = 1
 
     var body: some View {
         let zeit = zeit
         let welt = welt
+        let staerke = staerke
         Canvas { g, groesse in
-            ZuhauseZeichnung.licht(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, welt: welt)
+            ZuhauseZeichnung.licht(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, welt: welt, staerke: staerke)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)

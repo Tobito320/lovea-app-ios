@@ -101,10 +101,22 @@ struct ZimmerPflanzenStand: Equatable, Sendable {
     var haengt: Bool
     /// The shared streak in days (the weaker of the two).
     var serie: Int
+    /// p70 (40): today's three goals of the one looking; each one lifts the plant a step (`mit`).
+    var ziele = ZimmerTagesZiele()
 
     var text: String {
-        if haengt { return "Die Blätter hängen: einer von euch ist raus. Macht zusammen weiter." }
-        return serie > 0 ? "\(serie) Tage gemeinsame Serie" : "Haltet zusammen eine Gewohnheit durch, dann wächst sie."
+        let basis = haengt ? "Die Blätter hängen: einer von euch ist raus. Macht zusammen weiter."
+            : serie > 0 ? "\(serie) Tage gemeinsame Serie" : "Haltet zusammen eine Gewohnheit durch, dann wächst sie."
+        return basis + "\n" + ziele.text
+    }
+
+    /// The plant with today's goals: at least as tall as the goals make it, in bloom with all three. A
+    /// drooping plant keeps drooping, the goals alone do not cure a dropped streak.
+    func mit(_ ziele: ZimmerTagesZiele) -> ZimmerPflanzenStand {
+        var s = self
+        s.ziele = ziele
+        if !haengt { s.stufe = max(stufe, ziele.pflanzenStufe) }
+        return s
     }
 
     static func stufe(serie: Int) -> Int {

@@ -55,7 +55,7 @@ struct FigurEditor: View {
 
     /// An old look made valid for `person`: face and clothes that this person's filter allows.
     static func gueltig(_ a: FigurAussehen, _ person: Person) -> FigurAussehen {
-        FigurAussehen.mitGueltigerKleidung(FigurAussehen.mitGueltigemGesicht(a, person), person)
+        FigurAussehen.mitGueltigenIndizes(FigurAussehen.mitGueltigerKleidung(FigurAussehen.mitGueltigemGesicht(a, person), person), person)
     }
 
     /// Z-24.1: gender filter is fixed per person, no switch in this editor. p68: whose figure this is;

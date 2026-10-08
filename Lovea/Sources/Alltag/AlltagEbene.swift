@@ -75,7 +75,9 @@ struct AlltagEbene: View {
     /// Ein antippbares Ding an einer Stelle des Entwurfsraums. Das Polster macht die Tippfläche groß genug.
     private func ding<V: View>(_ mitte: CGPoint, _ s: CGFloat, _ oben: CGFloat, name: String, tippen: @escaping () -> Void,
                                @ViewBuilder _ inhalt: () -> V) -> some View {
-        Button(action: tippen) { inhalt().padding(8).contentShape(.rect) }
+        // p69: like in `PaarSignaleEbene`, in the wide world a thing is hit on at least 44 x 44 pt.
+        let mindest: CGFloat = welt == .panorama ? ProfilSlots.tippMinimum : 0
+        return Button(action: tippen) { inhalt().padding(8).frame(minWidth: mindest, minHeight: mindest).contentShape(.rect) }
             .buttonStyle(.plain)
             .accessibilityLabel(name)
             .position(x: mitte.x * s, y: oben + mitte.y * s)

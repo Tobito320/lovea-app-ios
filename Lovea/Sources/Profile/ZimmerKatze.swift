@@ -91,6 +91,11 @@ struct ZimmerKatzeSicht: View {
     /// The stage's scale (points per design point) and the top of the room drawing on screen.
     let s: CGFloat
     let oben: CGFloat
+    /// p70 (44): the food bubble (hungry, nothing else to wish), hearts next to the head (purring), and the
+    /// spoken mood. All off by default, so the render boards and the old call sites stay as they were.
+    var hunger = false
+    var schnurrt = false
+    var stimmung: KatzePflege.Stimmung?
     let tippen: () -> Void
 
     var body: some View {
@@ -100,6 +105,8 @@ struct ZimmerKatzeSicht: View {
         let schlaf = szene.zustand == .schlaeft && !geht && !herzen
         let pose: HaustierPose = schlaf || herzen ? .liegt : .steht
         let blase = wuenscht && !herzen
+        let futter = hunger && !herzen
+        let schnurr = schnurrt && !herzen
         let punkte = streichelt ?? 0
         Canvas { g, size in
             let boden = P(size.width / 2, size.height - 4 * s)
@@ -111,6 +118,24 @@ struct ZimmerKatzeSicht: View {
                 g.fill(Path(roundedRect: CGRect(x: b.x - 11 * s, y: b.y - 9 * s, width: 22 * s, height: 18 * s), cornerRadius: 8 * s), with: .color(.white))
                 g.fill(kreis(P(b.x - 7 * s, b.y + 10 * s), 2.2 * s), with: .color(.white))
                 g.fill(herzPfad(b, 5 * s), with: .color(Pal.rose.farbe))
+            }
+            if futter {
+                let b = P(kopf.x + 14 * s, kopf.y - 14 * s)
+                g.fill(Path(roundedRect: CGRect(x: b.x - 11 * s, y: b.y - 9 * s, width: 22 * s, height: 18 * s), cornerRadius: 8 * s), with: .color(.white))
+                g.fill(kreis(P(b.x - 7 * s, b.y + 10 * s), 2.2 * s), with: .color(.white))
+                // A little fish: body and tail.
+                g.fill(oval(P(b.x - 1.5 * s, b.y), 5.5 * s, 3.4 * s), with: .color(Pal.gold.farbe))
+                var schwanz = Path()
+                schwanz.move(to: P(b.x + 3 * s, b.y))
+                schwanz.addLine(to: P(b.x + 7 * s, b.y - 3 * s))
+                schwanz.addLine(to: P(b.x + 7 * s, b.y + 3 * s))
+                schwanz.closeSubpath()
+                g.fill(schwanz, with: .color(Pal.gold.farbe))
+            }
+            if schnurr {
+                for (dx, dy, r) in [(-15, -8, 3.5), (17, -14, 2.8)] as [(CGFloat, CGFloat, CGFloat)] {
+                    g.fill(herzPfad(P(kopf.x + dx * s, kopf.y + dy * s), r * s), with: .color(Pal.rose.farbe.opacity(0.85)))
+                }
             }
             if herzen {
                 for (dx, dy, r) in [(-14, -4, 4.5), (2, -14, 6), (16, -6, 4)] as [(CGFloat, CGFloat, CGFloat)] {
@@ -131,8 +156,8 @@ struct ZimmerKatzeSicht: View {
         .sensoryFeedback(.success, trigger: streichelt) { _, neu in neu != nil }
         .position(x: szene.ort.x * s, y: oben + (szene.ort.y - 46) * s)
         .accessibilityElement(children: .ignore)
-        .accessibilityLabel(szene.zustand == .schlaeft ? "Katze, schläft" : "Katze")
-        .accessibilityHint("Streicheln")
+        .accessibilityLabel(stimmung.map { KatzePflege.beschreibung(szene.zustand, $0) } ?? (szene.zustand == .schlaeft ? "Katze, schläft" : "Katze"))
+        .accessibilityHint(hunger ? "Füttern" : "Streicheln")
         .accessibilityAddTraits(.isButton)
     }
 }
