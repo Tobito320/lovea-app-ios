@@ -39,6 +39,20 @@ test("geste herz, kuss, anstupsen: laut mit eigenem Ton", () => {
   assert.equal(stups.ton, "anstupsen.wav");
 });
 
+test("geste herz aus der Lampe: still, ohne Text und Ton", () => {
+  const lampe = regel("geste", "annika", { art: "herz", quelle: "lampe" });
+  assert.equal(lampe.stufe, "still");
+  assert.equal(lampe.kategorie, "geste");
+  assert.equal(lampe.text, null);
+  assert.equal(lampe.ton, undefined);
+  assert.equal(regel("geste", "annika", { art: "herz", quelle: "widget" }).stufe, "laut");
+});
+
+test("Stimmung, Geschenkbox, Zimmer-Signale lösen keine eigene Push aus", () => {
+  assert.equal(regel("gefuehl.setzen", "annika", { art: "muede" }), null);
+  assert.equal(regel("geschenkbox.setzen", "annika", { id: "x", text: "Ring" }), null);
+});
+
 test("laute Mitteilungen haben immer einen Ton, leise keinen", () => {
   assert.equal(regel("nachricht.neu", "ahmed", { text: "hi" }).ton, "nachricht.wav");
   assert.equal(regel("ort.ereignis", "ahmed", { art: "ankunft" }, { ortName: "Gym" }).ton, "ort.wav");
@@ -79,6 +93,16 @@ test("gruss: laut, Text je nach nacht/morgen, Kategorie geste", () => {
   assert.equal(nacht.kategorie, "geste");
   assert.equal(nacht.text, "Annika sagt Gute Nacht");
   assert.equal(regel("gruss", "ahmed", { art: "morgen" }).text, "Ahmed sagt Guten Morgen");
+});
+
+// p64: Wärmflasche und Tee. Leise, ohne Ton, und der Text verrät nichts über den Grund.
+test("waerme.setzen: nur bei an eine leise Push ohne Zyklus-Wörter", () => {
+  const an = regel("waerme.setzen", "annika", { tag: "2026-10-08", an: true });
+  assert.equal(an.stufe, "leise");
+  assert.equal(an.kategorie, "geste");
+  assert.equal(an.text, "Annika könnte heute etwas Süßes und Warmes brauchen");
+  assert.doesNotMatch(an.text, /Periode|Zyklus|Regel|Krämpfe|Blutung|Schmerz/i);
+  assert.equal(regel("waerme.setzen", "annika", { tag: "2026-10-08", an: false }), null);
 });
 
 // Z-27.2: ein Brief darf seinen Inhalt nie im Push-Text preisgeben, auch wenn `text`/`medien`

@@ -16,6 +16,7 @@ extension FigurAussehen {
         case "tasche": return tasche == artikel.id
         case "tier": return tier == artikel.id
         case "mode": return traegtTeil(artikel.id)
+        case "schmuck": return schmuckListe.contains(artikel.id)
         default: return false
         }
     }
@@ -38,6 +39,7 @@ extension FigurAussehen {
         case "tasche": tasche = artikel.id
         case "tier": tier = artikel.id
         case "mode": anziehen(artikel.id)
+        case "schmuck": juwelAnziehen(artikel.id)
         default: break
         }
     }
@@ -50,6 +52,7 @@ extension FigurAussehen {
         case "tasche": tasche = nil
         case "tier": tier = nil
         case "mode": teilAblegen(artikel.id, person: person)
+        case "schmuck": juwelAblegen(artikel.id)
         default: break
         }
     }
@@ -66,14 +69,16 @@ extension FigurAussehen {
         }
     }
 
-    /// p47: legt Teile ab, die es im Shop nicht mehr gibt, damit die Figur gültig bleibt. Uhr und Schmuck
-    /// gibt es nicht mehr, Tasche und Haustier nur, wenn die ID entfernt wurde. Mode und Brille nur, wenn der
-    /// Index dem Shop vorbehalten ist (der freie Editor kann ihn nicht wählen); freie Indizes bleiben.
+    /// p47: legt Teile ab, die es im Shop nicht mehr gibt, damit die Figur gültig bleibt. Uhr und der alte
+    /// Schmuck (`schmuck.*`) gibt es nicht mehr, die neuen `juwel.*` bleiben. Tasche und Haustier nur, wenn
+    /// die ID entfernt wurde. Mode und Brille nur, wenn der Index dem Shop vorbehalten ist (der freie Editor
+    /// kann ihn nicht wählen); freie Indizes bleiben.
     /// Reine Lesesicht, ohne Schreiben: beide Geräte kommen zum selben Bild.
     func ohneEntfernteTeile() -> FigurAussehen {
         var a = self
         a.uhr = nil
-        a.schmuck = nil
+        let juwelen = a.schmuckListe.filter { $0.hasPrefix("juwel.") }
+        a.schmuck = juwelen.isEmpty ? nil : juwelen.joined(separator: ",")
         if let id = a.tasche, ShopErstattung.entfernt[id] != nil { a.tasche = nil }
         if let id = a.tier, ShopErstattung.entfernt[id] != nil { a.tier = nil }
         guard let person = a.person else { return a }

@@ -34,8 +34,8 @@ struct ShopView: View {
             .sensoryFeedback(.success, trigger: gekauft)
             .sheet(item: $ausgewaehlt) { artikel in
                 ArtikelDetail(
-                    artikel: artikel, ziel: ziel, istEigeneFigur: ziel == ich,
-                    besitzt: stand.besitz.besitzt(artikel.id, ziel), verfuegbar: stand.verfuegbar[ich] ?? 0,
+                    artikel: artikel, ziel: fuer(artikel), istEigeneFigur: fuer(artikel) == ich,
+                    besitzt: besitzt(artikel, stand.besitz), verfuegbar: stand.verfuegbar[ich] ?? 0,
                     onKauf: { kaufen(artikel) }, onAnziehen: { anziehen(artikel) }, onAusziehen: { ausziehen(artikel) }
                 )
             }
@@ -67,10 +67,17 @@ struct ShopView: View {
         .padding(.bottom, 4)
     }
 
+    /// p56: nur Gruppen mit Teilen für die Figur, die gerade eingekleidet wird (Ahmed hat keinen Schmuck).
+    private var kategorien: [ShopKategorie] {
+        ShopKategorie.allCases.filter { k in
+            ShopKatalog.alle.contains { $0.kategorie == k.rawValue && $0.sichtbar(fuer: ziel) }
+        }
+    }
+
     private var kategorienLeiste: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 8) {
-                ForEach(ShopKategorie.allCases) { k in
+                ForEach(kategorien) { k in
                     Button {
                         withAnimation(.snappy) { kategorie = k }
                     } label: {
@@ -98,7 +105,7 @@ struct ShopView: View {
         return LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 12)], spacing: 14) {
             ForEach(artikel) { a in
                 Button { ausgewaehlt = a } label: {
-                    ArtikelKachel(artikel: a, besitzt: info.besitz.besitzt(a.id, ziel), vorschauAussehen: aussehenZiel.mitVorschau(a))
+                    ArtikelKachel(artikel: a, besitzt: besitzt(a, info.besitz), vorschauAussehen: aussehenZiel.mitVorschau(a))
                 }
                 .buttonStyle(.plain)
             }
@@ -107,42 +114,56 @@ struct ShopView: View {
 
     // MARK: - Aktionen
 
+    /// p61: the room is shared. A room piece is always bought for oneself (no gift mode) and counts
+    /// as owned when either of them owns it.
+    private func fuer(_ a: ShopArtikel) -> Person { a.kategorie == ShopKategorie.zimmer.rawValue ? ich : ziel }
+
+    private func besitzt(_ a: ShopArtikel, _ besitz: BesitzLogik.Ergebnis) -> Bool {
+        a.kategorie == ShopKategorie.zimmer.rawValue ? ZimmerWahl.gehoert(a.id, besitz: besitz) : besitz.besitzt(a.id, ziel)
+    }
+
     private func kaufen(_ artikel: ShopArtikel) {
-        guard PunkteModell.shared.kaufen(artikel: artikel.id, fuer: ziel, preis: { ShopKatalog.artikel($0)?.preis }) else { return }
+        guard PunkteModell.shared.kaufen(artikel: artikel.id, fuer: fuer(artikel), preis: { ShopKatalog.artikel($0)?.preis }) else { return }
         gekauft += 1
     }
 
     private func anziehen(_ artikel: ShopArtikel) {
+        guard artikel.kategorie != ShopKategorie.zimmer.rawValue else { return ZimmerWahl.aktuell.einrichten(artikel.id).sichern() }
         var a = FigurenModell.shared.aussehen(ich)
         a.anziehen(artikel)
         FigurenModell.shared.aussehenSichern(a)
     }
 
     private func ausziehen(_ artikel: ShopArtikel) {
+        guard artikel.kategorie != ShopKategorie.zimmer.rawValue else { return ZimmerWahl.aktuell.wegraeumen(artikel.id).sichern() }
         var a = FigurenModell.shared.aussehen(ich)
         a.ausziehen(artikel, person: ich)
         FigurenModell.shared.aussehenSichern(a)
     }
 }
 
-/// p47: der Shop hat nur noch diese drei Gruppen.
+/// p47: der Shop hat nur noch diese Gruppen; p56 bringt den Schmuck zurück (neue `juwel.*`-IDs). p61: dazu "Zimmer" (Wandfarbe, Teppich, Bettwäsche, Lampe).
 enum ShopKategorie: String, CaseIterable, Identifiable {
-    case mode, tasche, tier
+    case mode, schmuck, tasche, tier, zimmer
     var id: String { rawValue }
 
     var titel: String {
         switch self {
         case .mode: "Mode"
+        case .schmuck: "Schmuck"
         case .tasche: "Taschen"
         case .tier: "Haustiere"
+        case .zimmer: "Zimmer"
         }
     }
 
     var symbol: String {
         switch self {
         case .mode: "tshirt"
+        case .schmuck: "sparkle"
         case .tasche: "bag"
         case .tier: "pawprint"
+        case .zimmer: "house"
         }
     }
 }
@@ -180,8 +201,15 @@ struct ArtikelKachel: View {
         .accessibilityLabel("\(artikel.name), \(besitzt ? "besitzt du schon" : "\(artikel.preis) Punkte")")
     }
 
-    private var vorschau: some View {
-        FigurView(vorschauAussehen, zustand: .ruhig, groesse: 118, animiert: false, ganzkoerper: true)
+    /// p56: Schmuck ist an der ganzen Figur zu klein für die Kachel, hier steht das Stück groß.
+    @ViewBuilder private var vorschau: some View {
+        if artikel.kategorie == ShopKategorie.zimmer.rawValue {
+            ZimmerTeilVorschau(id: artikel.id)
+        } else if schmuckKatalog[artikel.id] != nil {
+            Nahaufnahme(id: artikel.id)
+        } else {
+            FigurView(vorschauAussehen, zustand: .ruhig, groesse: 118, animiert: false, ganzkoerper: true)
+        }
     }
 }
 
@@ -205,11 +233,12 @@ private struct ArtikelDetail: View {
     /// the sheet — an op sent via `aussehenSichern` applies optimistically before confirmation.
     private var vorschauAussehen: FigurAussehen { FigurenModell.shared.aussehen(ziel).mitVorschau(artikel) }
     private var fehlend: Int { max(0, artikel.preis - verfuegbar) }
-    private var getragen: Bool { FigurenModell.shared.aussehen(ziel).traegt(artikel) }
+    private var zimmer: Bool { artikel.kategorie == ShopKategorie.zimmer.rawValue }
+    private var getragen: Bool { zimmer ? ZimmerWahl.aktuell.traegt(artikel.id) : FigurenModell.shared.aussehen(ziel).traegt(artikel) }
 
     var body: some View {
         VStack(spacing: 18) {
-            vorschau.frame(height: 220).frame(maxWidth: .infinity)
+            ArtikelBild(id: artikel.id, aussehen: vorschauAussehen)
             VStack(spacing: 4) {
                 if let marke = artikel.marke { Text(marke).font(.caption.weight(.semibold)).foregroundStyle(.secondary) }
                 Text(artikel.name).font(.title3.bold())
@@ -219,7 +248,7 @@ private struct ArtikelDetail: View {
             Spacer(minLength: 0)
         }
         .padding(.top, 24)
-        .presentationDetents([.medium, .large])
+        .presentationDetents([.large])
         .presentationDragIndicator(.visible)
         .sensoryFeedback(.impact(weight: .medium), trigger: getragen)
         .confirmationDialog("„\(artikel.name)“ für \(artikel.preis) Punkte kaufen?", isPresented: $bestaetigen, titleVisibility: .visible) {
@@ -228,14 +257,18 @@ private struct ArtikelDetail: View {
         }
     }
 
-    private var vorschau: some View {
-        FigurView(vorschauAussehen, zustand: .ruhig, groesse: 260, animiert: false, ganzkoerper: true)
+    @ViewBuilder private var vorschau: some View {
+        if zimmer {
+            ZimmerTeilVorschau(id: artikel.id).clipShape(RoundedRectangle(cornerRadius: 18))
+        } else {
+            ArtikelBild(id: artikel.id, aussehen: vorschauAussehen)
+        }
     }
 
     @ViewBuilder private var aktion: some View {
         if besitzt {
             if istEigeneFigur {
-                Button(getragen ? "Ausziehen" : "Anziehen") {
+                Button(zimmer ? (getragen ? "Wegräumen" : "Einrichten") : (getragen ? "Ausziehen" : "Anziehen")) {
                     getragen ? onAusziehen() : onAnziehen()
                 }
                 .buttonStyle(.borderedProminent)
@@ -264,6 +297,49 @@ private struct ArtikelDetail: View {
             .tint(Color.loveaRose)
             .disabled(fehlend > 0)
             .padding(.horizontal, 24)
+        }
+    }
+}
+
+/// Vorschau im Detail: die Figur groß; p56: bei der Jeans (Blumen auf den Gesäßtaschen) und beim Schmuck daneben die Nahaufnahme.
+struct ArtikelBild: View {
+    let id: String
+    let aussehen: FigurAussehen
+
+    var body: some View {
+        HStack(spacing: 12) {
+            FigurView(aussehen, zustand: .ruhig, groesse: 300, animiert: false, ganzkoerper: true)
+            if id == "mode.blumen-jeans" || schmuckKatalog[id] != nil {
+                Nahaufnahme(id: id)
+                    .frame(width: 180, height: 234)
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+            }
+        }
+        .frame(height: 300)
+    }
+}
+
+/// p56: Jeans von hinten und Schmuck groß, mit den Zeichnern der Figur (Vektor, scharf in jeder Größe). Feld 200 x 260.
+struct Nahaufnahme: View {
+    let id: String
+
+    var body: some View {
+        Canvas { c, s in
+            let k = min(s.width / 200, s.height / 260)
+            var g = c
+            g.translateBy(x: (s.width - 200 * k) / 2, y: (s.height - 260 * k) / 2)
+            g.scaleBy(x: k, y: k)
+            guard let e = schmuckKatalog[id] else { return zeichneJeansRueckseite(g, farbe: FigurFarbe(0x3F6EAF)) }
+            if e.stil.ort == .ohr {
+                // Ein Ohr, groß: (42, 117) wandert in die Feldmitte.
+                g.translateBy(x: 100, y: 130)
+                g.scaleBy(x: 7, y: 7)
+                g.translateBy(x: -42, y: -117)
+                zeichneOhrschmuck(g, id: id)
+            } else {
+                let z: CGFloat = e.stil.ort == .hals ? 5 : e.stil.ort == .hand ? 12 : 7
+                zeichneSchmuck(g, e.stil, e.farbe, hals: P(100, 70), arm: (ellbogen: P(100, 30), hand: P(100, 130)), bei: 1, groesse: z)
+            }
         }
     }
 }

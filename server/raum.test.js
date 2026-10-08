@@ -629,6 +629,24 @@ test("mehrere Geräte: galerie.* und entwurf.setzen gehen an eigene Geräte, nie
   assert.ok(!nachgeholt.includes("p1") && !nachgeholt.includes("p2"));
 });
 
+test("geschenkbox.*: nur der Absender sieht die Wünsche, live und beim Nachholen nie der Partner", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, opNachricht("b1", "geschenkbox.setzen", "annika", { id: "x", text: "Ring" }));
+  await raum.webSocketMessage(websockets.annika, opNachricht("b2", "gefuehl.setzen", "annika", { art: "verliebt" }));
+  const live = websockets.ahmed.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.deepEqual(live, ["b2"], "Stimmung geht an den Partner, die Box nicht");
+  const neu = new FakeWs();
+  ctx.acceptWebSocket(neu, ["ahmed"]);
+  await raum.webSocketMessage(neu, JSON.stringify({ t: "nachholen", seit: 0 }));
+  const nachgeholt = neu.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.ok(nachgeholt.includes("b2") && !nachgeholt.includes("b1"));
+  const eigene = new FakeWs();
+  ctx.acceptWebSocket(eigene, ["annika"]);
+  await raum.webSocketMessage(eigene, JSON.stringify({ t: "nachholen", seit: 0 }));
+  const meine = eigene.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.ok(meine.includes("b1"), "der Absender bekommt seine Box zurück");
+});
+
 test("mehrere Geräte: jedes Gerät hat sein Push-Token, Push nur an Geräte ohne lebende Verbindung", async () => {
   const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
   const ipad = zweitesGeraet(ctx, "annika");

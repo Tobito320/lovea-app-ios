@@ -16,6 +16,15 @@ final class ShopAblegenTests: XCTestCase {
         XCTAssertNil(b.schmuck)
     }
 
+    /// p56: die neuen `juwel.*` bleiben beim Aufräumen, der alte `schmuck.*` im selben Feld geht.
+    func testNeueJuwelenBleibenAlterSchmuckGeht() {
+        var a = annika()
+        a.schmuck = "schmuck.perlenkette,juwel.herzkette,juwel.cartier-love"
+        XCTAssertEqual(a.ohneEntfernteTeile().schmuckListe, ["juwel.herzkette", "juwel.cartier-love"])
+        a.schmuck = "schmuck.perlenkette"
+        XCTAssertNil(a.ohneEntfernteTeile().schmuck)
+    }
+
     func testBehaltenesBleibtAngezogen() {
         var a = annika()
         a.tasche = "tasche.guess-tasche"
@@ -26,7 +35,8 @@ final class ShopAblegenTests: XCTestCase {
 
     func testEntfernteKleidungKehrtZumStandardZurueck() {
         let basis = annika()
-        for id in ["mode.balenciaga-hoodie", "mode.dior-cape", "mode.glitzerhose", "mode.balenciaga-triple-s", "brille.cartier-sonnenbrille"] {
+        for id in ["mode.balenciaga-hoodie", "mode.dior-cape", "mode.glitzerhose", "mode.balenciaga-triple-s", "brille.cartier-sonnenbrille",
+                   "mode.seidenbluse", "mode.moncler-jacke", "mode.nike-sneaker"] {
             var a = basis
             a.anziehen(id)
             XCTAssertNotEqual(a, basis, id)
@@ -36,7 +46,7 @@ final class ShopAblegenTests: XCTestCase {
 
     /// Indizes, die auch der freie Editor wählen kann, sind kein Shop-Teil: die bleiben.
     func testFreieEditorWahlBleibt() {
-        for id in ["mode.bomberjacke", "brille.sport", "brille.guess"] {
+        for id in ["mode.bomberjacke", "brille.sport", "brille.guess", "mode.cargohose", "mode.jeansjacke"] {
             var a = annika()
             a.anziehen(id)
             XCTAssertEqual(a.ohneEntfernteTeile(), a, id)

@@ -50,7 +50,7 @@ export function agentStatistik(sql) {
 // limit (1-200, Standard 50), aufsteigend (sonst neueste zuerst), voll (große d nicht kürzen).
 // `fuer`: private Arten der anderen Person bleiben unsichtbar, wie in opsSeit.
 export function agentOps(sql, f, fuer) {
-  const wo = [`NOT ((art = ? OR art LIKE 'galerie.%') AND von != ?)`];
+  const wo = [`NOT ((art = ? OR art LIKE 'galerie.%' OR art LIKE 'geschenkbox.%') AND von != ?)`];
   const werte = [NUR_FUER_ABSENDER, fuer];
   if (f.art) {
     const praefix = f.art.endsWith(".") || f.art.endsWith("*");

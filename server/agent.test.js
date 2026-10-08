@@ -73,6 +73,7 @@ test("Ops zeigt private Arten der anderen Person nicht", () => {
     { art: "entwurf.setzen", von: "annika", d: { geheim: 1 } },
     { art: "galerie.neu", von: "annika", d: {} },
     { art: "entwurf.setzen", von: "ahmed", d: {} },
+    { art: "geschenkbox.setzen", von: "annika", d: { text: "Ring" } },
   ]);
   assert.deepEqual(agentOps(sql, {}, "ahmed").ops.map((o) => o.seq), [3]);
 });

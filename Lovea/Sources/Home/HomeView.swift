@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Home in der Reihenfolge aus Spec 8.1: Nächstes Treffen, Wie geht's dir heute, Frage des
-/// Tages, Pünktlich-Karte (nur wenn fällig), Kalendermonat, Date-Ideen (mit Würfel und Wunschliste).
+/// Tages, Pünktlich-Karte (nur wenn fällig), Kalendermonat, Date-Ideen.
 struct HomeView: View {
     let person: Person
     @State private var pfad = NavigationPath()
@@ -11,7 +11,6 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     NaechstesTreffenCard()
-                    GrussKnopfCard()
                     PartnerTagCard(person: person)
                     HeuteVorCard()
                     WieGehtsDirCard()

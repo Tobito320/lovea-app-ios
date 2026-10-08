@@ -82,11 +82,12 @@ private struct ProfilInhalt: View {
     let schliessen: () -> Void
 
     @Environment(\.openURL) private var openURL
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var dehnung: CGFloat = 0
     @State private var tipps = 0
     @State private var nummerFehlt = 0
     @State private var blatt: ProfilBlatt?
+    /// p60: das offene Blatt der Paar-Signale im Zimmer (Stimmung, Brief, Zettel, Geschenkbox).
+    @State private var signale: SignaleBlatt?
     @State private var backdropOffen = false
     /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
     @State private var karteOffen = false
@@ -175,138 +176,104 @@ private struct ProfilInhalt: View {
     /// The container keeps a fixed height; only the scene behind it grows upwards while pulling
     /// down, so nothing below shifts and feeds back into the scroll offset.
     private var kopf: some View {
-        let szene = ProfilSzene.fuer(person: person)
-        let b = belegung(szene, paar: true)
-        return ZStack(alignment: .bottomLeading) {
-            kopfFiguren(szene, b, paar: true)
-                .frame(maxWidth: .infinity, alignment: .trailing)
-                .padding(.trailing, -6)
-
-            HStack(spacing: 12) {
-                avatar
-                VStack(alignment: .leading, spacing: 8) {
+        ZStack(alignment: .bottomLeading) {
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 10) {
+                    ProfilPaarAvatare(ich: ich)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(person.name).font(.title.bold())
+                        Text(ProfilPaarAvatare.titel).font(.title2.bold())
                         Text("zusammen seit 26.08.2026").font(.subheadline.weight(.medium)).opacity(0.9)
                     }
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
-                    partnerJetzt
                 }
+                partnerJetzt
             }
             .padding(16)
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) { szenenHintergrund(szene, mitBett: b.imBett.isEmpty) }
+        .background(alignment: .bottom) { zuhause(paar: true) }
     }
 
-    /// Z-25.1: own profile only — a single full-body figure in the person's scene, name and a
-    /// "Zimmer gestalten" tap target (no partner figure, no "Unser Chat", no steps).
+    /// Z-25.1: own profile only — the shared home with both of them, name and a "Zimmer gestalten"
+    /// tap target (no "Unser Chat", no steps).
     private var eigenerKopf: some View {
-        let szene = ProfilSzene.fuer(person: person)
-        let b = belegung(szene, paar: false)
-        return ZStack(alignment: .bottomLeading) {
-            kopfFiguren(szene, b, paar: false)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .padding(.top, 20)
-            HStack(spacing: 12) {
-                avatar
-                Text(person.name).font(.title.bold())
+        ZStack(alignment: .bottomLeading) {
+            HStack(spacing: 10) {
+                ProfilPaarAvatare(ich: ich)
+                Text(ProfilPaarAvatare.titel).font(.title2.bold())
                     .foregroundStyle(.white)
                     .shadow(color: .black.opacity(0.4), radius: 6, y: 1)
             }
             .padding(16)
+            .onTapGesture { zimmerGestalten() }
+            .accessibilityAddTraits(.isButton)
+            .accessibilityHint("Gestaltet dein Zimmer")
             Image(systemName: "pencil.circle.fill")
                 .font(.title2)
                 .foregroundStyle(.white)
                 .shadow(color: .black.opacity(0.5), radius: 4)
                 .padding(14)
+                .onTapGesture { zimmerGestalten() }
+                .accessibilityLabel("Zimmer gestalten")
+                .accessibilityAddTraits(.isButton)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
         }
         .frame(maxWidth: .infinity)
         .frame(height: Self.kopfHoehe)
-        .background(alignment: .bottom) { szenenHintergrund(szene, mitBett: b.imBett.isEmpty) }
-        .onTapGesture { zimmerGestalten() }
-        .accessibilityAddTraits(.isButton)
-        .accessibilityHint("Gestaltet dein Zimmer")
+        .background(alignment: .bottom) { zuhause(paar: false) }
     }
 
-    /// Brief G: the scene follows real life (room, bed, gym, outside) and replaces the plain
-    /// wallpaper; like before it grows upward while pulling down.
-    private func szenenHintergrund(_ szene: ProfilSzene, mitBett: Bool) -> some View {
-        ProfilSzeneHintergrund(szene: szene, zimmer: Zimmer.von(person, ort: szene.raumOrt ?? .zuhause), nacht: ProfilSzene.nacht(person: person), mitBett: mitBett)
-            .frame(height: Self.kopfHoehe + dehnung)
-            .overlay { kopfSchatten }
-    }
-
-    private typealias Belegung = (personen: [Person], imBett: [Person])
-
-    /// Brief G fix: who is shown, always Annika left and Ahmed right, and who of them lies in bed.
-    /// Only a sleeper is in bed, and a bed only exists in the room. The own profile shows the own
-    /// figure alone, or both when both sleep. Teil 2 (Nähe): the partner profile shows the pair
-    /// only when they are together (or a kiss plays) — getrennt zeigt es nur die eigene Person.
-    private func belegung(_ szene: ProfilSzene, paar: Bool) -> Belegung {
-        let beide = szene == .schlafen(zusammen: true) || szene == .zeichnen(zusammen: true)
+    /// p58: the stretchy header scene is always the shared home with both of them (`ZuhauseBuehne`),
+    /// in the partner profile and the own one. It grows upward while pulling down. They walk about
+    /// by the clock; only when they are together for real (or a kiss plays) the pair's hug and kiss
+    /// replaces the walkers. The bouquets (p59) are Annika's choice for her room, shown in both profiles.
+    private func zuhause(paar: Bool) -> some View {
         let paarDa = paar && (NaeheLogik.sindZusammen || FigurenModell.shared.kussBeginn != nil)
-        let personen: [Person] = paarDa || beide ? [.annika, .ahmed] : [person]
-        switch szene {
-        case .zimmer, .schlafen: return (personen, personen.filter { ProfilSzene.schlafGerade($0) != .wach })
-        case .gym, .draussen, .unterwegs, .abteil, .schule, .arbeit, .zeichnen: return (personen, [])
-        }
-    }
-
-    /// Everyone asleep: one bed. Mixed: a smaller bed beside the one standing. At night the room
-    /// dims its figures along with the drawing. `paar`: true from the partner profile's `kopf`
-    /// (small signs while apart are only shown there, never on the own profile).
-    @ViewBuilder
-    private func kopfFiguren(_ szene: ProfilSzene, _ b: Belegung, paar: Bool) -> some View {
-        let wach = b.personen.filter { !b.imBett.contains($0) }
-        let dunkel = nachtImZimmer(szene)
-        Group {
-            if wach.isEmpty {
-                bett(b.imBett, skala: 1)
-            } else if wach.count == 2 {
-                // Teil 2 (Nähe): both awake and together, the pair's closeness pose (kiss glides
-                // into Stufe 3 and back).
-                KussPaar(vorn: person, stufe: NaeheLogik.aktuelleStufe, zusammen: NaeheLogik.sindZusammen) { p, pose, ebene in
-                    figur(p, szene: figurSzene(szene, p), naehe: pose, ebene: ebene)
-                }
-            } else if b.imBett.isEmpty {
-                let zeichenApart = paar && NaeheLogik.aktuelleStufe > 0 && !NaeheLogik.sindZusammen
-                if zeichenApart {
-                    TimelineView(.periodic(from: .now, by: 1)) { kontext in
-                        einzelReihe(wach, szene, handy: NaeheLogik.handySchauen(stufe: NaeheLogik.aktuelleStufe, jetzt: kontext.date))
-                            .overlay {
-                                if NaeheLogik.aktuelleStufe >= 3, !reduceMotion {
-                                    SteigendeHerzen().opacity(0.35).allowsHitTesting(false).accessibilityHidden(true)
-                                }
-                            }
-                    }
-                } else {
-                    einzelReihe(wach, szene)
-                }
-            } else {
-                HStack(alignment: .bottom, spacing: -30) {
-                    ForEach(b.personen, id: \.self) { p in
-                        if b.imBett.contains(p) { bett([p], skala: 0.75) } else { figur(p, szene: figurSzene(szene, p)) }
-                    }
-                }
+        let zimmer = Zimmer.von(person)
+        // p60: sagen beide Gute Nacht, ist es im Zimmer Nacht; die Signale (Lampe, Brief, Zettel, Box) liegen darüber.
+        let nacht = NachtLogik.gemeinsamDunkel(FigurenModell.shared.gruss, jetzt: Date())
+        // p61: the shared room's pieces, the cat (it can be stroked here, once a day each), and in the own
+        // profile the clothes rail and the shoe shelf open the outfit change.
+        let punkte = PunkteModell.shared
+        let katze = ZuhauseKatze(id: ZimmerKatze.id(tiere: Person.allCases.map { FigurenModell.shared.aussehen($0).tier }),
+                                 gestreichelt: punkte.katzeGestreichelt(ich), streicheln: { punkte.katzeStreicheln() })
+        return ZuhauseBuehne(dehnung: dehnung, straeusse: ZimmerStraeusse.von(.annika).fuerBuehne, paarDa: paarDa, extras: .live(), nacht: nacht, wahl: ZimmerWahl.aktuell, katze: katze,
+                             outfit: istEigenes ? { figurBearbeitenOffen = true } : nil,
+                             wandDinge: { zeit in AnyView(ZimmerLebenBild(zimmer: zimmer, person: person, nacht: zeit.dunkel)) }) { f in
+            buehnenFigur(f)
+        } paar: {
+            // Teil 2 (Nähe): the pair's closeness pose (kiss glides into Stufe 3 and back).
+            KussPaar(vorn: person, stufe: NaeheLogik.aktuelleStufe, zusammen: NaeheLogik.sindZusammen) { p, pose, ebene in
+                figur(p, naehe: pose, ebene: ebene)
             }
         }
-        .brightness(dunkel ? -0.1 : 0)
+        // p62: the room's living objects (wall, shelf, plant, goal); their taps sit on top, small.
+        .overlay { ZimmerLebenTippen(zimmer: zimmer, person: person) }
+        .overlay { PaarSignaleEbene(blatt: $signale) }
+        .overlay { AlltagEbene() }
     }
 
-    /// The apart branch's plain HStack, unchanged whether or not the small "looks at phone" sign runs.
-    private func einzelReihe(_ wach: [Person], _ szene: ProfilSzene, handy: Bool = false) -> some View {
-        HStack(alignment: .bottom, spacing: -64) {
-            ForEach(wach, id: \.self) { p in figur(p, szene: figurSzene(szene, p), handy: handy).zIndex(p == person ? 1 : 0) }
+    /// A walker, sitter or sleeper of the home scene: their own look and badges, the state and size
+    /// the stage asks for. Tapping the partner opens the gesture menu, like the figure always did.
+    @ViewBuilder
+    private func buehnenFigur(_ f: ZuhauseFigur) -> some View {
+        let v = FigurView(FigurenModell.shared.aussehen(f.person), zustand: f.zustand, abzeichen: abzeichen(f.person), groesse: f.groesse,
+                          animiert: f.animiert, bildrate: 15, ganzkoerper: f.ganzkoerper)
+        Group {
+            if f.person == ich {
+                v.accessibilityLabel("Deine Figur")
+            } else {
+                v.figurGesten(person: f.person) { FigurenModell.shared.gesteSenden($0) }
+            }
         }
-    }
-
-    /// The scene dresses the profile person only; drawing together (Brief Z) dresses both.
-    private func figurSzene(_ szene: ProfilSzene, _ p: Person) -> ProfilSzene? {
-        p == person || szene == .zeichnen(zusammen: true) ? szene : nil
+        .overlay(alignment: .top) {
+            // p60: the mood bubble above the head; the sleepers in the bed have none.
+            if f.zustand != .schlaeft {
+                StimmungBlase(person: f.person, figurHoehe: f.groesse, ganzkoerper: f.ganzkoerper) { signale = .stimmung }
+            }
+        }
     }
 
     /// Brief G: the editor for the place the person is at right now (home, office, classroom),
@@ -314,25 +281,6 @@ private struct ProfilInhalt: View {
     private func zimmerGestalten() {
         zimmerOrt = ProfilSzene.fuer(person: person).raumOrt ?? .zuhause
         blatt = .zimmer
-    }
-
-    /// Same night as the drawing: the bed scene is always night, the rooms follow the clock.
-    private func nachtImZimmer(_ szene: ProfilSzene) -> Bool {
-        szene.dunkel(nacht: ProfilSzene.nacht(person: person))
-    }
-
-    /// Sitting up (3 quiet minutes after "Gute Nacht") or lying down, per sleeper.
-    private func bett(_ schlaefer: [Person], skala: CGFloat) -> some View {
-        let sitzend = Set(schlaefer.indices.filter { ProfilSzene.schlafGerade(schlaefer[$0]) == .sitzt })
-        return SchlafendeFiguren(zimmer: Zimmer.von(person), schlaefer: schlaefer.map { FigurenModell.shared.aussehen($0) }, skala: skala, sitzend: sitzend)
-    }
-
-    private var kopfSchatten: some View {
-        VStack(spacing: 0) {
-            LinearGradient(colors: [.black.opacity(0.35), .clear], startPoint: .top, endPoint: .bottom).frame(height: 130)
-            Spacer(minLength: 0)
-            LinearGradient(colors: [.clear, .black.opacity(0.55)], startPoint: .top, endPoint: .bottom).frame(height: 170)
-        }
     }
 
     /// Z-34.2: weather and "hört gerade" moved here from the chat header. Glass fits: they float
@@ -396,29 +344,6 @@ private struct ProfilInhalt: View {
         } else {
             v.figurGesten(person: p) { FigurenModell.shared.gesteSenden($0) }
         }
-    }
-
-    /// Round head crop of the figure. The head sits at y 30…152 of FigurView's 240-unit canvas,
-    /// centre ≈ 0.38 of the height — at `groesse = 1.6d` that is 0.19·d above the view centre.
-    private var avatar: some View {
-        let d: CGFloat = 84
-        let online = istEigenes ? Raum.shared.verbunden : Raum.shared.partnerDa
-        return FigurView(FigurenModell.shared.aussehen(person), zustand: .ruhig, groesse: d * 1.6, animiert: false)
-            .offset(y: d * 0.19)
-            .frame(width: d, height: d)
-            .background(Color(uiColor: .secondarySystemBackground))
-            .clipShape(Circle())
-            .overlay(Circle().stroke(.white, lineWidth: 3))
-            .overlay(alignment: .bottomTrailing) {
-                if online {
-                    Circle().fill(.green)
-                        .frame(width: 18, height: 18)
-                        .overlay(Circle().stroke(.white, lineWidth: 2.5))
-                        .offset(x: -2, y: -2)
-                }
-            }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("\(person.name), \(online ? "online" : "offline")")
     }
 
     // MARK: - Chips

@@ -172,7 +172,7 @@ struct NaehrwertFotoBlatt: View {
 /// Kamera-Aufnahme über `UIImagePickerController` (`.camera`), analog zu `BarcodeKamera` in
 /// `BarcodeScanner.swift`, die dort `DataScannerViewController` genauso als
 /// `UIViewControllerRepresentable` einbindet. `nil` bei Abbruch.
-private struct NaehrwertKamera: UIViewControllerRepresentable {
+struct NaehrwertKamera: UIViewControllerRepresentable {
     let aufgenommen: (UIImage?) -> Void
 
     func makeUIViewController(context: Context) -> UIImagePickerController {

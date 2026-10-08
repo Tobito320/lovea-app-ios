@@ -101,7 +101,7 @@ private struct BriefZeile: View {
 
 // MARK: - Lesen und Öffnen
 
-private struct BriefLesenBlatt: View {
+struct BriefLesenBlatt: View {
     let brief: Brief
     let speicher = BriefeSpeicher.shared
     @Environment(\.dismiss) private var dismiss

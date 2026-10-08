@@ -31,6 +31,7 @@ final class PunkteModell {
         Raum.shared.beobachten(["spiel.ergebnis"]) { [weak self] op in self?.spielErgebnisAnwenden(op) }
         Raum.shared.beobachten(["shop.kauf"]) { [weak self] op in self?.kaufAnwenden(op) }
         Raum.shared.beobachten([DankLogik.art]) { [weak self] op in self?.dankAnwenden(op) }
+        Raum.shared.beobachten([KatzeLogik.art]) { [weak self] op in self?.katzeAnwenden(op) }
         Task { [weak self] in
             try? await Task.sleep(nanoseconds: 10_000_000_000)
             self?.dankSendenFallsFehlt()
@@ -39,6 +40,10 @@ final class PunkteModell {
 
     private var dankNachId: [String: Person] = [:]
     private var dankEintraege: [PunkteLogik.Eintrag] { DankLogik.eintraege(dankNachId.map { (id: $0.key, fuer: $0.value) }) }
+
+    /// p61: the cat's strokes by op id, one per day and person (see `KatzeLogik`).
+    private var katzeNachId: [String: (tag: String, von: Person)] = [:]
+    private var katzeEintraege: [PunkteLogik.Eintrag] { KatzeLogik.eintraege(katzeNachId.map { (id: $0.key, tag: $0.value.tag, von: $0.value.von) }) }
 
     private var heute: String { Datum.text(Date()) }
 
@@ -67,7 +72,7 @@ final class PunkteModell {
         for (person, punkte) in ChallengeLogik.punkteBonus(wochen: wochen, monate: monate, serien: serien) {
             summe[person, default: 0] += punkte
         }
-        for e in dankEintraege { summe[e.von, default: 0] += e.punkte }
+        for e in dankEintraege + katzeEintraege { summe[e.von, default: 0] += e.punkte }
         return summe
     }
 
@@ -98,7 +103,7 @@ final class PunkteModell {
         for bonus in serien {
             eintraege.append(PunkteLogik.Eintrag(datum: bonus.datum, von: bonus.von, grund: "Serie \(bonus.laenge) Tage", punkte: bonus.punkte))
         }
-        eintraege += dankEintraege
+        eintraege += dankEintraege + katzeEintraege
         let preis: (String) -> Int? = { ShopKatalog.artikel($0)?.preis }
         let urteil = besitzErgebnis(stand: stand, preis: preis)
         for kauf in kaeufe where !urteil.abgelehnt.contains(kauf.id) {
@@ -214,6 +219,23 @@ final class PunkteModell {
     private func dankAnwenden(_ op: Op) {
         guard let d = op.daten(DankLogik.D.self) else { return }
         dankNachId[op.id] = d.fuer
+    }
+
+    private func katzeAnwenden(_ op: Op) {
+        guard let d = op.daten(KatzeLogik.D.self) else { return }
+        katzeNachId[op.id] = (d.tag, op.von)
+    }
+
+    /// p61: has `person` stroked the cat today? (A stroke by the other one does not count.)
+    func katzeGestreichelt(_ person: Person) -> Bool { katzeNachId[KatzeLogik.opId(tag: heute, von: person)] != nil }
+
+    /// p61: strokes the cat. Gives `KatzeLogik.punkte` the first time today, 0 afterwards. The op id
+    /// carries day and person, so a second phone or a replay counts once as well.
+    @discardableResult
+    func katzeStreicheln() -> Int {
+        guard let ich = Raum.shared.ich, !katzeGestreichelt(ich) else { return 0 }
+        Raum.shared.einreihen(KatzeLogik.op(tag: heute, von: ich))
+        return KatzeLogik.punkte
     }
 
     /// Läuft einmal nach dem Log-Replay; was schon im Log steht (anderes Gerät, Neuinstallation), wird nicht neu gesendet.

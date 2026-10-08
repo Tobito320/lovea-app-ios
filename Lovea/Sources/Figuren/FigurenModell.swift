@@ -27,6 +27,8 @@ final class FigurenModell {
     private var gesehenGesten: Set<String> = []
     /// Zählt hoch, wenn Herzen regnen sollen (eigener Tipp oder frisches Herz vom Partner), `HerzRegen`.
     private(set) var herzEreignis = 0
+    /// p60: zählt hoch, wenn die andere Person die Lampe im Zimmer antippt (`PaarSignaleEbene` lässt sie kurz leuchten).
+    private(set) var lampeEreignis = 0
     /// Z-24.3: newest `kuss` op per sender, updated on EVERY delivery (live and replay alike, unlike
     /// `geste` above which only tracks the 4s-fresh window) — lets the profile show a missed kiss
     /// once, the next time it's opened.
@@ -53,16 +55,19 @@ final class FigurenModell {
             self?.aussehen[op.von] = a
         }
         raum.beobachten(["geste"]) { [weak self] op in
-            guard let self, let art = op.daten([String: String].self)?["art"] else { return }
+            let d = op.daten([String: String].self)
+            guard let self, let art = d?["art"] else { return }
             let neu = gesehenGesten.insert(op.id).inserted
             if neu, Calendar.berlin.isDateInToday(op.zeit), art == "herz" { herzHeute[op.von, default: 0] += 1 }
             if art == "kuss", (letzterKuss[op.von] ?? .distantPast) < op.zeit { letzterKuss[op.von] = op.zeit }
             // Only fresh gestures animate; replayed history just counts.
             guard neu, op.von != raum.ich, Date().timeIntervalSince(op.zeit) < 30, let z = FigurZustand(rawValue: art) else { return }
             geste[op.von] = (z, Date().addingTimeInterval(4))
-            Herzschlag.geste(art)
+            // Die Lampe im Zimmer klopft nur leicht an (kein Herzregen), der Herzschlag ist für das große Denk-an-dich.
+            let lampe = d?["quelle"] == "lampe"
+            if lampe { Haptik.leicht(); lampeEreignis += 1 } else { Herzschlag.geste(art) }
             if art == "kuss" { kussEreignis += 1 }
-            if art == "herz" { herzEreignis += 1 }
+            if art == "herz", !lampe { herzEreignis += 1 }
             aufFrischeGeste?(op.von, z)
         }
         raum.beobachten(["gruss"]) { [weak self] op in
@@ -162,15 +167,16 @@ final class FigurenModell {
     /// Z-24.3: for "kuss" this also echoes optimistically into `geste`/`letzterKuss` — the replay
     /// guard above (`op.von != raum.ich`) intentionally skips the sender's own round-tripped op, so
     /// without this the sender would never see/hear their own profile kiss animation.
-    func gesteSenden(_ art: String) {
-        Raum.shared.senden("geste", ["art": art])
+    /// `quelle` (optional): wo die Geste herkommt, z. B. "lampe" im Zimmer -- der Server schickt dafür eine stille Push.
+    func gesteSenden(_ art: String, quelle: String? = nil) {
+        Raum.shared.senden("geste", quelle.map { ["art": art, "quelle": $0] } ?? ["art": art])
         guard let ich = Raum.shared.ich else { return }
         // Runde-3 expressions: the own figure makes the face too, for the same 4 s.
         if let z = FigurZustand(rawValue: art), FigurZustand.mimik.contains(z) {
             geste[ich] = (z, Date().addingTimeInterval(4))
             return
         }
-        if art == "herz" { herzEreignis += 1 }
+        if art == "herz", quelle != "lampe" { herzEreignis += 1 }
         guard art == "kuss" else { return }
         geste[ich] = (.kuss, Date().addingTimeInterval(4))
         letzterKuss[ich] = Date()
