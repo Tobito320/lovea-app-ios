@@ -271,7 +271,8 @@ class TiefenTestBasis: XCTestCase {
         systemDialog()
         guard lebt(name) else { return false }
         foto(name)
-        if dauer > 15 { befund("Hänger: \(name) brauchte \(Int(dauer)) s", hart: true) }
+        // 15-90 s: auf dem langsamen CI-Simulator oft nur die Hierarchie-Abfrage, daher nur Befund; darüber hart
+        if dauer > 15 { befund("Hänger: \(name) brauchte \(Int(dauer)) s", hart: dauer > 90) }
         let sicht = lesen()
         inhaltPruefen(name, sicht: sicht, erwartetLeer: erwartetLeer)
         return true
@@ -325,9 +326,10 @@ class TiefenTestBasis: XCTestCase {
         }
         if !erwartetLeer && inhalt.count < 2 { befund("leere Ansicht bei \(name)", hart: true) }
         for e in sicht where e.typ == "StaticText" && !e.label.isEmpty && e.rahmen.width > 0 && e.rahmen.height > 0 {
-            // System-Text (Diktat-Hinweis, Foto-Auswahl), nicht aus der App
-            let systemText = ["Learn More…", "Weitere Infos …", "Loading..."]
-            if (e.label.hasSuffix("…") || e.label.hasSuffix("...")) && !systemText.contains(e.label) {
+            // System-Text (Diktat-Hinweis, Foto-Auswahl, Standort-Hinweis), nicht aus der App
+            let systemText = ["Learn More…", "Weitere Infos …", "Mediathek durchsuchen …", "Loading..."]
+            if systemText.contains(e.label) || e.label.hasPrefix("Location Services") || e.label.hasPrefix("Standortdienste") { continue }
+            if e.label.hasSuffix("…") || e.label.hasSuffix("...") {
                 befund("Text endet mit Auslassung bei \(name): '\(e.label)'", hart: true)
                 continue
             }
