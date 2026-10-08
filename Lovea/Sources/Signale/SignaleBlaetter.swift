@@ -10,7 +10,7 @@ struct StimmungWahlBlatt: View {
         NavigationStack {
             ScrollView {
                 LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 3), spacing: 12) {
-                    ForEach(Stimmung.allCases, id: \.self) { s in
+                    ForEach(Gefuehl.allCases, id: \.self) { s in
                         Button {
                             Haptik.auswahl()
                             speicher.stimmungSetzen(s == aktuell ? nil : s)

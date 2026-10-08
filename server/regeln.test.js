@@ -49,7 +49,7 @@ test("geste herz aus der Lampe: still, ohne Text und Ton", () => {
 });
 
 test("Stimmung, Geschenkbox, Zimmer-Signale lösen keine eigene Push aus", () => {
-  assert.equal(regel("stimmung.setzen", "annika", { art: "muede" }), null);
+  assert.equal(regel("gefuehl.setzen", "annika", { art: "muede" }), null);
   assert.equal(regel("geschenkbox.setzen", "annika", { id: "x", text: "Ring" }), null);
 });
 

@@ -28,8 +28,8 @@ final class PaarSignaleRenderTests: XCTestCase {
         let speicher = SignaleSpeicher(ich: { .annika }, senden: { _ in })
         if stimmungen {
             speicher.einarbeiten([
-                Op.neu(SignaleLogik.artStimmung, SignaleLogik.StimmungD(art: Stimmung.verliebt.rawValue), von: .annika),
-                Op.neu(SignaleLogik.artStimmung, SignaleLogik.StimmungD(art: Stimmung.muede.rawValue), von: .ahmed),
+                Op.neu(SignaleLogik.artStimmung, SignaleLogik.StimmungD(art: Gefuehl.verliebt.rawValue), von: .annika),
+                Op.neu(SignaleLogik.artStimmung, SignaleLogik.StimmungD(art: Gefuehl.muede.rawValue), von: .ahmed),
             ])
         }
         let stand = ZuhauseSzenenstand(zeit: zeit, ZuhauseAblauf.aufstellung(zeit, schritt: 0))
@@ -54,12 +54,12 @@ final class PaarSignaleRenderTests: XCTestCase {
     func testSignaleBrett() {
         let blasen = AnyView(HStack(spacing: 8) {
             bild(SignaleZeichnung.blasenRaster, breite: 44) { SignaleZeichnung.blase($0, nil) }
-            ForEach(Stimmung.allCases, id: \.self) { s in
+            ForEach(Gefuehl.allCases, id: \.self) { s in
                 bild(SignaleZeichnung.blasenRaster, breite: 44) { SignaleZeichnung.blase($0, s) }
             }
         })
         let gesichter = AnyView(HStack(spacing: 8) {
-            ForEach(Stimmung.allCases, id: \.self) { s in
+            ForEach(Gefuehl.allCases, id: \.self) { s in
                 bild(CGSize(width: 40, height: 40), breite: 56) { SignaleZeichnung.gesicht($0, s) }
             }
         })

@@ -632,7 +632,7 @@ test("mehrere Geräte: galerie.* und entwurf.setzen gehen an eigene Geräte, nie
 test("geschenkbox.*: nur der Absender sieht die Wünsche, live und beim Nachholen nie der Partner", async () => {
   const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
   await raum.webSocketMessage(websockets.annika, opNachricht("b1", "geschenkbox.setzen", "annika", { id: "x", text: "Ring" }));
-  await raum.webSocketMessage(websockets.annika, opNachricht("b2", "stimmung.setzen", "annika", { art: "verliebt" }));
+  await raum.webSocketMessage(websockets.annika, opNachricht("b2", "gefuehl.setzen", "annika", { art: "verliebt" }));
   const live = websockets.ahmed.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
   assert.deepEqual(live, ["b2"], "Stimmung geht an den Partner, die Box nicht");
   const neu = new FakeWs();

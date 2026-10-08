@@ -23,9 +23,9 @@ final class PaarSignaleTests: XCTestCase {
     // MARK: - Stimmung
 
     func testStimmungenSindDieSechsVomDraht() {
-        XCTAssertEqual(Stimmung.allCases.map(\.rawValue), ["muede", "verliebt", "gestresst", "gluecklich", "krank", "vermisse"])
-        XCTAssertEqual(Set(Stimmung.allCases.map(\.name)).count, 6)
-        XCTAssertEqual(SignaleLogik.arten, ["stimmung.setzen", "geschenkbox.setzen", "geschenkbox.loeschen"])
+        XCTAssertEqual(Gefuehl.allCases.map(\.rawValue), ["muede", "verliebt", "gestresst", "gluecklich", "krank", "vermisse"])
+        XCTAssertEqual(Set(Gefuehl.allCases.map(\.name)).count, 6)
+        XCTAssertEqual(SignaleLogik.arten, ["gefuehl.setzen", "geschenkbox.setzen", "geschenkbox.loeschen"])
     }
 
     func testNeuesteStimmungGewinntReihenfolgeEgalUndIdempotent() {

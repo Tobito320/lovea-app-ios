@@ -27,7 +27,7 @@ enum SignaleZeichnung {
 
     // MARK: Stimmung
 
-    static func farbe(_ s: Stimmung) -> FigurFarbe {
+    static func farbe(_ s: Gefuehl) -> FigurFarbe {
         switch s {
         case .muede: FigurFarbe(0xB9CBF2)
         case .verliebt: FigurFarbe(0xFFB8CB)
@@ -39,7 +39,7 @@ enum SignaleZeichnung {
     }
 
     /// Das runde Gesicht einer Stimmung im 40 x 40 Raster.
-    static func gesicht(_ g: GraphicsContext, _ s: Stimmung) {
+    static func gesicht(_ g: GraphicsContext, _ s: Gefuehl) {
         let tinte = Pal.tinte.farbe
         teil(g, kreis(P(20, 20), 17), farbe(s), 2.5)
         if s != .krank {
@@ -113,7 +113,7 @@ enum SignaleZeichnung {
     }
 
     /// Die Sprechblase über der Figur. `nil`: leere Blase mit Plus, die die eigene Figur zum Setzen einlädt.
-    static func blase(_ g: GraphicsContext, _ s: Stimmung?) {
+    static func blase(_ g: GraphicsContext, _ s: Gefuehl?) {
         if let s {
             let schwanz = Path { p in
                 p.move(to: P(17, 43))

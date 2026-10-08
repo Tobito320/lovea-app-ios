@@ -1,7 +1,7 @@
 import Foundation
 
 /// p60: das Gefühl, das jemand gerade setzt. Erscheint als Blase über der eigenen Figur im Zimmer.
-enum Stimmung: String, Codable, CaseIterable, Sendable {
+enum Gefuehl: String, Codable, CaseIterable, Sendable {
     case muede, verliebt, gestresst, gluecklich, krank, vermisse
 
     var name: String {
@@ -18,7 +18,7 @@ enum Stimmung: String, Codable, CaseIterable, Sendable {
 
 struct StimmungEintrag: Equatable, Sendable {
     /// `nil`: bewusst gelöscht.
-    var art: Stimmung?
+    var art: Gefuehl?
     var zeit: Date
     var opId: String
 }
@@ -43,7 +43,7 @@ struct SignaleStand: Equatable, Sendable {
 /// Reine Faltung der Paar-Signale, ohne `Raum` und ohne Oberfläche. Reihenfolgeunabhängig und
 /// idempotent: je Schlüssel gewinnt die neueste Op (Zeit, dann Op-ID), doppelte Ops schaden nicht.
 enum SignaleLogik {
-    static let artStimmung = "stimmung.setzen"
+    static let artStimmung = "gefuehl.setzen"
     static let artGeschenk = "geschenkbox.setzen"
     static let artGeschenkWeg = "geschenkbox.loeschen"
     static let arten: Set<String> = [artStimmung, artGeschenk, artGeschenkWeg]
@@ -62,10 +62,10 @@ enum SignaleLogik {
             switch op.art {
             case artStimmung:
                 guard let d = op.daten(StimmungD.self) else { continue }
-                var art: Stimmung?
+                var art: Gefuehl?
                 if let roh = d.art, !roh.isEmpty {
                     // Eine Art, die diese App-Version nicht kennt, wird ignoriert statt als Löschen gelesen.
-                    guard let bekannt = Stimmung(rawValue: roh) else { continue }
+                    guard let bekannt = Gefuehl(rawValue: roh) else { continue }
                     art = bekannt
                 }
                 if let alt = z.stimmung[op.von], !neuer(op.zeit, op.id, alsZeit: alt.zeit, id: alt.opId) { continue }
@@ -91,7 +91,7 @@ enum SignaleLogik {
     }
 
     /// Die Stimmung, die jetzt über `person` stehen soll, sonst nil (nie gesetzt, gelöscht, abgelaufen).
-    static func stimmung(_ stand: SignaleStand, von person: Person, jetzt: Date) -> Stimmung? {
+    static func stimmung(_ stand: SignaleStand, von person: Person, jetzt: Date) -> Gefuehl? {
         guard let e = stand.stimmung[person], jetzt.timeIntervalSince(e.zeit) < stimmungGueltig else { return nil }
         return e.art
     }

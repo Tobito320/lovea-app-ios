@@ -44,12 +44,12 @@ final class SignaleSpeicher {
 
     // MARK: Stimmung
 
-    func stimmung(von person: Person, jetzt: Date = Date()) -> Stimmung? {
+    func stimmung(von person: Person, jetzt: Date = Date()) -> Gefuehl? {
         SignaleLogik.stimmung(stand, von: person, jetzt: jetzt)
     }
 
     /// Setzt die eigene Stimmung, `nil` nimmt die Blase wieder weg.
-    func stimmungSetzen(_ art: Stimmung?) {
+    func stimmungSetzen(_ art: Gefuehl?) {
         guard let ich = wer() else { return }
         absenden(Op.neu(SignaleLogik.artStimmung, SignaleLogik.StimmungD(art: art?.rawValue), von: ich))
     }
