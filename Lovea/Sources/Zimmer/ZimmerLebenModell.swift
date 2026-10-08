@@ -34,7 +34,7 @@ enum ZimmerLebenModell {
     static func filme() -> [ZimmerFilm] { lesen(filmeSchluessel, als: [ZimmerFilm].self) ?? [] }
 
     /// Whose sky the window shows (the brief: Annika's city), from `WetterModell` at her position.
-    static let wetterPerson = Person.annika
+    static var wetterPerson: Person { (Raum.shared.ich ?? .annika).partner }
 
     static func stand(zimmer: Zimmer, person: Person, jetzt: Date = Date()) -> ZimmerLebenStand {
         let heute = Datum.text(jetzt)

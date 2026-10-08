@@ -286,6 +286,9 @@ private struct ProfilInhalt: View {
         .overlay { ZimmerRitualeEbene(welt: .panorama, eigen: istEigenes) }
         .overlay { ZimmerErinnerungEbene(welt: .panorama, eigen: istEigenes) }
         .overlay { ZimmerAnlassEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerSchreibenEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerSammlungEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerNaeheEbene(welt: .panorama, eigen: istEigenes) }
     }
 
     /// Unser Zimmer: ein gemeinsamer Raum für beide. Die zwei Avatare öffnen je ein kleines Blatt mit den Zahlen der Person;

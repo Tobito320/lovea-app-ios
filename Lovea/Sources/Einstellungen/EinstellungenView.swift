@@ -15,6 +15,7 @@ struct EinstellungenView: View {
     @AppStorage(StartPlan.schluessel) private var schnellerStart = true // same key `StartPlan.an` reads
     @AppStorage(AirPodsPro3.schluessel) private var airpodsPro3 = AirPodsPro3.startwert // same key `AirPodsPro3.an` reads
     @AppStorage(BettErinnerung.schluessel) private var bettErinnerung = false
+    @AppStorage(ZimmerNaeheLogik.fadenSchluessel) private var zimmerFaden = false // Faden im Zimmer, aus
     @State private var zeigtEntwickler = false
     @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
     @AppStorage(VideoVorab.schluessel) private var videoVorab = true // same key `VideoVorab.an` reads
@@ -53,6 +54,7 @@ struct EinstellungenView: View {
                 NavigationLink("Jahrestag") { JahrestagEditor() }
                 NavigationLink("Wochenplan") { WochenplanEditor() }
                 Toggle("Neuer Kalender", isOn: $kalenderNeu)
+                Toggle("Faden zum Partner im Zimmer", isOn: $zimmerFaden)
                 FaceTimeKontaktZeile()
                 SpotifyVerbindenRow()
             }

@@ -26,6 +26,7 @@ enum ZimmerPlatzLogik {
         for (i, rect) in ZimmerRitualeEbene.alleRects.enumerated() { r["rituale\(i)"] = rect }
         for (i, rect) in ZimmerSchreibenEbene.alleRects.enumerated() { r["schreiben\(i)"] = rect }
         for (i, rect) in ZimmerSammlungEbene.alleRects.enumerated() { r["sammlung\(i)"] = rect }
+        for (i, rect) in ZimmerNaeheEbene.alleRects.enumerated() { r["naehe\(i)"] = rect }
         return r
     }
 }
