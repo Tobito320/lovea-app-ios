@@ -34,7 +34,8 @@ final class ZimmerRenderTests: XCTestCase {
     ]
 
     private func globus() -> AnyView {
-        AnyView(Canvas { g, _ in
+        let pins = self.pins
+        return AnyView(Canvas { g, _ in
             ZimmerGlobusZeichnung.zeichne(g, mitte: CGPoint(x: 195, y: 215), radius: 150, zentrum: ZimmerGlobus.mitte(pins), pins: pins)
         }
         .frame(width: 390, height: 430)
