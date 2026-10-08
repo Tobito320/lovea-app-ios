@@ -74,7 +74,7 @@ struct ZimmerSchreibenEbene: View {
         .task(id: fliegt && sichtbar && !reduceMotion) { await fliegen() }
         .sheet(item: $blatt) { b in
             switch b {
-            case .tagebuch: ZimmerTagebuchBlatt(zurKapsel: { blatt = .kapsel })
+            case .tagebuch: ZimmerTagebuchBlatt()
             case .kompliment: ZimmerKomplimentBlatt()
             case .kapsel: ZimmerKapselBlatt()
             }
@@ -165,6 +165,7 @@ struct ZimmerSchreibenEbene: View {
                 .foregroundStyle(.white)
                 .shadow(radius: 1)
                 .padding(15)
+                .frame(minWidth: ProfilSlots.tippMinimum, minHeight: ProfilSlots.tippMinimum)
                 .contentShape(.rect)
         }
         .buttonStyle(.plain)
@@ -250,8 +251,8 @@ enum ZimmerSchreibenDaten {
 // MARK: - Blätter
 
 private struct ZimmerTagebuchBlatt: View {
-    let zurKapsel: () -> Void
     @Environment(\.dismiss) private var dismiss
+    @State private var kapselOffen = false
     @State private var text = ""
     @State private var auswahl: String?
     @State private var gespeichert = 0
@@ -275,10 +276,11 @@ private struct ZimmerTagebuchBlatt: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
-                    Button("Zeitkapsel") { dismiss(); zurKapsel() }
+                    Button("Zeitkapsel") { kapselOffen = true }
                 }
                 ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
             }
+            .sheet(isPresented: $kapselOffen) { ZimmerKapselBlatt() }
             .sensoryFeedback(.success, trigger: gespeichert)
             .onAppear {
                 text = ZimmerSchreibenDaten.eintraege(von: ich)[heute] ?? ""
