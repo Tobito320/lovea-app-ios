@@ -667,6 +667,20 @@ enum ErnaehrungLogik {
                             portionMenge: gesamt > 0 ? gesamt / Double(max(r.portionen, 1)) : 100, portionName: "Portion")
     }
 
+    /// Summe aller Zutaten einer Mahlzeit (ohne Portionen, die Mahlzeit ist die Menge).
+    static func summe(_ r: Rezept) -> Naehrwerte {
+        r.zutaten.reduce(Naehrwerte.null) { $0 + naehrwerte($1.lebensmittel, menge: $1.menge, einheit: $1.einheit) }
+    }
+
+    /// Eine gespeicherte Mahlzeit als einzelne Tagebuch-Einträge, einer je Zutat mit eigener neuer ID.
+    /// So lässt sich jede Zutat am Tag ändern oder löschen, ohne die Vorlage anzufassen.
+    static func eintraege(_ r: Rezept, mahlzeit: Mahlzeit, datum: String, neueId: () -> String = { UUID().uuidString }) -> [EssenEintrag] {
+        r.zutaten.map {
+            EssenEintrag(id: neueId(), datum: datum, mahlzeit: mahlzeit, menge: $0.menge, einheit: $0.einheit,
+                         lebensmittel: $0.lebensmittel, geloescht: nil)
+        }
+    }
+
     // MARK: Fasten
 
     /// Sekunden bis zum Ende des Fastenfensters, negativ = schon geschafft.

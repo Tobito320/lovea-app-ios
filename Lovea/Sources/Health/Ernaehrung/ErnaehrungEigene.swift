@@ -148,6 +148,11 @@ struct RezeptEditor: View {
     @State private var bearbeiteZutat: Zutat?
     @State private var loeschenFragen = false
     @State private var aufEinkaufslisteOffen = false
+    @State private var scannerOffen = false
+    @State private var gescannt: String?
+    @State private var scanLaedt = false
+    @State private var scanHinweis: String?
+    @State private var scanVorschlaege: (name: String, liste: [Lebensmittel], code: String)?
 
     init(start: Rezept? = nil, art: RezeptArt = .rezept) {
         self.start = start
@@ -161,6 +166,7 @@ struct RezeptEditor: View {
     private var kannSichern: Bool { !name.trimmingCharacters(in: .whitespaces).isEmpty && !zutaten.isEmpty }
 
     private var naehrwertePortion: Naehrwerte {
+        if art == .mahlzeit { return ErnaehrungLogik.summe(Rezept(id: "neu", name: name, portionen: 1, zutaten: zutaten, art: art)) }
         let rezept = Rezept(id: start?.id ?? "neu", name: name, portionen: portionen, zutaten: zutaten, geloescht: nil, art: art)
         let lebensmittel = ErnaehrungLogik.alsLebensmittel(rezept)
         return ErnaehrungLogik.naehrwerte(lebensmittel, menge: 1, einheit: .portion)
@@ -184,10 +190,13 @@ struct RezeptEditor: View {
                 Section("Zutaten") {
                     ForEach(zutaten) { z in zutatZeile(z) }
                         .onDelete { zutaten.remove(atOffsets: $0) }
-                    Button("Zutat hinzufügen", systemImage: "plus") { zutatSucheOffen = true }
+                    Button("Zutat suchen", systemImage: "magnifyingglass") { zutatSucheOffen = true }
+                    Button("Barcode scannen", systemImage: "barcode.viewfinder") { scannerOffen = true }
+                    if scanLaedt { ProgressView("Suche Produkt…") }
+                    if let scanHinweis { Text(scanHinweis).font(.footnote).foregroundStyle(.secondary) }
                 }
                 if !zutaten.isEmpty {
-                    Section("Pro Portion") { naehrwerteListe }
+                    Section(art == .mahlzeit ? "Summe der Mahlzeit" : "Pro Portion") { naehrwerteListe }
                     Section {
                         Button("Auf die Einkaufsliste", systemImage: "cart") { aufEinkaufslisteOffen = true }
                     }
@@ -211,6 +220,19 @@ struct RezeptEditor: View {
             }) {
                 ZutatSucheBlatt { l in gewaehlt = l }
             }
+            .sheet(isPresented: $scannerOffen, onDismiss: scannerZu) {
+                BarcodeScannerBlatt { code in gescannt = code }
+            }
+            .sheet(isPresented: Binding(get: { scanVorschlaege != nil }, set: { if !$0 { scanVorschlaege = nil } }), onDismiss: {
+                mengeFuer = gewaehlt
+                gewaehlt = nil
+            }) {
+                if let v = scanVorschlaege {
+                    VorschlaegeBlatt(name: v.name, treffer: v.liste,
+                                     auswahl: { l in gewaehlt = l },
+                                     keinesDavon: { scanVorschlaege = nil; scanHinweis = "Nicht gefunden. Such die Zutat per Name." })
+                }
+            }
             .sheet(item: $mengeFuer) { l in
                 let startMenge = ErnaehrungLogik.startMenge(l)
                 ZutatMengeBlatt(lebensmittel: l, menge: startMenge.menge, einheit: startMenge.einheit) { menge, einheit in
@@ -229,6 +251,24 @@ struct RezeptEditor: View {
             }
             .sheet(isPresented: $aufEinkaufslisteOffen) {
                 EinkaufListeWahlBlatt(zutaten: zutaten)
+            }
+        }
+    }
+
+    /// Barcode-Kette wie im Hinzufügen-Blatt (lokal, Server, Open Food Facts); Treffer geht direkt zur Menge.
+    private func scannerZu() {
+        guard let code = gescannt else { return }
+        gescannt = nil
+        scanHinweis = nil
+        Task {
+            scanLaedt = true
+            let ergebnis = await BarcodeKette.suchen(code, .echt)
+            scanLaedt = false
+            switch ergebnis {
+            case .gefunden(let l): mengeFuer = l
+            case .vorschlaege(let n, let liste): scanVorschlaege = (n, liste, BarcodeLogik.normal(code))
+            case .unbekannt: scanHinweis = "Produkt nicht gefunden. Such die Zutat per Name."
+            case .offline: scanHinweis = "Kein Netz. Versuch es später nochmal."
             }
         }
     }
