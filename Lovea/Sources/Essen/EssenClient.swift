@@ -29,7 +29,7 @@ struct KiTag: Encodable, Sendable {
     }
 }
 
-struct CoachNachricht: Codable, Identifiable, Equatable, Sendable {
+struct EssenCoachNachricht: Codable, Identifiable, Equatable, Sendable {
     var id = UUID()
     /// "nutzer" oder "coach"
     let rolle: String
@@ -51,7 +51,7 @@ private struct EssenAnfrage: Encodable {
 }
 
 private struct CoachAnfrage: Encodable {
-    let nachrichten: [CoachNachricht]
+    let nachrichten: [EssenCoachNachricht]
     let profil: KiProfil
     let tag: KiTag
     let stream: Bool
@@ -182,7 +182,7 @@ enum KiClient {
     }
 
     /// Coach-Antwort als Strom von Textstücken (der Server schickt `data: {"t":"delta","text":...}`).
-    static func coach(nachrichten: [CoachNachricht], profil: KiProfil, tag: KiTag) -> AsyncThrowingStream<String, Error> {
+    static func coach(nachrichten: [EssenCoachNachricht], profil: KiProfil, tag: KiTag) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { fortsetzung in
             let aufgabe = Task {
                 do {

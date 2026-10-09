@@ -11,7 +11,7 @@ import {
   opsSeit,
   SEITE,
   SEITE_BYTES,
-  NUR_FUER_ABSENDER,
+  nurFuerAbsender,
   medienTeilSpeichern,
   medienFertig,
   medienFehlend,
@@ -19,22 +19,21 @@ import {
   medienNachFertigAufraeumen,
   standortSchreiben,
   letzterStandort,
+  zustandMerken,
+  letzterZustand,
   zufaelligNah,
   einstellung,
   geraetSpeichern,
-  geraetToken,
+  geraetTokens,
   geraetLoeschen,
   offeneTreffen,
   offeneAngeheftet,
   offeneSpielEinladungen,
-  streakLaeuftHeuteAb,
   alarmErledigt,
   alarmAlsErledigtMarkieren,
   letzteZufaelligNahMs,
   zufaelligNahAlsGemeldetMarkieren,
   ortInfo,
-  offeneKapseln,
-  kapselEntfernen,
   gemeinsamPruefen,
   gemeinsamSeitMs,
   gemeinsamSeitSetzen,
@@ -44,11 +43,16 @@ import {
   spotifyCacheLesen,
   spotifyCacheSchreiben,
 } from "./raum-logic.js";
+import { agentStatistik, agentOps, agentMerker } from "./agent.js";
 import { push } from "./push.js";
 import { kiIntern } from "./ki-raum.js";
 import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
-import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt } from "./spotify.js";
+import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe, fetchMitGrund } from "./spotify.js";
+import { coachAntwort, coachMorgen, coachMorgenAn } from "./coach.js";
+import { eintraegeLesen } from "./eintraege.js";
+import { tagesformBerechnen } from "./tagesform.js";
+import { katalog as coachKatalog } from "./coach-katalog.js";
 
 const PERSONEN = ["ahmed", "annika"];
 const partnerVon = (person) => (person === "ahmed" ? "annika" : "ahmed");
@@ -58,13 +62,13 @@ const ALARM_TEXT = {
   vorabend: { titel: "Lovea", text: "Morgen seht ihr euch", stufe: "laut", kategorie: "kalender" },
   stundeVorher: { titel: "Lovea", text: "In einer Stunde geht's los", stufe: "laut", kategorie: "kalender" },
   frageDesTages: { titel: "Lovea", text: "Die Frage des Tages ist da", stufe: "leise", kategorie: "frage" },
-  streakWarnung: { titel: "Lovea", text: "Euer Streak läuft heute ab!", stufe: "laut", kategorie: "streak" },
   // Z-22.3: nur eine Mitteilung, der Server rechnet keine Punkte -- die App zeigt beim Öffnen, wie's steht.
   challengeEndspurtWoche: { titel: "Lovea", text: "Letzter Tag für die Wochen-Challenges!", stufe: "laut", kategorie: "challenge" },
   challengeEndeWoche: { titel: "Lovea", text: "Die Wochen-Challenges sind vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
   challengeEndspurtMonat: { titel: "Lovea", text: "Letzter Tag für Gemeinsam Monat!", stufe: "laut", kategorie: "challenge" },
   challengeEndeMonat: { titel: "Lovea", text: "Der Monats-Challenge ist vorbei — schaut nach, wie's steht", stufe: "leise", kategorie: "challenge" },
-  kapselOeffnet: { titel: "Lovea", text: "Eure Zeitkapsel hat sich geöffnet", stufe: "laut", kategorie: "chat" },
+  // Health-Coach: Push ohne Inhalt (der Coach-Text steht nur im Chat), nur an die Person, die es eingeschaltet hat.
+  coachMorgen: { titel: "Lovea", text: "Dein Coach hat geschrieben", stufe: "leise", kategorie: "coach" },
 };
 
 export class Raum {
@@ -90,12 +94,32 @@ export class Raum {
     const person = request.headers.get("X-Lovea-Person") ?? url.searchParams.get("person");
 
     if (url.pathname === "/raum") return this.#upgrade(request, url, person);
-    if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request);
+    if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request, url, person);
     if (url.pathname === "/fl" && request.method === "POST") return this.#flHttp(request, person);
     if (teile[0] === "medien") return this.#medien(request, teile, person);
     if (teile[0] === "ki-intern") return kiIntern(this.sql, request, person);
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
+    if (url.pathname === "/spotify/status" && request.method === "GET") return this.#spotifyStatus(person);
+    if (url.pathname === "/spotify/trennen" && request.method === "POST") return this.#spotifyTrennen(person);
+    if (url.pathname === "/coach/frage" && request.method === "POST") return this.#coachFrage(request, person);
+    if (url.pathname === "/eintraege/lesen" && request.method === "POST") return this.#eintraegeLesen(request, person);
+    if (url.pathname === "/coach/tagesform" && request.method === "POST") return this.#coachTagesform(request, person);
+    if (teile[0] === "agent" && request.method === "GET") return this.#agent(teile[1], url, person);
+    return new Response("not found", { status: 404 });
+  }
+
+  // Nur-Lese-Diagnose für KI-Agenten (server/mcp.mjs), Logik in agent.js.
+  #agent(was, url, person) {
+    if (!PERSONEN.includes(person)) return new Response("unauthorized", { status: 401 });
+    const q = Object.fromEntries(url.searchParams);
+    if (was === "ping") return Response.json({ ok: true, zeit: new Date().toISOString() });
+    if (was === "statistik") {
+      const verbunden = this.ctx.getWebSockets().map((ws) => this.ctx.getTags(ws)[0]);
+      return Response.json({ ...agentStatistik(this.sql), verbunden, dbBytes: this.ctx.storage.sql.databaseSize ?? null });
+    }
+    if (was === "ops") return Response.json(agentOps(this.sql, { ...q, aufsteigend: q.aufsteigend === "1", voll: q.voll === "1" }, person));
+    if (was === "merker" && q.schluessel) return Response.json(agentMerker(this.sql, q.schluessel));
     return new Response("not found", { status: 404 });
   }
 
@@ -138,6 +162,14 @@ export class Raum {
 
     const letzter = letzterStandort(this.sql, partnerVon(person));
     if (letzter) server.send(JSON.stringify({ t: "standort", person: partnerVon(person), d: letzter.d }));
+    const zustand = letzterZustand(this.sql, partnerVon(person));
+    // audit-szene #4: `seit` reitet mit, wie beim Live-Broadcast oben -- der Client erkennt daran
+    // einen unveraenderten Replay (z. B. eine seit Tagen eingefrorene "schlaeft") statt ihn als
+    // frisch zu behandeln, nur weil UNSER Reconnect ihn erneut ausgeliefert hat.
+    if (zustand) {
+      const d = zustand.zeit ? { ...zustand.d, seit: zustand.zeit } : zustand.d;
+      server.send(JSON.stringify({ t: "fl", von: partnerVon(person), art: "zustand", d }));
+    }
 
     this.#sendePraesenz();
     return new Response(null, { status: 101, webSocket: client });
@@ -170,7 +202,7 @@ export class Raum {
       // Wiederholung nach Funkloch, damit die Op die Warteschlange verlässt.
       ws.send(JSON.stringify({ t: "ops", ops: [bestaetigt], mehr: false }));
       if (neu) {
-        if (bestaetigt.art !== NUR_FUER_ABSENDER) this.#sendeAnPartner(person, { t: "ops", ops: [bestaetigt], mehr: false });
+        this.#verteilen(ws, bestaetigt);
         await this.#pushFuerOp(bestaetigt).catch((err) => this.#log("push für Op fehlgeschlagen", bestaetigt.art, err));
         await this.#alarmAktualisieren();
       }
@@ -182,6 +214,7 @@ export class Raum {
       ws.send(JSON.stringify({ t: "pong", zeit: new Date().toISOString() }));
     } else if (msg.t === "geraet") {
       geraetSpeichern(this.sql, person, msg.token);
+      this.#anhaengen(ws, { token: msg.token });
     } else if (msg.t === "fl") {
       await this.#flVerarbeiten(person, msg.art, msg.d);
     }
@@ -208,11 +241,55 @@ export class Raum {
   }
 
   #kontaktAktualisieren(ws) {
+    this.#anhaengen(ws, { letzterKontakt: Date.now() });
+  }
+
+  // Attachment = {letzterKontakt, token}; überlebt Hibernation. Das Token sagt, welches Gerät
+  // hinter dem Socket steckt (#pushAn).
+  #anhaengen(ws, felder) {
     try {
-      ws.serializeAttachment({ letzterKontakt: Date.now() });
+      ws.serializeAttachment({ ...(ws.deserializeAttachment?.() ?? {}), ...felder });
     } catch {
       // Fake-Sockets in Tests haben kein serializeAttachment -- dann bleibt
       // #letzterKontakt() null, was verbindungIstLebendig() als "verbunden" wertet.
+    }
+  }
+
+  // 27.09.: eine Op geht an alle anderen Geräte des Absenders (iPhone + iPad = ein Profil) und,
+  // außer private Arten (Entwurf, Galerie), an den Partner. Der Absender-Socket hat sein Echo schon.
+  #verteilen(absenderWs, op) {
+    const eigene = this.ctx.getWebSockets(op.von).filter((s) => s !== absenderWs);
+    const partner = nurFuerAbsender(op.art) ? [] : this.ctx.getWebSockets(partnerVon(op.von));
+    this.#sendeAn([...eigene, ...partner], { t: "ops", ops: [op], mehr: false });
+  }
+
+  // Push an jedes Gerät der Person, das gerade keine lebende Verbindung hat -- ein offenes iPad
+  // zu Hause darf dem iPhone in der Tasche keine Mitteilung wegnehmen.
+  async #pushAn(person, nachricht, { auchVerbunden = false } = {}) {
+    const jetzt = Date.now();
+    const verbunden = new Set(
+      this.ctx
+        .getWebSockets(person)
+        .filter((ws) => verbindungIstLebendig(this.#letzterKontakt(ws), jetzt))
+        .map((ws) => this.#tokenVon(ws))
+        .filter(Boolean)
+    );
+    for (const token of geraetTokens(this.sql, person)) {
+      if (!auchVerbunden && verbunden.has(token)) continue;
+      const res = await push(this.env, token, nachricht).catch((err) => {
+        this.#log("push fehlgeschlagen", person, err);
+        return null;
+      });
+      if (res && !res.ok) this.#log("APNs-Antwort", person, "->", res.status);
+      if (res?.expired) geraetLoeschen(this.sql, token);
+    }
+  }
+
+  #tokenVon(ws) {
+    try {
+      return ws.deserializeAttachment?.()?.token ?? null;
+    } catch {
+      return null;
     }
   }
 
@@ -262,8 +339,27 @@ export class Raum {
     if (art === "standort") {
       await this.#standort(person, d);
     } else {
-      this.#sendeAnPartner(person, { t: "fl", von: person, art, d });
+      let ausgehend = d;
+      if (art === "zustand") {
+        // audit-szene #4: `seit` reitet auf `d` mit, damit der Client (auch beim Live-Empfang,
+        // nicht nur beim Reconnect-Replay unten) weiss, wann DIESER Wert wirklich verschickt wurde.
+        const zeitIso = new Date().toISOString();
+        zustandMerken(this.sql, person, d, zeitIso);
+        ausgehend = { ...d, seit: zeitIso };
+      }
+      this.#sendeAnPartner(person, { t: "fl", von: person, art, d: ausgehend });
+      if (art === "karte.offen" && d?.an === true) await this.#karteWecken(partnerVon(person));
     }
+  }
+
+  // Partner im Hintergrund hat keinen Socket -- ohne Push bleibt sein Standort im Sparbetrieb
+  // (alle paar Minuten). Stille Push, LoveaAppDelegate startet damit den Live-Modus.
+  // ponytail: Drossel nur im Speicher, nach Hibernation darf eine Push extra rausgehen.
+  #karteWeckMs = 0;
+  async #karteWecken(partner) {
+    if (Date.now() - this.#karteWeckMs < 60_000) return;
+    this.#karteWeckMs = Date.now();
+    await this.#pushAn(partner, { stufe: "still", daten: { art: "karte.offen", an: true } });
   }
 
   async #standort(person, d) {
@@ -299,6 +395,8 @@ export class Raum {
 
   // --- Push für eintreffende Ops (Z-1.6) ------------------------------------
 
+  #letztesHerz = {}; // nur im Speicher wie #letzterTon
+  #letzterTon = {}; // ponytail: nur im Speicher, nach Hibernation klingt die nächste Push wieder
   async #pushFuerOp(op) {
     let kontext;
     if (op.art === "ort.ereignis") {
@@ -314,14 +412,24 @@ export class Raum {
     const empfaenger = partnerVon(op.von);
     if (einstellung(this.sql, empfaenger, `mitteilungen.${r.kategorie}`) === false) return;
 
-    const immer = op.art === "ort.ereignis"; // Ankunft/Verlassen gehen immer.
-    if (!immer && this.#istVerbunden(empfaenger)) return;
+    // Herz-Tipps zählen alle, die Push geht höchstens alle 10 Minuten.
+    if (op.art === "geste" && op.d.art === "herz") {
+      if (Date.now() - (this.#letztesHerz[empfaenger] ?? 0) < 10 * 60_000) return;
+      this.#letztesHerz[empfaenger] = Date.now();
+    }
 
-    const token = geraetToken(this.sql, empfaenger);
-    if (!token) return;
-    const res = await push(this.env, token, { stufe: r.stufe, titel: r.titel, text: r.text, ton: r.ton });
-    if (!res.ok) this.#log("APNs-Antwort", op.art, "->", res.status);
-    if (res.expired) geraetLoeschen(this.sql, empfaenger);
+    const immer = op.art === "ort.ereignis"; // Ankunft/Verlassen gehen immer.
+    // Z-32.1: Antippen springt im Chat zur Nachricht, die App liest `userInfo["nachrichtId"]`.
+    // 25.09.: Kuss/Anstupsen/Herz (art "geste") schicken `art` mit, die App öffnet damit das Partnerprofil.
+    const daten = op.art.startsWith("nachricht.") && typeof op.d.id === "string"
+      ? { art: op.art, nachrichtId: op.d.id }
+      : op.art === "geste" ? { art: op.art } : undefined;
+    // Several pushes in a burst each played their sound over the last one ("glitch"): only the
+    // first within 3 s per recipient rings, the rest arrive silently.
+    const jetzt = Date.now();
+    const ton = jetzt - (this.#letzterTon[empfaenger] ?? 0) < 3000 ? undefined : r.ton;
+    if (ton) this.#letzterTon[empfaenger] = jetzt;
+    await this.#pushAn(empfaenger, { stufe: r.stufe, titel: r.titel, text: r.text, ton, daten }, { auchVerbunden: immer });
   }
 
   // --- Zufällig nah (Z-1.8) --------------------------------------------------
@@ -340,9 +448,7 @@ export class Raum {
     if (letzteWarnungMs !== null && jetztMs - letzteWarnungMs < 6 * 3_600_000) return;
     zufaelligNahAlsGemeldetMarkieren(this.sql, jetztMs);
 
-    // Eine Op "an beide" -- nicht zwei separate, sonst zwei System-Bubbles im
-    // Chat und doppelte Streak-Zählung (siehe auch: Systemnachrichten zählen
-    // ohnehin nicht für den Streak).
+    // Eine Op "an beide" -- nicht zwei separate, sonst zwei System-Bubbles im Chat.
     const op = { id: `nah-${jetztMs}`, art: "nachricht.neu", von: person, zeit: new Date(jetztMs).toISOString(), d: { system: "nah" } };
     const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
     const bestaetigt = { ...op, seq };
@@ -352,7 +458,7 @@ export class Raum {
 
   // --- Ops-Batch (Umzugsskript, Z-1.9) ---------------------------------------
 
-  async #opsBatch(request) {
+  async #opsBatch(request, url, person) {
     // Nur fürs Umzugsskript: Bulk-Import historischer Ops. Absichtlich keine
     // Push -- sonst spammen hunderte migrierte Ops beide Handys wach.
     const { ops } = await request.json();
@@ -367,7 +473,11 @@ export class Raum {
       }
       const { seq, neu } = opEinfuegenMitStatus(this.sql, op);
       letzteSeq = seq;
-      if (neu && op.art !== NUR_FUER_ABSENDER) this.#sendeAnPartner(op.von, { t: "ops", ops: [{ ...op, seq }], mehr: false });
+      if (neu) this.#verteilen(null, { ...op, seq });
+      // Widget-Herz (kein Socket): nur mit ?push=1, nur "geste", nur vom Absender selbst.
+      if (neu && url?.searchParams.get("push") === "1" && op.art === "geste" && op.von === person) {
+        await this.#pushFuerOp({ ...op, seq }).catch((err) => this.#log("push für Op fehlgeschlagen", op.art, err));
+      }
     }
     await this.#alarmAktualisieren();
     return Response.json({ seq: letzteSeq, uebersprungen });
@@ -432,12 +542,15 @@ export class Raum {
     if (typeof body?.code !== "string" || typeof body?.verifier !== "string" || typeof body?.redirectUri !== "string") {
       return new Response("bad request", { status: 400 });
     }
-    const token = await tokenTauschen(this.env, { code: body.code, verifier: body.verifier, redirectUri: body.redirectUri }).catch((err) => {
+    const holer = fetchMitGrund();
+    const token = await tokenTauschen(this.env, { code: body.code, verifier: body.verifier, redirectUri: body.redirectUri }, holer).catch((err) => {
       this.#log("Spotify-Token-Tausch fehlgeschlagen", err);
       return null;
     });
-    if (!token) return Response.json({ fehler: "tausch fehlgeschlagen" }, { status: 502 });
+    // `grund` = Spotifys eigener Fehlercode (invalid_client: Client-ID falsch; invalid_grant: Code oder Redirect-URI passt nicht).
+    if (!token) return Response.json({ fehler: "tausch fehlgeschlagen", grund: holer.grund ?? "netz" }, { status: 502 });
     spotifyTokenSchreiben(this.sql, person, token);
+    spotifyCacheSchreiben(this.sql, person, null); // ein alter Fehler im Cache gilt für die neue Verbindung nicht
     return Response.json({ ok: true });
   }
 
@@ -447,27 +560,96 @@ export class Raum {
     const ziel = url.searchParams.get("person");
     if (!PERSONEN.includes(ziel)) return new Response("bad request", { status: 400 });
 
+    const stufe = einstellung(this.sql, ziel, "spotify.teilen");
+    if (stufe === "aus") return Response.json({}); // keine Spotify-Abfrage, wenn nichts geteilt wird
+    return Response.json(nachFreigabe(await this.#spotifyDaten(ziel), stufe));
+  }
+
+  // Eigener Zustand fürs Einstellungs-Blatt: ist ein Token da, und was sagt Spotify dazu? Ignoriert die
+  // Freigabe (der Konto-Inhaber sieht seine eigene Verbindung), und der Partner kann hier nicht mitlesen.
+  async #spotifyStatus(person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    if (!this.env.SPOTIFY_CLIENT_ID) return Response.json({ verbunden: false, fehler: "nicht-eingerichtet" });
+    if (!spotifyTokenLesen(this.sql, person)) return Response.json({ verbunden: false });
+    const daten = await this.#spotifyDaten(person);
+    return Response.json(daten.fehler ? { verbunden: true, fehler: daten.fehler } : { verbunden: true });
+  }
+
+  // Rohdaten (mit 20-s-Cache) zu `ziel`: Song, `{}` oder `{ fehler }`. Fehler landen auch im Cache,
+  // damit ein kaputtes Token Spotify nicht alle 20 Sekunden erneut belästigt.
+  async #spotifyDaten(ziel) {
     const jetztMs = Date.now();
     const cache = spotifyCacheLesen(this.sql, ziel);
-    if (cacheGueltig(cache, jetztMs)) return Response.json(cache.daten);
+    if (cacheGueltig(cache, jetztMs)) return cache.daten;
 
     let token = spotifyTokenLesen(this.sql, ziel);
-    if (!token) return Response.json({});
+    if (!token) return {};
+    const speichern = (daten) => {
+      spotifyCacheSchreiben(this.sql, ziel, { geladenMs: jetztMs, daten });
+      return daten;
+    };
     if (brauchtErneuerung(token.ablaeuftMs, jetztMs)) {
       const erneuert = await tokenErneuern(this.env, token).catch((err) => {
         this.#log("Spotify-Token-Erneuerung fehlgeschlagen", err);
         return null;
       });
-      if (!erneuert) return Response.json({}); // Partner hat die Spotify-Verbindung selbst widerrufen
+      // Erneuern scheitert, wenn die Verbindung bei Spotify widerrufen wurde (oder Spotify nicht erreichbar ist).
+      if (!erneuert) return speichern({ fehler: "abgelaufen" });
       token = erneuert;
       spotifyTokenSchreiben(this.sql, ziel, token);
     }
     const daten = await jetztSpielt(token.accessToken).catch((err) => {
       this.#log("Spotify jetztSpielt fehlgeschlagen", err);
-      return {};
+      return { fehler: "spotify" };
     });
-    spotifyCacheSchreiben(this.sql, ziel, { geladenMs: jetztMs, daten });
-    return Response.json(daten);
+    return speichern(daten);
+  }
+
+  // Nur der Konto-Inhaber (Header) trennt sich selbst. `null` im Merker liest sich wie "nie verbunden".
+  #spotifyTrennen(person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    spotifyTokenSchreiben(this.sql, person, null);
+    spotifyCacheSchreiben(this.sql, person, null);
+    return Response.json({ ok: true });
+  }
+
+  // --- Health-Coach (Logik in coach.js) -----------------------------------------
+
+  async #coachFrage(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    const body = await request.json().catch(() => null);
+    const r = await coachAntwort({ sql: this.sql, env: this.env, person, text: body?.text, marker: body?.marker, jetztMs: Date.now(), katalog: coachKatalog });
+    if (r.grund) this.#log("Coach", person, r.grund); // nur der kurze Grund, nie Rohantwort oder Schlüssel
+    if (r.ops) this.#coachVerteilen(person, r.ops);
+    return Response.json(r.body, { status: r.status });
+  }
+
+  async #eintraegeLesen(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    const body = await request.json().catch(() => null);
+    const r = await eintraegeLesen({ sql: this.sql, env: this.env, person, text: body?.text, jetztMs: Date.now() });
+    if (r.grund) this.#log("Eintraege", person, r.grund);
+    return Response.json(r.body, { status: r.status });
+  }
+
+  async #coachTagesform(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    const body = await request.json().catch(() => null);
+    const r = await tagesformBerechnen({ sql: this.sql, env: this.env, person, body, jetztMs: Date.now() });
+    if (r.grund) this.#log("Coach", person, r.grund);
+    return Response.json(r.body, { status: r.status });
+  }
+
+  // coach.nachricht ist privat: nur die Geräte der Person selbst (iPhone + iPad), nie der Partner.
+  #coachVerteilen(person, ops) {
+    this.#sendeAn(this.ctx.getWebSockets(person), { t: "ops", ops, mehr: false });
+  }
+
+  // Für zeitplan.js: aktiv = jemand hat die Morgen-Nachricht an UND der Schlüssel ist da.
+  #coachMorgenKontext(heute) {
+    if (!this.env.OPENAI_API_KEY) return { aktiv: false, erledigt: true };
+    const an = PERSONEN.filter((p) => coachMorgenAn(this.sql, p));
+    return { aktiv: an.length > 0, erledigt: an.every((p) => alarmErledigt(this.sql, "coachMorgen", `${p}.${heute}`)) };
   }
 
   // --- Alarme (Z-1.7) ---------------------------------------------------------
@@ -490,12 +672,10 @@ export class Raum {
       treffen: offeneTreffen(this.sql, kontextAb),
       angeheftet: offeneAngeheftet(this.sql),
       spielEinladungen: offeneSpielEinladungen(this.sql),
-      kapseln: offeneKapseln(this.sql),
-      streakLaeuftHeuteAb: streakLaeuftHeuteAb(this.sql, jetztMs),
       erinnerungenHeute: {
         frage: alarmErledigt(this.sql, "frageDesTages", heute),
-        streak: alarmErledigt(this.sql, "streakWarnung", heute),
       },
+      coachMorgen: this.#coachMorgenKontext(heute),
       challengeErledigt: {
         endspurtWoche: alarmErledigt(this.sql, "challengeEndspurtWoche", montagDerWoche(heute)),
         endeWoche: alarmErledigt(this.sql, "challengeEndeWoche", montagDerWoche(heute)),
@@ -532,12 +712,28 @@ export class Raum {
         await this.#pushBeide({ stufe: "still" }); // still: keine mitteilungen.<kategorie>-Prüfung nötig
         break;
       }
-      case "frageDesTages":
-      case "streakWarnung": {
+      case "frageDesTages": {
         const schluessel = berlinDatum(jetztMs);
         if (alarmErledigt(this.sql, ereignis.art, schluessel)) return;
         alarmAlsErledigtMarkieren(this.sql, ereignis.art, schluessel, jetztIso);
         await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
+        break;
+      }
+      case "coachMorgen": {
+        // coachMorgen() markiert den Tag je Person selbst, bevor es arbeitet: ein Fehler löst keine Alarm-Schleife aus.
+        const { titel, text, stufe, kategorie } = ALARM_TEXT.coachMorgen;
+        for (const person of PERSONEN) {
+          try {
+            const r = await coachMorgen({ sql: this.sql, env: this.env, person, jetztMs, katalog: coachKatalog });
+            if (r.grund) this.#log("Coach Morgen", person, r.grund);
+            if (!r.gesendet) continue;
+            this.#coachVerteilen(person, r.ops);
+            if (einstellung(this.sql, person, `mitteilungen.${kategorie}`) === false) continue;
+            await this.#pushAn(person, { titel, text, stufe, daten: { art: "coach.nachricht" } });
+          } catch (err) {
+            this.#log("Coach Morgen fehlgeschlagen", person, err);
+          }
+        }
         break;
       }
       case "nachrichtLoesen": {
@@ -568,29 +764,13 @@ export class Raum {
         await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
         break;
       }
-      case "kapselOeffnet": {
-        // Schlüssel = Nachrichten-id (offeneKapseln): jede Zeitkapsel öffnet einmal.
-        kapselEntfernen(this.sql, ereignis.id); // I-8: vor dem erledigt-Check, sonst bliebe sie ewig "offen"
-        if (alarmErledigt(this.sql, ereignis.art, ereignis.id)) return;
-        alarmAlsErledigtMarkieren(this.sql, ereignis.art, ereignis.id, jetztIso);
-        await this.#pushBeide(ALARM_TEXT[ereignis.art], ALARM_TEXT[ereignis.art].kategorie);
-        break;
-      }
     }
   }
 
   async #pushBeide(nachricht, kategorie) {
     for (const person of PERSONEN) {
-      if (this.#istVerbunden(person)) continue;
       if (kategorie && einstellung(this.sql, person, `mitteilungen.${kategorie}`) === false) continue;
-      const token = geraetToken(this.sql, person);
-      if (!token) continue;
-      const res = await push(this.env, token, nachricht).catch((err) => {
-        this.#log("push (beide) fehlgeschlagen", err);
-        return null;
-      });
-      if (res && !res.ok) this.#log("APNs-Antwort (beide)", "->", res.status);
-      if (res?.expired) geraetLoeschen(this.sql, person);
+      await this.#pushAn(person, nachricht);
     }
   }
 

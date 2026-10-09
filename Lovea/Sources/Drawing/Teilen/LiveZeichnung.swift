@@ -461,7 +461,7 @@ final class ZeichnungLive {
         ansichtTask?.cancel()
         if LiveZeichnung.shared.offen === self { LiveZeichnung.shared.offen = nil }
         Raum.shared.fluechtig("zeichnung.drin", DrinNachricht(zeichnungId: nil))
-        FigurenModell.shared.zustandSenden(.init(haupt: .ruhig))
+        Anwesenheit.shared.appEnde(.zeichnet)
     }
 
     /// "Zum Mitzeichnen einladen": push (server side) and chat line (`ChatModell` folds the op), shares this drawing to edit.
@@ -523,7 +523,15 @@ final class ZeichnungLive {
 
     func strichEnde(abbruch: Bool = false) {
         LiveZeichnung.shared.eigenerStiftSetzen(nil)
-        guard let aktuell = strich else { return }
+        guard let aktuell = strich else {
+            // Der Strich begann vor dem Verlauf und ist ohne Eintrag gelandet. Jetzt eintragen: sonst hängt `eigene`
+            // ihn an den Eintrag des nächsten Strichs, und der Umbau rollt beide zurück, spielt aber nur einen nach.
+            if !abbruch, verlauf?.hatUnbeanspruchte == true {
+                ZeichenProtokoll.log("Sicherung Umbau: Strich ohne Eintrag gelandet (der Verlauf begann mitten im Strich), trage ihn ein")
+                aktionGeschehen()
+            }
+            return
+        }
         strichTask?.cancel()
         strichTask = nil
         if partnerSchaut { strichSenden(ende: !abbruch, abbruch: abbruch) }
@@ -761,8 +769,9 @@ final class ZeichnungLive {
         guard let session, let engine = session.engine else { return }
         laedt = true
         if let document = try? await StandPaket.laden(stand, into: session.library),
-           !(verlauf?.hatOffene ?? false), !engine.isStroking {
-            await engine.reload(document)
+           !(verlauf?.hatOffene ?? false), !engine.isStroking,
+           // false: an own stroke ran meanwhile and the canvas is newer. `veraltet` stays, the next stand loads again.
+           await engine.reload(document) {
             geladen = stand
             veraltet = false
             gelandet = []

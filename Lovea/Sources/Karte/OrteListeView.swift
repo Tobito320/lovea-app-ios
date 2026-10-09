@@ -2,26 +2,35 @@ import SwiftUI
 import UIKit
 
 /// Places list (Z-8.4): rename, delete, "melden" (Ankunft/Verlassen/beides/nichts) per place.
+/// iOS-Settings style, grouped per person, pushed from `EinstellungenView` (not a sheet from the map).
 struct OrteListeView: View {
-    @Environment(\.dismiss) private var dismiss
     private let orte = OrteModell.shared
 
     var body: some View {
-        NavigationStack {
-            List {
-                if orte.orte.isEmpty {
-                    ContentUnavailableView("Keine Orte", systemImage: "mappin.slash", description: Text("Vorschläge erscheinen automatisch auf der Karte."))
-                } else {
-                    ForEach(orte.orte) { ort in
-                        OrtZeile(ort: ort)
+        List {
+            if orte.orte.isEmpty {
+                ContentUnavailableView("Keine Orte", systemImage: "mappin.slash", description: Text("Vorschläge erscheinen automatisch auf der Karte."))
+            } else {
+                ForEach(Person.allCases, id: \.self) { person in
+                    let orteVonPerson = orte.orte.filter { $0.person == person }
+                    if !orteVonPerson.isEmpty {
+                        Section(person.name) {
+                            ForEach(orteVonPerson) { ort in
+                                OrtZeile(ort: ort)
+                            }
+                        }
                     }
                 }
             }
-            .navigationTitle("Orte")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
-            }
+        }
+        .navigationTitle("Orte")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            Text("Melden schickt eine stille Nachricht, wenn jemand an einem Ort ankommt oder ihn verlässt.")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
+                .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -37,30 +46,45 @@ private struct OrtZeile: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
+        HStack(spacing: 12) {
+            Image(systemName: OrteKategorien.symbol(ort.kategorie))
+                .foregroundStyle(.secondary)
+                .frame(width: 24)
             TextField("Name", text: $name)
                 .focused($bearbeitet)
-                .font(.headline)
                 .onSubmit { OrteModell.shared.umbenennen(ort, name: name) }
                 .onChange(of: bearbeitet) { _, aktiv in
                     if !aktiv, name != ort.name, !name.isEmpty { OrteModell.shared.umbenennen(ort, name: name) }
                 }
-            Picker("Melden", selection: Binding(
-                get: { ort.melden },
-                set: { OrteModell.shared.meldenSetzen(ort, $0) }
-            )) {
-                Text("Beides").tag("beides")
-                Text("Nur Ankunft").tag("ankunft")
-                Text("Nur Verlassen").tag("verlassen")
-                Text("Nichts").tag("nichts")
+            Spacer()
+            Menu {
+                Picker("Melden", selection: Binding(
+                    get: { ort.melden },
+                    set: { OrteModell.shared.meldenSetzen(ort, $0) }
+                )) {
+                    Text("Beides").tag("beides")
+                    Text("Nur Ankunft").tag("ankunft")
+                    Text("Nur Verlassen").tag("verlassen")
+                    Text("Nichts").tag("nichts")
+                }
+            } label: {
+                Text(meldenTitel)
+                    .foregroundStyle(.secondary)
             }
-            .pickerStyle(.menu)
-            .font(.subheadline)
         }
         .swipeActions {
             Button("Löschen", role: .destructive) { OrteModell.shared.loeschen(ort) }
             Button("Melden") { meldenPerMail() }
                 .tint(.orange)
+        }
+    }
+
+    private var meldenTitel: String {
+        switch ort.melden {
+        case "ankunft": "Nur Ankunft"
+        case "verlassen": "Nur Verlassen"
+        case "nichts": "Nichts"
+        default: "Beides"
         }
     }
 

@@ -10,6 +10,11 @@ class_name = "Raum"
 tag = "v1"
 new_sqlite_classes = ["Raum"]
 
+[[d1_databases]]
+binding = "ESSEN"
+database_name = "lovea-essen-test"
+database_id = "b069429a-9b48-43fa-a119-23ce9275b3c8"
+
 [env.test]
 name = "lovea-test"
 
@@ -21,6 +26,11 @@ class_name = "Raum"
 tag = "v1"
 new_sqlite_classes = ["Raum"]
 
+[[env.test.d1_databases]]
+binding = "ESSEN"
+database_name = "lovea-essen-test"
+database_id = "b069429a-9b48-43fa-a119-23ce9275b3c8"
+
 [env.live]
 name = "lovea-live"
 
@@ -31,3 +41,8 @@ class_name = "Raum"
 [[env.live.migrations]]
 tag = "v1"
 new_sqlite_classes = ["Raum"]
+
+[[env.live.d1_databases]]
+binding = "ESSEN"
+database_name = "lovea-essen-live"
+database_id = "fcf2babc-c97e-4d16-97a1-015047777de6"

@@ -1,5 +1,6 @@
 import AVKit
 import SwiftUI
+import TipKit
 import UIKit
 
 /// Instagram-style photo stack (Block 18): up to three cards fanned behind each other with a count
@@ -8,6 +9,7 @@ struct FotoStapel: View {
     let medien: [ChatModell.MedienEintrag]
     let eigene: Bool
     @State private var galerieOffen = false
+    @Namespace private var zoomRaum
 
     var body: some View {
         ZStack {
@@ -33,8 +35,17 @@ struct FotoStapel: View {
                 .padding(6)
         }
         .contentShape(Rectangle())
-        .onTapGesture { ChatHaptik.leicht(); galerieOffen = true }
-        .fullScreenCover(isPresented: $galerieOffen) { MedienGalerie(medien: medien, eigene: eigene) }
+        .onTapGesture {
+            guard !LangDruck.geradeEben else { return }
+            Haptik.leicht()
+            galerieOffen = true
+        }
+        // Z-33.4: the gallery zooms out of the stack and back into it.
+        .matchedTransitionSource(id: "stapel", in: zoomRaum)
+        .fullScreenCover(isPresented: $galerieOffen) {
+            MedienGalerie(medien: medien, eigene: eigene)
+                .navigationTransition(.zoom(sourceID: "stapel", in: zoomRaum))
+        }
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(medien.count) Fotos")
         .accessibilityHint("Galerie öffnen")
@@ -98,9 +109,14 @@ struct MedienGalerie: View {
             .padding(.horizontal)
             .opacity(zieh > 0 ? 0 : 1)
         }
+        .overlay(alignment: .bottom) {
+            TipView(FotoGedruecktHaltenTip()).padding(.horizontal).padding(.bottom, 24).opacity(zieh > 0 ? 0 : 1)
+        }
         .presentationBackground(.clear)
         .statusBarHidden()
-        .sensoryFeedback(.selection, trigger: auswahl)
+        .screenshotKontext(.medium(video: false, eigen: eigene))
+        // Haptik.auswahl(), not `.sensoryFeedback`: the latter ignores the "Haptik" settings switch.
+        .onChange(of: auswahl) { _, _ in Haptik.auswahl() }
         .task { FigurenModell.shared.zustandSenden(.init(haupt: .schautBild)) }
         .onDisappear { FigurenModell.shared.zustandSenden(.init(haupt: .imChat)) }
     }
@@ -113,6 +129,7 @@ private struct GalerieSeite: View {
     @State private var bild: UIImage?
     @State private var spieler: AVPlayer?
     @State private var zoom: CGFloat = 1
+    @State private var karte = TransparenzKarte.keineKarte
 
     var body: some View {
         ZStack {
@@ -122,6 +139,9 @@ private struct GalerieSeite: View {
                 Image(uiImage: bild)
                     .resizable()
                     .scaledToFit()
+                    // Review r10-chatbild #1: this gallery is the stack's own full-screen viewer,
+                    // a second render path from MedienVollbild — same card there too.
+                    .transparenzKarte(karte)
                     .scaleEffect(zoom)
                     .onTapGesture(count: 2) {
                         ChatHaptik.leicht()
@@ -141,9 +161,10 @@ private struct GalerieSeite: View {
             guard let geladen = await MedienDatei.url(medium, eigene: eigene) else { return }
             url = geladen
             if medium.typ == "video" {
-                spieler = AVPlayer(url: geladen)
+                spieler = AVPlayer(url: Videobild.abspielbar(geladen))
             } else {
                 bild = await Bilddatei.laden(geladen)
+                karte = await TransparenzCache.ermitteln(id: medium.id, url: geladen)
             }
         }
         .onDisappear { spieler?.pause() }

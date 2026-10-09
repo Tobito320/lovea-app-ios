@@ -1,85 +1,60 @@
 import SwiftUI
 
-/// Block 21/22: Health-Tab — Ahmed-vs-Annika-Ringe, laufende Challenges, Habits Heute, Schlaf,
-/// Habit-Historie über die einzelnen Zeilen, "…"-Menü (vergangene Tage, Ziele) und Punkte.
-struct HealthTab: View {
-    @State private var blatt: HealthBlatt?
-    @State private var zeigtKonfetti = false
+/// Where Health navigates. Everything is pushed onto the one stack of `HeuteView` (the Health tab).
+enum HealthZiel: Hashable {
+    case habit(String), schritte(Person), schritteVergleich, punkte
+    case trainingsPlan(Person), gymSession(String), gymVerlauf
+    case coach
+}
+
+/// Die Seite zu einem `HealthZiel`, registriert im Stapel von Health.
+struct HealthZielAnsicht: View {
+    let ziel: HealthZiel
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 16) {
-                    kopf
-                    VerlaufCard()
-                    LaufendeChallengesCard()
-                    HabitsHeuteCard()
-                    EssenCard()
-                    SchlafCard()
-                }
-                .padding(16)
-            }
-            .navigationTitle("Health")
-            .toolbar {
-                ToolbarItem(placement: .primaryAction) {
-                    Menu {
-                        Button("Vergangene Tage markieren") { blatt = .vergangeneTage }
-                        Button("Ziele ändern") { blatt = .ziele }
-                    } label: {
-                        Image(systemName: "ellipsis.circle")
-                    }
-                    .accessibilityLabel("Mehr")
-                }
-            }
-            .sheet(item: $blatt) { b in
-                switch b {
-                case .vergangeneTage: VergangeneTageView()
-                case .ziele: ZieleAendernView()
-                }
-            }
-        }
-        .onAppear {
-            HealthModell.shared.sicherstellen()
-            pruefeKonfetti()
-        }
-        .onChange(of: PunkteModell.shared.stand) { _, _ in pruefeKonfetti() }
-        .overlay {
-            if zeigtKonfetti { SpielKonfetti() }
-        }
-    }
-
-    private var kopf: some View {
-        VStack(spacing: 14) {
-            HStack {
-                Text("Ahmed vs. Annika").font(.headline)
-                Spacer()
-                PunkteChip(person: Raum.shared.ich ?? .ahmed)
-            }
-            HStack(spacing: 28) {
-                SchritteRing(person: .ahmed)
-                SchritteRing(person: .annika)
-            }
-            .frame(maxWidth: .infinity)
-            NavigationLink("Wofür?") { PunkteVerlaufView() }
-                .font(.caption.weight(.semibold))
-        }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 18))
-    }
-
-    /// Feiert einen frisch abgeschlossenen Duell-/Gemeinsam-/Serien-Meilenstein genau einmal
-    /// (`ChallengeKonfetti`, Z-22.2) — ausgelöst beim Öffnen des Tabs und bei jeder Punktestand-Änderung.
-    private func pruefeKonfetti() {
-        guard ChallengeKonfetti.neuAbgeschlossen() else { return }
-        zeigtKonfetti = true
-        Task {
-            try? await Task.sleep(for: .seconds(5))
-            zeigtKonfetti = false
+        switch ziel {
+        case .habit(let id): HabitDetailView(habitId: id)
+        case .schritte(let person): SchritteDetailView(person: person)
+        case .schritteVergleich: SchritteVergleichView()
+        case .punkte: PunkteVerlaufView()
+        case .trainingsPlan(let person): GymStartZiel(person: person)
+        case .gymSession(let id): GymSessionView(sessionId: id)
+        case .gymVerlauf: GymVerlaufView()
+        case .coach: CoachChatView()
         }
     }
 }
 
-private enum HealthBlatt: String, Identifiable {
-    case vergangeneTage, ziele
-    var id: String { rawValue }
+/// Schritte für einen Tag von Hand, wenn kein Tracker zählt.
+struct SchritteEintragenBlatt: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var datum = Date()
+    @State private var text = ""
+
+    private var anzahl: Int? { Int(text.filter(\.isNumber)) }
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                DatePicker("Tag", selection: $datum, in: ...Date(), displayedComponents: .date)
+                    .environment(\.locale, Locale(identifier: "de_DE"))
+                TextField("Schritte", text: $text)
+                    .keyboardType(.numberPad)
+            }
+            .navigationTitle("Schritte eintragen")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Speichern") {
+                        if let anzahl { HealthModell.shared.schritteEintragen(anzahl, datum: Datum.text(datum)) }
+                        Haptik.erfolg()
+                        dismiss()
+                    }
+                    .disabled(anzahl == nil)
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
 }

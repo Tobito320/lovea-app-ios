@@ -30,7 +30,29 @@ final class PunkteModell {
     private init() {
         Raum.shared.beobachten(["spiel.ergebnis"]) { [weak self] op in self?.spielErgebnisAnwenden(op) }
         Raum.shared.beobachten(["shop.kauf"]) { [weak self] op in self?.kaufAnwenden(op) }
+        Raum.shared.beobachten([DankLogik.art]) { [weak self] op in self?.dankAnwenden(op) }
+        Raum.shared.beobachten([KatzeLogik.art]) { [weak self] op in self?.katzeAnwenden(op) }
+        Raum.shared.beobachten([StraussGeschenkLogik.art]) { [weak self] op in self?.straussAnwenden(op) }
+        Raum.shared.beobachten([KatzePflege.art]) { [weak self] op in self?.futterAnwenden(op) }
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 10_000_000_000)
+            self?.dankSendenFallsFehlt()
+        }
     }
+
+    private var dankNachId: [String: Person] = [:]
+    private var dankEintraege: [PunkteLogik.Eintrag] { DankLogik.eintraege(dankNachId.map { (id: $0.key, fuer: $0.value) }) }
+
+    /// p61: the cat's strokes by op id, one per day and person (see `KatzeLogik`).
+    private var katzeNachId: [String: (tag: String, von: Person)] = [:]
+    private var katzeEintraege: [PunkteLogik.Eintrag] { KatzeLogik.eintraege(katzeNachId.map { (id: $0.key, tag: $0.value.tag, von: $0.value.von) }) }
+
+    /// p70 (44): the cat's meals by op id, one per day and person (see `KatzePflege`).
+    private var futterNachId: [String: (tag: String, von: Person)] = [:]
+    private var futterEintraege: [PunkteLogik.Eintrag] { KatzePflege.eintraege(futterNachId.map { (id: $0.key, tag: $0.value.tag, von: $0.value.von) }) }
+
+    /// p70: bouquet gifts by op ID, one per day and giver (see `StraussGeschenkLogik`).
+    private var straussNachId: [String: StraussGeschenkLogik.Geschenk] = [:]
 
     private var heute: String { Datum.text(Date()) }
 
@@ -59,6 +81,7 @@ final class PunkteModell {
         for (person, punkte) in ChallengeLogik.punkteBonus(wochen: wochen, monate: monate, serien: serien) {
             summe[person, default: 0] += punkte
         }
+        for e in dankEintraege + katzeEintraege + futterEintraege + StraussGeschenkLogik.eintraege(Array(straussNachId.values)) { summe[e.von, default: 0] += e.punkte }
         return summe
     }
 
@@ -89,6 +112,7 @@ final class PunkteModell {
         for bonus in serien {
             eintraege.append(PunkteLogik.Eintrag(datum: bonus.datum, von: bonus.von, grund: "Serie \(bonus.laenge) Tage", punkte: bonus.punkte))
         }
+        eintraege += dankEintraege + katzeEintraege + futterEintraege + StraussGeschenkLogik.eintraege(Array(straussNachId.values))
         let preis: (String) -> Int? = { ShopKatalog.artikel($0)?.preis }
         let urteil = besitzErgebnis(stand: stand, preis: preis)
         for kauf in kaeufe where !urteil.abgelehnt.contains(kauf.id) {
@@ -97,6 +121,7 @@ final class PunkteModell {
             let grund = kauf.fuer == kauf.von ? "Kauf: \(name)" : "Geschenk: \(name)"
             eintraege.append(PunkteLogik.Eintrag(datum: Datum.text(kauf.zeit), von: kauf.von, grund: grund, punkte: -preisWert))
         }
+        for e in ShopErstattung.erstattungen(kaeufe, verdient: stand, katalogPreis: preis) { eintraege += [e.kauf, e.rueckgabe] }
         return eintraege.sorted { ($0.datum, $0.von.rawValue) < ($1.datum, $1.von.rawValue) }
     }
 
@@ -198,6 +223,79 @@ final class PunkteModell {
             spiel: d.id, gespielt: d.gespielt, ahmed: d.punkte.ahmed, annika: d.punkte.annika,
             datum: Datum.text(op.zeit), seq: op.seq ?? spielStaende[op.id]?.seq, opId: op.id
         )
+    }
+
+    private func dankAnwenden(_ op: Op) {
+        guard let d = op.daten(DankLogik.D.self) else { return }
+        dankNachId[op.id] = d.fuer
+    }
+
+    private func katzeAnwenden(_ op: Op) {
+        guard let d = op.daten(KatzeLogik.D.self) else { return }
+        katzeNachId[op.id] = (d.tag, op.von)
+    }
+
+    private func futterAnwenden(_ op: Op) {
+        guard let d = op.daten(KatzePflege.D.self) else { return }
+        futterNachId[op.id] = (d.tag, op.von)
+    }
+
+    private func straussAnwenden(_ op: Op) {
+        guard let d = op.daten(StraussGeschenkLogik.D.self), let g = StraussGeschenkLogik.geschenk(id: op.id, von: op.von, d: d) else { return }
+        straussNachId[op.id] = g
+    }
+
+    /// p70: has `person` given a bouquet today?
+    func straussVerschenkt(_ person: Person) -> Bool { straussNachId[StraussGeschenkLogik.opId(tag: heute, von: person)] != nil }
+
+    /// p70: gives a bouquet to the other one. `StraussGeschenkLogik.punkte` the first time today, 0 afterwards.
+    @discardableResult
+    func straussSchenken(_ art: StraussArt, text: String?) -> Int {
+        guard let ich = Raum.shared.ich, !straussVerschenkt(ich) else { return 0 }
+        Raum.shared.einreihen(StraussGeschenkLogik.op(tag: heute, von: ich, strauss: art, text: text))
+        return StraussGeschenkLogik.punkte
+    }
+
+    /// p70: the gift the other one left for `ich` that is not in the vase yet.
+    func straussGeschenkOffen(fuer ich: Person, angenommen: String?) -> StraussGeschenkLogik.Geschenk? {
+        StraussGeschenkLogik.offen(Array(straussNachId.values), fuer: ich, angenommen: angenommen)
+    }
+
+    /// p61: has `person` stroked the cat today? (A stroke by the other one does not count.)
+    func katzeGestreichelt(_ person: Person) -> Bool { katzeNachId[KatzeLogik.opId(tag: heute, von: person)] != nil }
+
+    /// p61: strokes the cat. Gives `KatzeLogik.punkte` the first time today, 0 afterwards. The op id
+    /// carries day and person, so a second phone or a replay counts once as well.
+    @discardableResult
+    func katzeStreicheln() -> Int {
+        guard let ich = Raum.shared.ich, !katzeGestreichelt(ich) else { return 0 }
+        Raum.shared.einreihen(KatzeLogik.op(tag: heute, von: ich))
+        return KatzeLogik.punkte
+    }
+
+    /// p70 (44): was the cat fed today, by `person` or by anyone (`person` nil)?
+    func katzeGefuettert(_ person: Person? = nil) -> Bool {
+        (person.map { [$0] } ?? Person.allCases).contains { futterNachId[KatzePflege.opId(tag: heute, von: $0)] != nil }
+    }
+
+    /// p70 (44): feeds the cat. `KatzePflege.punkte` the first time today, 0 when the two fed it already.
+    @discardableResult
+    func katzeFuettern() -> Int {
+        guard let ich = Raum.shared.ich, !katzeGefuettert() else { return 0 }
+        Raum.shared.einreihen(KatzePflege.op(tag: heute, von: ich))
+        return KatzePflege.punkte
+    }
+
+    /// p70 (44): how the cat feels today: fed and stroked by anyone of the two.
+    func katzeStimmung() -> KatzePflege.Stimmung {
+        KatzePflege.stimmung(gefuettert: katzeGefuettert(), gestreichelt: Person.allCases.contains { katzeGestreichelt($0) })
+    }
+
+    /// Läuft einmal nach dem Log-Replay; was schon im Log steht (anderes Gerät, Neuinstallation), wird nicht neu gesendet.
+    private func dankSendenFallsFehlt() {
+        guard let ich = Raum.shared.ich else { return }
+        let gebucht = Set(dankEintraege.map(\.von))
+        for person in DankLogik.fehlende(gebucht: gebucht) { Raum.shared.einreihen(DankLogik.op(fuer: person, von: ich)) }
     }
 
     private func kaufAnwenden(_ op: Op) {

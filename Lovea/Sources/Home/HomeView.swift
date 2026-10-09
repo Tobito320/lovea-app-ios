@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// Home in der Reihenfolge aus Spec 8.1: Nächstes Treffen, Wie geht's dir heute, Frage des
-/// Tages, Pünktlich-Karte (nur wenn fällig), Kalendermonat, Unsere Liste und Würfel.
+/// Tages, Pünktlich-Karte (nur wenn fällig), Kalendermonat, Date-Ideen.
 struct HomeView: View {
     let person: Person
     @State private var pfad = NavigationPath()
@@ -11,34 +11,24 @@ struct HomeView: View {
             ScrollView {
                 VStack(spacing: 16) {
                     NaechstesTreffenCard()
-                    GrussKnopfCard()
+                    PartnerTagCard(person: person)
                     HeuteVorCard()
                     WieGehtsDirCard()
                     SchritteDuellCard()
                     FrageDesTagesCard()
                     PuenktlichCard()
-                    kalenderKarte
-                    UnsereListeCard()
+                    KalenderKarte(pfad: $pfad)
+                    DatesKarte()
                 }
                 .padding(16)
             }
+            .gymLeisteOben()
+            // R6: nur hier (Wurzel des Tabs), nicht auf TagesAnsicht/FrageDesTagesView dahinter.
+            .tabWischen(vorheriger: nil, naechster: "chat")
             .navigationTitle("Home")
-            .navigationDestination(for: String.self) { tag in TagesAnsicht(tag: tag) }
+            .navigationDestination(for: String.self) { tag in KalenderTagZiel(tag: tag) }
             .navigationDestination(for: FrageZiel.self) { _ in FrageDesTagesView() }
+            .navigationDestination(for: Person.self) { PartnerTagView(person: $0) }
         }
-    }
-
-    private var kalenderKarte: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Kalender")
-                .font(.headline)
-                .accessibilityAddTraits(.isHeader)
-            MonatsAnsicht { tag in
-                pfad.append(tag)
-            }
-            MonatsLegende()
-        }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
     }
 }

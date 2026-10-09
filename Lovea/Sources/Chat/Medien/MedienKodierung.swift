@@ -64,7 +64,42 @@ enum MedienKodierung {
         return CGSize(width: w, height: h)
     }
 
-    /// 720p HEVC original + 480p `klein`, trimmed to 30s (Z-5.1).
+    /// Schalter "Videos schneller senden (Test)" (Einstellungen, Standard AN). AUS = das alte Verhalten:
+    /// `HEVCHighestQuality` plus 480p-`klein`. Wie bei `Haptik.an`: ungesetzt heißt AN.
+    static let videoSchnellSchluessel = "lovea.videoSchnell"
+
+    static func videoSchnell(_ defaults: UserDefaults = .standard) -> Bool {
+        defaults.object(forKey: videoSchnellSchluessel) as? Bool ?? true
+    }
+
+    private static let presetAlt = AVAssetExportPresetHEVCHighestQuality
+    // H.264: Apple nennt kein HEVC-Preset mit 1280x720 (nur 1920x1080 und 3840x2160). Das Preset ist
+    // auf 720p ausgelegt und spielt überall. Dateigröße ungemessen, am Gerät prüfen (Build 91 Testliste).
+    private static let presetSchnell = AVAssetExportPreset1280x720
+
+    struct VideoPlan: Equatable {
+        enum Weg: Equatable {
+            case unveraendert
+            case kodieren(preset: String)
+        }
+        let weg: Weg
+        let mitKlein: Bool
+    }
+
+    /// Entscheidung ohne Export: Preset, `klein` ja/nein, oder Quelle unverändert übernehmen.
+    /// Unverändert nur bei AN, höchstens 30 s, höchstens 1280 Kante und höchstens 5 Mbit/s: dann ist
+    /// eine neue Kodierung nicht kleiner, nur langsamer. Unbekannte Größe oder Dauer: kodieren.
+    nonisolated static func videoPlan(schnell: Bool, upright: CGSize, dauer: Double, dateiBytes: Int) -> VideoPlan {
+        guard schnell else { return VideoPlan(weg: .kodieren(preset: presetAlt), mitKlein: true) }
+        let schonKlein = dauer > 0 && dauer <= 30 && dateiBytes > 0
+            && max(upright.width, upright.height) <= 1280
+            && Double(dateiBytes) * 8 / dauer <= 5_000_000
+        return VideoPlan(weg: schonKlein ? .unveraendert : .kodieren(preset: presetSchnell), mitKlein: false)
+    }
+
+    /// Mit Schalter AN: ein Export (720p), keine `klein`-Fassung (die benutzt der Empfänger nie, die
+    /// Datei kommt erst nach dem Original an). AUS: 720p-Original + 480p `klein`, beide HEVC (Z-5.1).
+    /// Beides auf höchstens 30 s gekürzt.
     // ponytail: trims silently to the first 30s instead of opening the system video-trim editor —
     // that's a UIViewController flow (`UIVideoEditorController`) for one edge case. Upgrade path:
     // present it when `dauer > 30` and re-run this with the trimmed asset it hands back.
@@ -80,20 +115,51 @@ enum MedienKodierung {
         let bereich = CMTimeRange(start: .zero, duration: CMTime(seconds: min(volleDauer.seconds, 30), preferredTimescale: 600))
 
         let originalSize = skaliert(upright, langeKante: 1280)
-        guard let originalURL = await exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: originalSize, zeit: bereich, id: id, rolle: "original")
-        else { return nil }
-        let kleinSize = skaliert(upright, langeKante: 480)
-        let kleinURL = await exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: kleinSize, zeit: bereich, id: id, rolle: "klein")
+        let dateiBytes = (try? quelle.resourceValues(forKeys: [.fileSizeKey]).fileSize) ?? 0
+        let plan = videoPlan(schnell: videoSchnell(), upright: upright, dauer: volleDauer.seconds, dateiBytes: dateiBytes)
+        let preset: String
+        switch plan.weg {
+        case .unveraendert:
+            // Kopie in den Staging-Ordner: die Warteschlange merkt sich die URL über einen Neustart,
+            // die Quelle liegt im Temp-Ordner. Klappt die Kopie nicht: ganz normal kodieren.
+            if let kopie = kopiereNachStaging(quelle, id: id) {
+                return Ergebnis(original: kopie, klein: nil, breite: Double(originalSize.width), hoehe: Double(originalSize.height), dauer: bereich.duration.seconds)
+            }
+            preset = presetSchnell
+        case .kodieren(let gewaehlt):
+            preset = gewaehlt
+        }
+        // Nacheinander, nicht mit `async let`: `track`/`asset` sind nicht Sendable, zwei
+        // gleichzeitige Child-Tasks mit demselben Wert sind unter Swift 6 ein Data-Race-Fehler.
+        var neuesOriginal = await exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: originalSize, zeit: bereich, id: id, rolle: "original", preset: preset)
+        // Sicherheitsnetz ohne Gerätetest: scheitert das neue Preset, einmal mit dem alten.
+        if neuesOriginal == nil, preset != presetAlt {
+            neuesOriginal = await exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: originalSize, zeit: bereich, id: id, rolle: "original", preset: presetAlt)
+        }
+        guard let originalURL = neuesOriginal else { return nil }
+        var kleinURL: URL?
+        if plan.mitKlein {
+            let kleinSize = skaliert(upright, langeKante: 480)
+            kleinURL = await exportiere(asset: asset, track: track, transform: transform, upright: upright, ziel: kleinSize, zeit: bereich, id: id, rolle: "klein", preset: presetAlt)
+        }
 
         return Ergebnis(original: originalURL, klein: kleinURL, breite: Double(originalSize.width), hoehe: Double(originalSize.height), dauer: bereich.duration.seconds)
     }
 
+    private static func kopiereNachStaging(_ quelle: URL, id: String) -> URL? {
+        let ziel = stagingURL(id: id, rolle: "original", ext: "mov")
+        try? FileManager.default.createDirectory(at: ziel.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try? FileManager.default.removeItem(at: ziel)
+        guard (try? FileManager.default.copyItem(at: quelle, to: ziel)) != nil else { return nil }
+        return ziel
+    }
+
     private static func exportiere(
         asset: AVURLAsset, track: AVAssetTrack, transform: CGAffineTransform, upright: CGSize,
-        ziel: CGSize, zeit: CMTimeRange, id: String, rolle: String
+        ziel: CGSize, zeit: CMTimeRange, id: String, rolle: String, preset: String
     ) async -> URL? {
         guard upright.width > 0, upright.height > 0,
-              let session = AVAssetExportSession(asset: asset, presetName: AVAssetExportPresetHEVCHighestQuality)
+              let session = AVAssetExportSession(asset: asset, presetName: preset)
         else { return nil }
         try? FileManager.default.createDirectory(at: stagingURL(id: id, rolle: rolle, ext: "mov").deletingLastPathComponent(), withIntermediateDirectories: true)
         let ausgabe = stagingURL(id: id, rolle: rolle, ext: "mov")

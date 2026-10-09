@@ -1,40 +1,75 @@
+import CoreMotion
 import Foundation
 import HealthKit
 import Observation
 import UIKit
 
-/// Folds `schritte.setzen`, `schlaf.setzen`, `habit.setzen` and the `ziel.*` keys of
-/// `einstellung.setzen` (Z-20.1, Z-20.2) and owns the HealthKit side (steps + sleep, read-only).
-/// Was `Schritte/SchritteModell` — moved and extended into Health per the Zielplan. Authorization is
-/// requested only once ever, from `sicherstellen()` (called by the Health tab's `onAppear`); the
-/// HealthKit observers themselves are (re)started on every launch via `beobachtenStartenFallsErlaubt()`
-/// (from `AppStart.falten`, already in `didFinishLaunching` — I-7) without prompting — required so
-/// background delivery keeps working across relaunches, including ones iOS triggers in the background.
+/// Folds `schritte.setzen`, `schlaf.setzen`, the four habit ops (`HabitFaltung`, Z-35.1) and the
+/// `ziel.*` keys of `einstellung.setzen` (Z-20.1, Z-20.2), and owns the HealthKit side (steps, km,
+/// floors, sleep — read-only). Authorization is requested from `sicherstellen()` (the Health tab's
+/// `onAppear`) once per permission set (`angefragtSchluessel`); the HealthKit observers are
+/// (re)started on every launch via `beobachtenStartenFallsErlaubt()` (from `AppStart.falten`, already
+/// in `didFinishLaunching` — I-7) without prompting, so background delivery survives relaunches.
 @MainActor
 @Observable
 final class HealthModell {
     static let shared = HealthModell()
 
     private(set) var schritte: [Person: [String: TagesEintrag<Int>]] = [:]
-    private(set) var gym: [Person: [String: TagesEintrag<Int>]] = [:]
-    private(set) var wasser: [Person: [String: TagesEintrag<Int>]] = [:]
-    private(set) var schlaf: [Person: [String: (minuten: Int, von: Date, bis: Date)]] = [:]
+    /// Teil 6: die automatisch erkannte Nacht (Watch, iPhone-Schlafenszeit oder Bewegungs-Schätzung —
+    /// `quelle` sagt welche). Eigene Einträge (`schlafZeiten`) haben immer Vorrang, siehe `schlafMinuten`.
+    private(set) var schlaf: [Person: [String: (minuten: Int, von: Date, bis: Date, quelle: String?)]] = [:]
+    private(set) var schlafDetails: [String: SchlafDetail] = [:]
 
     private(set) var zielSchritteAenderungen: [Person: [ZielAenderung]] = [:]
     private(set) var zielGymAenderungen: [Person: [ZielAenderung]] = [:]
     private(set) var zielWasserAenderungen: [Person: [ZielAenderung]] = [:]
     private(set) var zielGemeinsamWocheAenderungen: [ZielAenderung] = []
 
+    /// km, floors, kcal and active minutes of the same `schritte.setzen` op as `schritte` (same
+    /// `seq`/`id`, so the same winner per day).
+    private var schritteExtras: [Person: [String: TagesEintrag<SchritteExtra>]] = [:]
+    private var habitFaltung = HabitFaltung()
+    /// `ziel.saetze.<gruppe>` und `ziel.prio.<gruppe>`: Person -> Schlüssel -> Änderungen.
+    private var zielAndere: [Person: [String: [ZielAenderung]]] = [:]
+
+    /// Teil 5: hand-entered bed and wake-up times per person and wake-up day (newest op wins).
+    private(set) var schlafZeiten: [Person: [String: SchlafZeitenD]] = [:]
+    private var schlafZeitenZeit: [Person: [String: Date]] = [:]
+    /// Teil 5/R10: every `habit.setzen` by habit id, person, day and op id, for the times of the
+    /// taps (Wasser-Gläser, Koffein-Tassen). Habit id first, so `zeiten(_:_:_:)` stays generic.
+    private var habitOps: [String: [Person: [String: [String: (zeit: Date, wert: Int)]]]] = [:]
+    /// When each person's steps last came in (live ops only, not the backfill) — "vor 3 Std.".
+    private(set) var schritteZuletzt: [Person: Date] = [:]
+
     private let store = HKHealthStore()
     private let stepType = HKQuantityType.quantityType(forIdentifier: .stepCount)!
+    private let distanzType = HKQuantityType.quantityType(forIdentifier: .distanceWalkingRunning)!
+    private let etagenType = HKQuantityType.quantityType(forIdentifier: .flightsClimbed)!
+    private let energieType = HKQuantityType.quantityType(forIdentifier: .activeEnergyBurned)!
+    private let bewegungType = HKQuantityType.quantityType(forIdentifier: .appleExerciseTime)!
     private let sleepType = HKCategoryType.categoryType(forIdentifier: .sleepAnalysis)!
+    /// Wann über Kopfhörer Ton lief (Verlauf mit Zeitstempel). Nur mit Schalter "Ich habe AirPods Pro 3".
+    private let tonType = HKQuantityType.quantityType(forIdentifier: .headphoneAudioExposure)!
+    /// Teil 6: Bewegungs-Schätzung (d), nur wenn weder Watch noch iPhone-Schlafenszeit etwas liefern.
+    /// Gleiches Muster wie `Anwesenheit`/`Standort`: kein `requestAuthorization` nötig, iOS fragt beim
+    /// ersten `queryActivityStarting` selbst (`NSMotionUsageDescription` ist schon gesetzt).
+    private let bewegungsManager = CMMotionActivityManager()
 
     private var angewendeteOps: Set<String> = []
     private var beobachterGestartet = false
+    private var nachtragLaeuft = false
+    /// Teil 6: verhindert, dass der Kaltstart-Observer und `sicherstellen()`s eigener Anstoß gleichzeitig
+    /// laufen (doppelte CoreMotion-Abfragen, evtl. doppelte `schlaf.setzen`).
+    private var schlafLaeuft = false
     private var zuletztGesendetSchritte: (datum: String, anzahl: Int)?
     private var zuletztGesendetUm = Date.distantPast
 
-    private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt"
+    /// A new key per new set of types, so the prompt appears once more (v3: distance and floors,
+    /// v4: active energy and exercise time). Background observers still start on any older flag.
+    private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt.v5"
+    private static let alteSchluessel = ["lovea.health.berechtigungAngefragt", "lovea.health.berechtigungAngefragt.v3", "lovea.health.berechtigungAngefragt.v4"]
+    private static let nachgetragenSchluessel = "lovea.health.schritteNachgetragen.v1"
 
     /// Für den "Health nicht erlaubt"-Hinweis (Z-21.1/Z-21.3, Review-Fokus 4): unterscheidet "noch
     /// nie gefragt" (Knopf soll `sicherstellen()` erneut auslösen) von "schon gefragt, aber keine
@@ -44,10 +79,16 @@ final class HealthModell {
     private(set) var berechtigungAngefragt = UserDefaults.standard.bool(forKey: HealthModell.angefragtSchluessel)
 
     private init() {
+        StartProtokoll.marke("healthModell.init.vor")
         Raum.shared.beobachten(["schritte.setzen"]) { [weak self] op in self?.schritteOpAnwenden(op) }
         Raum.shared.beobachten(["schlaf.setzen"]) { [weak self] op in self?.schlafOpAnwenden(op) }
-        Raum.shared.beobachten(["habit.setzen"]) { [weak self] op in self?.habitOpAnwenden(op) }
+        Raum.shared.beobachten(["habit.setzen", "habit.anlegen", "habit.aendern", "habit.ausblenden", "habit.loeschen"]) { [weak self] op in
+            self?.habitFaltung.anwenden(op)
+            self?.habitOpMerken(op)
+        }
         Raum.shared.beobachten(["einstellung.setzen"]) { [weak self] op in self?.zielOpAnwenden(op) }
+        Raum.shared.beobachten(["schlaf.zeiten"]) { [weak self] op in self?.schlafZeitenAnwenden(op) }
+        StartProtokoll.marke("healthModell.init.nach")
     }
 
     private var heute: String { Datum.text(Date()) }
@@ -55,10 +96,75 @@ final class HealthModell {
     // MARK: - Lesen (UI-API)
 
     func heuteSchritte(_ person: Person) -> Int? { schritte[person]?[heute]?.wert }
+    /// Kamen von `person` schon einmal Schritte an (egal welcher Tag)? Dann ist Health dort erlaubt.
+    func schritteVerbunden(_ person: Person) -> Bool { !(schritte[person]?.isEmpty ?? true) }
+    /// Für die Anzeige: heute noch nichts gezählt, aber verbunden = 0 statt "–".
+    func heuteSchritteAnzeige(_ person: Person) -> Int? {
+        heuteSchritte(person) ?? (schritteVerbunden(person) ? 0 : nil)
+    }
     func schritteAm(_ person: Person, _ tag: String) -> Int? { schritte[person]?[tag]?.wert }
-    func gymAbgehakt(_ person: Person, _ tag: String) -> Bool { (gym[person]?[tag]?.wert ?? 0) > 0 }
-    func wasserAnzahl(_ person: Person, _ tag: String) -> Int { wasser[person]?[tag]?.wert ?? 0 }
-    func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date)? { schlaf[person]?[tag] }
+    func kmAm(_ person: Person, _ tag: String) -> Double? { schritteExtras[person]?[tag]?.wert.km }
+    func etagenAm(_ person: Person, _ tag: String) -> Int? { schritteExtras[person]?[tag]?.wert.etagen }
+    func extrasAm(_ person: Person, _ tag: String) -> SchritteExtra? { schritteExtras[person]?[tag]?.wert }
+    /// All days with steps (backfilled ones too — display only).
+    func schritteWerte(_ person: Person) -> [String: Int] { (schritte[person] ?? [:]).mapValues(\.wert) }
+    func schlafNacht(_ person: Person, _ tag: String) -> (minuten: Int, von: Date, bis: Date, quelle: String?)? { schlaf[person]?[tag] }
+    func schlafZeitenAm(_ person: Person, _ tag: String) -> SchlafZeitenD? { schlafZeiten[person]?[tag] }
+    func schlafDetail(_ tag: String) -> SchlafDetail? { schlafDetails[tag] }
+    /// Teil 6: eigener Eintrag (auch gelöscht = 0 min, dann `nil`) vor Watch vor iPhone-Schlafenszeit
+    /// vor Bewegungs-Schätzung — siehe `SchlafLogik.minuten`. `schlafQuelle` sagt, welche das war.
+    func schlafMinuten(_ person: Person, _ tag: String) -> Int? {
+        let eintrag = schlafZeitenAm(person, tag).map(EnergieLogik.imBett)
+        return SchlafLogik.minuten(eintrag: eintrag, automatik: schlaf[person]?[tag]?.minuten)
+    }
+    /// "eingetragen" | "Apple Watch" | "iPhone Schlafenszeit" | "geschätzt (Bewegung)", `nil` ohne Daten.
+    func schlafQuelle(_ person: Person, _ tag: String) -> String? {
+        let eintrag = schlafZeitenAm(person, tag).map(EnergieLogik.imBett)
+        return SchlafLogik.quelle(eintrag: eintrag, automatikQuelle: schlaf[person]?[tag]?.quelle)
+    }
+    /// Effektive Bett-/Aufsteh-Zeit nach demselben Vorrang wie `schlafMinuten` — eigener Eintrag,
+    /// sonst die automatisch erkannte Nacht, `nil` bei gesperrtem (gelöschtem) oder fehlendem Wert.
+    func schlafBettZeiten(_ person: Person, _ tag: String) -> (bett: Date, auf: Date)? {
+        guard schlafMinuten(person, tag) != nil else { return nil }
+        if let z = schlafZeitenAm(person, tag), EnergieLogik.imBett(z) > 0 { return (z.bett, z.auf) }
+        return schlaf[person]?[tag].map { ($0.von, $0.bis) }
+    }
+    func wasserZeiten(_ person: Person, _ tag: String) -> [Date] { wasserEintraege(person, tag).map(\.zeit) }
+    /// R10: Zeiten der Koffein-Tassen fürs Bearbeiten-Blatt, gleiche Regel wie Wasser.
+    func koffeinZeiten(_ person: Person, _ tag: String) -> [Date] { koffeinEintraege(person, tag).map(\.zeit) }
+
+    func wasserEintraege(_ person: Person, _ tag: String) -> [(id: String, zeit: Date)] { habitEintraege(Habit.wasser.id, person, tag) }
+    func koffeinEintraege(_ person: Person, _ tag: String) -> [(id: String, zeit: Date)] { habitEintraege(Habit.koffein.id, person, tag) }
+
+    /// Jeder bekannte Tipp mit seiner eigenen Op-Id und Zeit, älteste zuerst — Review-Fund 1: anders
+    /// als der alte `EnergieLogik.wasserZeiten`-Nachbau (nur Zeit, per Positions-Auf/Abbau rekonstruiert)
+    /// kennt das hier die echte Identität jedes Tipps, damit ein Bearbeiten-Blatt genau EINEN stornieren
+    /// kann, nicht nur "den jüngsten". `EnergieLogik.wasserZeiten` bleibt unberührt (eigene Tests).
+    func habitEintraege(_ habitId: String, _ person: Person, _ tag: String) -> [(id: String, zeit: Date)] {
+        (habitOps[habitId]?[person]?[tag] ?? [:]).map { (id: $0.key, zeit: $0.value.zeit) }.sorted { $0.zeit < $1.zeit }
+    }
+
+    /// Every habit incl. Gym and Wasser; `ausgeblendet` = hidden by this device's person.
+    var habits: [String: Habit] { habitFaltung.habits(ich: Raum.shared.ich ?? .ahmed) }
+    /// Without hidden ones, "ich" habits only for their creator; Gym, Wasser, then creation order.
+    func sichtbareHabits(fuer ich: Person) -> [Habit] { habitFaltung.sichtbar(fuer: ich) }
+    func habitWert(_ id: String, _ person: Person, _ tag: String) -> Int { habitFaltung.werte[id]?[person]?[tag]?.wert ?? 0 }
+    func habitWerte(_ id: String, _ person: Person) -> [String: Int] { (habitFaltung.werte[id]?[person] ?? [:]).mapValues(\.wert) }
+
+    /// The `ziel` for `HabitLogik`: Gym's weekly and Wasser's daily goal per person, `nil` for own habits.
+    func habitZiel(_ id: String, _ person: Person) -> Int? {
+        switch id {
+        case Habit.gym.id: return zielGym(person)
+        case Habit.wasser.id: return zielWasser(person)
+        default: return nil
+        }
+    }
+
+    /// Widgets and `PunkteModell` read these two as before — now views on the generic habit storage.
+    var gym: [Person: [String: TagesEintrag<Int>]] { habitFaltung.werte[Habit.gym.id] ?? [:] }
+    var wasser: [Person: [String: TagesEintrag<Int>]] { habitFaltung.werte[Habit.wasser.id] ?? [:] }
+    func gymAbgehakt(_ person: Person, _ tag: String) -> Bool { habitWert(Habit.gym.id, person, tag) > 0 }
+    func wasserAnzahl(_ person: Person, _ tag: String) -> Int { habitWert(Habit.wasser.id, person, tag) }
 
     func zielSchritte(_ person: Person? = nil) -> Int {
         HealthLogik.zielAmTag(heute, zielSchritteAenderungen[person ?? Raum.shared.ich ?? .ahmed] ?? [], standard: 10_000)
@@ -72,6 +178,36 @@ final class HealthModell {
         HealthLogik.zielAmTag(heute, zielWasserAenderungen[person ?? Raum.shared.ich ?? .ahmed] ?? [], standard: 8)
     }
 
+    /// Teil 6: Basis-Schlafziel in Minuten, Standard 480 (8 h).
+    func schlafZielMinuten(_ person: Person? = nil) -> Int {
+        ziel("ziel.schlaf.minuten", person ?? Raum.shared.ich ?? .ahmed) ?? 480
+    }
+    /// ± Minuten an den `schlafZielExtraTage`-Tagen (z. B. Wochenende länger schlafen).
+    func schlafZielExtraMinuten(_ person: Person? = nil) -> Int {
+        ziel("ziel.schlaf.extraMinuten", person ?? Raum.shared.ich ?? .ahmed) ?? 0
+    }
+    /// Bitmaske Montag = Bit 0 … Sonntag = Bit 6, wie `ErnaehrungsZiele.extraTage`.
+    func schlafZielExtraTage(_ person: Person? = nil) -> Int {
+        ziel("ziel.schlaf.extraTage", person ?? Raum.shared.ich ?? .ahmed) ?? 0
+    }
+    /// Das für `tag` geltende Schlafziel in Minuten (Basis, an flexiblen Tagen plus/minus die Extra-Minuten).
+    func schlafZiel(_ p: Person, tag: String) -> Int {
+        SchlafLogik.ziel(basis: schlafZielMinuten(p), extraMinuten: schlafZielExtraMinuten(p),
+                        extraTage: schlafZielExtraTage(p), wochentag: Datum.wochentag(tag))
+    }
+
+    /// Generisch für `ziel.saetze.<gruppe>` und `ziel.prio.<gruppe>`: der neueste Wert, nil wenn nie gesetzt.
+    func ziel(_ schluessel: String, _ person: Person) -> Int? {
+        zielAndere[person]?[schluessel]?.enumerated()
+            .max { ($0.element.seq ?? .max, $0.offset) < ($1.element.seq ?? .max, $1.offset) }?
+            .element.wert
+    }
+
+    /// Nur lesen, der Kalender gehört jemand anderem. "gut" | "mittel" | "schlecht".
+    func stimmung(_ person: Person, _ tag: String) -> String? {
+        KalenderModell.shared.zustand.stimmungen[tag]?[person]?.stimmung
+    }
+
     /// "Letzter gewinnt" (schnittstellen.md), keine Personen-Historie wie bei den anderen Zielen.
     /// Gleichstand (zwei unbestätigte) → die später angekommene (I-2).
     var zielGemeinsamWoche: Int {
@@ -82,15 +218,37 @@ final class HealthModell {
 
     // MARK: - Schreiben
 
-    func setzeGym(datum: String, an: Bool) {
-        Raum.shared.senden("habit.setzen", HabitD(art: "gym", datum: datum, wert: an ? 1 : 0))
+    /// `storniert`: Op-Id eines früheren Tipps desselben Tages, der damit zurückgenommen wird (R10,
+    /// Review-Fix) — fürs genaue Löschen einer einzelnen Zeile statt nur des Tageswerts.
+    func setzeHabit(_ id: String, datum: String, wert: Int, storniert: String? = nil) {
+        Raum.shared.senden("habit.setzen", HabitSetzenD(art: id, datum: datum, wert: max(0, wert), storniert: storniert))
     }
 
-    func setzeWasser(datum: String, anzahl: Int) {
-        Raum.shared.senden("habit.setzen", HabitD(art: "wasser", datum: datum, wert: max(0, anzahl)))
+    /// Eigene Op-Id statt der zufälligen aus `senden` (wie `WidgetPendingOpsMerge.op(aus:)`), damit
+    /// ein späterer Tipp sie gezielt stornieren kann. Nur für Taps, die sich merken sollen, wer sie
+    /// waren (Koffein, verknüpft mit einem Tagebuch-Eintrag gleicher Id).
+    func setzeHabitMitId(_ opId: String, _ habitId: String, datum: String, wert: Int) {
+        guard let ich = Raum.shared.ich, let d = try? JSONEncoder().encode(HabitSetzenD(art: habitId, datum: datum, wert: max(0, wert))) else { return }
+        Raum.shared.einreihen(Op(id: opId, seq: nil, art: "habit.setzen", von: ich, zeit: Date(), d: d))
     }
 
-    /// `schluessel` ist eines von `ziel.schritte`, `ziel.gym`, `ziel.wasser`, `ziel.gemeinsamWoche`.
+    func anlegen(_ habit: Habit) { Raum.shared.senden("habit.anlegen", habit) }
+    func aendern(_ habit: Habit) { Raum.shared.senden("habit.aendern", habit) }
+    func loeschen(_ id: String) { Raum.shared.senden("habit.loeschen", HabitLoeschenD(id: id)) }
+    func ausblenden(_ id: String, _ aus: Bool) { Raum.shared.senden("habit.ausblenden", HabitAusblendenD(id: id, aus: aus)) }
+
+    func setzeGym(datum: String, an: Bool) { setzeHabit(Habit.gym.id, datum: datum, wert: an ? 1 : 0) }
+    func setzeWasser(datum: String, anzahl: Int) { setzeHabit(Habit.wasser.id, datum: datum, wert: anzahl) }
+    func schlafEintragen(_ d: SchlafZeitenD) { Raum.shared.senden("schlaf.zeiten", d) }
+
+    /// Schritte von Hand (YAZIO Pro "manuelle Schritte", ohne Tracker). Gleiche Op wie Apple Health,
+    /// der neuere Wert gewinnt; schickt Apple Health später einen anderen Wert, gilt der.
+    func schritteEintragen(_ anzahl: Int, datum: String) {
+        Raum.shared.senden("schritte.setzen", SchritteD(datum: datum, anzahl: max(0, anzahl)))
+    }
+
+    /// `schluessel` ist eines von `ziel.schritte`, `ziel.gym`, `ziel.wasser`, `ziel.gemeinsamWoche`,
+    /// oder `ziel.schlaf.minuten`/`.extraMinuten`/`.extraTage` (Teil 6, generisch über `zielOpAnwenden`).
     func setzeZiel(_ schluessel: String, _ wert: Int) {
         EinstellungenModell.shared.setzen(schluessel, .number(Double(wert)))
     }
@@ -98,23 +256,49 @@ final class HealthModell {
     // MARK: - Ops falten
 
     // I-2: no one-shot `angewendeteOps` guard for schritte/habit/ziel — the confirmed echo of an own
-    // op must reach the fold to replace its `seq == nil` copy (both folds are idempotent by op id).
+    // op must reach the fold to replace its `seq == nil` copy (all folds are idempotent by op id).
     private func schritteOpAnwenden(_ op: Op) {
         guard let d = op.daten(SchritteD.self) else { return }
-        HealthFaltung.aufnehmen(&schritte, TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: Datum.text(op.zeit), wert: d.anzahl, id: op.id))
-    }
-
-    private func habitOpAnwenden(_ op: Op) {
-        guard let d = op.daten(HabitD.self) else { return }
-        let eintrag = TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: Datum.text(op.zeit), wert: d.wert, id: op.id)
-        if d.art == "gym" { HealthFaltung.aufnehmen(&gym, eintrag) }
-        else if d.art == "wasser" { HealthFaltung.aufnehmen(&wasser, eintrag) }
+        let gesendet = Datum.text(op.zeit)
+        HealthFaltung.aufnehmen(&schritte, TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: gesendet, wert: d.anzahl, id: op.id, nachgetragen: d.nachgetragen ?? false))
+        let extra = SchritteExtra(km: d.km, etagen: d.etagen, kcal: d.kcal, aktivMinuten: d.aktivMinuten)
+        HealthFaltung.aufnehmen(&schritteExtras, TagesEintrag(seq: op.seq, von: op.von, datum: d.datum, gesendetAm: gesendet, wert: extra, id: op.id))
+        if d.nachgetragen != true { schritteZuletzt[op.von] = max(schritteZuletzt[op.von] ?? .distantPast, op.zeit) }
     }
 
     private func schlafOpAnwenden(_ op: Op) {
         guard angewendeteOps.insert(op.id).inserted, let d = op.daten(SchlafD.self) else { return }
         guard let von = Self.isoDatum(d.von), let bis = Self.isoDatum(d.bis) else { return }
-        schlaf[op.von, default: [:]][d.datum] = (minuten: d.minuten, von: von, bis: bis)
+        // Ältere Ops ohne `quelle` kamen ausschließlich aus den asleep-Werten (vor Teil 6) — als Watch lesen.
+        schlaf[op.von, default: [:]][d.datum] = (minuten: d.minuten, von: von, bis: bis, quelle: d.quelle ?? SchlafLogik.Quelle.appleWatch.rawValue)
+    }
+
+    private func schlafZeitenAnwenden(_ op: Op) {
+        guard let d = op.daten(SchlafZeitenD.self), (schlafZeitenZeit[op.von]?[d.datum] ?? .distantPast) <= op.zeit else { return }
+        schlafZeiten[op.von, default: [:]][d.datum] = d
+        schlafZeitenZeit[op.von, default: [:]][d.datum] = op.zeit
+    }
+
+    private func habitOpMerken(_ op: Op) {
+        guard op.art == "habit.setzen", let d = op.daten(HabitSetzenD.self) else { return }
+        if let storniert = d.storniert {
+            habitOps[d.art]?[op.von]?[d.datum]?.removeValue(forKey: storniert)
+            return
+        }
+        habitOps[d.art, default: [:]][op.von, default: [:]][d.datum, default: [:]][op.id] = (zeit: op.zeit, wert: d.wert)
+        habitOpsAufraeumen(d.art, op.von)
+    }
+
+    /// Minor (Review): ohne Grenze wächst `habitOps` jetzt für jeden Habit unbegrenzt (vorher nur bei
+    /// Wasser gefiltert). Die Zeitenlisten sind fürs Bearbeiten-Blatt gedacht, nicht fürs Archiv — eine
+    /// Woche deckt "ich hab's gestern vergessen einzutragen" ab, ohne für jeden Tag ewig mitzuwachsen.
+    private func habitOpsAufraeumen(_ habitId: String, _ person: Person) {
+        let aeltesteNoch = Datum.addTage(heute, -6)
+        // Erst lesen, dann schreiben: Lesen und Schreiben von `habitOps` in EINER Zeile ist ein
+        // überlappender Zugriff, Swift bricht dann zur Laufzeit ab (Absturz Build 76-80).
+        guard let alt = habitOps[habitId]?[person] else { return }
+        let neu = alt.filter { $0.key >= aeltesteNoch }
+        habitOps[habitId]?[person] = neu
     }
 
     private func zielOpAnwenden(_ op: Op) {
@@ -126,33 +310,51 @@ final class HealthModell {
         case "ziel.gym": HealthLogik.zielAufnehmen(&zielGymAenderungen[op.von, default: []], aenderung)
         case "ziel.wasser": HealthLogik.zielAufnehmen(&zielWasserAenderungen[op.von, default: []], aenderung)
         case "ziel.gemeinsamWoche": HealthLogik.zielAufnehmen(&zielGemeinsamWocheAenderungen, aenderung)
-        default: break
+        default:
+            guard d.schluessel.hasPrefix("ziel.saetze.") || d.schluessel.hasPrefix("ziel.prio.") || d.schluessel.hasPrefix("ziel.ernaehrung.")
+                || d.schluessel.hasPrefix("ziel.schlaf.") else { break }
+            HealthLogik.zielAufnehmen(&zielAndere[op.von, default: [:]][d.schluessel, default: []], aenderung)
         }
     }
 
     // MARK: - HealthKit
 
-    /// Vom `onAppear` des Health-Tabs: fragt die Leseberechtigung höchstens einmal jemals an
-    /// (Flag in `UserDefaults`, überlebt Neustarts) — nicht nur einmal pro Prozess.
+    /// Vom `onAppear` des Health-Tabs: fragt die Leseberechtigung höchstens einmal pro Berechtigungs-
+    /// Satz an (Flag in `UserDefaults`, überlebt Neustarts). Danach bei jedem Erscheinen nur noch der
+    /// Nachtrag-Versuch (läuft erst, sobald das Nachholen fertig ist, und dann genau einmal).
     func sicherstellen() {
         guard HKHealthStore.isHealthDataAvailable() else { return }
         guard !berechtigungAngefragt else {
             beobachtenStartenFallsErlaubt()
+            Task { await nachtragenFallsNoetig() }
+            // Teil 6: ohne echte Watch-/iPhone-Schlafdaten feuert der HK-Observer nie von selbst (kein
+            // neues Sample ändert sich) — die Bewegungs-Schätzung braucht also einen eigenen Anstoß.
+            // Hier: jedes Öffnen des Health-Tabs, kein Hintergrund-Trigger (siehe Bericht). `leer()`
+            // zuerst, sonst wirkt vor der eigenen Replay jeder Tag "geändert" (wie beim Observer-Pfad).
+            Task {
+                await Raum.shared.leer()
+                await schlafAktualisierenUndSenden()
+            }
             return
         }
         UserDefaults.standard.set(true, forKey: Self.angefragtSchluessel)
         berechtigungAngefragt = true
         Task {
             _ = await berechtigungAnfragen()
+            // beobachtenStartenFallsErlaubt() startet den Schlaf-Observer zum ersten Mal, der wie jede
+            // HKObserverQuery beim `execute()` sofort einmal feuert — ruft `schlafAktualisierenUndSenden`
+            // hier schon mit auf, ein zweiter expliziter Aufruf wäre nur doppelt.
             beobachtenStartenFallsErlaubt()
+            await nachtragenFallsNoetig()
         }
     }
 
     /// Startet `HKObserverQuery` + Background Delivery erneut, ohne zu fragen — muss bei JEDEM
     /// App-Start laufen (auch einem Hintergrund-Start), sonst bleibt Background Delivery nach
-    /// einem Neustart aus. No-op, solange nie erfolgreich `sicherstellen()` aufgerufen wurde.
+    /// einem Neustart aus. No-op, solange nie gefragt wurde (weder Runde 2 noch jetzt).
     func beobachtenStartenFallsErlaubt() {
-        guard HKHealthStore.isHealthDataAvailable(), berechtigungAngefragt, !beobachterGestartet else { return }
+        let jemalsGefragt = berechtigungAngefragt || Self.alteSchluessel.contains { UserDefaults.standard.bool(forKey: $0) }
+        guard HKHealthStore.isHealthDataAvailable(), jemalsGefragt, !beobachterGestartet else { return }
         beobachterGestartet = true
         beobachteAenderungen()
     }
@@ -161,7 +363,7 @@ final class HealthModell {
     /// wurde (Apples Privacy-Design für Lesezugriffe) — deshalb wird trotzdem versucht zu lesen.
     private func berechtigungAnfragen() async -> Bool {
         await withCheckedContinuation { fortsetzung in
-            store.requestAuthorization(toShare: [], read: [stepType, sleepType]) { erfolg, _ in
+            store.requestAuthorization(toShare: [], read: [stepType, distanzType, etagenType, energieType, bewegungType, sleepType, tonType]) { erfolg, _ in
                 fortsetzung.resume(returning: erfolg)
             }
         }
@@ -203,46 +405,107 @@ final class HealthModell {
 
     private func letzteAchtTage() -> [String] { (0..<8).map { Datum.addTage(heute, -$0) } }
 
-    /// Heute + letzte 7 Tage, nur bei Änderung (Z-20.1).
+    /// Heute + letzte 7 Tage, nur bei Änderung (Z-20.1); km, Etagen, kcal und Aktivzeit reisen mit.
+    // ponytail: only the step observer triggers — the other values are written while walking too.
     private func schritteAktualisierenUndSenden() async {
-        guard let ich = Raum.shared.ich else { return }
+        guard Geraet.wirdGetragen, let ich = Raum.shared.ich else { return }
         for tag in letzteAchtTage() {
-            guard let anzahl = await schritteAn(tag), schritte[ich]?[tag]?.wert != anzahl else { continue }
+            guard let neu = await tageswerte(tag) else { continue }
+            guard schritte[ich]?[tag]?.wert != neu.anzahl || schritteExtras[ich]?[tag]?.wert != neu.extra else { continue }
             if tag == heute {
                 let vergangen = Date().timeIntervalSince(zuletztGesendetUm)
-                guard HealthLogik.sollSchritteSenden(anzahl: anzahl, zuletzt: zuletztGesendetSchritte, heutigerTag: heute, vergangen: vergangen) else { continue }
-                zuletztGesendetSchritte = (heute, anzahl)
+                guard HealthLogik.sollSchritteSenden(anzahl: neu.anzahl, zuletzt: zuletztGesendetSchritte, heutigerTag: heute, vergangen: vergangen) else { continue }
+                zuletztGesendetSchritte = (heute, neu.anzahl)
                 zuletztGesendetUm = Date()
             }
-            Raum.shared.senden("schritte.setzen", SchritteD(datum: tag, anzahl: anzahl))
+            Raum.shared.senden("schritte.setzen", SchritteD(neu.anzahl, neu.extra, datum: tag))
         }
+        // Not awaited: the observer's completion handler must not wait for 82 days of queries
+        // (HealthKit throttles late background deliveries). A suspended run retries, the flag comes last.
+        guard UIApplication.shared.applicationState == .active else { return }
+        Task { await nachtragenFallsNoetig() }
     }
 
-    private func schritteAn(_ tag: String) async -> Int? {
+    /// Z-36.1, Review-Fokus 2: once, the last 90 days of steps as `nachgetragen: true` (display only,
+    /// never points or challenges), only days without an own value. Waits for `Raum.nachgeholt`: on
+    /// a fresh install the log is empty until the catch-up, and a flagged op would out-`seq` a day
+    /// that already earned points. The flag is set only after the loop, so a kill mid-way retries —
+    /// already sent days are then in `schritte` and skipped.
+    private func nachtragenFallsNoetig() async {
+        guard Geraet.wirdGetragen, let ich = Raum.shared.ich, Raum.shared.nachgeholt, berechtigungAngefragt, !nachtragLaeuft,
+              !UserDefaults.standard.bool(forKey: Self.nachgetragenSchluessel) else { return }
+        nachtragLaeuft = true
+        defer { nachtragLaeuft = false }
+        for tag in HealthLogik.nachtragTage(heute: heute, vorhanden: Set((schritte[ich] ?? [:]).keys)) {
+            guard let werte = await tageswerte(tag), schritte[ich]?[tag] == nil else { continue }
+            var d = SchritteD(werte.anzahl, werte.extra, datum: tag)
+            d.nachgetragen = true
+            Raum.shared.senden("schritte.setzen", d)
+        }
+        UserDefaults.standard.set(true, forKey: Self.nachgetragenSchluessel)
+    }
+
+    /// Steps plus km (2 decimals), floors, active kcal and exercise minutes of one Berlin day;
+    /// `nil` without any step data.
+    private func tageswerte(_ tag: String) async -> (anzahl: Int, extra: SchritteExtra)? {
+        guard let anzahl = await summe(stepType, tag, .anzahl) else { return nil }
+        let meter = await summe(distanzType, tag, .meter)
+        let etagen = await summe(etagenType, tag, .anzahl)
+        let kcal = await summe(energieType, tag, .kcal)
+        let minuten = await summe(bewegungType, tag, .minuten)
+        let extra = SchritteExtra(
+            km: meter.map { ($0 / 10).rounded() / 100 }, etagen: etagen.map { Int($0) },
+            kcal: kcal.map { Int($0.rounded()) }, aktivMinuten: minuten.map { Int($0.rounded()) }
+        )
+        return (Int(anzahl), extra)
+    }
+
+    private enum Einheit: Sendable { case anzahl, meter, kcal, minuten }
+
+    /// Sum over the Berlin day, the same boundaries for live sends and the backfill. The unit is
+    /// built inside the (possibly `@Sendable`) handler from a Sendable enum, so nothing else is captured.
+    private func summe(_ typ: HKQuantityType, _ tag: String, _ einheit: Einheit) async -> Double? {
         let start = Calendar.berlin.startOfDay(for: Datum.datum(tag))
         let ende = Calendar.berlin.date(byAdding: .day, value: 1, to: start) ?? start
         let praedikat = HKQuery.predicateForSamples(withStart: start, end: ende, options: .strictStartDate)
         return await withCheckedContinuation { fortsetzung in
-            let abfrage = HKStatisticsQuery(quantityType: stepType, quantitySamplePredicate: praedikat, options: .cumulativeSum) { _, ergebnis, _ in
-                let summe = ergebnis?.sumQuantity()?.doubleValue(for: .count())
-                fortsetzung.resume(returning: summe.map { Int($0) })
+            let abfrage = HKStatisticsQuery(quantityType: typ, quantitySamplePredicate: praedikat, options: .cumulativeSum) { _, ergebnis, _ in
+                let unit: HKUnit
+                switch einheit {
+                case .anzahl: unit = HKUnit.count()
+                case .meter: unit = HKUnit.meter()
+                case .kcal: unit = HKUnit.kilocalorie()
+                case .minuten: unit = HKUnit.minute()
+                }
+                fortsetzung.resume(returning: ergebnis?.sumQuantity()?.doubleValue(for: unit))
             }
             store.execute(abfrage)
         }
     }
 
     private func schlafAktualisierenUndSenden() async {
-        guard let ich = Raum.shared.ich else { return }
+        guard Geraet.wirdGetragen, let ich = Raum.shared.ich, !schlafLaeuft else { return }
+        schlafLaeuft = true
+        defer { schlafLaeuft = false }
         for tag in letzteAchtTage() {
-            guard let ergebnis = await schlafAn(tag), schlaf[ich]?[tag]?.minuten != ergebnis.minuten else { continue }
-            Raum.shared.senden("schlaf.setzen", SchlafD(datum: tag, minuten: ergebnis.minuten, von: Self.isoText(ergebnis.von), bis: Self.isoText(ergebnis.bis)))
+            guard let ergebnis = await schlafAn(tag),
+                  schlaf[ich]?[tag]?.minuten != ergebnis.minuten || schlaf[ich]?[tag]?.quelle != ergebnis.quelle
+            else { continue }
+            Raum.shared.senden("schlaf.setzen", SchlafD(datum: tag, minuten: ergebnis.minuten, von: Self.isoText(ergebnis.von), bis: Self.isoText(ergebnis.bis), quelle: ergebnis.quelle))
         }
+        bettErinnerungAktualisieren()
     }
 
     /// Nacht wird dem Aufwach-Tag zugeordnet (Spec 3.1). Das Fenster (30 h vor `tag` bis Ende `tag`)
     /// ist absichtlich großzügig; welche Intervalle wirklich die Nacht von `tag` sind, entscheidet
     /// `HealthLogik.schlafNacht` (I-4: die Vornacht endet am Vortag und fällt dort raus).
-    private func schlafAn(_ tag: String) async -> (minuten: Int, von: Date, bis: Date)? {
+    ///
+    /// Teil 6, Vorrang b) Watch vor c) iPhone-Schlafenszeit vor d) Bewegungs-Schätzung
+    /// (`SchlafLogik.automatikVorrang`). Watch und andere Geräte, die echte Schlafphasen schreiben,
+    /// benutzen die asleep-Werte; nur das iPhone selbst (mit eingeschalteter Schlafenszeit) schreibt
+    /// `inBed`, ohne je asleep zu setzen — deshalb reicht "asleep vorhanden?" als Watch-Erkennung,
+    /// ohne die Quelle jedes Samples einzeln zu prüfen.
+    private func schlafAn(_ tag: String) async -> (minuten: Int, von: Date, bis: Date, quelle: String)? {
         let tagStart = Calendar.berlin.startOfDay(for: Datum.datum(tag))
         guard let fensterStart = Calendar.berlin.date(byAdding: .hour, value: -30, to: tagStart),
               let fensterEnde = Calendar.berlin.date(byAdding: .day, value: 1, to: tagStart)
@@ -254,10 +517,115 @@ final class HealthModell {
             }
             store.execute(abfrage)
         }
-        let intervalle = samples
+        let watchIntervalle = samples
             .filter { Self.asleepWerte.contains($0.value) }
             .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
-        return HealthLogik.schlafNacht(intervalle, tag: tag)
+        let watch = HealthLogik.schlafNacht(watchIntervalle, tag: tag)
+        // Das Punktesystem kostet nur Rechnung, aber CoreMotion und Kopfhörer-Ton sind Abfragen: nur ohne Watch.
+        guard watch == nil else { return SchlafLogik.automatikVorrang(watch: watch, punkte: nil) }
+        var eingabe = SchlafLogik.PunkteEingabe(tag: tag, fensterEnde: min(Calendar.berlin.date(byAdding: .hour, value: 14, to: tagStart) ?? fensterEnde, Date()))
+        eingabe.imBett = samples
+            .filter { $0.value == HKCategoryValueSleepAnalysis.inBed.rawValue }
+            .map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) }
+        eingabe.aktivitaeten = await bewegungen(tag)
+        if AirPodsPro3.an { eingabe.ton = await tonSpannen(von: fensterStart, bis: fensterEnde) }
+        if let ich = Raum.shared.ich {
+            eingabe.guteNacht = FigurenModell.shared.gruss[ich]?.nacht
+            eingabe.gewohnheit = gewohnheit(ich, tag: tag)
+        }
+        let signale = SchlafSignale.laden()
+        let bis = eingabe.fensterEnde
+        eingabe.laden = SchlafSignale.spannen(signale, art: "laden", bis: bis)
+        eingabe.fokus = SchlafSignale.spannen(signale, art: "fokus", bis: bis)
+        eingabe.unterwegs = SchlafSignale.spannen(signale, art: "daheim", wennAn: false, bis: bis)
+        eingabe.aus = SchlafSignale.spannen(signale, art: "aus", bis: bis)
+        var griffe = SchlafSignale.aktivZeiten(signale)
+        var morgenGruss: [(zeit: Date, text: String)] = []
+        if let ich = Raum.shared.ich {
+            let eigene = ChatModell.shared.nachrichten.filter { $0.von == ich && !$0.geloescht && $0.system == nil }
+            griffe += eigene.map(\.zeit)
+            morgenGruss = eigene.compactMap { n in n.text.map { (zeit: n.zeit, text: $0) } }
+        }
+        eingabe.wecker = [SchlafSignale.weckerAus(signale, tagStart: tagStart), SchlafSignale.guterMorgen(morgenGruss, tagStart: tagStart)].compactMap { $0 }.min()
+        eingabe.wach = SchlafSignale.kurzWach(griffe)
+        let punkte = SchlafLogik.punkte(eingabe)
+        schlafDetails[tag] = SchlafDetail(luecken: punkte.wachLuecken, nickerchen: punkte.nickerchen)
+        return SchlafLogik.automatikVorrang(watch: nil, punkte: punkte)
+    }
+
+    /// Watch-Nächte, eigene Einträge und bestätigte Nächte: nie die Schätzung des Punktesystems selbst.
+    private func sichereNaechte(_ person: Person) -> [SchlafLogik.BekannteNacht] {
+        let bestaetigt = SchlafSignale.bestaetigt()
+        var naechte: [SchlafLogik.BekannteNacht] = []
+        for (t, n) in schlaf[person] ?? [:] where n.quelle == SchlafLogik.Quelle.appleWatch.rawValue || bestaetigt.contains(t) {
+            naechte.append(SchlafLogik.BekannteNacht(tag: t, von: n.von, bis: n.bis))
+        }
+        for (t, z) in schlafZeiten[person] ?? [:] where EnergieLogik.imBett(z) > 0 {
+            naechte.removeAll { $0.tag == t }
+            naechte.append(SchlafLogik.BekannteNacht(tag: t, von: z.bett, bis: z.auf))
+        }
+        return naechte
+    }
+
+    /// Bett- und Aufstehzeit aus den sicheren Nächten der letzten Wochen (`SchlafLogik.gewohnheit`), ohne die Nacht selbst.
+    private func gewohnheit(_ person: Person, tag: String) -> (bett: Int, auf: Int)? {
+        SchlafLogik.gewohnheit(sichereNaechte(person).filter { $0.tag != tag }, wochenende: SchlafLogik.istWochenende(tag))
+    }
+
+    /// Bettzeit-Erinnerung neu planen (nach jeder Schlaf-Rechnung und wenn der Schalter wechselt).
+    func bettErinnerungAktualisieren() {
+        guard Geraet.wirdGetragen, let ich = Raum.shared.ich else { return }
+        let naechte = sichereNaechte(ich)
+        BettErinnerung.planen(werktag: SchlafLogik.gewohnheit(naechte, wochenende: false),
+                              wochenende: SchlafLogik.gewohnheit(naechte, wochenende: true))
+    }
+
+    /// Schlafschuld der letzten 7 Nächte gegen das Ziel (`SchlafLogik.schuld`).
+    func schlafSchuld(_ person: Person, heute: String) -> Int? {
+        SchlafLogik.schuld((0..<7).compactMap { i in
+            let tag = Datum.addTage(heute, -i)
+            return schlafMinuten(person, tag).map { (minuten: $0, ziel: schlafZiel(person, tag: tag)) }
+        })
+    }
+
+    /// Schlaf nach Tagen mit Koffein ab 16 Uhr gegen Tage ohne, letzte 30 Nächte (`SchlafLogik.koffeinVergleich`).
+    func koffeinVergleich(_ person: Person, heute: String) -> (mit: Int, ohne: Int)? {
+        SchlafLogik.koffeinVergleich((0..<30).compactMap { i in
+            let tag = Datum.addTage(heute, -i)
+            guard let m = schlafMinuten(person, tag) else { return nil }
+            let spaet = koffeinZeiten(person, Datum.addTage(tag, -1)).contains { (Calendar.berlin.dateComponents([.hour], from: $0).hour ?? 0) >= 16 }
+            return (minuten: m, spaet: spaet)
+        })
+    }
+
+    /// Verlauf der Bewegungs-Zustände (CoreMotion hält ihn 7 Tage selbst, Lesen kostet keinen Sensor).
+    private func bewegungen(_ tag: String) async -> [SchlafLogik.Aktivitaet] {
+        guard Geraet.wirdGetragen, CMMotionActivityManager.isActivityAvailable() else { return [] }
+        let tagStart = Calendar.berlin.startOfDay(for: Datum.datum(tag))
+        guard let fensterStart = Calendar.berlin.date(byAdding: .hour, value: -6, to: tagStart),
+              let fensterEndeRoh = Calendar.berlin.date(byAdding: .hour, value: 14, to: tagStart)
+        else { return [] }
+        let fensterEnde = min(fensterEndeRoh, Date())
+        guard fensterEnde > fensterStart else { return [] }
+        return await withCheckedContinuation { fortsetzung in
+            bewegungsManager.queryActivityStarting(from: fensterStart, to: fensterEnde, to: .main) { taetigkeiten, _ in
+                fortsetzung.resume(returning: (taetigkeiten ?? []).map {
+                    SchlafLogik.Aktivitaet(zeit: $0.startDate, stationaer: $0.stationary,
+                                          konfidenz: SchlafLogik.Konfidenz(rawValue: $0.confidence.rawValue) ?? .niedrig)
+                })
+            }
+        }
+    }
+
+    /// Wann Ton über Kopfhörer lief. Ohne Berechtigung oder ohne Samples: leer, kein Fehler.
+    private func tonSpannen(von: Date, bis: Date) async -> [HealthLogik.SchlafIntervall] {
+        let praedikat = HKQuery.predicateForSamples(withStart: von, end: bis, options: .strictStartDate)
+        return await withCheckedContinuation { fortsetzung in
+            let abfrage = HKSampleQuery(sampleType: tonType, predicate: praedikat, limit: HKObjectQueryNoLimit, sortDescriptors: nil) { _, ergebnis, _ in
+                fortsetzung.resume(returning: (ergebnis ?? []).map { HealthLogik.SchlafIntervall(von: $0.startDate, bis: $0.endDate) })
+            }
+            store.execute(abfrage)
+        }
     }
 
     /// UNSICHER (Bericht): `HKCategoryValueSleepAnalysis.allAsleepValues` (iOS 16+) deckt vermutlich
@@ -285,9 +653,32 @@ final class HealthModell {
     }
 }
 
-private struct SchritteD: Codable { let datum: String; let anzahl: Int }
-private struct SchlafD: Codable { var datum: String; var minuten: Int; var von: String; var bis: String }
-private struct HabitD: Codable { var art: String; var datum: String; var wert: Int }
+struct SchritteExtra: Sendable, Equatable {
+    var km: Double? = nil
+    var etagen: Int? = nil
+    var kcal: Int? = nil
+    var aktivMinuten: Int? = nil
+}
+
+/// `schritte.setzen {datum, anzahl, km?, etagen?, kcal?, aktivMinuten?, nachgetragen?}` — optional
+/// fields are left out when `nil`, older builds ignore them.
+private struct SchritteD: Codable {
+    var datum: String
+    var anzahl: Int
+    var km: Double? = nil
+    var etagen: Int? = nil
+    var kcal: Int? = nil
+    var aktivMinuten: Int? = nil
+    var nachgetragen: Bool? = nil
+}
+
+private extension SchritteD {
+    init(_ anzahl: Int, _ extra: SchritteExtra, datum: String) {
+        self.init(datum: datum, anzahl: anzahl, km: extra.km, etagen: extra.etagen, kcal: extra.kcal, aktivMinuten: extra.aktivMinuten)
+    }
+}
+/// `quelle` optional, ältere Builds ignorieren es (siehe `schlafOpAnwenden`).
+private struct SchlafD: Codable { var datum: String; var minuten: Int; var von: String; var bis: String; var quelle: String? = nil }
 private struct EinstellungD: Codable { var schluessel: String; var wert: JSONValue }
 
 /// HealthKit's observer completion handler is not `Sendable`; calling it from any thread is fine.

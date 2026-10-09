@@ -22,57 +22,121 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     var jacke = 0, jackenfarbe = 3, hose = 1, hosenfarbe = 3, schuhe = 0, schuhfarbe = 2
     var koerperform = 1, groesse = 1
     // v3 (Z-23.1/Z-24.2): getragene Shop-Teile, String-IDs aus `ShopKatalog`, nil = nichts.
-    var tasche: String?, uhr: String?, schmuck: String?, pose: String?, tier: String?
+    var tasche: String?, uhr: String?, schmuck: String?, tier: String?
     // v3 (Z-24.1): freie Farbwahl für Haare und Kleidung, Hex "RRGGBB". nil = weiter der Index oben.
     var haarfarbeHex: String?, oberteilfarbeHex: String?, jackenfarbeHex: String?, hosenfarbeHex: String?, schuhfarbeHex: String?
+    // v4 (Z-39.3): freier Alltagsschmuck, Indizes in `ketten`/`ringe`/`armbaender`/`uhrenAlltag`, 0 = keiner.
+    var kette = 0, ring = 0, armband = 0, uhrAlltag = 0
+    // v5 (fix round 3): Kinnbart, combines with any mustache; index into `kinnbaerte`, 0 = none.
+    var kinnbart = 0
+    // v6 (fix round 4): several small moles on the cheeks, white AirPods in both ears.
+    var muttermale = false, airpods = false
+    // v7 (Brief F2): nil = saved before the redesigned faces, so `mitNeuemGesicht` switches it once.
+    var gesichtV2: Bool?
+    // v8 (p71): the abs of the bare torso. nil = as before (a light six-pack), 0 = smooth, otherwise 4, 6 or 8.
+    // Optional on purpose: older looks and older builds simply do not have it.
+    var bauch: Int?
+    /// Whose figure this is. Not synced (missing from `CodingKeys`): `standard(for:)` and
+    /// `FigurenModell.aussehen(_:)` set it, so the drawing can dress Ahmed and Annika differently
+    /// in the gym. `nil` = unknown, draws the chosen outfit.
+    var person: Person?
 
     enum CodingKeys: String, CodingKey {
         case haut, frisur, haarfarbe, augen, brille, bart, oberteil, oberteilfarbe
         case gesichtsform, augenform, brauen, nase, mund, wimpern, sommersprossen, muttermal, rouge
         case ohrringe, kopfbedeckung, muetzenfarbe
         case jacke, jackenfarbe, hose, hosenfarbe, schuhe, schuhfarbe, koerperform, groesse
-        case tasche, uhr, schmuck, pose, tier
+        case tasche, uhr, schmuck, tier
         case haarfarbeHex, oberteilfarbeHex, jackenfarbeHex, hosenfarbeHex, schuhfarbeHex
+        case kette, ring, armband, uhrAlltag
+        case kinnbart
+        case muttermale, airpods
+        case gesichtV2
+        case bauch
     }
 
+    /// Z-38.4: the looks of Ahmed's and Annika's Bitmojis (`docs/figuren-vorlage/`). Whoever never sent
+    /// an own `figur.aussehen` sees these (`FigurenModell.aussehen`), 
     static func standard(for person: Person) -> FigurAussehen {
         var a = FigurAussehen()
+        a.person = person
         switch person {
         case .ahmed:
-            a.haut = 3
-            a.frisur = 12        // Wuschelig (leicht zerzaust)
-            a.haarfarbe = 0      // Schwarz
-            a.augen = 1          // Braun
-            a.augenform = 1      // Mandel
-            a.brauen = 2         // Dick
-            a.mund = 1           // Zahnlächeln (breites Lächeln)
-            a.bart = 2           // Schnurrbart (dünn)
-            a.oberteil = 12      // Trikot
-            a.oberteilfarbe = 9  // Gelb (Brasilien-Trikot)
-            a.hose = 2           // Weite Jeans
-            a.hosenfarbe = 4     // Grau
-            a.hosenfarbeHex = "8E8C93" // hose 2 ist ein Denim-Wash und ignoriert den Index sonst (siehe FigurView.hosenFarbe)
-            a.schuhe = 0
-            a.schuhfarbe = 2     // Weiß
+            // Fix round 4: his real everyday look, after his photos and the ChatGPT stickers
+            // (`design/ki/sticker/wir-ich.png`): long angular face, light warm skin with moles,
+            // almost black curly cloud with a heavy fringe over a low taper, thick straight brows,
+            // heavy relaxed lids, long nose, full light-pink lips, medium-brown mustache, a trace of
+            // chin stubble, AirPods, black tee, grey wide jeans, white low tops.
+            a.haut = 12          // Hell warm
+            a.gesichtsform = 7   // Schmal markant (Brief F2, option B)
+            a.frisur = 80        // p71: dunkelbraunes welliges Haar (Welliger Seitenschwung), nach seinen Fotos
+            a.haarfarbe = 1      // Dunkelbraun
+            a.augen = 0          // Dunkelbraun
+            a.augenform = 4      // Verträumt (schwere, entspannte Lider)
+            a.brauen = 8         // Dick gerade
+            a.nase = 5           // Lang
+            a.mund = 8           // Lippen hellrosa
+            a.bart = 14          // Oberlippenbart hellbraun
+            a.kinnbart = 1       // Leichter Kinnbart
+            a.muttermale = true
+            a.airpods = true
+            a.koerperform = 3    // Athletisch
+            a.oberteil = 32      // T-Shirt schwarz
+            a.hose = 18          // Baggy Jeans hellgrau
+            a.schuhe = 15        // Sneaker weiß
         case .annika:
             a.haut = 1
-            a.frisur = 7         // Lang glatt
+            a.gesichtsform = 8   // Schmal weich (Brief F2, option 3)
+            a.frisur = 56        // Lang glatt Mittelscheitel
             a.haarfarbe = 1      // Dunkelbraun
             a.augen = 4          // Blau
             a.augenform = 1
             a.wimpern = true
             a.mund = 3           // Volle Lippen
             a.rouge = true
-            a.ohrringe = 1
+            a.ohrringe = 8       // Blume (25.09., nach ihrem Foto)
+            a.koerperform = 5    // Sportlich
             a.oberteil = 4       // Top
             a.oberteilfarbe = 12 // Hellrosa
-            a.jacke = 1          // Lederjacke
+            a.jacke = 0          // p56: keine Jacke im Standard, sie verdeckte jedes Oberteil
             a.jackenfarbe = 3    // Schwarz
-            a.hose = 2           // Weite Jeans
+            a.hose = 1           // Jeans dunkel
             a.schuhe = 1         // High-Top
             a.schuhfarbe = 3     // Schwarz
         }
+        a.gesichtV2 = true
         return a
+    }
+
+    /// Brief F2 (25.09.): Ahmed and Annika saved their looks before the redesigned faces. A look without
+    /// `gesichtV2` gets the new face once, together with the hairstyle that belongs to it (Ahmed chose
+    /// the heads including the hair); the editor saves the flag, so a later choice sticks.
+    static func mitNeuemGesicht(_ a: FigurAussehen, _ p: Person) -> FigurAussehen {
+        guard a.gesichtV2 == nil else { return mitGueltigemGesicht(a, p) }
+        var b = a
+        b.gesichtsform = p == .ahmed ? 7 : 8
+        b.frisur = p == .ahmed ? 79 : 56
+        b.gesichtV2 = true
+        return b
+    }
+
+    /// Only the redesigned faces are offered: 7 for Ahmed, 8 for Annika. The old cartoon heads stay in
+    /// `gesichtsformen` (stored indices never shift) but are no longer pickable.
+    static func gesichter(fuer person: Person) -> [Int] { person.figurGeschlecht == .m ? [7] : [8] }
+
+    /// A saved look with an old or foreign face falls back to the person's new face; nothing else changes.
+    static func mitGueltigemGesicht(_ a: FigurAussehen, _ p: Person) -> FigurAussehen {
+        let erlaubt = gesichter(fuer: p)
+        guard !erlaubt.contains(a.gesichtsform) else { return a }
+        var b = a
+        b.gesichtsform = erlaubt[0]
+        return b
+    }
+
+    /// Hairstyles the editor offers: the person's own look (Ahmed 79, Annika 56) plus a few close variants.
+    /// Index order = tile order. Other styles still draw when a stored look uses them.
+    static func frisurenAuswahl(fuer person: Person) -> [Int] {
+        person.figurGeschlecht == .m ? [79, 78, 80, 81] : [56, 57, 58, 59]
     }
 
     static let hautToene: [(name: String, farbe: FigurFarbe)] = [
@@ -82,9 +146,10 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         ("Kakao", FigurFarbe(0x7F4F2F)), ("Espresso", FigurFarbe(0x5A3620)),
         ("Rosig", FigurFarbe(0xF3C6B0)), ("Oliv", FigurFarbe(0xC7A07A)),
         ("Bronze", FigurFarbe(0x8E5B3A)), ("Ebenholz", FigurFarbe(0x3E2518)),
+        ("Hell warm", FigurFarbe(0xE8C2A6)), // Fix round 4 (Ahmed)
     ]
 
-    static let gesichtsformen = ["Oval", "Rund", "Herz", "Eckig", "Länglich", "Diamant"]
+    static let gesichtsformen = ["Oval", "Rund", "Herz", "Eckig", "Länglich", "Diamant", "Kantig lang", "Schmal markant", "Schmal weich"]
 
     static let frisuren = [
         "Kurz", "Raspel", "Seitenscheitel", "Locken", "Tolle", "Glatze",
@@ -93,6 +158,17 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         "Man Bun", "Twists", "Lang mit Pony", "Lang lockig", "Schulterlang", "Hoher Zopf",
         "Space Buns", "Seitenzopf", "Halboffen", "Pixie", "Bob mit Pony", "Lang Seitenscheitel",
         "Irokese", "Locken mittellang", "Zwei Zöpfe", "Zurückgegelt",
+        // Z-38.3 (Runde 3): 22 für Ahmed (34–55), 22 für Annika (56–77), alle mit Strähnen und Glanzlicht.
+        "Bitmoji-Pony", "Pony zerzaust kurz", "Curtains", "Quiff", "French Crop", "Buzz Cut mit Linie",
+        "Seitenscheitel Fade", "Pompadour", "Spikes", "Undercut Schwung", "Slick Back", "Bro Flow",
+        "Mittelscheitel lang", "Mullet", "Edgar", "Textured Crop", "Faux Hawk", "Waves",
+        "Twists kurz", "Cornrows", "Top Knot", "Wuschel glatt",
+        "Lang glatt Mittelscheitel", "Lang Stufen", "Curtain Bangs lang", "Beach Waves", "Sleek Pferdeschwanz", "Messy Bun",
+        "Tiefer Dutt", "Halboffen mit Schleife", "Lob", "Bob gewellt", "Lang mit geradem Pony", "Seitlicher Fischgrätzopf",
+        "Boxer Braids", "Volle Locken", "Hime Cut", "Wolf Cut", "Butterfly Cut", "Seitenscheitel hinters Ohr",
+        "Hochsteckfrisur mit Spange", "Hoher Zopf mit Scrunchie", "Afro Puffs", "Lange Box Braids",
+        // Fix round 3: Ahmed's own hairstyles from his photos (78–82), all with a taper fade.
+        "Locken-Pony übers Auge", "Mushroom Taper", "Welliger Seitenschwung", "Fluffy Locken", "Gym Wet Look",
     ]
 
     static let haarfarben: [(name: String, farbe: FigurFarbe, straehne: FigurFarbe?)] = [
@@ -106,6 +182,7 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         ("Schwarz mit Strähnen", FigurFarbe(0x221C1C), FigurFarbe(0xB88B55)),
         ("Braun mit Karamell", FigurFarbe(0x5A3A26), FigurFarbe(0xD9A26A)),
         ("Blond mit Strähnen", FigurFarbe(0xC89E5E), FigurFarbe(0xF4E3B5)),
+        ("Fast schwarz", FigurFarbe(0x241712), nil), // Fix round 4 (Ahmed)
     ]
 
     static let augenfarben: [(name: String, farbe: FigurFarbe)] = [
@@ -115,10 +192,10 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         ("Bernstein", FigurFarbe(0xB07A2A)), ("Hellblau", FigurFarbe(0x7FB0DD)),
     ]
 
-    static let augenformen = ["Rund", "Mandel", "Groß", "Schmal", "Verträumt", "Hängend", "Katzenauge", "Klein"]
-    static let augenbrauen = ["Natürlich", "Dünn", "Dick", "Gerade", "Hoch gebogen", "Buschig", "Kantig", "Kurz"]
+    static let augenformen = ["Rund", "Mandel", "Groß", "Schmal", "Verträumt", "Hängend", "Katzenauge", "Klein", "Scharf"]
+    static let augenbrauen = ["Natürlich", "Dünn", "Dick", "Gerade", "Hoch gebogen", "Buschig", "Kantig", "Kurz", "Dick gerade"]
     static let nasen = ["Klein", "Knopf", "Spitz", "Breit", "Stupsnase", "Lang"]
-    static let muender = ["Lächeln", "Zahnlächeln", "Schmunzeln", "Volle Lippen", "Schmal", "Breit", "Lippenstift Rosé", "Lippenstift Rot"]
+    static let muender = ["Lächeln", "Zahnlächeln", "Schmunzeln", "Volle Lippen", "Schmal", "Breit", "Lippenstift Rosé", "Lippenstift Rot", "Lippen hellrosa"]
 
     static let brillen = [
         "Keine", "Rund", "Eckig", "Sonnenbrille", "Oval", "Cat-Eye", "Nerd", "Randlos",
@@ -128,49 +205,188 @@ struct FigurAussehen: Codable, Equatable, Sendable {
     static let baerte = [
         "Keiner", "Stoppeln", "Schnurrbart", "Kinnbart", "Vollbart", "Ziegenbart", "Kinnriemen", "Langer Bart", "Koteletten",
         "Fu-Manchu", "Anker-Bart", "Dichter Bart kurz", "Backenbart mit Schnurrbart",
+        "Feiner Schnurrbart", "Oberlippenbart hellbraun", "Schnurrbart frisiert",
     ]
     /// Z-24.1: gender filter is fixed per person (Spec §5) — `n` shows for both, `m`/`w` only for that gender.
     /// Index-aligned with `frisuren`/`baerte`; new entries append at the end so stored indices never shift.
     static let frisurenGeschlecht: [FigurGeschlecht] = [
-        .n, .n, .n, .n, .n, .m, .n, .n, .n, .n, .n, .w, .n, .m, .m, .n, .n, .n, .m, .n,
-        .n, .n, .n, .n, .w, .n, .n, .w, .n, .n, .n, .n, .w, .n,
+        // Fix round 2: every long style, braid, ponytail, bun and bob is female-only (Ahmed: "diese
+        // richtig langen Haare sind weiblich"); only short/medium male-typical and unisex styles stay.
+        .n, .n, .n, .n, .n, .m, .w, .w, .w, .w, .w, .w, .n, .m, .m, .n, .n, .n, .m, .n,
+        .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .n, .w, .w, .n,
+        .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .w, .m, .m, .m, .m, .m, .m, .m, .m, .m,
+        .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w, .w,
+        .m, .m, .m, .m, .m,
     ]
-    static let baerteGeschlecht: [FigurGeschlecht] = [.n, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m]
-    static let ohrringArten = ["Keine", "Stecker", "Kreolen", "Hänger", "Perlen"]
-    static let kopfbedeckungen = ["Keine", "Cap", "Cap rückwärts", "Beanie", "Fischerhut", "Stirnband", "Haarreif"]
+    /// Ahmed: no half-bald looks. Styles drawn with `seitenFade` (skin-mixed sides) are hidden in the
+    /// editor; a figure already wearing one keeps rendering it.
+    static let halbglatze: Set<Int> = [13, 14, 30, 35, 37, 38, 40, 41, 43, 48, 49, 50, 52, 54]
+    static let baerteGeschlecht: [FigurGeschlecht] = [.n, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m, .m]
+    static let ohrringArten = ["Keine", "Stecker", "Kreolen", "Hänger", "Perlen", "Diamant-Stecker", "Große Kreolen", "Herz-Hänger", "Blume"]
+    static let ohrringeGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .w, .w]
+    static let kopfbedeckungen = ["Keine", "Cap", "Cap rückwärts", "Beanie", "Fischerhut", "Stirnband", "Haarreif", "Carhartt Beanie", "Trucker Cap"]
 
     static let oberteile = [
         "T-Shirt", "Hoodie", "Hemd", "Pulli", "Top", "Jacke", "Trägertop", "Ringelshirt",
         "Kleid", "Polo", "Rollkragen", "Crop-Top", "Trikot", "Karohemd",
         "Logo-Hoodie", "Statement-Shirt", "Seidenbluse",
+        // Z-39.1 Alltagsmarken (frei), Z-39.2 Luxus (nur Shop, siehe `oberteileShop`).
+        "H&M Basic-Shirt", "Zara Rippstrick-Top", "Nike Tech Fleece", "Nike Trikot", "Puma Shirt", "Stüssy Shirt",
+        "Gucci Web-Shirt", "Dior Oblique-Pulli", "Louis Vuitton Monogramm-Hemd", "Balenciaga Oversize-Hoodie",
+        // Aus Ahmeds und Annikas Fotos (frei), Zeichnung über `fotoOberteile`.
+        "Weißes Kompressions-Longsleeve", "Schwarzes Kompressions-Tee", "Waldgrünes Oversize-Tee", "Weißes Rippen-Tank",
+        // Fix round 3 (Ahmed's photos): 31 has its own drawing, 32 via `fotoOberteile`, 33 = bare torso.
+        "Rosa Strickpulli mit Grafik", "T-Shirt schwarz", "Oben ohne",
+        // Fix round 4: Gymshark (own drawing with the logo).
+        "Gymshark Tee schwarz", "Gymshark Longsleeve weiß",
+        // p56: elegant, nur Shop (siehe `oberteileShop`).
+        "Satin-Camisole", "Off-Shoulder-Top", "Wickelkleid",
+        // p65 D: Marken-Teile, Basisform in `markenBasis`, Logo in `Zubehoer/ModeMarken.swift`. Nur Shop.
+        "Ralph Lauren Polo", "Adidas T-Shirt", "Carhartt T-Shirt", "The North Face T-Shirt", "Nike Sport-Top",
     ]
-    static let jacken = ["Keine", "Lederjacke", "Jeansjacke", "Bomberjacke", "Blazer", "Pufferjacke", "Pelzkragen-Jacke", "Cape"]
+    static let jacken = [
+        "Keine", "Lederjacke", "Jeansjacke", "Bomberjacke", "Blazer", "Pufferjacke", "Pelzkragen-Jacke", "Cape",
+        "Adidas Trainingsjacke", "The North Face Puffer", "Carhartt Jacke",
+        "Moncler Maya", "Chanel Tweed-Jacke", "Prada Re-Nylon Jacke",
+        "Perlen-Cardigan",
+    ]
     static let hosen = [
         "Jeans hell", "Jeans dunkel", "Weite Jeans", "Stoffhose", "Jogginghose", "Cargohose", "Shorts", "Rock", "Minirock", "Leggings",
         "Anzughose", "Glitzerhose",
+        "Adidas Trainingshose", "Levi's 501", "Nike Tech Fleece Jogger", "Puma Leggings",
+        "Schwarze Gym-Shorts", "Hellgraue Wide-Jogger", "Baggy Jeans hellgrau",
+        "Rosa Weite Jeans",
+        "Skinny Jeans mit Blumen",
     ]
-    static let schuhArten = ["Sneaker", "High-Top", "Laufschuhe", "Stiefel", "Chelsea-Boots", "Sandalen", "Ballerinas", "Slipper", "Logo-Sneaker", "Two-Tone-Sneaker"]
-    static let koerperformen = ["Schlank", "Normal", "Kräftig"]
+    static let schuhArten = [
+        "Sneaker", "High-Top", "Laufschuhe", "Stiefel", "Chelsea-Boots", "Sandalen", "Ballerinas", "Slipper", "Logo-Sneaker", "Two-Tone-Sneaker",
+        "Nike Air Force 1", "Adidas Samba", "New Balance 550",
+        "Gucci Ace", "Balenciaga Triple S",
+        "Sneaker weiß",
+        // p65 D: Jordan 1 und Dunk, Zeichnung in `Zubehoer/ModeMarken.swift`. Nur Shop.
+        "Air Jordan 1", "Nike Dunk Low",
+    ]
     static let groessen = ["Klein", "Mittel", "Groß"]
 
-    /// Only "Kleid"/"Rock"/"Minirock" are gender-tagged (Spec §5); everything else is neutral.
-    static let oberteileGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .n, .w, .n, .n, .n, .n, .n, .n, .n, .n]
-    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n]
-    /// Z-23.1: indices appended for shop "mode"/"brille" items (`shopTeile` below) — hidden from the
-    /// free editor and `zufall()` so buying is the only way to wear them.
-    static let oberteileShop: Set<Int> = [14, 15, 16]
-    static let jackenShop: Set<Int> = [6, 7]
-    static let hosenShop: Set<Int> = [10, 11]
-    static let schuheShop: Set<Int> = [8, 9]
+    /// Z-38.2: body types in `koerperform` order, names and tags derived below so they never drift.
+    /// `breite` scales the half-figure torso and `armHalb` its arms; `s`/`t`/`h` are the full-body
+    /// shoulder/waist/hip half widths, `arm`/`bein` the limb thickness there. `muskel` (0…1) adds
+    /// shoulder and biceps bulges plus chest lines, `kurve` (0…1) a bust line and an hourglass.
+    struct Koerper: Sendable {
+        let name: String
+        let geschlecht: FigurGeschlecht
+        let breite, armHalb, s, t, h, arm, bein, muskel, kurve: CGFloat
+    }
+
+    static let koerper: [Koerper] = [
+        // Fix round 1: the types differ clearly at a glance (render board `figuren-koerper`); Normal is unchanged.
+        Koerper(name: "Schlank", geschlecht: .n, breite: 0.86, armHalb: 0.86, s: 33, t: 24, h: 27, arm: 0.54, bein: 13, muskel: 0, kurve: 0),
+        Koerper(name: "Normal", geschlecht: .n, breite: 1, armHalb: 1, s: 41, t: 30, h: 32, arm: 0.66, bein: 17, muskel: 0, kurve: 0),
+        Koerper(name: "Kräftig", geschlecht: .m, breite: 1.16, armHalb: 1.14, s: 52, t: 50, h: 46, arm: 0.86, bein: 24, muskel: 0, kurve: 0),
+        Koerper(name: "Athletisch", geschlecht: .m, breite: 1.2, armHalb: 1.16, s: 56, t: 29, h: 32, arm: 0.8, bein: 19, muskel: 0.7, kurve: 0),
+        Koerper(name: "Muskulös", geschlecht: .n, breite: 1.32, armHalb: 1.4, s: 64, t: 36, h: 37, arm: 1, bein: 23, muskel: 1, kurve: 0),
+        Koerper(name: "Sportlich", geschlecht: .w, breite: 0.95, armHalb: 0.96, s: 38, t: 23, h: 30, arm: 0.6, bein: 16, muskel: 0.35, kurve: 0.35),
+        Koerper(name: "Kurvig", geschlecht: .w, breite: 1, armHalb: 1, s: 39, t: 25, h: 50, arm: 0.66, bein: 22, muskel: 0, kurve: 1),
+    ]
+    /// p71: the belly choices in tile order. `bauchWerte[i]` is the stored `bauch` of tile `i`.
+    static let bauchNamen = ["Standard", "Glatt", "4er", "6er", "8er"]
+    static let bauchWerte: [Int?] = [nil, 0, 4, 6, 8]
+
+    /// The editor works on tile indices; this maps them to the stored optional value and back
+    /// (an unknown stored value shows as "Standard").
+    var bauchStufe: Int {
+        get { Self.bauchWerte.firstIndex(where: { $0 == bauch }) ?? 0 }
+        set { bauch = Self.bauchWerte[Swift.min(Swift.max(newValue, 0), Self.bauchWerte.count - 1)] }
+    }
+
+    static let koerperformen = koerper.map(\.name)
+    static let koerperformenGeschlecht = koerper.map(\.geschlecht)
+    /// "Normal" stays for old looks but is hidden in the editor (Z-38.2).
+    static let koerperformenVersteckt: Set<Int> = [1]
+
+    /// Z-39.3: free everyday jewelry, 0 = none. The drawings live next to the names in `Zubehoer/SchmuckZeichner.swift`.
+    static let ketten = ["Keine"] + alltagsKetten.map { $0.name }
+    static let kettenGeschlecht = [FigurGeschlecht.n] + alltagsKetten.map { $0.geschlecht }
+    static let ringe = ["Keiner"] + alltagsRinge.map { $0.name }
+    static let ringeGeschlecht = [FigurGeschlecht.n] + alltagsRinge.map { $0.geschlecht }
+    static let armbaender = ["Keins"] + alltagsArmbaender.map { $0.name }
+    static let armbaenderGeschlecht = [FigurGeschlecht.n] + alltagsArmbaender.map { $0.geschlecht }
+    static let uhrenAlltag = ["Keine"] + alltagsUhren.map { $0.name }
+    /// Fix round 3: chin hair on its own, so it combines with every mustache (Bart tab, men only).
+    static let kinnbaerte = ["Keiner", "Leichter Kinnbart", "Kinnbart"]
+
+    /// p65 C1: women's cuts are `.w` (Top, Trägertop, Crop-Top, Kleid, Seidenbluse, Zara top, ...), so Ahmed is
+    /// never offered them (Spec §5); Ahmed wore crop tops because Top/Trägertop/Crop-Top were neutral.
+    static let oberteileGeschlecht: [FigurGeschlecht] = [
+        .n, .n, .n, .n, .w, .n, .w, .n, .w, .n, .n, .w, .n, .n, .n, .n, .w,
+        .n, .w, .n, .n, .n, .n, .n, .n, .n, .n,
+        .m, .m, .m, .w,
+        .m, .m, .m,
+        .n, .n,
+        .w, .w, .w,
+        .n, .n, .n, .n, .w,
+    ]
+    static let hosenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .n, .w, .w, .w, .n, .w, .n, .n, .n, .w, .m, .m, .m, .m, .w]
+    static let jackenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .w, .n, .n, .n, .n, .w, .n, .w]
+    /// p65 D: High-Top (1) is Annika's free pair, Sneaker weiß (15) Ahmed's, so each gets exactly one for free.
+    static let schuheGeschlecht: [FigurGeschlecht] = [.n, .w, .n, .n, .n, .n, .w, .n, .n, .n, .n, .n, .n, .n, .n, .m, .n, .n]
+    static let brillenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .w, .n, .n, .n, .w, .n, .n, .n]
+    static let kopfbedeckungenGeschlecht: [FigurGeschlecht] = [.n, .n, .n, .n, .n, .n, .w, .n, .n]
+    /// Z-23.1: indices of shop "mode"/"brille" items (`shopTeile` below) — hidden from the free editor and
+    /// `zufall()` so buying is the only way to wear them. p65 D: for clothes that is everything outside the
+    /// free kit (`grundausstattung(fuer:)`), no jacket is free.
+    static let oberteileShop: Set<Int> = Set(oberteile.indices).subtracting(freieOberteile).subtracting([keinOberteil])
+    static let jackenShop: Set<Int> = Set(jacken.indices).subtracting([0])
+    static let hosenShop: Set<Int> = Set(hosen.indices).subtracting(freieHosen)
+    static let schuheShop: Set<Int> = Set(schuhArten.indices).subtracting(freieSchuhe)
     static let brillenShop: Set<Int> = [11, 12]
+
+    /// p65 D: the new brand tops are drawn on an older shape (Polo, T-Shirt, Crop-Top); `ModeMarken.swift` adds
+    /// the logo. Unlike `fotoOberteile` the color stays free, so one index serves several articles.
+    static let markenBasis: [Int: Int] = [39: 9, 40: 0, 41: 0, 42: 0, 43: 11]
 
     /// Indices of `liste` allowed for `person`: gender-appropriate (tag missing = always allowed)
     /// and not shop-only. Keeps the original index so a filtered tile still sets the right int.
     static func erlaubt<T>(_ liste: [T], geschlecht: [FigurGeschlecht] = [], shop: Set<Int> = [], fuer person: Person) -> [Int] {
-        let g = person.figurGeschlecht
-        return liste.indices.filter { i in
-            !shop.contains(i) && (i >= geschlecht.count || geschlecht[i] == .n || geschlecht[i] == g)
+        liste.indices.filter { !shop.contains($0) && passt($0, geschlecht, fuer: person) }
+    }
+
+    /// Whether index `i` of a list with gender tags `geschlecht` may be worn by `person` (tag missing = yes).
+    static func passt(_ i: Int, _ geschlecht: [FigurGeschlecht], fuer person: Person) -> Bool {
+        i >= geschlecht.count || geschlecht[i] == .n || geschlecht[i] == person.figurGeschlecht
+    }
+
+    /// p65 C1: a saved look that wears a piece its person may not wear (a women's cut on Ahmed, a men's cut
+    /// on Annika, an index no list has) gets that part, with its colors, reset to the person's default.
+    /// Shop-only pieces stay: the shop hides what a person may not wear. Face, hair and body stay as saved.
+    /// Pure, so both phones come to the same picture, like `ohneEntfernteTeile`.
+    static func mitGueltigerKleidung(_ a: FigurAussehen, _ p: Person) -> FigurAussehen {
+        let basis = standard(for: p)
+        var b = a
+        func gueltig(_ i: Int, _ anzahl: Int, _ tags: [FigurGeschlecht]) -> Bool {
+            (0..<anzahl).contains(i) && passt(i, tags, fuer: p)
         }
+        if !gueltig(a.oberteil, oberteile.count, oberteileGeschlecht) {
+            b.oberteil = basis.oberteil; b.oberteilfarbe = basis.oberteilfarbe; b.oberteilfarbeHex = basis.oberteilfarbeHex
+        }
+        if !gueltig(a.jacke, jacken.count, jackenGeschlecht) {
+            b.jacke = basis.jacke; b.jackenfarbe = basis.jackenfarbe; b.jackenfarbeHex = basis.jackenfarbeHex
+        }
+        if !gueltig(a.hose, hosen.count, hosenGeschlecht) {
+            b.hose = basis.hose; b.hosenfarbe = basis.hosenfarbe; b.hosenfarbeHex = basis.hosenfarbeHex
+        }
+        if !gueltig(a.schuhe, schuhArten.count, schuheGeschlecht) {
+            b.schuhe = basis.schuhe; b.schuhfarbe = basis.schuhfarbe; b.schuhfarbeHex = basis.schuhfarbeHex
+        }
+        if !gueltig(a.kopfbedeckung, kopfbedeckungen.count, kopfbedeckungenGeschlecht) {
+            b.kopfbedeckung = basis.kopfbedeckung; b.muetzenfarbe = basis.muetzenfarbe
+        }
+        if !gueltig(a.brille, brillen.count, brillenGeschlecht) { b.brille = basis.brille }
+        if !gueltig(a.ohrringe, ohrringArten.count, ohrringeGeschlecht) { b.ohrringe = basis.ohrringe }
+        if !gueltig(a.kette, ketten.count, kettenGeschlecht) { b.kette = basis.kette }
+        if !gueltig(a.ring, ringe.count, ringeGeschlecht) { b.ring = basis.ring }
+        if !gueltig(a.armband, armbaender.count, armbaenderGeschlecht) { b.armband = basis.armband }
+        return b
     }
 
     /// Shared clothing palette: Oberteil, Jacke, Hose, Schuhe, Kopfbedeckung. The first 12 were the v1 top colors.
@@ -183,6 +399,9 @@ struct FigurAussehen: Codable, Equatable, Sendable {
         ("Orange", FigurFarbe(0xF08A4B)), ("Lila", FigurFarbe(0x9B7BD8)),
         ("Hellrosa", FigurFarbe(0xF7B6C8)), ("Beige", FigurFarbe(0xD8C3A0)),
         ("Braun", FigurFarbe(0x7A5234)), ("Denim", FigurFarbe(0x4B6C98)),
+        // Fix round 3: Ahmed's pink and deep black.
+        ("Pink", FigurFarbe(0xF2A9BA)), ("Tiefschwarz", FigurFarbe(0x161617)),
+        ("Bordeaux", FigurFarbe(0x4A1F24)), // Fix round 4: Ahmed's trucker cap
     ]
 }
 
@@ -239,13 +458,58 @@ extension FigurAussehen {
         try lies(.tasche, &tasche)
         try lies(.uhr, &uhr)
         try lies(.schmuck, &schmuck)
-        try lies(.pose, &pose)
         try lies(.tier, &tier)
         try lies(.haarfarbeHex, &haarfarbeHex)
         try lies(.oberteilfarbeHex, &oberteilfarbeHex)
         try lies(.jackenfarbeHex, &jackenfarbeHex)
         try lies(.hosenfarbeHex, &hosenfarbeHex)
         try lies(.schuhfarbeHex, &schuhfarbeHex)
+        try lies(.kette, &kette)
+        try lies(.ring, &ring)
+        try lies(.armband, &armband)
+        try lies(.uhrAlltag, &uhrAlltag)
+        try lies(.kinnbart, &kinnbart)
+        try lies(.muttermale, &muttermale)
+        try lies(.airpods, &airpods)
+        try lies(.gesichtV2, &gesichtV2)
+        try lies(.bauch, &bauch)
+    }
+}
+
+extension FigurAussehen {
+    /// The shop writes these straight into the model; the editor never edits them but holds an older
+    /// copy, so saving it would wipe a bag bought while the editor was open.
+    func mitShopTeilen(von aktuell: FigurAussehen) -> FigurAussehen {
+        var a = self
+        a.tasche = aktuell.tasche
+        a.uhr = aktuell.uhr
+        a.schmuck = aktuell.schmuck
+        a.tier = aktuell.tier
+        return a
+    }
+}
+
+extension FigurAussehen {
+    /// p56: `schmuck` holds the worn shop jewelry as a comma list of `juwel.*` ids, at most one per place
+    /// (ear, neck, wrist, hand). Older builds read the whole text as one unknown id and draw nothing.
+    var schmuckListe: [String] { (schmuck ?? "").split(separator: ",").map(String.init) }
+
+    /// Rings may be worn together (each has its own place); every other place holds one piece.
+    private static func juwelPlatz(_ id: String) -> String {
+        guard let ort = schmuckKatalog[id]?.stil.ort else { return id }
+        return ort == .hand ? id : "\(ort)"
+    }
+
+    mutating func juwelAnziehen(_ id: String) {
+        guard schmuckKatalog[id] != nil else { return }
+        var liste = schmuckListe.filter { Self.juwelPlatz($0) != Self.juwelPlatz(id) }
+        liste.append(id)
+        schmuck = liste.joined(separator: ",")
+    }
+
+    mutating func juwelAblegen(_ id: String) {
+        let liste = schmuckListe.filter { $0 != id }
+        schmuck = liste.isEmpty ? nil : liste.joined(separator: ",")
     }
 }
 
@@ -257,7 +521,7 @@ enum ShopFeld: Sendable { case oberteil, jacke, hose, schuhe, brille }
 extension FigurAussehen {
     /// Z-23.1: wears a purchased "mode"/"brille" shop item — those categories have no dedicated
     /// field, they reuse the existing int index (see `oberteileShop` etc.). Unknown ids are ignored.
-    /// `tasche`/`uhr`/`schmuck`/`pose`/`tier` need no mapping, the shop id is stored directly.
+    /// `tasche`/`uhr`/`schmuck`/`tier` need no mapping, the shop id is stored directly.
     mutating func anziehen(_ artikelId: String) {
         guard let e = FigurAussehen.shopTeile[artikelId] else { return }
         // Always assign the hex (even nil): several ids share one (feld, index) with different
@@ -265,7 +529,11 @@ extension FigurAussehen {
         // 14) — leaving a stale hex from a PREVIOUS item would make Z-23.2's "is this worn?" check
         // match the wrong one of them.
         switch e.feld {
-        case .oberteil: oberteil = e.index; oberteilfarbeHex = e.hex
+        case .oberteil:
+            oberteil = e.index
+            oberteilfarbeHex = e.hex
+            // p56: eine freie Jacke (die alte schwarze Lederjacke) deckt das neue Oberteil zu; Shop-Jacken bleiben.
+            if !Self.jackenShop.contains(jacke) { jacke = 0 }
         case .jacke: jacke = e.index; jackenfarbeHex = e.hex
         case .hose: hose = e.index; hosenfarbeHex = e.hex
         case .schuhe: schuhe = e.index; schuhfarbeHex = e.hex
@@ -283,16 +551,16 @@ extension FigurAussehen {
         "mode.balenciaga-shirt": (.oberteil, 15, nil),
         "mode.seidenbluse": (.oberteil, 16, nil),
         "mode.dior-bluse": (.oberteil, 16, "F4F1EE"),
-        "mode.jeansjacke": (.jacke, 2, nil),
+        "mode.jeansjacke": (.jacke, 2, "5E80AC"),
         "mode.bomberjacke": (.jacke, 3, nil),
         "mode.moncler-jacke": (.jacke, 6, "2C3E6B"),
         "mode.pufferjacke-pelz": (.jacke, 6, "2B2830"),
         "mode.dior-cape": (.jacke, 7, "F4F1EE"),
-        "mode.cargohose": (.hose, 5, nil),
+        "mode.cargohose": (.hose, 5, "8B8456"),
         "mode.anzughose": (.hose, 10, "2B2830"),
         "mode.glitzerhose": (.hose, 11, nil),
         "mode.balenciaga-hose": (.hose, 10, nil),
-        "mode.nike-sneaker": (.schuhe, 8, nil),
+        "mode.nike-sneaker": (.schuhe, 8, "F4F1EE"),
         "mode.jordan-sneaker": (.schuhe, 8, "C8283F"),
         "mode.gucci-sneaker": (.schuhe, 9, "3F7D52"),
         "mode.balenciaga-sneaker": (.schuhe, 9, nil),
@@ -302,6 +570,86 @@ extension FigurAussehen {
         "brille.prada-sonnenbrille": (.brille, 11, nil),
         "brille.rahmenlos": (.brille, 12, nil),
         "brille.guess": (.brille, 5, nil),
+        // Z-39.2: Luxus, eigene Indizes am Listenende (Zeichnung in `FigurView.swift`).
+        "mode.gucci-web-shirt": (.oberteil, 23, "F4F1EE"),
+        "mode.dior-oblique-pulli": (.oberteil, 24, "2C3E6B"),
+        "mode.lv-monogramm-hemd": (.oberteil, 25, "6B4630"),
+        "mode.balenciaga-hoodie": (.oberteil, 26, "2B2830"),
+        "mode.moncler-maya": (.jacke, 11, "2C3E6B"),
+        "mode.chanel-tweed": (.jacke, 12, "EFE6D6"),
+        "mode.prada-nylon": (.jacke, 13, "2B2830"),
+        "mode.gucci-ace": (.schuhe, 13, "F4F1EE"),
+        "mode.balenciaga-triple-s": (.schuhe, 14, "D8C3A0"),
+        // p56: elegant. Satin in Champagner, Jeans mittelblau, Kleid und Cardigan in Zeichnung eigener Indizes.
+        "mode.satin-camisole": (.oberteil, 36, "2B6B58"),
+        "mode.off-shoulder": (.oberteil, 37, "F4F1EE"),
+        "mode.wickelkleid": (.oberteil, 38, "7A1F3A"),
+        "mode.cardigan": (.jacke, 14, "C9A07A"),
+        "mode.blumen-jeans": (.hose, 20, "3F6EAF"),
+        // p65 D: Kleiderschrank. Ahmeds Stil (baggy, slim fit, Denim, schwarz, weiß, rosa) und Annikas eigene Auswahl, echte kurze Namen.
+        "mode.tshirt-weiss": (.oberteil, 0, "F4F1EE"),
+        "mode.hemd-weiss": (.oberteil, 2, "F4F1EE"),
+        "mode.hemd-schwarz": (.oberteil, 2, "2B2830"),
+        "mode.strick-creme": (.oberteil, 3, "EFE6D6"),
+        "mode.rolli-schwarz": (.oberteil, 10, "2B2830"),
+        "mode.nike-tech-hoodie": (.oberteil, 19, "2B2830"),
+        "mode.gymshark-tee": (.oberteil, 34, "161617"),
+        "mode.rl-polo-marine": (.oberteil, 39, "2C3E6B"),
+        "mode.adidas-tee-schwarz": (.oberteil, 40, "2B2830"),
+        "mode.carhartt-tee": (.oberteil, 41, "7A5A3A"),
+        "mode.tnf-tee": (.oberteil, 42, "2B2830"),
+        "mode.kompression-longsleeve": (.oberteil, 27, nil),
+        "mode.kompression-shirt": (.oberteil, 28, nil),
+        "mode.oversize-tee-gruen": (.oberteil, 29, nil),
+        "mode.strick-rosa": (.oberteil, 31, "F2A9BA"),
+        "mode.rippen-tank": (.oberteil, 30, nil),
+        "mode.seidenbluse-champagner": (.oberteil, 16, "E8D8B8"),
+        "mode.traegertop-weiss": (.oberteil, 6, "F4F1EE"),
+        "mode.kleid-schwarz": (.oberteil, 8, "2B2830"),
+        "mode.kleid-rosa": (.oberteil, 8, "F7B6C8"),
+        "mode.crop-top-weiss": (.oberteil, 11, "F4F1EE"),
+        "mode.zara-rippstrick": (.oberteil, 18, "EFE6D6"),
+        "mode.nike-sport-top": (.oberteil, 43, "2B2830"),
+        "mode.jeans-hellblau": (.hose, 0, "8FB0D6"),
+        "mode.baggy-jeans-schwarz": (.hose, 2, "1F1F22"),
+        "mode.baggy-jeans-blau": (.hose, 2, "5E80AC"),
+        "mode.stoffhose-schwarz": (.hose, 3, "2B2830"),
+        "mode.jogginghose-schwarz": (.hose, 4, "2B2830"),
+        "mode.cargohose-schwarz": (.hose, 5, "2B2830"),
+        "mode.jeansshorts": (.hose, 6, "7FA3C9"),
+        "mode.anzughose-grau": (.hose, 10, "4A4A52"),
+        "mode.adidas-trainingshose": (.hose, 12, "2B2830"),
+        "mode.levis-501": (.hose, 13, "5E80AC"),
+        "mode.nike-tech-jogger": (.hose, 14, "2B2830"),
+        "mode.gym-shorts": (.hose, 16, nil),
+        "mode.wide-jogger": (.hose, 17, nil),
+        "mode.weite-jeans-rosa": (.hose, 19, nil),
+        "mode.minirock-schwarz": (.hose, 8, "2B2830"),
+        "mode.minirock-denim": (.hose, 8, "7FA3C9"),
+        "mode.leggings-schwarz": (.hose, 9, "2B2830"),
+        "mode.puma-leggings": (.hose, 15, "2B2830"),
+        "mode.lederjacke-schwarz": (.jacke, 1, "2B2830"),
+        "mode.denim-jacke": (.jacke, 2, "6F8DB8"),
+        "mode.bomber-schwarz": (.jacke, 3, "2B2830"),
+        "mode.blazer-schwarz": (.jacke, 4, "2B2830"),
+        "mode.puffer-schwarz": (.jacke, 5, "2B2830"),
+        "mode.adidas-trainingsjacke": (.jacke, 8, "2B2830"),
+        "mode.tnf-puffer": (.jacke, 9, "2B2830"),
+        "mode.carhartt-jacke": (.jacke, 10, "7A5A3A"),
+        "mode.cape-schwarz": (.jacke, 7, "2B2830"),
+        "mode.pelzkragen-creme": (.jacke, 6, "EFE6D6"),
+        "mode.sneaker-schwarz": (.schuhe, 0, "2B2830"),
+        "mode.laufschuhe-weiss": (.schuhe, 2, "F4F1EE"),
+        "mode.stiefel-schwarz": (.schuhe, 3, "2B2830"),
+        "mode.chelsea-schwarz": (.schuhe, 4, "2B2830"),
+        "mode.slipper-braun": (.schuhe, 7, "7A5A3A"),
+        "mode.nike-af1": (.schuhe, 10, "F4F1EE"),
+        "mode.adidas-samba": (.schuhe, 11, "F4F1EE"),
+        "mode.new-balance-550": (.schuhe, 12, "F4F1EE"),
+        "mode.jordan-1-rot": (.schuhe, 16, "C8283F"),
+        "mode.jordan-1-schwarz": (.schuhe, 16, "2B2830"),
+        "mode.nike-dunk-panda": (.schuhe, 17, "2B2830"),
+        "mode.ballerinas-schwarz": (.schuhe, 6, "2B2830"),
     ]
 }
 

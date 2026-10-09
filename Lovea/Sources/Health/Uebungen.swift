@@ -1,0 +1,157 @@
+import Foundation
+
+/// One exercise of the bundled ExerciseDB set (`uebungen.json` next to this file, built by
+/// `tools/uebungen-katalog.sh`). `id` is the ExerciseDB id: plans, `gym.uebung` ops and later the
+/// figure use it.
+struct Uebung: Codable, Identifiable, Sendable, Equatable {
+    let id: String
+    /// German name.
+    let name: String
+    /// ExerciseDB's English name, searchable too.
+    let en: String
+    /// Target muscle, German.
+    let muskel: String
+    /// Body part, German ("Brust", "Beine", "Cardio" …); the search filter.
+    let koerper: String
+    /// Equipment, German.
+    let geraet: String
+    /// Secondary muscles, German.
+    let neben: [String]
+
+    var istCardio: Bool { koerper == "Cardio" }
+}
+
+/// The catalog: 1,324 ExerciseDB exercises plus own ones (`tools/uebungen-zusatz.json`), each with a 180p GIF at ExerciseDB (`UebungsMedien`), searchable
+/// in German and English.
+enum UebungsKatalog {
+    static let alle: [Uebung] = laden(.main)
+    static let nachId: [String: Uebung] = Dictionary(alle.map { ($0.id, $0) }, uniquingKeysWith: { erste, _ in erste })
+    static let koerperteile: [String] = Array(Set(alle.map(\.koerper))).sorted()
+
+    static func laden(_ bundle: Bundle) -> [Uebung] {
+        guard let url = bundle.url(forResource: "uebungen", withExtension: "json")
+                ?? bundle.url(forResource: "uebungen", withExtension: "json", subdirectory: "Health"),
+              let daten = try? Data(contentsOf: url),
+              let liste = try? JSONDecoder().decode([Uebung].self, from: daten) else { return [] }
+        return liste
+    }
+
+    /// Lowercased, accents and umlauts folded, "ae/oe/ue" read as "a/o/u", "ß" as "ss", hyphens as
+    /// spaces: "Bankdrücken", "bankdruecken" and "Bankdrucken" all become "bankdrucken".
+    static func normal(_ text: String) -> String {
+        text.lowercased()
+            .replacingOccurrences(of: "ß", with: "ss")
+            .folding(options: .diacriticInsensitive, locale: Locale(identifier: "de_DE"))
+            .replacingOccurrences(of: "ae", with: "a")
+            .replacingOccurrences(of: "oe", with: "o")
+            .replacingOccurrences(of: "ue", with: "u")
+            .replacingOccurrences(of: "-", with: " ")
+    }
+
+    /// Standard im Studio: Freihanteln (Kurz-, Langhantel, SZ-Stange, Trap-Bar) und Maschinen (Kabelzug, Multipresse,
+    /// Beinpresse-Schlitten). Band, Kettlebell, Körpergewicht usw. stehen hinter dem Gerät-Filter.
+    static let standardGeraete: Set<String> = [
+        "Kurzhantel", "Langhantel", "SZ-Stange", "Olympia-Langhantel", "Trap-Bar",
+        "Maschine", "Kabelzug", "Multipresse", "Schlitten",
+    ]
+    /// Filterwert "kein Gerätefilter" (nil heißt Standard: `standardGeraete`).
+    static let alleGeraete = "Alle Geräte"
+    static let standardTitel = "Hanteln & Maschinen"
+
+    /// nil = Standard, `alleGeraete` = alles, sonst genau dieses Gerät.
+    static func passtGeraet(_ u: Uebung, wahl: String?) -> Bool {
+        guard let wahl else { return standardGeraete.contains(u.geraet) }
+        return wahl == alleGeraete || u.geraet == wahl
+    }
+
+    /// Eigene Einträge (id "lv-…", `tools/uebungen-zusatz.json`) haben kein Video bei ExerciseDB.
+    static func hatVideo(_ id: String) -> Bool { !id.hasPrefix("lv-") }
+
+    /// Gängige Studio-Übungen (ExerciseDB-ids), oben als Vorschläge und bei Alternativen zuerst.
+    // ponytail: feste Liste statt Beliebtheit aus Daten; erweitern, wenn eine Kategorie zu dünn ist.
+    static let beliebt: [String] = [
+        "EIeI8Vf", "ns0SIbU", "3TZduzM", "0CXGHya", "T0yTjgW", "yz9nUhF", "I4hDWkc",              // Brust
+        "qXTaZnJ", "jFtipLl", "ila4NZS", "wQ2c4XD", "my33uHU", "17lJ1kr", "Zg3XY7P", "RRWFUcw",  // Beine
+        "CHpahtl", "OM46QHm", "ykUOVze", "bOOdeyc",                                               // Po, Waden
+        "RVwzP10", "eYnzaCm", "lBDjFxJ", "fUBheHs", "7I6LNUG", "eZyBC3j", "C0MA9bC",              // Rücken
+        "DsgkuIt", "znQUdHY", "kTbSH9h", "wqNPGCg", "myfUsKf",                                    // Schultern
+        "25GPyDY", "slDvUAU", "ae9UoXQ", "3ZflifB", "gAwDzB3", "kont8Ut",                         // Arme
+        "TFqbd8t", "I3tsCnC", "WW95auq", "a8VDgLw",                                               // Bauch, Cardio
+    ]
+    static let beliebtRang: [String: Int] = Dictionary(beliebt.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+
+    /// Die zuletzt gemachten Katalog-Übungen: neueste Einheit zuerst, darin die zuletzt gemachte zuerst,
+    /// ohne Doppelte. Nur Übungen mit gezählten Sätzen.
+    static func zuletzt(_ sessions: [GymSession], in katalog: [String: Uebung] = nachId, limit: Int = 8) -> [Uebung] {
+        var gesehen = Set<String>()
+        var liste: [Uebung] = []
+        for s in sessions.sorted(by: { $0.start > $1.start }) {
+            for l in s.laeufe.reversed() where l.fertig {
+                guard gesehen.insert(l.uebung).inserted, let u = katalog[l.uebung] else { continue }
+                liste.append(u)
+                if liste.count == limit { return liste }
+            }
+        }
+        return liste
+    }
+
+    /// Alle Geräte, häufigste zuerst (Körpergewicht, Kurzhantel, Kabelzug …).
+    static let geraete: [String] = {
+        var zahl: [String: Int] = [:]
+        for u in alle { zahl[u.geraet, default: 0] += 1 }
+        return zahl.keys.sorted { (zahl[$0] ?? 0, $1) > (zahl[$1] ?? 0, $0) }
+    }()
+
+    /// Zielmuskeln eines Körperteils, häufigste zuerst ("Beine" → Po, Quadrizeps, Beinbeuger …).
+    static func muskeln(_ koerper: String, in liste: [Uebung] = alle) -> [String] {
+        var zahl: [String: Int] = [:]
+        for u in liste where u.koerper == koerper { zahl[u.muskel, default: 0] += 1 }
+        return zahl.keys.sorted { (zahl[$0] ?? 0, $1) > (zahl[$1] ?? 0, $0) }
+    }
+
+    /// Vorschläge aus `liste` (z. B. schon nach Kategorie gefiltert), in Reihenfolge von `beliebt`.
+    static func vorschlaege(in liste: [Uebung]) -> [Uebung] {
+        liste.filter { beliebtRang[$0.id] != nil }.sorted { (beliebtRang[$0.id] ?? 0) < (beliebtRang[$1.id] ?? 0) }
+    }
+
+    /// Andere Übungen für denselben Zielmuskel (sitzend, stehend, Kabel, Maschine …): gängige zuerst, dann kurze Namen.
+    static func alternativen(zu u: Uebung, in liste: [Uebung] = alle) -> [Uebung] {
+        liste.filter { $0.id != u.id && $0.muskel == u.muskel && $0.koerper == u.koerper }.sorted { a, b in
+            let ra = beliebtRang[a.id] ?? Int.max, rb = beliebtRang[b.id] ?? Int.max
+            if ra != rb { return ra < rb }
+            if a.name.count != b.name.count { return a.name.count < b.name.count }
+            return a.name < b.name
+        }
+    }
+
+}
+
+/// The exercise GIFs are not bundled (they belong to ExerciseDB and the repo can be public): each
+/// one is fetched once from ExerciseDB's CDN and kept in Caches. The own plan's exercises are
+/// fetched ahead (`vorladen`, from the Health card) so they play offline in the gym.
+enum UebungsMedien {
+    static let quelle = URL(string: "https://static.exercisedb.dev/media/")!
+    static var ordner: URL { URL.cachesDirectory.appending(path: "Uebungen", directoryHint: .isDirectory) }
+
+    static func lokal(_ id: String) -> URL { ordner.appending(path: "\(id).gif") }
+
+    /// The local GIF, downloaded first if needed; nil offline without a copy (or an unknown id).
+    // ponytail: Caches may be purged by iOS under storage pressure; the next view or `vorladen` fetches again.
+    static func datei(_ id: String) async -> URL? {
+        guard UebungsKatalog.hatVideo(id) else { return nil }
+        let ziel = lokal(id)
+        if FileManager.default.fileExists(atPath: ziel.path) { return ziel }
+        guard let (daten, antwort) = try? await URLSession.shared.data(from: quelle.appending(path: "\(id).gif")),
+              (antwort as? HTTPURLResponse)?.statusCode == 200, daten.starts(with: Data("GIF".utf8)) else { return nil }
+        try? FileManager.default.createDirectory(at: ordner, withIntermediateDirectories: true)
+        try? daten.write(to: ziel, options: .atomic)
+        return ziel
+    }
+
+    /// One after another, so a long plan doesn't hit the CDN all at once.
+    static func vorladen(_ ids: [String]) async {
+        for id in ids where id != PlanUebung.eigen {
+            _ = await datei(id)
+        }
+    }
+}

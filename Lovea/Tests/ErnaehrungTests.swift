@@ -1,0 +1,358 @@
+import XCTest
+@testable import Lovea
+
+/// Reine Ernährungslogik: Mengen, Ziele, Rezepte, Open-Food-Facts-Parser, Faltung.
+final class ErnaehrungTests: XCTestCase {
+    private let skyr = Lebensmittel(id: "off-1", name: "Skyr", pro100: Naehrwerte(kcal: 62, protein: 11, kohlenhydrate: 4, fett: 0.2),
+                                    portionMenge: 150, packungMenge: 450)
+
+    // MARK: - Mengen
+
+    func testGrammUndPortion() {
+        XCTAssertEqual(ErnaehrungLogik.naehrwerte(skyr, menge: 200, einheit: .g).kcal, 124, accuracy: 0.001)
+        XCTAssertEqual(ErnaehrungLogik.naehrwerte(skyr, menge: 250, einheit: .ml).protein, 27.5, accuracy: 0.001)
+        XCTAssertEqual(ErnaehrungLogik.naehrwerte(skyr, menge: 1, einheit: .portion).kcal, 93, accuracy: 0.001)
+        XCTAssertEqual(ErnaehrungLogik.naehrwerte(skyr, menge: 0.5, einheit: .packung).protein, 24.75, accuracy: 0.001)
+    }
+
+    func testSummeUndOptionaleWerte() {
+        let a = Naehrwerte(kcal: 100, protein: 10, kohlenhydrate: 5, fett: 1, zucker: 2)
+        let b = Naehrwerte(kcal: 50, protein: 1, kohlenhydrate: 1, fett: 1)
+        let s = a + b
+        XCTAssertEqual(s.kcal, 150)
+        XCTAssertEqual(s.zucker, 2)
+        XCTAssertNil(s.salz)
+    }
+
+    func testMengeText() {
+        XCTAssertEqual(ErnaehrungLogik.mengeText(1, .portion, skyr), "1 Portion (150 g)")
+        XCTAssertEqual(ErnaehrungLogik.mengeText(250, .ml, skyr), "250 ml")
+        XCTAssertEqual(ErnaehrungLogik.zahl(12.25), "12,3")
+        XCTAssertEqual(ErnaehrungLogik.eingabe("12,5"), 12.5)
+        XCTAssertNil(ErnaehrungLogik.eingabe("abc"))
+    }
+
+    // MARK: - Haushaltsmaße
+
+    func testZuckerBekommtLoeffel() {
+        let l = Lebensmittel(id: "off-2", name: "Zucker", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0))
+        let namen = ErnaehrungLogik.portionsAuswahl(l).map(\.name)
+        XCTAssertTrue(namen.contains("Teelöffel, gestrichen"))
+        XCTAssertTrue(namen.contains("Esslöffel, gestrichen"))
+    }
+
+    func testSalzBekommtPrise() {
+        let l = Lebensmittel(id: "off-3", name: "Salz", pro100: Naehrwerte(kcal: 0, protein: 0, kohlenhydrate: 0, fett: 0))
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).map(\.name).contains("Prise"))
+    }
+
+    func testOlivenoelBekommtEsslöffel() {
+        let l = Lebensmittel(id: "off-4", name: "Olivenöl", fluessig: true, pro100: Naehrwerte(kcal: 884, protein: 0, kohlenhydrate: 0, fett: 100))
+        let portionen = ErnaehrungLogik.portionsAuswahl(l)
+        XCTAssertTrue(portionen.contains { $0.name == "Esslöffel" && $0.gramm == 15 })
+    }
+
+    func testBananeBekommtKeineLoeffel() {
+        let l = Lebensmittel(id: "off-5", name: "Banane", pro100: Naehrwerte(kcal: 89, protein: 1.1, kohlenhydrate: 23, fett: 0.3))
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).isEmpty)
+    }
+
+    func testEigeneEsslöffelPortionWirdNichtVerdoppelt() {
+        let l = Lebensmittel(id: "off-6", name: "Zucker", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0),
+                             portionen: [LebensmittelPortion(name: "Esslöffel, gestrichen", gramm: 99)])
+        let treffer = ErnaehrungLogik.portionsAuswahl(l).filter { $0.name == "Esslöffel, gestrichen" }
+        XCTAssertEqual(treffer.count, 1)
+        XCTAssertEqual(treffer.first?.gramm, 99)
+    }
+
+    func testOFFZuckerOhnePortionenBekommtLoeffel() {
+        let l = Lebensmittel(id: "off-7", name: "Zucker", marke: "Fremdmarke", pro100: Naehrwerte(kcal: 400, protein: 0, kohlenhydrate: 100, fett: 0), quelle: "off")
+        XCTAssertTrue(ErnaehrungLogik.portionsAuswahl(l).map(\.name).contains("Teelöffel, gestrichen"))
+    }
+
+    /// Reines Nährwerte-Dummy, nur der Name zählt für `HaushaltsMasse`.
+    private func hatLoeffel(_ name: String, fluessig: Bool = false) -> Bool {
+        let l = Lebensmittel(id: "t-\(name)", name: name, fluessig: fluessig, pro100: Naehrwerte(kcal: 100, protein: 1, kohlenhydrate: 1, fett: 1))
+        return !ErnaehrungLogik.portionsAuswahl(l).isEmpty
+    }
+
+    /// Wortabgleich darf nicht auf bloßem Wortanfang beruhen: Komposita, bei denen das Stichwort nur
+    /// der Anfang eines längeren Wortes ist ("Zuckermais"), dürfen nicht treffen; Komposita, bei denen
+    /// das Stichwort als Kopf hinten steht ("Rohrzucker"), müssen treffen (Review R9, Critical #1).
+    func testKompositaTreffenRichtig() {
+        for name in ["Zucker", "Rohrzucker", "Puderzucker", "Salz", "Meersalz", "Honig", "Blütenhonig",
+                     "Mehl Type 405", "Weizenmehl", "Kakaopulver", "Whey Protein Pulver"] {
+            XCTAssertTrue(hatLoeffel(name), "\(name) sollte Löffel-Portionen bekommen")
+        }
+        for name in ["Zuckermais", "Salzstangen", "Honigmelone", "Mehlwurm", "Cola zuckerfrei", "Reiswaffel", "Banane"] {
+            XCTAssertFalse(hatLoeffel(name), "\(name) sollte keine Löffel-Portionen bekommen")
+        }
+        for name in ["Olivenöl", "Rapsöl"] {
+            XCTAssertTrue(hatLoeffel(name, fluessig: true), "\(name) sollte Löffel-Portionen bekommen")
+        }
+        // fluessig: true testet den Wortabgleich selbst, nicht nur das `l.fluessig`-Gate (das Ölsardinen
+        // in der Praxis ohnehin schon ausschließt, siehe Review Minor #1).
+        XCTAssertFalse(hatLoeffel("Ölsardinen", fluessig: true), "Ölsardinen sollte keine Löffel-Portionen bekommen")
+    }
+
+    // MARK: - Ziele
+
+    func testKalorienzielHaltenUndAbnehmen() {
+        var z = ErnaehrungsZiele()
+        z.geschlecht = 0
+        z.alter = 30
+        z.groesseCm = 180
+        z.aktivitaet = 2
+        z.richtung = 1
+        // 10*80 + 6,25*180 - 5*30 + 5 = 1780, mal 1,55 = 2759
+        XCTAssertEqual(ErnaehrungLogik.kalorienziel(z, kg: 80), 2760)
+        z.richtung = 0
+        z.tempo = 500
+        XCTAssertEqual(ErnaehrungLogik.kalorienziel(z, kg: 80), 2210)
+    }
+
+    func testKalorienzielNieUnterMinimum() {
+        var z = ErnaehrungsZiele()
+        z.geschlecht = 1
+        z.alter = 60
+        z.groesseCm = 150
+        z.aktivitaet = 0
+        z.richtung = 0
+        z.tempo = 1000
+        XCTAssertEqual(ErnaehrungLogik.kalorienziel(z, kg: 45), 1200)
+    }
+
+    func testMakrosProteinreich() {
+        let m = ErnaehrungLogik.makros(kcal: 2000, kg: 90, profil: 1)
+        XCTAssertEqual(m.protein, 180)
+        XCTAssertEqual(m.fett, 67)
+        XCTAssertEqual(m.kohlenhydrate, 170)
+    }
+
+    // MARK: - Rezepte
+
+    func testRezeptAlsLebensmittel() {
+        let hafer = Lebensmittel(id: "h", name: "Hafer", pro100: Naehrwerte(kcal: 370, protein: 13, kohlenhydrate: 59, fett: 7))
+        let r = Rezept(id: "r", name: "Porridge", portionen: 2, zutaten: [
+            Zutat(id: "1", lebensmittel: hafer, menge: 100, einheit: .g),
+            Zutat(id: "2", lebensmittel: skyr, menge: 300, einheit: .g),
+        ], geloescht: nil)
+        let l = ErnaehrungLogik.alsLebensmittel(r)
+        XCTAssertEqual(l.id, "rezept-r")
+        XCTAssertEqual(l.portionMenge ?? 0, 200, accuracy: 0.001)
+        // (370 + 186) kcal auf 400 g
+        XCTAssertEqual(ErnaehrungLogik.naehrwerte(l, menge: 1, einheit: .portion).kcal, 278, accuracy: 0.01)
+    }
+
+    // MARK: - Open Food Facts
+
+    func testOffProduktMitTextZahlenUndMarkeAlsText() throws {
+        let json = """
+        {"code":"4000417025005","status":1,"product":{"product_name":"Schokolade","product_name_de":"Voll-Nuss","brands":"Ritter Sport, Alfred Ritter",
+        "serving_quantity":"16.7","product_quantity":100,"product_quantity_unit":"g","nutriscore_grade":"E",
+        "nutriments":{"energy-kcal_100g":"496","proteins_100g":6.3,"carbohydrates_100g":52,"fat_100g":27,"sugars_100g":49,"salt_100g":"0,1"}}}
+        """
+        let l = try XCTUnwrap(ErnaehrungLogik.offProdukt(Data(json.utf8)))
+        XCTAssertEqual(l.id, "off-4000417025005")
+        XCTAssertEqual(l.name, "Voll-Nuss")
+        XCTAssertEqual(l.marke, "Ritter Sport")
+        XCTAssertEqual(l.pro100.kcal, 496)
+        XCTAssertEqual(l.pro100.salz ?? 0, 0.1, accuracy: 0.0001)
+        XCTAssertEqual(l.portionMenge ?? 0, 16.7, accuracy: 0.0001)
+        XCTAssertEqual(l.nutriscore, "e")
+        XCTAssertFalse(l.fluessig)
+    }
+
+    func testOffProduktNurKilojouleUndFluessig() throws {
+        let json = """
+        {"code":"1","status":1,"product":{"product_name":"Milch","product_quantity_unit":"ml","product_quantity":"1000",
+        "nutriments":{"energy-kj_100g":2092,"proteins_100g":3.4}}}
+        """
+        let l = try XCTUnwrap(ErnaehrungLogik.offProdukt(Data(json.utf8)))
+        XCTAssertEqual(l.pro100.kcal, 500, accuracy: 0.01)
+        XCTAssertTrue(l.fluessig)
+        XCTAssertEqual(l.packungMenge, 1000)
+    }
+
+    func testOffProduktUnbekannt() {
+        XCTAssertNil(ErnaehrungLogik.offProdukt(Data(#"{"code":"1","status":0,"status_verbose":"product not found"}"#.utf8)))
+        XCTAssertNil(ErnaehrungLogik.offProdukt(Data(#"{"code":"1","product":{"code":"1"},"status":1}"#.utf8)))
+    }
+
+    func testOffSucheMarkeAlsListe() {
+        let json = """
+        {"hits":[{"code":"8710624358174","brands":["Skyr"],"product_name":"Skyr naturel","nutriments":{"energy-kcal_100g":62,"proteins_100g":11}},
+        {"code":"2","product_name":"Ohne Werte","nutriments":{}}]}
+        """
+        let treffer = ErnaehrungLogik.offSuche(Data(json.utf8))
+        XCTAssertEqual(treffer.count, 1)
+        XCTAssertEqual(treffer.first?.marke, "Skyr")
+        XCTAssertEqual(treffer.first?.barcode, "8710624358174")
+    }
+
+    // MARK: - Faltung
+
+    private func op(_ art: String, _ d: some Encodable, von: Person = .ahmed, sekunde: Double) throws -> Op {
+        Op(id: UUID().uuidString, seq: nil, art: art, von: von, zeit: Date(timeIntervalSince1970: sekunde), d: try JSONEncoder().encode(d))
+    }
+
+    func testNeuesteGewinntUndLoeschen() throws {
+        var f = ErnaehrungFaltung()
+        let e = EssenEintrag(id: "e", datum: "2026-09-26", mahlzeit: .fruehstueck, menge: 200, einheit: .g, lebensmittel: skyr, geloescht: nil)
+        var geaendert = e
+        geaendert.menge = 300
+        var weg = e
+        weg.geloescht = true
+        f.anwenden(try op("essen.setzen", geaendert, sekunde: 20))
+        f.anwenden(try op("essen.setzen", e, sekunde: 10))
+        XCTAssertEqual(f.eintraege(.ahmed, "2026-09-26").first?.menge, 300)
+        XCTAssertTrue(f.eintraege(.annika, "2026-09-26").isEmpty)
+        f.anwenden(try op("essen.setzen", weg, sekunde: 30))
+        XCTAssertTrue(f.eintraege(.ahmed, "2026-09-26").isEmpty)
+    }
+
+    func testZuletztOhneDoppelteUndBarcodeOffline() throws {
+        var f = ErnaehrungFaltung()
+        var mitCode = skyr
+        mitCode.barcode = "8710624358174"
+        for (i, tag) in ["2026-09-24", "2026-09-25"].enumerated() {
+            let e = EssenEintrag(id: "e\(i)", datum: tag, mahlzeit: .snack, menge: 1, einheit: .portion, lebensmittel: mitCode, geloescht: nil)
+            f.anwenden(try op("essen.setzen", e, sekunde: Double(i)))
+        }
+        XCTAssertEqual(f.zuletzt(.ahmed).count, 1)
+        XCTAssertEqual(f.lebensmittel(barcode: "8710624358174", .annika)?.name, "Skyr")
+        XCTAssertEqual(f.letzteMenge(.ahmed, skyr.id)?.einheit, .portion)
+    }
+    // MARK: - Portionen, Wasser, Körperwerte
+
+    func testPortionsNameAusOpenFoodFacts() {
+        XCTAssertEqual(ErnaehrungLogik.portionsName("1 Riegel (45 g)"), "Riegel")
+        XCTAssertEqual(ErnaehrungLogik.portionsName("2 Scheiben"), "Scheiben")
+        XCTAssertNil(ErnaehrungLogik.portionsName("30 g"))
+        XCTAssertNil(ErnaehrungLogik.portionsName("250ml"))
+    }
+
+    func testPortionsAuswahlOhneDoppelteUndMitPortion() {
+        var tomate = Lebensmittel(id: "basis-tomate", name: "Tomaten, frisch", pro100: Naehrwerte(kcal: 18, protein: 0.9, kohlenhydrate: 3.9, fett: 0.2),
+                                  portionen: [LebensmittelPortion(name: "ganze, mittelgroß", gramm: 123), LebensmittelPortion(name: "ganze, klein", gramm: 91)])
+        tomate.packungMenge = 500
+        let auswahl = ErnaehrungLogik.portionsAuswahl(tomate)
+        XCTAssertEqual(auswahl.map(\.name), ["ganze, mittelgroß", "ganze, klein", "Packung"])
+        let mittel = ErnaehrungLogik.mitPortion(tomate, auswahl[0])
+        XCTAssertEqual(ErnaehrungLogik.naehrwerte(mittel, menge: 4, einheit: .portion).kcal, 18 * 4.92, accuracy: 0.001)
+        XCTAssertEqual(ErnaehrungLogik.mengeText(4, .portion, mittel), "4 ganze, mittelgroß (492 g)")
+    }
+
+    func testWasserAusLebensmittelnNurGetraenke() {
+        let cola = Lebensmittel(id: "c", name: "Cola", fluessig: true, pro100: Naehrwerte(kcal: 42, protein: 0, kohlenhydrate: 10.6, fett: 0), portionMenge: 330)
+        let liste = [
+            EssenEintrag(id: "1", datum: "2026-09-27", mahlzeit: .mittag, menge: 1, einheit: .portion, lebensmittel: cola, geloescht: nil),
+            EssenEintrag(id: "2", datum: "2026-09-27", mahlzeit: .mittag, menge: 200, einheit: .g, lebensmittel: skyr, geloescht: nil),
+        ]
+        XCTAssertEqual(ErnaehrungLogik.wasserAusLebensmitteln(liste), 330, accuracy: 0.001)
+    }
+
+    func testKoerperwertNeuesterBisTag() throws {
+        var f = ErnaehrungFaltung()
+        f.anwenden(try op("koerper.setzen", KoerperwertD(datum: "2026-09-20", art: .taille, wert: 86, geloescht: nil), sekunde: 1))
+        f.anwenden(try op("koerper.setzen", KoerperwertD(datum: "2026-09-27", art: .taille, wert: 84, geloescht: nil), sekunde: 2))
+        f.anwenden(try op("koerper.setzen", KoerperwertD(datum: "2026-09-20", art: .taille, wert: 85, geloescht: nil), sekunde: 3))
+        XCTAssertEqual(f.koerperwert(.ahmed, .taille, bis: "2026-09-25")?.wert, 85)
+        XCTAssertEqual(f.koerperwert(.ahmed, .taille, bis: "2026-09-27")?.wert, 84)
+        XCTAssertNil(f.koerperwert(.ahmed, .koerperfett, bis: "2026-09-27"))
+        XCTAssertNil(f.koerperwert(.annika, .taille, bis: "2026-09-27"))
+    }
+    // MARK: - Vitamine und Mineralstoffe
+
+    func testMikroAusOpenFoodFactsInMgUndMikrogramm() throws {
+        let json = """
+        {"code":"1","status":1,"product":{"product_name":"Orangensaft","product_quantity_unit":"ml",
+        "nutriments":{"energy-kcal_100g":45,"vitamin-c_100g":0.03,"vitamin-d_100g":0.0000015,"calcium_100g":"0.011","alcohol_100g":1}}}
+        """
+        let l = try XCTUnwrap(ErnaehrungLogik.offProdukt(Data(json.utf8)))
+        XCTAssertEqual(l.pro100.wert(.vitaminC) ?? 0, 30, accuracy: 0.0001)
+        XCTAssertEqual(l.pro100.wert(.vitaminD) ?? 0, 1.5, accuracy: 0.0001)
+        XCTAssertEqual(l.pro100.wert(.calcium) ?? 0, 11, accuracy: 0.0001)
+        XCTAssertEqual(l.pro100.wert(.alkohol) ?? 0, 0.789, accuracy: 0.0001)
+        XCTAssertNil(l.pro100.wert(.eisen))
+    }
+
+    func testMikroSkaliertUndSummiert() {
+        let a = Naehrwerte(kcal: 18, protein: 1, kohlenhydrate: 4, fett: 0, mikro: ["vitaminC": 13.7, "kalium": 237])
+        let b = Naehrwerte(kcal: 0, protein: 0, kohlenhydrate: 0, fett: 0, mikro: ["vitaminC": 10])
+        XCTAssertEqual(a.mal(2).wert(.kalium) ?? 0, 474, accuracy: 0.0001)
+        XCTAssertEqual((a + b).wert(.vitaminC) ?? 0, 23.7, accuracy: 0.0001)
+        XCTAssertNil((Naehrwerte.null + Naehrwerte.null).mikro)
+        XCTAssertEqual(Mikro.vitaminC.referenz, 80)
+        XCTAssertEqual(Mikro.allCases.filter { $0.gruppe == .vitamine }.count, 12)
+    }
+    // MARK: - Smart Food Rating
+
+    private func texte(_ l: Lebensmittel) -> [String] { FoodRating.schilder(l).map(\.text) }
+
+    func testRatingSkyrVielEiweissZuckerarmFettarm() {
+        let t = texte(skyr)
+        XCTAssertTrue(t.contains("Viel Eiweiß"))
+        XCTAssertFalse(t.contains("Stark zuckerhaltig"))
+        XCTAssertTrue(t.contains("Fettarm"))
+    }
+
+    func testRatingSchokoladeHinweise() {
+        let schoko = Lebensmittel(id: "s", name: "Schokolade",
+                                  pro100: Naehrwerte(kcal: 540, protein: 6, kohlenhydrate: 57, fett: 31, zucker: 55, salz: 0.2, gesFett: 19))
+        let t = texte(schoko)
+        XCTAssertEqual(Array(t.prefix(3)), ["Stark zuckerhaltig", "Viel Fett", "Viele gesättigte Fettsäuren"])
+        XCTAssertTrue(t.contains("Salzarm"))
+        XCTAssertFalse(t.contains("Eiweißquelle"))
+    }
+
+    func testRatingGetraenkeGrenzenHalbiert() {
+        let cola = Lebensmittel(id: "c", name: "Cola", fluessig: true, pro100: Naehrwerte(kcal: 42, protein: 0, kohlenhydrate: 10.6, fett: 0, zucker: 10.6))
+        XCTAssertFalse(texte(cola).contains("Stark zuckerhaltig"))
+        let saft = Lebensmittel(id: "o", name: "Saft", fluessig: true, pro100: Naehrwerte(kcal: 50, protein: 0.7, kohlenhydrate: 12, fett: 0.2, zucker: 12))
+        XCTAssertTrue(texte(saft).contains("Stark zuckerhaltig"))
+    }
+
+    func testRatingReichAnVitaminen() {
+        let paprika = Lebensmittel(id: "p", name: "Paprika", pro100: Naehrwerte(kcal: 31, protein: 1, kohlenhydrate: 6, fett: 0.3,
+                                   mikro: ["vitaminC": 128, "vitaminA": 157, "kalium": 211]))
+        let t = texte(paprika)
+        XCTAssertTrue(t.contains("Reich an Vitamin C"))
+        XCTAssertFalse(t.contains("Reich an Kalium"))
+        XCTAssertEqual(FoodRating.kurzName(.vitaminB1), "Vitamin B1")
+    }
+    // MARK: - Flexible Tage und Tagebuch anpassen
+
+    func testFlexibleTageNurAnGewaehltenWochentagen() {
+        var z = ErnaehrungsZiele()
+        z.kcal = 2000
+        z.protein = 150
+        z.extraKcal = 500
+        z.extraTage = (1 << 5) | (1 << 6)  // Samstag, Sonntag
+        // 2026-09-26 ist ein Samstag, 2026-09-28 ein Montag.
+        XCTAssertEqual(z.fuer(tag: "2026-09-26").kcal, 2500)
+        XCTAssertEqual(z.fuer(tag: "2026-09-26").protein, 188)
+        XCTAssertEqual(z.fuer(tag: "2026-09-28").kcal, 2000)
+        XCTAssertTrue(z.istExtraTag(7))
+        XCTAssertFalse(z.istExtraTag(1))
+    }
+
+    func testTagebuchAnpassungReihenfolgeUndNamen() {
+        let a = TagebuchAnpassung(reihenfolge: ["wasser", "uebersicht"], ausgeblendet: ["koerper"], mahlzeitNamen: ["snack": "Naschen", "abend": " "])
+        XCTAssertEqual(a.sichtbar, ["wasser", "uebersicht", "ernaehrung"])
+        XCTAssertEqual(a.name(.snack), "Naschen")
+        XCTAssertEqual(a.name(.abend), "Abendessen")
+        XCTAssertEqual(TagebuchAnpassung.standard.sichtbar, TagebuchAnpassung.alleAbschnitte)
+    }
+
+    // MARK: - BLS-Grunddatenbank
+
+    func testBLSGrunddatenbank() {
+        let alle = LebensmittelBasis.laden(Bundle(for: ErnaehrungTests.self)).isEmpty
+            ? LebensmittelBasis.laden(.main) : LebensmittelBasis.laden(Bundle(for: ErnaehrungTests.self))
+        XCTAssertGreaterThan(alle.count, 7000)
+        XCTAssertTrue(alle.allSatisfy { $0.id.hasPrefix("bls-") && $0.quelle == "bls" && $0.suche?.isEmpty == false })
+        let banane = alle.first { $0.suche?.hasPrefix("banane") == true }
+        XCTAssertNotNil(banane?.portionen?.first)
+    }
+}

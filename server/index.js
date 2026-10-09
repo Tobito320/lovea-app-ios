@@ -3,6 +3,7 @@
 // -Funktion ohne cloudflare:workers-Import -> unter Node testbar.
 export { Raum } from "./raum.js";
 import { handleKi } from "./ki.js";
+import { handleEssen } from "./essen.js";
 
 const PERSONEN = new Set(["ahmed", "annika"]);
 
@@ -50,6 +51,7 @@ export async function handleFetch(request, env) {
   // Interne DO-Pfade nie nach außen reichen; KI-Funktionen laufen hier im Worker.
   if (url.pathname.startsWith("/ki-intern")) return new Response("not found", { status: 404 });
   if (url.pathname.startsWith("/ki/")) return handleKi(request, env, person);
+  if (url.pathname.startsWith("/essen/")) return handleEssen(url, env);
 
   const id = env.RAUM.idFromName("wir");
   const stub = env.RAUM.get(id, { locationHint: "weur" });

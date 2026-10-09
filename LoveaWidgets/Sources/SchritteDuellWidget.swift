@@ -28,39 +28,64 @@ private struct SchritteDuellView: View {
             case .accessoryCircular:
                 SchritteLockscreen(stand: entry.stand)
             default:
-                HStack(spacing: 12) {
-                    SchritteRing(name: eigene == "ahmed" ? "Ahmed" : "Annika", schritte: entry.stand.schritteHeute[eigene], ziel: entry.stand.zielSchritte[eigene] ?? 10_000)
-                    SchritteRing(name: partner == "ahmed" ? "Ahmed" : "Annika", schritte: entry.stand.schritteHeute[partner], ziel: entry.stand.zielSchritte[partner] ?? 10_000)
+                VStack(alignment: .leading, spacing: 8) {
+                    WidgetKopf(titel: "Schritte heute", symbol: "figure.walk", farbe: WidgetStil.farbe(eigene))
+                    HStack(alignment: .top, spacing: 8) {
+                        SchritteRing(stand: entry.stand, person: eigene)
+                        SchritteRing(stand: entry.stand, person: partner)
+                    }
+                    Spacer(minLength: 0)
                 }
             }
         }
         .widgetURL(URL(string: "lovea://health"))
-        .containerBackground(.background, for: .widget)
+        .widgetHintergrund(WidgetStil.farbe(eigene))
     }
 }
 
 /// `schritte == nil` ("Health nicht erlaubt oder keine Daten") zeigt "–", nie 0 (Review-Fokus 4).
 private struct SchritteRing: View {
-    let name: String
-    let schritte: Int?
-    let ziel: Int
+    let stand: WidgetStand
+    let person: String
 
     var body: some View {
-        VStack(spacing: 3) {
+        let schritte = stand.schritteHeute[person]
+        let ziel = stand.zielSchritte[person] ?? 10_000
+        let farbe = WidgetStil.farbe(person)
+        VStack(spacing: 4) {
             ZStack {
-                Circle().stroke(Color.secondary.opacity(0.2), lineWidth: 5)
+                Circle().stroke(farbe.opacity(0.18), lineWidth: 6)
                 if let schritte {
                     Circle()
                         .trim(from: 0, to: min(1, Double(schritte) / Double(max(ziel, 1))))
-                        .stroke(Color.accentColor, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                        .stroke(farbe, style: StrokeStyle(lineWidth: 6, lineCap: .round))
                         .rotationEffect(.degrees(-90))
+                        .widgetAccentable()
                 }
+                Text(WidgetStil.name(person)).font(.system(size: 10, weight: .semibold, design: .rounded)).lineLimit(1).minimumScaleFactor(0.7).padding(.horizontal, 6)
             }
-            .frame(width: 44, height: 44)
-            Text(name).font(.caption2).bold()
-            Text(schritte.map { "\($0)" } ?? "–").font(.caption2).foregroundStyle(.secondary)
+            .frame(width: 46, height: 46)
+            Text(schritte.map { $0.formatted() } ?? "–").widgetZahl(17).lineLimit(1).minimumScaleFactor(0.7)
+            if let extras = extrasText {
+                ViewThatFits(in: .horizontal) {
+                    Text(extras.joined(separator: " · "))
+                    VStack(spacing: 0) { ForEach(extras, id: \.self) { Text($0) } }
+                }
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
         }
         .frame(maxWidth: .infinity)
+    }
+
+    /// "4,2 km", "7 Etagen"; nil when neither is known.
+    private var extrasText: [String]? {
+        let teile = [
+            stand.kmHeute?[person].map { "\($0.formatted(.number.precision(.fractionLength(1)))) km" },
+            stand.etagenHeute?[person].map { "\($0) Etagen" },
+        ].compactMap { $0 }
+        return teile.isEmpty ? nil : teile
     }
 }
 

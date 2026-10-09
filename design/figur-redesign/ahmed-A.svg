@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 240" width="200" height="240">
+<title>Ahmed A - Clean Anime</title>
+<defs><linearGradient id="halsSchatten" gradientUnits="userSpaceOnUse" x1="0" y1="140" x2="0" y2="166"><stop offset="0" stop-color="#B59781" stop-opacity="0.9"/><stop offset="1" stop-color="#B59781" stop-opacity="0"/></linearGradient><clipPath id="halsClip"><path d="M88,128 L87,176 L113,176 L112,128 Z"/></clipPath><clipPath id="gesichtClip"><path d="M100,26 C127,26 147,44 147,78 C147,100 144,115 137,127 L113,147 Q100,155 87,147 L63,127 C56,115 53,100 53,78 C53,44 73,26 100,26 Z"/></clipPath><linearGradient id="taperA" gradientUnits="userSpaceOnUse" x1="0" y1="78" x2="0" y2="104"><stop offset="0" stop-color="#241712" stop-opacity="0.95"/><stop offset="0.55" stop-color="#241712" stop-opacity="0.55"/><stop offset="1" stop-color="#241712" stop-opacity="0.05"/></linearGradient><clipPath id="augeA-1"><path d="M90,102 Q81,89 70.5,99 Q80,109 90,102 Z"/></clipPath><linearGradient id="irisA-1" gradientUnits="userSpaceOnUse" x1="0" y1="94" x2="0" y2="108"><stop offset="0" stop-color="#20140D" stop-opacity="1"/><stop offset="1" stop-color="#7B5334" stop-opacity="1"/></linearGradient><clipPath id="augeAs-1"><path d="M90,102 Q81,89 70.5,99 Q80,109 90,102 Z"/></clipPath><clipPath id="augeA1"><path d="M110,102 Q119,89 129.5,99 Q120,109 110,102 Z"/></clipPath><linearGradient id="irisA1" gradientUnits="userSpaceOnUse" x1="0" y1="94" x2="0" y2="108"><stop offset="0" stop-color="#20140D" stop-opacity="1"/><stop offset="1" stop-color="#7B5334" stop-opacity="1"/></linearGradient><clipPath id="augeAs1"><path d="M110,102 Q119,89 129.5,99 Q120,109 110,102 Z"/></clipPath></defs>
+<g id="hair-back">
+<path d="M51,82 Q45.7,78.9 43.3,74.9 Q45,72.3 46,70 Q40.8,65.4 39.7,60.5 Q42.8,58.2 45,56 Q41,49.9 41.8,44.8 Q46.4,43.5 50,42 Q49.8,36.4 52.4,32.3 Q56,31.8 59,31 Q59.7,24.9 63.3,21.5 Q67.5,22.6 71,23 Q73.4,16.1 78.2,13.5 Q82.4,16.2 86,18 Q91.1,13.6 96.6,12.3 Q99.3,14.5 102,16 Q108.7,12 114.5,11.9 Q116.1,15.4 118,18 Q126.1,14.8 131.5,15.7 Q131.4,19.8 132,23 Q139.1,23.7 143.7,26.5 Q143.6,29.5 144,32 Q150.8,34.2 154,38 Q152.1,41.2 151,44 Q158.2,47.9 160.6,52.6 Q157.2,55.4 155,58 Q158.4,62.9 158.7,67.5 Q156,69.2 154,71 Q156.9,76.3 155.9,80.4 Q152,81.1 149,82 Q154.5,89.1 155.7,93.8 Q152.4,93.6 150,94 Q115,97.8 80,98.4 Q65,95.8 50,94 Q46.1,92.2 45.8,88.4 Q48.8,85 51,82 Z" fill="#241712"/>
+</g>
+<g id="neck">
+<path d="M88,128 L87,176 L113,176 L112,128 Z" fill="#E8C2A6" stroke="#806B5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><g clip-path="url(#halsClip)"><path d="M80,128 L120,128 L120,150 Q100,166 80,150 Z" fill="url(#halsSchatten)"/></g>
+</g>
+<g id="torso-hint">
+<path d="M30,240 L33,200 C35,178 50,166 72,164 L86,161 Q100,178 114,161 L128,164 C150,166 165,178 167,200 L170,240 Z" fill="#1C1C1F" stroke="#0F0F11" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M86,161 Q100,178 114,161" fill="none" stroke="#0F0F11" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.5"/>
+</g>
+<g id="ears">
+<path d="M56,93 C47,87 41,97 43,107 C45,116 51,121 57,117 Z" fill="#E8C2A6" stroke="#806B5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M144,93 C153,87 159,97 157,107 C155,116 149,121 143,117 Z" fill="#E8C2A6" stroke="#806B5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M52,97 C47,99 47,108 52,111" fill="none" stroke="#806B5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.6"/><path d="M148,97 C153,99 153,108 148,111" fill="none" stroke="#806B5B" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.6"/>
+</g>
+<g id="face-shape">
+<path d="M100,26 C127,26 147,44 147,78 C147,100 144,115 137,127 L113,147 Q100,155 87,147 L63,127 C56,115 53,100 53,78 C53,44 73,26 100,26 Z" fill="#E8C2A6" stroke="#806B5B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="shading">
+<g clip-path="url(#gesichtClip)"><path d="M51,82 Q40.9,78.6 46,70 Q37.5,63.7 45,56 Q39.6,47.6 50,42 Q47.3,33.1 59,31 Q59,21.7 71,23 Q74.5,13.6 86,18 Q92.8,9.1 102,16 Q111.9,9.2 118,18 Q129.4,13.8 132,23 Q144.2,22.5 144,32 Q154.9,34.9 151,44 Q160.9,50 155,58 Q162.4,65.4 154,71 Q159,79.2 149,82 Q154.5,87.8 146,86 Q148.5,92.6 138,90 Q139,92.3 128,84 Q128.7,91.6 119,87 Q118.5,89.9 110,79 Q107.4,88.3 101,82 Q95.2,86.4 92,75 Q83,83.1 83,78 Q72.3,80.6 74,73 Q62.5,78.9 65,77 Q53.9,81.7 57,79 Q46.8,84 51,82 Z" fill="#CCAB92" fill-opacity="0.9"/></g><g clip-path="url(#gesichtClip)"><path d="M147,92 L140,126 L116,146 Q134,122 141,92 Z" fill="#CCAB92"/></g>
+</g>
+<g id="jaw">
+<g clip-path="url(#gesichtClip)"><path d="M67,130 L86,145" fill="none" stroke="#806B5B" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.3"/><path d="M133,130 L114,145" fill="none" stroke="#806B5B" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.3"/></g>
+</g>
+<g id="taper">
+<path d="M47,80 C46,88 47,96 51,101 L57,100 C56,94 56,87 59,81 Z" fill="url(#taperA)"/><path d="M153,80 C154,88 153,96 149,101 L143,100 C144,94 144,87 141,81 Z" fill="url(#taperA)"/>
+</g>
+<g id="goatee">
+<g clip-path="url(#gesichtClip)"><path d="M96.5,142.5 Q100,141.5 103.5,142.5 L101.5,147 Q100,148 98.5,147 Z" fill="#5C4030" fill-opacity="0.55"/><path d="M88,148 Q100,145 112,148 L112,158 L88,158 Z" fill="#5C4030" fill-opacity="0.13"/></g>
+</g>
+<g id="eyes">
+<path d="M90,102 Q81,89 70.5,99 Q80,109 90,102 Z" fill="#FFFFFF"/><g clip-path="url(#augeA-1)"><path d="M90,93 L70.5,93 L70.5,98 Q81,94 90,100 Z" fill="#E6E0E4"/><ellipse cx="80.5" cy="101.5" rx="5.2" ry="6.6" fill="url(#irisA-1)"/><circle cx="80.5" cy="102" r="2.6" fill="#1A1016"/><circle cx="78.7" cy="98.8" r="1.8" fill="#FFFFFF"/><circle cx="82.5" cy="104.4" r="0.9" fill="#FFFFFF" fill-opacity="0.8"/></g><path d="M90.5,101.5 Q81,89.5 70,98.5" fill="none" stroke="#3A2630" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/><path d="M110,102 Q119,89 129.5,99 Q120,109 110,102 Z" fill="#FFFFFF"/><g clip-path="url(#augeA1)"><path d="M110,93 L129.5,93 L129.5,98 Q119,94 110,100 Z" fill="#E6E0E4"/><ellipse cx="119.5" cy="101.5" rx="5.2" ry="6.6" fill="url(#irisA1)"/><circle cx="119.5" cy="102" r="2.6" fill="#1A1016"/><circle cx="117.7" cy="98.8" r="1.8" fill="#FFFFFF"/><circle cx="121.5" cy="104.4" r="0.9" fill="#FFFFFF" fill-opacity="0.8"/></g><path d="M109.5,101.5 Q119,89.5 130,98.5" fill="none" stroke="#3A2630" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="eyes-smile" display="none">
+<g clip-path="url(#augeAs-1)"><path d="M69,107.5 Q81,100 93,106.5 L93,115 L69,115 Z" fill="#E8C2A6"/></g><path d="M72,106.5 Q81,101 90,106" fill="none" stroke="#806B5B" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55"/><g clip-path="url(#augeAs1)"><path d="M107,107.5 Q119,100 131,106.5 L131,115 L107,115 Z" fill="#E8C2A6"/></g><path d="M110,106.5 Q119,101 128,106" fill="none" stroke="#806B5B" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.55"/>
+</g>
+<g id="brows">
+<path d="M92,88.5 Q82,84 69,85.5 L69,87 Q82,87.5 91.5,92 Z" fill="#281914"/><path d="M108,88.5 Q118,84 131,85.5 L131,87 Q118,87.5 108.5,92 Z" fill="#281914"/>
+</g>
+<g id="nose">
+<path d="M102.5,100 L106,121.5 L101,123.5 Q104.5,117 102.5,100 Z" fill="#C3A38B"/><path d="M99.5,123.5 L105.5,121.8" fill="none" stroke="#806B5B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="mustache">
+<path d="M100,129.5 C95,127.5 88,128 84,133 C89,131 95,131.5 100,132 C105,131.5 111,131 116,133 C112,128 105,127.5 100,129.5 Z" fill="#5C4030"/>
+</g>
+<g id="mouth-neutral">
+<path d="M92.5,137.2 Q100,138.8 107.5,137" fill="none" stroke="#402A35" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M95,139.5 Q100,142 105,139.5 Q100,141 95,139.5 Z" fill="#E5A79B"/>
+</g>
+<g id="mouth-smile" display="none">
+<path d="M90,135.5 Q100,138.5 110,135.5 Q108,146 100,146.5 Q92,146 90,135.5 Z" fill="#6B2335"/><path d="M92,136.5 Q100,139 108,136.5 L107,138.6 Q100,140.6 93,138.6 Z" fill="#FFFFFF"/><path d="M95,144 Q100,141.5 105,144 Q100,146.5 95,144 Z" fill="#F07A8A"/><path d="M90,135.5 Q100,138.5 110,135.5" fill="none" stroke="#3A2630" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<g id="hair-front">
+<path d="M51,82 Q45.9,79 43.6,75 Q45.1,72.4 46,70 Q41,65.5 39.9,60.7 Q42.9,58.3 45,56 Q41.1,50.1 42,45.1 Q46.5,43.6 50,42 Q49.9,36.6 52.6,32.5 Q56.1,31.9 59,31 Q59.7,25.1 63.4,21.8 Q67.5,22.7 71,23 Q73.4,16.3 78.2,13.8 Q82.4,16.3 86,18 Q91.1,13.8 96.6,12.5 Q99.3,14.6 102,16 Q108.7,12.2 114.5,12.2 Q116.1,15.5 118,18 Q126.1,15 131.5,16 Q131.4,19.9 132,23 Q139,23.9 143.6,26.7 Q143.6,29.6 144,32 Q150.7,34.4 153.9,38.3 Q152,41.3 151,44 Q158,48.2 160.4,52.9 Q157.2,55.5 155,58 Q158.2,63 158.4,67.6 Q155.9,69.3 154,71 Q156.6,76.4 155.6,80.5 Q151.9,81.1 149,82 Q153.1,84.2 152.8,84.2 Q148.9,82.4 146,81 Q146.2,84.2 143.9,85.9 Q140.7,85.3 138,85 Q138.2,85.6 135.3,84 Q131.3,81.2 128,79 Q129,84 126.5,85.7 Q122.4,83.5 119,82 Q117.9,82.1 115.1,79.7 Q112.4,76.6 110,74 Q108.2,79.5 105.3,81.2 Q103,78.7 101,77 Q96.6,80.1 93.2,78.6 Q92.7,73.8 92,70 Q86.4,73.7 82.9,75.1 Q83.2,73.8 83,73 Q75.9,73.6 72.1,72.2 Q73.4,69.9 74,68 Q65.5,71.5 61.5,73.2 Q63.8,72.4 65,72 Q58.9,74 55.5,74.9 Q56.6,74.3 57,74 Q50.7,78.6 47.9,81.7 Q49.8,81.7 51,82 Z" fill="#241712" stroke="#160E0B" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/><path d="M64,42 Q76,30 94,28" fill="none" stroke="#5D4E55" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.8"/><path d="M112,27 Q128,29 138,40" fill="none" stroke="#5D4E55" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.8"/><path d="M70,56 Q74,64 68,70" fill="none" stroke="#0A0606" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.8"/><path d="M96,52 Q101,62 94,72" fill="none" stroke="#0A0606" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.8"/><path d="M122,52 Q127,64 121,76" fill="none" stroke="#0A0606" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.8"/><path d="M142,58 Q145,68 140,78" fill="none" stroke="#0A0606" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" stroke-opacity="0.8"/>
+</g>
+</svg>

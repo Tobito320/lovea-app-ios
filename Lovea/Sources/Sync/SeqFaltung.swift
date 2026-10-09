@@ -9,9 +9,10 @@ struct SeqFaltung: Sendable {
     private(set) var ops: [Op] = []
     private var index: [String: Int] = [:]
     private var hoechsteSeq = 0
-    /// Applied ops still without `seq`. While there is one, any confirmed op must refold, because
-    /// the unconfirmed one will get a higher `seq` and has to stay on top.
-    private var offen = 0
+    /// Positions in `ops` of applied ops still without `seq`, oldest first. While there is one, any
+    /// confirmed op from elsewhere must refold, because the unconfirmed one will get a higher `seq`
+    /// and has to stay on top.
+    private var offene: [Int] = []
 
     /// Returns the ops to apply on top of the current fold, or nil when the caller must refold `sortiert`.
     mutating func aufnehmen(_ batch: [Op]) -> [Op]? {
@@ -19,12 +20,13 @@ struct SeqFaltung: Sendable {
         var neuFalten = false
         for op in batch {
             if let i = index[op.id] {
-                // The echo of an own op: now it has its real place in the order.
+                // The echo of an own op. The fold order is "confirmed by seq, then open ones", so the
+                // oldest open op confirming above every known seq keeps its place: nothing to redo.
                 if ops[i].seq == nil, let seq = op.seq {
                     ops[i].seq = seq
-                    offen -= 1
+                    if seq < hoechsteSeq || offene.first != i { neuFalten = true }
+                    offene.removeAll { $0 == i }
                     hoechsteSeq = max(hoechsteSeq, seq)
-                    neuFalten = true
                 }
                 continue
             }
@@ -32,10 +34,10 @@ struct SeqFaltung: Sendable {
             ops.append(op)
             neu.append(op)
             if let seq = op.seq {
-                if seq < hoechsteSeq || offen > 0 { neuFalten = true }
+                if seq < hoechsteSeq || !offene.isEmpty { neuFalten = true }
                 hoechsteSeq = max(hoechsteSeq, seq)
             } else {
-                offen += 1
+                offene.append(ops.count - 1)
             }
         }
         return neuFalten ? nil : neu

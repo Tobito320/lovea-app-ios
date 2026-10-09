@@ -176,7 +176,7 @@ struct ReaktionSpiel: View {
     @State private var zuFrueh = false
 
     var ende: PartieEnde? {
-        let s = Reaktion.stand(k.zuege)
+        let s = ReaktionsDuell.stand(k.zuege)
         guard let w = s.sieger else { return nil }
         var p = SpielPunkte()
         p[w] = 1
@@ -188,7 +188,7 @@ struct ReaktionSpiel: View {
     private var kannStarten: Bool { k.partnerZuege.count >= runde && ende == nil }
 
     var body: some View {
-        let s = Reaktion.stand(k.zuege)
+        let s = ReaktionsDuell.stand(k.zuege)
         ZStack {
             (phase == .jetzt ? Color.loveaRose.opacity(0.14) : Color.clear).ignoresSafeArea()
             VStack(spacing: 16) {
@@ -248,7 +248,7 @@ struct ReaktionSpiel: View {
         try? await Task.sleep(for: .seconds(1.6))
         guard !Task.isCancelled else { return }
         phase = .warten
-        try? await Task.sleep(for: .seconds(Reaktion.verzoegerung(spiel: k.spiel.id, partie: k.partie, runde: runde)))
+        try? await Task.sleep(for: .seconds(ReaktionsDuell.verzoegerung(spiel: k.spiel.id, partie: k.partie, runde: runde)))
         guard !Task.isCancelled, phase == .warten else { return }
         erschienen = Date()
         withAnimation(.spring(response: 0.22, dampingFraction: 0.55)) { phase = .jetzt }
@@ -259,7 +259,7 @@ struct ReaktionSpiel: View {
         case .warten:
             zuFrueh = true
             phase = .getippt
-            k.setzen(Reaktion.zuFrueh)
+            k.setzen(ReaktionsDuell.zuFrueh)
         case .jetzt:
             let ms = max(1, Int(Date().timeIntervalSince(erschienen) * 1000))
             phase = .getippt

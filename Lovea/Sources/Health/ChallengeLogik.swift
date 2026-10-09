@@ -1,7 +1,9 @@
 import Foundation
 
 /// Pure challenge logic (Z-22.1, Spec 4.2). Same deviation as `PunkteLogik`: takes plain, already-
-/// `seq`-aware entry lists instead of raw `Op`s so it stays unit-testable without `Raum`.
+/// `seq`-aware entry lists instead of raw `Op`s so it stays unit-testable without `Raum`. Backfilled
+/// steps (Z-36.1) are left out everywhere via `HealthFaltung.punktefaehig`: no duel, no shared goal,
+/// no streak.
 enum ChallengeLogik {
     // MARK: - Duell der Woche + Gemeinsam Woche
 
@@ -26,7 +28,7 @@ enum ChallengeLogik {
     /// vergangene Wochen neu bewerten: `stand` würde fallen und bereits akzeptierte `BesitzLogik`-
     /// Käufe könnten rückwirkend ungültig werden.
     static func wochen(heute: String, schritte: [TagesEintrag<Int>], zielGemeinsamWocheAenderungen: [ZielAenderung]) -> [WochenErgebnis] {
-        let proTag = HealthFaltung.gefaltet(schritte)
+        let proTag = HealthFaltung.punktefaehig(schritte)
         var montage = Set(proTag.values.flatMap { $0.keys.map(Datum.montagDerWoche) })
         montage.insert(Datum.montagDerWoche(heute))
         return montage.sorted().map { montag in
@@ -69,7 +71,7 @@ enum ChallengeLogik {
     }
 
     static func monate(heute: String, schritte: [TagesEintrag<Int>]) -> [MonatsErgebnis] {
-        let proTag = HealthFaltung.gefaltet(schritte)
+        let proTag = HealthFaltung.punktefaehig(schritte)
         var monate = Set(proTag.values.flatMap { $0.keys.map { String($0.prefix(7)) } })
         monate.insert(String(heute.prefix(7)))
         return monate.sorted().map { monat in
@@ -97,7 +99,7 @@ enum ChallengeLogik {
     /// ("laufende Challenges ... mit Fortschritt"), separate from `serienBoni` which only reports
     /// the point-earning milestone crossings.
     static func laufendeSerie(heute: String, schritte: [TagesEintrag<Int>], zielSchritte: [Person: [ZielAenderung]]) -> [Person: Int] {
-        let proTag = HealthFaltung.gefaltet(schritte)
+        let proTag = HealthFaltung.punktefaehig(schritte)
         var ergebnis: [Person: Int] = [:]
         for person in Person.allCases {
             var lauf = 0
@@ -116,7 +118,7 @@ enum ChallengeLogik {
     /// Every milestone a consecutive-days run crosses, once per run — a run that breaks and starts
     /// over can earn the same milestone again (e.g. two separate 3-day runs both give +30).
     static func serienBoni(heute: String, schritte: [TagesEintrag<Int>], zielSchritte: [Person: [ZielAenderung]]) -> [SerienBonus] {
-        let proTag = HealthFaltung.gefaltet(schritte)
+        let proTag = HealthFaltung.punktefaehig(schritte)
         var ergebnis: [SerienBonus] = []
         for person in Person.allCases {
             guard let ersterTag = (proTag[person] ?? [:]).keys.filter({ $0 <= heute }).min() else { continue }

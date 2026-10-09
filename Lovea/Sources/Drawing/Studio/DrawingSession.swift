@@ -1,6 +1,25 @@
 import Combine
 import UIKit
 
+/// Q-R10 Review-Fix: woher ein Undo/Redo kam. Der Toast ist nur für die Fälle gedacht, in denen ein
+/// Auslösen nicht offensichtlich ist (Gesten) – ein bewusster Knopfdruck braucht keine Bestätigung.
+/// `pencilDoppeltipp`/`schuetteln` sind noch an keine echte Quelle angeschlossen, stehen aber schon
+/// bereit, falls so ein Auslöser dazukommt.
+enum UndoQuelle: Equatable {
+    case knopf, geste, pencilDoppeltipp, schuetteln
+
+    var zeigtToast: Bool { self != .knopf }
+
+    var protokollText: String {
+        switch self {
+        case .knopf: "Knopf"
+        case .geste: "Mehr-Finger-Geste"
+        case .pencilDoppeltipp: "Pencil-Doppeltipp"
+        case .schuetteln: "Schütteln"
+        }
+    }
+}
+
 /// UI model of the studio: tool, brush, colors, active layer. All pixel work goes to `CanvasEngine`.
 @MainActor
 final class DrawingSession: ObservableObject {
@@ -64,6 +83,7 @@ final class DrawingSession: ObservableObject {
     private var noticeTask: Task<Void, Never>?
     private var thumbnailTasks: [UUID: Task<Void, Never>] = [:]
     private var opacityGestureStart: ArtworkDocument?
+    private var ladeSperreProtokolliert = false
 
     init(artworkID: UUID, library: ArtworkLibrary, fremd: Bool = false) {
         self.library = library
@@ -188,6 +208,15 @@ final class DrawingSession: ObservableObject {
 
     /// True if the active layer takes paint. Otherwise shows a short notice.
     func ensureDrawable() -> Bool {
+        // Beim ersten Laden überschreibt das Ergebnis die Ebene von der Platte: ein Strich davor ginge lautlos verloren.
+        guard engine?.isLoaded ?? true else {
+            show("Zeichnung lädt noch")
+            if !ladeSperreProtokolliert {
+                ladeSperreProtokolliert = true
+                ZeichenProtokoll.log("Sicherung Laden: Eingabe vor dem ersten Laden abgewiesen")
+            }
+            return false
+        }
         guard let layer = activeLayer else { return false }
         if layer.kind == .image {
             show("Bildebene – zum Bemalen rastern", rasterize: true)
@@ -243,13 +272,20 @@ final class DrawingSession: ObservableObject {
         tool = previousTool
     }
 
-    func tap(at point: CGPoint) {
+    /// `final: false` is a live preview while the eyedropper drags: it updates the color only,
+    /// never the tool (that would jump back to the brush mid-drag).
+    func tap(at point: CGPoint, final: Bool = true) {
         guard let engine else { return }
         switch tool {
         case .eyedropper:
             Task {
                 if let sampled = await engine.sampleColor(at: point), sampled.alpha > 0 {
-                    setColor(RGBAColor(red: sampled.red, green: sampled.green, blue: sampled.blue))
+                    let picked = RGBAColor(red: sampled.red, green: sampled.green, blue: sampled.blue)
+                    if final { setColor(picked); Haptik.auswahl() } else { color = picked }
+                } else if final, let paper = document.background.paperColor {
+                    // Empty paper: pick the paper color when it is solid; transparent paper stays ignored.
+                    setColor(paper)
+                    Haptik.auswahl()
                 }
             }
         case .fill:
@@ -298,26 +334,33 @@ final class DrawingSession: ObservableObject {
         }
     }
 
-    func undo(fromGesture: Bool = false) {
+    func undo(source: UndoQuelle = .knopf) {
         guard canUndo, !nurAnsehen else { return }
         if live.verlauf != nil {
-            engine?.cancelStroke()
+            engine?.cancelStroke(grund: "Undo im Verlauf")
             live.rueckgaengig(wieder: false)
         } else {
             engine?.performUndo()
         }
-        if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        if source != .knopf { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        // Q-R10 Review-Fix: der Toast ist nur für nicht offensichtliche Auslöser gedacht (Gesten) –
+        // ein bewusster Knopfdruck braucht keine Bestätigung und würde beim schnellen Rückgängig-
+        // Klicken nur flackern. Der Ring-Puffer hält die Quelle aber immer fest.
+        ZeichenProtokoll.log("undo ausgelöst via \(source.protokollText)")
+        if source.zeigtToast { show("Rückgängig") }
     }
 
-    func redo(fromGesture: Bool = false) {
+    func redo(source: UndoQuelle = .knopf) {
         guard canRedo, !nurAnsehen else { return }
         if live.verlauf != nil {
-            engine?.cancelStroke()
+            engine?.cancelStroke(grund: "Redo im Verlauf")
             live.rueckgaengig(wieder: true)
         } else {
             engine?.performRedo()
         }
-        if fromGesture { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        if source != .knopf { UIImpactFeedbackGenerator(style: .light).impactOccurred() }
+        ZeichenProtokoll.log("redo ausgelöst via \(source.protokollText)")
+        if source.zeigtToast { show("Wiederholen") }
     }
 
     // MARK: Selection
@@ -438,7 +481,7 @@ final class DrawingSession: ObservableObject {
 
     func selectLayer(_ id: UUID) {
         guard document.layers.contains(where: { $0.id == id }) else { return }
-        engine?.cancelStroke()
+        engine?.cancelStroke(grund: "Ebenenwechsel")
         activeLayerID = id
     }
 

@@ -5,7 +5,7 @@ import UserNotifications
 /// Der Coach kennt dein Ziel, was du heute gegessen hast, Schritte und Schlaf.
 struct CoachView: View {
     @Environment(\.dismiss) private var dismiss
-    @State private var nachrichten: [CoachNachricht] = []
+    @State private var nachrichten: [EssenCoachNachricht] = []
     @State private var eingabe = ""
     @State private var antwortet = false
     @State private var fehlerText: String?
@@ -56,7 +56,7 @@ struct CoachView: View {
         }
     }
 
-    private func blase(_ n: CoachNachricht) -> some View {
+    private func blase(_ n: EssenCoachNachricht) -> some View {
         let vonMir = n.rolle == "nutzer"
         return HStack {
             if vonMir { Spacer(minLength: 40) }
@@ -95,9 +95,9 @@ struct CoachView: View {
         guard !t.isEmpty, !antwortet else { return }
         eingabe = ""
         fehlerText = nil
-        nachrichten.append(CoachNachricht(rolle: "nutzer", text: t))
+        nachrichten.append(EssenCoachNachricht(rolle: "nutzer", text: t))
         let verlauf = nachrichten.filter { !$0.text.isEmpty }
-        nachrichten.append(CoachNachricht(rolle: "coach", text: ""))
+        nachrichten.append(EssenCoachNachricht(rolle: "coach", text: ""))
         antwortet = true
         let person = ich
         let profil = EssenKontext.profil(person)

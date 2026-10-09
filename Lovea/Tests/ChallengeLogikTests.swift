@@ -145,6 +145,33 @@ final class ChallengeLogikTests: XCTestCase {
         XCTAssertEqual(laufend[.ahmed], 0, "gestern zählt nicht mehr, wenn heute noch nichts vorliegt")
     }
 
+    // MARK: - Review-Fokus 2: nachgetragene Schritte zählen für keine Challenge
+
+    func testNachgetrageneTageNichtImDuellUndNichtGemeinsam() {
+        let montag = "2026-07-06"
+        let tage = (0..<7).map { Datum.addTage(montag, $0) }
+        var schritte = tage.map { TagesEintrag(seq: 1, von: Person.ahmed, datum: $0, gesendetAm: "2026-09-23", wert: 30_000, nachgetragen: true) }
+        schritte += tage.map { TagesEintrag(seq: 1, von: Person.annika, datum: $0, gesendetAm: $0, wert: 5000) }
+        let heute = "2026-09-23"
+
+        let woche = ChallengeLogik.wochen(heute: heute, schritte: schritte, zielGemeinsamWocheAenderungen: Self.ziel140k).first { $0.montag == montag }!
+        XCTAssertEqual(woche.schritteDuell[.ahmed], 0, "kein gemeinsamer Tag mit echten Werten")
+        XCTAssertNil(woche.duellSieger)
+        XCTAssertEqual(woche.schritteGesamt, 35_000, "nur Annikas echte Schritte")
+        XCTAssertNil(woche.gemeinsamErreichtAm)
+
+        XCTAssertEqual(ChallengeLogik.monate(heute: heute, schritte: schritte).first { $0.monat == "2026-07" }?.schritteGesamt, 35_000)
+        XCTAssertTrue(ChallengeLogik.serienBoni(heute: heute, schritte: schritte, zielSchritte: [:]).filter { $0.von == .ahmed }.isEmpty)
+    }
+
+    func testLaufendeSerieOhneNachgetrageneTage() {
+        let schritte = [
+            TagesEintrag(seq: 1, von: Person.ahmed, datum: "2026-08-07", gesendetAm: "2026-09-23", wert: 12_000, nachgetragen: true),
+            TagesEintrag(seq: 1, von: Person.ahmed, datum: "2026-08-08", gesendetAm: "2026-08-08", wert: 12_000),
+        ]
+        XCTAssertEqual(ChallengeLogik.laufendeSerie(heute: "2026-08-08", schritte: schritte, zielSchritte: [:])[.ahmed], 1)
+    }
+
     // MARK: - Gesamt-Bonus
 
     func testPunkteBonusSummiertAlleAbgeschlossenenChallenges() {

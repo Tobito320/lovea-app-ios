@@ -1,377 +1,250 @@
 import SwiftUI
-import UIKit
 
-/// Z-21.1/Z-21.2, Spec 3.1/3.2: "Heute"-Karte für Gym und Wasser, plus die Woche/Monat/Jahr-Historie
-/// — für Schritte fest auf dem Health-Tab (Spec 3.1 "Darunter Verlauf"), für Gym/Wasser beim
-/// Antippen der jeweiligen Zeile (Spec 3.2 "Antippen einer Habit-Zeile öffnet die Historie").
-enum HabitArt: String {
-    case schritte, gym, wasser
-    var titel: String {
-        switch self {
-        case .schritte: return "Schritte"
-        case .gym: return "Gym"
-        case .wasser: return "Wasser"
-        }
-    }
-}
+/// Z-35.2, Spec 3.3: "Habits" with a plus, tiles in two columns, each the size of a small widget.
+/// Tapping a tile zooms into its detail.
+struct HabitsSektion: View {
+    let zoom: Namespace.ID
+    let oeffnen: (HealthZiel) -> Void
 
-struct HabitsHeuteCard: View {
+    @State private var anlegenOffen = false
+    @Environment(\.dynamicTypeSize) private var schrift
     private var health: HealthModell { HealthModell.shared }
-    private var heute: String { Datum.text(Date()) }
     private var ich: Person { Raum.shared.ich ?? .ahmed }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Heute").font(.headline)
-            gymZeile
-            Divider()
-            wasserZeile
-        }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
-    }
-
-    private var gymZeile: some View {
-        HStack(spacing: 14) {
-            NavigationLink { HabitHistoryView(art: .gym) } label: {
-                HStack { Text("Gym").font(.body.weight(.semibold)); Spacer() }.contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            gymKreis(.ahmed)
-            gymKreis(.annika)
-        }
-        .frame(minHeight: 44)
-    }
-
-    private func gymKreis(_ person: Person) -> some View {
-        let an = health.gymAbgehakt(person, heute)
-        return Group {
-            if person == ich {
-                Button {
-                    UIImpactFeedbackGenerator(style: .medium).impactOccurred()
-                    health.setzeGym(datum: heute, an: !an)
-                } label: {
-                    kreisInhalt(an: an, farbe: Color.person(person))
-                }
-                .buttonStyle(.plain)
-            } else {
-                kreisInhalt(an: an, farbe: Color.person(person))
+        VStack(alignment: .leading, spacing: 12) {
+            kopf
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: schrift.isAccessibilitySize ? 1 : 2), spacing: 12) {
+                ForEach(health.sichtbareHabits(fuer: ich)) { habit in kachel(habit) }
             }
         }
-        .accessibilityLabel("Gym \(person.name)")
-        .accessibilityValue(an ? "erledigt" : "offen")
-        .accessibilityAddTraits(person == ich ? .isButton : [])
+        .sheet(isPresented: $anlegenOffen) { HabitFormular(bestehend: nil) }
     }
 
-    private func kreisInhalt(an: Bool, farbe: Color) -> some View {
-        Circle()
-            .fill(an ? farbe : Color(uiColor: .tertiarySystemFill))
-            .frame(width: 36, height: 36)
-            .overlay {
-                if an { Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(.white) }
+    private var kopf: some View {
+        HStack(spacing: 4) {
+            Text("Habits").font(.title2.bold()).accessibilityAddTraits(.isHeader)
+            Spacer()
+            if !ausgeblendete.isEmpty { einblenden }
+            Button { anlegenOffen = true } label: {
+                Image(systemName: "plus")
+                    .font(.body.weight(.bold))
+                    .frame(width: 36, height: 36)
+                    .background(Circle().fill(Color(uiColor: .tertiarySystemFill)))
+                    .frame(width: 44, height: 44)
             }
-            .scaleEffect(an ? 1 : 0.9)
-            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: an)
-    }
-
-    private var wasserZeile: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            NavigationLink { HabitHistoryView(art: .wasser) } label: {
-                HStack {
-                    Text("Wasser").font(.body.weight(.semibold))
-                    Spacer()
-                    Image(systemName: "chevron.right").font(.caption2).foregroundStyle(.tertiary)
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .frame(minHeight: 30)
-            wasserGlaeserZeile(ich, interaktiv: true)
-            wasserGlaeserZeile(ich.partner, interaktiv: false)
+            .buttonStyle(.federnd)
+            .accessibilityLabel("Neue Habit")
         }
     }
 
-    private func wasserGlaeserZeile(_ person: Person, interaktiv: Bool) -> some View {
-        let anzahl = health.wasserAnzahl(person, heute)
-        let ziel = max(1, HealthLogik.zielAmTag(heute, health.zielWasserAenderungen[person] ?? [], standard: 8))
-        return HStack(spacing: 4) {
-            Text(person.name).font(.caption).foregroundStyle(.secondary).frame(width: 52, alignment: .leading)
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 3) {
-                    ForEach(0..<ziel, id: \.self) { index in
-                        Image(systemName: index < anzahl ? "drop.fill" : "drop")
-                            .foregroundStyle(index < anzahl ? Color.person(person) : Color(uiColor: .tertiarySystemFill))
-                            .frame(width: 26, height: 30)
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                guard interaktiv else { return }
-                                UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                health.setzeWasser(datum: heute, anzahl: anzahl == index + 1 ? index : index + 1)
-                            }
-                    }
-                }
+    /// Built-ins are "nur ausblendbar" (Spec 3.3), so hiding must always be undoable.
+    private var ausgeblendete: [Habit] {
+        health.habits.values
+            .filter { $0.ausgeblendet && ($0.fuer != "ich" || $0.von == ich.rawValue) }
+            .sorted { $0.name < $1.name }
+    }
+
+    private var einblenden: some View {
+        Menu {
+            ForEach(ausgeblendete) { habit in
+                Button("\(habit.name) einblenden", systemImage: habit.symbol) { health.ausblenden(habit.id, false) }
             }
+        } label: {
+            Image(systemName: "eye.slash").font(.body.weight(.semibold)).frame(width: 44, height: 44)
         }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Wasser \(person.name): \(anzahl) von \(ziel) Gläsern")
-    }
-}
-
-// MARK: - Historie (Z-21.1 "Verlauf" / Z-21.2 "Ansichten")
-
-/// Push-Ziel beim Antippen der Gym-/Wasser-Zeile (Spec 3.2). Für Schritte sitzt dieselbe Ansicht
-/// fest eingebettet auf dem Tab, siehe `VerlaufCard`.
-struct HabitHistoryView: View {
-    let art: HabitArt
-
-    var body: some View {
-        ScrollView { HabitVerlaufInhalt(art: art).padding(16) }
-            .navigationTitle(art.titel)
-            .navigationBarTitleDisplayMode(.inline)
-    }
-}
-
-/// Z-21.1, Spec 3.1: Schritte-Verlauf fest unter den Ringen — dieselbe Woche/Monat/Jahr-Ansicht wie
-/// `HabitHistoryView`, nur ohne eigene Navigation, weil sie direkt auf dem Tab sitzt.
-struct VerlaufCard: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            Text("Verlauf").font(.headline)
-            HabitVerlaufInhalt(art: .schritte)
-        }
-        .padding(16)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
-    }
-}
-
-struct HabitVerlaufInhalt: View {
-    let art: HabitArt
-
-    @State private var ansicht = 0
-    @State private var monateZurueck = 0
-
-    private var health: HealthModell { HealthModell.shared }
-    private var heute: String { Datum.text(Date()) }
-
-    var body: some View {
-        VStack(spacing: 18) {
-            Picker("Ansicht", selection: $ansicht) {
-                Text("Woche").tag(0)
-                Text("Monat").tag(1)
-                Text("Jahr").tag(2)
-            }
-            .pickerStyle(.segmented)
-
-            switch ansicht {
-            case 0:
-                // Spec 3.1 ist hier explizit: Schritte-Woche sind Balken, nicht die Stufen-Kästchen.
-                if art == .schritte { schritteWoche } else { wocheAnsicht }
-            case 1: monatAnsicht
-            default: jahrAnsicht
-            }
-            if !(art == .schritte && ansicht == 0) { legende }
-        }
+        .accessibilityLabel("Ausgeblendete Habits")
     }
 
-    // MARK: Woche
-
-    /// Spec 3.1 "Woche (Balken pro Tag, beide)" — nur für Schritte, Gym/Wasser bleiben bei den
-    /// Stufen-Kästchen (`wocheAnsicht`), weil sie 0…3-Level sind, keine stetige Menge wie Schritte.
-    private var schritteWoche: some View {
-        let tage = HealthLogik.wocheTage(heute)
-        let werte = Person.allCases.map { p in tage.map { health.schritteAm(p, $0) } }
-        let ziele = Person.allCases.map { HealthLogik.zielAmTag(heute, health.zielSchritteAenderungen[$0] ?? [], standard: 10_000) }
-        let hoechstwert = max(werte.flatMap { $0.compactMap { $0 } }.max() ?? 0, ziele.max() ?? 10_000, 1)
-        return HStack(alignment: .bottom, spacing: 8) {
-            ForEach(tage, id: \.self) { tag in
-                VStack(spacing: 3) {
-                    HStack(alignment: .bottom, spacing: 2) {
-                        schrittBalken(health.schritteAm(.ahmed, tag), hoechstwert: hoechstwert, farbe: Color.person(.ahmed))
-                        schrittBalken(health.schritteAm(.annika, tag), hoechstwert: hoechstwert, farbe: Color.person(.annika))
-                    }
-                    .frame(height: 56)
-                    Text(wochentagsKuerzel(tag)).font(.caption2).foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel(schrittTagBeschriftung(tag))
-            }
-        }
-    }
-
-    private func schrittBalken(_ anzahl: Int?, hoechstwert: Int, farbe: Color) -> some View {
-        let hoehe = anzahl.map { CGFloat($0) / CGFloat(hoechstwert) * 56 } ?? 2
-        return RoundedRectangle(cornerRadius: 2)
-            .fill(anzahl != nil ? farbe : Color(uiColor: .tertiarySystemFill))
-            .frame(width: 8, height: Swift.max(2, hoehe))
-    }
-
-    private func schrittTagBeschriftung(_ tag: String) -> String {
-        let ahmed = health.schritteAm(.ahmed, tag).map { "\($0)" } ?? "keine Daten"
-        let annika = health.schritteAm(.annika, tag).map { "\($0)" } ?? "keine Daten"
-        return "\(Datum.anzeige(tag)): Ahmed \(ahmed), Annika \(annika)"
-    }
-
-    private func wochentagsKuerzel(_ tag: String) -> String { ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"][Datum.wochentag(tag) - 1] }
-
-    private var wocheAnsicht: some View {
-        let tage = HealthLogik.wocheTage(heute)
-        return VStack(alignment: .leading, spacing: 12) {
-            ForEach(Person.allCases, id: \.self) { person in
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(person.name).font(.caption).foregroundStyle(.secondary)
-                    HStack(spacing: 6) {
-                        ForEach(tage, id: \.self) { tag in zelle(stufe(person, tag), tag: tag, groesse: 32) }
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    // MARK: Monat
-
-    private var monatAnsicht: some View {
-        VStack(spacing: 10) {
-            HStack {
-                Button { wechsleMonat(1) } label: { Image(systemName: "chevron.left").frame(width: 44, height: 44) }
-                    .accessibilityLabel("Vorheriger Monat")
-                Spacer()
-                Text(monatsTitel).font(.subheadline.weight(.semibold))
-                Spacer()
-                Button { wechsleMonat(-1) } label: { Image(systemName: "chevron.right").frame(width: 44, height: 44) }
-                    .disabled(monateZurueck == 0)
-                    .accessibilityLabel("Nächster Monat")
-            }
-            .buttonStyle(.plain)
-
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 3), count: 7), spacing: 6) {
-                ForEach(Array(monatsGitter.enumerated()), id: \.offset) { _, tag in
-                    if let tag { monatsZelle(tag) } else { Color.clear.frame(height: 28) }
-                }
-            }
-        }
-        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-        .contentShape(Rectangle())
-        .gesture(
-            // Wie `MonatsAnsicht`: links wischen = später (Richtung heute), rechts wischen = früher.
-            DragGesture(minimumDistance: 24).onEnded { wert in
-                if wert.translation.width < -30 { wechsleMonat(-1) }
-                else if wert.translation.width > 30 { wechsleMonat(1) }
-            }
+    @ViewBuilder
+    private func kachel(_ habit: Habit) -> some View {
+        let heute = Datum.text(Date())
+        let partner = ich.partner
+        let partnerFertig = habit.fuer == "beide"
+            && HabitLogik.erledigt(habit, wert: health.habitWert(habit.id, partner, heute), ziel: health.habitZiel(habit.id, partner))
+        let ansicht = HabitKachel(
+            habit: habit, ziel: health.habitZiel(habit.id, ich), werte: health.habitWerte(habit.id, ich), heute: heute,
+            partner: partnerFertig ? partner : nil,
+            oeffnen: { oeffnen(.habit(habit.id)) },
+            setzen: { health.setzeHabit(habit.id, datum: heute, wert: $0) }
         )
+        .matchedTransitionSource(id: HealthZiel.habit(habit.id), in: zoom)
+        if schrift.isAccessibilitySize { ansicht } else { ansicht.aspectRatio(1, contentMode: .fit) }
     }
+}
 
-    private var monatsGitter: [String?] { HealthLogik.monatsGitter(heute: heute, monateZurueck: monateZurueck) }
+/// One HabitLink tile (Spec 3.3): symbol top left, check (or "+1" ring) top right with the partner's
+/// head beside it once they are done today, name, frequency, the 7 squares of this week and the
+/// streak flame. Pure — values and closures come in (render board, form preview).
+struct HabitKachel: View {
+    let habit: Habit
+    let ziel: Int?
+    let werte: [String: Int]
+    let heute: String
+    var partner: Person? = nil
+    var oeffnen: () -> Void = {}
+    var setzen: (Int) -> Void = { _ in }
 
-    private func wechsleMonat(_ delta: Int) {
-        UISelectionFeedbackGenerator().selectionChanged()
-        monateZurueck = max(0, monateZurueck + delta)
-    }
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    private var monatsTitel: String {
-        let aktuellerErster = String(heute.prefix(7)) + "-01"
-        guard let ziel = Datum.kalender.date(byAdding: .month, value: -monateZurueck, to: Datum.datum(aktuellerErster)) else { return "" }
-        let f = DateFormatter()
-        f.calendar = Datum.kalender
-        f.locale = Locale(identifier: "de_DE")
-        f.dateFormat = "MMMM yyyy"
-        return f.string(from: ziel)
-    }
+    private var wertHeute: Int { werte[heute] ?? 0 }
+    private var erledigt: Bool { HabitLogik.erledigt(habit, wert: wertHeute, ziel: ziel) }
+    private var serie: Int { HabitLogik.serie(habit, werte: werte, ziel: ziel, heute: heute) }
+    private var zielWert: Int { max(1, ziel ?? habit.tagesziel ?? 1) }
+    private var bewegung: Animation { reduceMotion ? .easeInOut(duration: 0.2) : Feder.federnd }
 
-    private func monatsZelle(_ tag: String) -> some View {
-        VStack(spacing: 2) {
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            Button(action: oeffnen) { inhalt }
+                .buttonStyle(.federnd)
+                .accessibilityLabel(beschreibung)
+                .accessibilityHint("Öffnet die Details")
             HStack(spacing: 2) {
-                RoundedRectangle(cornerRadius: 2).fill(farbe(stufe(.ahmed, tag))).frame(width: 9, height: 14)
-                RoundedRectangle(cornerRadius: 2).fill(farbe(stufe(.annika, tag))).frame(width: 9, height: 14)
-            }
-            Text(tagesnummer(tag)).font(.caption2).foregroundStyle(.secondary)
-        }
-        .frame(height: 28)
-        .accessibilityLabel("\(Datum.anzeige(tag))")
-    }
-
-    private func tagesnummer(_ tag: String) -> String { String(Int(tag.suffix(2)) ?? 0) }
-
-    // MARK: Jahr
-
-    private var jahrAnsicht: some View {
-        VStack(alignment: .leading, spacing: 18) {
-            ForEach(Person.allCases, id: \.self) { person in
-                VStack(alignment: .leading, spacing: 6) {
-                    Text(person.name).font(.caption).foregroundStyle(.secondary)
-                    jahrGitter(person)
+                if let partner {
+                    FigurKopf(person: partner, groesse: 28)
+                        .transition(.scale.combined(with: .opacity))
+                        .accessibilityLabel("\(partner.name) hat heute erledigt")
                 }
+                if habit.zaehlen { zaehlKnopf } else { hakenKnopf }
             }
+            .padding(10) // check centre on the symbol's centre line (12 + 40 / 2)
+            .animation(bewegung, value: partner)
         }
     }
 
-    private func jahrGitter(_ person: Person) -> some View {
-        let tage = HealthLogik.jahresGitter(heute: heute)
-        return ScrollView(.horizontal, showsIndicators: false) {
-            LazyHGrid(rows: Array(repeating: GridItem(.fixed(11), spacing: 2), count: 7), spacing: 2) {
-                ForEach(tage, id: \.self) { tag in
-                    RoundedRectangle(cornerRadius: 2).fill(farbe(stufe(person, tag))).frame(width: 11, height: 11)
-                }
+    private var inhalt: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Image(systemName: habit.symbol)
+                .font(.title2.weight(.semibold))
+                .foregroundStyle(habit.tint)
+                .frame(height: 40)
+            Spacer(minLength: 6)
+            Text(habit.name)
+                .font(.headline)
+                .foregroundStyle(.primary)
+                .lineLimit(2)
+                .multilineTextAlignment(.leading)
+            Text(untertitel)
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .monospacedDigit()
+            HStack(spacing: 4) {
+                woche
+                Spacer(minLength: 2)
+                flamme
             }
-            .padding(.vertical, 2)
+            .padding(.top, 10)
         }
-        .defaultScrollAnchor(.trailing)
-        .frame(height: 90)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("\(person.name)s Jahresübersicht \(art.titel)")
+        .padding(12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .healthKarte(habit.tint)
+        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
-    // MARK: Gemeinsame Stufen-/Farblogik
+    private var untertitel: String {
+        let text = HabitLogik.haeufigkeitText(habit, ziel: ziel)
+        return habit.zaehlen ? "\(wertHeute)/\(zielWert) · \(text)" : text
+    }
 
-    /// UI-seitige Anwendung von `HealthLogik.gymStufe`/`wasserStufe` je Tag — die Logik selbst bleibt
-    /// in `HealthLogik` (Z-22.1), hier wird sie nur pro Kalendertag aufgerufen statt nur für "heute".
-    /// Für Monat/Jahr (Spec 3.1: "GitHub-Raster, drei Grüntöne", Zielplan Z-21.1) auch für Schritte —
-    /// nur die Woche ist dort explizit Balken (`schritteWoche`), diese Funktion wird für `ansicht == 0`
-    /// bei `.schritte` also nie aufgerufen.
-    /// // ponytail: Schritte-Monat/-Jahr nutzen `wasserStufe`s Prozent-vom-Ziel-Schwellen (<50 %/≥50 %/
-    /// 100 %, Spec 4.2s Wasser-Stufen) statt einer eigenen `schritteStufe` — dieselbe Skala passt, spart
-    /// eine vierte Funktion in `HealthLogik` für exakt dieselbe Formel.
-    private func stufe(_ person: Person, _ tag: String) -> Int {
-        switch art {
-        case .schritte:
-            let ziel = HealthLogik.zielAmTag(tag, health.zielSchritteAenderungen[person] ?? [], standard: 10_000)
-            return HealthLogik.wasserStufe(glaeser: health.schritteAm(person, tag) ?? 0, ziel: ziel)
-        case .gym:
-            let montag = Datum.montagDerWoche(tag)
-            let erledigtInWoche = (0..<Datum.wochentag(tag)).reduce(0) { summe, offset in
-                summe + (health.gymAbgehakt(person, Datum.addTage(montag, offset)) ? 1 : 0)
+    private var woche: some View {
+        HStack(spacing: 3) {
+            ForEach(HabitLogik.wochenTage(heute: heute), id: \.self) { tag in
+                kaestchen(tag > heute ? 0 : HabitLogik.anteil(habit, wert: werte[tag] ?? 0, ziel: ziel), istHeute: tag == heute)
             }
-            let ziel = HealthLogik.zielAmTag(tag, health.zielGymAenderungen[person] ?? [], standard: 3)
-            return HealthLogik.gymStufe(heuteAbgehakt: health.gymAbgehakt(person, tag), erledigtInWoche: erledigtInWoche, ziel: ziel, wochentag: Datum.wochentag(tag))
-        case .wasser:
-            let ziel = HealthLogik.zielAmTag(tag, health.zielWasserAenderungen[person] ?? [], standard: 8)
-            return HealthLogik.wasserStufe(glaeser: health.wasserAnzahl(person, tag), ziel: ziel)
-        }
-    }
-
-    private func farbe(_ stufe: Int) -> Color {
-        switch stufe {
-        case 1: return Color.green.opacity(0.35)
-        case 2: return Color.green.opacity(0.65)
-        case 3: return Color.green
-        default: return Color(uiColor: .tertiarySystemFill)
-        }
-    }
-
-    private func zelle(_ stufe: Int, tag: String, groesse: CGFloat) -> some View {
-        RoundedRectangle(cornerRadius: 6).fill(farbe(stufe)).frame(width: groesse, height: groesse)
-            .accessibilityLabel(Datum.anzeige(tag))
-    }
-
-    private var legende: some View {
-        HStack(spacing: 6) {
-            Text("Weniger").font(.caption2).foregroundStyle(.secondary)
-            ForEach([0, 1, 2, 3], id: \.self) { s in
-                RoundedRectangle(cornerRadius: 2).fill(farbe(s)).frame(width: 11, height: 11)
-            }
-            Text("Mehr").font(.caption2).foregroundStyle(.secondary)
         }
         .accessibilityHidden(true)
+    }
+
+    /// Counting habits fill from the bottom (Spec 3.3 "füllen sich anteilig").
+    private func kaestchen(_ anteil: Double, istHeute: Bool) -> some View {
+        let form = RoundedRectangle(cornerRadius: 3.5, style: .continuous)
+        return form.fill(habit.tint.opacity(0.18))
+            .frame(width: 13, height: 13)
+            .overlay(alignment: .bottom) { Rectangle().fill(habit.tint).frame(height: 13 * anteil) }
+            .clipShape(form)
+            .overlay { if istHeute { form.strokeBorder(habit.tint, lineWidth: 1) } }
+    }
+
+    private var flamme: some View {
+        HStack(spacing: 2) {
+            Image(systemName: "flame.fill").font(.caption.weight(.bold))
+            Text("\(serie)")
+                .font(.system(.subheadline, design: .rounded).weight(.bold))
+                .monospacedDigit()
+                .contentTransition(.numericText(value: Double(serie)))
+        }
+        .foregroundStyle(serie > 0 ? habit.tint : Color.secondary)
+        .accessibilityHidden(true)
+    }
+
+    private var hakenKnopf: some View {
+        Button {
+            let neu = erledigt ? 0 : 1
+            withAnimation(bewegung) { setzen(neu) }
+            if neu > 0 { Haptik.erfolg() } else { Haptik.leicht() }
+        } label: {
+            ZStack {
+                Circle().strokeBorder(habit.tint.opacity(0.55), lineWidth: 2)
+                Circle().fill(habit.tint).scaleEffect(erledigt ? 1 : 0.3).opacity(erledigt ? 1 : 0)
+                Image(systemName: "checkmark")
+                    .font(.system(size: 15, weight: .bold))
+                    .foregroundStyle(Color.aufHabitFarbe)
+                    .scaleEffect(erledigt ? 1 : 0.4)
+                    .opacity(erledigt ? 1 : 0)
+            }
+            .frame(width: 34, height: 34)
+            .frame(width: 44, height: 44)
+            .contentShape(Circle())
+        }
+        .buttonStyle(.federnd)
+        .accessibilityLabel("\(habit.name) heute")
+        .accessibilityValue(erledigt ? "erledigt" : "offen")
+        .accessibilityHint(erledigt ? "Nimmt den Haken zurück" : "Hakt heute ab")
+    }
+
+    /// Spec 3.3: tap = +1, the ring fills up to the daily goal; press and hold sets the number.
+    private var zaehlKnopf: some View {
+        Menu {
+            Picker("Anzahl", selection: Binding(get: { wertHeute }, set: { zaehlen(auf: $0) })) {
+                ForEach(0...max(zielWert + 4, wertHeute), id: \.self) { n in Text("\(n)").tag(n) }
+            }
+        } label: {
+            zaehlRing
+        } primaryAction: {
+            zaehlen(auf: wertHeute + 1)
+        }
+        .menuIndicator(.hidden)
+        .accessibilityLabel("\(habit.name): \(wertHeute) von \(zielWert)")
+        .accessibilityHint("Tippen zählt eins dazu, gedrückt halten setzt die Anzahl")
+    }
+
+    private var zaehlRing: some View {
+        ZStack {
+            Circle().stroke(habit.tint.opacity(0.22), lineWidth: 3)
+            Circle()
+                .trim(from: 0, to: HabitLogik.anteil(habit, wert: wertHeute, ziel: ziel))
+                .stroke(habit.tint, style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+            if erledigt {
+                Circle().fill(habit.tint).padding(5)
+                Image(systemName: "checkmark").font(.system(size: 13, weight: .bold)).foregroundStyle(Color.aufHabitFarbe)
+            } else {
+                Text("+1").font(.system(size: 13, weight: .bold, design: .rounded)).foregroundStyle(habit.tint)
+            }
+        }
+        .frame(width: 32, height: 32)
+        .frame(width: 44, height: 44)
+        .contentShape(Circle())
+    }
+
+    private func zaehlen(auf neu: Int) {
+        let vorher = erledigt
+        withAnimation(bewegung) { setzen(max(0, neu)) }
+        if !vorher && HabitLogik.erledigt(habit, wert: neu, ziel: ziel) { Haptik.erfolg() } else { Haptik.leicht() }
+    }
+
+    private var beschreibung: String {
+        "\(habit.name), \(untertitel), Serie \(serie), heute \(erledigt ? "erledigt" : "offen")"
     }
 }

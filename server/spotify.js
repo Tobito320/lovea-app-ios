@@ -23,7 +23,7 @@ export function cacheGueltig(eintrag, jetztMs = Date.now()) {
 
 // Rohe currently-playing-Antwort (oder null/leer bei "nichts läuft") -> Wire-Shape (schnittstellen.md).
 export function parseAktuellerSong(json) {
-  if (!json || !json.item) return {};
+  if (!json || !json.item || json.is_playing === false) return {}; // pausiert ist kein "hört gerade"
   const item = json.item;
   return {
     titel: item.name ?? "",
@@ -31,6 +31,21 @@ export function parseAktuellerSong(json) {
     cover: item.album?.images?.[0]?.url ?? "",
     url: item.external_urls?.spotify ?? "",
   };
+}
+
+// Freigabe der Zielperson (Einstellung `spotify.teilen`), gefiltert hier auf dem Server, damit der
+// Partner nie mehr bekommt als freigegeben. Fehlend oder unbekannt = "song" (bisheriges Verhalten).
+export const STUFEN = ["aus", "musik", "kuenstler", "song"];
+
+export function nachFreigabe(daten, stufe) {
+  if (daten?.fehler) return { fehler: daten.fehler }; // Fehler sind kein Songinhalt, kein Freigabe-Filter nötig
+  if (!daten?.titel) return {};
+  switch (STUFEN.includes(stufe) ? stufe : "song") {
+    case "aus": return {};
+    case "musik": return { musik: true };
+    case "kuenstler": return { musik: true, kuenstler: daten.kuenstler };
+    default: return { musik: true, ...daten };
+  }
 }
 
 // --- Netzwerk (fetchImpl austauschbar für Tests) ----------------------------
@@ -73,12 +88,34 @@ export async function tokenErneuern(env, alterToken, fetchImpl = fetch, jetztMs 
   return { accessToken: ergebnis.accessToken, refreshToken: ergebnis.roh.refresh_token ?? alterToken.refreshToken, ablaeuftMs: ergebnis.ablaeuftMs };
 }
 
-// 204 (nichts läuft) und ein abgelehntes/abgelaufenes Token (401/403 -- z. B. Partner hat die
-// Verbindung bei Spotify selbst widerrufen) ergeben beide `{}`, keinen Fehler.
+// Spotifys Fehlergrund zu einem Statuscode. Früher schluckte der Server jeden Fehlerstatus als `{}`,
+// "nichts läuft" und "Spotify lehnt dich ab" sahen gleich aus -- die App konnte nie sagen, woran es liegt.
+//   401 Token ungültig/widerrufen, 403 Konto nicht für die Entwickler-App freigeschaltet
+//   (Development Mode: jedes Konto muss im Spotify-Dashboard unter "User Management" stehen), 429 zu viele Anfragen.
+export function fehlerGrund(status) {
+  if (status === 401) return "abgelaufen";
+  if (status === 403) return "nicht-freigeschaltet";
+  if (status === 429) return "zu-viele-anfragen";
+  return "spotify";
+}
+
+// Hüllt `fetch` so ein, dass der Fehlergrund von Spotifys Token-Endpunkt (`error`, z. B. invalid_client,
+// invalid_grant) mitgemerkt wird; der Tausch selbst liefert weiter nur `null`.
+export function fetchMitGrund(fetchImpl = fetch) {
+  const huelle = async (url, optionen) => {
+    const res = await fetchImpl(url, optionen);
+    if (!res.ok) huelle.grund = await res.clone().json().then((j) => String(j?.error ?? res.status)).catch(() => String(res.status));
+    return res;
+  };
+  huelle.grund = null;
+  return huelle;
+}
+
+// 204 (nichts läuft) ergibt `{}`. Jeder andere Fehlerstatus (401/403/429/...) ergibt `{ fehler }`.
 export async function jetztSpielt(accessToken, fetchImpl = fetch) {
   const res = await fetchImpl(JETZT_URL, { headers: { authorization: `Bearer ${accessToken}` } });
-  if (!res.ok) return {};
   if (res.status === 204) return {};
+  if (!res.ok) return { fehler: fehlerGrund(res.status) };
   const json = await res.json().catch(() => null);
   return parseAktuellerSong(json);
 }

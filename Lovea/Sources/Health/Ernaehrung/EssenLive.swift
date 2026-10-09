@@ -1,0 +1,167 @@
+import ActivityKit
+import Foundation
+
+/// Reine Berechnung des Live-Activity-Stands aus den heutigen Einträgen und Zielen. Kein ActivityKit
+/// hier drin, deshalb ohne Gerät testbar.
+enum EssenLiveLogik {
+    static func stand(_ eintraege: [EssenEintrag], ziele: ErnaehrungsZiele, tag: String) -> EssenAktivitaetV2.ContentState {
+        let summe = ErnaehrungLogik.summe(eintraege)
+        // Reihenfolge fest wie `Mahlzeit.allCases` (fruehstueck, mittag, abend, snack) — muss zu
+        // `EssenMahlzeitAnzeige.allCases` im Widget-Ziel passen.
+        let mahlzeitenKcal = Mahlzeit.allCases.map { m in
+            Int(ErnaehrungLogik.summe(eintraege.filter { $0.mahlzeit == m }).kcal.rounded())
+        }
+        return EssenAktivitaetV2.ContentState(
+            kcal: Int(summe.kcal.rounded()), kcalZiel: ziele.kcal,
+            proteinG: Int(summe.protein.rounded()), proteinZiel: ziele.protein,
+            kohlenhydrateG: Int(summe.kohlenhydrate.rounded()), kohlenhydrateZiel: ziele.kohlenhydrate,
+            fettG: Int(summe.fett.rounded()), fettZiel: ziele.fett,
+            mahlzeitenKcal: mahlzeitenKcal, tag: tag)
+    }
+}
+
+/// Opt-in-Schalter für die Essen-Live-Activity (Ahmed, 01.10.): einmaliger Vorschlag in der
+/// Ernährung-Ansicht, dazu ein Schalter in "Tagebuch anpassen". Beides nur in UserDefaults, kein Sync.
+/// Nur schreiben/lesen, nie selbst `EssenLive.abgleichen()` auslösen (das macht der MainActor-Aufrufer,
+/// sonst Swift-6-Isolationsfehler: dieser Typ ist absichtlich nicht an den MainActor gebunden).
+enum EssenLiveEinstellungen {
+    private static let anSchluessel = "essen.liveAktivitaet.an"
+    private static let vorschlagSchluessel = "essen.liveAktivitaet.vorschlagGezeigt"
+
+    static var an: Bool {
+        get { UserDefaults.standard.bool(forKey: anSchluessel) }
+        set { UserDefaults.standard.set(newValue, forKey: anSchluessel) }
+    }
+
+    /// Noch nie "Anzeigen" oder "Nein danke" gewählt.
+    static var vorschlagZeigen: Bool { !UserDefaults.standard.bool(forKey: vorschlagSchluessel) }
+
+    static func vorschlagEntschieden(an: Bool) {
+        UserDefaults.standard.set(true, forKey: vorschlagSchluessel)
+        Self.an = an
+    }
+}
+
+/// Hält die Live Activity passend zum heutigen Tagebuch (Ahmed, 01.10.): aktualisiert nur, wenn der
+/// Nutzer selbst etwas einträgt, ändert oder löscht, und wenn die App aktiv wird. Kein Timer, keine
+/// Hintergrund-Aktualisierung, kein Push — Akku-Kosten damit vernachlässigbar. Höchstens eine Aktivität.
+///
+/// Build 78 (Ahmed, Absturzverdacht): `ErnaehrungModell`s Op-Beobachter UND jeder Gym-Übergang rufen
+/// `abgleichen()` auf — beim Start-Replay können das sehr viele Aufrufe kurz hintereinander sein.
+/// Wie `GymLive`: bei einem laufenden Durchlauf wird kein weiterer Task gequeued, nur
+/// `AbgleichZustand.laeuftSchmutzig` markiert; `lauf()` wiederholt sich dann selbst noch einmal.
+@MainActor
+enum EssenLive {
+    /// Was mit der laufenden Aktivität passieren soll. Reine Entscheidung ohne ActivityKit, testbar.
+    enum Aktion: Equatable { case aktualisieren, neuStarten, beenden }
+
+    private struct Ziel: Sendable {
+        var attribute: EssenAktivitaetV2
+        var stand: EssenAktivitaetV2.ContentState
+    }
+
+    private static var zustand: AbgleichZustand = .leer
+    private static var laufZaehler = 0
+
+    static func abgleichen() {
+        let (starten, neu) = AbgleichZustand.aufruf(zustand)
+        zustand = neu
+        guard starten else { return }
+        Task { await lauf() }
+    }
+
+    private static func lauf() async {
+        while true {
+            // Replay erst fertig, dann den Zielzustand lesen — sonst zeigt ein Durchlauf mitten im
+            // Replay z. B. ein Ziel, das der Fold noch gar nicht angewendet hat (Build-77-Befund:
+            // "0 / 2.720 kcal" trotz echter Einträge, weil `abgleichen()` vor dem Replay lief).
+            await Raum.shared.leer()
+            laufZaehler += 1
+            await anwenden(zielJetzt(), an: EssenLiveEinstellungen.an, gymLaeuft: !Activity<GymAktivitaet>.activities.isEmpty, nummer: laufZaehler)
+            let (nochmal, neu) = AbgleichZustand.fertig(zustand)
+            zustand = neu
+            guard nochmal else { break }
+        }
+    }
+
+    private static func zielJetzt() -> Ziel {
+        let modell = ErnaehrungModell.shared
+        let ich = modell.ich
+        let heute = Datum.text(Date())
+        return Ziel(
+            attribute: EssenAktivitaetV2(name: ich.name),
+            stand: EssenLiveLogik.stand(modell.eintraege(ich, heute), ziele: modell.ziele(ich, tag: heute), tag: heute))
+    }
+
+    /// Gym läuft -> beenden (geht vor allem anderen). Sonst: Schalter aus -> beenden. Läuft schon eine
+    /// für `heute`, mit Mahlzeitendaten -> aktualisieren. Läuft keine, eine vom Vortag, oder eine
+    /// veraltete (altes Format, siehe `istVeraltet`) -> (die alte beenden und) neu starten.
+    nonisolated static func aktion(laufendTag: String?, heute: String, an: Bool, laufendVeraltet: Bool = false, gymLaeuft: Bool = false) -> Aktion {
+        guard !gymLaeuft else { return .beenden }
+        guard an else { return .beenden }
+        if laufendVeraltet { return .neuStarten }
+        return laufendTag == heute ? .aktualisieren : .neuStarten
+    }
+
+    /// R8 (Review, Critical): eine von einer älteren App-Version gestartete Aktivität erkennen, statt
+    /// sie mit `update()` einfach weiterlaufen zu lassen. `ContentState.init(from:)` füllt ein
+    /// fehlendes `mahlzeitenKcal` mit `[0, 0, 0, 0]` — läuft trotzdem schon kcal > 0, kann das Feld
+    /// nur fehlen, nicht wirklich leer sein (eine nagelneue, echte Aktivität startet ohnehin frisch
+    /// über `neuStarten`, landet also nie hier mit kcal > 0 und leeren Mahlzeiten).
+    nonisolated static func istVeraltet(_ s: EssenAktivitaetV2.ContentState) -> Bool {
+        s.kcal > 0 && s.mahlzeitenKcal == [0, 0, 0, 0]
+    }
+
+    private nonisolated static func anwenden(_ ziel: Ziel, an: Bool, gymLaeuft: Bool, nummer: Int) async {
+        StartProtokoll.marke("essenLive.anwenden.vor #\(nummer)")
+        // Build 77: eine Food-Live-Activity aus einem ÄLTEREN Build läuft eventuell noch mit dem
+        // alten ContentState-Shape. Die neue App soll dessen JSON nie über `EssenAktivitaetV2`
+        // dekodieren (Absturzverdacht Build 76) — stattdessen hier über den unveränderten alten
+        // Typnamen beenden, bevor überhaupt etwas mit `EssenAktivitaetV2` angefasst wird.
+        for a in Activity<EssenAktivitaet>.activities {
+            StartProtokoll.marke("essenLive.anwenden.altBeenden.vor")
+            await a.end(nil, dismissalPolicy: .immediate)
+            StartProtokoll.marke("essenLive.anwenden.altBeenden.nach")
+        }
+        let laufend = Activity<EssenAktivitaetV2>.activities.first
+        let mitternacht = Calendar.current.nextDate(after: Date(), matching: DateComponents(hour: 0, minute: 0), matchingPolicy: .nextTime)
+            ?? Date().addingTimeInterval(86400)
+        // Hier läse ein inkompatibler ContentState aus einem sehr alten Build (vor der Typ-Isolation
+        // oben) sein `.content.state` — nächste Stufe zuerst markieren, falls genau das abstürzt.
+        StartProtokoll.marke("essenLive.contentState.lesen")
+        let veraltet = laufend.map { istVeraltet($0.content.state) } ?? false
+        switch aktion(laufendTag: laufend?.content.state.tag, heute: ziel.stand.tag, an: an, laufendVeraltet: veraltet, gymLaeuft: gymLaeuft) {
+        case .beenden:
+            for a in Activity<EssenAktivitaetV2>.activities {
+                StartProtokoll.marke("essenLive.anwenden.beenden.vor")
+                await a.end(nil, dismissalPolicy: .immediate)
+                StartProtokoll.marke("essenLive.anwenden.beenden.nach")
+            }
+        case .neuStarten:
+            // Vom Vortag übrig (oder keine da): sauber beenden statt mit neuen Werten überschreiben,
+            // dann frisch für heute anfordern.
+            for a in Activity<EssenAktivitaetV2>.activities {
+                StartProtokoll.marke("essenLive.anwenden.neuStarten.beenden.vor")
+                await a.end(nil, dismissalPolicy: .immediate)
+                StartProtokoll.marke("essenLive.anwenden.neuStarten.beenden.nach")
+            }
+            guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+                StartProtokoll.marke("essenLive.anwenden.nach")
+                return
+            }
+            // Klappt nur im Vordergrund; sonst holt der nächste Abgleich beim Öffnen es nach.
+            StartProtokoll.marke("essenLive.anwenden.request.vor")
+            _ = try? Activity.request(attributes: ziel.attribute, content: ActivityContent(state: ziel.stand, staleDate: mitternacht))
+            StartProtokoll.marke("essenLive.anwenden.request.nach")
+        case .aktualisieren:
+            guard let laufend, laufend.content.state != ziel.stand else {
+                StartProtokoll.marke("essenLive.anwenden.nach")
+                return
+            }
+            StartProtokoll.marke("essenLive.anwenden.update.vor")
+            await laufend.update(ActivityContent(state: ziel.stand, staleDate: mitternacht))
+            StartProtokoll.marke("essenLive.anwenden.update.nach")
+        }
+        StartProtokoll.marke("essenLive.anwenden.nach")
+    }
+}

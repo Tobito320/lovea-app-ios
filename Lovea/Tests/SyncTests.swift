@@ -148,7 +148,237 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(logAfterDuplicate.count, 3)
     }
 
+    /// Chat-Tempo-Befund 3: die UI muss eingehende Ops sehen, BEVOR das Nachbearbeiten (Platte,
+    /// Warteschlange-Aufraeumen, `wartet`) fertig ist — nicht erst danach. Geprueft ohne in die
+    /// Actors hineinzusehen: `raum.wartet` wird synchron erst NACH `liefereBatch` aktualisiert, also
+    /// muss der `beobachtenStapel`-Callback, der synchron innerhalb von `liefereBatch` feuert, noch
+    /// den alten Stand sehen.
+    func testEingehendeOpsErreichenDieUIVorDemAufraeumenDerWarteschlange() async {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let raum = Raum(
+            transport: transport,
+            log: OpLog(rootURL: dir),
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!,
+            schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+
+        raum.senden("nachricht.neu", ["text": "eins"])
+        raum.senden("nachricht.neu", ["text": "zwei"])
+        await raum.leer()
+        XCTAssertEqual(raum.wartet, 2)
+
+        var wartetBeimEmpfang: Int?
+        var batchGroesseBeimEmpfang: Int?
+        raum.beobachtenStapel(["nachricht.neu"]) { ops in
+            // Erster Aufruf ist der Replay beim Registrieren (die zwei optimistischen Sends) —
+            // der uns interessierende ist der Echo-Batch mit `seq` gesetzt.
+            guard ops.contains(where: { $0.seq != nil }) else { return }
+            wartetBeimEmpfang = raum.wartet
+            batchGroesseBeimEmpfang = ops.count
+        }
+        await raum.leer()
+
+        let offeneIDs = await Warteschlange(rootURL: dir).offen.map(\.id)
+        let echo = makeOpsMessage(ops: offeneIDs.enumerated().map { (id: $0.element, seq: $0.offset + 1) }, mehr: false, art: "nachricht.neu")
+        await transport.receive(echo)
+
+        XCTAssertEqual(batchGroesseBeimEmpfang, 2, "der Callback muss beide Ops im selben Batch sehen")
+        XCTAssertEqual(wartetBeimEmpfang, 2, "wartet darf im Moment der UI-Zustellung noch nicht runtergezaehlt sein")
+        XCTAssertEqual(raum.wartet, 0, "nach dem Aufraeumen muss wartet aber auf 0 stehen")
+    }
+
+    // MARK: - Watchdog (27.09. Performance)
+
+    func testDeadSocketReconnectsAndAnsweredPingStays() async throws {
+        func raum(_ transport: FakeTransport) -> Raum {
+            let dir = makeTempDirectory()
+            let r = Raum(
+                transport: transport, log: OpLog(rootURL: dir), warteschlange: Warteschlange(rootURL: dir),
+                server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+                medienBeimStartFortsetzen: false, pingAbstand: .milliseconds(50), pongFrist: .milliseconds(100)
+            )
+            r.ich = .ahmed
+            return r
+        }
+
+        let tot = FakeTransport()
+        let toterRaum = raum(tot)
+        toterRaum.start()
+        await toterRaum.leer()
+        try await Task.sleep(for: .milliseconds(600))
+        XCTAssertTrue(tot.sent.contains("ping"))
+        XCTAssertGreaterThanOrEqual(tot.urls.count, 2, "no pong -> must reconnect instead of trusting a dead socket")
+
+        let lebt = FakeTransport()
+        let lebenderRaum = raum(lebt)
+        lebenderRaum.start()
+        await lebenderRaum.leer()
+        for _ in 0..<12 {
+            try await Task.sleep(for: .milliseconds(50))
+            await lebt.receive("pong")
+        }
+        XCTAssertEqual(lebt.urls.count, 1, "answered pings keep the one connection")
+        _ = (toterRaum, lebenderRaum)
+    }
+
     // MARK: - Paging (Z-2.2, Review-Fokus 3)
+
+    func testConnectedRefreshUsesCompleteCursorAndDedupesRequests() async {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        await log.vollstaendigBisSeqSetzen(7)
+        let raum = Raum(
+            transport: transport, log: log, warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+        await transport.receive(makeOpsMessage(ops: [(id: "live-99", seq: 99)], mehr: false, seite: false))
+
+        raum.start()
+        raum.start()
+        XCTAssertEqual(transport.sent.filter { $0.contains("\"nachholen\"") }.count, 1)
+        XCTAssertTrue(transport.sent.contains { $0.contains("\"seit\":7") })
+
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+        raum.start()
+        XCTAssertEqual(transport.sent.filter { $0.contains("\"nachholen\"") }.count, 2)
+    }
+
+    func testPongDoesNotSatisfyCatchUpDeadline() async throws {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        await log.vollstaendigBisSeqSetzen(7)
+        let raum = Raum(
+            transport: transport, log: log, warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false, pingAbstand: .seconds(10),
+            nachholFrist: .milliseconds(120)
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+        raum.nachholenJetzt()
+        await transport.receive("pong")
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(transport.urls.count, 2)
+        XCTAssertEqual(transport.urls.last?.query, "seit=7")
+    }
+
+    func testDelayedCatchUpPageCancelsDeadline() async throws {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let raum = Raum(
+            transport: transport, log: OpLog(rootURL: dir),
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false, pingAbstand: .seconds(10),
+            nachholFrist: .milliseconds(200)
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+        let page = "{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}"
+        await transport.receive(page)
+        raum.nachholenJetzt()
+        try await Task.sleep(for: .milliseconds(60))
+        await transport.receive(page)
+        try await Task.sleep(for: .milliseconds(250))
+        XCTAssertEqual(transport.urls.count, 1)
+    }
+
+    func testMissingNextPageReconnectsFromPersistedPageCursor() async throws {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        await log.vollstaendigBisSeqSetzen(7)
+        let raum = Raum(
+            transport: transport, log: log, warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false, pingAbstand: .seconds(10),
+            nachholFrist: .milliseconds(120)
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+        await transport.receive(makeOpsMessage(ops: [(id: "page-8", seq: 8)], mehr: true, seite: true))
+        XCTAssertTrue(transport.sent.contains { $0.contains("\"seit\":8") })
+        await transport.receive("pong")
+        try await Task.sleep(for: .milliseconds(300))
+        XCTAssertEqual(transport.urls.count, 2)
+        XCTAssertEqual(transport.urls.last?.query, "seit=8")
+    }
+
+    func testRepeatedCatchUpTimeoutBacksOffAndIgnoresOldSocket() async throws {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let log = OpLog(rootURL: dir)
+        await log.vollstaendigBisSeqSetzen(7)
+        let raum = Raum(
+            transport: transport, log: log, warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false, pingAbstand: .seconds(10),
+            nachholFrist: .milliseconds(150)
+        )
+        raum.ich = .ahmed
+        var delivered = 0
+        raum.beobachten(["nachricht.neu"]) { _ in delivered += 1 }
+        raum.start()
+        await raum.leer()
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+        raum.nachholenJetzt()
+        try await Task.sleep(for: .milliseconds(450))
+        XCTAssertEqual(transport.urls.count, 2, "second timeout must use backoff")
+        await transport.receive(makeOpsMessage(ops: [(id: "stale", seq: 99)], mehr: false, seite: true), connection: 0)
+        XCTAssertEqual(delivered, 0)
+        let cursor = await log.vollstaendigBisSeq()
+        XCTAssertEqual(cursor, 7)
+        try await Task.sleep(for: .milliseconds(1050))
+        XCTAssertEqual(transport.urls.count, 3)
+        XCTAssertEqual(transport.urls.last?.query, "seit=7")
+    }
+
+    func testSilentPushWaitsForPageOnConnectedSocket() async throws {
+        let dir = makeTempDirectory()
+        let transport = FakeTransport()
+        let raum = Raum(
+            transport: transport, log: OpLog(rootURL: dir),
+            warteschlange: Warteschlange(rootURL: dir),
+            server: URL(string: "https://sync.example.com")!, schluessel: "schluessel",
+            medienBeimStartFortsetzen: false
+        )
+        raum.ich = .ahmed
+        raum.start()
+        await raum.leer()
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+
+        var finished = false
+        let push = Task { @MainActor in
+            await raum.nachholenBisFertig(timeout: .seconds(1))
+            finished = true
+        }
+        try await Task.sleep(for: .milliseconds(50))
+        raum.nachholenJetzt()
+        XCTAssertEqual(transport.sent.filter { $0.contains("\"nachholen\"") }.count, 1)
+        await transport.receive("pong")
+        try await Task.sleep(for: .milliseconds(50))
+        XCTAssertFalse(finished)
+        await transport.receive("{\"t\":\"ops\",\"ops\":[],\"mehr\":false,\"seite\":true}")
+        await push.value
+        XCTAssertTrue(finished)
+    }
 
     func testPagingDeliversThreeBatchesForTwelveHundredOps() async {
         let dir = makeTempDirectory()
@@ -336,6 +566,16 @@ final class SyncTests: XCTestCase {
         XCTAssertEqual(Medien.plan(gesamt: 3, antwort: ohneVorhanden), [2])
     }
 
+    /// Z-Snap-Tempo: `stapeln` gruppiert die Teile-Indizes für den parallelen Upload — Reihenfolge
+    /// der Gruppen bleibt, jede Gruppe höchstens `grad` groß, nichts geht verloren oder verdoppelt.
+    func testMedienStapelnGroupsByGrad() {
+        XCTAssertEqual(Medien.stapeln([0, 1, 2, 3, 4, 5, 6], grad: 4), [[0, 1, 2, 3], [4, 5, 6]])
+        XCTAssertEqual(Medien.stapeln([0, 1, 2], grad: 4), [[0, 1, 2]], "fewer parts than the degree stay one batch")
+        XCTAssertEqual(Medien.stapeln([], grad: 4), [])
+        XCTAssertEqual(Medien.stapeln([0, 1, 2], grad: 1), [[0], [1], [2]], "grad 1 is sequential, same as before")
+        XCTAssertEqual(Medien.stapeln([5, 2, 9], grad: 0), [[5, 2, 9]], "grad <= 0 never splits (safety net, not reachable today)")
+    }
+
     // MARK: - Helpers
 
     private func makeTempDirectory() -> URL {
@@ -348,9 +588,9 @@ final class SyncTests: XCTestCase {
         Op(id: UUID().uuidString, seq: seq, art: "test.art", von: .ahmed, zeit: Date(), d: Data("{}".utf8))
     }
 
-    private func makeOpsMessage(ops: [(id: String, seq: Int)], mehr: Bool, seite: Bool = false) -> String {
+    private func makeOpsMessage(ops: [(id: String, seq: Int)], mehr: Bool, seite: Bool = false, art: String = "test.art") -> String {
         let entries = ops.map {
-            "{\"seq\":\($0.seq),\"id\":\"\($0.id)\",\"art\":\"test.art\",\"von\":\"annika\",\"zeit\":\"2026-09-23T12:00:00.000Z\",\"d\":{}}"
+            "{\"seq\":\($0.seq),\"id\":\"\($0.id)\",\"art\":\"\(art)\",\"von\":\"annika\",\"zeit\":\"2026-09-23T12:00:00.000Z\",\"d\":{}}"
         }
         return "{\"t\":\"ops\",\"ops\":[\(entries.joined(separator: ","))],\"mehr\":\(mehr),\"seite\":\(seite)}"
     }
@@ -362,6 +602,7 @@ private final class FakeTransport: RaumTransport, @unchecked Sendable {
     private(set) var sent: [String] = []
     private(set) var urls: [URL] = []
     private var onMessage: (@Sendable (String) async -> Void)?
+    private var receivers: [(@Sendable (String) async -> Void)] = []
     private var onDisconnect: (@Sendable (Error?) async -> Void)?
 
     func verbinden(
@@ -372,6 +613,7 @@ private final class FakeTransport: RaumTransport, @unchecked Sendable {
     ) {
         urls.append(url)
         onMessage = nachricht
+        receivers.append(nachricht)
         onDisconnect = getrennt
     }
 
@@ -386,5 +628,9 @@ private final class FakeTransport: RaumTransport, @unchecked Sendable {
 
     func receive(_ text: String) async {
         await onMessage?(text)
+    }
+
+    func receive(_ text: String, connection: Int) async {
+        await receivers[connection](text)
     }
 }

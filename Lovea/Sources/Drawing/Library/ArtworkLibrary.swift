@@ -68,6 +68,7 @@ final class ArtworkLibrary: ObservableObject {
         let project = ArtworkProject(name: clean)
         projects.append(project)
         persistIndex()
+        GalerieSync.shared.projekteGeaendert(projects)
         return project
     }
 
@@ -76,6 +77,7 @@ final class ArtworkLibrary: ObservableObject {
         projects[index].name = cleaned(name, fallback: projects[index].name)
         projects[index].updatedAt = Date()
         persistIndex()
+        GalerieSync.shared.projekteGeaendert(projects)
     }
 
     func deleteProject(_ id: UUID, deleteArtworks: Bool = false) {
@@ -89,10 +91,12 @@ final class ArtworkLibrary: ObservableObject {
                 artworks[index].projectID = nil
                 artworks[index].updatedAt = Date()
                 persistDocument(artworks[index])
+                GalerieSync.shared.markiereSchmutzig(artworks[index].id)
             }
         }
         projects.removeAll { $0.id == id }
         persistIndex()
+        GalerieSync.shared.projekteGeaendert(projects)
     }
 
     @discardableResult
@@ -119,6 +123,7 @@ final class ArtworkLibrary: ObservableObject {
         artworks.append(document)
         persistDocument(document)
         persistIndex()
+        GalerieSync.shared.markiereSchmutzig(document.id)
         return document
     }
 
@@ -136,6 +141,7 @@ final class ArtworkLibrary: ObservableObject {
         }
         persistDocument(next)
         persistIndex()
+        GalerieSync.shared.markiereSchmutzig(next.id)
     }
 
     func renameArtwork(_ id: UUID, to name: String) {
@@ -172,6 +178,7 @@ final class ArtworkLibrary: ObservableObject {
         artworks.append(copy)
         persistDocument(copy)
         persistIndex()
+        GalerieSync.shared.markiereSchmutzig(copy.id)
         return copy
     }
 
@@ -179,6 +186,34 @@ final class ArtworkLibrary: ObservableObject {
         artworks.removeAll { $0.id == id }
         let url = directory(for: id)
         Self.io.async { try? FileManager.default.removeItem(at: url) }
+        persistIndex()
+        GalerieSync.shared.artworkGeloescht(id)
+    }
+
+    /// Sync: removes a local artwork without marking anything dirty or sending `galerie.geloescht`
+    /// -- used to merge a duplicate from the old per-device Umzug import into an incoming stand's id.
+    func removeWithoutSync(_ id: UUID) {
+        artworks.removeAll { $0.id == id }
+        let url = directory(for: id)
+        Self.io.async { try? FileManager.default.removeItem(at: url) }
+        persistIndex()
+    }
+
+    /// Sync: writes a remote stand exactly as received (`updatedAt` untouched); does not mark it
+    /// dirty -- this write came from this gallery's own sync, not a local edit.
+    func applyRemoteDocument(_ document: ArtworkDocument) {
+        if let index = artworks.firstIndex(where: { $0.id == document.id }) {
+            artworks[index] = document
+        } else {
+            artworks.append(document)
+        }
+        persistDocument(document)
+        persistIndex()
+    }
+
+    /// Sync: replaces the whole projects list (last-writer-wins); no dirty-mark, no send.
+    func applyRemoteProjects(_ projects: [ArtworkProject]) {
+        self.projects = projects
         persistIndex()
     }
 
@@ -247,6 +282,7 @@ final class ArtworkLibrary: ObservableObject {
         projects[index].sharedReadOnly = shared
         projects[index].updatedAt = Date()
         persistIndex()
+        GalerieSync.shared.projekteGeaendert(projects)
     }
 
     /// Writes via a temporary file and rename. A failed write leaves the old file untouched.

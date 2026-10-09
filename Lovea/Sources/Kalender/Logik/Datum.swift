@@ -30,6 +30,30 @@ enum Datum {
         return datum(tag).formatted(stil.weekday(.wide).day().month(.wide))
     }
 
+    /// „HH:mm" in Europe/Berlin, etwa aus einem DatePicker.
+    static func uhrzeit(_ datum: Date) -> String {
+        let teile = kalender.dateComponents([.hour, .minute], from: datum)
+        return uhrzeit(minuten: (teile.hour ?? 0) * 60 + (teile.minute ?? 0))
+    }
+
+    /// Minuten seit Mitternacht als „HH:mm".
+    static func uhrzeit(minuten: Int) -> String {
+        String(format: "%02d:%02d", minuten / 60, minuten % 60)
+    }
+
+    /// „HH:mm" plus Minuten, höchstens 23:59 (ein Termin endet am selben Tag).
+    static func uhrzeit(_ zeit: String, plus dauer: Int) -> String {
+        uhrzeit(minuten: min((minuten(zeit) ?? 0) + dauer, 23 * 60 + 59))
+    }
+
+    /// „HH:mm" als Minuten seit Mitternacht, nil ohne oder bei kaputter Uhrzeit.
+    static func minuten(_ hhmm: String?) -> Int? {
+        guard let hhmm, let doppelpunkt = hhmm.firstIndex(of: ":"),
+              let stunde = Int(hhmm[..<doppelpunkt]), let minute = Int(hhmm[hhmm.index(after: doppelpunkt)...])
+        else { return nil }
+        return stunde * 60 + minute
+    }
+
     static func addTage(_ tag: String, _ anzahl: Int) -> String {
         text(kalender.date(byAdding: .day, value: anzahl, to: datum(tag))!)
     }

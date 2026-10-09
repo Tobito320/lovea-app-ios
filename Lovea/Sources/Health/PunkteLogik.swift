@@ -42,22 +42,35 @@ enum PunkteLogik {
 
     /// One day's own components (everything except the weekly Gym bonus, which needs the whole week).
     static func tagesPunkte(schritte: Int?, zielSchritte: Int, gymAbgehakt: Bool, wasser: Int, zielWasser: Int, chatStreakTag: Bool, spieleGewonnen: Int) -> Int {
-        var summe = 0
-        if let schritte {
-            summe += min(schritte / 100, 300)
-            if schritte >= zielSchritte { summe += 20 }
-            if schritte >= 15_000 { summe += 30 }
-        }
-        if gymAbgehakt { summe += 40 }
-        if zielWasser > 0, wasser >= zielWasser { summe += 10 }
-        if chatStreakTag { summe += 5 }
-        summe += spieleGewonnen * 10
-        return summe
+        tagesTeile(schritte: schritte, zielSchritte: zielSchritte, gymAbgehakt: gymAbgehakt, wasser: wasser, zielWasser: zielWasser, chatStreakTag: chatStreakTag, spieleGewonnen: spieleGewonnen)
+            .reduce(0) { $0 + $1.punkte }
     }
 
+    /// The same day split by source, one `verlauf` row each ("auf Punkte klicken, sehen woraus sie
+    /// bestehen"). The `grund` names are read by the points detail — keep them exactly.
+    static func tagesTeile(schritte: Int?, zielSchritte: Int, gymAbgehakt: Bool, wasser: Int, zielWasser: Int, chatStreakTag: Bool, spieleGewonnen: Int) -> [(grund: String, punkte: Int)] {
+        var teile: [(grund: String, punkte: Int)] = []
+        if let schritte {
+            teile.append(("Schritte", min(schritte / 100, 300)))
+            if schritte >= zielSchritte { teile.append(("Schrittziel", 20)) }
+            if schritte >= 15_000 { teile.append(("15.000 Schritte", 30)) }
+        }
+        if gymAbgehakt { teile.append(("Gym", 40)) }
+        if zielWasser > 0, wasser >= zielWasser { teile.append(("Wasserziel", 10)) }
+        if chatStreakTag { teile.append(("Chat-Streak", 5)) }
+        teile.append(("Spiel gewonnen", spieleGewonnen * 10))
+        return teile.filter { $0.punkte != 0 }
+    }
+
+    /// Spec 2.10 "Punkte bleiben fair": the chat streak is gone from 24.09.2026 on — earlier streak
+    /// days keep their +5, later ones give nothing.
+    static let chatStreakEnde = "2026-09-24"
+
     /// Full breakdown up to (incl.) `heute` — the source `PunkteModell.verlauf` reads and `stand`
-    /// sums. `gym` entries older than 7 days past their credited day are dropped entirely here
-    /// (Spec 4.1: "sonst keine Punkte") — both for the daily +40 and for the weekly-goal count.
+    /// sums. `gym` and `wasser` entries marked more than 7 days after their day are dropped entirely
+    /// here (Spec 4.1: "sonst keine Punkte"; Wasser too since any habit can now mark past days, the
+    /// old UI only ever wrote today's water) — for gym both the daily +40 and the weekly-goal count.
+    /// Backfilled steps (`nachgetragen`, Z-36.1) never count.
     static func verlauf(
         heute: String,
         schritte: [TagesEintrag<Int>],
@@ -69,17 +82,16 @@ enum PunkteLogik {
         chatStreakTage: Set<String>,
         spieleSiege: [SpielSieg]
     ) -> [Eintrag] {
-        let schritteProTag = HealthFaltung.gefaltet(schritte)
+        let schritteProTag = HealthFaltung.punktefaehig(schritte)
         // Erst falten (höchster seq gewinnt, z. B. ein später gesendetes Abhaken hebt ein früheres
         // wieder auf), DANACH die 7-Tage-Regel nur auf den GEWINNER anwenden — nicht umgekehrt: vor
         // dem Falten filtern würde ein spätes Zurücknehmen (Op selbst >7 Tage nach `datum` gesendet)
         // verwerfen und das frühere, noch positive Abhaken fälschlich gewinnen lassen.
-        let gymProTag = HealthFaltung.gefaltet(gym).mapValues { tageProPerson in
-            tageProPerson.filter { _, eintrag in Datum.tageZwischen(eintrag.datum, eintrag.gesendetAm) <= 7 }
-        }
-        let wasserProTag = HealthFaltung.gefaltet(wasser)
+        let gymProTag = rechtzeitig(HealthFaltung.gefaltet(gym))
+        let wasserProTag = rechtzeitig(HealthFaltung.gefaltet(wasser))
+        let streakTage = chatStreakTage.filter { $0 < chatStreakEnde }
 
-        var tage = Set(chatStreakTage)
+        var tage = streakTage
         tage.formUnion(spieleSiege.map(\.datum))
         for proTag in [schritteProTag, wasserProTag] { for tageProPerson in proTag.values { tage.formUnion(tageProPerson.keys) } }
         for tageProPerson in gymProTag.values { tage.formUnion(tageProPerson.keys) }
@@ -93,10 +105,10 @@ enum PunkteLogik {
                 let gymAbgehakt = (gymProTag[person]?[tag]?.wert ?? 0) > 0
                 let wasserWert = wasserProTag[person]?[tag]?.wert ?? 0
                 let zielW = HealthLogik.zielAmTag(tag, zielWasser[person] ?? [], standard: 8)
-                let streakHeute = chatStreakTage.contains(tag)
+                let streakHeute = streakTage.contains(tag)
                 let siege = spieleSiege.filter { $0.von == person && $0.datum == tag }.count
-                let punkte = tagesPunkte(schritte: schrittWert, zielSchritte: zielS, gymAbgehakt: gymAbgehakt, wasser: wasserWert, zielWasser: zielW, chatStreakTag: streakHeute, spieleGewonnen: siege)
-                if punkte != 0 { eintraege.append(Eintrag(datum: tag, von: person, grund: "Tag", punkte: punkte)) }
+                let teile = tagesTeile(schritte: schrittWert, zielSchritte: zielS, gymAbgehakt: gymAbgehakt, wasser: wasserWert, zielWasser: zielW, chatStreakTag: streakHeute, spieleGewonnen: siege)
+                eintraege += teile.map { Eintrag(datum: tag, von: person, grund: $0.grund, punkte: $0.punkte) }
             }
         }
         eintraege += wochenGymBonus(heute: heute, gymProTag: gymProTag, zielGym: zielGym)
@@ -119,6 +131,11 @@ enum PunkteLogik {
             summe[eintrag.von, default: 0] += eintrag.punkte
         }
         return summe
+    }
+
+    /// Spec 4.1: marked at most 7 days after the day, else no points (it still shows as done).
+    private static func rechtzeitig(_ proTag: [Person: [String: TagesEintrag<Int>]]) -> [Person: [String: TagesEintrag<Int>]] {
+        proTag.mapValues { tage in tage.filter { Datum.tageZwischen($0.value.datum, $0.value.gesendetAm) <= 7 } }
     }
 
     /// +80 once per person and ISO week (Mo...So) once their Gym goal for that week is met —

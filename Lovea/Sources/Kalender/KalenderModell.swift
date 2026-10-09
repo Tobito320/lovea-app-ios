@@ -24,12 +24,16 @@ final class KalenderModell {
         /// `datum -> Bewerter(von) -> Wertung`. Der Bewerter bewertet immer seinen Partner.
         var puenktlich: [String: [Person: String]] = [:]
         var jahrestag: String?
+        /// `datum -> Punkte` (öffentlich oder Platzhalter), Faltung in `TreffenAblauf`.
+        var punkte: [String: [TreffenPunkt]] = [:]
+        var geloeschtePunkte: Set<String> = []
     }
 
     struct TreffenEintrag: Sendable, Equatable {
         var von: Person
         var text: String?
         var uhrzeit: String?
+        var bis: String?
         var zeit: Date
         var vorherige: Vorherige?
 
@@ -44,15 +48,21 @@ final class KalenderModell {
 
     struct Stimmung: Sendable, Equatable {
         var stimmung: String // "gut" | "mittel" | "schlecht"
-        var brauche: String? // "naehe" | "worte" | "ruhe"
+        var brauche: String? // siehe `Brauch` (WieGehtsDirCard)
         var satz: String?
     }
 
     static let arten: Set<String> = [
-        "muster.setzen", "muster.loeschen", "ausnahme.setzen", "termin.setzen", "termin.loeschen",
+        "muster.setzen", "muster.loeschen", "ausnahme.setzen", "ausnahme.loeschen", "termin.setzen", "termin.loeschen",
         "treffen.setzen", "treffen.loeschen", "notiz.setzen", "checkliste.setzen", "checkliste.loeschen",
         "stimmung.setzen", "puenktlich.setzen", "jahrestag.setzen",
+        "treffen.punkt.setzen", "treffen.punkt.platzhalter", "treffen.punkt.loeschen",
     ]
+
+    /// Z-42.1: fertige Monatsraster, neu erst, wenn sich Muster, Ausnahmen, Termine oder Treffen
+    /// ändern (Notizen und Stimmung lassen sie stehen). Nicht beobachtet: das Füllen beim Rendern
+    /// darf keine neue Render-Runde auslösen.
+    @ObservationIgnored private var raster: (daten: KalenderDaten, monate: [String: MonatsRaster])?
 
     private init() {
         Raum.shared.beobachtenStapel(Self.arten) { [weak self] ops in
@@ -62,6 +72,7 @@ final class KalenderModell {
             self.faltung = faltung
         }
         ersterStartMusterFallsNoetig()
+        Task { @MainActor in TreffenFreigabe.shared.starten() }
     }
 
     // MARK: - Faltung (testbar ohne Raum)
@@ -99,9 +110,11 @@ final class KalenderModell {
             if let d = op.daten(MitId.self) { z.daten.muster.removeAll { $0.id == d.id } }
         case "ausnahme.setzen":
             if let a = op.daten(Ausnahme.self) {
-                z.daten.ausnahmen.removeAll { $0.person == a.person && $0.datum == a.datum && $0.musterId == a.musterId }
+                z.daten.ausnahmen.removeAll(where: AusnahmeSchluessel(a).passt)
                 z.daten.ausnahmen.append(a)
             }
+        case "ausnahme.loeschen":
+            if let schluessel = op.daten(AusnahmeSchluessel.self) { z.daten.ausnahmen.removeAll(where: schluessel.passt) }
         case "termin.setzen":
             if let t = op.daten(Termin.self) {
                 z.daten.termine.removeAll { $0.id == t.id }
@@ -135,6 +148,8 @@ final class KalenderModell {
             if let d = op.daten(PuenktlichEintrag.self) { z.puenktlich[d.datum, default: [:]][op.von] = d.wert }
         case "jahrestag.setzen":
             if let d = op.daten(MitDatum.self) { z.jahrestag = d.datum }
+        case "treffen.punkt.setzen", "treffen.punkt.platzhalter", "treffen.punkt.loeschen":
+            TreffenAblauf.anwenden(op, in: &z)
         default:
             break
         }
@@ -146,27 +161,33 @@ final class KalenderModell {
     private nonisolated static func treffenSetzen(_ von: Person, _ zeit: Date, _ d: TreffenD, in z: inout Zustand) {
         let vorher = z.treffenText[d.datum]
         var vorherige = vorher?.vorherige
-        if let alt = vorher, alt.text != d.wasMachenWir {
+        // Z-42.2: nur ein Wechsel der Person hält die alte Fassung fest. Das Autosave schickt beim
+        // Tippen mehrere Fassungen derselben Person, die sonst die Fassung des Partners verdrängen.
+        // ponytail: dieselbe Person auf zwei Geräten zugleich (Annika iPhone + iPad) behält keine
+        // vorige Fassung; Upgrade: das Gerät als Autor mitsenden.
+        if let alt = vorher, alt.text != d.wasMachenWir, alt.von != von {
             vorherige = TreffenEintrag.Vorherige(von: alt.von, text: alt.text ?? "", zeit: alt.zeit)
         }
-        let neu = TreffenEintrag(von: von, text: d.wasMachenWir, uhrzeit: d.uhrzeit ?? vorher?.uhrzeit, zeit: zeit, vorherige: vorherige)
+        // `uhrzeit` "" nimmt die Uhrzeit zurück; fehlt sie ganz („Machen wir"), bleibt die alte.
+        let uhrzeit = d.uhrzeit == "" ? nil : (d.uhrzeit ?? vorher?.uhrzeit)
+        // `bis` wie `uhrzeit`: Build 92 sendet keins und darf es nicht löschen.
+        let bis = d.bis == "" ? nil : (d.bis ?? vorher?.bis)
+        let neu = TreffenEintrag(von: von, text: d.wasMachenWir, uhrzeit: uhrzeit, bis: bis, zeit: zeit, vorherige: vorherige)
         z.treffenText[d.datum] = neu
         z.daten.treffen.removeAll { $0.datum == d.datum }
-        z.daten.treffen.append(Treffen(datum: d.datum, uhrzeit: neu.uhrzeit, wasMachenWir: neu.text))
+        z.daten.treffen.append(Treffen(datum: d.datum, uhrzeit: neu.uhrzeit, wasMachenWir: neu.text, bis: neu.bis))
     }
 
     // MARK: - Z-9.4 Startmuster
 
-    /// Ohne Uhrzeiten, „ab“ 2026-09-21 (Woche A). Annika: Schule Mo–Fr. Ahmed: vier Muster
-    /// (Schule Di+Mi Woche A, Mi Woche B, Arbeit Mo/Do/Fr A, Mo/Di/Do/Fr B) — 1:1 wie die
-    /// bestehenden Wochenplan-Tests. Gesendet nur einmal pro Person, siehe `startmusterNoetig`.
+    /// Ahmed ohne Uhrzeiten, „ab“ 2026-09-21 (Woche A): vier Muster (Schule Di+Mi Woche A, Mi Woche B,
+    /// Arbeit Mo/Do/Fr A, Mo/Di/Do/Fr B) — 1:1 wie die bestehenden Wochenplan-Tests. Annika: ihr
+    /// fester Stundenplan (`Stundenplan`). Gesendet nur einmal pro Person, siehe `startmusterNoetig`.
     nonisolated static func standardMuster(fuer person: Person) -> [Muster] {
         let ab = "2026-09-21"
         switch person {
         case .annika:
-            return [
-                Muster(id: "start-annika-schule", person: "annika", typ: "schule", titel: "Schule", wochentage: [1, 2, 3, 4, 5], wochen: "alle", start: nil, ende: nil, ab: ab),
-            ]
+            return Stundenplan.annika()
         case .ahmed:
             return [
                 Muster(id: "start-ahmed-schule-a", person: "ahmed", typ: "schule", titel: "Schule", wochentage: [2, 3], wochen: "A", start: nil, ende: nil, ab: ab),
@@ -202,12 +223,29 @@ final class KalenderModell {
             )
             // Auch ohne Senden setzen: wer schon eigene Muster hat, bekommt nie wieder Startmuster.
             UserDefaults.standard.set(true, forKey: schluessel)
-            guard noetig else { return }
-            for muster in Self.standardMuster(fuer: ich) { Raum.shared.senden("muster.setzen", muster) }
+            if noetig {
+                for muster in Self.standardMuster(fuer: ich) { Raum.shared.senden("muster.setzen", muster) }
+            } else if let um = Stundenplan.umstellung(fuer: ich, muster: self.zustand.daten.muster) {
+                // Annika mit unverändertem altem Startmuster: ersetzt durch den Stundenplan. Wer eigene
+                // Muster hat, bekommt nichts (`umstellung` ist dann nil). Jeder Start prüft das, ohne Flag:
+                // nach der Umstellung stimmt die Bedingung nie wieder.
+                Raum.shared.senden("muster.loeschen", ["id": um.loeschen])
+                for muster in um.setzen { Raum.shared.senden("muster.setzen", muster) }
+            }
         }
     }
 
     // MARK: - Home-Hilfen
+
+    /// Z-42.1: das Raster des Monats, der am 1. `erster` (`yyyy-MM-dd`) beginnt, aus dem Speicher.
+    func monatsRaster(_ erster: String) -> MonatsRaster {
+        let daten = zustand.daten // gelesen, damit die Ansicht bei jeder Änderung neu rendert
+        if raster?.daten != daten { raster = (daten, [:]) }
+        if let fertig = raster?.monate[erster] { return fertig }
+        let neu = MonatsRaster(erster: erster, daten: daten)
+        raster?.monate[erster] = neu
+        return neu
+    }
 
     /// Nächster Treffen-Tag ab heute (heute eingeschlossen), für den Countdown auf Home.
     var naechstesTreffen: Treffen? {
@@ -229,7 +267,6 @@ final class KalenderModell {
 
 private struct MitId: Codable { var id: String }
 private struct MitDatum: Codable { var datum: String }
-private struct TreffenD: Codable { var datum: String; var uhrzeit: String?; var wasMachenWir: String? }
 private struct NotizD: Codable { var datum: String; var text: String }
 private struct ChecklisteD: Codable { var datum: String; var id: String; var text: String; var erledigt: Bool }
 private struct ChecklisteLoeschenD: Codable { var datum: String; var id: String }

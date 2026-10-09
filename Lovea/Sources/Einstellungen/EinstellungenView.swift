@@ -1,58 +1,198 @@
 import SwiftUI
+import UIKit
 
 /// Z-15.2: Einstellungen im iOS-Listen-Stil, geöffnet über das Zahnrad im eigenen Profil.
 struct EinstellungenView: View {
     let person: Person
     @ObservedObject var session: PersonSession
-    @AppStorage("profile.performanceHUD") private var showsHUD = false
-    @State private var zeigtOrte = false
-    @State private var zeigtHintergrund = false
+    @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
+    @AppStorage("lovea.haptik") private var haptik = true // Z-31.1: same key `Haptik.an` reads
+    @AppStorage(AirPodsPro3.schluessel) private var airpodsPro3 = AirPodsPro3.startwert // same key `AirPodsPro3.an` reads
+    @AppStorage(BettErinnerung.schluessel) private var bettErinnerung = false
+    @AppStorage(ZuhauseBelebung.schluessel) private var szeneBelebt = true // Figuren laufen im Profil
     @State private var zeigtEntwickler = false
-
-    private var eigeneNummer: String { EinstellungenModell.shared.string("telefon", default: "") }
 
     var body: some View {
         List {
-            Section("Mitteilungen") {
-                NavigationLink("Mitteilungen") { MitteilungenListe() }
-            }
-            Section("FaceTime") {
-                NavigationLink { TelefonEditor() } label: {
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("Meine Telefonnummer für FaceTime")
-                        Text(eigeneNummer.isEmpty ? "Noch nicht eingetragen" : eigeneNummer)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-            Section("Figur") {
-                NavigationLink("Figuren-Editor") { FigurEditorSeite(person: person) }
-                NavigationLink("Flammen-Emoji") { FlammeEditor() }
-            }
-            Section("Chat") {
-                Button("Chat-Hintergrund") { zeigtHintergrund = true }
-                    .foregroundStyle(.primary)
-                NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
-            }
-            Section("Wir") {
-                Button("Orte") { zeigtOrte = true }
-                    .foregroundStyle(.primary)
+            // Konto & Paar: wer ich bin und was wir teilen.
+            Section("Konto & Paar") {
+                NavigationLink("Meine Figur") { FigurEditorSeite(person: person) }
+                NavigationLink("Szenen gestalten") { SzenenUebersicht(person: person) }
+                NavigationLink("Orte") { OrteListeView() }
                 NavigationLink("Jahrestag") { JahrestagEditor() }
                 NavigationLink("Wochenplan") { WochenplanEditor() }
+                FaceTimeKontaktZeile()
             }
-            Section("Spotify") {
-                SpotifyVerbindenRow()
+            if person == .ahmed { AhmedHilfeEinstellungen() }
+            Section {
+                NavigationLink("Mitteilungen") { MitteilungenListe() }
+                Toggle("Bettzeit-Erinnerung", isOn: $bettErinnerung)
+                    .onChange(of: bettErinnerung) { _, _ in HealthModell.shared.bettErinnerungAktualisieren() }
+            } header: {
+                Text("Mitteilungen")
+            } footer: {
+                Text("Bettzeit: eine stille Mitteilung 30 Minuten vor deiner üblichen Bettzeit. Die Zeit lernt die App aus deinen sicheren Nächten.")
             }
             Section {
-                Toggle("Leistungsanzeige", isOn: $showsHUD)
-                NavigationLink("Chat-Leistung") { ChatPerfView() }
+                Toggle("Haptik", isOn: $haptik)
+                NavigationLink("Kamera") { KameraEinstellungen() }
+                NavigationLink("Chat") { ChatEinstellungenSeite() }
+                Toggle("Figuren laufen im Profil", isOn: $szeneBelebt)
+            } header: {
+                Text("Darstellung")
+            }
+            Section {
+                Toggle("Ich habe AirPods Pro 3", isOn: $airpodsPro3)
+                    .onChange(of: airpodsPro3) { _, neu in if !neu { WorkoutPuls.shared.beenden(speichern: false) } }
+            } header: {
+                Text("Gesundheit")
+            } footer: {
+                Text("Gilt für alles: Puls im Training, Kopfhörer-Ton beim Schlaf. Puls kostet nur während eines Trainings Akku.")
+            }
+            Section {
+                SpotifyVerbindenRow()
+            } header: {
+                Text("Verbindungen")
+            }
+            if person == .ahmed { TrackerEinstellungen() }
+            Section {
+                Button("Berechtigungen in iOS öffnen") {
+                    if let url = URL(string: UIApplication.openSettingsURLString) { UIApplication.shared.open(url) }
+                }
+            } header: {
+                Text("Datenschutz")
+            } footer: {
+                Text("Kamera, Mikrofon, Standort, Fotos, Health und Bluetooth lassen sich in iOS pro App ein- und ausschalten.")
+            }
+            Section {
+                NavigationLink("Erweitert & Leistung") { SonstigesErweitert(session: session, zeigtEntwickler: $zeigtEntwickler, showsHUD: $showsHUD) }
+            } header: {
+                Text("Erweitert")
+            }
+        }
+        .navigationTitle("Einstellungen")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Kamera und Chat (Unterseiten von "Darstellung")
+
+private struct KameraEinstellungen: View {
+    @AppStorage(SnapBildAusrichtung.schluessel) private var selfieSpiegeln = false
+    @AppStorage(SnapFilterAnzeige.schluessel) private var kameraFilter = true // same key `SnapFilterAnzeige.an` reads
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Selfie-Foto und -Video gespiegelt", isOn: $selfieSpiegeln)
+                Toggle("Kamera-Filter anzeigen", isOn: $kameraFilter)
+            } footer: {
+                Text("Gespiegelt: Selfie-Foto und -Video sehen aus wie die Vorschau, wie in der iPhone-Kamera. Die Rückkamera bleibt immer ungespiegelt. Filter aus: keine Filterleiste und kein Wischen zwischen Filtern, das Bild bleibt original.")
+            }
+        }
+        .navigationTitle("Kamera")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+private struct ChatEinstellungenSeite: View {
+    @AppStorage(ChatTempo.schluessel) private var chatTempo = true // same key `ChatTempo.an` reads
+    @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
+    @AppStorage(VideoVorab.schluessel) private var videoVorab = true // same key `VideoVorab.an` reads
+
+    var body: some View {
+        List {
+            Section {
+                NavigationLink("Duell-Wörter") { DuellWoerterEditor() }
+            }
+            Section {
+                Toggle("Chat-Tempo (Test)", isOn: $chatTempo)
+                Toggle("Videos schneller senden (Test)", isOn: $videoSchnell)
+                Toggle("Videos vorab hochladen (Test)", isOn: $videoVorab)
+            } footer: {
+                Text("Schont das Scrollen im Chat. Gilt ab dem nächsten Öffnen des Chats. Aus: wie vorher.")
+            }
+        }
+        .navigationTitle("Chat")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+}
+
+// MARK: - Szenen (Räume gestalten)
+
+private struct SzenenUebersicht: View {
+    let person: Person
+    @State private var szenenOrt: RaumOrt?
+
+    var body: some View {
+        List {
+            ForEach(RaumOrt.allCases) { ort in
+                Button { szenenOrt = ort } label: {
+                    HStack(spacing: 12) {
+                        Label(ort.titel, systemImage: ort.symbol)
+                        Spacer()
+                        ZimmerKachel(zimmer: Zimmer.von(person, ort: ort), ort: ort, art: .raum, aussehen: FigurenModell.shared.aussehen(person))
+                            .frame(width: 40, height: 40)
+                            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                }
+                .foregroundStyle(.primary)
+            }
+        }
+        .navigationTitle("Szenen gestalten")
+        .navigationBarTitleDisplayMode(.inline)
+        .sheet(item: $szenenOrt) { ort in NavigationStack { ZimmerEditor(person: person, ort: ort) } }
+    }
+}
+
+// MARK: - Sonstiges, seltene und technische Schalter
+
+private struct SonstigesErweitert: View {
+    @ObservedObject var session: PersonSession
+    @Binding var zeigtEntwickler: Bool
+    @Binding var showsHUD: Bool
+    @AppStorage(TabWischLogik.schluessel) private var tabWischen = true
+    @AppStorage(StartPlan.schluessel) private var schnellerStart = true // same key `StartPlan.an` reads
+    @AppStorage(LeistungEffekte.schluessel) private var effekte = true
+    @AppStorage(KalenderNeu.schluessel) private var kalenderNeu = true // same key `KalenderNeu.an` reads
+    @AppStorage(GymNeu.schluessel) private var gymNeu = true // same key `GymNeu.an` reads
+    @AppStorage(ZimmerNaeheLogik.fadenSchluessel) private var zimmerFaden = false // Faden im Zimmer, aus
+
+    var body: some View {
+        List {
+            Section {
+                Toggle("Aufwendige Effekte", isOn: $effekte)
+            } header: {
+                Text("Leistung")
+            } footer: {
+                Text("Aus: der Partikel-Hintergrund im Chat, Wellen und Dampf der Tagesformen stehen still, Figuren zeichnen langsamer. Spart Akku und hält die App flüssig. Gilt ab dem nächsten Öffnen des Chats und von Health.")
+            }
+            Section {
+                Toggle("Neuer Kalender", isOn: $kalenderNeu)
+                Toggle("Neues Gym", isOn: $gymNeu)
+                Toggle("Faden zum Partner im Zimmer", isOn: $zimmerFaden)
+            } header: {
+                Text("Funktionen")
+            }
+            Section {
+                Toggle("Zwischen Tabs wischen", isOn: $tabWischen)
+            } footer: {
+                Text("Nach links oder rechts wischen wechselt zwischen Home, Chat, Zeichnen, Health und Profil.")
+            }
+            Section {
+                Toggle("Schneller Start (Test)", isOn: $schnellerStart)
+            } footer: {
+                Text("Galerie-Sync und Widget starten erst nach dem ersten Bild. Gilt ab dem nächsten App-Start. Aus: wie vorher.")
             }
             Section {
                 Text("Version \(Bundle.main.appVersion)")
                     .foregroundStyle(.secondary)
                     .onTapGesture(count: 7) { zeigtEntwickler = true }
+                // audit-app #8: a debug tool, gated behind the same 7-tap reveal as the rest of this
+                // section instead of sitting permanently in the production settings list.
                 if zeigtEntwickler {
+                    Toggle("Leistungsanzeige", isOn: $showsHUD)
+                    NavigationLink("Chat-Leistung") { ChatPerfView() }
                     Menu {
                         ForEach(Person.allCases, id: \.self) { kandidat in
                             Button(kandidat.name) { session.waehlen(kandidat) }
@@ -65,10 +205,8 @@ struct EinstellungenView: View {
                 Text("Entwickler")
             }
         }
-        .navigationTitle("Einstellungen")
+        .navigationTitle("Erweitert")
         .navigationBarTitleDisplayMode(.inline)
-        .sheet(isPresented: $zeigtOrte) { OrteListeView() }
-        .sheet(isPresented: $zeigtHintergrund) { ChatHintergrundEinstellung(ich: person) }
     }
 }
 
@@ -93,7 +231,7 @@ private struct MitteilungenListe: View {
         Kategorie(id: "chat", titel: "Chat"), Kategorie(id: "snap", titel: "Snaps"),
         Kategorie(id: "geste", titel: "Gesten"), Kategorie(id: "kalender", titel: "Kalender"),
         Kategorie(id: "orte", titel: "Orte"), Kategorie(id: "zeichnen", titel: "Zeichnen"),
-        Kategorie(id: "spiele", titel: "Spiele"),
+        Kategorie(id: "spiele", titel: "Spiele"), Kategorie(id: "gym", titel: "Gym"),
     ]
 
     var body: some View {
@@ -110,93 +248,36 @@ private struct MitteilungenListe: View {
 
 // MARK: - Figuren-Editor-Seite
 
-/// Internal (not `private`): Profile/ProfileView.swift's "Figur bearbeiten" reuses this exact
-/// wrapper (Shop button included) instead of duplicating the `FigurEditor` navigation chrome.
+/// Internal (not `private`): Profile/ProfileView.swift reuses this exact wrapper instead of duplicating the
+/// `FigurEditor` navigation chrome. p65 C: `.figur` is "Meine Figur" (Einstellungen and the profile's "Profil"
+/// button), `.kleidung` is the wardrobe behind the profile's "Kleidung" button, with the Shop button.
 struct FigurEditorSeite: View {
     let person: Person
+    var bereich: FigurEditor.Bereich = .figur
     @Environment(\.dismiss) private var dismiss
     @State private var shopOffen = false
 
     var body: some View {
-        FigurEditor(start: FigurenModell.shared.aussehen(person)) { neu in
-            FigurenModell.shared.aussehenSichern(neu)
+        FigurEditor(start: FigurenModell.shared.aussehen(person), modell: FigurenModell.shared.aussehen(person), bereich: bereich, person: person) { neu in
+            FigurenModell.shared.aussehenSichern(neu.mitShopTeilen(von: FigurenModell.shared.aussehen(person)), fuer: person)
             dismiss()
         }
-        .navigationTitle("Figuren-Editor")
+        .navigationTitle(titel)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
-            // Z-23.2: Shop reachable from the figure editor too (Spec §4.3).
-            ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
-        }
-        .sheet(isPresented: $shopOffen) { ShopView() }
-    }
-}
-
-// MARK: - Flammen-Emoji
-
-private struct FlammeEditor: View {
-    let modell = EinstellungenModell.shared
-    @State private var text = ""
-
-    var body: some View {
-        Form {
-            Section {
-                TextField("Emoji", text: $text)
-                    .font(.system(size: 40))
-                    .multilineTextAlignment(.center)
-                    .onSubmit(sichern)
-            } footer: {
-                Text("Erscheint als Flamme im Chat-Kopf, z. B. bei einer Streak.")
+            // Z-23.2: Shop reachable from the wardrobe too (Spec §4.3).
+            if bereich == .kleidung {
+                ToolbarItem(placement: .primaryAction) { Button("Shop") { shopOffen = true } }
             }
         }
-        .navigationTitle("Flammen-Emoji")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) { Button("Sichern", action: sichern) }
-        }
-        .onAppear { text = modell.string("flamme", default: "🔥") }
+        .sheet(isPresented: $shopOffen) { ShopView(ziel: person) }
     }
 
-    private func sichern() {
-        // ponytail: erstes Grapheme-Cluster statt Emoji-Validierung — reicht für "ein Emoji tippen".
-        guard let erstes = text.first else { return }
-        modell.setzen("flamme", .string(String(erstes)))
-    }
-}
-
-// MARK: - Telefonnummer (Block 18: FaceTime aus dem Profil des Partners)
-
-private struct TelefonEditor: View {
-    let modell = EinstellungenModell.shared
-    @Environment(\.dismiss) private var dismiss
-    @State private var nummer = ""
-
-    private var gueltig: Bool {
-        nummer.trimmingCharacters(in: .whitespaces).isEmpty || FaceTimeLink.url(nummer, audio: false) != nil
-    }
-
-    var body: some View {
-        Form {
-            Section {
-                TextField("+49 151 23456789", text: $nummer)
-                    .keyboardType(.phonePad)
-                    .textContentType(.telephoneNumber)
-            } footer: {
-                Text("\(Raum.shared.ich?.partner.name ?? "Dein Partner") ruft dich damit direkt aus deinem Profil per FaceTime an. Nur ihr zwei seht die Nummer.")
-            }
-        }
-        .navigationTitle("Telefonnummer")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .confirmationAction) {
-                Button("Sichern") {
-                    modell.setzen("telefon", .string(nummer.trimmingCharacters(in: .whitespaces)))
-                    dismiss()
-                }
-                .disabled(!gueltig)
-            }
-        }
-        .onAppear { nummer = modell.string("telefon", default: "") }
+    /// p68: Ahmed edits Annika's figure from her profile; the title says whose it is.
+    private var titel: String {
+        let fremd = person != (Raum.shared.ich ?? .ahmed)
+        if bereich == .figur { return fremd ? "\(person.name)s Figur" : "Meine Figur" }
+        return fremd ? "\(person.name)s Kleidung" : "Kleidung"
     }
 }
 

@@ -60,12 +60,73 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(nachricht?.bearbeitet, true)
     }
 
+    // Z-33.3: the version history, once per op even when the echo comes back.
+    func testFassungenAusAllenBearbeitungenOhneDoppelteDurchsEcho() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([neuOp("m1", text: "A", seq: 1)])
+        let zuB = op("nachricht.bearbeitet", ["id": "m1", "text": "B"], von: .ahmed)
+        let zuA = op("nachricht.bearbeitet", ["id": "m1", "text": "A"], von: .ahmed)
+        modell.anwenden([zuB])
+        modell.anwenden([zuA])
+        modell.anwenden([Op(id: zuB.id, seq: 2, art: zuB.art, von: zuB.von, zeit: zuB.zeit, d: zuB.d)])
+
+        let nachricht = modell.nachricht("m1")
+        XCTAssertEqual(nachricht?.text, "A")
+        XCTAssertEqual(nachricht?.fassungen, ["A", "B"], "das Echo von A→B darf weder Text noch Verlauf zurückdrehen")
+    }
+
+    // Z-33.2: `effekt` rides along; unknown values from a newer build are ignored.
+    func testEffektWirdGefaltetUnbekannterIgnoriert() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "e1", "text": "gute Nacht", "effekt": "sterne"], von: .annika, seq: 1)])
+        modell.anwenden([op("nachricht.neu", ["id": "e2", "text": "hi", "effekt": "feuerwerk"], von: .annika, seq: 2)])
+
+        XCTAssertEqual(modell.nachricht("e1")?.effekt, .sterne)
+        XCTAssertNil(modell.nachricht("e2")?.effekt)
+        XCTAssertEqual(modell.nachricht("e2")?.text, "hi")
+    }
+
+    func testGemerktFuerBeideUndSperreHalbeSekunde() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "m1", "text": "hi"], von: .ahmed, seq: 1)])
+        modell.anwenden([op("nachricht.gemerkt", ["id": "m1", "an": true], von: .annika, seq: 2)])
+        XCTAssertEqual(modell.nachricht("m1")?.gemerkt, [.annika])
+        modell.anwenden([op("nachricht.gemerkt", ["id": "m1", "an": false], von: .annika, seq: 3)])
+        XCTAssertEqual(modell.nachricht("m1")?.gemerkt, [])
+
+        let t = Date()
+        XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t))
+        XCTAssertFalse(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(0.3)))
+        XCTAssertTrue(MerkSperre.frei("sperre-test", jetzt: t.addingTimeInterval(0.6)))
+    }
+
+    func testZurueckziehenUnterFuenfSekundenOhneSpur() {
+        let modell = ChatModell(registrieren: false)
+        let t = Date()
+        modell.anwenden([op("nachricht.neu", ["id": "s1", "text": "a"], von: .ahmed, zeit: t, seq: 1)])
+        modell.anwenden([op("nachricht.neu", ["id": "s2", "text": "b"], von: .ahmed, zeit: t, seq: 2)])
+        modell.anwenden([op("nachricht.geloescht", ["id": "s1"], von: .ahmed, zeit: t.addingTimeInterval(3), seq: 3)])
+        modell.anwenden([op("nachricht.geloescht", ["id": "s2"], von: .ahmed, zeit: t.addingTimeInterval(8), seq: 4)])
+        XCTAssertNil(modell.nachricht("s1"))
+        XCTAssertEqual(modell.nachricht("s2")?.geloescht, true)
+    }
+
+    // Block 18 search, now a pure model function.
+    func testSucheFindetTextOhneGeloeschte() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([neuOp("m1", text: "Pizza heute?", seq: 1), neuOp("m2", text: "pizza!", seq: 2), neuOp("m3", text: "Pasta", seq: 3)])
+        modell.anwenden([op("nachricht.geloescht", ["id": "m2"], von: .ahmed)])
+
+        XCTAssertEqual(modell.suchen("PIZZA"), ["m1"])
+        XCTAssertEqual(modell.suchen("  "), [])
+    }
+
     // MARK: - nachricht.geloescht
 
     func testLoeschenEntferntFuerBeide() {
         let modell = ChatModell(registrieren: false)
         modell.anwenden([neuOp("m1", text: "weg damit", seq: 1)])
-        modell.anwenden([op("nachricht.geloescht", ["id": "m1"], von: .annika)])
+        modell.anwenden([op("nachricht.geloescht", ["id": "m1"], von: .annika, zeit: Date().addingTimeInterval(10))])
 
         XCTAssertEqual(modell.nachrichten.first { $0.id == "m1" }?.geloescht, true)
     }
@@ -156,6 +217,15 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(modell.ungelesen(fuer: .annika), 0, "eigene Nachrichten zählen nie als ungelesen")
     }
 
+    func testUngelesenAnzeigeFolgtDerZaehlung() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "a", "text": "hi"], von: .annika, zeit: Date(timeIntervalSince1970: 3_000), seq: 1)])
+        XCTAssertEqual(modell.ungelesenAnzeige[.ahmed], 1, "Plakette liest den Zwischenspeicher, nicht die Historie")
+        XCTAssertEqual(modell.ungelesenAnzeige[.annika], 0)
+        modell.anwenden([op("nachricht.gelesen", ["bis": .string(iso(Date(timeIntervalSince1970: 4_000)))], von: .ahmed)])
+        XCTAssertEqual(modell.ungelesenAnzeige[.ahmed], 0)
+    }
+
     // MARK: - snap.angesehen / snap.gespeichert (Z-6.3)
 
     func testSnapAngesehenSetztFlaggenAufDieSnapNachricht() {
@@ -168,12 +238,24 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(nachricht?.snapLange, true)
     }
 
+    /// Alte Ops/Clients kennen `an` nicht (nur `{"id": ...}`) — das hieß immer "speichern".
     func testSnapGespeichertSetztFlag() {
         let modell = ChatModell(registrieren: false)
         modell.anwenden([op("nachricht.neu", ["id": "s1"], von: .ahmed, seq: 1)])
         modell.anwenden([op("snap.gespeichert", ["id": "s1"], von: .annika)])
 
         XCTAssertEqual(modell.nachrichten.first { $0.id == "s1" }?.snapGespeichert, true)
+    }
+
+    /// "Nicht mehr speichern" (Toggle): ein zweites `snap.gespeichert` mit `an: false` kehrt es um.
+    func testSnapGespeichertKannWiederEntferntWerden() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "s1"], von: .ahmed, seq: 1)])
+        modell.anwenden([op("snap.gespeichert", ["id": "s1", "an": true], von: .annika)])
+        XCTAssertEqual(modell.nachrichten.first { $0.id == "s1" }?.snapGespeichert, true)
+
+        modell.anwenden([op("snap.gespeichert", ["id": "s1", "an": false], von: .annika)])
+        XCTAssertEqual(modell.nachrichten.first { $0.id == "s1" }?.snapGespeichert, false)
     }
 
     // MARK: - snap.aufnahme (Z-6.4; Review-Fokus #1: dieselbe Operation kommt zweimal)
@@ -200,7 +282,39 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(modell.nachrichten.first?.system, "Ahmed hat den Bildschirm aufgenommen")
     }
 
+    // MARK: - badgeBetroffen (Chat-Tempo-Befund 1: kein Badge-Filter beim eigenen Entwurf-Echo)
+
+    func testBadgeBetroffenIgnoriertEntwurfUndAndereStilleArten() {
+        XCTAssertFalse(ChatModell.badgeBetroffen(["entwurf.setzen"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen(["entwurf.setzen", "entwurf.setzen"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen(["nachricht.reaktion", "stern", "nachricht.gemerkt"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen(["nachricht.bearbeitet", "nachricht.angeheftet", "nachricht.losgeloest"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen(["snap.angesehen", "snap.gespeichert", "medium.abschrift"]))
+        XCTAssertFalse(ChatModell.badgeBetroffen([]))
+    }
+
+    func testBadgeBetroffenErkenntNachrichtenUndLesebestaetigung() {
+        XCTAssertTrue(ChatModell.badgeBetroffen(["nachricht.neu"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["nachricht.geloescht"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["nachricht.gelesen"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["snap.wiederholt"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["snap.aufnahme"]))
+        XCTAssertTrue(ChatModell.badgeBetroffen(["zeichnung.einladung"]))
+        // Ein gemischter Batch (z. B. Entwurf-Echo zusammen mit der eigentlichen Nachricht) zählt,
+        // sobald IRGENDEIN Op in ihm badge-relevant ist.
+        XCTAssertTrue(ChatModell.badgeBetroffen(["entwurf.setzen", "nachricht.neu"]))
+    }
+
     // MARK: - Helpers
+
+    /// Letters are gone: an old one still decodes and reads as a plain text (title, blank line, text).
+    func testAlterBriefWirdNormalerText() {
+        let modell = ChatModell(registrieren: false)
+        let json = #"{"id":"b1","text":"Ich liebe dich","brief":{"titel":"Für dich"}}"#
+        modell.anwenden([Op(id: UUID().uuidString, seq: 1, art: "nachricht.neu", von: .annika, zeit: Date(), d: Data(json.utf8))])
+        XCTAssertEqual(modell.nachrichten.count, 1)
+        XCTAssertEqual(modell.nachrichten.first?.text, "Für dich\n\nIch liebe dich")
+    }
 
     private func neuOp(_ id: String, text: String, seq: Int?, von: Person = .ahmed) -> Op {
         op("nachricht.neu", ["id": .string(id), "text": .string(text)], von: von, seq: seq)

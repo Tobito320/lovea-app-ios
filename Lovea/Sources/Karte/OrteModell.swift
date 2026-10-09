@@ -128,11 +128,14 @@ final class OrteModell {
         Raum.shared.senden("ort.loeschen", OrtLoeschenD(id: ort.id))
     }
 
+    /// The saved place a coordinate lies in: names on the map and the map figure's place state (Z-41).
+    func ortBei(lat: Double, lon: Double) -> Ort? {
+        orte.first { CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: CLLocation(latitude: lat, longitude: lon)) <= $0.radius }
+    }
+
     /// For the info card: name and "since" for the place the given standort currently sits in.
     func aktuellerOrt(_ person: Person, lat: Double, lon: Double) -> (name: String, seit: Date?)? {
-        guard let ort = orte.first(where: {
-            CLLocation(latitude: $0.lat, longitude: $0.lon).distance(from: CLLocation(latitude: lat, longitude: lon)) <= $0.radius
-        }) else { return nil }
+        guard let ort = ortBei(lat: lat, lon: lon) else { return nil }
         let letztes = ereignisse["\(ort.id)|\(person.rawValue)"]
         return (ort.name, letztes?.art == "ankunft" ? letztes?.zeit : nil)
     }
@@ -198,8 +201,9 @@ private struct OrtEreignisD: Codable { let ortId: String; let art: String }
 private struct SystemD: Codable { let system: String? }
 private struct GemeinsamD: Codable { let lat: Double; let lon: Double; let datum: String }
 
-/// Z-27.4: one "Unsere Orte" pin — `datum` is the Berlin calendar day it happened, for the same-day
-/// chat photo lookup in `GemeinsamerOrtDetail`.
+/// Z-27.4: one shared stay the server detected (`ort.gemeinsam`) — `datum` is the Berlin calendar
+/// day it happened. No map UI reads this any more (Runde 4: the map's "Unsere Orte" heart was
+/// removed); kept so older ops keep folding without a crash.
 struct GemeinsamerOrt: Identifiable, Sendable, Equatable {
     let id: String
     let lat: Double

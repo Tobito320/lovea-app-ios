@@ -68,6 +68,14 @@ enum EigeneSticker {
         geladen = liste
         guard let data = try? JSONEncoder().encode(liste) else { return }
         KleineDatei.schreiben(data, nach: listURL)
+        GalerieSync.shared.stickerGeaendert(liste)
+    }
+
+    /// Galerie-Sync: writes an incoming `galerie.sticker` list raw -- no re-send.
+    static func ersetzen(_ medienIds: [String]) {
+        geladen = medienIds
+        guard let data = try? JSONEncoder().encode(medienIds) else { return }
+        KleineDatei.schreiben(data, nach: listURL)
     }
 
     /// Hook for the Drawing Studio's "Als Sticker speichern" (Z-5.3) — report: Level-2 calls this

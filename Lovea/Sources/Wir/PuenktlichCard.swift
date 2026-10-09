@@ -32,9 +32,13 @@ struct PuenktlichCard: View {
             .opacity(Double(1 - min(abs(versatz) / 200, 1)))
             // After a skip the next unrated meeting reuses this view; start it in place again.
             .onChange(of: kandidat.datum, initial: true) { versatz = 0 }
+            // Wegwischen sendet eine echte Op: der Home-Tab-Wisch darf hier nicht beginnen.
+            .tabWischSperre()
             .gesture(
                 DragGesture()
-                    .onChanged { versatz = $0.translation.width }
+                    .onChanged { wert in
+                        versatz = wert.translation.width
+                    }
                     .onEnded { wert in
                         if abs(wert.translation.width) > 100 {
                             wegwischen(kandidat)
@@ -52,7 +56,7 @@ struct PuenktlichCard: View {
             Raum.shared.senden("puenktlich.setzen", PuenktlichEintrag(datum: kandidat.datum, ueber: kandidat.ueber, wert: wert))
         } label: {
             VStack(spacing: 6) {
-                FigurView(FigurenModell.shared.aussehen(kandidat.ueber), zustand: zustand, groesse: 72)
+                FigurView(FigurenModell.shared.aussehen(kandidat.ueber), zustand: zustand, groesse: 72, bildrate: 20)
                 Text(titel)
                     .font(.caption2.weight(.medium))
                     .multilineTextAlignment(.center)
