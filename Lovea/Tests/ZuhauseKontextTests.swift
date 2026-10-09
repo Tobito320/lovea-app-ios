@@ -22,7 +22,7 @@ final class ZuhauseKontextTests: XCTestCase {
         XCTAssertEqual(ZuhauseKontext.bestimme(ahmed: .gym, annika: .arbeit).abwesende, [.ahmed, .annika])
     }
 
-    func testGymAusschnittLiegtImmerRechtsInnerhalbDerWelt() {
+    @MainActor func testGymAusschnittLiegtImmerRechtsInnerhalbDerWelt() {
         let r = ZuhauseKontext.gymAusschnitt
         XCTAssertGreaterThanOrEqual(r.minX, ProfilSlots.weltBreite / 2)
         XCTAssertLessThanOrEqual(r.maxX, ProfilSlots.weltBreite - ZimmerPlatzLogik.weltRand)
