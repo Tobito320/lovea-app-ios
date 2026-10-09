@@ -72,8 +72,8 @@ enum GalerieLogik {
         return gruppen.map { GalerieMonat(id: $0.schluessel, titel: $0.datum.formatted(format), stuecke: $0.stuecke) }
     }
 
-    /// "Heute vor X": Stücke vom selben Kalendertag in früheren Jahren. Gibt es keine, vom selben Tag in früheren Monaten.
-    /// Das Ergebnis ist der Rückblick mit der längsten Zeitspanne zuerst nicht nötig: nächster Treffer (jüngster) gewinnt.
+    /// "Heute vor X": Stücke vom selben Kalendertag (Tag im Monat) in früheren Monaten oder Jahren.
+    /// Es gewinnt der jüngste Treffertag; alle Stücke dieses Tages kommen in den Rückblick.
     static func rueckblick(_ liste: [GalerieStueck], jetzt: Date = Date(), kalender: Calendar = Datum.kalender) -> (titel: String, stuecke: [GalerieStueck])? {
         let heute = kalender.dateComponents([.year, .month, .day], from: jetzt)
         func gleicherTag(_ d: Date) -> DateComponents { kalender.dateComponents([.year, .month, .day], from: d) }

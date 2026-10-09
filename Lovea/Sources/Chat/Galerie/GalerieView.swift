@@ -131,15 +131,22 @@ private struct GalerieVollbild: View {
 
     private var stueck: GalerieStueck? { liste.first { $0.id == aktuell } }
 
+    /// Abstand zur aktuellen Seite: nur die Nachbarn laden, nicht die ganze Liste.
+    private func abstand(_ s: GalerieStueck) -> Int {
+        guard let a = liste.firstIndex(where: { $0.id == aktuell }), let i = liste.firstIndex(where: { $0.id == s.id }) else { return .max }
+        return abs(a - i)
+    }
+
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
             TabView(selection: $aktuell) {
-                ForEach(liste) { s in GalerieSeite(stueck: s, aktiv: s.id == aktuell).tag(s.id) }
+                ForEach(liste) { s in GalerieVollbildSeite(stueck: s, nah: abstand(s) <= 1).tag(s.id) }
             }
             .tabViewStyle(.page(indexDisplayMode: .never))
             .ignoresSafeArea()
         }
+        .screenshotKontext(.medium(video: stueck?.art == .video, eigen: stueck?.von == (Raum.shared.ich ?? .ahmed)))
         .overlay(alignment: .top) {
             HStack {
                 Button { dismiss() } label: { Image(systemName: "xmark").padding(12).background(.ultraThinMaterial, in: .circle) }
@@ -193,9 +200,9 @@ private struct GalerieVollbild: View {
     }
 }
 
-private struct GalerieSeite: View {
+private struct GalerieVollbildSeite: View {
     let stueck: GalerieStueck
-    let aktiv: Bool
+    let nah: Bool
     @State private var bild: UIImage?
     @State private var spieler: AVPlayer?
 
@@ -209,7 +216,8 @@ private struct GalerieSeite: View {
                 ProgressView().tint(.white)
             }
         }
-        .task(id: stueck.id) {
+        .task(id: nah) {
+            guard nah else { bild = nil; spieler?.pause(); spieler = nil; return }
             guard let url = await GalerieDatei.datei(stueck) else { return }
             if stueck.art == .video {
                 spieler = AVPlayer(url: Videobild.abspielbar(url))
@@ -217,7 +225,6 @@ private struct GalerieSeite: View {
                 bild = await Bilddatei.laden(url, maxPixel: 2048)
             }
         }
-        .onChange(of: aktiv) { _, an in if !an { spieler?.pause() } }
         .onDisappear { spieler?.pause() }
     }
 }
