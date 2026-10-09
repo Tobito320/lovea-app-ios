@@ -49,6 +49,8 @@ import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
 import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe } from "./spotify.js";
 import { coachAntwort, coachMorgen, coachMorgenAn } from "./coach.js";
+import { eintraegeLesen } from "./eintraege.js";
+import { tagesformBerechnen } from "./tagesform.js";
 import { katalog as coachKatalog } from "./coach-katalog.js";
 
 const PERSONEN = ["ahmed", "annika"];
@@ -98,6 +100,8 @@ export class Raum {
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
     if (url.pathname === "/spotify/trennen" && request.method === "POST") return this.#spotifyTrennen(person);
     if (url.pathname === "/coach/frage" && request.method === "POST") return this.#coachFrage(request, person);
+    if (url.pathname === "/eintraege/lesen" && request.method === "POST") return this.#eintraegeLesen(request, person);
+    if (url.pathname === "/coach/tagesform" && request.method === "POST") return this.#coachTagesform(request, person);
     if (teile[0] === "agent" && request.method === "GET") return this.#agent(teile[1], url, person);
     return new Response("not found", { status: 404 });
   }
@@ -591,6 +595,22 @@ export class Raum {
     const r = await coachAntwort({ sql: this.sql, env: this.env, person, text: body?.text, marker: body?.marker, jetztMs: Date.now(), katalog: coachKatalog });
     if (r.grund) this.#log("Coach", person, r.grund); // nur der kurze Grund, nie Rohantwort oder Schlüssel
     if (r.ops) this.#coachVerteilen(person, r.ops);
+    return Response.json(r.body, { status: r.status });
+  }
+
+  async #eintraegeLesen(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    const body = await request.json().catch(() => null);
+    const r = await eintraegeLesen({ sql: this.sql, env: this.env, person, text: body?.text, jetztMs: Date.now() });
+    if (r.grund) this.#log("Eintraege", person, r.grund);
+    return Response.json(r.body, { status: r.status });
+  }
+
+  async #coachTagesform(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    const body = await request.json().catch(() => null);
+    const r = await tagesformBerechnen({ sql: this.sql, env: this.env, person, body, jetztMs: Date.now() });
+    if (r.grund) this.#log("Coach", person, r.grund);
     return Response.json(r.body, { status: r.status });
   }
 
