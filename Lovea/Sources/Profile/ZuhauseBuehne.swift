@@ -123,7 +123,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// Zusammen für echt, oder beide haben das Profil gerade offen (Umarmung, `ZimmerUmarmung`).
     private var paarGemeinsam: Bool { paarDa || (!fest && ZimmerUmarmung.shared.umarmt) }
 
-    private var aktiv: Bool { !fest && sichtbar && scenePhase == .active && !sparmodus && !reduceMotion }
+    private var aktiv: Bool { ZuhauseBelebung.laeuft(an: ZuhauseBelebung.an, aktiv: !fest && sichtbar && scenePhase == .active && !sparmodus && !reduceMotion) }
 
     /// p70: the partner who is not there sleeps in the bed, whoever is there stands in the room. Not in
     /// the fixed boards and not while they are together for real.
@@ -192,7 +192,9 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                     ZuhauseLicht(zeit: stand.zeit, welt: welt, staerke: lampenStaerke)
                 }
                 if welt == .panorama { moebelTippen(s, oben) }
+                if welt == .panorama, !fest { eigeneFigurLenken(s, oben) }
             }
+            .coordinateSpace(name: "zuhauseWelt")
         }
         .frame(height: welt == .einzel ? ZuhauseZeichnung.hoehe + dehnung : nil)
         .clipped()
@@ -406,6 +408,38 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             .position(x: r.midX * s, y: oben + r.midY * s)
             .accessibilityLabel(name)
             .accessibilityAddTraits(.isButton)
+    }
+
+    /// One's own figure: a tap sends it to the next place, a drag to the place nearest the drop. The
+    /// partner stays where it is. Sits over the figure only (the panorama's scroll keeps the rest).
+    private func eigeneFigurLenken(_ s: CGFloat, _ oben: CGFloat) -> some View {
+        let ich = Raum.shared.ich ?? .ahmed
+        let x = ZuhauseOrte.fuss(stand.platz(ich), ich, welt: welt).x
+        return Color.clear
+            .frame(width: 60 * s, height: 150 * s)
+            .contentShape(Rectangle())
+            .onTapGesture { lenken(ich, ZuhauseBelebung.weiter(von: stand.platz(ich))) }
+            .gesture(DragGesture(minimumDistance: 12, coordinateSpace: .named("zuhauseWelt")).onEnded { w in
+                lenken(ich, ZuhauseBelebung.naechsterPlatz(x: w.location.x / s, person: ich, welt: welt))
+            })
+            .position(x: x * s, y: oben + (ZuhauseOrte.fussY - 75) * s)
+            .accessibilityLabel("Deine Figur, Ziel wechseln")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// Only `person` walks to `ziel`; the other one keeps their place.
+    private func lenken(_ person: Person, _ ziel: Platz) {
+        guard !fest, !paarGemeinsam, stand.gehende.isEmpty, ZuhauseBelebung.an, stand.platz(person) != ziel else { return }
+        var neu = Aufstellung(annika: stand.annika, ahmed: stand.ahmed, geste: nil)
+        if person == .annika { neu.annika = ziel } else { neu.ahmed = ziel }
+        if reduceMotion || sparmodus {
+            stand.annika = neu.annika
+            stand.ahmed = neu.ahmed
+            stand.geste = nil
+            stand.liegt = false
+            return
+        }
+        Task { await gehen(zu: neu) }
     }
 
     /// Both walk to the piece of furniture and stay: at the bed they lie, at the sofa they sit. Ignored

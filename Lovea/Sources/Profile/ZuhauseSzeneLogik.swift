@@ -57,3 +57,27 @@ enum ZuhauseSzeneLogik {
     /// A tab tap already gave its own haptic and then scrolls to the zone: no second one for that jump.
     static func zonenHaptik(sekundenSeitTab: TimeInterval) -> Bool { sekundenSeitTab > 1.2 }
 }
+
+/// Szene belebt: the switch in Einstellungen and where a tap or drag on one's own figure sends it.
+/// Pure, so each rule has a test. The walking itself is `ZuhauseBuehne.lauf()`.
+enum ZuhauseBelebung {
+    static let schluessel = "lovea.szeneBelebt"
+
+    /// Default on; Low Power Mode and Reduce Motion switch the walking off in the stage on their own.
+    static var an: Bool { UserDefaults.standard.object(forKey: schluessel) as? Bool ?? true }
+
+    /// The figures walk by themselves only with the switch on and the scene active (app in front,
+    /// profile visible, no Low Power Mode, no Reduce Motion).
+    static func laeuft(an: Bool, aktiv: Bool) -> Bool { an && aktiv }
+
+    /// The place whose feet are closest to a drop at world x (a drag on one's own figure).
+    static func naechsterPlatz(x: CGFloat, person: Person, welt: ProfilWelt) -> Platz {
+        Platz.allCases.min { abs(ZuhauseOrte.fuss($0, person, welt: welt).x - x) < abs(ZuhauseOrte.fuss($1, person, welt: welt).x - x) } ?? .sofa
+    }
+
+    /// A tap on one's own figure: on to the next place.
+    static func weiter(von platz: Platz) -> Platz {
+        let alle = Platz.allCases
+        return alle[((alle.firstIndex(of: platz) ?? 0) + 1) % alle.count]
+    }
+}
