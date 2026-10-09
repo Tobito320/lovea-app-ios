@@ -47,18 +47,45 @@ final class TabWischLogikTests: XCTestCase {
         XCTAssertNil(TabWischLogik.richtung(dx: 60, dy: 0, startX: 200, breite: breite))
     }
 
-    /// R6-Fix (Review 01.10.): eine innere horizontale Geste (Wochenstreifen, Kalendermonat,
-    /// Pünktlich-Karte) hat die Berührung schon beansprucht — dann kein Tab-Wechsel, obwohl Strecke
-    /// und Richtung sonst passen würden.
-    func testBeanspruchtReagiertNicht() {
-        XCTAssertNil(TabWischLogik.richtung(dx: -100, dy: 0, startX: 200, breite: breite, beansprucht: true))
+    /// Beginn der Geste: schnelle horizontale Bewegung, nicht am Rand, kein innerer Bereich belegt.
+    func testDarfBeginnenBeiHorizontalerBewegung() {
+        XCTAssertTrue(TabWischLogik.darfBeginnen(vx: -400, vy: 50, startX: 200, breite: breite, aktiv: true, innenBelegt: false))
     }
 
-    func testNichtBeanspruchtReagiertWieVorher() {
-        XCTAssertEqual(
-            TabWischLogik.richtung(dx: -100, dy: 0, startX: 200, breite: breite, beansprucht: false),
-            .naechsterTab
-        )
+    func testDarfNichtBeginnenBeiSenkrechterBewegung() {
+        XCTAssertFalse(TabWischLogik.darfBeginnen(vx: -100, vy: 400, startX: 200, breite: breite, aktiv: true, innenBelegt: false))
+    }
+
+    func testDarfNichtBeginnenWennInnenBelegt() {
+        XCTAssertFalse(TabWischLogik.darfBeginnen(vx: -400, vy: 0, startX: 200, breite: breite, aktiv: true, innenBelegt: true))
+    }
+
+    func testDarfNichtBeginnenAmRandOderBeiSchalterAus() {
+        XCTAssertFalse(TabWischLogik.darfBeginnen(vx: -400, vy: 0, startX: 10, breite: breite, aktiv: true, innenBelegt: false))
+        XCTAssertFalse(TabWischLogik.darfBeginnen(vx: -400, vy: 0, startX: 200, breite: breite, aktiv: false, innenBelegt: false))
+    }
+
+    /// Innere Scroll-Fläche: gewinnt nur, wenn sie in Fingerrichtung noch scrollen kann.
+    func testScrollFlaecheMitPlatzNachLinksGewinnt() {
+        XCTAssertTrue(TabWischLogik.kannHorizontalScrollen(offset: 0, inhalt: 800, sicht: 400, insetLinks: 0, insetRechts: 0, fingerNachLinks: true))
+    }
+
+    func testScrollFlaecheAmEndeLaesstTabWechselZu() {
+        XCTAssertFalse(TabWischLogik.kannHorizontalScrollen(offset: 400, inhalt: 800, sicht: 400, insetLinks: 0, insetRechts: 0, fingerNachLinks: true))
+        XCTAssertTrue(TabWischLogik.kannHorizontalScrollen(offset: 400, inhalt: 800, sicht: 400, insetLinks: 0, insetRechts: 0, fingerNachLinks: false))
+    }
+
+    func testScrollFlaecheAmAnfangLaesstVorherigenTabZu() {
+        XCTAssertFalse(TabWischLogik.kannHorizontalScrollen(offset: 0, inhalt: 800, sicht: 400, insetLinks: 0, insetRechts: 0, fingerNachLinks: false))
+    }
+
+    func testScrollFlaecheOhneUeberstandGewinntNie() {
+        XCTAssertFalse(TabWischLogik.kannHorizontalScrollen(offset: 0, inhalt: 400, sicht: 400, insetLinks: 0, insetRechts: 0, fingerNachLinks: true))
+        XCTAssertFalse(TabWischLogik.kannHorizontalScrollen(offset: 0, inhalt: 400, sicht: 400, insetLinks: 0, insetRechts: 0, fingerNachLinks: false))
+    }
+
+    func testScrollFlaecheMitInsetAmAnfangLaesstVorherigenTabZu() {
+        XCTAssertFalse(TabWischLogik.kannHorizontalScrollen(offset: -16, inhalt: 800, sicht: 400, insetLinks: 16, insetRechts: 16, fingerNachLinks: false))
     }
 
     /// Schalter "Zwischen Tabs wischen" aus: kein Tab-Wechsel, obwohl Strecke und Richtung passen.

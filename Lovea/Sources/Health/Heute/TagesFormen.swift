@@ -186,7 +186,7 @@ struct TagesFormView: View {
                 if form == .wasser || form == .koffein {
                     // Bei 0 % sitzt der Wellenkamm unter dem Rand, sonst blitzt ein Streifen auf.
                     let z = ziel + 4 * (1 - q)
-                    if ruhig { welle(z, 0) } else { TimelineView(.animation) { welle(z, Self.phase($0.date)) } }
+                    if ruhig || !LeistungEffekte.an() { welle(z, 0) } else { TimelineView(.animation(minimumInterval: 1.0 / 24)) { welle(z, Self.phase($0.date)) } }
                 } else {
                     Fuellung(ziel: ziel).fill(form.farbe)
                     Fuellung(ziel: ziel, linie: true).fill(.white.opacity(0.7))
@@ -294,12 +294,12 @@ private struct TagesFormDetails: View {
     private var tasse: some View {
         ZStack {
             strich("M46 28H50C53.9 28 57 31.1 57 35C57 38.9 53.9 42 50 42H46", form.farbe, 2.4)
-            if q > 0 && !ruhig { dampf }
+            if q > 0 && !ruhig && LeistungEffekte.an() { dampf }
         }
     }
 
     private var dampf: some View {
-        TimelineView(.animation) { zeit in
+        TimelineView(.animation(minimumInterval: 1.0 / 24)) { zeit in
             ZStack {
                 ForEach(0..<3, id: \.self) { i in
                     let x = 21.0 + Double(i) * 8

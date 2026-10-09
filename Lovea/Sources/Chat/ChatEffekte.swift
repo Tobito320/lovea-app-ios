@@ -129,7 +129,7 @@ final class ChatEffektSpieler {
 struct ChatEffektEbene: View {
     var body: some View {
         if let laeuft = ChatEffektSpieler.shared.laeuft {
-            TimelineView(.animation(minimumInterval: 1.0 / 60)) { kontext in
+            TimelineView(.animation(minimumInterval: 1.0 / 30)) { kontext in
                 ChatEffektAnsicht(effekt: laeuft.effekt, zeit: kontext.date.timeIntervalSince(laeuft.start))
             }
             .ignoresSafeArea()

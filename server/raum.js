@@ -47,8 +47,10 @@ import { agentStatistik, agentOps, agentMerker } from "./agent.js";
 import { push } from "./push.js";
 import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
-import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe } from "./spotify.js";
+import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe, fetchMitGrund } from "./spotify.js";
 import { coachAntwort, coachMorgen, coachMorgenAn } from "./coach.js";
+import { eintraegeLesen } from "./eintraege.js";
+import { tagesformBerechnen } from "./tagesform.js";
 import { katalog as coachKatalog } from "./coach-katalog.js";
 
 const PERSONEN = ["ahmed", "annika"];
@@ -96,8 +98,11 @@ export class Raum {
     if (teile[0] === "medien") return this.#medien(request, teile, person);
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
+    if (url.pathname === "/spotify/status" && request.method === "GET") return this.#spotifyStatus(person);
     if (url.pathname === "/spotify/trennen" && request.method === "POST") return this.#spotifyTrennen(person);
     if (url.pathname === "/coach/frage" && request.method === "POST") return this.#coachFrage(request, person);
+    if (url.pathname === "/eintraege/lesen" && request.method === "POST") return this.#eintraegeLesen(request, person);
+    if (url.pathname === "/coach/tagesform" && request.method === "POST") return this.#coachTagesform(request, person);
     if (teile[0] === "agent" && request.method === "GET") return this.#agent(teile[1], url, person);
     return new Response("not found", { status: 404 });
   }
@@ -535,12 +540,15 @@ export class Raum {
     if (typeof body?.code !== "string" || typeof body?.verifier !== "string" || typeof body?.redirectUri !== "string") {
       return new Response("bad request", { status: 400 });
     }
-    const token = await tokenTauschen(this.env, { code: body.code, verifier: body.verifier, redirectUri: body.redirectUri }).catch((err) => {
+    const holer = fetchMitGrund();
+    const token = await tokenTauschen(this.env, { code: body.code, verifier: body.verifier, redirectUri: body.redirectUri }, holer).catch((err) => {
       this.#log("Spotify-Token-Tausch fehlgeschlagen", err);
       return null;
     });
-    if (!token) return Response.json({ fehler: "tausch fehlgeschlagen" }, { status: 502 });
+    // `grund` = Spotifys eigener Fehlercode (invalid_client: Client-ID falsch; invalid_grant: Code oder Redirect-URI passt nicht).
+    if (!token) return Response.json({ fehler: "tausch fehlgeschlagen", grund: holer.grund ?? "netz" }, { status: 502 });
     spotifyTokenSchreiben(this.sql, person, token);
+    spotifyCacheSchreiben(this.sql, person, null); // ein alter Fehler im Cache gilt für die neue Verbindung nicht
     return Response.json({ ok: true });
   }
 
@@ -552,27 +560,47 @@ export class Raum {
 
     const stufe = einstellung(this.sql, ziel, "spotify.teilen");
     if (stufe === "aus") return Response.json({}); // keine Spotify-Abfrage, wenn nichts geteilt wird
+    return Response.json(nachFreigabe(await this.#spotifyDaten(ziel), stufe));
+  }
+
+  // Eigener Zustand fürs Einstellungs-Blatt: ist ein Token da, und was sagt Spotify dazu? Ignoriert die
+  // Freigabe (der Konto-Inhaber sieht seine eigene Verbindung), und der Partner kann hier nicht mitlesen.
+  async #spotifyStatus(person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    if (!this.env.SPOTIFY_CLIENT_ID) return Response.json({ verbunden: false, fehler: "nicht-eingerichtet" });
+    if (!spotifyTokenLesen(this.sql, person)) return Response.json({ verbunden: false });
+    const daten = await this.#spotifyDaten(person);
+    return Response.json(daten.fehler ? { verbunden: true, fehler: daten.fehler } : { verbunden: true });
+  }
+
+  // Rohdaten (mit 20-s-Cache) zu `ziel`: Song, `{}` oder `{ fehler }`. Fehler landen auch im Cache,
+  // damit ein kaputtes Token Spotify nicht alle 20 Sekunden erneut belästigt.
+  async #spotifyDaten(ziel) {
     const jetztMs = Date.now();
     const cache = spotifyCacheLesen(this.sql, ziel);
-    if (cacheGueltig(cache, jetztMs)) return Response.json(nachFreigabe(cache.daten, stufe));
+    if (cacheGueltig(cache, jetztMs)) return cache.daten;
 
     let token = spotifyTokenLesen(this.sql, ziel);
-    if (!token) return Response.json({});
+    if (!token) return {};
+    const speichern = (daten) => {
+      spotifyCacheSchreiben(this.sql, ziel, { geladenMs: jetztMs, daten });
+      return daten;
+    };
     if (brauchtErneuerung(token.ablaeuftMs, jetztMs)) {
       const erneuert = await tokenErneuern(this.env, token).catch((err) => {
         this.#log("Spotify-Token-Erneuerung fehlgeschlagen", err);
         return null;
       });
-      if (!erneuert) return Response.json({}); // Partner hat die Spotify-Verbindung selbst widerrufen
+      // Erneuern scheitert, wenn die Verbindung bei Spotify widerrufen wurde (oder Spotify nicht erreichbar ist).
+      if (!erneuert) return speichern({ fehler: "abgelaufen" });
       token = erneuert;
       spotifyTokenSchreiben(this.sql, ziel, token);
     }
     const daten = await jetztSpielt(token.accessToken).catch((err) => {
       this.#log("Spotify jetztSpielt fehlgeschlagen", err);
-      return {};
+      return { fehler: "spotify" };
     });
-    spotifyCacheSchreiben(this.sql, ziel, { geladenMs: jetztMs, daten });
-    return Response.json(nachFreigabe(daten, stufe));
+    return speichern(daten);
   }
 
   // Nur der Konto-Inhaber (Header) trennt sich selbst. `null` im Merker liest sich wie "nie verbunden".
@@ -591,6 +619,22 @@ export class Raum {
     const r = await coachAntwort({ sql: this.sql, env: this.env, person, text: body?.text, marker: body?.marker, jetztMs: Date.now(), katalog: coachKatalog });
     if (r.grund) this.#log("Coach", person, r.grund); // nur der kurze Grund, nie Rohantwort oder Schlüssel
     if (r.ops) this.#coachVerteilen(person, r.ops);
+    return Response.json(r.body, { status: r.status });
+  }
+
+  async #eintraegeLesen(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    const body = await request.json().catch(() => null);
+    const r = await eintraegeLesen({ sql: this.sql, env: this.env, person, text: body?.text, jetztMs: Date.now() });
+    if (r.grund) this.#log("Eintraege", person, r.grund);
+    return Response.json(r.body, { status: r.status });
+  }
+
+  async #coachTagesform(request, person) {
+    if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
+    const body = await request.json().catch(() => null);
+    const r = await tagesformBerechnen({ sql: this.sql, env: this.env, person, body, jetztMs: Date.now() });
+    if (r.grund) this.#log("Coach", person, r.grund);
     return Response.json(r.body, { status: r.status });
   }
 

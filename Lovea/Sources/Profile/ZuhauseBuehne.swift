@@ -123,14 +123,20 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// Zusammen für echt, oder beide haben das Profil gerade offen (Umarmung, `ZimmerUmarmung`).
     private var paarGemeinsam: Bool { paarDa || (!fest && ZimmerUmarmung.shared.umarmt) }
 
-    private var aktiv: Bool { !fest && sichtbar && scenePhase == .active && !sparmodus && !reduceMotion }
+    private var aktiv: Bool { ZuhauseBelebung.laeuft(an: ZuhauseBelebung.an, aktiv: !fest && sichtbar && scenePhase == .active && !sparmodus && !reduceMotion) }
 
     /// p70: the partner who is not there sleeps in the bed, whoever is there stands in the room. Not in
     /// the fixed boards and not while they are together for real.
+    /// Gym split or both away (panorama only, never in the fixed boards): who is not in the room.
+    private var kontext: ZuhauseKontext {
+        guard !fest, welt == .panorama else { return .daheim }
+        return ZuhauseKontext.bestimme(ahmed: FigurenModell.shared.zustand[.ahmed]?.haupt, annika: FigurenModell.shared.zustand[.annika]?.haupt)
+    }
+
     private var offlineSchlaefer: Person? {
         guard !fest, !paarGemeinsam else { return nil }
         let ich = Raum.shared.ich, verbunden = Raum.shared.verbunden, da = Raum.shared.partnerDa
-        return Person.allCases.first { ZuhauseSzeneLogik.schlaeftOffline($0, ich: ich, verbunden: verbunden, partnerDa: da) }
+        return Person.allCases.first { !kontext.abwesende.contains($0) && ZuhauseSzeneLogik.schlaeftOffline($0, ich: ich, verbunden: verbunden, partnerDa: da) }
     }
 
     /// p70 (40): the lamp glows warmer for every goal of the day that is done; never in the fixed boards.
@@ -191,8 +197,11 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                 if stand.zeit.dunkel && !nacht {
                     ZuhauseLicht(zeit: stand.zeit, welt: welt, staerke: lampenStaerke)
                 }
+                if case .beideWeg(let notiz) = kontext { leereStube(notiz, s, oben) }
                 if welt == .panorama { moebelTippen(s, oben) }
+                if welt == .panorama, !fest { eigeneFigurLenken(s, oben) }
             }
+            .coordinateSpace(name: "zuhauseWelt")
         }
         .frame(height: welt == .einzel ? ZuhauseZeichnung.hoehe + dehnung : nil)
         .clipped()
@@ -235,7 +244,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         let schlaeft = stand.zeit == .nacht || stand.hingelegt
         // p70: the offline partner lies here asleep, also by day and when the other one is up.
         let schlaefer = offlineSchlaefer
-        let liegende = ZuhauseSzeneLogik.liegende(beide: liegt, schlaefer: schlaefer)
+        let liegende = ZuhauseSzeneLogik.liegende(beide: liegt, schlaefer: schlaefer).filter { !kontext.abwesende.contains($0) }
         let schlafen: (Person) -> Bool = { schlaeft || $0 == schlaefer }
         // Empty pillows: both while the bed is empty and behind those sitting up; sleepers bring their own.
         let kissen = ZuhauseSzeneLogik.leereKissen(schlafende: Set(liegende.filter(schlafen)))
@@ -349,7 +358,8 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// Sitters sit behind the sofa's front cushion, everyone else stands in front of it.
     private func personen(sitzend: Bool, _ s: CGFloat, _ oben: CGFloat) -> some View {
         let schlaefer = offlineSchlaefer
-        let wer: [Person] = stand.liegt || paarGemeinsam ? [] : [Person.annika, .ahmed].filter { sitzt($0) == sitzend && $0 != schlaefer }
+        let weg = kontext.abwesende
+        let wer: [Person] = stand.liegt || paarGemeinsam ? [] : [Person.annika, .ahmed].filter { sitzt($0) == sitzend && $0 != schlaefer && !weg.contains($0) }
         return ForEach(wer, id: \.self) { p in person(p, s, oben) }
     }
 
@@ -385,6 +395,18 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             .position(x: ZuhauseOrte.paarMitte(welt: welt) * s, y: oben + ZuhauseOrte.fussY * s + 0.02 * 340 * m - 170)
     }
 
+    /// Both away: the room stands empty, a small note in the living area says where they are.
+    private func leereStube(_ notiz: String, _ s: CGFloat, _ oben: CGFloat) -> some View {
+        Text(notiz)
+            .font(.footnote.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(.ultraThinMaterial, in: Capsule())
+            .position(x: (ProfilSlots.anker(.wohn) + 195) * s, y: oben + 120 * s)
+            .allowsHitTesting(false)
+            .accessibilityLabel(notiz)
+    }
+
     // MARK: Taps on the furniture (panorama)
 
     /// Bed and sofa as buttons: a tap sends both there, to lie down or to sit. The tap areas are at least
@@ -406,6 +428,38 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             .position(x: r.midX * s, y: oben + r.midY * s)
             .accessibilityLabel(name)
             .accessibilityAddTraits(.isButton)
+    }
+
+    /// One's own figure: a tap sends it to the next place, a drag to the place nearest the drop. The
+    /// partner stays where it is. Sits over the figure only (the panorama's scroll keeps the rest).
+    private func eigeneFigurLenken(_ s: CGFloat, _ oben: CGFloat) -> some View {
+        let ich = Raum.shared.ich ?? .ahmed
+        let x = ZuhauseOrte.fuss(stand.platz(ich), ich, welt: welt).x
+        return Color.clear
+            .frame(width: 60 * s, height: 150 * s)
+            .contentShape(Rectangle())
+            .onTapGesture { lenken(ich, ZuhauseBelebung.weiter(von: stand.platz(ich))) }
+            .gesture(DragGesture(minimumDistance: 12, coordinateSpace: .named("zuhauseWelt")).onEnded { w in
+                lenken(ich, ZuhauseBelebung.naechsterPlatz(x: w.location.x / s, person: ich, welt: welt))
+            })
+            .position(x: x * s, y: oben + (ZuhauseOrte.fussY - 75) * s)
+            .accessibilityLabel("Deine Figur, Ziel wechseln")
+            .accessibilityAddTraits(.isButton)
+    }
+
+    /// Only `person` walks to `ziel`; the other one keeps their place.
+    private func lenken(_ person: Person, _ ziel: Platz) {
+        guard !fest, !paarGemeinsam, stand.gehende.isEmpty, ZuhauseBelebung.an, stand.platz(person) != ziel else { return }
+        var neu = Aufstellung(annika: stand.annika, ahmed: stand.ahmed, geste: nil)
+        if person == .annika { neu.annika = ziel } else { neu.ahmed = ziel }
+        if reduceMotion || sparmodus {
+            stand.annika = neu.annika
+            stand.ahmed = neu.ahmed
+            stand.geste = nil
+            stand.liegt = false
+            return
+        }
+        Task { await gehen(zu: neu) }
     }
 
     /// Both walk to the piece of furniture and stay: at the bed they lie, at the sofa they sit. Ignored

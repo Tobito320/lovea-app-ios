@@ -49,7 +49,7 @@ struct PartnerProfilView: View {
 }
 
 private enum ProfilBlatt: String, Identifiable {
-    case zimmer, chatDetails
+    case zimmer, chatDetails, mehr
     var id: String { rawValue }
 }
 
@@ -137,13 +137,14 @@ private struct ProfilInhalt: View {
             let oben = ProfilLayout.oben(
                 eigenes: istEigenes, innen: geo.safeAreaInsets.top, aussen: aussenOben, statusleiste: statusleiste
             )
-            let szene = ProfilLayout.szene(breite: geo.size.width, hoehe: geo.size.height, oben: oben.szene)
-            ProfilUnterbau(abschnitte: abschnitte, klebt: szene.klebt, start: istEigenes ? nil : .wir) {
-                ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: szene.breite, hoehe: szene.hoehe) {
-                    zuhause(paar: !istEigenes)
-                } schwebend: {
-                    schwebend(oben: oben.chrome)
-                }
+            // Fein-Profil: the profile is the scene alone. It fills the room down to the tab bar, the world sits at
+            // the bottom and never reaches up under the buttons (`ProfilLayout.chromeBand`); Wir, Quests and the
+            // cards are behind the "Mehr" button (`ProfilBlatt.mehr`).
+            let szene = ProfilLayout.profil(breite: geo.size.width, hoehe: geo.size.height, chrome: oben.chrome)
+            ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: szene.breite, hoehe: szene.hoehe) {
+                zuhause(paar: !istEigenes)
+            } schwebend: {
+                schwebend(oben: oben.chrome)
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
@@ -193,6 +194,12 @@ private struct ProfilInhalt: View {
     private func blattInhalt(_ b: ProfilBlatt) -> some View {
         switch b {
         case .zimmer: NavigationStack { ZimmerEditor(person: person, ort: zimmerOrt) }
+        case .mehr: NavigationStack {
+            ProfilUnterbau(abschnitte: abschnitte, klebt: true, start: istEigenes ? nil : .wir) { EmptyView() }
+                .navigationTitle("Mehr")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { blatt = nil } } }
+        }
         case .chatDetails: ZimmerChatDetailsBlatt(ich: ich) { suche, ziel in
             blatt = nil
             if let ziel { AppNavigation.shared.chatZiel = ziel }
@@ -207,7 +214,7 @@ private struct ProfilInhalt: View {
     /// of the profile with its online dot ("Annika ist online"), and in the own profile the gear.
     /// `oben` is the status bar the wall bleeds into (and the Gym bar while it shows); both sit just under it.
     private func schwebend(oben: CGFloat) -> some View {
-        HStack(alignment: .top) {
+        HStack(alignment: .top, spacing: 6) {
             zimmerKopf
             Spacer(minLength: 8)
             Button { tipps += 1; blatt = .chatDetails } label: {
@@ -220,6 +227,16 @@ private struct ProfilInhalt: View {
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Chat-Details")
+            Button { tipps += 1; blatt = .mehr } label: {
+                Image(systemName: "ellipsis")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Mehr: Wir, Quests, Zimmer")
             if istEigenes {
                 Button { tipps += 1; zimmerGestalten() } label: {
                     Image(systemName: "paintbrush.pointed.fill")
@@ -289,6 +306,8 @@ private struct ProfilInhalt: View {
         .overlay { ZimmerSchreibenEbene(welt: .panorama, eigen: istEigenes) }
         .overlay { ZimmerSammlungEbene(welt: .panorama, eigen: istEigenes) }
         .overlay { ZimmerNaeheEbene(welt: .panorama, eigen: istEigenes) }
+        // Kontextszene: while one trains, the right half is the gym cutout (on top of everything there).
+        .overlay { ZuhauseGymAusschnitt() }
     }
 
     /// Unser Zimmer: ein gemeinsamer Raum für beide. Die zwei Avatare öffnen je ein kleines Blatt mit den Zahlen der Person;
@@ -338,7 +357,9 @@ private struct ProfilInhalt: View {
     /// Brief G: the editor for the place the person is at right now (home, office, classroom),
     /// home from anywhere else.
     private func zimmerGestalten() {
-        zimmerOrt = ProfilSzene.fuer(person: person).raumOrt ?? .zuhause
+        // The gym is only a cutout of the home panorama now (no Möbel to pick there), so it opens home.
+        let ort = ProfilSzene.fuer(person: person).raumOrt ?? .zuhause
+        zimmerOrt = ort == .gym ? .zuhause : ort
         blatt = .zimmer
     }
 

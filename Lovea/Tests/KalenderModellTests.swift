@@ -196,3 +196,25 @@ private struct StimmungSendeD: Encodable { var datum: String; var stimmung: Stri
 private struct TreffenSendeD: Encodable { var datum: String; var uhrzeit: String?; var wasMachenWir: String? }
 private struct ListeSendeD: Encodable { var id: String; var text: String; var geschafft: Bool }
 private struct MitIdD: Encodable { var id: String }
+
+/// Annikas Wunsch: sechs „brauche"-Werte; ältere Werte und unbekannte Rohwerte bleiben lesbar.
+final class BrauchTests: XCTestCase {
+    func testSechsWerteImRaster() {
+        XCTAssertEqual(Brauch.allCases.map(\.rawValue), ["naehe", "worte", "ruhe", "aufmerksamkeit", "freiraum", "keineProbleme"])
+    }
+
+    func testAlteWerteBehaltenIhreRohwerteUndTexte() {
+        XCTAssertEqual(Brauch.anzeige(fuer: "naehe"), "braucht Nähe")
+        XCTAssertEqual(Brauch.anzeige(fuer: "ruhe"), "braucht Ruhe")
+    }
+
+    func testNeueWerteHabenText() {
+        XCTAssertEqual(Brauch.anzeige(fuer: "aufmerksamkeit"), "möchte Aufmerksamkeit")
+        XCTAssertEqual(Brauch.anzeige(fuer: "freiraum"), "braucht Freiraum")
+        XCTAssertEqual(Brauch.anzeige(fuer: "keineProbleme"), "keine Probleme heute")
+    }
+
+    func testUnbekannterRohwertWirdDurchgereicht() {
+        XCTAssertEqual(Brauch.anzeige(fuer: "zukunft"), "zukunft")
+    }
+}

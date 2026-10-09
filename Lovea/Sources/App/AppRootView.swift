@@ -131,7 +131,7 @@ private extension AppRootView {
             Tab("Chat", systemImage: "bubble.left.and.bubble.right", value: AppTab.chat) {
                 ChatTab().onAppear { StartProtokoll.marke("tab.chat.onAppear") }
             }
-            .badge(ChatModell.shared.ungelesen(fuer: person))
+            .badge(ChatModell.shared.ungelesenAnzeige[person] ?? 0)
             Tab("Zeichnen", systemImage: "paintbrush.pointed", value: AppTab.drawing) {
                 DrawingView(person: person).onAppear { StartProtokoll.marke("tab.zeichnen.onAppear") }
             }

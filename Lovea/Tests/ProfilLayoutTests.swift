@@ -184,6 +184,31 @@ final class ProfilLayoutTests: XCTestCase {
         XCTAssertEqual(L.oben(eigenes: false, innen: 56, aussen: 56, statusleiste: 0), L.Oben(szene: 56, chrome: 56))
     }
 
+    // MARK: Fein-Profil: nur die Szene, die Welt liegt unter den Knoepfen
+
+    func testWeltLiegtImmerUnterDemChromeBand() {
+        for (name, b, h, status) in iPhones26 {
+            for gym in [CGFloat(0), gymLeiste] {
+                let o = L.oben(eigenes: true, innen: 0, aussen: status + gym, statusleiste: status)
+                let s = L.profil(breite: b, hoehe: h, chrome: o.chrome)
+                let weltOben = L.weltOben(breite: s.breite, hoehe: s.hoehe)
+                // Knopf: 4 pt unter dem Chrome-Anfang, 44 pt hoch.
+                XCTAssertGreaterThanOrEqual(weltOben, o.chrome + 4 + L.tippMinimum, "\(name) Gym \(gym): Welt unter den Knoepfen")
+                XCTAssertGreaterThanOrEqual(s.hoehe, h, "\(name): die Szene nimmt den ganzen Platz")
+            }
+        }
+    }
+
+    func testProfilSzeneWirdAufDerKleinstenSzeneNichtZuKlein() {
+        let s = L.profil(breite: 320, hoehe: 300, chrome: 20)
+        XCTAssertEqual(s.hoehe, 20 + L.chromeBand + ProfilPanoramaLayout.szeneHoehe(breite: 320), accuracy: 0.001)
+        XCTAssertEqual(s.unten, 0, accuracy: 0.001)
+    }
+
+    func testIPadProfilSzeneBleibtSchmal() {
+        XCTAssertEqual(L.profil(breite: 1024, hoehe: 1300, chrome: 24).breite, L.maxSzeneBreite)
+    }
+
     // MARK: Tippflaechen und Schrift
 
     func testTippflaechenSindMindestens44Pt() {

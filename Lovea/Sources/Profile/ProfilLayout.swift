@@ -44,6 +44,26 @@ enum ProfilLayout {
         return Szene(breite: b, hoehe: h, unten: unten, klebt: unten >= unterMinimum)
     }
 
+    /// Fein-Profil: air above the world for the floating buttons (4 above, the 44 pt button, 4 below). The world
+    /// never reaches up into it, so nothing tappable in the room lies under the gear, the chip or the Gym bar.
+    static let chromeBand: CGFloat = tippMinimum + 8
+
+    /// Fein-Profil: the profile is the scene alone (no tabs under it). It takes the whole room the screen
+    /// gives; the world sits at the bottom of it and its top never rises above the chrome band. On a screen
+    /// too short for that, the scene is as tall as band and world need.
+    /// `oben`: `Oben.chrome`, below the status bar and the Gym bar.
+    static func profil(breite: CGFloat, hoehe: CGFloat, chrome: CGFloat) -> Szene {
+        let b = max(0, min(breite, maxSzeneBreite))
+        let mindest = chrome + chromeBand + ProfilPanoramaLayout.szeneHoehe(breite: b)
+        let h = max(hoehe, mindest)
+        return Szene(breite: b, hoehe: h, unten: h - mindest, klebt: true)
+    }
+
+    /// Fein-Profil: where the world's top edge lies in a scene of height `hoehe` (measured from the scene's top).
+    static func weltOben(breite: CGFloat, hoehe: CGFloat) -> CGFloat {
+        hoehe - ProfilPanoramaLayout.szeneHoehe(breite: max(0, min(breite, maxSzeneBreite)))
+    }
+
     /// p72: where scene and floating chrome (online chip, gear) start, measured from the very top of the screen.
     struct Oben: Equatable {
         /// The status bar the wall bleeds into; the scene is drawn below it.

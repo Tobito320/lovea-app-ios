@@ -42,12 +42,12 @@ struct ZimmerObjekteEbene: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Mitten der Objekte in der Welt (Entwurfseinheiten, y von oben in den 430).
-    static let briefkastenOrt = CGPoint(x: 34, y: 388)
+    static let briefkastenOrt = CGPoint(x: 36, y: 379)
     static let kalenderOrt = CGPoint(x: 811, y: 28)
     static let rahmenOrt = CGPoint(x: 710, y: 198)
     static let anrufOrt = CGPoint(x: 806, y: 256)
-    static let glasOrt = CGPoint(x: 922, y: 384)
-    static let schweinOrt = CGPoint(x: 803, y: 396)
+    static let glasOrt = CGPoint(x: 922, y: 386)
+    static let schweinOrt = CGPoint(x: 803, y: 391)
 
     /// Die sichtbaren Flächen der sechs Objekte (Breite wie gezeichnet, Höhe nach Raster), für `ZimmerPlatzLogik`.
     static var flaechen: [String: CGRect] {

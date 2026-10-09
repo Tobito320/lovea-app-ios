@@ -19,6 +19,8 @@ final class SpotifyModell {
         var cover: String?
         var url: String?
         var musik: Bool?
+        /// Nur bei Fehlern: Grund, warum Spotify nichts liefert (siehe `SpotifyFehler.text(fuerStatus:)`).
+        var fehler: String?
         var gueltig: Bool { !(titel ?? "").isEmpty || musik == true }
 
         /// Eigener Titel-Link, sonst Künstlersuche in Spotify. Öffnet in der eigenen Spotify-App.
@@ -62,6 +64,8 @@ final class SpotifyModell {
     }
 
     private(set) var partner: Song?
+    /// Lesbarer Grund, warum die eigene Verbindung nicht funktioniert (`GET /spotify/status`); `nil` = alles gut.
+    private(set) var statusFehler: String?
     private var pollTask: Task<Void, Never>?
     private var beobachter = 0
 
@@ -87,6 +91,22 @@ final class SpotifyModell {
         pollTask = nil
     }
 
+    /// Fragt den Server, ob die eigene Verbindung steht und was Spotify dazu sagt. Gleicht den lokalen
+    /// "verbunden"-Merker mit dem Server ab (nach Neuinstallation stimmte er früher nicht). Ohne Netz
+    /// bleibt alles, wie es war.
+    func pruefen() async {
+        guard let konfig = Raum.shared.httpKonfiguration() else { return }
+        var request = URLRequest(url: konfig.basis.appendingPathComponent("spotify/status"))
+        for (feld, wert) in konfig.headers { request.setValue(wert, forHTTPHeaderField: feld) }
+        guard let (daten, antwort) = try? await URLSession.shared.data(for: request),
+              (antwort as? HTTPURLResponse)?.statusCode == 200,
+              let status = try? JSONDecoder().decode(Status.self, from: daten) else { return }
+        setzeVerbunden(status.verbunden)
+        statusFehler = status.fehler.map(SpotifyFehler.text(fuerStatus:))
+    }
+
+    private struct Status: Decodable { let verbunden: Bool; let fehler: String? }
+
     private func laden() async {
         guard let ich = Raum.shared.ich, let konfig = Raum.shared.httpKonfiguration() else { return }
         var comps = URLComponents(url: konfig.basis.appendingPathComponent("spotify/jetzt"), resolvingAgainstBaseURL: false)
@@ -97,6 +117,64 @@ final class SpotifyModell {
         guard let (daten, _) = try? await URLSession.shared.data(for: request) else { return }
         guard let song = try? JSONDecoder().decode(Song.self, from: daten) else { return }
         partner = song.gueltig ? song : nil
+    }
+}
+
+// MARK: - Fehler (früher: `verbinden()` lieferte nur `false`, jeder Fehlschlag sah gleich aus)
+
+/// Warum Spotify verbinden/abfragen nicht klappt, mit Text für die Einstellungen.
+/// Reine Werte, ohne UI, damit die Zuordnung testbar bleibt.
+enum SpotifyFehler: Error, Equatable, Sendable {
+    case nichtEingerichtet
+    case abgebrochen                    // Nutzer hat das Login-Fenster geschlossen: keine Meldung
+    case startFehlgeschlagen
+    case anmeldung(String)              // `error=` im Callback (z. B. access_denied) oder Fehler der Session
+    case keinCode
+    case netz
+    case server(status: Int, grund: String?)
+
+    /// `nil` = nichts anzeigen (bewusster Abbruch).
+    var text: String? {
+        switch self {
+        case .abgebrochen: nil
+        case .nichtEingerichtet: "Diese App-Version hat keine Spotify-Client-ID. Sie muss beim Bauen als SPOTIFY_CLIENT_ID mitgegeben werden."
+        case .startFehlgeschlagen: "Das Spotify-Login-Fenster ließ sich nicht öffnen."
+        case let .anmeldung(grund): grund == "access_denied" ? "Du hast den Zugriff in Spotify abgelehnt." : "Spotify meldet: \(grund)."
+        case .keinCode: "Spotify hat keinen Anmelde-Code zurückgegeben."
+        case .netz: "Keine Verbindung zum Lovea-Server."
+        case let .server(status, grund):
+            switch (status, grund) {
+            case (503, _): "Der Lovea-Server hat keine Spotify-Client-ID."
+            case (_, "invalid_client"?): "Spotify kennt diese Client-ID nicht. Sie muss zur App im Spotify-Dashboard passen, auf App und Server."
+            case (_, "invalid_grant"?): "Spotify hat den Code abgelehnt. Ist \(SpotifyKonfiguration.redirectUri) im Spotify-Dashboard als Redirect-URI eingetragen?"
+            default: "Spotify-Verbindung fehlgeschlagen (\(grund ?? String(status)))."
+            }
+        }
+    }
+
+    /// Werte von `fehler` aus `GET /spotify/status` und `GET /spotify/jetzt` (`server/spotify.js` `fehlerGrund`).
+    static func text(fuerStatus fehler: String) -> String {
+        switch fehler {
+        case "abgelaufen": "Die Verbindung ist abgelaufen oder wurde widerrufen. Bitte neu verbinden."
+        case "nicht-freigeschaltet": "Spotify lässt dieses Konto nicht zu: Die E-Mail muss im Spotify-Dashboard unter User Management eingetragen sein."
+        case "zu-viele-anfragen": "Spotify bremst gerade (zu viele Anfragen). Später nochmal."
+        case "nicht-eingerichtet": "Der Lovea-Server hat keine Spotify-Client-ID."
+        default: "Spotify antwortet gerade nicht."
+        }
+    }
+
+    /// Callback-URL der Anmeldung -> Code oder Fehler. Spotify hängt bei Ablehnung `?error=...` an.
+    static func code(aus callback: URL) -> Result<String, SpotifyFehler> {
+        let items = URLComponents(url: callback, resolvingAgainstBaseURL: false)?.queryItems ?? []
+        if let fehler = items.first(where: { $0.name == "error" })?.value { return .failure(.anmeldung(fehler)) }
+        guard let code = items.first(where: { $0.name == "code" })?.value, !code.isEmpty else { return .failure(.keinCode) }
+        return .success(code)
+    }
+
+    /// Antwort von `POST /spotify/verbinden` (`{ fehler, grund }` bei Fehlern).
+    static func ausServer(status: Int, body: Data) -> SpotifyFehler {
+        struct Antwort: Decodable { let grund: String? }
+        return .server(status: status, grund: (try? JSONDecoder().decode(Antwort.self, from: body))?.grund)
     }
 }
 
@@ -137,9 +215,9 @@ final class SpotifyAuth: NSObject, ASWebAuthenticationPresentationContextProvidi
     // can be deallocated (and the flow silently cancelled) before its completion handler fires.
     private var aktiveSession: ASWebAuthenticationSession?
 
-    /// Öffnet Spotifys Login, tauscht den Code danach über `POST /spotify/verbinden`. `true` bei Erfolg.
-    func verbinden() async -> Bool {
-        guard SpotifyKonfiguration.eingerichtet else { return false }
+    /// Öffnet Spotifys Login, tauscht den Code danach über `POST /spotify/verbinden`.
+    func verbinden() async -> Result<Void, SpotifyFehler> {
+        guard SpotifyKonfiguration.eingerichtet else { return .failure(.nichtEingerichtet) }
         let verifier = SpotifyPKCE.verifier()
         var comps = URLComponents(string: "https://accounts.spotify.com/authorize")!
         comps.queryItems = [
@@ -150,29 +228,38 @@ final class SpotifyAuth: NSObject, ASWebAuthenticationPresentationContextProvidi
             URLQueryItem(name: "code_challenge", value: SpotifyPKCE.challenge(verifier)),
             URLQueryItem(name: "scope", value: "user-read-currently-playing"),
         ]
-        guard let authURL = comps.url else { return false }
+        guard let authURL = comps.url else { return .failure(.startFehlgeschlagen) }
 
-        guard let callbackURL = await starteSession(authURL),
-              let code = URLComponents(url: callbackURL, resolvingAgainstBaseURL: false)?.queryItems?.first(where: { $0.name == "code" })?.value
-        else { return false }
-
-        return await codeEintauschen(code: code, verifier: verifier)
+        switch await starteSession(authURL) {
+        case let .failure(fehler): return .failure(fehler)
+        case let .success(callbackURL):
+            switch SpotifyFehler.code(aus: callbackURL) {
+            case let .failure(fehler): return .failure(fehler)
+            case let .success(code):
+                if let fehler = await codeEintauschen(code: code, verifier: verifier) { return .failure(fehler) }
+                return .success(())
+            }
+        }
     }
 
     // ponytail: like `Raum.aktiv`'s background-task handler, `ASWebAuthenticationSession`'s
     // completion handler isn't documented as @MainActor even though Apple always calls it on the
     // main thread — `assumeIsolated` is the same safe way to touch MainActor state from it without
     // an (unavailable here, this isn't async) await.
-    private func starteSession(_ authURL: URL) async -> URL? {
+    private func starteSession(_ authURL: URL) async -> Result<URL, SpotifyFehler> {
         await withCheckedContinuation { fortsetzen in
             // `aktiveSession != nil` = "noch nicht fortgesetzt": whichever side (completion or a failed
             // `start()`) gets there first resumes, the other one does nothing — never twice.
-            let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "lovea") { [weak self] url, _ in
+            let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "lovea") { [weak self] url, error in
                 let offen = MainActor.assumeIsolated { () -> Bool in
                     defer { self?.aktiveSession = nil }
                     return self?.aktiveSession != nil
                 }
-                if offen { fortsetzen.resume(returning: url) }
+                guard offen else { return }
+                if let url { return fortsetzen.resume(returning: .success(url)) }
+                // Fenster geschlossen = bewusster Abbruch, alles andere ist ein echter Fehler.
+                let abbruch = (error as? ASWebAuthenticationSessionError)?.code == .canceledLogin
+                fortsetzen.resume(returning: .failure(abbruch ? .abgebrochen : .anmeldung(error?.localizedDescription ?? "unbekannt")))
             }
             session.presentationContextProvider = self
             session.prefersEphemeralWebBrowserSession = true
@@ -181,13 +268,13 @@ final class SpotifyAuth: NSObject, ASWebAuthenticationPresentationContextProvidi
             // "Spotify verbinden" button stayed disabled until relaunch.
             if !session.start(), aktiveSession != nil {
                 aktiveSession = nil
-                fortsetzen.resume(returning: nil)
+                fortsetzen.resume(returning: .failure(.startFehlgeschlagen))
             }
         }
     }
 
-    private func codeEintauschen(code: String, verifier: String) async -> Bool {
-        guard let ich = Raum.shared.ich, let konfig = Raum.shared.httpKonfiguration() else { return false }
+    private func codeEintauschen(code: String, verifier: String) async -> SpotifyFehler? {
+        guard let ich = Raum.shared.ich, let konfig = Raum.shared.httpKonfiguration() else { return .netz }
         var request = URLRequest(url: konfig.basis.appendingPathComponent("spotify/verbinden"))
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -196,8 +283,9 @@ final class SpotifyAuth: NSObject, ASWebAuthenticationPresentationContextProvidi
         // als Quelle der Wahrheit (raum.js #spotifyVerbinden) -- hier trotzdem mitgeschickt, für den
         // Fall, dass ein künftiger Aufrufer sich nur auf den dokumentierten Body verlässt.
         request.httpBody = try? JSONEncoder().encode(VerbindenBody(person: ich.rawValue, code: code, verifier: verifier, redirectUri: SpotifyKonfiguration.redirectUri))
-        guard let (_, response) = try? await URLSession.shared.data(for: request) else { return false }
-        return (response as? HTTPURLResponse)?.statusCode == 200
+        guard let (daten, response) = try? await URLSession.shared.data(for: request),
+              let status = (response as? HTTPURLResponse)?.statusCode else { return .netz }
+        return status == 200 ? nil : SpotifyFehler.ausServer(status: status, body: daten)
     }
 
     /// `POST /spotify/trennen`: der Server löscht den eigenen Token, der Partner sieht danach nichts mehr.
@@ -285,31 +373,37 @@ struct SpotifyHoertGeradeChip: View {
 /// Ohne `SPOTIFY_CLIENT_ID` "nicht eingerichtet" (Spotify-Developer-App, V-7).
 struct SpotifyVerbindenRow: View {
     @State private var arbeitet = false
+    /// Rote Zeile unter dem Knopf: warum das letzte Verbinden/Trennen nicht klappte (statt Schweigen).
+    @State private var meldung: String?
     private var modell: SpotifyModell { SpotifyModell.shared }
 
     var body: some View {
         if SpotifyKonfiguration.eingerichtet {
             verbindenKnopf
+            if let meldung {
+                Text(meldung).font(.footnote).foregroundStyle(.red)
+            } else if modell.verbunden, let fehler = modell.statusFehler {
+                Text(fehler).font(.footnote).foregroundStyle(.orange)
+            }
             if modell.verbunden {
                 freigabeAuswahl
-                Button("Spotify trennen", role: .destructive) {
-                    ausfuehren { await SpotifyAuth.shared.trennen() } danach: { if $0 { modell.setzeVerbunden(false) } }
-                }
-                .disabled(arbeitet)
+                Button("Spotify trennen", role: .destructive) { trennen() }
+                    .disabled(arbeitet)
             }
         } else {
-            HStack {
-                Text("Spotify verbinden")
-                Spacer()
-                Text("nicht eingerichtet").foregroundStyle(.secondary)
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Spotify verbinden")
+                    Spacer()
+                    Text("nicht eingerichtet").foregroundStyle(.secondary)
+                }
+                Text(SpotifyFehler.nichtEingerichtet.text ?? "").font(.footnote).foregroundStyle(.secondary)
             }
         }
     }
 
     private var verbindenKnopf: some View {
-        Button {
-            ausfuehren { await SpotifyAuth.shared.verbinden() } danach: { if $0 { modell.setzeVerbunden(true) } }
-        } label: {
+        Button { verbinden() } label: {
             HStack {
                 Text(modell.verbunden ? "Spotify verbunden" : "Spotify verbinden")
                 Spacer()
@@ -318,6 +412,7 @@ struct SpotifyVerbindenRow: View {
         }
         .foregroundStyle(.primary)
         .disabled(arbeitet)
+        .task { await modell.pruefen() }
     }
 
     private var freigabeAuswahl: some View {
@@ -329,11 +424,30 @@ struct SpotifyVerbindenRow: View {
         }
     }
 
-    private func ausfuehren(_ aktion: @escaping @MainActor () async -> Bool, danach: @escaping @MainActor (Bool) -> Void) {
+    private func verbinden() {
         arbeitet = true
+        meldung = nil
         Task {
-            let ok = await aktion()
-            danach(ok)
+            switch await SpotifyAuth.shared.verbinden() {
+            case .success:
+                modell.setzeVerbunden(true)
+                await modell.pruefen() // zeigt sofort, falls Spotify das Konto trotz Login nicht zulässt
+            case let .failure(fehler):
+                meldung = fehler.text
+            }
+            arbeitet = false
+        }
+    }
+
+    private func trennen() {
+        arbeitet = true
+        meldung = nil
+        Task {
+            if await SpotifyAuth.shared.trennen() {
+                modell.setzeVerbunden(false)
+            } else {
+                meldung = SpotifyFehler.netz.text
+            }
             arbeitet = false
         }
     }

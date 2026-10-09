@@ -83,7 +83,7 @@ struct FigurView: View {
         let basis = zeichner(statisch: !laeuft)
         Group {
             if laeuft {
-                TimelineView(.animation(minimumInterval: 1.0 / bildrate, paused: !sichtbar || scenePhase != .active)) { kontext in
+                TimelineView(.animation(minimumInterval: 1.0 / LeistungEffekte.bildrate(normal: bildrate, effekte: LeistungEffekte.an()), paused: !sichtbar || scenePhase != .active)) { kontext in
                     leinwand(basis, kontext.date.timeIntervalSinceReferenceDate)
                 }
             } else {

@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// p65 A1: the profile scene as a panorama. One slot per object in a world of 975 design units
+/// p65 A1: the profile scene as a panorama. One slot per object in a world of 1000 design units
 /// (2.5 screens of 390), three zones, and the numbers behind the swipe. Pure rects, no drawing, so the
 /// no-overlap rule and the 44 pt tap rule are unit tests. Heights are the old design space (430).
 
@@ -67,7 +67,7 @@ extension ProfilWelt {
 }
 
 enum ProfilSlots {
-    static let weltBreite: CGFloat = 975
+    static let weltBreite: CGFloat = 1000
     static let hoehe: CGFloat = SzenenZeichnung.hoehe
     /// One screen of the world, in design units.
     static let ansichtBreite: CGFloat = SzenenZeichnung.breite
