@@ -217,6 +217,15 @@ final class ChatModellTests: XCTestCase {
         XCTAssertEqual(modell.ungelesen(fuer: .annika), 0, "eigene Nachrichten zählen nie als ungelesen")
     }
 
+    func testUngelesenAnzeigeFolgtDerZaehlung() {
+        let modell = ChatModell(registrieren: false)
+        modell.anwenden([op("nachricht.neu", ["id": "a", "text": "hi"], von: .annika, zeit: Date(timeIntervalSince1970: 3_000), seq: 1)])
+        XCTAssertEqual(modell.ungelesenAnzeige[.ahmed], 1, "Plakette liest den Zwischenspeicher, nicht die Historie")
+        XCTAssertEqual(modell.ungelesenAnzeige[.annika], 0)
+        modell.anwenden([op("nachricht.gelesen", ["bis": .string(iso(Date(timeIntervalSince1970: 4_000)))], von: .ahmed)])
+        XCTAssertEqual(modell.ungelesenAnzeige[.ahmed], 0)
+    }
+
     // MARK: - snap.angesehen / snap.gespeichert (Z-6.3)
 
     func testSnapAngesehenSetztFlaggenAufDieSnapNachricht() {
