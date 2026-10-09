@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// Z-15.2: Einstellungen im iOS-Listen-Stil, geöffnet über das Zahnrad im eigenen Profil.
 struct EinstellungenView: View {
@@ -163,7 +164,7 @@ private struct SonstigesErweitert: View {
             } header: {
                 Text("Leistung")
             } footer: {
-                Text("Aus: der Partikel-Hintergrund im Chat, Wellen und Dampf der Tagesformen stehen still, Figuren zeichnen langsamer. Spart Akku und hält die App flüssig.")
+                Text("Aus: der Partikel-Hintergrund im Chat, Wellen und Dampf der Tagesformen stehen still, Figuren zeichnen langsamer. Spart Akku und hält die App flüssig. Gilt ab dem nächsten Öffnen des Chats und von Health.")
             }
             Section {
                 Toggle("Neuer Kalender", isOn: $kalenderNeu)
