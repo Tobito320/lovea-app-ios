@@ -227,7 +227,7 @@ struct FigurEingabe: Sendable {
     var fokus: String?              // "schlafen" or any other focus name
     var morgenGeoeffnet = false     // first open this morning
     var stimmung: String?           // "gut" | "mittel" | "schlecht"
-    var brauche: String?            // "naehe" | "worte" | "ruhe"
+    var brauche: String?            // siehe `Brauch`; Werte ohne Figurzustand fallen auf die Stimmung zurück
     var jahrestag: Date?
     var dateHeute = false
     var puenktlich: String?         // "uhrwerk" | "charmant" | "troedel" | "weg"

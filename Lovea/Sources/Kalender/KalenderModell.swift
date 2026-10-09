@@ -48,7 +48,7 @@ final class KalenderModell {
 
     struct Stimmung: Sendable, Equatable {
         var stimmung: String // "gut" | "mittel" | "schlecht"
-        var brauche: String? // "naehe" | "worte" | "ruhe"
+        var brauche: String? // siehe `Brauch` (WieGehtsDirCard)
         var satz: String?
     }
 
