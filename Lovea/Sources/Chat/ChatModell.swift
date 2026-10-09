@@ -107,7 +107,10 @@ final class ChatModell {
         for op in ops { if let id = anwendenEins(op) { beruehrt.insert(id) } }
         if !beruehrt.isEmpty { einordnen(beruehrt) }
         if registrieren { ChatPerf.shared.faltung(ms: ChatPerf.ms(von: foldStart, bis: ChatPerf.jetztNs()), anzahl: nachrichten.count) }
-        if registrieren, Self.badgeBetroffen(ops.map(\.art)) { badgeAktualisieren() }
+        if Self.badgeBetroffen(ops.map(\.art)) {
+            ungelesenNeuZaehlen()
+            if registrieren { badgeAktualisieren() }
+        }
     }
 
     /// Op-Arten, die `ungelesen(fuer:)` tatsächlich beeinflussen können: eine neue/gelöschte
@@ -306,6 +309,18 @@ final class ChatModell {
         let b = begriff.trimmingCharacters(in: .whitespaces)
         guard !b.isEmpty else { return [] }
         return nachrichten.filter { !$0.geloescht && ($0.text ?? "").localizedCaseInsensitiveContains(b) }.map(\.id)
+    }
+
+    /// Zwischenspeicher fuer die Tab-Plakette. Die Plakette im `AppRootView`-Body las vorher
+    /// `ungelesen(fuer:)` direkt: ein Filter ueber die ganze Historie bei jeder Auswertung, und der Body
+    /// hing an `nachrichten` und lief bei jeder Chat-Aenderung (Reaktion, Tipp-Echo) neu. Jetzt aendert
+    /// sich dieser Wert nur, wenn sich die Zahl wirklich aendert.
+    private(set) var ungelesenAnzeige: [Person: Int] = [:]
+
+    private func ungelesenNeuZaehlen() {
+        var neu: [Person: Int] = [:]
+        for person in Person.allCases { neu[person] = ungelesen(fuer: person) }
+        if neu != ungelesenAnzeige { ungelesenAnzeige = neu }
     }
 
     func ungelesen(fuer ich: Person) -> Int {

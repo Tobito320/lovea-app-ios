@@ -33,4 +33,45 @@ final class SpotifyPKCETests: XCTestCase {
     func testFreigabeRohwerteWieServer() {
         XCTAssertEqual(SpotifyModell.Freigabe.allCases.map(\.rawValue).sorted(), ["aus", "kuenstler", "musik", "song"])
     }
+
+    // MARK: Fehlertexte (kein stilles Scheitern mehr)
+
+    func testCallbackMitCodeLiefertCode() {
+        let url = URL(string: "lovea://spotify?code=abc123")!
+        XCTAssertEqual(try? SpotifyFehler.code(aus: url).get(), "abc123")
+    }
+
+    func testCallbackMitErrorLiefertAnmeldungFehler() {
+        let url = URL(string: "lovea://spotify?error=access_denied")!
+        XCTAssertEqual(SpotifyFehler.code(aus: url), .failure(.anmeldung("access_denied")))
+        XCTAssertEqual(SpotifyFehler.anmeldung("access_denied").text, "Du hast den Zugriff in Spotify abgelehnt.")
+    }
+
+    func testCallbackOhneCodeIstKeinCode() {
+        XCTAssertEqual(SpotifyFehler.code(aus: URL(string: "lovea://spotify")!), .failure(.keinCode))
+    }
+
+    func testServerAntwortGrundWirdGelesen() {
+        let body = Data(#"{"fehler":"tausch fehlgeschlagen","grund":"invalid_client"}"#.utf8)
+        XCTAssertEqual(SpotifyFehler.ausServer(status: 502, body: body), .server(status: 502, grund: "invalid_client"))
+        XCTAssertEqual(SpotifyFehler.ausServer(status: 502, body: Data()), .server(status: 502, grund: nil))
+    }
+
+    func testFehlerTexteSindUnterscheidbarUndAbbruchIstStill() {
+        XCTAssertNil(SpotifyFehler.abgebrochen.text)
+        let texte = [
+            SpotifyFehler.server(status: 503, grund: nil),
+            .server(status: 502, grund: "invalid_client"),
+            .server(status: 502, grund: "invalid_grant"),
+            .netz, .keinCode, .nichtEingerichtet,
+        ].compactMap(\.text)
+        XCTAssertEqual(texte.count, 6)
+        XCTAssertEqual(Set(texte).count, 6)
+        XCTAssertTrue(SpotifyFehler.server(status: 502, grund: "invalid_grant").text?.contains("lovea://spotify") == true)
+    }
+
+    func testStatusTexte() {
+        XCTAssertTrue(SpotifyFehler.text(fuerStatus: "nicht-freigeschaltet").contains("User Management"))
+        XCTAssertTrue(SpotifyFehler.text(fuerStatus: "abgelaufen").contains("neu verbinden"))
+    }
 }

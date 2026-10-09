@@ -907,3 +907,46 @@ test("Morgen-Nachricht: mitteilungen.coach = false unterdrückt die Push, die Na
   assert.ok(!pushes.some((b) => b.art === "coach.nachricht"));
   assert.ok(coachOpsVon(websockets.ahmed).length === 1);
 });
+
+test("Spotify Fehler sichtbar: Token-Tausch nennt Spotifys Grund, 403 geht als fehler durch, /spotify/status zeigt ihn dem Inhaber", async () => {
+  const ctx = fakeCtx();
+  const raum = new Raum(ctx, { ...fakeEnv(), SPOTIFY_CLIENT_ID: "test-client" });
+  const echterFetch = globalThis.fetch;
+  const annika = { "X-Lovea-Person": "annika" };
+  const verbinden = () =>
+    raum.fetch(new Request("https://x/spotify/verbinden", { method: "POST", headers: { "content-type": "application/json", ...annika }, body: JSON.stringify({ code: "c", verifier: "v", redirectUri: "lovea://spotify" }) }));
+  try {
+    // 1. Spotify lehnt den Tausch ab (falsche Client-ID): 502 mit dem Grund statt stummem Fehlschlag.
+    globalThis.fetch = async () => Response.json({ error: "invalid_client" }, { status: 400 });
+    const abgelehnt = await verbinden();
+    assert.equal(abgelehnt.status, 502);
+    assert.deepEqual(await abgelehnt.json(), { fehler: "tausch fehlgeschlagen", grund: "invalid_client" });
+    assert.deepEqual(await (await raum.fetch(new Request("https://x/spotify/status", { headers: annika }))).json(), { verbunden: false });
+
+    // 2. Tausch klappt, aber currently-playing antwortet 403 (Konto nicht im Dashboard freigeschaltet).
+    globalThis.fetch = async (url) =>
+      String(url).includes("accounts.spotify.com") ? Response.json({ access_token: "AT", refresh_token: "RT", expires_in: 3600 }) : new Response(null, { status: 403 });
+    assert.equal((await verbinden()).status, 200);
+    const jetzt = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
+    assert.deepEqual(await jetzt.json(), { fehler: "nicht-freigeschaltet" });
+    const status = await raum.fetch(new Request("https://x/spotify/status", { headers: annika }));
+    assert.deepEqual(await status.json(), { verbunden: true, fehler: "nicht-freigeschaltet" });
+
+    // 3. Neu verbinden räumt den alten Fehler aus dem Cache; jetzt läuft ein Song.
+    globalThis.fetch = async (url) =>
+      String(url).includes("accounts.spotify.com")
+        ? Response.json({ access_token: "AT", refresh_token: "RT", expires_in: 3600 })
+        : Response.json({ is_playing: true, item: { name: "Song", artists: [{ name: "Band" }], album: { images: [] }, external_urls: {} } });
+    await verbinden();
+    const danach = await raum.fetch(new Request("https://x/spotify/status", { headers: annika }));
+    assert.deepEqual(await danach.json(), { verbunden: true });
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+});
+
+test("GET /spotify/status ohne SPOTIFY_CLIENT_ID: nicht-eingerichtet", async () => {
+  const raum = new Raum(fakeCtx(), fakeEnv());
+  const res = await raum.fetch(new Request("https://x/spotify/status", { headers: { "X-Lovea-Person": "ahmed" } }));
+  assert.deepEqual(await res.json(), { verbunden: false, fehler: "nicht-eingerichtet" });
+});
