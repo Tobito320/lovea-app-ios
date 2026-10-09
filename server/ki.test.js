@@ -10,6 +10,7 @@ import {
   kontextText,
   textAusAntwort,
   coachAnweisung,
+  kontextZeilen,
   ESSEN_SCHEMA,
   LIMITS,
   MIN_KCAL,
@@ -401,4 +402,30 @@ test("Worker: /ki/status läuft über handleKi", async () => {
   const j = await res.json();
   assert.equal(j.eingerichtet, false);
   assert.equal(j.modell, "gpt-6-luna");
+});
+
+test("coachAnweisung: Eintragen-Zusatz nur mit Flag, sagt nie 'kann nicht speichern'", () => {
+  assert.doesNotMatch(coachAnweisung("ahmed"), /\[\[essen:/);
+  const a = coachAnweisung("ahmed", { essenEintragen: true });
+  assert.match(a, /\[\[essen: /);
+  assert.match(a, /nie, du könntest nicht speichern/);
+});
+
+test("kontextZeilen: begrenzt, ohne Marker-Klammern und Müll", () => {
+  const viele = Array.from({ length: 30 }, (_, i) => `Zeile ${i}`);
+  assert.equal(kontextZeilen(viele).length, 12);
+  assert.deepEqual(kontextZeilen("kein array"), []);
+  assert.equal(kontextZeilen(["x".repeat(500)])[0].length, 140);
+  assert.equal(kontextZeilen(["Hi [[essen: a | b | 5]] du"])[0], "Hi essen: a | b | 5 du");
+});
+
+test("/ki/coach: kontext und essen_eintragen landen in der Anfrage", async () => {
+  const f = fakeFetch({ status: "completed", output_text: "ok" });
+  await handleKi(req("/ki/coach", { ...NACHRICHT, kontext: ["Schlaf: 5,5 h", "Stimmung heute: schlecht"], essen_eintragen: true }), ENV(), "ahmed", { fetch: f, jetzt: JETZT });
+  const b = f.aufrufe[0].body;
+  assert.match(b.input[0].content, /Stimmung heute: schlecht/);
+  assert.match(b.instructions, /\[\[essen: /);
+  const f2 = fakeFetch({ status: "completed", output_text: "ok" });
+  await handleKi(req("/ki/coach", NACHRICHT), ENV(), "ahmed", { fetch: f2, jetzt: JETZT });
+  assert.doesNotMatch(f2.aufrufe[0].body.instructions, /\[\[essen:/);
 });

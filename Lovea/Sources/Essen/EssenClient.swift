@@ -54,7 +54,14 @@ private struct CoachAnfrage: Encodable {
     let nachrichten: [EssenCoachNachricht]
     let profil: KiProfil
     let tag: KiTag
+    let kontext: [String]
+    let essenEintragen = true
     let stream: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case nachrichten, profil, tag, kontext, stream
+        case essenEintragen = "essen_eintragen"
+    }
 }
 
 private struct BerichtAnfrage: Encodable {
@@ -182,11 +189,11 @@ enum KiClient {
     }
 
     /// Coach-Antwort als Strom von Textstücken (der Server schickt `data: {"t":"delta","text":...}`).
-    static func coach(nachrichten: [EssenCoachNachricht], profil: KiProfil, tag: KiTag) -> AsyncThrowingStream<String, Error> {
+    static func coach(nachrichten: [EssenCoachNachricht], profil: KiProfil, tag: KiTag, kontext: [String] = []) -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { fortsetzung in
             let aufgabe = Task {
                 do {
-                    let body = try JSONEncoder().encode(CoachAnfrage(nachrichten: nachrichten, profil: profil, tag: tag, stream: true))
+                    let body = try JSONEncoder().encode(CoachAnfrage(nachrichten: nachrichten, profil: profil, tag: tag, kontext: kontext, stream: true))
                     let request = try await anfrage("ki/coach", body: body)
                     let (bytes, antwort) = try await URLSession.shared.bytes(for: request)
                     guard let http = antwort as? HTTPURLResponse else { throw KiFehler.unbekannt }
@@ -242,6 +249,28 @@ enum EssenKontext {
             schlafH: health.schlafNacht(person, tag).map { Double($0.minuten) / 60 },
             mahlzeiten: mahlzeiten.map { KiMahlzeit(name: $0.titel, kcal: $0.kcal) }
         )
+    }
+
+    /// Vorhandene Gesundheitsdaten als Textzeilen für den Coach (nur was gespeichert ist; HRV und Ruhepuls gibt es nicht).
+    static func gesundheitsZeilen(_ person: Person, heute: String) -> [String] {
+        let health = HealthModell.shared
+        var zeilen: [String] = []
+        for abstand in 0...2 {
+            let tag = Datum.addTage(heute, -abstand)
+            let name = abstand == 0 ? "Heute" : (abstand == 1 ? "Gestern" : "Vorgestern")
+            var teile: [String] = []
+            if let schlaf = health.schlafNacht(person, tag) {
+                teile.append("Schlaf " + String(format: "%.1f", Double(schlaf.minuten) / 60).replacingOccurrences(of: ".", with: ",") + " h")
+            }
+            if let schritte = health.schritteAm(person, tag) { teile.append("\(schritte) Schritte") }
+            if let stimmung = health.stimmung(person, tag) { teile.append("Stimmung \(stimmung)") }
+            if abstand == 0 {
+                teile.append("\(health.wasserAnzahl(person, tag)) Mal Wasser")
+                if health.gymAbgehakt(person, tag) { teile.append("Gym erledigt") }
+            }
+            if !teile.isEmpty { zeilen.append("\(name): " + teile.joined(separator: ", ")) }
+        }
+        return zeilen
     }
 
     /// Die letzten Tage vor `tag` (neuester zuletzt), ohne Tage ohne Eintrag.

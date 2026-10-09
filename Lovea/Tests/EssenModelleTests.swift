@@ -119,4 +119,24 @@ final class EssenModelleTests: XCTestCase {
         XCTAssertEqual(MahlzeitArt.vorschlag(um: try um(19)), .abend)
         XCTAssertEqual(MahlzeitArt.vorschlag(um: try um(23)), .snack)
     }
+
+    func testCoachEintragRechnetAufGesamtwerte() {
+        let e = CoachMarker.Essen(name: "Pizza Spicy", art: .mittag, kcal: 1000, protein: 40, kohlenhydrate: 120, fett: 38)
+        let m = EssenMahlzeit.vomCoach(e, tag: "2026-10-09", zeit: Date(timeIntervalSince1970: 0))
+        XCTAssertEqual(m.kcal, 1000)
+        XCTAssertEqual(m.protein, 40, accuracy: 0.01)
+        XCTAssertEqual(m.kohlenhydrate, 120, accuracy: 0.01)
+        XCTAssertEqual(m.fett, 38, accuracy: 0.01)
+        XCTAssertEqual(m.art, .mittag)
+        XCTAssertEqual(m.tag, "2026-10-09")
+        XCTAssertEqual(m.titel, "Pizza Spicy")
+    }
+
+    func testCoachEintragOhneMakrosUndArtNimmtVorschlag() {
+        let zeit = Datum.kalender.date(from: DateComponents(year: 2026, month: 10, day: 9, hour: 19))!
+        let m = EssenMahlzeit.vomCoach(CoachMarker.Essen(name: "Apfel", art: nil, kcal: 80, protein: nil, kohlenhydrate: nil, fett: nil), tag: "2026-10-09", zeit: zeit)
+        XCTAssertEqual(m.kcal, 80)
+        XCTAssertEqual(m.protein, 0)
+        XCTAssertEqual(m.art, .abend)
+    }
 }
