@@ -167,7 +167,7 @@ struct EssenTagView: View {
     }
 
     private func woche(ziele: EssenZiele) -> some View {
-        let tage = HealthLogik.wocheTage(heute)
+        let tage = HabitLogik.wochenTage(heute: heute)
         let werte = tage.map { store.summe(ich, tag: $0).kcal }
         let hoechst = Swift.max(werte.max() ?? 0, ziele.kcal, 1)
         return HStack(alignment: .bottom, spacing: 8) {
