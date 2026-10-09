@@ -120,6 +120,7 @@ struct ChatNachrichtRow: View, Equatable {
             // ScrollView's vertical pan; the width-vs-height check ignores ordinary scroll touches.
             .padding(12)
             .contentShape(.rect)
+            .tabWischSperre()
             .simultaneousGesture(wischGeste)
             .padding(-12)
             if !eigene { Spacer(minLength: 48) }

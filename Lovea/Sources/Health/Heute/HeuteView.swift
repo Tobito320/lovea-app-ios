@@ -558,14 +558,9 @@ struct HeuteView: View {
                 withAnimation(Feder.weich) { gewaehlt = tag }
             }
         }
+        .tabWischSperre()
         .simultaneousGesture(
             DragGesture(minimumDistance: 30)
-                // R6-Fix (Review 01.10.): beansprucht die Berührung, sobald klar horizontal, damit
-                // der Tab-Wisch (60 pt) hier nicht zugleich feuert — die 30-pt-Schwelle hier wird bei
-                // jedem Tab-Wisch zuerst erreicht.
-                .onChanged { g in
-                    if abs(g.translation.width) > abs(g.translation.height) { TabWischSperre.shared.beanspruchen() }
-                }
                 .onEnded { g in
                     guard abs(g.translation.width) > abs(g.translation.height) else { return }
                     blaettern(g.translation.width < 0 ? 7 : -7)

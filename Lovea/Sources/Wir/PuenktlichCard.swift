@@ -32,13 +32,12 @@ struct PuenktlichCard: View {
             .opacity(Double(1 - min(abs(versatz) / 200, 1)))
             // After a skip the next unrated meeting reuses this view; start it in place again.
             .onChange(of: kandidat.datum, initial: true) { versatz = 0 }
+            // Wegwischen sendet eine echte Op: der Home-Tab-Wisch darf hier nicht beginnen.
+            .tabWischSperre()
             .gesture(
                 DragGesture()
                     .onChanged { wert in
                         versatz = wert.translation.width
-                        // R6-Fix (Review 01.10.): beansprucht die Berührung, damit der Home-Tab-Wisch
-                        // nicht zugleich mit dem Wegwischen feuert (das sendet eine echte Op).
-                        TabWischSperre.shared.beanspruchen()
                     }
                     .onEnded { wert in
                         if abs(wert.translation.width) > 100 {
