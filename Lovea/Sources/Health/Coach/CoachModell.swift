@@ -56,6 +56,13 @@ final class CoachModell {
     /// Der Server wartet beim Modell bis zu 25 s, dazu etwas Luft.
     static let wartezeit: TimeInterval = 40
 
+    /// "Trag das ein": Vorschlag der KI aus den letzten eigenen Nachrichten. Gespeichert wird erst nach einem Tipp.
+    var vorschlag: [KIEintrag] = []
+    /// Nach dem Tipp: was gespeichert wurde, mit Rückgängig.
+    private(set) var eingetragen: EintraegeSpeicher?
+    private(set) var eingetragenListe: [KIEintrag] = []
+    private var eigeneTexte: [String] = []
+
     private var ausOps: [String: CoachNachricht] = [:]
     private var lokal: [CoachNachricht] = []
     private var geoeffnet = false
@@ -200,6 +207,9 @@ final class CoachModell {
         sendet = true
         fehler = nil
         letzteFrage = text
+        vorschlag = []
+        eingetragen = nil
+        eingetragenListe = []
         defer { sendet = false }
 
         let eigene = CoachNachricht(id: "lokal-\(UUID().uuidString)", rolle: .du, text: text, zeit: Date(), lokal: true)
@@ -222,7 +232,42 @@ final class CoachModell {
                 UIAccessibility.post(notification: .announcement, argument: "Coach hat geantwortet")
             }
         }
+        eigeneTexte = Array((eigeneTexte + [text]).suffix(3))
+        if EintraegeLogik.klingtNachEintragen(text) {
+            let quelle = eigeneTexte.joined(separator: "\n")
+            Task { await vorschlagLaden(quelle) }
+        }
         return nil
+    }
+
+    // MARK: - Einträge aus dem Chat
+
+    private func vorschlagLaden(_ quelle: String) async {
+        guard let liste = await EintraegeServer.lesen(quelle, tag: Datum.text(Date())), !liste.isEmpty else { return }
+        vorschlag = liste
+    }
+
+    func vorschlagBestaetigen() {
+        guard !vorschlag.isEmpty else { return }
+        var s = EintraegeSpeicher()
+        s.speichern(vorschlag)
+        eingetragen = s
+        eingetragenListe = vorschlag
+        vorschlag = []
+        eigeneTexte = []
+        Haptik.erfolg()
+    }
+
+    func vorschlagVerwerfen() {
+        vorschlag = []
+        eigeneTexte = []
+    }
+
+    func eintragRueckgaengig() {
+        eingetragen?.rueckgaengig()
+        eingetragen = nil
+        eingetragenListe = []
+        Haptik.erfolg()
     }
 
     /// `POST coach/frage` `{ "text" }` -> `{ "text" }`. Status 0 = keine Antwort (Netz, Zeitlimit, Raum nicht

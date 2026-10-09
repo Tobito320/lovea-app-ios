@@ -445,6 +445,7 @@ struct CoachChatView: View {
         VStack(spacing: 8) {
             if let fehler = modell.fehler { fehlerZeile(fehler) }
             if !leer && !amEnde { nachUntenKnopf }
+            if !modell.vorschlag.isEmpty || !modell.eingetragenListe.isEmpty { eintragsKarte }
             if !leer { schnellfragenLeiste(fragen) }
             if entwurf.count >= 800 { zaehler }
             eingabe(fragen)
@@ -455,6 +456,30 @@ struct CoachChatView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 4)
         .animation(reduceMotion ? nil : Feder.schnell, value: amEnde)
+    }
+
+    /// "Trag das ein": erst Vorschlag mit einem Tipp bestätigen, danach mit Rückgängig.
+    private var eintragsKarte: some View {
+        let vorschlag = !modell.vorschlag.isEmpty
+        let liste = vorschlag ? modell.vorschlag : modell.eingetragenListe
+        return VStack(alignment: .leading, spacing: 8) {
+            Text(vorschlag ? "Eintragen?" : "Eingetragen").font(.footnote.weight(.semibold))
+            ForEach(liste.indices, id: \.self) { i in
+                Label(EintraegeLogik.beschreibung(liste[i]), systemImage: EintraegeLogik.symbol(liste[i])).font(.footnote)
+            }
+            HStack {
+                if vorschlag {
+                    Button("Eintragen") { modell.vorschlagBestaetigen() }.buttonStyle(.borderedProminent)
+                    Button("Verwerfen") { modell.vorschlagVerwerfen() }.buttonStyle(.bordered)
+                } else {
+                    Button("Rückgängig") { modell.eintragRueckgaengig() }.buttonStyle(.bordered)
+                }
+            }
+            .frame(minHeight: 44)
+        }
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
     private var nachUntenKnopf: some View {
