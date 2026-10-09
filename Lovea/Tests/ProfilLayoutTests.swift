@@ -55,8 +55,8 @@ final class ProfilLayoutTests: XCTestCase {
     }
 
     func testBreiteWirdBeiMaximumGekappt() {
-        XCTAssertEqual(L.szene(breite: 429, hoehe: 800, oben: 47).breite, 429)
-        XCTAssertEqual(L.szene(breite: 431, hoehe: 800, oben: 47).breite, L.maxSzeneBreite)
+        XCTAssertEqual(L.szene(breite: 439, hoehe: 800, oben: 47).breite, 439)
+        XCTAssertEqual(L.szene(breite: 441, hoehe: 800, oben: 47).breite, L.maxSzeneBreite)
         XCTAssertEqual(L.szene(breite: 5000, hoehe: 800, oben: 47).breite, L.maxSzeneBreite)
     }
 

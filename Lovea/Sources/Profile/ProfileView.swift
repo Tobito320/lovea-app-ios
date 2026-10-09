@@ -145,15 +145,14 @@ private struct ProfilInhalt: View {
             )
             // Fein-Profil: the profile is the scene alone, Wir, Quests and the cards are behind the "Mehr" button
             // (`ProfilBlatt.mehr`). The scene sits at the top, the world under the buttons (`ProfilLayout.chromeBand`);
-            // the room the screen gives below it is floor (`bodenFortsetzung`), not an empty wall above.
+            // the room the screen gives below it is the room's own plank floor, scrolling with it, not an empty wall above.
             let szene = ProfilLayout.profil(breite: geo.size.width, hoehe: geo.size.height, chrome: oben.chrome)
             VStack(spacing: 0) {
-                ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: szene.breite, hoehe: szene.hoehe) {
+                ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: szene.breite, hoehe: szene.hoehe, boden: szene.unten) {
                     zuhause(paar: !istEigenes)
                 } schwebend: {
                     schwebend(oben: oben.chrome)
                 }
-                if szene.unten > 0 { ProfilLayout.bodenFortsetzung.frame(height: szene.unten) }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
