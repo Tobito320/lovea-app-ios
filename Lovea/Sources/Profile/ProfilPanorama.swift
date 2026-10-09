@@ -21,6 +21,8 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
     let wahl: ZimmerWahl
     let breite: CGFloat
     let hoehe: CGFloat
+    /// Fein-Profil: points of floor under the world, scrolling with it so the planks run on below the room.
+    let boden: CGFloat
     private let welt: Welt
     private let schwebend: Schwebend
 
@@ -34,10 +36,11 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
     @State private var gestartet = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    init(wahl: ZimmerWahl, breite: CGFloat, hoehe: CGFloat, @ViewBuilder welt: () -> Welt, @ViewBuilder schwebend: () -> Schwebend) {
+    init(wahl: ZimmerWahl, breite: CGFloat, hoehe: CGFloat, boden: CGFloat = 0, @ViewBuilder welt: () -> Welt, @ViewBuilder schwebend: () -> Schwebend) {
         self.wahl = wahl
         self.breite = breite
         self.hoehe = hoehe
+        self.boden = max(0, boden)
         self.welt = welt()
         self.schwebend = schwebend()
     }
@@ -52,9 +55,12 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         return ScrollView(.horizontal) {
             ZStack(alignment: .topLeading) {
                 wand(k)
-                welt.frame(width: weltBreite, height: hoehe)
+                VStack(spacing: 0) {
+                    welt.frame(width: weltBreite, height: hoehe)
+                    if boden > 0 { bodenUnten(k).frame(width: weltBreite, height: boden) }
+                }
             }
-            .frame(width: weltBreite, height: hoehe, alignment: .topLeading)
+            .frame(width: weltBreite, height: hoehe + boden, alignment: .topLeading)
         }
         .scrollIndicators(.hidden)
         .scrollPosition($position)
@@ -82,8 +88,19 @@ struct ProfilPanorama<Welt: View, Schwebend: View>: View {
         .overlay(alignment: .top) { schwebend }
         // p70: a gift waiting in the vase, and "Annika hat etwas gestellt".
         .overlay(alignment: .bottom) { ZimmerHinweisLeiste() }
-        .frame(width: breite, height: hoehe)
+        .frame(width: breite, height: hoehe + boden)
         .clipped()
+    }
+
+    /// The planks of the room's floor carried on under the world, in the world's units.
+    private func bodenUnten(_ k: CGFloat) -> some View {
+        Canvas { g, groesse in
+            var w = g
+            w.scaleBy(x: k, y: k)
+            ZuhauseZeichnung.bodenUnten(w, breite: ProfilSlots.weltBreite, hoehe: groesse.height / k)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 
     /// The wall, 741 units wide, bottom-anchored like the world. In the scrolled content it would move

@@ -16,8 +16,8 @@ enum ProfilLayout {
     /// What the part under the scene keeps at least while scene and strip stand still: the tab strip and
     /// about three rows. With less, the whole profile scrolls as one (small iPhones, iPad landscape).
     static let unterMinimum: CGFloat = 200
-    /// The scene never gets wider than a Pro Max iPhone: on an iPad it would be taller than the screen.
-    static let maxSzeneBreite: CGFloat = 430
+    /// The scene never gets wider than the widest iPhone (16/17 Pro Max, 440 pt), so no phone shows bare strips at the sides; on an iPad it would be taller than the screen.
+    static let maxSzeneBreite: CGFloat = 440
     /// Air under the last card, above the tab bar.
     static let schlussPolster: CGFloat = 32
     /// Navigation chrome (the two strips) stops growing with Dynamic Type here; the content below keeps scaling.
@@ -57,9 +57,6 @@ enum ProfilLayout {
         let mindest = chrome + chromeBand + ProfilPanoramaLayout.szeneHoehe(breite: b)
         return Szene(breite: b, hoehe: mindest, unten: max(0, hoehe - mindest), klebt: true)
     }
-
-    /// Fein-Profil: the floor under the world, the colour the room's floor ends in (`ZuhauseZeichnung.boden`).
-    static var bodenFortsetzung: Color { FigurFarbe(0xE6C9A0).farbe }
 
     /// Fein-Profil: where the world's top edge lies in a scene of height `hoehe` (measured from the scene's top).
     static func weltOben(breite: CGFloat, hoehe: CGFloat) -> CGFloat {

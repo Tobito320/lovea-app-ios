@@ -28,7 +28,8 @@ struct ZimmerErinnerungEbene: View {
 
     static let polaroidWand = CGRect(x: 92, y: 42, width: 76, height: 46)
     static let liebesschloesser = CGRect(x: 415, y: 66, width: 82, height: 30)
-    static let balkonGarten = CGRect(x: 410, y: 172, width: 92, height: 30)
+    /// Blumenkasten auf dem Boden links vom Sofa, weg vom Fenster: dort stehen die Gesichter.
+    static let balkonGarten = CGRect(x: 296, y: 384, width: 92, height: 30)
     static let schneekugel = CGRect(x: 704, y: 286, width: 36, height: 44)
     static let erinnerungsKisten = CGRect(x: 62, y: 334, width: 100, height: 26)
     static let katzenSchild = CGRect(x: 166, y: 336, width: 56, height: 20)
