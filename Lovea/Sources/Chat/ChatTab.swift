@@ -537,6 +537,11 @@ private struct NachrichtenListe: View {
                     ForEach(Array(gruppen.enumerated()), id: \.element.id) { eintrag in
                         zeile(eintrag.offset, gruppen: gruppen, status: status)
                     }
+                    // "At the bottom" = this end row is on screen. The old offset math broke when
+                    // header and input became `safeAreaBar`s: it read "not at the end" at the very
+                    // bottom, so the arrow stayed up for good after the first drag.
+                    Color.clear.frame(height: 1)
+                        .onScrollVisibilityChange(threshold: 0.01) { pfeil.lage(amEnde: $0) }
                 }
                 .padding(.vertical, 8)
             }
@@ -591,14 +596,11 @@ private struct NachrichtenListe: View {
             // Chat", keyboard). The inset alone keeps the offset, so the newest messages slid under
             // the bar; if the list was at the bottom before, it stays there.
             .onScrollGeometryChange(for: ListenLage.self) { geo in
-                ListenLage(
-                    sichtbar: geo.containerSize.height - geo.contentInsets.top - geo.contentInsets.bottom,
-                    amEnde: geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24
-                )
+                ListenLage(sichtbar: geo.containerSize.height - geo.contentInsets.top - geo.contentInsets.bottom)
             } action: { alt, neu in
-                pfeil.lage(amEnde: neu.amEnde)
+                // `pfeil.amEnde` still holds the state before this bar change (visibility updates after layout).
                 guard ListenAutoScroll.sollNachUntenSpringen(
-                    sichtbarGeaendert: alt.sichtbar != neu.sichtbar, warAmEnde: alt.amEnde, nutzerZiehtGerade: nutzerZiehtGerade
+                    sichtbarGeaendert: alt.sichtbar != neu.sichtbar, warAmEnde: pfeil.amEnde, nutzerZiehtGerade: nutzerZiehtGerade
                 ), zielID == nil, let letzte = modell.nachrichten.last?.id else { return }
                 withAnimation(Feder.schnell) { proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom) }
             }
@@ -694,8 +696,7 @@ private struct NachrichtenListe: View {
 }
 
 /// Width and window origin of the conversation (the photo cap and the left-edge swipe need them).
-/// Visible height between the bars, and whether the list sits at its bottom.
+/// Visible height between the bars.
 private struct ListenLage: Equatable {
     let sichtbar: CGFloat
-    let amEnde: Bool
 }
