@@ -9,8 +9,8 @@ struct ZimmerSchreibenEbene: View {
     private let eigen: Bool
 
     // Orte in Entwurfseinheiten (für ZimmerPlatzLogik)
-    static let tagebuchRect = CGRect(x: 542, y: 372, width: 44, height: 40)
-    static let komplimentRect = CGRect(x: 592, y: 372, width: 44, height: 44)
+    static let tagebuchRect = CGRect(x: 542, y: 374, width: 44, height: 40)
+    static let komplimentRect = CGRect(x: 592, y: 370, width: 44, height: 44)
     /// Reserviert für die Zeitkapsel (gezeichnet als kleine Truhe, wenn eine Kapsel da ist).
     static let kapselRect = CGRect(x: 534, y: 176, width: 42, height: 44)
     static let alleRects: [CGRect] = [tagebuchRect, komplimentRect, kapselRect]

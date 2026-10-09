@@ -9,6 +9,9 @@ enum ZimmerPlatzLogik {
     /// Abstand zur Weltkante, den kein Ding unterschreitet (Rundung der Bildschirmecken, Randwischen).
     static let weltRand: CGFloat = 12
 
+    /// Die Linie, auf der alles steht, was am Boden steht (Unterkante der Bodendinge): eine ruhige Reihe statt Streuung.
+    static let bodenLinie: CGFloat = 414
+
     /// Kleiderschrank (Feature B), neben der Kleiderstange des Slots `.kleiderschrank`.
     static let kleiderschrank = CGRect(x: 868, y: 196, width: 90, height: 116)
 

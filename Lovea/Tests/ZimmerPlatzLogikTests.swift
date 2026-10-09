@@ -27,4 +27,18 @@ final class ZimmerPlatzLogikTests: XCTestCase {
         XCTAssertEqual(ZimmerPlatzLogik.weltBreite, ProfilSlots.weltBreite)
         XCTAssertEqual(ZimmerPlatzLogik.weltHoehe, ProfilSlots.hoehe)
     }
+
+    func testBodendingeStehenAufEinerLinie() {
+        let alle = ZimmerPlatzLogik.alle
+        let boden: [String: CGRect] = [
+            "briefkasten": alle["briefkasten"]!, "sparschwein": alle["sparschwein"]!, "herzglas": alle["herzglas"]!,
+            "rezept": ZimmerSammlungEbene.rezeptRect, "tagebuch": ZimmerSchreibenEbene.tagebuchRect,
+            "kompliment": ZimmerSchreibenEbene.komplimentRect, "kussglas": ZimmerRitualeEbene.kussglasRect,
+            "schublade": ZimmerNaeheEbene.schubladeRect, "koffer": ZimmerNaeheEbene.kofferRect,
+        ]
+        XCTAssertEqual(boden.count, 9)
+        for (name, rect) in boden {
+            XCTAssertEqual(rect.maxY, ZimmerPlatzLogik.bodenLinie, accuracy: 0.5, "\(name) steht nicht auf der Bodenlinie")
+        }
+    }
 }
