@@ -127,10 +127,16 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
 
     /// p70: the partner who is not there sleeps in the bed, whoever is there stands in the room. Not in
     /// the fixed boards and not while they are together for real.
+    /// Gym split or both away (panorama only, never in the fixed boards): who is not in the room.
+    private var kontext: ZuhauseKontext {
+        guard !fest, welt == .panorama else { return .daheim }
+        return ZuhauseKontext.bestimme(ahmed: FigurenModell.shared.zustand[.ahmed]?.haupt, annika: FigurenModell.shared.zustand[.annika]?.haupt)
+    }
+
     private var offlineSchlaefer: Person? {
         guard !fest, !paarGemeinsam else { return nil }
         let ich = Raum.shared.ich, verbunden = Raum.shared.verbunden, da = Raum.shared.partnerDa
-        return Person.allCases.first { ZuhauseSzeneLogik.schlaeftOffline($0, ich: ich, verbunden: verbunden, partnerDa: da) }
+        return Person.allCases.first { !kontext.abwesende.contains($0) && ZuhauseSzeneLogik.schlaeftOffline($0, ich: ich, verbunden: verbunden, partnerDa: da) }
     }
 
     /// p70 (40): the lamp glows warmer for every goal of the day that is done; never in the fixed boards.
@@ -191,6 +197,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                 if stand.zeit.dunkel && !nacht {
                     ZuhauseLicht(zeit: stand.zeit, welt: welt, staerke: lampenStaerke)
                 }
+                if case .beideWeg(let notiz) = kontext { leereStube(notiz, s, oben) }
                 if welt == .panorama { moebelTippen(s, oben) }
                 if welt == .panorama, !fest { eigeneFigurLenken(s, oben) }
             }
@@ -237,7 +244,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         let schlaeft = stand.zeit == .nacht || stand.hingelegt
         // p70: the offline partner lies here asleep, also by day and when the other one is up.
         let schlaefer = offlineSchlaefer
-        let liegende = ZuhauseSzeneLogik.liegende(beide: liegt, schlaefer: schlaefer)
+        let liegende = ZuhauseSzeneLogik.liegende(beide: liegt, schlaefer: schlaefer).filter { !kontext.abwesende.contains($0) }
         let schlafen: (Person) -> Bool = { schlaeft || $0 == schlaefer }
         // Empty pillows: both while the bed is empty and behind those sitting up; sleepers bring their own.
         let kissen = ZuhauseSzeneLogik.leereKissen(schlafende: Set(liegende.filter(schlafen)))
@@ -351,7 +358,8 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// Sitters sit behind the sofa's front cushion, everyone else stands in front of it.
     private func personen(sitzend: Bool, _ s: CGFloat, _ oben: CGFloat) -> some View {
         let schlaefer = offlineSchlaefer
-        let wer: [Person] = stand.liegt || paarGemeinsam ? [] : [Person.annika, .ahmed].filter { sitzt($0) == sitzend && $0 != schlaefer }
+        let weg = kontext.abwesende
+        let wer: [Person] = stand.liegt || paarGemeinsam ? [] : [Person.annika, .ahmed].filter { sitzt($0) == sitzend && $0 != schlaefer && !weg.contains($0) }
         return ForEach(wer, id: \.self) { p in person(p, s, oben) }
     }
 
@@ -385,6 +393,18 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             .frame(width: 276, height: 340)
             .scaleEffect(m, anchor: .bottom)
             .position(x: ZuhauseOrte.paarMitte(welt: welt) * s, y: oben + ZuhauseOrte.fussY * s + 0.02 * 340 * m - 170)
+    }
+
+    /// Both away: the room stands empty, a small note in the living area says where they are.
+    private func leereStube(_ notiz: String, _ s: CGFloat, _ oben: CGFloat) -> some View {
+        Text(notiz)
+            .font(.footnote.weight(.semibold))
+            .multilineTextAlignment(.center)
+            .padding(.horizontal, 12).padding(.vertical, 6)
+            .background(.ultraThinMaterial, in: Capsule())
+            .position(x: (ProfilSlots.anker(.wohn) + 195) * s, y: oben + 120 * s)
+            .allowsHitTesting(false)
+            .accessibilityLabel(notiz)
     }
 
     // MARK: Taps on the furniture (panorama)

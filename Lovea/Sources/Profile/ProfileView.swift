@@ -306,6 +306,8 @@ private struct ProfilInhalt: View {
         .overlay { ZimmerSchreibenEbene(welt: .panorama, eigen: istEigenes) }
         .overlay { ZimmerSammlungEbene(welt: .panorama, eigen: istEigenes) }
         .overlay { ZimmerNaeheEbene(welt: .panorama, eigen: istEigenes) }
+        // Kontextszene: while one trains, the right half is the gym cutout (on top of everything there).
+        .overlay { ZuhauseGymAusschnitt() }
     }
 
     /// Unser Zimmer: ein gemeinsamer Raum für beide. Die zwei Avatare öffnen je ein kleines Blatt mit den Zahlen der Person;
@@ -355,7 +357,9 @@ private struct ProfilInhalt: View {
     /// Brief G: the editor for the place the person is at right now (home, office, classroom),
     /// home from anywhere else.
     private func zimmerGestalten() {
-        zimmerOrt = ProfilSzene.fuer(person: person).raumOrt ?? .zuhause
+        // The gym is only a cutout of the home panorama now (no Möbel to pick there), so it opens home.
+        let ort = ProfilSzene.fuer(person: person).raumOrt ?? .zuhause
+        zimmerOrt = ort == .gym ? .zuhause : ort
         blatt = .zimmer
     }
 

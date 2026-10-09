@@ -81,3 +81,48 @@ enum ZuhauseBelebung {
         return alle[((alle.firstIndex(of: platz) ?? 0) + 1) % alle.count]
     }
 }
+
+/// Kontextszenen: where the two are right now decides what the panorama shows. Pure, tested in
+/// `ZuhauseKontextTests`. Only the gym changes the picture when one is away (split: room left, gym
+/// cutout right); a partner at work or school simply stays as the room has always shown them. When both
+/// are away the room is empty and a note says where they are.
+enum ZuhauseKontext: Equatable, Sendable {
+    case daheim
+    /// `weg` trains, `daheim` is in the room.
+    case gymGeteilt(daheim: Person, weg: Person)
+    case beideWeg(notiz: String)
+
+    /// Where somebody can be away to; `nil` is home or any state that says nothing about a place.
+    static func wegOrt(_ z: FigurZustand?) -> String? {
+        switch z {
+        case .gym: "im Gym"
+        case .arbeit: "in der Arbeit"
+        case .schule: "in der Schule"
+        case .fahrschule: "in der Fahrschule"
+        case .supermarkt: "im Supermarkt"
+        default: nil
+        }
+    }
+
+    static func bestimme(ahmed: FigurZustand?, annika: FigurZustand?) -> ZuhauseKontext {
+        let a = wegOrt(ahmed), b = wegOrt(annika)
+        switch (a, b) {
+        case (let x?, let y?): return .beideWeg(notiz: "Ahmed \(x), Annika \(y)")
+        case (_?, nil): return ahmed == .gym ? .gymGeteilt(daheim: .annika, weg: .ahmed) : .daheim
+        case (nil, _?): return annika == .gym ? .gymGeteilt(daheim: .ahmed, weg: .annika) : .daheim
+        case (nil, nil): return .daheim
+        }
+    }
+
+    /// Who is not in the room.
+    var abwesende: Set<Person> {
+        switch self {
+        case .daheim: []
+        case .gymGeteilt(_, let weg): [weg]
+        case .beideWeg: [.ahmed, .annika]
+        }
+    }
+
+    /// The gym cutout in world units (right half of the 1000 x 430 world, inside the margins).
+    static let gymAusschnitt = CGRect(x: 560, y: 60, width: 420, height: 340)
+}
