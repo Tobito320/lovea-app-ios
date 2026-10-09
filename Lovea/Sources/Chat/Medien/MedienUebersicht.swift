@@ -47,7 +47,11 @@ struct MedienUebersicht: View {
                 } else {
                     ScrollView {
                         LazyVGrid(columns: [GridItem(.adaptive(minimum: 100))], spacing: 4) {
-                            ForEach(liste) { nachricht in UebersichtKachel(nachricht: nachricht) }
+                            ForEach(liste) { nachricht in
+                                Color.clear.aspectRatio(1, contentMode: .fit)
+                                    .overlay { UebersichtKachel(nachricht: nachricht) }
+                                    .clipShape(RoundedRectangle(cornerRadius: 8))
+                            }
                         }
                         .padding(4)
                     }
@@ -78,7 +82,7 @@ private struct UebersichtKachel: View {
             if let medium = nachricht.medien.first(where: { $0.typ == "foto" || $0.typ == "video" }) {
                 ZStack(alignment: .bottomTrailing) {
                     if let bild {
-                        Image(uiImage: bild).resizable().aspectRatio(contentMode: .fill)
+                        Image(uiImage: bild).resizable().scaledToFill()
                     } else {
                         Rectangle().fill(.thinMaterial)
                     }
@@ -103,9 +107,10 @@ private struct UebersichtKachel: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
-        .aspectRatio(1, contentMode: .fill)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(uiColor: .secondarySystemBackground))
-        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .clipped()
+        .contentShape(Rectangle())
     }
 
     private func laden(_ medium: ChatModell.MedienEintrag) async {
