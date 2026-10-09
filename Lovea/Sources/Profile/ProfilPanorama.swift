@@ -11,7 +11,7 @@ struct ProfilZonenSnap: ScrollTargetBehavior {
     }
 }
 
-/// p65 A2: the profile scene as a panorama. `welt` is the whole world (975 design units wide, built by the
+/// p65 A2: the profile scene as a panorama. `welt` is the whole world (1000 design units wide, built by the
 /// caller with `ProfilWelt.panorama`), swiped sideways and snapping to the three zones; the wall behind it
 /// is its own, wider-than-the-screen layer that moves at 60 % of the furniture's speed (parallax).
 /// `schwebend` floats over the scene and does not move (online chip, gear). Under the scene sit the zone

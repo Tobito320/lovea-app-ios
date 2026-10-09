@@ -4,8 +4,10 @@ import CoreGraphics
 /// Ein Eintrag je Ding; Test: keine zwei überlappen. Dinge, die nur zeitweise da sind (Paket, Feier, Regen), stehen nicht drin.
 @MainActor
 enum ZimmerPlatzLogik {
-    static let weltBreite: CGFloat = 975
+    static let weltBreite: CGFloat = 1000
     static let weltHoehe: CGFloat = 430
+    /// Abstand zur Weltkante, den kein Ding unterschreitet (Rundung der Bildschirmecken, Randwischen).
+    static let weltRand: CGFloat = 12
 
     /// Kleiderschrank (Feature B), neben der Kleiderstange des Slots `.kleiderschrank`.
     static let kleiderschrank = CGRect(x: 868, y: 196, width: 90, height: 116)
