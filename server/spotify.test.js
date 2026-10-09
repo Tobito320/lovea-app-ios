@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { brauchtErneuerung, cacheGueltig, parseAktuellerSong, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe, CACHE_MS } from "./spotify.js";
+import { brauchtErneuerung, cacheGueltig, parseAktuellerSong, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe, fehlerGrund, fetchMitGrund, CACHE_MS } from "./spotify.js";
 
 const env = { SPOTIFY_CLIENT_ID: "test-client-id" };
 
@@ -84,12 +84,16 @@ test("tokenErneuern: behält den alten refresh_token, wenn keiner mitkommt; nimm
   assert.equal(body.get("refresh_token"), "RT-alt");
 });
 
-test("jetztSpielt: 204 (nichts läuft) und ein Fehlerstatus ergeben beide {}", async () => {
+test("jetztSpielt: 204 (nichts läuft) ergibt {}, ein Fehlerstatus ergibt {fehler}", async () => {
   const leer = fakeFetch(async () => new Response(null, { status: 204 }));
   assert.deepEqual(await jetztSpielt("AT", leer), {});
 
   const abgelehnt = fakeFetch(async () => new Response(null, { status: 401 }));
-  assert.deepEqual(await jetztSpielt("AT", abgelehnt), {});
+  assert.deepEqual(await jetztSpielt("AT", abgelehnt), { fehler: "abgelaufen" });
+  const nichtFrei = fakeFetch(async () => new Response(null, { status: 403 }));
+  assert.deepEqual(await jetztSpielt("AT", nichtFrei), { fehler: "nicht-freigeschaltet" });
+  const zuViel = fakeFetch(async () => new Response(null, { status: 429 }));
+  assert.deepEqual(await jetztSpielt("AT", zuViel), { fehler: "zu-viele-anfragen" });
 });
 
 test("jetztSpielt: trägt den Access-Token als Bearer-Header ein und liefert den geparsten Song", async () => {
@@ -114,4 +118,21 @@ test("nachFreigabe: jede Stufe gibt nur ihre Felder frei, unbekannt = song", () 
   assert.deepEqual(nachFreigabe(song, undefined), { musik: true, ...song });
   assert.deepEqual(nachFreigabe(song, "quatsch"), { musik: true, ...song });
   assert.deepEqual(nachFreigabe({}, "song"), {});
+});
+
+test("fehlerGrund: 401/403/429 unterscheidbar, Rest = spotify", () => {
+  assert.deepEqual([401, 403, 429, 500].map(fehlerGrund), ["abgelaufen", "nicht-freigeschaltet", "zu-viele-anfragen", "spotify"]);
+});
+
+test("nachFreigabe: ein Fehler geht durch jede Stufe, nur bei aus nicht (dort fragt der Server gar nicht)", () => {
+  for (const stufe of ["song", "kuenstler", "musik"]) assert.deepEqual(nachFreigabe({ fehler: "abgelaufen" }, stufe), { fehler: "abgelaufen" });
+});
+
+test("fetchMitGrund: merkt Spotifys error-Code beim Token-Tausch, tokenTauschen bleibt null", async () => {
+  const huelle = fetchMitGrund(fakeFetch(async () => Response.json({ error: "invalid_client" }, { status: 400 })));
+  assert.equal(await tokenTauschen(env, { code: "c", verifier: "v", redirectUri: "r" }, huelle), null);
+  assert.equal(huelle.grund, "invalid_client");
+  const leer = fetchMitGrund(fakeFetch(async () => new Response("kaputt", { status: 500 })));
+  await tokenTauschen(env, { code: "c", verifier: "v", redirectUri: "r" }, leer);
+  assert.equal(leer.grund, "500");
 });
