@@ -36,7 +36,7 @@ struct EinstellungenView: View {
             Section {
                 Toggle("Haptik", isOn: $haptik)
                 NavigationLink("Kamera") { KameraEinstellungen() }
-                NavigationLink("Chat") { ChatEinstellungen() }
+                NavigationLink("Chat") { ChatEinstellungenSeite() }
                 Toggle("Figuren laufen im Profil", isOn: $szeneBelebt)
             } header: {
                 Text("Darstellung")
@@ -95,7 +95,7 @@ private struct KameraEinstellungen: View {
     }
 }
 
-private struct ChatEinstellungen: View {
+private struct ChatEinstellungenSeite: View {
     @AppStorage(ChatTempo.schluessel) private var chatTempo = true // same key `ChatTempo.an` reads
     @AppStorage(MedienKodierung.videoSchnellSchluessel) private var videoSchnell = true // same key `MedienKodierung.videoSchnell` reads
     @AppStorage(VideoVorab.schluessel) private var videoVorab = true // same key `VideoVorab.an` reads
