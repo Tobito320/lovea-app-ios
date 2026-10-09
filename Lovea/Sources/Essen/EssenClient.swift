@@ -6,6 +6,15 @@ struct KiProfil: Encodable, Sendable {
     let ziel: String
     let kcal: Int
     let protein: Int
+    /// Nur mit Freigabe und nur von Annikas Geraet (siehe `KiZyklus`).
+    var zyklusTag: Int?
+    var zyklusPhase: String?
+
+    enum CodingKeys: String, CodingKey {
+        case ziel, kcal, protein
+        case zyklusTag = "zyklus_tag"
+        case zyklusPhase = "zyklus_phase"
+    }
 }
 
 struct KiMahlzeit: Encodable, Sendable {
@@ -233,7 +242,13 @@ enum KiClient {
 enum EssenKontext {
     static func profil(_ person: Person) -> KiProfil {
         let ziele = EssenStore.shared.ziele(person)
-        return KiProfil(ziel: ziele.ziel, kcal: ziele.kcal, protein: ziele.protein)
+        let speicher = ZyklusSpeicherWahl.fuer(person: person)
+        let zyklus = KiZyklus.fuerKi(freigabe: UserDefaults.standard.bool(forKey: ZyklusSchalter.ki),
+                                     nurLesen: speicher.nurLesen,
+                                     logik: speicher.logik(),
+                                     heute: Datum.text(Date()))
+        return KiProfil(ziel: ziele.ziel, kcal: ziele.kcal, protein: ziele.protein,
+                        zyklusTag: zyklus?.tag, zyklusPhase: zyklus?.phase)
     }
 
     static func tag(_ person: Person, tag: String) -> KiTag {

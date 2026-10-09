@@ -6,6 +6,8 @@ enum ZyklusSchalter {
     static let healthKit = "lovea.zyklusHealthKit"
     /// p64: Wärmflasche und Tee im Zimmer an schweren Tagen. Nur Annika schaltet ein, Standard AUS.
     static let waerme = "lovea.waerme.freigabe"
+    /// Zyklustag und Phase gehen an Coach und Bericht. Nur Annika schaltet ein, Standard AUS.
+    static let ki = "lovea.zyklus.ki.freigabe"
 }
 
 enum TrainingsRat: String, Equatable {
