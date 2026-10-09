@@ -133,7 +133,9 @@ actor OpLog {
         let decoder = JSONDecoder()
         var geladeneOps: [Op] = []
         for zeile in daten.split(separator: UInt8(ascii: "\n")) {
-            guard let op = try? decoder.decode(Op.self, from: Data(zeile)), !ids.contains(op.id) else { continue }
+            let zeilenDaten = Data(zeile)
+            decoder.userInfo[Op.zeileSchluessel] = zeilenDaten
+            guard let op = try? decoder.decode(Op.self, from: zeilenDaten), !ids.contains(op.id) else { continue }
             ids.insert(op.id)
             _ = standMerken(op)
             geladeneOps.append(op)

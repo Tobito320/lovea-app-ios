@@ -18,6 +18,15 @@ struct StandortDaten: Codable, Sendable, Equatable {
     let zeit: String
 }
 
+/// 27.09.: one profile can run on iPhone and iPad (Annika). Only the phone is carried, so only it
+/// reports sensor data — location, steps, sleep, presence state. An iPad lying at home would
+/// otherwise overwrite them with "at home, idle".
+// ponytail: idiom check, not a per-device server model. Upgrade path: tag `standort`/`zustand` with
+// a device id and let the server pick the freshest carried device.
+enum Geraet {
+    @MainActor static var wirdGetragen: Bool { UIDevice.current.userInterfaceIdiom == .phone }
+}
+
 /// Always-on location sharing (Z-8.1). Broadcasts the own position as `fl standort` and keeps
 /// the partner's (and, after the first fix, the own) last position for the map to read.
 /// `start()` is safe to call repeatedly — call it from `KarteTab.task` and once more from
@@ -33,8 +42,12 @@ final class Standort: NSObject {
     private let bewegungsManager = CMMotionActivityManager()
     private var sparTask: Task<Void, Never>?
     private var liveTask: Task<Void, Never>?
+    private var liveEnde: Task<Void, Never>?
     private var live = false
     private var letzteMeldung = Date.distantPast
+    private var letzterExtraFix = Date.distantPast
+    /// One formatter for every fix: building an ISO8601DateFormatter per call is costly.
+    nonisolated(unsafe) static let isoFormat = ISO8601DateFormatter()
 
     private override init() {
         super.init()
@@ -52,12 +65,13 @@ final class Standort: NSObject {
         Raum.shared.fluechtigBeobachten("karte.offen") { [weak self] person, daten in
             guard person != Raum.shared.ich else { return }
             guard let an = try? JSONDecoder().decode(KarteOffenD.self, from: daten).an else { return }
-            self?.liveSetzen(an)
+            self?.karteOffen(an)
         }
     }
 
     /// Idempotent: safe to call from every screen's `.task` and from app launch.
     func start() {
+        guard Geraet.wirdGetragen else { return }
         switch manager.authorizationStatus {
         case .authorizedAlways, .authorizedWhenInUse:
             manager.startMonitoringSignificantLocationChanges()
@@ -68,6 +82,17 @@ final class Standort: NSObject {
         default:
             break
         }
+    }
+
+    /// One extra fix now, e.g. when a walk or a trip starts or ends (`Anwesenheit`), so arriving
+    /// and leaving show without waiting for the next spar fix.
+    /// Motion flips walking/stationary often (traffic lights), so at most one extra GPS fix per 45 s,
+    /// except when driving starts (`dringend`): the train check needs that fix's speed.
+    func fixAnfordern(dringend: Bool = false) {
+        guard manager.authorizationStatus == .authorizedAlways || manager.authorizationStatus == .authorizedWhenInUse else { return }
+        guard Self.extraFixErlaubt(letzter: letzterExtraFix, jetzt: Date(), dringend: dringend) else { return }
+        letzterExtraFix = Date()
+        manager.requestLocation()
     }
 
     /// Sparbetrieb: alle paar Minuten ein Fix, dazu deutliche Bewegung (signifikante Ortsänderung)
@@ -85,23 +110,50 @@ final class Standort: NSObject {
         }
     }
 
+    nonisolated static func extraFixErlaubt(letzter: Date, jetzt: Date, dringend: Bool) -> Bool {
+        dringend || jetzt.timeIntervalSince(letzter) >= 45
+    }
+
+    /// The partner opened (or closed) the map — via socket, or a silent push while we're in the
+    /// background. One immediate fix so the partner doesn't wait for the live stream's first update.
+    func karteOffen(_ an: Bool) {
+        guard Geraet.wirdGetragen else { return }
+        liveSetzen(an)
+        if an { fixAnfordern(dringend: true) }
+    }
+
     private func liveSetzen(_ an: Bool) {
+        if an, live { liveEndeStellen(); return } // the viewer is still looking: extend
         guard an != live else { return }
         live = an
         liveTask?.cancel()
-        guard an else { liveTask = nil; return }
+        liveEnde?.cancel()
+        guard an else { liveTask = nil; liveEnde = nil; return }
+        liveEndeStellen()
         liveTask = Task { @MainActor [weak self] in
             // ponytail: unsure of the exact throwing/async shape of `CLLocationUpdate.liveUpdates()`
             // on iOS 26 (no local compiler to check) - see block-8-report.md. `.default` accuracy
             // is used instead of a named high-accuracy configuration for the same reason.
-            let ende = Date().addingTimeInterval(600)
             do {
                 for try await update in CLLocationUpdate.liveUpdates() {
-                    guard let self, !Task.isCancelled, self.live, Date() < ende else { break }
+                    guard let self, !Task.isCancelled, self.live else { break }
                     if let ort = update.location { await self.melden(ort) }
                 }
             } catch {}
             self?.live = false
+        }
+    }
+
+    /// Live GPS ends 180 s after the last `an: true`; the viewer re-sends every 150 s
+    /// (`partnerStandortLive`). A lost `an: false` (we're in the background, no socket to hear it)
+    /// now costs at most 3 min of GPS instead of 10. A task, not a check in the stream: standing
+    /// still, the stream goes quiet and would never reach its own end check.
+    private func liveEndeStellen() {
+        liveEnde?.cancel()
+        liveEnde = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(180))
+            guard !Task.isCancelled else { return }
+            self?.liveSetzen(false)
         }
     }
 
@@ -115,7 +167,7 @@ final class Standort: NSObject {
     private func melden(lat: Double, lon: Double, genau: Double, tempo: CLLocationSpeed?, richtung: CLLocationDirection?, zeit: Date) async {
         // Throttle: live mode already paces itself via CLLocationUpdate; this only guards the
         // spar/visit paths from firing twice in the same second.
-        guard Date().timeIntervalSince(letzteMeldung) > 2 else { return }
+        guard Geraet.wirdGetragen, Date().timeIntervalSince(letzteMeldung) > 2 else { return }
         letzteMeldung = Date()
         let bewegung = await bewegungsart()
         let d = StandortDaten(
@@ -125,10 +177,12 @@ final class Standort: NSObject {
             akku: UIDevice.current.batteryLevel >= 0 ? Double(UIDevice.current.batteryLevel) : nil,
             laedt: UIDevice.current.batteryState == .charging || UIDevice.current.batteryState == .full,
             bewegung: bewegung,
-            zeit: ISO8601DateFormatter().string(from: zeit)
+            zeit: Self.isoFormat.string(from: zeit)
         )
         if let ich = Raum.shared.ich { positionen[ich] = d }
         Raum.shared.fluechtig("standort", d)
+        // Place states end with the fix that leaves the place, not on the next 30 s tick.
+        Anwesenheit.shared.standortNeu()
     }
 
     private func bewegungsart() async -> String? {
@@ -187,10 +241,14 @@ extension Standort: @preconcurrency CLLocationManagerDelegate {
 }
 
 extension StandortDaten {
-    /// "vor 44 Min" / "gerade eben" - shared by the info card and the map's name labels.
-    var alterText: String {
-        guard let z = ISO8601DateFormatter().date(from: zeit) else { return "" }
-        let sekunden = Date().timeIntervalSince(z)
-        return sekunden < 90 ? "gerade eben" : "vor \(Int(sekunden / 60)) Min"
+    var punkt: CLLocationCoordinate2D { CLLocationCoordinate2D(latitude: lat, longitude: lon) }
+
+    /// Age of the fix; `nil` if `zeit` doesn't parse. Texts come from `KarteLogik.alterText`.
+    var sekundenAlt: TimeInterval? {
+        Standort.isoFormat.date(from: zeit).map { Date().timeIntervalSince($0) }
+    }
+
+    func meter(bis andere: StandortDaten) -> CLLocationDistance {
+        CLLocation(latitude: lat, longitude: lon).distance(from: CLLocation(latitude: andere.lat, longitude: andere.lon))
     }
 }

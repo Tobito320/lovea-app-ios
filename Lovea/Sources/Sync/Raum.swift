@@ -16,12 +16,6 @@ final class Raum {
     private(set) var wartet = 0
     let eingerichtet: Bool
 
-    /// Set by the Karte/Orte block to react to a `karte.offen` push before the socket is even
-    /// open — see `LoveaAppDelegate.application(_:didReceiveRemoteNotification:)`. The payload
-    /// keys (`art`/`an`) are assumed, mirroring the `fl "karte.offen" {an}` WS message — no
-    /// server push payload for this exists yet to confirm against.
-    var onKarteOffen: ((Bool) -> Void)?
-
     struct HttpKonfiguration: Sendable { let basis: URL; let headers: [String: String] }
 
     private let transport: RaumTransport
@@ -33,15 +27,27 @@ final class Raum {
     private var beobachter: [(arten: Set<String>, f: (Op) -> Void)] = []
     private var stapelBeobachter: [(arten: Set<String>, f: ([Op]) -> Void)] = []
     private var fluechtigBeobachter: [String: [(Person, Data) -> Void]] = [:]
+    /// Build 78 (Absturz-Breadcrumbs): nur das erste ausgelieferte Batch markieren, nicht jedes.
+    private var erstesBatchMarkiert = false
 
     private var backoff: TimeInterval = 1
     private var aktivZustand = false
     private var generation = 0
     private var empfangenBisSeq = 0
+    private var nachholenLaeuft = false
     private var geraeteToken: String?
     private var reconnectTask: Task<Void, Never>?
     private var hintergrundTask: Task<Void, Never>?
     private var pingTask: Task<Void, Never>?
+    private var nachholFristTask: Task<Void, Never>?
+    private var nachholAusfaelle = 0
+    /// Last frame of any kind from the server — the ping watchdog in `verbinden` compares against it.
+    private var letzterEmpfang = ContinuousClock.now
+    /// A frame still being applied blocks the receive loop, so a pong behind it can't arrive yet.
+    private var empfangLaeuft = false
+    private let pingAbstand: Duration
+    private let pongFrist: Duration
+    private let nachholFrist: Duration
     private var hintergrundAufgabe: UIBackgroundTaskIdentifier = .invalid
     /// Only `Raum.shared` should rescan disk for interrupted uploads on `start()` — a test's own
     /// `Raum` instance must not touch the real Application Support folder.
@@ -71,7 +77,10 @@ final class Raum {
         warteschlange: Warteschlange = Warteschlange(),
         server: URL? = Raum.plistServer(),
         schluessel: String = Raum.plistSchluessel(),
-        medienBeimStartFortsetzen: Bool = true
+        medienBeimStartFortsetzen: Bool = true,
+        pingAbstand: Duration = .seconds(10),
+        pongFrist: Duration = .seconds(5),
+        nachholFrist: Duration = .seconds(10)
     ) {
         self.transport = transport ?? WebSocketTransport()
         self.log = log
@@ -80,6 +89,9 @@ final class Raum {
         self.appKey = schluessel
         self.eingerichtet = server != nil && !schluessel.isEmpty
         self.medienBeimStartFortsetzen = medienBeimStartFortsetzen
+        self.pingAbstand = pingAbstand
+        self.pongFrist = pongFrist
+        self.nachholFrist = nachholFrist
     }
 
     nonisolated static func plistServer() -> URL? {
@@ -94,14 +106,16 @@ final class Raum {
     // MARK: - Lifecycle
 
     func start() {
+        StartProtokoll.marke("raum.start.funktion.vor")
+        defer { StartProtokoll.marke("raum.start.funktion.nach") }
         guard eingerichtet, ich != nil else { return }
         aktivZustand = true
         hintergrundTask?.cancel(); hintergrundTask = nil
         beendeHintergrundAufgabe()
         reconnectTask?.cancel(); reconnectTask = nil
-        backoff = 1 // explicit start() means "try fresh"; verbinden() itself no longer resets this (I-1)
         if medienBeimStartFortsetzen { Medien.fortsetzen() }
-        guard !verbunden else { return }
+        if verbunden { nachholenAnfordern(); return }
+        backoff = 1 // explicit start() means "try fresh"; verbinden() itself no longer resets this (I-1)
         // Chained (not a bare Task) so `leer()` also waits for the connect + queue flush below.
         reiheOhneWarten { [weak self] in
             guard let self else { return }
@@ -114,6 +128,28 @@ final class Raum {
         }
     }
 
+    func nachholenJetzt() { start() }
+
+    private func nachholenAnfordern() {
+        guard verbunden, !nachholenLaeuft else { return }
+        nachholenLaeuft = true
+        nachholFristStarten(gen: generation)
+        sende(NachholenNachricht(seit: empfangenBisSeq))
+    }
+
+    private func nachholFristStarten(gen: Int) {
+        nachholFristTask?.cancel()
+        let frist = nachholFrist
+        nachholFristTask = Task { @MainActor [weak self, frist] in
+            try? await Task.sleep(for: frist)
+            guard let self, !Task.isCancelled, self.generation == gen, self.nachholenLaeuft else { return }
+            self.nachholAusfaelle += 1
+            self.trennen()
+            if self.nachholAusfaelle == 1 { self.verbinden() }
+            else { self.scheduleReconnect() }
+        }
+    }
+
     /// Call from `scenePhase`: connect when active. `.inactive` (app switcher, Control Center)
     /// disconnects after 30 s. `.background` (`hintergrund`) disconnects right after a short flush
     /// (I-4): while the socket is open the server counts the person as there and sends no push.
@@ -123,6 +159,8 @@ final class Raum {
             start()
             return
         }
+        // Audit #7: the queue writes are coalesced; flush after everything queued so far.
+        reiheOhneWarten { [weak self] in await self?.warteschlange.sichern() }
         if aktivZustand {
             aktivZustand = false
             beendeHintergrundAufgabe() // defensive: never overwrite a still-valid identifier
@@ -175,15 +213,13 @@ final class Raum {
         hintergrundAufgabe = .invalid
     }
 
-    /// Connects (if needed) and waits for a real catch-up — the first page response after
-    /// connecting, or `timeout`, whichever comes first — instead of returning immediately.
+    /// Requests catch-up even on an open socket and waits for a real page or `timeout`.
     /// Meant for a silent push's `didReceiveRemoteNotification`, so iOS doesn't suspend the app
     /// again before anything was actually fetched.
     func nachholenBisFertig(timeout: Duration = .seconds(20)) async {
         guard eingerichtet, ich != nil else { return }
-        if verbunden { return } // already caught up / actively connected, nothing to wait for
-        start()
         let zaehlerVorher = catchUpZaehler
+        nachholenJetzt()
         let deadline = ContinuousClock.now + timeout
         while catchUpZaehler == zaehlerVorher, ContinuousClock.now < deadline {
             try? await Task.sleep(for: .milliseconds(200))
@@ -197,17 +233,20 @@ final class Raum {
             aktivZustand = false
             trennen()
         }
+        await leer()
     }
 
     /// Waits for the `arbeit` chain to fully settle — not just for whatever the tail was at the
     /// moment of the call, but for any further work a running link chains onto it meanwhile.
+    /// Then the queue is on disk (its writes are coalesced, audit #7).
     func leer() async {
         while true {
             let versionVorher = arbeitVersion
-            guard let letzte = arbeit else { return }
+            guard let letzte = arbeit else { break }
             await letzte.value
-            if arbeitVersion == versionVorher { return }
+            if arbeitVersion == versionVorher { break }
         }
+        await warteschlange.sichern()
     }
 
     func httpKonfiguration() -> HttpKonfiguration? {
@@ -278,7 +317,11 @@ final class Raum {
     /// disconnected, same as before.
     func fluechtig<T: Encodable>(_ art: String, _ d: T) {
         guard verbunden else {
-            if art == "standort" { fluechtigPerHttp(art: art, d: d) }
+            // Background: the socket is closed ~30 s after backgrounding. Position and the own
+            // state still reach the partner (the server keeps the last of each for a reconnect).
+            // `karte.offen` too: sent right on foregrounding, before the socket is up, and the
+            // server wakes a backgrounded partner with it.
+            if art == "standort" || art == "zustand" || art == "karte.offen" { fluechtigPerHttp(art: art, d: d) }
             return
         }
         sende(FluechtigNachricht(art: art, d: d))
@@ -306,6 +349,8 @@ final class Raum {
         generation += 1
         let gen = generation
         let headers = ["X-Lovea-Key": appKey, "X-Lovea-Person": ich.rawValue]
+        nachholenLaeuft = true
+        nachholFristStarten(gen: gen)
         transport.verbinden(
             url: url,
             headers: headers,
@@ -323,25 +368,34 @@ final class Raum {
             }
         )
         // NOT backoff = 1 here (I-1): the connection isn't confirmed yet at this point, only
-        // attempted. Resetting here made scheduleReconnect always see backoff == 1, so it never
-        // actually grew past 1 s between retries. It resets on the first received frame instead,
-        // in nachrichtAnwenden — real proof the connection is up.
+        // attempted. A real catch-up page resets backoff in nachrichtAnwenden; pongs cannot
+        // confirm that pending messages were delivered.
         verbunden = true
         if let token = geraeteToken { sende(GeraetNachricht(token: token)) }
         reiheOhneWarten { [weak self] in
             guard let self else { return }
             for op in await self.warteschlange.offen { self.sendeOp(op) }
         }
+        letzterEmpfang = .now
         pingTask?.cancel()
-        pingTask = Task { @MainActor [weak self] in
-            // The server only counts a socket as alive if it heard SOMETHING (ping or any
-            // message) in the last 60 s and pushes are otherwise suppressed for it — 25 s keeps
-            // comfortably inside that. A native WebSocket ping isn't enough: the server can't see
-            // it as a message, so this sends the same JSON text frame it treats a real "ping" as.
+        pingTask = Task { @MainActor [weak self, pingAbstand, pongFrist] in
+            // Raw "ping": the server's auto-response answers "pong" without waking the Durable
+            // Object, and its timestamp keeps the server's 60 s liveness check fresh (so no push
+            // while we're here). No frame at all within `pongFrist` means a dead socket (network
+            // switch, half-open after a suspend): reconnect now instead of sending into it until
+            // iOS gives up on TCP, while the server keeps holding back pushes for us.
             while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(25))
+                try? await Task.sleep(for: pingAbstand)
                 guard !Task.isCancelled, let self, self.generation == gen else { return }
-                self.sende(PingNachricht())
+                let gesendet = ContinuousClock.now
+                self.transport.senden("ping")
+                try? await Task.sleep(for: pongFrist)
+                guard !Task.isCancelled, self.generation == gen else { return }
+                if self.letzterEmpfang < gesendet, !self.empfangLaeuft {
+                    self.trennen()
+                    self.verbinden()
+                    return
+                }
             }
         }
     }
@@ -349,6 +403,8 @@ final class Raum {
     private func trennen() {
         reconnectTask?.cancel(); reconnectTask = nil
         pingTask?.cancel(); pingTask = nil
+        nachholFristTask?.cancel(); nachholFristTask = nil
+        nachholenLaeuft = false
         generation += 1
         transport.trennen()
         verbunden = false
@@ -357,6 +413,9 @@ final class Raum {
     private func getrenntBehandeln(gen: Int) async {
         guard gen == generation else { return }
         pingTask?.cancel(); pingTask = nil
+        nachholFristTask?.cancel(); nachholFristTask = nil
+        nachholenLaeuft = false
+        generation += 1
         verbunden = false
         scheduleReconnect()
     }
@@ -387,6 +446,7 @@ final class Raum {
     /// parsing (a `JSONValue` tree per op, for up to 500 ops on a page) and must NOT run on the
     /// main actor — see the comment at the call site in `verbinden`.
     private nonisolated static func nachrichtDekodieren(_ text: String) -> EingehendeNachricht? {
+        if text == "pong" { return .pong }
         guard let data = text.data(using: .utf8) else { return nil }
         guard let huelle = try? JSONDecoder().decode(TypHuelle.self, from: data) else { return nil }
         switch huelle.t {
@@ -415,9 +475,21 @@ final class Raum {
     /// Applies an already-decoded message. Cheap: actor calls, dictionary lookups, no parsing.
     private func nachrichtAnwenden(_ nachricht: EingehendeNachricht, gen: Int) async {
         guard gen == generation else { return }
-        // Real proof the connection is up — see the comment on backoff in `verbinden` (I-1).
-        backoff = 1
+        // Only a page proves a pending catch-up succeeded; pongs and live ops may still arrive
+        // while the server has not answered our request.
+        if case .ops(_, _, let seite, _) = nachricht, seite {
+            nachholFristTask?.cancel(); nachholFristTask = nil
+            nachholAusfaelle = 0
+            backoff = 1
+        } else if !nachholenLaeuft {
+            backoff = 1
+        }
+        letzterEmpfang = .now
+        empfangLaeuft = true
+        defer { empfangLaeuft = false; letzterEmpfang = .now }
         switch nachricht {
+        case .pong:
+            break
         case .ops(let ops, let mehr, let seite, let hoechsteSeq):
             await reiheUndWarte { [weak self] in
                 guard let self else { return }
@@ -440,11 +512,15 @@ final class Raum {
     /// the whole page even if some ops in it failed to decode (I-3), so one malformed op can't
     /// stall pagination.
     private func opsVerarbeiten(_ ops: [Op], mehr: Bool, seite: Bool, hoechsteSeq: Int?) async {
-        await log.anhaengen(ops)
-        for op in ops { await warteschlange.raus(id: op.id) }
-        await wartetAktualisieren()
+        // UI first, persistence right after (Chat-Tempo-Befund 3): the folds are idempotent by
+        // `Op.id` (see `beobachten`'s contract above), and the paging cursor below only ever moves
+        // AFTER `log.anhaengen` — so a crash between these two lines just means the same ops get
+        // redelivered (log) or re-sent (queue) next time, never lost, never double-shown.
         for op in ops where op.seq != nil { ChatPerf.shared.antwortErhalten(opId: op.id) }
         liefereBatch(ops)
+        await log.anhaengen(ops)
+        await warteschlange.rausBatch(ids: ops.map(\.id))
+        await wartetAktualisieren()
         guard seite else { return }
         if let hoechsteSeq {
             empfangenBisSeq = hoechsteSeq
@@ -452,7 +528,9 @@ final class Raum {
         }
         if mehr {
             if let hoechsteSeq { sende(NachholenNachricht(seit: hoechsteSeq)) }
+            nachholFristStarten(gen: generation)
         } else {
+            nachholenLaeuft = false
             catchUpZaehler += 1
         }
     }
@@ -481,6 +559,10 @@ final class Raum {
 
     private func liefereBatch(_ ops: [Op]) {
         guard !ops.isEmpty else { return }
+        if !erstesBatchMarkiert {
+            erstesBatchMarkiert = true
+            StartProtokoll.marke("raum.erstesBatch.\(ops.count)")
+        }
         for eintrag in stapelBeobachter {
             let treffer = eintrag.arten.isEmpty ? ops : ops.filter { eintrag.arten.contains($0.art) }
             if !treffer.isEmpty { eintrag.f(treffer) }
@@ -514,6 +596,7 @@ private enum EingehendeNachricht: Sendable {
     case fl(Person, String, Data)
     case da(ahmed: Bool, annika: Bool)
     case standort(Person, Data)
+    case pong
 }
 
 private struct TypHuelle: Decodable { let t: String }
@@ -573,6 +656,5 @@ private struct StandortHuelle: Decodable { let person: Person; let d: JSONValue 
 private struct OpNachricht: Encodable { let t = "op"; let op: Op }
 private struct NachholenNachricht: Encodable { let t = "nachholen"; let seit: Int }
 private struct GeraetNachricht: Encodable { let t = "geraet"; let token: String }
-private struct PingNachricht: Encodable { let t = "ping" }
 private struct FluechtigNachricht<D: Encodable>: Encodable { let t = "fl"; let art: String; let d: D }
 private struct FluechtigHttpBody<D: Encodable>: Encodable { let art: String; let d: D }

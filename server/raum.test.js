@@ -154,6 +154,38 @@ test("Push geht raus, sobald der Empfänger-Socket seit über 60s still ist, tro
   assert.match(calls[0].url, /api\.push\.apple\.com/);
 });
 
+// Z-32.1: Antippen einer Chat-Mitteilung springt zur Nachricht -- `art` und `nachrichtId` stehen oben
+// neben `aps`, nur bei `nachricht.*`-Ops mit `d.id`. 25.09.: eine Geste trägt nur `art` (öffnet das
+// Partnerprofil), keine `nachrichtId`.
+test("Push für nachricht.neu und nachricht.reaktion trägt art und nachrichtId, eine Geste nur art", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+
+  const bodies = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    bodies.push(JSON.parse(init.body));
+    return new Response(null, { status: 200 });
+  };
+  try {
+    const zeit = new Date().toISOString();
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-1", art: "nachricht.neu", von: "ahmed", zeit, d: { id: "msg-1", text: "hi" } } }));
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-2", art: "nachricht.reaktion", von: "ahmed", zeit, d: { id: "msg-1", emoji: "figur:lacht" } } }));
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: "op-3", art: "geste", von: "ahmed", zeit, d: { art: "herz" } } }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(bodies.length, 3);
+  assert.equal(bodies[0].art, "nachricht.neu");
+  assert.equal(bodies[0].nachrichtId, "msg-1");
+  assert.equal(bodies[0].aps.alert.body, "Ahmed: hi");
+  assert.deepEqual([bodies[1].art, bodies[1].nachrichtId], ["nachricht.reaktion", "msg-1"]);
+  assert.equal(bodies[2].art, "geste");
+  assert.equal(bodies[2].nachrichtId, undefined);
+  assert.equal(bodies[2].aps.alert.body, "Ahmed denkt gerade an dich");
+});
+
 test("nachholen über offenen Socket liefert Seite wie beim Verbinden", async () => {
   const { raum, websockets } = raumMitVerbindung(["ahmed"]);
   for (let i = 0; i < 3; i++) {
@@ -345,17 +377,62 @@ test("Spotify verbinden + jetzt: Token-Tausch, currently-playing, 20s-Cache", as
     assert.deepEqual(await verbinden.json(), { ok: true });
 
     const jetzt1 = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
-    assert.deepEqual(await jetzt1.json(), { titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
+    assert.deepEqual(await jetzt1.json(), { musik: true, titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
     const anrufeNachErstemJetzt = aufrufe.length;
 
     // Zweiter Abruf sofort danach: aus dem 20s-Cache, kein weiterer fetch.
     const jetzt2 = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
-    assert.deepEqual(await jetzt2.json(), { titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
+    assert.deepEqual(await jetzt2.json(), { musik: true, titel: "Song", kuenstler: "Band", cover: "cover", url: "u" });
     assert.equal(aufrufe.length, anrufeNachErstemJetzt);
 
     // Niemand hat für ahmed verbunden -> {}.
     const ohneVerbindung = await raum.fetch(new Request("https://x/spotify/jetzt?person=ahmed", { headers: { "X-Lovea-Person": "ahmed" } }));
     assert.deepEqual(await ohneVerbindung.json(), {});
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+});
+
+test("Spotify Freigabe: spotify.teilen der Zielperson filtert auf dem Server, trennen loescht den Token", async () => {
+  const ctx = fakeCtx();
+  const raum = new Raum(ctx, { ...fakeEnv(), SPOTIFY_CLIENT_ID: "test-client" });
+  const annikaWs = new FakeWs();
+  ctx.acceptWebSocket(annikaWs, ["annika"]);
+  const echterFetch = globalThis.fetch;
+  let spotifyAufrufe = 0;
+  globalThis.fetch = async (url) => {
+    if (String(url).includes("accounts.spotify.com")) return Response.json({ access_token: "AT", refresh_token: "RT", expires_in: 3600 });
+    spotifyAufrufe += 1;
+    return Response.json({ is_playing: true, item: { name: "Song", artists: [{ name: "Band" }], album: { images: [{ url: "cover" }] }, external_urls: { spotify: "u" } } });
+  };
+  const teilen = (id, wert) =>
+    raum.webSocketMessage(annikaWs, JSON.stringify({ t: "op", op: { id, art: "einstellung.setzen", von: "annika", zeit: new Date().toISOString(), d: { schluessel: "spotify.teilen", wert } } }));
+  const jetzt = async () => (await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }))).json();
+  try {
+    await raum.fetch(
+      new Request("https://x/spotify/verbinden", {
+        method: "POST",
+        headers: { "content-type": "application/json", "X-Lovea-Person": "annika" },
+        body: JSON.stringify({ code: "c", verifier: "v", redirectUri: "lovea://spotify" }),
+      })
+    );
+    await teilen("s1", "kuenstler");
+    assert.deepEqual(await jetzt(), { musik: true, kuenstler: "Band" });
+    await teilen("s2", "musik");
+    assert.deepEqual(await jetzt(), { musik: true }); // aus dem Cache, trotzdem gefiltert
+    await teilen("s3", "aus");
+    const vorher = spotifyAufrufe;
+    assert.deepEqual(await jetzt(), {});
+    assert.equal(spotifyAufrufe, vorher);
+    await teilen("s4", "song");
+    assert.equal((await jetzt()).titel, "Song");
+
+    // Ahmed kann Annikas Verbindung nicht trennen, nur Annika selbst.
+    await raum.fetch(new Request("https://x/spotify/trennen", { method: "POST", headers: { "X-Lovea-Person": "ahmed" } }));
+    assert.equal((await jetzt()).titel, "Song");
+    const trennen = await raum.fetch(new Request("https://x/spotify/trennen", { method: "POST", headers: { "X-Lovea-Person": "annika" } }));
+    assert.equal(trennen.status, 200);
+    assert.deepEqual(await jetzt(), {});
   } finally {
     globalThis.fetch = echterFetch;
   }
@@ -449,4 +526,427 @@ test("alarm(): setzt einen zukünftigen Alarm, wenn ein Treffen ansteht", async 
     })
   );
   assert.ok(ctx._alarms.zeitpunkt > Date.now());
+});
+
+// 27.09. Performance: `karte.offen` ging nur per WebSocket raus. Hat der Partner die App im
+// Hintergrund (Socket zu), kam nie etwas an und sein Standort blieb Minuten alt. Jetzt eine stille
+// Push mit `art`/`an`, die LoveaAppDelegate schon auswertet. Höchstens eine pro Minute.
+test("karte.offen weckt den Partner per stiller Push, wenn er nicht verbunden ist, gedrosselt", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  ctx._trennen(websockets.annika);
+
+  const pushes = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => {
+    pushes.push({ headers: init.headers, body: JSON.parse(init.body) });
+    return new Response(null, { status: 200 });
+  };
+  try {
+    const offen = JSON.stringify({ t: "fl", art: "karte.offen", d: { an: true } });
+    await raum.webSocketMessage(websockets.ahmed, offen);
+    await raum.webSocketMessage(websockets.ahmed, offen);
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "karte.offen", d: { an: false } }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(pushes.length, 1);
+  assert.equal(pushes[0].headers["apns-push-type"], "background");
+  assert.equal(pushes[0].body.art, "karte.offen");
+  assert.equal(pushes[0].body.an, true);
+  assert.equal(pushes[0].body.aps["content-available"], 1);
+});
+
+test("karte.offen: verbundener Partner bekommt es nur per WebSocket, keine Push", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  let pushes = 0;
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async () => { pushes++; return new Response(null, { status: 200 }); };
+  try {
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "fl", art: "karte.offen", d: { an: true } }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(pushes, 0);
+  assert.ok(websockets.annika.gesendet.some((m) => m.t === "fl" && m.art === "karte.offen"));
+});
+
+// 27.09. Ton-Glitch: mehrere laute Pushes kurz hintereinander spielten je ihren Ton, die sich
+// überlappten. Innerhalb von 3 s pro Empfänger geht nur die erste mit Ton raus, der Rest still.
+test("laute Pushes an denselben Empfänger binnen 3 s: nur die erste mit Ton", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+  const bodies = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url, init) => { bodies.push(JSON.parse(init.body)); return new Response(null, { status: 200 }); };
+  try {
+    const zeit = new Date().toISOString();
+    for (const [i, d] of [{ id: "m1", text: "a" }, { id: "m2", text: "b" }].entries()) {
+      await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "op", op: { id: `t-${i}`, art: "nachricht.neu", von: "ahmed", zeit, d } }));
+    }
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(bodies.length, 2);
+  assert.ok(bodies[0].aps.sound);
+  assert.equal(bodies[1].aps.sound, undefined);
+  assert.ok(bodies[1].aps.alert);
+});
+
+// 27.09. Ein Profil auf mehreren Geräten (Annika: iPhone + iPad).
+function zweitesGeraet(ctx, person) {
+  const ws = new FakeWs();
+  ctx.acceptWebSocket(ws, [person]);
+  return ws;
+}
+const opNachricht = (id, art, von, d = { text: "x" }) =>
+  JSON.stringify({ t: "op", op: { id, art, von, zeit: new Date().toISOString(), d } });
+
+test("mehrere Geräte: neue Op geht live auch an die anderen Geräte derselben Person", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "annika");
+  await raum.webSocketMessage(ipad, opNachricht("g1", "zeichnung.stand", "annika", { zeichnungId: "z" }));
+  assert.ok(websockets.annika.gesendet.some((m) => m.t === "ops" && m.ops[0].id === "g1"), "iPhone bekommt es live");
+  assert.ok(websockets.ahmed.gesendet.some((m) => m.t === "ops" && m.ops[0].id === "g1"), "Partner auch");
+  assert.equal(ipad.gesendet.filter((m) => m.t === "ops" && m.ops[0].id === "g1").length, 1, "Absender nur das Echo");
+});
+
+test("mehrere Geräte: galerie.* und entwurf.setzen gehen an eigene Geräte, nie an den Partner", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "annika");
+  await raum.webSocketMessage(ipad, opNachricht("p1", "galerie.stand", "annika", { artworkId: "a" }));
+  await raum.webSocketMessage(ipad, opNachricht("p2", "entwurf.setzen", "annika", { text: "hi" }));
+  const beimIphone = websockets.annika.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.deepEqual(beimIphone.sort(), ["p1", "p2"]);
+  assert.ok(!websockets.ahmed.gesendet.some((m) => m.t === "ops"), "Partner bekommt nichts live");
+  // Und beim Nachholen auch nicht.
+  const neu = new FakeWs();
+  ctx.acceptWebSocket(neu, ["ahmed"]);
+  await raum.webSocketMessage(neu, JSON.stringify({ t: "nachholen", seit: 0 }));
+  const nachgeholt = neu.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.ok(!nachgeholt.includes("p1") && !nachgeholt.includes("p2"));
+});
+
+test("geschenkbox.*: nur der Absender sieht die Wünsche, live und beim Nachholen nie der Partner", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, opNachricht("b1", "geschenkbox.setzen", "annika", { id: "x", text: "Ring" }));
+  await raum.webSocketMessage(websockets.annika, opNachricht("b2", "gefuehl.setzen", "annika", { art: "verliebt" }));
+  const live = websockets.ahmed.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.deepEqual(live, ["b2"], "Stimmung geht an den Partner, die Box nicht");
+  const neu = new FakeWs();
+  ctx.acceptWebSocket(neu, ["ahmed"]);
+  await raum.webSocketMessage(neu, JSON.stringify({ t: "nachholen", seit: 0 }));
+  const nachgeholt = neu.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.ok(nachgeholt.includes("b2") && !nachgeholt.includes("b1"));
+  const eigene = new FakeWs();
+  ctx.acceptWebSocket(eigene, ["annika"]);
+  await raum.webSocketMessage(eigene, JSON.stringify({ t: "nachholen", seit: 0 }));
+  const meine = eigene.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.ok(meine.includes("b1"), "der Absender bekommt seine Box zurück");
+});
+
+test("mehrere Geräte: jedes Gerät hat sein Push-Token, Push nur an Geräte ohne lebende Verbindung", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "annika");
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "a".repeat(64) }));
+  await raum.webSocketMessage(ipad, JSON.stringify({ t: "geraet", token: "b".repeat(64) }));
+  // iPhone ist weg (Hintergrund, Socket zu), iPad liegt offen zu Hause.
+  ctx._trennen(websockets.annika);
+
+  const urls = [];
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async (url) => { urls.push(url); return new Response(null, { status: 200 }); };
+  try {
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("n1", "nachricht.neu", "ahmed", { id: "m1", text: "hi" }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(urls.length, 1, "nur das iPhone bekommt eine Push");
+  assert.match(urls[0], /a{64}$/);
+});
+
+test("mehrere Geräte: abgelaufenes Token löscht nur dieses Gerät", async () => {
+  const { raum, ctx, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "annika");
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "a".repeat(64) }));
+  await raum.webSocketMessage(ipad, JSON.stringify({ t: "geraet", token: "b".repeat(64) }));
+  ctx._trennen(websockets.annika);
+  ctx._trennen(ipad);
+  const echterFetch = globalThis.fetch;
+  const urls = [];
+  globalThis.fetch = async (url) => { urls.push(url); return new Response(null, { status: /a{64}$/.test(url) ? 410 : 200 }); };
+  try {
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("n1", "nachricht.neu", "ahmed", { id: "m1", text: "1" }));
+    urls.length = 0;
+    await new Promise((r) => setTimeout(r, 5)); // Ton-Drossel egal, es geht nur um die Tokens
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("n2", "nachricht.neu", "ahmed", { id: "m2", text: "2" }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(urls.length, 1);
+  assert.match(urls[0], /b{64}$/);
+});
+
+test("GET /agent/*: Nur-Lese-Diagnose ohne Präsenz-Wechsel", async () => {
+  const { raum, websockets } = raumMitVerbindung(["annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "op", op: { id: "a1", art: "nachricht.neu", von: "annika", zeit: "2026-10-08T10:00:00Z", d: { text: "hi" } } }));
+  const vorher = websockets.annika.gesendet.length;
+  const get = (pfad, person = "ahmed") => raum.fetch(new Request(`https://x${pfad}`, { headers: person ? { "X-Lovea-Person": person } : {} }));
+
+  const statistik = await (await get("/agent/statistik")).json();
+  assert.equal(statistik.ops.anzahl, 1);
+  assert.deepEqual(statistik.verbunden, ["annika"]);
+  const ops = await (await get("/agent/ops?art=nachricht.&limit=5")).json();
+  assert.equal(ops.ops[0].d.text, "hi");
+  assert.equal((await (await get("/agent/ping")).json()).ok, true);
+  assert.equal((await get("/agent/merker")).status, 404);
+  assert.equal((await get("/agent/statistik", null)).status, 401);
+  assert.equal(websockets.annika.gesendet.length, vorher, "Annika bekommt keine Präsenz-Meldung");
+});
+
+// Denk an dich: jeder Herz-Tipp wird gespeichert, die Push an den Partner geht höchstens alle 10 Minuten.
+test("geste herz: Push höchstens alle 10 Minuten pro Empfänger, jede Op wird trotzdem gespeichert", async () => {
+  const { raum, websockets } = raumMitVerbindung(["ahmed", "annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+  let pushes = 0;
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async () => { pushes++; return new Response(null, { status: 200 }); };
+  try {
+    for (let i = 0; i < 3; i++) {
+      await raum.webSocketMessage(websockets.ahmed, opNachricht(`herz-${i}`, "geste", "ahmed", { art: "herz" }));
+    }
+    // Eine andere Geste wird von der Herz-Drossel nicht berührt.
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("kuss-1", "geste", "ahmed", { art: "kuss" }));
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+  assert.equal(pushes, 2, "ein Herz plus ein Kuss");
+  const gespeichert = websockets.annika.gesendet.flatMap((m) => (m.t === "ops" ? m.ops.map((o) => o.id) : []));
+  assert.ok(["herz-0", "herz-1", "herz-2"].every((id) => gespeichert.includes(id)), "alle drei Herzen laufen live durch");
+});
+
+test("POST /ops?push=1: Herz aus dem Widget löst eine Push aus, ohne push=1 oder für fremdes von nicht", async () => {
+  const { raum, websockets } = raumMitVerbindung(["annika"]);
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "geraet", token: "0".repeat(64) }));
+  websockets.annika.serializeAttachment({ letzterKontakt: Date.now() - 61_000 });
+  let pushes = 0;
+  const echterFetch = globalThis.fetch;
+  globalThis.fetch = async () => { pushes++; return new Response(null, { status: 200 }); };
+  const post = (pfad, id, von) => raum.fetch(new Request(`https://x/ops${pfad}`, {
+    method: "POST",
+    headers: { "content-type": "application/json", "X-Lovea-Person": "ahmed" },
+    body: JSON.stringify({ ops: [{ id, art: "geste", von, zeit: new Date().toISOString(), d: { art: "herz" } }] }),
+  }));
+  try {
+    await post("", "w-1", "ahmed");
+    assert.equal(pushes, 0, "ohne push=1 keine Push (Migrationsweg)");
+    await post("?push=1", "w-2", "annika");
+    assert.equal(pushes, 0, "fremdes von nie");
+    await post("?push=1", "w-3", "ahmed");
+    assert.equal(pushes, 1);
+    await post("?push=1", "w-3", "ahmed");
+    assert.equal(pushes, 1, "dieselbe id noch einmal: keine zweite Push");
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+});
+
+// --- Health-Coach (POST /coach/frage, Morgen-Nachricht) ------------------------------------------------------
+
+const JETZT_MORGEN = Date.parse("2026-10-12T06:30:00.000Z"); // 08:30 Berlin (Sommerzeit)
+const coachAntwortJson = (text) => Response.json({ status: "completed", output: [{ type: "message", role: "assistant", content: [{ type: "output_text", text }] }] });
+const raumMitCoach = (personen, env = { OPENAI_API_KEY: "sk-test-nicht-echt" }) => {
+  const ctx = fakeCtx();
+  const raum = new Raum(ctx, { ...fakeEnv(), ...env });
+  const websockets = {};
+  for (const person of personen) {
+    websockets[person] = new FakeWs();
+    ctx.acceptWebSocket(websockets[person], [person]);
+  }
+  return { raum, ctx, websockets };
+};
+const coachFrage = (raum, person, body) =>
+  raum.fetch(new Request("https://x/coach/frage", {
+    method: "POST",
+    headers: { "content-type": "application/json", "X-Lovea-Person": person },
+    body: typeof body === "string" ? body : JSON.stringify(body),
+  }));
+const mitFetch = async (fn, lauf) => {
+  const echter = globalThis.fetch;
+  globalThis.fetch = fn;
+  try { return await lauf(); } finally { globalThis.fetch = echter; }
+};
+const coachOpsVon = (ws) => ws.gesendet.filter((m) => m.t === "ops").flatMap((m) => m.ops).filter((o) => o.art === "coach.nachricht");
+
+test("POST /coach/frage: ohne OPENAI_API_KEY 503 nicht eingerichtet, kein Netzaufruf", async () => {
+  const { raum } = raumMitCoach(["ahmed"], {});
+  let aufrufe = 0;
+  const res = await mitFetch(async () => { aufrufe++; return coachAntwortJson("x"); }, () => coachFrage(raum, "ahmed", { text: "Hallo" }));
+  assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { fehler: "nicht eingerichtet" });
+  assert.equal(aufrufe, 0);
+});
+
+test("POST /coach/frage: kaputtes JSON, fehlender Text und unbekannte Person werden abgelehnt", async () => {
+  const { raum } = raumMitCoach(["ahmed"]);
+  assert.equal((await coachFrage(raum, "ahmed", "{kaputt")).status, 400);
+  assert.equal((await coachFrage(raum, "ahmed", {})).status, 400, "Text fehlt");
+  assert.equal((await coachFrage(raum, "fremd", { text: "Hi" })).status, 400);
+});
+
+test("POST /coach/frage: 200 mit Antwort, Frage und Antwort nur an die eigenen Geräte, nie an den Partner", async () => {
+  const { raum, ctx, websockets } = raumMitCoach(["ahmed", "annika"]);
+  const ipad = zweitesGeraet(ctx, "ahmed");
+  const res = await mitFetch(async () => coachAntwortJson("Steigere das Gewicht um 2,5 kg."), () => coachFrage(raum, "ahmed", { text: "Wie trainiere ich Brust?" }));
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { text: "Steigere das Gewicht um 2,5 kg." });
+
+  assert.deepEqual(coachOpsVon(ipad).map((o) => o.d.rolle), ["du", "coach"], "zweites Gerät der Person bekommt beide live");
+  assert.deepEqual(coachOpsVon(websockets.ahmed).map((o) => o.d.rolle), ["du", "coach"]);
+  assert.equal(coachOpsVon(websockets.annika).length, 0, "Partner bekommt nichts live");
+
+  // Nachholen: die Person sieht den Verlauf, der Partner nicht.
+  await raum.webSocketMessage(websockets.annika, JSON.stringify({ t: "nachholen", seit: 0 }));
+  assert.equal(coachOpsVon(websockets.annika).length, 0, "Partner sieht den Coach-Verlauf auch beim Nachholen nicht");
+  const vorher = coachOpsVon(websockets.ahmed).length;
+  await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "nachholen", seit: 0 }));
+  assert.equal(coachOpsVon(websockets.ahmed).length, vorher + 2, "eigenes Nachholen liefert den Verlauf");
+});
+
+test("POST /coach/frage: Tageslimit 30 Aufrufe, danach 429", async () => {
+  const { raum } = raumMitCoach(["ahmed"]);
+  const echtesNow = Date.now;
+  Date.now = () => JETZT_MORGEN; // fester Tag, sonst könnte die Mitternachtsgrenze den Zähler mitten im Test zurücksetzen
+  try {
+    const letzte = await mitFetch(async () => coachAntwortJson("ok"), async () => {
+      for (let i = 0; i < 30; i++) assert.equal((await coachFrage(raum, "ahmed", { text: `Frage ${i}` })).status, 200);
+      return coachFrage(raum, "ahmed", { text: "noch eine" });
+    });
+    assert.equal(letzte.status, 429);
+  } finally {
+    Date.now = echtesNow;
+  }
+});
+
+test("POST /coach/frage: Modellfehler wird 502 ohne Rohantwort und ohne Schlüssel", async () => {
+  const { raum } = raumMitCoach(["ahmed"]);
+  const res = await mitFetch(async () => new Response("GEHEIME-ROHANTWORT sk-test-nicht-echt", { status: 500 }), () => coachFrage(raum, "ahmed", { text: "Hallo" }));
+  assert.equal(res.status, 502);
+  const text = await res.text();
+  assert.ok(!text.includes("GEHEIME-ROHANTWORT") && !text.includes("sk-test-nicht-echt"));
+});
+
+async function morgenLauf(env, { optIn = ["ahmed"], zeitMs = JETZT_MORGEN } = {}) {
+  const { raum, ctx, websockets } = raumMitCoach(["ahmed", "annika"], env);
+  const modell = [];
+  const pushes = [];
+  const echtesNow = Date.now;
+  const token = { ahmed: "a".repeat(64), annika: "b".repeat(64) };
+  try {
+    Date.now = () => zeitMs;
+    for (const person of ["ahmed", "annika"]) await raum.webSocketMessage(websockets[person], JSON.stringify({ t: "geraet", token: token[person] }));
+    for (const person of optIn) await raum.webSocketMessage(websockets[person], opNachricht(`opt-${person}`, "einstellung.setzen", person, { schluessel: "coach.morgen", wert: "1" }));
+    // Jede Nachricht zählt als Lebenszeichen -- erst danach die Sockets "tot" setzen, sonst geht keine Push raus.
+    for (const person of ["ahmed", "annika"]) websockets[person].serializeAttachment({ letzterKontakt: zeitMs - 61_000, token: token[person] });
+    await mitFetch(async (url, init) => {
+      if (String(url).includes("api.openai.com")) { modell.push(JSON.parse(init.body)); return coachAntwortJson("Guten Morgen, dein Bericht."); }
+      pushes.push({ url: String(url), body: JSON.parse(init.body) });
+      return new Response(null, { status: 200 });
+    }, async () => {
+      await raum.alarm();
+      await raum.alarm(); // zweiter Lauf am selben Tag: nichts mehr
+    });
+  } finally {
+    Date.now = echtesNow;
+  }
+  return { raum, ctx, websockets, modell, pushes };
+}
+
+test("Morgen-Nachricht: mit Opt-in und Schlüssel genau eine, Push ohne Inhalt nur an die Person, Op nur an ihre Geräte", async () => {
+  const { websockets, modell, pushes } = await morgenLauf({ OPENAI_API_KEY: "sk-test-nicht-echt" });
+  assert.equal(modell.length, 1, "ein Modellaufruf, einmal je Person und Tag");
+  const coachPushes = pushes.filter((p) => p.body.art === "coach.nachricht");
+  assert.equal(coachPushes.length, 1);
+  assert.ok(coachPushes[0].url.endsWith("a".repeat(64)), "nur Ahmeds Gerät");
+  assert.equal(coachPushes[0].body.aps.alert.body, "Dein Coach hat geschrieben");
+  assert.ok(!JSON.stringify(coachPushes[0].body).includes("Guten Morgen"), "kein Coach-Text in der Push");
+  assert.deepEqual(coachOpsVon(websockets.ahmed).map((o) => o.d.text), ["Guten Morgen, dein Bericht."]);
+  assert.equal(coachOpsVon(websockets.annika).length, 0);
+});
+
+test("Morgen-Nachricht: ohne Opt-in oder ohne Schlüssel kein Modellaufruf und keine Push", async () => {
+  const ohneOptIn = await morgenLauf({ OPENAI_API_KEY: "sk-test-nicht-echt" }, { optIn: [] });
+  assert.equal(ohneOptIn.modell.length, 0);
+  assert.ok(!ohneOptIn.pushes.some((p) => p.body.art === "coach.nachricht"));
+  const ohneSchluessel = await morgenLauf({}, { optIn: ["ahmed"] });
+  assert.equal(ohneSchluessel.modell.length, 0);
+  assert.ok(!ohneSchluessel.pushes.some((p) => p.body.art === "coach.nachricht"));
+});
+
+test("Morgen-Nachricht: mitteilungen.coach = false unterdrückt die Push, die Nachricht liegt trotzdem im Chat", async () => {
+  const { raum, websockets } = raumMitCoach(["ahmed"]);
+  const pushes = [];
+  const echtesNow = Date.now;
+  try {
+    Date.now = () => JETZT_MORGEN;
+    await raum.webSocketMessage(websockets.ahmed, JSON.stringify({ t: "geraet", token: "a".repeat(64) }));
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("o1", "einstellung.setzen", "ahmed", { schluessel: "coach.morgen", wert: "1" }));
+    await raum.webSocketMessage(websockets.ahmed, opNachricht("o2", "einstellung.setzen", "ahmed", { schluessel: "mitteilungen.coach", wert: false }));
+    websockets.ahmed.serializeAttachment({ letzterKontakt: JETZT_MORGEN - 61_000, token: "a".repeat(64) }); // "tot": ohne die Einstellung ginge eine Push raus
+    await mitFetch(async (url, init) => {
+      if (String(url).includes("api.openai.com")) return coachAntwortJson("Guten Morgen.");
+      pushes.push(JSON.parse(init.body));
+      return new Response(null, { status: 200 });
+    }, () => raum.alarm());
+  } finally {
+    Date.now = echtesNow;
+  }
+  assert.ok(!pushes.some((b) => b.art === "coach.nachricht"));
+  assert.ok(coachOpsVon(websockets.ahmed).length === 1);
+});
+
+test("Spotify Fehler sichtbar: Token-Tausch nennt Spotifys Grund, 403 geht als fehler durch, /spotify/status zeigt ihn dem Inhaber", async () => {
+  const ctx = fakeCtx();
+  const raum = new Raum(ctx, { ...fakeEnv(), SPOTIFY_CLIENT_ID: "test-client" });
+  const echterFetch = globalThis.fetch;
+  const annika = { "X-Lovea-Person": "annika" };
+  const verbinden = () =>
+    raum.fetch(new Request("https://x/spotify/verbinden", { method: "POST", headers: { "content-type": "application/json", ...annika }, body: JSON.stringify({ code: "c", verifier: "v", redirectUri: "lovea://spotify" }) }));
+  try {
+    // 1. Spotify lehnt den Tausch ab (falsche Client-ID): 502 mit dem Grund statt stummem Fehlschlag.
+    globalThis.fetch = async () => Response.json({ error: "invalid_client" }, { status: 400 });
+    const abgelehnt = await verbinden();
+    assert.equal(abgelehnt.status, 502);
+    assert.deepEqual(await abgelehnt.json(), { fehler: "tausch fehlgeschlagen", grund: "invalid_client" });
+    assert.deepEqual(await (await raum.fetch(new Request("https://x/spotify/status", { headers: annika }))).json(), { verbunden: false });
+
+    // 2. Tausch klappt, aber currently-playing antwortet 403 (Konto nicht im Dashboard freigeschaltet).
+    globalThis.fetch = async (url) =>
+      String(url).includes("accounts.spotify.com") ? Response.json({ access_token: "AT", refresh_token: "RT", expires_in: 3600 }) : new Response(null, { status: 403 });
+    assert.equal((await verbinden()).status, 200);
+    const jetzt = await raum.fetch(new Request("https://x/spotify/jetzt?person=annika", { headers: { "X-Lovea-Person": "ahmed" } }));
+    assert.deepEqual(await jetzt.json(), { fehler: "nicht-freigeschaltet" });
+    const status = await raum.fetch(new Request("https://x/spotify/status", { headers: annika }));
+    assert.deepEqual(await status.json(), { verbunden: true, fehler: "nicht-freigeschaltet" });
+
+    // 3. Neu verbinden räumt den alten Fehler aus dem Cache; jetzt läuft ein Song.
+    globalThis.fetch = async (url) =>
+      String(url).includes("accounts.spotify.com")
+        ? Response.json({ access_token: "AT", refresh_token: "RT", expires_in: 3600 })
+        : Response.json({ is_playing: true, item: { name: "Song", artists: [{ name: "Band" }], album: { images: [] }, external_urls: {} } });
+    await verbinden();
+    const danach = await raum.fetch(new Request("https://x/spotify/status", { headers: annika }));
+    assert.deepEqual(await danach.json(), { verbunden: true });
+  } finally {
+    globalThis.fetch = echterFetch;
+  }
+});
+
+test("GET /spotify/status ohne SPOTIFY_CLIENT_ID: nicht-eingerichtet", async () => {
+  const raum = new Raum(fakeCtx(), fakeEnv());
+  const res = await raum.fetch(new Request("https://x/spotify/status", { headers: { "X-Lovea-Person": "ahmed" } }));
+  assert.deepEqual(await res.json(), { verbunden: false, fehler: "nicht-eingerichtet" });
 });

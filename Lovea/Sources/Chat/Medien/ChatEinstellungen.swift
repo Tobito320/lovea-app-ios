@@ -2,11 +2,9 @@ import Foundation
 import Observation
 
 /// Per-person chat settings folded from `einstellung.setzen` (schnittstellen.md: "pro `von`").
-/// Only owns the `favoriten` and `hintergrund` keys (Z-5.3/Z-5.4) — other keys (`flamme`,
-/// `mitteilungen.*`, `wochenplan.zeiten`, …) belong to other blocks and are ignored here.
-/// Not registered anywhere yet: Block 5's report asks the app controller to add
-/// `ChatEinstellungen.shared` next to the other folds in `LoveaApp.swift`. Until then this still
-/// works standalone — `beobachten` replays full history to any observer as soon as one exists.
+/// Only owns the `favoriten` key (Z-5.3) — other keys (`chat.backdrop`, `mitteilungen.*`, …) belong
+/// to other folds, and the old per-person `hintergrund` (replaced by the shared backdrop, Z-34.1)
+/// is simply ignored now.
 @MainActor
 @Observable
 final class ChatEinstellungen {
@@ -24,19 +22,7 @@ final class ChatEinstellungen {
         var id: String { "\(art.rawValue):\(wert)" }
     }
 
-    enum HintergrundArt: String, Codable, Equatable, Sendable { case farbe, foto, zeichnung }
-
-    struct Hintergrund: Codable, Equatable, Sendable {
-        var art: HintergrundArt
-        var farbe: RGBAColor?
-        var medienId: String?
-        var abgedunkelt = false
-
-        static let standard = Hintergrund(art: .farbe, farbe: nil, medienId: nil, abgedunkelt: false)
-    }
-
     private(set) var favoritenProPerson: [Person: [FavoritEintrag]] = [:]
-    private(set) var hintergrundProPerson: [Person: Hintergrund] = [:]
     private let registrieren: Bool
 
     init(registrieren: Bool = true) {
@@ -48,21 +34,12 @@ final class ChatEinstellungen {
     func anwenden(_ ops: [Op]) { for op in ops { anwendenEins(op) } }
 
     private func anwendenEins(_ op: Op) {
-        guard let schluessel = op.daten(SchluesselHuelle.self)?.schluessel else { return }
-        switch schluessel {
-        case "favoriten":
-            guard let p = op.daten(EinstellungPayload<[FavoritEintrag]>.self) else { return }
-            favoritenProPerson[op.von] = p.wert
-        case "hintergrund":
-            guard let p = op.daten(EinstellungPayload<Hintergrund>.self) else { return }
-            hintergrundProPerson[op.von] = p.wert
-        default:
-            break
-        }
+        guard op.daten(SchluesselHuelle.self)?.schluessel == "favoriten",
+              let p = op.daten(EinstellungPayload<[FavoritEintrag]>.self) else { return }
+        favoritenProPerson[op.von] = p.wert
     }
 
     func favoriten(_ ich: Person) -> [FavoritEintrag] { favoritenProPerson[ich] ?? [] }
-    func hintergrund(_ ich: Person) -> Hintergrund { hintergrundProPerson[ich] ?? .standard }
 
     func favoritSchalten(_ eintrag: FavoritEintrag, ich: Person) {
         var liste = favoriten(ich)
@@ -73,11 +50,6 @@ final class ChatEinstellungen {
         }
         favoritenProPerson[ich] = liste // optimistic, matches the echo that follows
         Raum.shared.senden("einstellung.setzen", EinstellungPayload(schluessel: "favoriten", wert: liste))
-    }
-
-    func hintergrundSetzen(_ neu: Hintergrund, ich: Person) {
-        hintergrundProPerson[ich] = neu
-        Raum.shared.senden("einstellung.setzen", EinstellungPayload(schluessel: "hintergrund", wert: neu))
     }
 }
 

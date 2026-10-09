@@ -7,6 +7,21 @@ import UserNotifications
 /// class only wires the plumbing once permission exists.
 final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil) -> Bool {
+        // R3 (Coordinator-Korrektur, Ahmed: die App stirbt oft VOR jeder UI): nicht auf eine Szene
+        // warten, sondern HIER zählen, wenn der Nutzer die App wirklich geöffnet hat (`!= .background`
+        // -- ein Silent-Push-/HealthKit-Relaunch bleibt im Hintergrund und zählt hier nicht, sondern
+        // erst über `LoveaApp`s Szene-`onAppear`, falls er doch noch in den Vordergrund kommt). VOR
+        // dem Zählen lesen, damit dieser Start denselben Sicherheitsmodus-Stand sieht wie `LoveaApp.
+        // init` (das vorher lief) — ein Zählen davor könnte ihn mitten in dieser Funktion umkippen.
+        let abgesichert = StartProtokoll.abgesichert
+        if application.applicationState != .background {
+            StartProtokoll.unsauberZaehlen()
+        }
+        // R3 (Build 78, Sicherheitsmodus): nach >= 2 Abstürzen in Folge WIRKLICH NICHTS starten,
+        // auch nicht Push-Registrierung/-Kategorien — sonst crasht ein Hintergrund-Relaunch weiter.
+        guard !abgesichert else { return true }
+        // Knopf der Gym-Live-Aktivität: hier nur die Closure setzen, gearbeitet wird erst beim Tippen.
+        GymSchrittIntent.ausfuehren = { await WorkoutAktion.schritt() }
         UNUserNotificationCenter.current().delegate = self
         let namen = ["chat", "snap", "geste", "kalender", "orte", "zeichnen", "spiele"]
         let kategorien = Set(namen.map { UNNotificationCategory(identifier: $0, actions: [], intentIdentifiers: [], options: []) })
@@ -30,13 +45,13 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
 
     /// Silent push: connect and wait for a real catch-up (not just fire `start()` and return
     /// immediately — iOS can suspend the app again before anything was actually fetched).
-    /// `userInfo["art"] == "karte.offen"` starts live location via `Raum.shared.onKarteOffen`,
-    /// which the Karte/Orte block sets — the exact payload keys (`art`/`an`) aren't confirmed
-    /// against a server push yet, see the note on `Raum.onKarteOffen`.
+    /// `userInfo["art"] == "karte.offen"` (server `#karteWecken`): the partner opened the map, so
+    /// start live location here too, even from the background.
     func application(_ application: UIApplication, didReceiveRemoteNotification userInfo: [AnyHashable: Any]) async -> UIBackgroundFetchResult {
+        guard !StartProtokoll.abgesichert else { return .noData } // R3: Sicherheitsmodus, nichts starten.
         if let art = userInfo["art"] as? String, art == "karte.offen" {
             let an = (userInfo["an"] as? Bool) ?? true
-            Raum.shared.onKarteOffen?(an)
+            Standort.shared.karteOffen(an)
         }
         await Raum.shared.nachholenBisFertig()
         return .newData
@@ -51,9 +66,18 @@ final class LoveaAppDelegate: NSObject, UIApplicationDelegate, UNUserNotificatio
     // Completion-handler form, completed on the main thread: the async variant hands the
     // system's completion back on a background executor, which crashed on tapping a notification.
     nonisolated func userNotificationCenter(_ center: UNUserNotificationCenter, didReceive response: UNNotificationResponse, withCompletionHandler completionHandler: @escaping () -> Void) {
+        // Z-32.1: plain Strings out of `userInfo` here, so nothing non-Sendable crosses to main.
+        let info = response.notification.request.content.userInfo
+        let nachrichtId = info["nachrichtId"] as? String
+        let art = info["art"] as? String
         let fertig = AbschlussBox(completionHandler)
         DispatchQueue.main.async {
-            MainActor.assumeIsolated { Raum.shared.start() }
+            MainActor.assumeIsolated {
+                if !StartProtokoll.abgesichert { // R3: Sicherheitsmodus, nichts starten.
+                    Raum.shared.nachholenJetzt()
+                    AppNavigation.shared.mitteilungGeoeffnet(nachrichtId: nachrichtId, art: art)
+                }
+            }
             fertig.aufrufen()
         }
     }

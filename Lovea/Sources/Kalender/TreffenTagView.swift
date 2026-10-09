@@ -1,175 +1,152 @@
 import SwiftUI
+import TipKit
 
-/// Z-9.6 Treffen-Tag: Herz, Uhrzeit, „Was machen wir", Notizen beider mit Namen, Checkliste,
-/// dazu Im-/Export mit dem iPhone-Kalender.
+/// Treffen-Tag als dünne Hülle um zwei Ansichten: lesen (`TreffenLesenInhalt`, Standard) und bearbeiten
+/// (`TreffenBearbeitenInhalt`, Menü „Bearbeiten"). Gesendet wird im Bearbeiten-Modus erst mit „Fertig":
+/// `treffen.setzen` für Titel und von bis, die Punkte über `TreffenPunktSender`. Die alten Notizen
+/// stehen weiter im Log, werden aber nicht mehr angezeigt.
 struct TreffenTagView: View {
     let datum: String
     let kalender = KalenderModell.shared
+    let geheim = TreffenGeheimModell.shared
+    @Environment(\.dismiss) private var dismiss
 
-    @State private var wasMachenWir = ""
-    @State private var hatZeit = false
-    @State private var uhrzeit = Date()
+    @State private var bearbeiten = false
+    @State private var treffen = TreffenBearbeitung(titel: "", von: nil, bis: nil)
+    /// Stand beim Öffnen des Bearbeiten-Modus, siehe `TreffenBearbeitung.op`.
+    @State private var basis = TreffenBearbeitung(titel: "", von: nil, bis: nil)
+    @State private var punkte: [PunktBearbeitung] = []
+    @State private var ursprung: [PunktBearbeitung] = []
+    @State private var offen: String?
     @State private var neueAufgabe = ""
-    @State private var neueNotiz = ""
     @State private var zeigtExport = false
-    @State private var zeigtImport = false
+    @State private var fragtAbsage = false
 
+    private var ich: Person { Raum.shared.ich ?? .ahmed }
     private var eintrag: KalenderModell.TreffenEintrag? { kalender.zustand.treffenText[datum] }
     private var checkliste: [KalenderModell.ChecklistEintrag] { kalender.zustand.checklisten[datum] ?? [] }
-    private var ich: Person { Raum.shared.ich ?? .ahmed }
+    private var gespeichert: Treffen {
+        kalender.zustand.daten.treffen.last { $0.datum == datum } ?? Treffen(datum: datum, uhrzeit: nil, wasMachenWir: nil, bis: nil)
+    }
 
     var body: some View {
+        let jetzt = Date()
+        let alle = treffenPunkte(datum: datum, ich: ich, jetzt: jetzt)
+        let zeit = TreffenLogik.zeitraum(treffen: gespeichert, punkte: alle)
         ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Label(Datum.anzeige(datum), systemImage: "heart.fill")
-                    .font(.title3.weight(.semibold))
-                    .foregroundStyle(Color.loveaRose)
-                    .accessibilityAddTraits(.isHeader)
-
-                if let vorherige = eintrag?.vorherige {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text("Vorherige Fassung von \(vorherige.von.name)")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Text(vorherige.text)
-                            .font(.callout)
-                    }
-                    .padding(10)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 10))
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Was machen wir")
-                        .font(.subheadline.weight(.semibold))
-                    TextField("z. B. Kino", text: $wasMachenWir)
-                        .textFieldStyle(.roundedBorder)
-                        .onSubmit { senden() }
-                    Toggle("Mit Uhrzeit", isOn: $hatZeit)
-                    if hatZeit {
-                        DatePicker("Uhrzeit", selection: $uhrzeit, displayedComponents: .hourAndMinute)
-                    }
-                    Button("Sichern") { senden() }
-                        .buttonStyle(.borderedProminent)
-                        .tint(Color.loveaRose)
-                        .disabled(wasMachenWir.trimmingCharacters(in: .whitespaces).isEmpty)
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Notizen")
-                        .font(.subheadline.weight(.semibold))
-                    ForEach(Person.allCases, id: \.self) { person in
-                        notizZeile(person)
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("Checkliste")
-                        .font(.subheadline.weight(.semibold))
-                    ForEach(checkliste) { aufgabe in
-                        checklistZeile(aufgabe)
-                    }
-                    HStack {
-                        TextField("Neuer Punkt", text: $neueAufgabe)
-                            .textFieldStyle(.roundedBorder)
-                            .onSubmit { aufgabeHinzufuegen() }
-                        Button("Hinzufügen", action: aufgabeHinzufuegen)
-                            .disabled(neueAufgabe.trimmingCharacters(in: .whitespaces).isEmpty)
-                    }
-                }
-
-                HStack(spacing: 10) {
-                    Button("Zum iPhone-Kalender") { zeigtExport = true }
-                        .buttonStyle(.bordered)
-                    Button("Aus iPhone-Kalender holen") { zeigtImport = true }
-                        .buttonStyle(.bordered)
-                }
-                .frame(minHeight: 44)
-            }
-            .padding()
-        }
-        .navigationTitle("Treffen")
-        .navigationBarTitleDisplayMode(.inline)
-        .onAppear {
-            wasMachenWir = eintrag?.text ?? ""
-            if let uhrzeitText = eintrag?.uhrzeit { hatZeit = true; uhrzeit = IPhoneKalenderDatum.kombiniert(datum, uhrzeitText) }
-        }
-        .sheet(isPresented: $zeigtExport) {
-            let start = IPhoneKalenderDatum.kombiniert(datum, hatZeit ? Self.uhrzeitText(uhrzeit) : nil)
-            IPhoneKalenderExportBlatt(titel: wasMachenWir.isEmpty ? "Treffen" : wasMachenWir, start: start, ende: start.addingTimeInterval(2 * 60 * 60))
-        }
-        .sheet(isPresented: $zeigtImport) { IPhoneKalenderImport(datum: datum) }
-    }
-
-    private func notizZeile(_ person: Person) -> some View {
-        let gespeichert = kalender.zustand.notizen[datum]?[person]
-        return VStack(alignment: .leading, spacing: 4) {
-            Text(person.name)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(Color.person(person))
-            if person == ich {
-                TextField("Deine Notiz", text: $neueNotiz)
-                    .textFieldStyle(.roundedBorder)
-                    .onAppear { if neueNotiz.isEmpty { neueNotiz = gespeichert ?? "" } }
-                    .onSubmit {
-                        Raum.shared.senden("notiz.setzen", ["datum": datum, "text": neueNotiz])
-                    }
+            if bearbeiten {
+                TreffenBearbeitenInhalt(
+                    datum: datum, partner: ich.partner, jetzt: jetzt, treffen: $treffen, punkte: $punkte, offen: $offen,
+                    checkliste: checkliste, neueAufgabe: $neueAufgabe,
+                    abhaken: abhaken, aufgabeLoeschen: aufgabeLoeschen, aufgabeHinzufuegen: aufgabeHinzufuegen,
+                    jetztFreigeben: { TreffenPunktSender.jetztFreigeben(id: $0) }
+                )
+                .padding(.top, 8)
+                .frame(maxWidth: 720)
+                .frame(maxWidth: .infinity)
             } else {
-                Text(gespeichert?.isEmpty == false ? gespeichert! : "Noch keine Notiz")
-                    .font(.callout)
-                    .foregroundStyle(gespeichert == nil ? .secondary : .primary)
+                TreffenLesenInhalt(
+                    datum: datum, titel: gespeichert.wasMachenWir ?? "", von: zeit.von, bis: zeit.bis,
+                    punkte: alle, ich: ich, jetzt: jetzt, vorherige: eintrag?.vorherige,
+                    checkliste: checkliste, abhaken: abhaken
+                )
             }
+        }
+        .scrollDismissesKeyboard(.interactively)
+        .navigationTitle(bearbeiten ? "Bearbeiten" : "")
+        .navigationBarTitleDisplayMode(.inline)
+        .navigationBarBackButtonHidden(bearbeiten)
+        .toolbar {
+            if bearbeiten {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Abbrechen") { bearbeiten = false }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Fertig", action: fertig)
+                        .fontWeight(.semibold)
+                }
+            } else {
+                ToolbarItem(placement: .primaryAction) { mehr }
+            }
+        }
+        .sheet(isPresented: $zeigtExport) { exportBlatt }
+        .confirmationDialog("Treffen absagen?", isPresented: $fragtAbsage, titleVisibility: .visible) {
+            Button("Treffen absagen", role: .destructive, action: absagen)
+        } message: {
+            Text("Das Herz verschwindet für euch beide aus dem Kalender.")
         }
     }
 
-    private func checklistZeile(_ aufgabe: KalenderModell.ChecklistEintrag) -> some View {
-        HStack {
-            Button {
-                Raum.shared.senden("checkliste.setzen", CheckOp(datum: datum, id: aufgabe.id, text: aufgabe.text, erledigt: !aufgabe.erledigt))
-            } label: {
-                Image(systemName: aufgabe.erledigt ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(aufgabe.erledigt ? Color.loveaRose : .secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
+    private var mehr: some View {
+        Menu {
+            Button("Bearbeiten", systemImage: "pencil", action: beginneBearbeiten)
+            Button("Zum iPhone-Kalender", systemImage: "calendar.badge.plus") { zeigtExport = true }
+            if eintrag != nil {
+                Button("Treffen absagen", systemImage: "heart.slash", role: .destructive) { fragtAbsage = true }
             }
-            .accessibilityLabel(aufgabe.text)
-            .accessibilityValue(aufgabe.erledigt ? "erledigt" : "offen")
-            Text(aufgabe.text)
-                .strikethrough(aufgabe.erledigt)
-                .foregroundStyle(aufgabe.erledigt ? .secondary : .primary)
-                .accessibilityHidden(true)
-            Spacer()
-            Button {
-                Raum.shared.senden("checkliste.loeschen", ["datum": datum, "id": aufgabe.id])
-            } label: {
-                Image(systemName: "trash")
-                    .foregroundStyle(.secondary)
-                    .frame(width: 44, height: 44)
-                    .contentShape(Rectangle())
-            }
-            .accessibilityLabel("„\(aufgabe.text)“ löschen")
+        } label: {
+            Label("Mehr", systemImage: "ellipsis.circle")
+                .frame(minWidth: 44, minHeight: 44)
         }
-        .buttonStyle(.plain)
+        .popoverTip(TreffenMehrTip())
+    }
+
+    private var exportBlatt: some View {
+        let z = TreffenLogik.zeitraum(treffen: gespeichert, punkte: treffenPunkte(datum: datum, ich: ich, jetzt: Date()))
+        let start = IPhoneKalenderDatum.kombiniert(datum, z.von)
+        let ende = TreffenAnsichtWerte.exportEnde(start: start, bis: z.bis.map { IPhoneKalenderDatum.kombiniert(datum, $0) })
+        let titel = gespeichert.wasMachenWir ?? ""
+        return IPhoneKalenderExportBlatt(titel: titel.isEmpty ? "Treffen" : titel, start: start, ende: ende)
+    }
+
+    // MARK: - Bearbeiten
+
+    private func beginneBearbeiten() {
+        let jetzt = Date()
+        let t = gespeichert
+        treffen = TreffenBearbeitung(titel: t.wasMachenWir ?? "", von: t.uhrzeit, bis: t.bis)
+        basis = treffen
+        punkte = treffenPunkte(datum: datum, ich: ich, jetzt: jetzt).map {
+            PunktBearbeitung($0, ansicht: TreffenLogik.ansicht($0, ich: ich, jetzt: jetzt), geheim: geheim.punkte[$0.id])
+        }
+        ursprung = punkte
+        offen = nil
+        bearbeiten = true
+    }
+
+    private func fertig() {
+        if let d = treffen.op(datum: datum, seit: basis) { Raum.shared.senden("treffen.setzen", d) }
+        let aenderung = PunktAenderung.berechnen(ursprung: ursprung, jetzt: punkte)
+        for p in aenderung.speichern { TreffenPunktSender.speichern(p.entwurf(datum: datum)) }
+        for id in aenderung.loeschen { TreffenPunktSender.loeschen(datum: datum, id: id) }
+        Haptik.erfolg()
+        bearbeiten = false
+    }
+
+    private func absagen() {
+        Raum.shared.senden("treffen.loeschen", ["datum": datum])
+        Haptik.leicht()
+        dismiss()
+    }
+
+    // MARK: - Checkliste
+
+    private func abhaken(_ aufgabe: KalenderModell.ChecklistEintrag) {
+        if !aufgabe.erledigt { Haptik.erfolg() }
+        Raum.shared.senden("checkliste.setzen", CheckOp(datum: datum, id: aufgabe.id, text: aufgabe.text, erledigt: !aufgabe.erledigt))
+    }
+
+    private func aufgabeLoeschen(_ aufgabe: KalenderModell.ChecklistEintrag) {
+        Raum.shared.senden("checkliste.loeschen", ["datum": datum, "id": aufgabe.id])
     }
 
     private func aufgabeHinzufuegen() {
         let text = neueAufgabe.trimmingCharacters(in: .whitespaces)
         guard !text.isEmpty else { return }
         Raum.shared.senden("checkliste.setzen", CheckOp(datum: datum, id: UUID().uuidString, text: text, erledigt: false))
+        Haptik.leicht()
         neueAufgabe = ""
-    }
-
-    private func senden() {
-        let text = wasMachenWir.trimmingCharacters(in: .whitespaces)
-        guard !text.isEmpty else { return }
-        Raum.shared.senden("treffen.setzen", TreffenOp(datum: datum, uhrzeit: hatZeit ? Self.uhrzeitText(uhrzeit) : nil, wasMachenWir: text))
-    }
-
-    private static func uhrzeitText(_ datum: Date) -> String {
-        let komponenten = Datum.kalender.dateComponents([.hour, .minute], from: datum)
-        return String(format: "%02d:%02d", komponenten.hour ?? 0, komponenten.minute ?? 0)
     }
 }
 
-private struct TreffenOp: Codable { var datum: String; var uhrzeit: String?; var wasMachenWir: String? }
 private struct CheckOp: Codable { var datum: String; var id: String; var text: String; var erledigt: Bool }

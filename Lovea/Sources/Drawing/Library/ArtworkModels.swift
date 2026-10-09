@@ -24,6 +24,16 @@ enum CanvasBackground: Codable, Equatable, Sendable {
     case dark
     case transparent
     case color(RGBAColor)
+
+    /// Solid paper color for the eyedropper on empty pixels. `nil` for transparent paper (nothing to pick).
+    var paperColor: RGBAColor? {
+        switch self {
+        case .white: RGBAColor(red: 1, green: 1, blue: 1)
+        case .dark: RGBAColor(red: 0.07, green: 0.07, blue: 0.07)
+        case .color(let c): RGBAColor(red: c.red, green: c.green, blue: c.blue)
+        case .transparent: nil
+        }
+    }
 }
 
 enum ArtworkFormat: String, CaseIterable, Codable, Identifiable, Sendable {

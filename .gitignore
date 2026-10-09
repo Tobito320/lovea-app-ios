@@ -17,3 +17,12 @@ signing/
 .claude/
 Lovea/Info.plist
 LoveaWidgets/Info.plist
+render-galerie/
+
+# ExerciseDB GIFs, only for tools/uebungen-katalog.sh (the app loads them on demand)
+tools/gifs/
+
+# BLS 4.0 (Max Rubner-Institut), nur Rohdaten fuer tools/bls-import/bls_import.py
+tools/bls-import/*.xlsx
+tools/bls-import/*.pdf
+.firecrawl/

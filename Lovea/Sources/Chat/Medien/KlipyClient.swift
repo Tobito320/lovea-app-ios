@@ -29,6 +29,26 @@ enum KlipyClient {
         return parse(data)
     }
 
+    /// Masonry (fix round 2): two columns, each GIF goes into the currently shorter one, heights
+    /// measured relative to the column width. A GIF without a size counts as square.
+    nonisolated static func spalten(_ gifs: [Gif]) -> (links: [Gif], rechts: [Gif]) {
+        var links: [Gif] = []
+        var rechts: [Gif] = []
+        var hoeheLinks = 0.0
+        var hoeheRechts = 0.0
+        for gif in gifs {
+            let hoehe = gif.breite > 0 && gif.hoehe > 0 ? gif.hoehe / gif.breite : 1
+            if hoeheLinks <= hoeheRechts {
+                links.append(gif)
+                hoeheLinks += hoehe
+            } else {
+                rechts.append(gif)
+                hoeheRechts += hoehe
+            }
+        }
+        return (links, rechts)
+    }
+
     /// Pure parse of Klipy's JSON — testable without the network. Prefers `md`, falls back to
     /// `sm`/`hd`; skips any entry without at least a usable URL.
     nonisolated static func parse(_ data: Data) -> [Gif] {

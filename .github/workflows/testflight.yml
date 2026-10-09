@@ -119,6 +119,8 @@ jobs:
             <string>$DEVELOPMENT_TEAM</string>
             <key>signingStyle</key>
             <string>manual</string>
+            <key>stripSwiftSymbols</key>
+            <false/>
             <key>provisioningProfiles</key>
             <dict>
               <key>com.onlyus.lovea</key>

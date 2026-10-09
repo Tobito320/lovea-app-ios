@@ -1,0 +1,165 @@
+import CoreGraphics
+import Foundation
+
+/// p58: the shared home scene in the profile. This file is only logic, no drawing: the hour picks the
+/// time of day, the time of day picks who stands where, and every 20 to 60 s the next step follows.
+/// The scene (`ZuhauseBuehne`) just reads it, so every rule here has a test.
+enum Tageszeit: CaseIterable, Sendable {
+    case morgen, tag, abend, nacht
+
+    /// `stunde` 0 to 23, Berlin: 7 to 11 morning, 11 to 19 day, 19 to 22 evening, the rest night.
+    init(stunde: Int) {
+        switch stunde {
+        case 7..<11: self = .morgen
+        case 11..<19: self = .tag
+        case 19..<22: self = .abend
+        default: self = .nacht
+        }
+    }
+
+    static func um(_ datum: Date) -> Tageszeit {
+        Tageszeit(stunde: Calendar.berlin.component(.hour, from: datum))
+    }
+
+    /// The hours a time of day begins; the next one ends the current.
+    static let grenzen = [7, 11, 19, 22]
+
+    /// Dark room, lit lamp, moon in the window.
+    var dunkel: Bool { self == .nacht || self == .abend }
+
+    /// Seconds until the next time of day starts (`stunde` and `minute` as the clock shows).
+    static func sekundenBisWechsel(stunde: Int, minute: Int) -> TimeInterval {
+        let jetzt = stunde * 60 + minute
+        let naechste = grenzen.map { $0 * 60 }.first { $0 > jetzt } ?? (grenzen[0] * 60 + 24 * 60)
+        return TimeInterval((naechste - jetzt) * 60)
+    }
+}
+
+/// Where someone can be. `bett`: lying or sitting in it (the walk ends at its edge).
+enum Platz: CaseIterable, Sendable {
+    case bett, sofa, fenster, blumen
+}
+
+/// A small gesture of Annika's after she arrived.
+enum ZuhauseGeste: Sendable {
+    case winken, herz, kuss
+}
+
+struct Aufstellung: Equatable, Sendable {
+    var annika: Platz
+    var ahmed: Platz
+    var geste: ZuhauseGeste?
+
+    func platz(_ p: Person) -> Platz { p == .annika ? annika : ahmed }
+}
+
+enum ZuhauseAblauf {
+    /// How long a step lasts before the next change: 20 to 60 s.
+    static let wartezeiten: ClosedRange<TimeInterval> = 20...60
+
+    private static func a(_ annika: Platz, _ ahmed: Platz, _ geste: ZuhauseGeste? = nil) -> Aufstellung {
+        Aufstellung(annika: annika, ahmed: ahmed, geste: geste)
+    }
+
+    /// The steps of a time of day, in order, then round again. The first one is the resting scene
+    /// (low power mode, Reduce Motion). Evening and night keep both in bed: one step, nothing moves.
+    static func abfolge(_ zeit: Tageszeit) -> [Aufstellung] {
+        switch zeit {
+        case .morgen:
+            [a(.fenster, .sofa, .winken), a(.blumen, .sofa, .herz), a(.sofa, .sofa, .kuss), a(.fenster, .fenster, .herz)]
+        case .tag:
+            [a(.sofa, .sofa, .herz), a(.blumen, .sofa, .winken), a(.fenster, .sofa), a(.bett, .sofa), a(.blumen, .fenster, .herz), a(.sofa, .fenster, .winken)]
+        case .abend, .nacht:
+            [a(.bett, .bett)]
+        }
+    }
+
+    static func aufstellung(_ zeit: Tageszeit, schritt: Int) -> Aufstellung {
+        let schritte = abfolge(zeit)
+        return schritte[((schritt % schritte.count) + schritte.count) % schritte.count]
+    }
+
+    /// The scene without any movement.
+    static func ruhestand(_ zeit: Tageszeit) -> Aufstellung { aufstellung(zeit, schritt: 0) }
+
+    /// True when a time of day has several steps, i.e. when there is anything to move.
+    static func bewegt(_ zeit: Tageszeit) -> Bool { abfolge(zeit).count > 1 }
+
+    /// Seconds to wait after step `schritt`, spread over 20 to 60 s without a random source.
+    static func wartezeit(schritt: Int) -> TimeInterval {
+        wartezeiten.lowerBound + TimeInterval(((schritt * 17 + 5) % 41 + 41) % 41)
+    }
+}
+
+/// Where the feet stand, in the scene's design space (390 x 430, `ZuhauseZeichnung`).
+enum ZuhauseOrte {
+    static let fussY: CGFloat = 334
+    /// A standing figure's height; its feet are at 98 % of it.
+    static let figurHoehe: CGFloat = 190
+    /// Sitting on the sofa: head and chest only, the lower edge hides behind the seat's front cushion.
+    static let sitzHoehe: CGFloat = 104
+    static let sitzKante: CGFloat = 298
+    /// Where the pair stands (hug, kiss) when they are together for real.
+    static let paarX: CGFloat = 195
+    /// Panorama: a whole-body sitter's soles are this far above the floor line, because the sofa's seat
+    /// plane (58 below its top) is the height of the knees: the seat plane plus the pose's seat height.
+    static var sitzSohleHoeher: CGFloat {
+        let sitzflaeche = ProfilSlots.nativ(.sofa).minY + 58
+        return fussY - (sitzflaeche + FigurPoseLogik.sitzHoehe(stufe: FigurPoseLogik.mittelStufe, hoehe: figurHoehe))
+    }
+    /// Walking speed in design points per second and the limits of one walk.
+    static let tempo: CGFloat = 70
+    static let gehgrenzen: ClosedRange<TimeInterval> = 1.4...3.4
+
+    /// p65: in the panorama the places move with the things they belong to (bed stays, the dresser's
+    /// flowers and the window move right, the sofa is the widened one).
+    private static func mitte(_ p: Platz, _ welt: ProfilWelt) -> CGFloat {
+        switch (p, welt) {
+        case (.bett, _): 110
+        case (.blumen, .einzel): 158
+        case (.blumen, .panorama): 158 + ProfilSlots.versatz(.kommode).width
+        case (.fenster, .einzel): 252
+        case (.fenster, .panorama): 252 + ProfilSlots.versatz(.fenster).width
+        case (.sofa, .einzel): 338
+        case (.sofa, .panorama): ProfilSlots.welt(.sofa).midX
+        }
+    }
+
+    /// Annika left of Ahmed, so two at one place never stand in the same spot. The widened sofa seats two
+    /// whole bodies, so they sit further apart.
+    static func fuss(_ p: Platz, _ person: Person, welt: ProfilWelt = .einzel) -> CGPoint {
+        let halb: CGFloat = p == .sofa ? (welt == .panorama ? 30 : 22) : 24
+        return CGPoint(x: mitte(p, welt) + (person == .annika ? -halb : halb), y: fussY)
+    }
+
+    /// Where the pair stands for a hug or a kiss.
+    static func paarMitte(welt: ProfilWelt = .einzel) -> CGFloat {
+        welt == .einzel ? paarX : paarX + ProfilSlots.anker(.wohn)
+    }
+
+    static func gehdauer(von: Platz, nach: Platz, _ person: Person, welt: ProfilWelt = .einzel) -> TimeInterval {
+        guard von != nach else { return 0 }
+        let weg = abs(fuss(von, person, welt: welt).x - fuss(nach, person, welt: welt).x)
+        // The panorama is wider, so a long walk may take longer than on the single sheet.
+        let hoechstens = welt == .panorama ? 6.0 : gehgrenzen.upperBound
+        return min(max(TimeInterval(weg / tempo), gehgrenzen.lowerBound), hoechstens)
+    }
+}
+
+/// Which bouquets stand where. The IDs come from the flower feature (p59); the scene only places
+/// them and draws each one with `StraussView(id:)`.
+struct ZuhauseStraeusse: Equatable, Sendable {
+    /// The dresser has three places, left to right.
+    static let schrankPlaetze = 3
+
+    /// Up to 3 IDs for the dresser; more are ignored, fewer leave places empty.
+    var schrank: [String] = []
+    /// The one vase on the table, empty without an ID.
+    var vase: String?
+    /// p70: the tired and wilted bouquets by ID; every other one is fresh and drawn as before.
+    var frische: [String: StraussFrische] = [:]
+
+    var imSchrank: [String] { Array(schrank.prefix(Self.schrankPlaetze)) }
+
+    var leer: Bool { schrank.isEmpty && vase == nil }
+}

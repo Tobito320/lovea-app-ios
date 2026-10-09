@@ -2,8 +2,9 @@ import CoreLocation
 import MapKit
 import SwiftUI
 
-/// Sheet shown when tapping the partner's figure on the map (Z-8.3): battery, place/address,
-/// age and accuracy of the fix, distance, a route button, and "unterwegs" info.
+/// Z-41.1 info card, opened by the second tap on a figure: line 1 the name, line 2 place and
+/// battery ("Zuhause · 62 %"), line 3 the distance ("3,2 km entfernt"), then a route button.
+/// Weather and battery never sit next to the name (Spec 7).
 struct InfoKarteView: View {
     let person: Person
     @Environment(\.dismiss) private var dismiss
@@ -13,41 +14,64 @@ struct InfoKarteView: View {
     private var standort: StandortDaten? { Standort.shared.positionen[person] }
 
     var body: some View {
-        NavigationStack {
-            Group {
-                if let d = standort {
-                    List {
-                        Section {
-                            LabeledContent("Akku") {
-                                Label("\(Int((d.akku ?? 0) * 100)) %", systemImage: d.laedt ? "bolt.fill" : "battery.75")
-                                    .foregroundStyle(d.laedt ? Color.green : .primary)
-                            }
-                            LabeledContent("Ort", value: ortText(d))
-                            if let unterwegs = unterwegsText(d) {
-                                LabeledContent("Unterwegs", value: unterwegs)
-                            }
-                            LabeledContent("Entfernung", value: entfernungText(d))
-                        }
-                        Section {
-                            Button {
-                                route(zu: d)
-                            } label: {
-                                Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond")
-                            }
-                        }
-                    }
-                } else {
-                    ContentUnavailableView("Kein Standort", systemImage: "location.slash")
+        VStack(alignment: .leading, spacing: 6) {
+            kopf
+            if let d = standort {
+                ortUndAkku(d)
+                if let abstand = entfernung(d) {
+                    Text(abstand).foregroundStyle(.secondary)
                 }
+                if person != Raum.shared.ich { routeKnopf(d) }
+            } else {
+                Label("Noch kein Standort", systemImage: "location.slash").foregroundStyle(.secondary)
             }
-            .navigationTitle(person.name)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
+            Spacer(minLength: 0)
+        }
+        .padding(20)
+        .presentationDetents([.fraction(0.34), .medium])
+        .presentationDragIndicator(.visible)
+        .task(id: standort?.lat) { await ortDetailsLaden() }
+    }
+
+    private var kopf: some View {
+        HStack {
+            Text(person.name).font(.title2.bold())
+            Spacer()
+            Button { dismiss() } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.title2)
+                    .symbolRenderingMode(.hierarchical)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 44, height: 44)
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Schließen")
+        }
+    }
+
+    private func ortUndAkku(_ d: StandortDaten) -> some View {
+        HStack(spacing: 6) {
+            Text(ortText(d)).lineLimit(2)
+            if let akku = d.akku {
+                Text("·").foregroundStyle(.secondary)
+                Label(KarteLogik.akkuText(akku), systemImage: KarteLogik.akkuSymbol(akku, laedt: d.laedt))
+                    .labelStyle(.titleAndIcon)
+                    .monospacedDigit()
+                    .foregroundStyle(d.laedt ? Color.green : Color.primary)
+                    .fixedSize()
             }
         }
-        .presentationDetents([.medium])
-        .task(id: standort?.lat) { await ortDetailsLaden() }
+    }
+
+    private func routeKnopf(_ d: StandortDaten) -> some View {
+        Button { route(zu: d) } label: {
+            Label("Route", systemImage: "arrow.triangle.turn.up.right.diamond.fill")
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .controlSize(.large)
+        .tint(Color.loveaRose)
+        .padding(.top, 12)
     }
 
     // MARK: - Text
@@ -58,35 +82,13 @@ struct InfoKarteView: View {
             return "\(info.name) seit \(seit.formatted(date: .omitted, time: .shortened))"
         }
         if let supermarkt { return "bei \(supermarkt)" }
-        let basis = adresse ?? "wird geladen …"
-        return "\(basis) · \(alterText(d.zeit)), ± \(Int(d.genau)) m"
+        return adresse ?? "Ort wird geladen …"
     }
 
-    private func unterwegsText(_ d: StandortDaten) -> String? {
-        guard let tempo = d.tempo, tempo > 0.3 else { return nil }
-        let kmh = Int((tempo * 3.6).rounded())
-        let verb: String
-        switch d.bewegung {
-        case "laeuft": verb = "Läuft"
-        case "rennt": verb = "Rennt"
-        case "rad": verb = "Fährt Rad"
-        case "faehrt": verb = "Fährt"
-        default: verb = "Unterwegs"
-        }
-        return "\(verb), \(kmh) km/h"
-    }
-
-    private func entfernungText(_ d: StandortDaten) -> String {
-        guard let ich = Raum.shared.ich, let eigene = Standort.shared.positionen[ich] else { return "unbekannt" }
-        let meter = CLLocation(latitude: eigene.lat, longitude: eigene.lon).distance(from: CLLocation(latitude: d.lat, longitude: d.lon))
-        let text = String(format: "%.1f", meter / 1000).replacingOccurrences(of: ".", with: ",")
-        return "\(text) km von dir"
-    }
-
-    private func alterText(_ zeitIso: String) -> String {
-        guard let zeit = ISO8601DateFormatter().date(from: zeitIso) else { return "" }
-        let sekunden = Date().timeIntervalSince(zeit)
-        return sekunden < 90 ? "gerade eben" : "vor \(Int(sekunden / 60)) Min"
+    /// Line 3 only for the partner - the distance to yourself says nothing.
+    private func entfernung(_ d: StandortDaten) -> String? {
+        guard let ich = Raum.shared.ich, ich != person, let eigene = Standort.shared.positionen[ich] else { return nil }
+        return KarteLogik.entfernungText(eigene.meter(bis: d))
     }
 
     // MARK: - Address / POI (device-side, throttled by `.task(id:)`)
@@ -109,7 +111,7 @@ struct InfoKarteView: View {
         // ponytail: `MKMapItem(placemark:)` is deprecated in iOS 26 but still compiles
         // (SWIFT_TREAT_WARNINGS_AS_ERRORS=NO) - the newer `MKMapItem(location:address:)` needs an
         // `MKAddress`, not worth the extra risk here without a local compiler to check it against.
-        let item = MKMapItem(placemark: MKPlacemark(coordinate: CLLocationCoordinate2D(latitude: d.lat, longitude: d.lon)))
+        let item = MKMapItem(placemark: MKPlacemark(coordinate: d.punkt))
         item.name = person.name
         item.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving])
     }

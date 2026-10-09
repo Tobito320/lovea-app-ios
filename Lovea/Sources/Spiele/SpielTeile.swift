@@ -130,7 +130,7 @@ struct SpielKonfetti: View {
     var body: some View {
         Group {
             if !reduceMotion && !vorbei {
-                TimelineView(.animation) { kontext in
+                TimelineView(.animation(minimumInterval: 1.0 / 30)) { kontext in
                     Canvas { g, size in
                         let t = kontext.date.timeIntervalSince(start)
                         for p in teile {
@@ -163,7 +163,8 @@ struct SpieleBilanz: View {
         let modell = SpieleModell.shared
         let arten = SpielArt.allCases.filter { (modell.gespielt[$0] ?? 0) > 0 }
         if !arten.isEmpty {
-            let gesamt = arten.reduce(SpielPunkte()) { $0 + (modell.bilanz[$1] ?? SpielPunkte()) }
+            // "Wer von uns ist eher?" hat keinen Sieger und zählt nicht für die Krone.
+            let gesamt = arten.filter { !$0.paarWertung }.reduce(SpielPunkte()) { $0 + (modell.bilanz[$1] ?? SpielPunkte()) }
             VStack(alignment: .leading, spacing: 12) {
                 HStack {
                     Text("Spiele").font(.headline)
@@ -182,7 +183,7 @@ struct SpieleBilanz: View {
                             Text("\(modell.gespielt[art] ?? 0)× gespielt").font(.caption).foregroundStyle(.secondary)
                         }
                         Spacer(minLength: 8)
-                        Text((modell.bilanz[art] ?? SpielPunkte()).text)
+                        Text(art.bilanzText(modell.bilanz[art] ?? SpielPunkte()))
                             .font(.subheadline.monospacedDigit())
                             .foregroundStyle(.secondary)
                     }

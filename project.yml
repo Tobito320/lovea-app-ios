@@ -37,23 +37,31 @@ targets:
           - CFBundleURLName: com.onlyus.lovea
             CFBundleURLSchemes:
               - lovea
+        NSUserActivityTypes:
+          - INSendMessageIntent
+          - INStartCallIntent
         UIBackgroundModes:
           - location
           - remote-notification
           - audio
-        NSCameraUsageDescription: "Lovea nutzt die Kamera, damit du Fotos und Videos für den Chat und die Snaps aufnehmen kannst."
+        NSCameraUsageDescription: "Lovea nutzt die Kamera, damit du Fotos und Videos für den Chat und die Snaps aufnehmen und Barcodes von Lebensmitteln scannen kannst."
         NSMicrophoneUsageDescription: "Lovea nutzt das Mikrofon für Sprachnachrichten und Videos im Chat."
         NSPhotoLibraryUsageDescription: "Lovea liest Fotos, damit du sie im Chat oder als Zeichen-Vorlage nutzen kannst."
         NSPhotoLibraryAddUsageDescription: "Lovea speichert deine fertigen Bilder in Fotos."
         NSLocationWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auf der Karte, solange du die App offen hast."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auch im Hintergrund und meldet Ankunft und Abfahrt an euren Orten."
+        NSBluetoothAlwaysUsageDescription: "Lovea verbindet sich auf deinen Wunsch mit deinem Fitness-Tracker und zeigt dir dessen Akku und Werte. Alles bleibt auf deinem iPhone."
         NSMotionUsageDescription: "Lovea erkennt Bewegung wie Laufen oder Fahren, damit eure Figuren euren Alltag zeigen."
+        LSApplicationQueriesSchemes:
+          - x-apple-health
+          - comgooglemaps
         NSSpeechRecognitionUsageDescription: "Lovea wandelt deine Sprachnachrichten in Text um, wenn du das im Chat anforderst."
         NSFocusStatusUsageDescription: "Lovea zeigt deinem Partner, ob du gerade nicht gestört werden möchtest."
         NSCalendarsFullAccessUsageDescription: "Lovea liest deinen Kalender, um Termine mit deinem Partner abzugleichen."
         NSCalendarsWriteOnlyAccessUsageDescription: "Lovea trägt gemeinsame Termine in deinen Kalender ein."
-        NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte und euren Schlaf."
-        NSHealthUpdateUsageDescription: "Lovea schreibt nichts in Health. Apple verlangt diesen Text trotzdem."
+        NSHealthShareUsageDescription: "Lovea zeigt euch gegenseitig eure Schritte, Strecke, Etagen, Aktivität und euren Schlaf. Wenn du den Zyklus verknüpfst, liest Lovea auch Periode, Temperatur und Gewicht."
+        NSHealthUpdateUsageDescription: "Lovea speichert dein Gym-Training in Health, wenn du im Training Puls und Kalorien einschaltest, und deine Periode, wenn du den Zyklus verknüpfst."
+        NSSupportsLiveActivities: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.onlyus.lovea
@@ -73,6 +81,11 @@ targets:
           CODE_SIGN_STYLE: Manual
           CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: $(LOVEA_APP_PROFILE)
+          # Build 78: Absturz-Catcher braucht Funktionsnamen in backtrace_symbols_fd -- sonst reines
+          # Stripped-Binary ohne Symbole, der Absturz-Bericht zeigt nur Adressen.
+          STRIP_INSTALLED_PRODUCT: NO
+          STRIP_SWIFT_SYMBOLS: NO
+          COPY_PHASE_STRIP: NO
   LoveaWidgets:
     type: app-extension
     platform: iOS

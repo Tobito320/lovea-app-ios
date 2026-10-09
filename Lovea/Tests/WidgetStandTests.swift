@@ -39,6 +39,20 @@ final class WidgetStandTests: XCTestCase {
         XCTAssertEqual(ergebnis.first?.wert, 1)
     }
 
+    func testAltePendingDateiOhneGesteLaesstSichLesen() throws {
+        let alt = Data(#"{"id":"1","von":"ahmed","zeit":"2026-09-23T10:00:00Z","datum":"2026-09-23","wert":1}"#.utf8)
+        let op = try JSONDecoder().decode(WidgetPendingOp.self, from: alt)
+        XCTAssertNil(op.geste)
+        XCTAssertEqual(op.wert, 1)
+    }
+
+    func testAlterWidgetStandOhnePartnerTagLaesstSichLesen() throws {
+        let alt = Data(#"{"eigenePerson":"ahmed","schritteHeute":{},"zielSchritte":{},"gymLetzte7":{},"zielGymWoche":{},"punkte":{},"partnerFigurVorhanden":false,"partnerFotoVorhanden":false}"#.utf8)
+        let stand = try JSONDecoder().decode(WidgetStand.self, from: alt)
+        XCTAssertNil(stand.partnerStatus)
+        XCTAssertNil(stand.herzHeute)
+    }
+
     func testEindeutigMitLeererListe() {
         XCTAssertEqual(WidgetPendingMerge.eindeutig([]), [])
     }

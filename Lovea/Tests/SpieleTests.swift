@@ -124,23 +124,23 @@ final class SpieleLogikTests: XCTestCase {
     // MARK: - Reaktion
 
     func testReaktionZuFruehVerliert() {
-        XCTAssertEqual(Reaktion.rundenSieger(ahmed: -1, annika: 900), .annika)
-        XCTAssertEqual(Reaktion.rundenSieger(ahmed: 250, annika: -1), .ahmed)
-        XCTAssertNil(Reaktion.rundenSieger(ahmed: -1, annika: -1))
-        XCTAssertEqual(Reaktion.rundenSieger(ahmed: 250, annika: 300), .ahmed)
-        XCTAssertNil(Reaktion.rundenSieger(ahmed: 300, annika: 300))
+        XCTAssertEqual(ReaktionsDuell.rundenSieger(ahmed: -1, annika: 900), .annika)
+        XCTAssertEqual(ReaktionsDuell.rundenSieger(ahmed: 250, annika: -1), .ahmed)
+        XCTAssertNil(ReaktionsDuell.rundenSieger(ahmed: -1, annika: -1))
+        XCTAssertEqual(ReaktionsDuell.rundenSieger(ahmed: 250, annika: 300), .ahmed)
+        XCTAssertNil(ReaktionsDuell.rundenSieger(ahmed: 300, annika: 300))
     }
 
     func testReaktionVerzoegerungZwischenZweiUndSechsUndGleich() {
         for r in 0..<50 {
-            let d = Reaktion.verzoegerung(spiel: "s", partie: 0, runde: r)
+            let d = ReaktionsDuell.verzoegerung(spiel: "s", partie: 0, runde: r)
             XCTAssertTrue((2...6).contains(d))
-            XCTAssertEqual(d, Reaktion.verzoegerung(spiel: "s", partie: 0, runde: r))
+            XCTAssertEqual(d, ReaktionsDuell.verzoegerung(spiel: "s", partie: 0, runde: r))
         }
     }
 
     func testReaktionErsterMitDreiSiegen() {
-        let s = Reaktion.stand([.ahmed: [200, 200, -1, 200], .annika: [300, 300, 300, 300]])
+        let s = ReaktionsDuell.stand([.ahmed: [200, 200, -1, 200], .annika: [300, 300, 300, 300]])
         XCTAssertEqual(s.sieger, .ahmed)
         XCTAssertEqual(s.siege, SpielPunkte(ahmed: 3, annika: 1))
     }

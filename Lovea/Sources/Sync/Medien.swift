@@ -12,8 +12,12 @@ enum Medien {
         return FileManager.default.fileExists(atPath: url.path) ? url : nil
     }
 
-    static func hochladen(id: String, original: URL, klein: URL? = nil) async throws {
-        guard await aktiveUploads.beanspruchen(id) else { return } // already uploading (e.g. fortsetzen())
+    /// `fortschritt` meldet jeden angekommenen Zuwachs in Bytes (Teile laufen parallel, schon oben
+    /// liegende Teile einer Fortsetzung zählen gleich zu Beginn). Rückgabe `false`: lief schon (ein
+    /// anderer Aufruf meldet dann selbst), diesmal wurde nichts hochgeladen.
+    @discardableResult
+    static func hochladen(id: String, original: URL, klein: URL? = nil, fortschritt: (@Sendable (Int) -> Void)? = nil) async throws -> Bool {
+        guard await aktiveUploads.beanspruchen(id) else { return false } // already uploading (e.g. fortsetzen())
         do {
             guard let konfig = await Raum.shared.httpKonfiguration() else { throw MedienFehler.nichtEingerichtet }
             // Copy into our own cache BEFORE uploading, not after: `original`/`klein` are often an
@@ -21,8 +25,8 @@ enum Medien {
             // connection, or the app being killed mid-upload) reads it again.
             let originalKopie = try lokaleKopie(von: original, id: id, rolle: "original")
             let kleinKopie = try klein.map { try lokaleKopie(von: $0, id: id, rolle: "klein") }
-            try await teilHochladen(id: id, rolle: "original", datei: originalKopie, konfig: konfig)
-            if let kleinKopie { try await teilHochladen(id: id, rolle: "klein", datei: kleinKopie, konfig: konfig) }
+            try await teilHochladen(id: id, rolle: "original", datei: originalKopie, konfig: konfig, fortschritt: fortschritt)
+            if let kleinKopie { try await teilHochladen(id: id, rolle: "klein", datei: kleinKopie, konfig: konfig, fortschritt: fortschritt) }
             // Sender sees their own media right away instead of downloading it back.
             try? FileManager.default.removeItem(at: cacheURL(for: id))
             try? FileManager.default.copyItem(at: originalKopie, to: cacheURL(for: id))
@@ -31,6 +35,7 @@ enum Medien {
             try? FileManager.default.removeItem(at: originalKopie)
             if let kleinKopie { try? FileManager.default.removeItem(at: kleinKopie) }
             await aktiveUploads.freigeben(id)
+            return true
         } catch {
             await aktiveUploads.freigeben(id)
             throw error
@@ -54,12 +59,14 @@ enum Medien {
         }
     }
 
-    static func holen(_ id: String) async throws -> URL {
+    /// `fortschritt` meldet (erhalten, erwartet) in Bytes; erwartet ist <= 0, solange die Größe unbekannt ist.
+    static func holen(_ id: String, fortschritt: (@Sendable (Int64, Int64) -> Void)? = nil) async throws -> URL {
         if let cached = lokal(id) { return cached }
         guard let konfig = await Raum.shared.httpKonfiguration() else { throw MedienFehler.nichtEingerichtet }
         var request = URLRequest(url: konfig.basis.appendingPathComponent("medien/\(id)"))
         headers(konfig, in: &request)
-        let (temp, response) = try await URLSession.shared.download(for: request)
+        let beobachter = fortschritt.map { DownloadBeobachter(melden: $0) }
+        let (temp, response) = try await URLSession.shared.download(for: request, delegate: beobachter)
         try pruefeErfolg(response)
         let ziel = cacheURL(for: id)
         try FileManager.default.createDirectory(at: ziel.deletingLastPathComponent(), withIntermediateDirectories: true)
@@ -107,31 +114,74 @@ enum Medien {
     }
     private static let aktiveUploads = AktiveUploads()
 
-    private static func teilHochladen(id: String, rolle: String, datei: URL, konfig: Raum.HttpKonfiguration) async throws {
+    /// Z-Snap-Tempo: höchstens so viele Teile gleichzeitig hochladen wie hier stehen, statt einer
+    /// nach dem anderen (Analyse "Video kommt spät": bei einem Video 20-35 Einzelanfragen
+    /// nacheinander, der größte Posten der Sendezeit). 4 gleichzeitig nutzt die Mobilfunk-/WLAN-
+    /// Verbindung besser aus, ohne den Akku-Vorteil eines schnelleren Sendens zu verlieren — fertig
+    /// heißt früher Funk aus, nicht länger.
+    private static let parallelitaet = 4
+
+    private static func teilHochladen(id: String, rolle: String, datei: URL, konfig: Raum.HttpKonfiguration, fortschritt: (@Sendable (Int) -> Void)? = nil) async throws {
         let attribute = try? FileManager.default.attributesOfItem(atPath: datei.path)
         guard let groesse = attribute?[.size] as? Int, groesse > 0 else {
             throw MedienFehler.datei
         }
         let gesamt = Int((Double(groesse) / Double(teilGroesse)).rounded(.up))
         let fehlend = await fehlendeTeile(id: id, rolle: rolle, gesamt: gesamt, konfig: konfig)
-        guard let handle = FileHandle(forReadingAtPath: datei.path) else { throw MedienFehler.datei }
-        defer { try? handle.close() }
-        for teil in fehlend {
-            try handle.seek(toOffset: UInt64(teil * teilGroesse))
-            let stueck = (try handle.read(upToCount: teilGroesse)) ?? Data()
-            var request = URLRequest(url: konfig.basis.appendingPathComponent("medien/\(id)/\(rolle)/\(teil)"))
-            request.httpMethod = "PUT"
-            headers(konfig, in: &request)
-            let (_, response) = try await URLSession.shared.upload(for: request, from: stueck)
-            try pruefeErfolg(response)
+        // Was der Server schon hat (Fortsetzung), zählt sofort mit — sonst stünde der Balken falsch.
+        if let fortschritt {
+            let schonOben = groesse - fehlend.reduce(0) { $0 + teilBytes(teil: $1, gesamtBytes: groesse) }
+            if schonOben > 0 { fortschritt(schonOben) }
         }
+        guard let kopfHandle = FileHandle(forReadingAtPath: datei.path) else { throw MedienFehler.datei }
+        let typ = inhaltsTyp((try? kopfHandle.read(upToCount: 12)) ?? Data())
+        try? kopfHandle.close()
+
+        // Jede Aufgabe öffnet ihren eigenen `FileHandle`: ein geteilter Handle mit `seek` + `read`
+        // aus mehreren Tasks gleichzeitig wäre ein Rennen (wessen `seek` zuletzt gewinnt, liest wer).
+        for stapel in stapeln(fehlend, grad: parallelitaet) {
+            try await withThrowingTaskGroup(of: Void.self) { gruppe in
+                for teil in stapel {
+                    gruppe.addTask {
+                        try await teilSenden(id: id, rolle: rolle, teil: teil, datei: datei, konfig: konfig)
+                        fortschritt?(teilBytes(teil: teil, gesamtBytes: groesse))
+                    }
+                }
+                try await gruppe.waitForAll()
+            }
+        }
+
         var fertig = URLRequest(url: konfig.basis.appendingPathComponent("medien/\(id)/\(rolle)/fertig"))
         fertig.httpMethod = "POST"
         fertig.setValue("application/json", forHTTPHeaderField: "Content-Type")
         headers(konfig, in: &fertig)
-        fertig.httpBody = try JSONEncoder().encode(FertigBody(teile: gesamt, typ: dateiTyp(datei), bytes: groesse))
+        fertig.httpBody = try JSONEncoder().encode(FertigBody(teile: gesamt, typ: typ, bytes: groesse))
         let (_, response) = try await URLSession.shared.data(for: fertig)
         try pruefeErfolg(response)
+    }
+
+    private static func teilSenden(id: String, rolle: String, teil: Int, datei: URL, konfig: Raum.HttpKonfiguration) async throws {
+        guard let handle = FileHandle(forReadingAtPath: datei.path) else { throw MedienFehler.datei }
+        defer { try? handle.close() }
+        try handle.seek(toOffset: UInt64(teil * teilGroesse))
+        let stueck = (try handle.read(upToCount: teilGroesse)) ?? Data()
+        var request = URLRequest(url: konfig.basis.appendingPathComponent("medien/\(id)/\(rolle)/\(teil)"))
+        request.httpMethod = "PUT"
+        headers(konfig, in: &request)
+        let (_, response) = try await URLSession.shared.upload(for: request, from: stueck)
+        try pruefeErfolg(response)
+    }
+
+    /// Pure: Größe von Teil `teil` einer Datei mit `gesamtBytes` Bytes (der letzte Teil ist kürzer).
+    static func teilBytes(teil: Int, gesamtBytes: Int) -> Int {
+        max(min(teilGroesse, gesamtBytes - teil * teilGroesse), 0)
+    }
+
+    /// Pure: Teile-Indizes in Gruppen von höchstens `grad` aufteilen (Reihenfolge der Gruppen
+    /// bleibt, innerhalb einer Gruppe läuft alles gleichzeitig).
+    static func stapeln(_ teile: [Int], grad: Int) -> [[Int]] {
+        guard grad > 0, !teile.isEmpty else { return teile.isEmpty ? [] : [teile] }
+        return stride(from: 0, to: teile.count, by: grad).map { Array(teile[$0..<min($0 + grad, teile.count)]) }
     }
 
     private static func fehlendeTeile(id: String, rolle: String, gesamt: Int, konfig: Raum.HttpKonfiguration) async -> [Int] {
@@ -190,12 +240,45 @@ enum Medien {
         guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else { throw MedienFehler.anfrage }
     }
 
-    private static func dateiTyp(_ url: URL) -> String {
-        switch url.pathExtension.lowercased() {
-        case "mov", "mp4": "video/mp4"
-        case "m4a", "caf", "wav": "audio/m4a"
-        case "png": "image/png"
-        default: "image/jpeg"
+    /// Audit chat #1: the MIME type from the file's first bytes. The upload copy has no extension
+    /// (and `fortsetzen()` never knew the original one), so the content is the only reliable source.
+    static func inhaltsTyp(_ kopf: Data) -> String {
+        let b = [UInt8](kopf.prefix(12))
+        func text(_ bereich: Range<Int>) -> String? {
+            b.count >= bereich.upperBound ? String(decoding: b[bereich], as: UTF8.self) : nil
+        }
+        if b.starts(with: [0xFF, 0xD8, 0xFF]) { return "image/jpeg" }
+        if b.starts(with: [0x89, 0x50, 0x4E, 0x47]) { return "image/png" }
+        if text(0..<4) == "GIF8" { return "image/gif" }
+        // ISO media (`....ftyp<brand>`): QuickTime, M4A audio, HEIC photos, else MP4.
+        guard text(4..<8) == "ftyp", let marke = text(8..<12) else { return "application/octet-stream" }
+        switch marke {
+        case "qt  ": return "video/quicktime"
+        case "M4A ", "M4B ": return "audio/m4a"
+        case "heic", "heix", "mif1": return "image/heic"
+        default: return "video/mp4"
+        }
+    }
+}
+
+/// Meldet den Download-Stand über `URLSessionTask.progress`. Kommt der Rückruf auf einem Gerät nicht,
+/// bleibt die Anzeige unbestimmt (Spinner statt Prozent), der Download selbst ist nicht betroffen.
+private final class DownloadBeobachter: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let melden: @Sendable (Int64, Int64) -> Void
+    private var beobachtung: NSKeyValueObservation?
+    private var zuletzt: Int64 = 0
+
+    init(melden: @escaping @Sendable (Int64, Int64) -> Void) { self.melden = melden }
+
+    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
+        let melden = melden
+        beobachtung = task.progress.observe(\.completedUnitCount, options: [.new]) { [weak self] fortschritt, _ in
+            // Höchstens ein Rückruf je Prozent (Akku, und die Anzeige braucht nicht mehr).
+            let erhalten = fortschritt.completedUnitCount
+            let gesamt = fortschritt.totalUnitCount
+            guard let self, erhalten - self.zuletzt >= max(gesamt / 100, 16_384) || (gesamt > 0 && erhalten >= gesamt) else { return }
+            self.zuletzt = erhalten
+            melden(erhalten, gesamt)
         }
     }
 }

@@ -8,6 +8,9 @@ enum EngineError: Error {
     case memoryBudget, deviceUnavailable, decode
 }
 
+// `strokeLogger` (os.Logger) und `ZeichenProtokoll` (Release-fähiger Ring-Puffer der seltenen
+// Ereignisse) sind in ZeichenProtokoll.swift definiert – Q-R10.
+
 enum FillReference: String, CaseIterable, Identifiable {
     case activeLayer, allVisible
 
@@ -43,6 +46,9 @@ final class CanvasEngine {
     /// Called once per finished own non-stroke action (fill, layer change, transform …), for `zeichnung.op`.
     var onAction: (() -> Void)?
     private(set) var loading: Task<Void, Never>?
+    /// False until `loadContents` is done. Until then the layers are empty textures the load overwrites,
+    /// so the studio takes no input (`DrawingSession.ensureDrawable`).
+    private(set) var isLoaded = false
 
     private var sampler: StrokeSampler?
     private var strokeLayerID: UUID?
@@ -55,6 +61,10 @@ final class CanvasEngine {
     private var lastPredicted = CGRect.null
     /// Bumped whenever layer pixels change outside the live stroke; the compositor then refreshes its copy in full.
     private var liveSerial = 0
+    /// Nur fürs Zeichen-Protokoll: der zuletzt gelandete Strich, damit eine Undo-Zeile ihn wiedererkennt.
+    private var letzteLandung: LandungsSpur?
+    /// Eigene gelandete Striche seit dem Start. `reload` sieht daran, ob während des Ladens einer gelandet ist.
+    private var eigeneLandungen = 0
     private var detached: [UUID: MTLTexture] = [:]
     private var remoteStrokes: [String: RemoteStroke] = [:]
     private var spareScratches: [MTLTexture] = []
@@ -109,10 +119,15 @@ final class CanvasEngine {
     private func loadContents() async {
         await library.waitForWrites()
         for layer in document.layers {
-            if let pixels = await decodeLayer(layer, artworkID: document.id) { try? store.setPixels(pixels, for: layer.id) }
+            guard let pixels = await decodeLayer(layer, artworkID: document.id) else { continue }
+            if liveSerial > 0 || dirtyLayers.contains(layer.id) {
+                ZeichenProtokoll.log("Laden überschreibt Ebene \(layer.id) trotz Änderungen seit dem Öffnen (serial=\(liveSerial))")
+            }
+            try? store.setPixels(pixels, for: layer.id)
         }
         if document.schemaVersion < 3 { await migrateLegacyLayers() }
         compositor.invalidateCaches()
+        isLoaded = true
         onChange?()
     }
 
@@ -128,11 +143,25 @@ final class CanvasEngine {
 
     /// Swaps in a newer version of the same artwork from the library (a partner's shared stand).
     /// Decodes everything first so the canvas never shows empty layers. Remote strokes in flight stay.
-    func reload(_ next: ArtworkDocument) async {
+    /// Returns false and changes nothing when an own stroke ran or landed meanwhile: the canvas is newer than the file.
+    @discardableResult
+    func reload(_ next: ArtworkDocument) async -> Bool {
+        // Not while the first load still runs: its older result would land on top of this one.
+        await loading?.value
+        let serialStart = liveSerial
+        let landungenStart = eigeneLandungen
         await library.waitForWrites()
         var decoded: [UUID: RasterOps.Pixels] = [:]
         for layer in next.layers {
             decoded[layer.id] = await decodeLayer(layer, artworkID: next.id)
+        }
+        // Decided after the last await, nothing is awaited between here and the swap below.
+        guard LadeEntscheidung.darfUebernehmen(landungenBeiStart: landungenStart, landungenJetzt: eigeneLandungen, strichLaeuft: isStroking) else {
+            ZeichenProtokoll.log("Sicherung Laden: reload verworfen, eigener Strich lief oder landete währenddessen (stroking=\(isStroking), Landungen \(landungenStart) -> \(eigeneLandungen))")
+            return false
+        }
+        if isStroking || liveSerial != serialStart {
+            ZeichenProtokoll.log("reload überschreibt laufenden oder gerade gelandeten Strich (stroking=\(isStroking), serial \(serialStart) -> \(liveSerial))")
         }
         resetStroke()
         undo.removeAll()
@@ -153,6 +182,7 @@ final class CanvasEngine {
         if !keep.contains(activeLayerID) { activeLayerID = next.layers.last?.id ?? activeLayerID }
         compositor.invalidateCaches()
         onChange?()
+        return true
     }
 
     /// Shared drawing: which ops the next save contains. No undo step, no `onChange`.
@@ -181,7 +211,12 @@ final class CanvasEngine {
 
     func beginStroke(_ input: StrokeInput, settings: BrushSettings, layerID: UUID) {
         guard let layer = layer(layerID), layer.kind == .paint, !layer.isLocked,
-              store.texture(for: layerID) != nil, let command = queue.makeCommandBuffer() else { return }
+              store.texture(for: layerID) != nil, let command = queue.makeCommandBuffer() else {
+            #if DEBUG
+            strokeLogger.debug("beginStroke abgelehnt: layer=\(layerID) aktiv=\(self.activeLayerID)")
+            #endif
+            return
+        }
         GPU.fill(scratch, command: command)
         command.commit()
         var sampler = StrokeSampler(settings: settings)
@@ -193,6 +228,9 @@ final class CanvasEngine {
         liveChanged = .null
         lastPredicted = .null
         liveSerial += 1
+        #if DEBUG
+        strokeLogger.debug("beginStroke layer=\(layerID) serial=\(self.liveSerial)")
+        #endif
     }
 
     var isStroking: Bool { sampler != nil }
@@ -208,12 +246,16 @@ final class CanvasEngine {
     func endStroke() {
         guard var sampler, let layerID = strokeLayerID, let target = store.texture(for: layerID),
               let command = queue.makeCommandBuffer() else {
-            cancelStroke()
+            cancelStroke(grund: "endStroke ohne Strich, Textur oder Command")
             return
         }
         pending += sampler.finish()
         flushStamps(command: command)
+        #if DEBUG
+        strokeLogger.debug("endStroke layer=\(layerID) aktiv=\(self.activeLayerID) bounds=\(String(describing: sampler.bounds))")
+        #endif
         land(scratch, sampler: sampler, into: target, layerID: layerID, mirrorX: mirrorX, autor: nil, command: command)
+        eigeneLandungen += 1
         resetStroke()
         didEditPixels(of: layerID)
     }
@@ -232,12 +274,22 @@ final class CanvasEngine {
         let region = pixelRegion(bounds.insetBy(dx: -2, dy: -2))
         let before = region.flatMap { snapshot(target, region: $0, command: command) }
         let kind: BlendKind = settings.isEraser ? .erase : (alphaLock ? .atop : .over)
-        compositor.draw(scratch, into: target, blend: kind, opacity: settings.strokeOpacity, command: command)
+        // ponytail: scissor to the same region the undo snapshot already bounds, so landing a small
+        // stroke on a 2048er Leinwand nicht jedes Mal die volle Fläche shadet.
+        compositor.draw(scratch, into: target, blend: kind, opacity: settings.strokeOpacity, scissor: region, command: command)
         let after = region.flatMap { snapshot(target, region: $0, command: command) }
         command.commit()
         if let region, let before, let after {
             undo.push(.pixels(layerID: layerID, region: region, before: before, after: after), autor: autor)
+            letzteLandung = LandungsSpur(layerID: layerID, rect: Self.rect(region), zeit: CACurrentMediaTime())
+        } else {
+            // Rar: ein Strich landet auf dem Layer, aber ohne Undo-Eintrag (bounds leer/null). Die
+            // Pixel sind da, aber Rückgängig trifft dann den davorliegenden Schritt – Kandidat für A.
+            ZeichenProtokoll.log("land ohne Undo-Eintrag layer=\(layerID)")
         }
+        #if DEBUG
+        strokeLogger.debug("land layer=\(layerID) region=\(region.map(String.init(describing:)) ?? "nil") undoGespeichert=\(region != nil)")
+        #endif
     }
 
     // MARK: Remote strokes
@@ -280,8 +332,11 @@ final class CanvasEngine {
 
     /// Lands the stroke. The undo step carries `autor`, so local undo never takes it back.
     func remoteEnd(id: String) {
-        guard var stroke = remoteStrokes.removeValue(forKey: id), let target = store.texture(for: stroke.layerID),
-              let command = queue.makeCommandBuffer() else { return }
+        guard var stroke = remoteStrokes.removeValue(forKey: id) else { return }
+        guard let target = store.texture(for: stroke.layerID), let command = queue.makeCommandBuffer() else {
+            ZeichenProtokoll.log("remoteEnd: Strich \(id) nicht gelandet, Textur oder Command fehlt")
+            return
+        }
         stamper.encode(stroke.sampler.finish(), tip: stroke.sampler.tip, color: stroke.sampler.settings.color,
                        into: stroke.scratch, mask: nil, mirrorX: stroke.mirrorX, command: command)
         land(stroke.scratch, sampler: stroke.sampler, into: target, layerID: stroke.layerID,
@@ -300,7 +355,13 @@ final class CanvasEngine {
         if spareScratches.count < 2 { spareScratches.append(scratch) }
     }
 
-    func cancelStroke() {
+    /// `grund` nur fürs Zeichen-Protokoll: wer den Strich verworfen hat.
+    func cancelStroke(grund: String = "unbekannt") {
+        if let sampler, !sampler.bounds.isNull {
+            // Rar: verwirft sichtbare, nie gelandete Pixel (z. B. zweiter Finger während des Strichs
+            // ohne Palm-Schutz-Landung, siehe CanvasView.resolveSecondTouch). Kein Undo-Eintrag.
+            ZeichenProtokoll.log("cancelStroke verwirft Strich (\(grund)) layer=\(self.strokeLayerID.map(String.init(describing:)) ?? "nil") bounds=\(String(describing: sampler.bounds))")
+        }
         resetStroke()
         onChange?()
     }
@@ -419,13 +480,13 @@ final class CanvasEngine {
     // MARK: Undo
 
     func performUndo() {
-        cancelStroke()
+        cancelStroke(grund: "Undo")
         guard let entry = undo.popUndo() else { return }
         apply(entry, forward: false)
     }
 
     func performRedo() {
-        cancelStroke()
+        cancelStroke(grund: "Redo")
         guard let entry = undo.popRedo() else { return }
         apply(entry, forward: true)
     }
@@ -435,6 +496,11 @@ final class CanvasEngine {
         switch entry {
         case let .pixels(layerID, region, before, after):
             guard let target = store.texture(for: layerID), let command = queue.makeCommandBuffer() else { return }
+            // Rar genug (nur bei echtem Undo/Redo, nie pro Frame): im Ring-Puffer, damit Ahmed die
+            // Reihenfolge rund um einen verschwundenen Strich nachliefern kann.
+            let urteil = LandungsSpur.urteil(layerID: layerID, rect: Self.rect(region), letzte: letzteLandung)
+            let vor = letzteLandung.map { String(format: "%.1f", CACurrentMediaTime() - $0.zeit) } ?? "-"
+            ZeichenProtokoll.log("apply \(forward ? "redo" : "undo") layer=\(layerID) region=\(String(describing: region)) \(urteil), letzte Landung vor \(vor) s")
             GPU.copy(forward ? after : before, to: target, at: region.origin, command: command)
             command.commit()
             dirtyLayers.insert(layerID)
@@ -559,6 +625,10 @@ final class CanvasEngine {
         guard let copy = GPU.makeTexture(device, width: region.size.width, height: region.size.height) else { return nil }
         GPU.copy(texture, region: region, to: copy, command: command)
         return copy
+    }
+
+    private static func rect(_ region: MTLRegion) -> CGRect {
+        CGRect(x: region.origin.x, y: region.origin.y, width: region.size.width, height: region.size.height)
     }
 
     private func pixelRegion(_ rect: CGRect) -> MTLRegion? {

@@ -1,4 +1,5 @@
 import SwiftUI
+import TipKit
 
 /// Layer list like ibisPaint: preview, name, eye, opacity, blend mode, clipping indent, lock.
 /// iPad: side panel. iPhone: sheet with medium and large detents.
@@ -22,6 +23,7 @@ struct ArtworkLayersView: View {
             }
             .padding(.horizontal, 16)
 
+            if !session.document.layers.isEmpty { TipView(EbeneGesteTip()).padding(.horizontal, 16) }
             List {
                 ForEach(Array(session.document.layers.reversed())) { layer in
                     LayerRow(layer: layer, session: session)

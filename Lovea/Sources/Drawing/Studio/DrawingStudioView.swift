@@ -1,5 +1,6 @@
 import PhotosUI
 import SwiftUI
+import TipKit
 import UIKit
 
 struct DrawingStudioView: View {
@@ -9,7 +10,7 @@ struct DrawingStudioView: View {
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @AppStorage("studio.glass") private var glass = true
-    @AppStorage("profile.performanceHUD") private var showsHUD = false
+    @AppStorage("profile.performanceHUD.v2") private var showsHUD = false
     @State private var showsLayers = true
     @State private var showsLayerSheet = false
     @State private var showsText = false
@@ -19,10 +20,12 @@ struct DrawingStudioView: View {
     @State private var imageItem: PhotosPickerItem?
     @State private var templateItem: PhotosPickerItem?
     @State private var templateData: Data?
+    /// Galerie import: the image goes in as a normal layer instead of a template.
+    private let templateAlsEbene: Bool
 
     /// `fremd`: a partner drawing from the shared library, `stand` the stand it was loaded from.
     init(artworkID: UUID, library: ArtworkLibrary, person: Person, templateData: Data? = nil,
-         fremd: Bool = false, stand: ZeichnungStand? = nil) {
+         templateAlsEbene: Bool = false, fremd: Bool = false, stand: ZeichnungStand? = nil) {
         _session = StateObject(wrappedValue: { () -> DrawingSession in
             let session = DrawingSession(artworkID: artworkID, library: library, fremd: fremd)
             session.live.geladen = stand
@@ -30,6 +33,7 @@ struct DrawingStudioView: View {
         }())
         _palette = StateObject(wrappedValue: ColorPaletteStore(person: person.rawValue))
         _templateData = State(initialValue: templateData)
+        self.templateAlsEbene = templateAlsEbene
     }
 
     private var compact: Bool { sizeClass == .compact }
@@ -92,11 +96,12 @@ struct DrawingStudioView: View {
         }
         .onAppear {
             session.live.betreten()
+            if !session.fremd { GalerieSync.shared.studioBetreten(session.document.id) }
             if session.nurAnsehen { session.show("Nur ansehen – Werkzeuge sind gesperrt") }
             session.onColorUsed = { [weak palette] in palette?.use($0) }
             if let templateData {
                 self.templateData = nil
-                Task { await session.importPhoto(templateData, asTemplate: true) }
+                Task { await session.importPhoto(templateData, asTemplate: !templateAlsEbene) }
             }
         }
         .onChange(of: imageItem) { _, item in load(item, asTemplate: false) }
@@ -110,6 +115,7 @@ struct DrawingStudioView: View {
         .onDisappear {
             session.saveNow()
             session.live.verlassen()
+            if !session.fremd { GalerieSync.shared.studioVerlassen(session.document.id) }
         }
         .onChange(of: Raum.shared.verbunden) { _, an in if an { session.live.ankuendigen() } }
         .onChange(of: Raum.shared.partnerDa) { _, da in if da { session.live.ankuendigen() } }
@@ -156,6 +162,7 @@ struct DrawingStudioView: View {
             Image(systemName: "ellipsis.circle")
         }
         .accessibilityLabel("Mehr")
+        .popoverTip(ZeichenstudioMehrTip())
         .onChange(of: viewMirrored) { _, value in session.canvasState.setMirrored(value) }
     }
 
@@ -334,7 +341,9 @@ struct DrawingStudioView: View {
 
 /// Studio: no swipe back, a stroke from the left edge must never leave the drawing. Only the back button
 /// top left leaves. Switches the navigation controller's pop gestures off while the studio is on screen.
-private struct ZurueckWischenAus: UIViewControllerRepresentable {
+/// Also used by `SaetzeEditor` (Trainingsplan) while editing, so an edge swipe cannot silently discard
+/// an unsaved draft (Ahmed, 01.10.: the Food diary no longer uses this, it switched to arrow buttons only).
+struct ZurueckWischenAus: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Steuerung { Steuerung() }
     func updateUIViewController(_ controller: Steuerung, context: Context) {}
 

@@ -1,4 +1,5 @@
 import AVKit
+import CoreImage
 import SwiftUI
 import UIKit
 
@@ -8,11 +9,10 @@ enum SnapInhalt {
     case video(URL)
 }
 
-/// Snap editor (Z-6.2): text bar (draggable vertically, pinch to scale), a small `Canvas` doodle
-/// layer, and stickers/favorite GIFs/figure stickers (via the reused `GifStickerBlatt`, placed &
-/// draggable). All element positions are fractions (0...1) of the content area, so the exact same
-/// numbers work in the live preview (whatever size the phone gives it) and in `SnapExport`'s
-/// flatten pass (the photo's/video's real pixel size) — one set of math, two renders.
+/// Snap-Editor im CapCut-Aufbau: Vorschau oben, bei Video Play-Zeile und Zeitleiste (Filmstreifen,
+/// feste Abspiel-Linie in der Mitte), unten die Werkzeugleiste. Ein Werkzeug öffnet ein Panel
+/// statt der Leiste (kein Sheet). Alle Element-Positionen sind Bruchteile (0...1) der Inhaltsfläche,
+/// damit Live-Vorschau und `SnapExport` (echte Pixelgröße) dieselben Zahlen rechnen.
 struct SnapEditor: View {
     let inhalt: SnapInhalt
     let ich: Person
@@ -23,86 +23,123 @@ struct SnapEditor: View {
     var onUebernehmen: ((Data) -> Void)? = nil
     /// X button. Defaults to `onFertig`; the camera flow uses it to go back to the camera (Snapchat).
     var onVerwerfen: (() -> Void)? = nil
+    /// Filter picked on the camera screen; applied once when the editor opens.
+    var startFilter: SnapFilter = .original
 
-    struct SnapText { var text = ""; var y: CGFloat = 0.5; var skala: CGFloat = 1 }
-    struct SnapSticker: Identifiable { let id = UUID(); let bild: UIImage; var x: CGFloat = 0.5; var y: CGFloat = 0.5 }
+    struct SnapText {
+        var text = ""
+        var x: CGFloat = 0.5
+        var y: CGFloat = 0.5
+        var skala: CGFloat = 1
+        var winkel: Double = 0
+        var farbe = Color.white
+    }
+    struct SnapSticker: Identifiable {
+        let id = UUID()
+        let bild: UIImage
+        var x: CGFloat = 0.5
+        var y: CGFloat = 0.5
+        var skala: CGFloat = 1
+        var winkel: Double = 0
+    }
     struct SnapLinie { var punkte: [CGPoint]; var farbe: Color } // `punkte` are fractions too
 
-    @State private var text = SnapText()
-    @State private var textBearbeitenOffen = false
-    @State private var textZiehtGerade = false
-    @State private var textYStart: CGFloat = 0.5
-    @State private var textSkaliertGerade = false
-    @State private var textSkalaStart: CGFloat = 1
+    /// Was gerade markiert ist (weißer Rahmen): der Clip auf der Zeitleiste, der Text oder ein Sticker.
+    enum Auswahl: Equatable {
+        case clip, text
+        case sticker(UUID)
+    }
 
+    /// Benannter Koordinatenraum der Inhaltsfläche — die Element-Gesten messen darin.
+    static let inhaltRaum = "snap.inhalt"
+
+    @State private var text = SnapText()
     @State private var sticker: [SnapSticker] = []
-    @State private var ziehendeStickerID: UUID?
-    @State private var stickerZiehStart: CGPoint = .zero
-    @State private var stickerBlattOffen = false
+    @State private var auswahl: Auswahl?
 
     @State private var linien: [SnapLinie] = []
     @State private var aktuelleLinie: [CGPoint] = []
-    @State private var zeichnenAktiv = false
     @State private var doodleFarbe = Color.white
 
+    @State private var panel: SnapPanel?
+
+    @AppStorage(SnapFilterAnzeige.schluessel) private var filterAn = true // same key `SnapFilterAnzeige.an` reads
     @State private var bleibt = false
     @State private var sendetGerade = false
+    @State private var sendeFehler: String?
+
+    // Video
     @State private var videoSpieler: AVPlayer?
+    /// Schnittplan (kürzen, Teile entfernen, stumm); erst beim Senden umgesetzt. `nil` = noch nicht geladen / Foto.
+    @State private var plan: SnapSchnitt?
+    @State private var filmbilder: [UIImage] = []
+    @State private var zeit: Double = 0
+    @State private var spielt = false
+    @State private var scrubStart: Double?
+    @State private var markeStart: Double?
+    @State private var schnittHinweis: String?
+
+    // Filter
+    @State private var ausgewaehlterFilter: SnapFilter = .original
+    /// 0...100, wie der Regler. 100 = voller Filter.
+    @State private var filterStaerke: Double = 100
+    @State private var filterThumbnails: [SnapFilter: UIImage] = [:]
+    /// Nur fürs Foto live gerendert (Video filtert sich über `videoSpieler`s eigene
+    /// `AVVideoComposition`, siehe `vorschauAktualisieren`). `nil` = Originalbild zeigen.
+    @State private var filterVorschauBild: UIImage?
+    /// Bricht einen noch laufenden Vorschau-Render ab, wenn schon der nächste Filter/Wert kommt.
+    @State private var vorschauTask: Task<Void, Never>?
     /// The photo's/video's own aspect ratio — the content box below is locked to this, so the same
     /// (fraction, fraction) numbers land on the same spot live and in `SnapExport`'s flatten pass.
-    /// Without this the box defaulted to the *screen's* aspect, `.scaledToFill` silently cropped
-    /// the content to match, and every element ended up shifted in the exported snap.
     @State private var inhaltAspekt: CGFloat = 3.0 / 4.0
 
-    private static let doodleFarben: [Color] = [.white, .black, Color.loveaRose, .yellow, .green, .blue]
     /// Fraction of the content width — shared with `SnapExport`'s static re-render so a stroke has
     /// the same visual thickness live and in the flattened snap.
     static let doodleLinienbreite: CGFloat = 0.015
 
     var body: some View {
-        ZStack {
-            Color.black.ignoresSafeArea()
+        VStack(spacing: 0) {
+            SnapEditorKopfzeile(
+                bleibt: onUebernehmen == nil ? $bleibt : nil,
+                sendetGerade: sendetGerade,
+                tray: onUebernehmen != nil,
+                schliessenLabel: onVerwerfen == nil ? "Abbrechen" : "Verwerfen",
+                onSchliessen: { Haptik.leicht(); (onVerwerfen ?? onFertig)() },
+                onSenden: senden
+            )
+            vorschau
+            if istVideo {
+                abspielZeile
+                if let plan { zeitleiste(plan: plan) }
+            }
+            if let sendeFehler {
+                Text(sendeFehler).font(.caption).foregroundStyle(Color.orange).padding(.vertical, 4)
+            }
+            untenBereich
+        }
+        .background(Color.black.ignoresSafeArea())
+        .animation(.easeOut(duration: 0.2), value: panel)
+        .task { await vorbereiten() }
+        .task(id: spielt) { await wiedergabeSchleife() }
+        .onChange(of: filterStaerke) { _, _ in vorschauAktualisieren() }
+        .onDisappear { videoSpieler?.pause(); vorschauTask?.cancel() }
+    }
 
-            GeometryReader { geo in
-                ZStack {
-                    basisInhalt
-                    lebendigeUeberlagerung(groesse: geo.size)
-                }
-                .frame(width: geo.size.width, height: geo.size.height)
-                .contentShape(Rectangle())
-                .gesture(doodleGeste(groesse: geo.size))
-            }
-            .aspectRatio(inhaltAspekt, contentMode: .fit)
-
-            VStack {
-                obereLeiste
-                if zeichnenAktiv { farbAuswahl }
-                Spacer()
-                untereLeiste
-            }
+    private func vorbereiten() async {
+        if case .video(let url) = inhalt {
+            videoSpieler = AVPlayer(url: url)
+            if let dauer = await SnapSchnittExport.dauer(von: url) { plan = SnapSchnitt(dauer: dauer) }
+            spielt = true
         }
-        .statusBarHidden()
-        .sheet(isPresented: $stickerBlattOffen) {
-            GifStickerBlatt(ich: ich, antwortAuf: nil, aufBildWahl: { bild in
-                sticker.append(SnapSticker(bild: bild))
-            }, onGesendet: { stickerBlattOffen = false })
+        if filterAn, startFilter != .original {
+            ausgewaehlterFilter = startFilter
+            vorschauAktualisieren()
         }
-        .sheet(isPresented: $textBearbeitenOffen) {
-            NavigationStack {
-                TextField("Text", text: $text.text)
-                    .textFieldStyle(.roundedBorder)
-                    .padding()
-                    .navigationTitle("Text")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Fertig") { textBearbeitenOffen = false } } }
-            }
-            .presentationDetents([.height(160)])
+        await aspektErmitteln()
+        if case .video(let url) = inhalt, let dauer = plan?.dauer {
+            filmbilder = await SnapFilmbilder.laden(url: url, dauer: dauer)
         }
-        .task {
-            if case .video(let url) = inhalt { videoSpieler = AVPlayer(url: url) }
-            await aspektErmitteln()
-        }
-        .onDisappear { videoSpieler?.pause() }
+        await thumbnailsErzeugen()
     }
 
     /// Same source of truth `SnapExport.video` uses for `upright` — keeps the editor's aspect and
@@ -124,18 +161,38 @@ struct SnapEditor: View {
         }
     }
 
-    // MARK: - Base content + live overlay
+    private var istVideo: Bool {
+        if case .video = inhalt { return true }
+        return false
+    }
+
+    // MARK: - Vorschau
+
+    private var vorschau: some View {
+        GeometryReader { geo in
+            ZStack {
+                basisInhalt
+                lebendigeUeberlagerung(groesse: geo.size)
+            }
+            .frame(width: geo.size.width, height: geo.size.height)
+            .coordinateSpace(.named(Self.inhaltRaum))
+            .contentShape(Rectangle())
+            .gesture(TapGesture().onEnded { auswahl = nil }, including: panel == .zeichnen ? .none : .all)
+            .gesture(zeichenGeste(groesse: geo.size), including: panel == .zeichnen ? .all : .none)
+        }
+        .aspectRatio(inhaltAspekt, contentMode: .fit)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
 
     /// `.scaledToFit`, not `.scaledToFill` — the container above is already locked to this content's
     /// own aspect ratio, so nothing needs cropping; filling here would just reintroduce the mismatch.
     @ViewBuilder private var basisInhalt: some View {
         switch inhalt {
         case .foto(let bild):
-            Image(uiImage: bild).resizable().scaledToFit()
+            Image(uiImage: filterVorschauBild ?? bild).resizable().scaledToFit()
         case .video:
             if let videoSpieler {
                 VideoPlayer(player: videoSpieler).disabled(true)
-                    .onAppear { videoSpieler.play() }
             }
         }
     }
@@ -147,27 +204,43 @@ struct SnapEditor: View {
         }
         .allowsHitTesting(false)
 
-        ForEach(sticker) { element in
-            Image(uiImage: element.bild)
-                .resizable().scaledToFit()
-                .frame(width: groesse.width * 0.28)
-                .position(x: element.x * groesse.width, y: element.y * groesse.height)
-                // `.highPriorityGesture`, not `.gesture` — guarantees this wins over the doodle
-                // drag on the ancestor `ZStack` instead of relying on SwiftUI's usual (but here
-                // untested, no local compiler) descendant-first tie-break.
-                .highPriorityGesture(stickerGeste(id: element.id, groesse: groesse))
+        ForEach($sticker) { $element in
+            stickerElement($element, groesse: groesse)
         }
+        .allowsHitTesting(panel != .zeichnen)
 
         if !text.text.isEmpty {
-            Text(text.text)
-                .font(.system(size: groesse.width * 0.07, weight: .bold))
-                .foregroundStyle(.white)
-                .shadow(radius: 3)
-                .scaleEffect(text.skala)
-                .position(x: groesse.width / 2, y: text.y * groesse.height)
-                .highPriorityGesture(textDragGeste(groesse: groesse))
-                .simultaneousGesture(textSkaliergeste)
-                .onTapGesture { textBearbeitenOffen = true }
+            textElement(groesse: groesse)
+                .allowsHitTesting(panel != .zeichnen)
+        }
+    }
+
+    private func stickerElement(_ element: Binding<SnapSticker>, groesse: CGSize) -> some View {
+        let id = element.wrappedValue.id
+        return SnapElementHuelle(
+            x: element.x, y: element.y, skala: element.skala, winkel: element.winkel,
+            groesse: groesse,
+            ausgewaehlt: auswahl == .sticker(id),
+            begrenzung: SnapElementRechnung.imBild,
+            onAntippen: { auswahl = .sticker(id) },
+            onLoeschen: { sticker.removeAll { $0.id == id }; auswahl = nil }
+        ) {
+            Image(uiImage: element.wrappedValue.bild)
+                .resizable().scaledToFit()
+                .frame(width: groesse.width * 0.28 * element.wrappedValue.skala)
+        }
+    }
+
+    private func textElement(groesse: CGSize) -> some View {
+        SnapElementHuelle(
+            x: $text.x, y: $text.y, skala: $text.skala, winkel: $text.winkel,
+            groesse: groesse,
+            ausgewaehlt: auswahl == .text,
+            begrenzung: { SnapTextPlatz.begrenzt(x: $0, y: $1) },
+            onAntippen: { if auswahl == .text { panel = .text } else { auswahl = .text } },
+            onLoeschen: { text = SnapText(); auswahl = nil }
+        ) {
+            SnapTextAnzeige(text: text, breite: groesse.width)
         }
     }
 
@@ -182,126 +255,360 @@ struct SnapEditor: View {
         context.stroke(pfad, with: .color(linie.farbe), style: StrokeStyle(lineWidth: groesse.width * Self.doodleLinienbreite, lineCap: .round, lineJoin: .round))
     }
 
-    // MARK: - Gestures
-
-    /// Doodle drawing (Z-6.2): active only while `zeichnenAktiv`; a no-op drag otherwise. Attached
-    /// to the whole content area, so `.highPriorityGesture` on stickers/text (above) is what keeps
-    /// dragging one of those from also being read as a doodle stroke underneath it.
-    private func doodleGeste(groesse: CGSize) -> some Gesture {
+    /// Kritzeln, solange das Zeichnen-Panel offen ist.
+    private func zeichenGeste(groesse: CGSize) -> some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { wert in
-                guard zeichnenAktiv, groesse.width > 0, groesse.height > 0 else { return }
+                guard groesse.width > 0, groesse.height > 0 else { return }
                 aktuelleLinie.append(CGPoint(x: wert.location.x / groesse.width, y: wert.location.y / groesse.height))
             }
             .onEnded { _ in
-                guard zeichnenAktiv, aktuelleLinie.count > 1 else { aktuelleLinie = []; return }
+                guard aktuelleLinie.count > 1 else { aktuelleLinie = []; return }
                 linien.append(SnapLinie(punkte: aktuelleLinie, farbe: doodleFarbe))
                 aktuelleLinie = []
             }
     }
 
-    /// One shared "drag anchor" for all stickers (only one finger drags at a time in practice) —
-    /// simpler than a `@GestureState` per dynamic array element.
-    private func stickerGeste(id: UUID, groesse: CGSize) -> some Gesture {
-        DragGesture()
-            .onChanged { wert in
-                guard let index = sticker.firstIndex(where: { $0.id == id }) else { return }
-                if ziehendeStickerID != id {
-                    ziehendeStickerID = id
-                    stickerZiehStart = CGPoint(x: sticker[index].x, y: sticker[index].y)
-                }
-                sticker[index].x = min(max(0, stickerZiehStart.x + wert.translation.width / groesse.width), 1)
-                sticker[index].y = min(max(0, stickerZiehStart.y + wert.translation.height / groesse.height), 1)
-            }
-            .onEnded { _ in ziehendeStickerID = nil }
-    }
+    // MARK: - Wiedergabe
 
-    /// Text bar: vertical drag only (Snapchat style), plus pinch to scale.
-    private func textDragGeste(groesse: CGSize) -> some Gesture {
-        DragGesture()
-            .onChanged { wert in
-                if !textZiehtGerade { textZiehtGerade = true; textYStart = text.y }
-                text.y = min(max(0.1, textYStart + wert.translation.height / groesse.height), 0.9)
-            }
-            .onEnded { _ in textZiehtGerade = false }
-    }
-
-    private var textSkaliergeste: some Gesture {
-        MagnificationGesture()
-            .onChanged { wert in
-                if !textSkaliertGerade { textSkaliertGerade = true; textSkalaStart = text.skala }
-                text.skala = min(max(0.5, textSkalaStart * wert), 3)
-            }
-            .onEnded { _ in textSkaliertGerade = false }
-    }
-
-    // MARK: - Chrome
-
-    private var obereLeiste: some View {
-        HStack {
-            Button { UIImpactFeedbackGenerator(style: .light).impactOccurred(); (onVerwerfen ?? onFertig)() } label: { Image(systemName: "xmark").frame(width: 44, height: 44) }
-                .accessibilityLabel(onVerwerfen == nil ? "Abbrechen" : "Verwerfen")
-            Spacer()
-            Button { textBearbeitenOffen = true } label: { Image(systemName: "textformat").frame(width: 44, height: 44) }
-                .accessibilityLabel("Text hinzufügen")
-            Button { zeichnenAktiv.toggle() } label: { Image(systemName: zeichnenAktiv ? "pencil.circle.fill" : "pencil.circle").frame(width: 44, height: 44) }
-                .accessibilityLabel("Kritzeln")
-                .accessibilityValue(zeichnenAktiv ? "an" : "aus")
-            Button { stickerBlattOffen = true } label: { Image(systemName: "face.smiling").frame(width: 44, height: 44) }
-                .accessibilityLabel("Sticker hinzufügen")
-        }
-        .font(.title2)
-        .foregroundStyle(.white)
-        .shadow(color: .black.opacity(0.5), radius: 3) // stays readable over a bright photo
-        .padding()
-    }
-
-    private static let doodleFarbNamen = ["Weiß", "Schwarz", "Rosé", "Gelb", "Grün", "Blau"] // same order as `doodleFarben`
-
-    private var farbAuswahl: some View {
-        HStack(spacing: 4) {
-            ForEach(Self.doodleFarben.indices, id: \.self) { index in
-                let farbe = Self.doodleFarben[index]
-                Circle().fill(farbe)
-                    .frame(width: 26, height: 26)
-                    .overlay(Circle().strokeBorder(.white, lineWidth: doodleFarbe == farbe ? 2 : 0))
-                    .frame(width: 38, height: 44)
-                    .contentShape(Rectangle())
-                    .onTapGesture { doodleFarbe = farbe }
-                    .accessibilityLabel(Self.doodleFarbNamen[index])
-                    .accessibilityAddTraits(.isButton)
-                    .accessibilityAddTraits(doodleFarbe == farbe ? .isSelected : [])
-            }
-        }
-        .padding(.horizontal, 10)
-        .background(.thinMaterial, in: Capsule())
-    }
-
-    private var untereLeiste: some View {
-        HStack {
-            if onUebernehmen == nil {
-                Toggle("bleibt im Chat", isOn: $bleibt)
-                    .toggleStyle(.switch)
-                    .tint(Color.loveaRose)
-                    .fixedSize()
+    private var abspielZeile: some View {
+        HStack(spacing: 12) {
+            Button {
+                Haptik.leicht()
+                spielt.toggle()
+            } label: {
+                Image(systemName: spielt ? "pause.fill" : "play.fill")
+                    .font(.system(size: 18))
                     .foregroundStyle(.white)
+                    .frame(width: 44, height: 40)
             }
-
-            Spacer()
-
-            Button { senden() } label: {
-                if sendetGerade {
-                    ProgressView().tint(.white)
-                } else {
-                    Image(systemName: onUebernehmen == nil ? "arrow.up.circle.fill" : "checkmark.circle.fill")
-                        .font(.system(size: 40)).foregroundStyle(.white)
-                }
-            }
-            .disabled(sendetGerade)
-            .accessibilityLabel(onUebernehmen == nil ? "Senden" : "Übernehmen")
+            .accessibilityLabel(spielt ? "Pause" : "Abspielen")
+            Text(SnapSchnitt.zeit(zeit) + " / " + SnapSchnitt.zeit(plan?.dauer ?? 0))
+                .font(.footnote.monospacedDigit().weight(.medium))
+                .foregroundStyle(.white)
         }
-        .padding()
-        .background(.black.opacity(0.35))
+        .frame(maxWidth: .infinity)
+    }
+
+    /// Läuft nur, solange `spielt` gilt (die `.task(id:)` startet bei jedem Wechsel neu).
+    private func wiedergabeSchleife() async {
+        guard spielt, let spieler = videoSpieler else {
+            videoSpieler?.pause()
+            return
+        }
+        spieler.play()
+        while !Task.isCancelled {
+            try? await Task.sleep(for: .milliseconds(50))
+            if Task.isCancelled { break }
+            wiedergabeSchritt(spieler)
+        }
+    }
+
+    private func wiedergabeSchritt(_ spieler: AVPlayer) {
+        guard let plan else { return }
+        let jetzt = spieler.currentTime().seconds
+        guard jetzt.isFinite else { return }
+        if let ziel = SnapZeitleisteRechnung.sprungZiel(plan: plan, zeit: jetzt) {
+            springe(zu: ziel)
+            zeit = ziel
+            spieler.play()
+            return
+        }
+        zeit = jetzt
+        if spieler.timeControlStatus == .paused { spieler.play() }
+    }
+
+    private func springe(zu sekunde: Double) {
+        videoSpieler?.seek(to: CMTime(seconds: sekunde, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+    }
+
+    // MARK: - Zeitleiste
+
+    private func zeitleiste(plan: SnapSchnitt) -> some View {
+        GeometryReader { geo in
+            ZStack(alignment: .topLeading) {
+                SnapFilmstreifen(bilder: filmbilder, plan: plan, ausgewaehlt: auswahl == .clip, onKuerzen: kuerzen)
+                    .onTapGesture { auswahl = auswahl == .clip ? nil : .clip }
+                    .padding(.top, 6)
+                    .offset(x: geo.size.width / 2 - SnapZeitleisteRechnung.x(zeit: zeit))
+                Capsule().fill(Color.white)
+                    .frame(width: 2, height: SnapFilmstreifen.hoehe + 12)
+                    .offset(x: geo.size.width / 2 - 1)
+                    .allowsHitTesting(false)
+            }
+            .frame(width: geo.size.width, height: geo.size.height, alignment: .topLeading)
+            .clipped()
+            .contentShape(Rectangle())
+            .gesture(scrubGeste(plan: plan))
+        }
+        .frame(height: SnapFilmstreifen.hoehe + 14)
+        .background(Color.black)
+    }
+
+    private func scrubGeste(plan: SnapSchnitt) -> some Gesture {
+        DragGesture(minimumDistance: 2)
+            .onChanged { wert in
+                if scrubStart == nil { scrubStart = zeit; spielt = false }
+                let neu = SnapZeitleisteRechnung.zeit(start: scrubStart ?? zeit, verschiebung: wert.translation.width, dauer: plan.dauer)
+                zeit = neu
+                springe(zu: neu)
+            }
+            .onEnded { _ in scrubStart = nil }
+    }
+
+    /// Griff-Zug: der Plan entscheidet (Mindestlänge), bei Ablehnung bleibt alles wie es war.
+    private func kuerzen(anfang: Double, ende: Double) {
+        schnittHinweis = nil
+        plan?.kuerzen(anfang: anfang, ende: ende)
+    }
+
+    // MARK: - Panels
+
+    @ViewBuilder private var untenBereich: some View {
+        if let panel {
+            panelAnsicht(panel)
+                .transition(.move(edge: .bottom))
+        } else {
+            SnapWerkzeugLeiste(werkzeuge: SnapPanel.leiste(video: istVideo, filterAn: filterAn), onWahl: werkzeugWahl)
+        }
+    }
+
+    private func werkzeugWahl(_ wahl: SnapPanel) {
+        Haptik.auswahl()
+        schnittHinweis = nil
+        sendeFehler = nil
+        switch wahl {
+        case .text: auswahl = text.text.isEmpty ? nil : .text
+        case .zeichnen: auswahl = nil
+        default: break
+        }
+        panel = wahl
+    }
+
+    @ViewBuilder private func panelAnsicht(_ wahl: SnapPanel) -> some View {
+        SnapPanelRahmen(titel: wahl.rawValue, onFertig: { panel = nil }) {
+            switch wahl {
+            case .bearbeiten: bearbeitenPanel
+            case .ton: tonPanel
+            case .text: SnapTextPanel(text: $text)
+            case .sticker: stickerPanel
+            case .filter:
+                SnapFilterPanel(vorschauBilder: filterThumbnails, gewaehlt: ausgewaehlterFilter, staerke: $filterStaerke, onWahl: waehleFilter)
+            case .zeichnen: zeichnenPanel
+            }
+        }
+    }
+
+    /// Kürzen geht über die Griffe am Clip; hier Teil aus der Mitte entfernen und zurückholen.
+    @ViewBuilder private var bearbeitenPanel: some View {
+        if let plan {
+            VStack(spacing: 10) {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 10) {
+                        SnapPanelKnopf(titel: markeStart == nil ? "Teil entfernen: Start" : "Bis hier entfernen",
+                                       symbol: "scissors", aktiv: markeStart != nil, aktion: markeSetzen)
+                        SnapPanelKnopf(titel: "Zurücksetzen", symbol: "arrow.counterclockwise") {
+                            var neu = SnapSchnitt(dauer: plan.dauer)
+                            neu.stumm = plan.stumm
+                            self.plan = neu
+                            markeStart = nil
+                            schnittHinweis = nil
+                        }
+                        ForEach(Array(plan.entfernt.enumerated()), id: \.offset) { index, teil in
+                            SnapPanelKnopf(titel: SnapSchnitt.zeit(teil.von) + "–" + SnapSchnitt.zeit(teil.bis) + " zurück", symbol: "arrow.uturn.backward") {
+                                schnittAendern { $0.entfernenRueckgaengig(bei: index); return true }
+                            }
+                        }
+                    }
+                    .padding(.horizontal, 16)
+                }
+                Text(schnittHinweis ?? "Länge " + SnapSchnitt.zeit(plan.ergebnisDauer))
+                    .font(.caption)
+                    .foregroundStyle(schnittHinweis == nil ? Color.secondary : Color.orange)
+                    .padding(.horizontal, 16)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private var tonPanel: some View {
+        let stumm = plan?.stumm ?? false
+        return HStack {
+            SnapPanelKnopf(titel: stumm ? "Ton an" : "Ton aus", symbol: stumm ? "speaker.wave.2.fill" : "speaker.slash.fill", aktiv: stumm) {
+                plan?.stumm.toggle()
+                videoSpieler?.isMuted = !stumm
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 16)
+    }
+
+    private var stickerPanel: some View {
+        GifStickerBlatt(
+            ich: ich, antwortAuf: nil,
+            aufBildWahl: { bild in
+                let neu = SnapSticker(bild: bild)
+                sticker.append(neu)
+                auswahl = .sticker(neu.id)
+            },
+            onGesendet: { panel = nil },
+            panel: true
+        )
+        .frame(height: 300)
+    }
+
+    private var zeichnenPanel: some View {
+        VStack(spacing: 10) {
+            SnapFarbReihe(farbe: $doodleFarbe)
+            HStack {
+                SnapPanelKnopf(titel: "Rückgängig", symbol: "arrow.uturn.backward") { _ = linien.popLast() }
+                    .disabled(linien.isEmpty)
+                Spacer()
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    /// Ändert den Plan; `false` aus der Änderung = zu kurz, dann kurzer Hinweis im Panel.
+    private func schnittAendern(_ aenderung: (inout SnapSchnitt) -> Bool) {
+        guard var neu = plan else { return }
+        if aenderung(&neu) {
+            plan = neu
+            schnittHinweis = nil
+        } else {
+            schnittHinweis = "Geht nicht: es müssen mindestens \(SnapSchnitt.zeit(SnapSchnitt.mindestdauer)) Video bleiben."
+        }
+    }
+
+    private func markeSetzen() {
+        guard let start = markeStart else {
+            markeStart = zeit
+            schnittHinweis = "Start gesetzt bei \(SnapSchnitt.zeit(zeit)). Zur Endstelle gehen und erneut tippen."
+            return
+        }
+        markeStart = nil
+        schnittAendern { $0.entfernen(von: start, bis: zeit) }
+    }
+
+    // MARK: - Filter
+
+    /// Filter aus (Einstellungen) oder Stärke 0: immer das Original, egal was vorher gewählt war.
+    private var wirksamerFilter: SnapFilter {
+        filterStaerke > 0 ? SnapFilterAnzeige.filter(ausgewaehlterFilter, an: filterAn) : .original
+    }
+
+    private var wirksameStaerke: Double { min(max(filterStaerke, 0), 100) / 100 }
+
+    private func waehleFilter(_ filter: SnapFilter) {
+        guard filter != ausgewaehlterFilter else { return }
+        Haptik.auswahl()
+        ausgewaehlterFilter = filter
+        filterStaerke = 100
+        vorschauAktualisieren()
+    }
+
+    /// Live-Vorschau: Foto wird einmal neu gerendert (nicht pro Frame), Video bekommt dieselbe
+    /// `AVVideoComposition` wie der Export auf seinen Player gesetzt (Akku-Regel: nur bei Wechsel).
+    /// Kurze Wartezeit, damit ein ziehender Regler nicht pro Wert rendert.
+    private func vorschauAktualisieren() {
+        vorschauTask?.cancel()
+        let filter = wirksamerFilter
+        let staerke = wirksameStaerke
+        switch inhalt {
+        case .foto(let bild):
+            vorschauTask = Task {
+                try? await Task.sleep(for: .milliseconds(60))
+                guard !Task.isCancelled else { return }
+                let ergebnis = await Self.gefiltertesVorschauBild(quelle: bild, filter: filter, staerke: staerke)
+                guard !Task.isCancelled else { return }
+                filterVorschauBild = ergebnis
+            }
+        case .video(let url):
+            vorschauTask = Task {
+                try? await Task.sleep(for: .milliseconds(60))
+                guard !Task.isCancelled else { return }
+                let komposition = await filter.videoKomposition(fuer: AVURLAsset(url: url), staerke: staerke)
+                guard !Task.isCancelled else { return }
+                videoSpieler?.currentItem?.videoComposition = komposition
+            }
+        }
+    }
+
+    /// Datei, die Vorschau und Senden benutzen: das Schnitt-Ergebnis, sonst das Original.
+    static func sendeQuelle(original: URL, geschnitten: URL?) -> URL { geschnitten ?? original }
+
+    /// Nur `SnapFilter` (Sendable) und ein gewickeltes `CGImage` queren die `Task.detached`-Grenze —
+    /// `CIImage`/`CIFilter` werden bewusst erst innerhalb von `SnapFilter.gefiltertesCGBild` gebaut
+    /// (R9-Review: kein von außen hineingereichtes `CIImage`, kein unmarkiertes `CIContext`).
+    private static func gefiltertesVorschauBild(quelle: UIImage, filter: SnapFilter, staerke: Double) async -> UIImage? {
+        guard filter != .original, let cgQuelle = Self.aufrechtesCGBild(quelle) else { return nil }
+        let eingabe = SendableCGImage(bild: cgQuelle)
+        let ergebnis = await Task.detached(priority: .userInitiated) { () -> SendableCGImage? in
+            guard let cgBild = SnapFilter.gefiltertesCGBild(aus: eingabe.bild, filter: filter, staerke: staerke) else { return nil }
+            return SendableCGImage(bild: cgBild)
+        }.value
+        return ergebnis.map { UIImage(cgImage: $0.bild) }
+    }
+
+    /// `UIImage.imageOrientation` in die Pixel backen (gleiche Wirkung wie vorher
+    /// `CIImage(image:options:[.applyOrientationProperty: true])`), synchron auf dem aufrufenden Actor —
+    /// danach reicht nur noch das fertige `CGImage` über die `Task.detached`-Grenze, nie das `UIImage`.
+    /// Roher `CGContext` statt dem UIKit-Bild-Renderer — CI-Regel erlaubt den nur in `Snaps`-Dateien
+    /// mit "Export" im Namen.
+    private static func aufrechtesCGBild(_ bild: UIImage) -> CGImage? {
+        guard bild.imageOrientation != .up else { return bild.cgImage }
+        let skala = bild.scale
+        let breite = Int((bild.size.width * skala).rounded(.up))
+        let hoehe = Int((bild.size.height * skala).rounded(.up))
+        guard breite > 0, hoehe > 0,
+              let context = CGContext(data: nil, width: breite, height: hoehe, bitsPerComponent: 8, bytesPerRow: 0,
+                                       space: CGColorSpaceCreateDeviceRGB(), bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+        else { return nil }
+        // Core Graphics: Ursprung unten links, Y hoch. `UIImage.draw` erwartet Y runter wie jedes
+        // UIKit-Layout, und `skala` rechnet Punkte in Pixel um — ohne beides läge das Ergebnis
+        // gespiegelt/falsch skaliert.
+        context.translateBy(x: 0, y: CGFloat(hoehe))
+        context.scaleBy(x: skala, y: -skala)
+        UIGraphicsPushContext(context)
+        bild.draw(at: .zero)
+        UIGraphicsPopContext()
+        return context.makeImage()
+    }
+
+    /// Einmal pro Snap: eine kleine (~160px) Thumbnail-CIImage, für alle 15 Filter gerendert und
+    /// gecached — nicht pro Chip/Frame neu (Akku-Regel). Lebt off-main in `Task.detached`.
+    private func thumbnailsErzeugen() async {
+        let quellBild: UIImage?
+        switch inhalt {
+        case .foto(let bild): quellBild = bild
+        case .video: quellBild = filmbilder.first
+        }
+        guard filterAn, let quellBild else { return }
+        filterThumbnails = await Self.filterThumbnails(aus: quellBild)
+    }
+
+    /// Wie `gefiltertesVorschauBild`: nur `SendableCGImage`/`SnapFilter`/`CGSize` queren die
+    /// `Task.detached`-Grenze, `CIImage` wird innerhalb des Closures aus dem `CGImage` neu gebaut.
+    private static func filterThumbnails(aus quellBild: UIImage) async -> [SnapFilter: UIImage] {
+        guard let cgQuelle = Self.aufrechtesCGBild(quellBild), cgQuelle.width > 0, cgQuelle.height > 0 else { return [:] }
+        let klein = MedienKodierung.skaliert(CGSize(width: cgQuelle.width, height: cgQuelle.height), langeKante: 160)
+        guard klein.width > 0, klein.height > 0 else { return [:] }
+        let eingabe = SendableCGImage(bild: cgQuelle)
+
+        let ergebnis: [SnapFilter: SendableCGImage] = await Task.detached(priority: .utility) {
+            let ciBasis = CIImage(cgImage: eingabe.bild)
+            guard ciBasis.extent.width > 0, ciBasis.extent.height > 0 else { return [:] }
+            let skaliert = ciBasis.transformed(by: CGAffineTransform(scaleX: klein.width / ciBasis.extent.width, y: klein.height / ciBasis.extent.height))
+            var ergebnis: [SnapFilter: SendableCGImage] = [:]
+            for filter in SnapFilter.allCases {
+                let gefiltert = filter.anwenden(auf: skaliert)
+                guard let cgBild = SnapFilterKontext.shared.context.createCGImage(gefiltert, from: CGRect(origin: .zero, size: klein)) else { continue }
+                ergebnis[filter] = SendableCGImage(bild: cgBild)
+            }
+            return ergebnis
+        }.value
+
+        return ergebnis.mapValues { UIImage(cgImage: $0.bild) }
     }
 
     // MARK: - Send (Z-6.2: flatten, then reuse Block 5's upload helpers)
@@ -312,12 +619,17 @@ struct SnapEditor: View {
     private func senden() {
         guard !sendetGerade else { return }
         sendetGerade = true
-        UIImpactFeedbackGenerator(style: .light).impactOccurred()
+        sendeFehler = nil
+        videoSpieler?.pause()
+        spielt = false
+        Haptik.leicht()
+        let filter = wirksamerFilter
+        let staerke = wirksameStaerke
         if let onUebernehmen {
             // ponytail: tray mode edits photos only (videos in the tray aren't editable yet).
             guard case .foto(let bild) = inhalt else { onFertig(); return }
             Task {
-                if let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text) { onUebernehmen(jpeg) }
+                if let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke) { onUebernehmen(jpeg) }
                 onFertig()
             }
             return
@@ -325,14 +637,24 @@ struct SnapEditor: View {
         switch inhalt {
         case .foto(let bild):
             Task {
-                let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text)
+                let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke)
                 onFertig()
                 if let jpeg { await ChatMedien.snapFotoSenden(jpeg: jpeg, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
         case .video(let url):
+            let schnitt = plan
             Task {
+                var quelle = url
+                if let schnitt, schnitt.veraendert {
+                    guard let geschnitten = await SnapSchnittExport.exportieren(quelle: url, plan: schnitt) else {
+                        sendeFehler = "Schneiden hat nicht geklappt. Bitte noch einmal versuchen."
+                        sendetGerade = false
+                        return
+                    }
+                    quelle = geschnitten
+                }
                 defer { onFertig() }
-                guard let exportURL = await SnapExport.video(quelle: url, linien: linien, sticker: sticker, text: text) else { return }
+                guard let exportURL = await SnapExport.video(quelle: quelle, linien: linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke) else { return }
                 Task { await ChatMedien.snapVideoSenden(quelle: exportURL, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
         }
@@ -350,6 +672,7 @@ enum SnapBildQuelle {
     }
 
     static func medium(_ id: String) async -> UIImage? {
+        if let name = MitgelieferteSticker.assetName(id) { return UIImage(named: name) }
         // Split, not `A ?? B ?? (try? await C)`: an `await` buried in a `??` chain doesn't
         // type-check ("'async' call in a function that does not support concurrency") — same fix
         // already applied project-wide in `StickerKachel`/`GifStickerBlatt`.

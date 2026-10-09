@@ -54,7 +54,7 @@ enum ArtworkExport {
         guard await PHPhotoLibrary.requestAuthorization(for: .addOnly) == .authorized else {
             throw CocoaError(.fileWriteNoPermission)
         }
-        try await PHPhotoLibrary.shared().performChanges {
+        try await PHPhotoLibrary.shared().performChanges { @Sendable in
             PHAssetCreationRequest.forAsset().addResource(with: .photo, data: data, options: nil)
         }
     }

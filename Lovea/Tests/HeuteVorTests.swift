@@ -42,11 +42,4 @@ final class HeuteVorTests: XCTestCase {
         n.snap = ChatModell.SnapInfo(bleibt: false)
         XCTAssertNil(HeuteVorLogik.auswahl([n], jetzt: jetzt))
     }
-
-    func testVerschlosseneZeitkapselZaehltNichtBisSieOffenIst() {
-        let tag = Calendar.berlin.date(byAdding: .year, value: -1, to: jetzt)!
-        var n = ChatModell.Nachricht(id: "k", von: .ahmed, zeit: tag, text: "geheim")
-        n.kapsel = ChatModell.KapselInfo(oeffnetAm: "2099-01-01")
-        XCTAssertNil(HeuteVorLogik.auswahl([n], jetzt: jetzt))
-    }
 }

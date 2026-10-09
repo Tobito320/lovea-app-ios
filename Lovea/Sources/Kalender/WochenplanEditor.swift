@@ -55,88 +55,98 @@ struct WochenplanEditor: View {
 
 private struct MusterEditorBlatt: View {
     @Environment(\.dismiss) private var dismiss
-    @State var muster: Muster
+    @State private var muster: Muster
     @State private var hatZeit: Bool
     @State private var start: Date
     @State private var ende: Date
 
     private static let typen = ["schule", "arbeit", "fahrschule", "sonstiges"]
     private static let wochentagsNamen = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"]
+    private static let wochentagsVoll = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"]
 
     init(muster: Muster) {
         _muster = State(initialValue: muster)
         _hatZeit = State(initialValue: muster.start != nil && muster.ende != nil)
-        _start = State(initialValue: Self.zeit(muster.start) ?? Date())
-        _ende = State(initialValue: Self.zeit(muster.ende) ?? Date())
+        // An einem echten Tag verankert (nicht Jahr 1 aus reinen Stunden/Minuten), Standard 8–16 Uhr.
+        let heute = Datum.text(Date())
+        _start = State(initialValue: IPhoneKalenderDatum.kombiniert(heute, muster.start ?? "08:00"))
+        _ende = State(initialValue: IPhoneKalenderDatum.kombiniert(heute, muster.ende ?? "16:00"))
     }
 
     var body: some View {
         NavigationStack {
             Form {
                 Section("Was") {
-                    TextField("Titel", text: $muster.titel)
+                    TextField("Titel", text: $muster.titel, prompt: Text(muster.typ.capitalized))
                     Picker("Art", selection: $muster.typ) {
                         ForEach(Self.typen, id: \.self) { Text($0.capitalized) }
                     }
                 }
                 Section("Wann") {
-                    HStack {
-                        ForEach(1...7, id: \.self) { tag in
-                            let an = muster.wochentage.contains(tag)
-                            Button(Self.wochentagsNamen[tag - 1]) {
-                                if an { muster.wochentage.removeAll { $0 == tag } } else { muster.wochentage.append(tag) }
-                            }
-                            .buttonStyle(.bordered)
-                            .tint(an ? Color.loveaRose : .gray)
-                        }
+                    HStack(spacing: 4) {
+                        ForEach(1...7, id: \.self) { tag in wochentagKnopf(tag) }
                     }
+                    .listRowInsets(EdgeInsets(top: 8, leading: 12, bottom: 8, trailing: 12))
                     Picker("Wechselwoche", selection: $muster.wochen) {
                         Text("Alle").tag("alle")
                         Text("Woche A").tag("A")
                         Text("Woche B").tag("B")
                     }
                     DatePicker("Ab", selection: Binding(get: { Datum.datum(muster.ab) }, set: { muster.ab = Datum.text($0) }), displayedComponents: .date)
+                        .environment(\.timeZone, Datum.kalender.timeZone)
                 }
                 Section("Uhrzeit") {
                     Toggle("Mit Uhrzeit", isOn: $hatZeit)
                     if hatZeit {
                         DatePicker("Von", selection: $start, displayedComponents: .hourAndMinute)
-                        DatePicker("Bis", selection: $ende, displayedComponents: .hourAndMinute)
+                        DatePicker("Bis", selection: $ende, in: start..., displayedComponents: .hourAndMinute)
                     }
                 }
+                .environment(\.timeZone, Datum.kalender.timeZone)
             }
             .navigationTitle("Muster")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("Sichern") { sichern() }
-                        .disabled(muster.titel.trimmingCharacters(in: .whitespaces).isEmpty || muster.wochentage.isEmpty)
+                    Button("Sichern", action: sichern)
+                        .disabled(muster.wochentage.isEmpty)
                 }
             }
         }
     }
 
+    /// Z-42.2: jeder Tag ein eigener Knopf. `.borderless`, sonst lösen in einer Form-Zeile alle
+    /// sieben zusammen aus.
+    private func wochentagKnopf(_ tag: Int) -> some View {
+        let an = muster.wochentage.contains(tag)
+        return Button {
+            if an { muster.wochentage.removeAll { $0 == tag } } else { muster.wochentage.append(tag) }
+            Haptik.auswahl()
+        } label: {
+            Text(Self.wochentagsNamen[tag - 1])
+                .font(.subheadline.weight(.semibold))
+                .lineLimit(1)
+                .minimumScaleFactor(0.7)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .foregroundStyle(an ? Color.white : Color.primary)
+                .background(an ? Color.loveaRose : Color(uiColor: .tertiarySystemFill), in: .circle)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .accessibilityLabel(Self.wochentagsVoll[tag - 1])
+        .accessibilityAddTraits(an ? .isSelected : [])
+    }
+
     private func sichern() {
         var gesendet = muster
-        gesendet.start = hatZeit ? Self.text(start) : nil
-        gesendet.ende = hatZeit ? Self.text(ende) : nil
+        // Ohne Titel gilt die Art („Arbeit"), statt „Sichern" stumm zu sperren.
+        if gesendet.titel.trimmingCharacters(in: .whitespaces).isEmpty { gesendet.titel = gesendet.typ.capitalized }
+        gesendet.wochentage.sort()
+        gesendet.start = hatZeit ? Datum.uhrzeit(start) : nil
+        gesendet.ende = hatZeit ? Datum.uhrzeit(ende) : nil
         Raum.shared.senden("muster.setzen", gesendet)
+        Haptik.erfolg()
         dismiss()
-    }
-
-    private static func zeit(_ hhmm: String?) -> Date? {
-        guard let hhmm, let doppelpunkt = hhmm.firstIndex(of: ":"),
-              let stunde = Int(hhmm[..<doppelpunkt]), let minute = Int(hhmm[hhmm.index(after: doppelpunkt)...])
-        else { return nil }
-        var komponenten = DateComponents()
-        komponenten.hour = stunde
-        komponenten.minute = minute
-        return Datum.kalender.date(from: komponenten)
-    }
-
-    private static func text(_ datum: Date) -> String {
-        let komponenten = Datum.kalender.dateComponents([.hour, .minute], from: datum)
-        return String(format: "%02d:%02d", komponenten.hour ?? 0, komponenten.minute ?? 0)
     }
 }

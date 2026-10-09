@@ -22,17 +22,38 @@ final class ShopKatalogTests: XCTestCase {
         XCTAssertTrue(liste[1].exklusiv)
     }
 
-    func testKatalogHatMindestens80EindeutigeArtikel() throws {
+    func testKatalogHatEindeutigeArtikel() throws {
         let alle = try geladenerKatalog()
-        XCTAssertGreaterThanOrEqual(alle.count, 80)
         XCTAssertEqual(Set(alle.map(\.id)).count, alle.count, "doppelte ids")
     }
 
-    func testKatalogDecktAlleKategorienAb() throws {
+    /// p47: nur Taschen, Haustiere und Mode, keine Pose und kein Tanz; p56 bringt den Schmuck zurück. p61: dazu das Zimmer.
+    func testKatalogHatNurVierGruppen() throws {
         let alle = try geladenerKatalog()
-        let erwartet = ["mode", "tasche", "uhr", "schmuck", "brille", "backdrop", "chatTheme", "flamme", "pose", "tier"]
-        let vorhanden = Set(alle.map(\.kategorie))
-        for k in erwartet { XCTAssertTrue(vorhanden.contains(k), k) }
+        XCTAssertEqual(Set(alle.map(\.kategorie)), ["mode", "schmuck", "tasche", "tier", "zimmer"])
+        XCTAssertFalse(alle.contains { $0.id.hasPrefix("pose.") || $0.name.contains("Tanz") || $0.name.contains("Pose") })
+        for k in ["mode", "schmuck", "tasche", "tier", "zimmer"] {
+            let n = alle.filter { $0.kategorie == k }.count
+            // p65 D: Mode ist der große Kleiderschrank (nur ca. 5 Teile je Person sind frei), der Rest bleibt klein.
+            let erlaubt = k == "mode" ? 50...90 : 4...10
+            XCTAssertTrue(erlaubt.contains(n), "\(k): \(n) Teile, erwartet \(erlaubt)")
+        }
+    }
+
+    /// Kein entferntes Teil im Katalog, jedes entfernte Teil in der Erstattungstabelle (ShopErstattungTests).
+    func testEntfernteTeileSindWegUndNichtDoppelt() throws {
+        let ids = Set(try geladenerKatalog().map(\.id))
+        XCTAssertTrue(ids.isDisjoint(with: ShopErstattung.entfernt.keys), "\(ids.intersection(ShopErstattung.entfernt.keys))")
+        for praefix in ["uhr.", "schmuck.", "brille.", "backdrop.", "pose."] {
+            XCTAssertFalse(ids.contains { $0.hasPrefix(praefix) }, praefix)
+        }
+    }
+
+    func testGuessTascheBleibtFuerAnnika() throws {
+        let guess = try XCTUnwrap(try geladenerKatalog().first { $0.id == "tasche.guess-tasche" })
+        XCTAssertTrue(guess.sichtbar(fuer: .annika))
+        let taschen = try geladenerKatalog().filter { $0.kategorie == "tasche" }
+        XCTAssertGreaterThanOrEqual(taschen.filter { $0.sichtbar(fuer: .annika) }.count, 5, "Fokus Annika")
     }
 
     func testKatalogPreiseInDenStufenAusSpec() throws {
@@ -51,40 +72,42 @@ final class ShopKatalogTests: XCTestCase {
         XCTAssertLessThanOrEqual(exklusiv.count, 2)
     }
 
-    func testKatalogMindestzahlenProKategorie() throws {
-        let alle = try geladenerKatalog()
-        func anzahl(_ k: String) -> Int { alle.filter { $0.kategorie == k }.count }
-        XCTAssertGreaterThanOrEqual(anzahl("chatTheme"), 6)
-        XCTAssertGreaterThanOrEqual(anzahl("flamme"), 8)
-        XCTAssertGreaterThanOrEqual(anzahl("pose"), 4)
-        XCTAssertGreaterThanOrEqual(anzahl("tier"), 4)
-    }
-
     /// Every wearable id needs a drawing (or, for mode/brille, a `FigurAussehen.shopTeile` mapping) —
     /// otherwise a purchase renders as nothing.
     func testAlleTeileHabenEineZeichnungOderZuordnung() throws {
         let alle = try geladenerKatalog()
-        let posenIds: Set<String> = ["pose.tanz1", "pose.tanz2", "pose.tanz3", "pose.tanz4", "pose.model"]
         for a in alle {
             switch a.kategorie {
             case "tasche": XCTAssertNotNil(taschenKatalog[a.id], a.id)
-            case "uhr": XCTAssertNotNil(uhrenKatalog[a.id], a.id)
-            case "schmuck": XCTAssertNotNil(schmuckKatalog[a.id], a.id)
             case "tier": XCTAssertNotNil(haustierKatalog[a.id], a.id)
-            case "pose": XCTAssertTrue(posenIds.contains(a.id), a.id)
-            case "mode", "brille": XCTAssertNotNil(FigurAussehen.shopTeile[a.id], a.id)
-            case "chatTheme": XCTAssertNotNil(ChatThemes.von(a.id), a.id)
-            case "flamme": XCTAssertNotNil(Flammen.von(a.id), a.id)
-            case "backdrop": XCTAssertNotNil(BackdropKatalog.eintrag(a.id), a.id)
+            case "mode": XCTAssertNotNil(FigurAussehen.shopTeile[a.id], a.id)
+            case "zimmer": XCTAssertNotNil(ZimmerTeile.alle[a.id], a.id)
+            case "schmuck": XCTAssertNotNil(schmuckKatalog[a.id], a.id)
             default: XCTFail("unbekannte Kategorie \(a.kategorie)")
             }
         }
     }
 
-    func testChatThemesUndFlammenMindestzahl() {
-        XCTAssertGreaterThanOrEqual(ChatThemes.alle.count, 6)
-        XCTAssertGreaterThanOrEqual(Flammen.alle.count, 8)
-        XCTAssertEqual(Set(ChatThemes.alle.map(\.id)).count, ChatThemes.alle.count)
-        XCTAssertEqual(Set(Flammen.alle.map(\.id)).count, Flammen.alle.count)
+    /// Flammen und Chat-Themes sind raus, die Marken der Taschen bleiben.
+    func testMarkenDerTaschen() throws {
+        let alle = try geladenerKatalog()
+        let marken = Set(alle.filter { $0.kategorie == "tasche" }.compactMap(\.marke))
+        for m in ["Guess", "Louis Vuitton", "Chanel", "Gucci", "Dior"] { XCTAssertTrue(marken.contains(m), m) }
+        XCTAssertFalse(alle.contains { $0.kategorie == "chatTheme" || $0.kategorie == "flamme" })
+    }
+
+    /// p65 D: every mode piece is shop-only (only the free kit is outside the shop sets), so its index must be
+    /// hidden from the free editor.
+    func testLuxusModeNurImShop() {
+        typealias A = FigurAussehen
+        for (id, e) in A.shopTeile {
+            switch e.feld {
+            case .oberteil: XCTAssertTrue(A.oberteileShop.contains(e.index), id)
+            case .jacke: XCTAssertTrue(A.jackenShop.contains(e.index), id)
+            case .hose: XCTAssertTrue(A.hosenShop.contains(e.index), id)
+            case .schuhe: XCTAssertTrue(A.schuheShop.contains(e.index), id)
+            case .brille: break
+            }
+        }
     }
 }
