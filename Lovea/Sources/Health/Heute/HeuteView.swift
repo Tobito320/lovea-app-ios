@@ -17,20 +17,30 @@ struct Tagesform: Equatable, Sendable {
 enum TagesformLogik {
     static let schlafSollMinuten = 480
 
-    /// Schlaf / Ziel · 0,4, Wasser / Ziel · 0,2, Schritte / Ziel · 0,15, mittlere Erholung (0...1) · 0,25.
-    /// `schlafZiel` ist Minuten, Standard 480 (8 h) — Teil 6 übergibt das flexible Tagesziel.
+    /// Obergrenze aus dem Schlaf: 15 bei 0 h bis 100 beim Schlafziel. Gleiche Regel wie `server/tagesform.js`.
+    static func schlafGrenze(schlafMinuten: Int, schlafZiel: Int) -> Int {
+        guard schlafZiel > 0 else { return 100 }
+        return Int((15 + 85 * min(1, max(0, Double(schlafMinuten) / Double(schlafZiel)))).rounded())
+    }
+
+    /// Schlaf ist eine harte Obergrenze. Wasser (0,4), Schritte (0,3) und Erholung (0,3) korrigieren nur klein darunter
+    /// (75 bis 100 Prozent der Grenze). Ohne Schlafwert gibt es keinen Akku, egal wie viel Wasser oder Schritte da sind.
+    /// Offline-Rückfall: der Coach-Server rechnet dieselbe Regel und darf nur darunter bleiben.
+    /// `schlafZiel` ist Minuten, Standard 480 (8 h).
     static func tagesform(schlafMinuten: Int?, wasser: Int, wasserZiel: Int, schritte: Int?, schritteZiel: Int,
                           erholung: Double, schlafZiel: Int = schlafSollMinuten) -> Tagesform {
-        guard schlafMinuten != nil || schritte != nil || wasser > 0 else {
-            return Tagesform(akku: nil, urteil: "Noch leer",
-                             satz: "Trag Wasser ein oder erlaube Apple Health, dann rechne ich deine Tagesform aus.")
+        guard let schlafMinuten else {
+            return Tagesform(akku: nil, urteil: "Schlaf fehlt",
+                             satz: "Ohne Schlafwert gibt es keine Tagesform. Trag deinen Schlaf ein oder erlaube Apple Health.")
         }
         func anteil(_ ist: Int, _ soll: Int) -> Double { soll > 0 ? min(1, max(0, Double(ist) / Double(soll))) : 1 }
-        let schlaf = anteil(schlafMinuten ?? 0, schlafZiel)
+        let schlaf = anteil(schlafMinuten, schlafZiel)
         let trinken = anteil(wasser, wasserZiel)
         let gehen = anteil(schritte ?? 0, schritteZiel)
-        let akku = Int((100 * (schlaf * 0.4 + trinken * 0.2 + gehen * 0.15 + min(1, max(0, erholung)) * 0.25)).rounded())
-        let urteil = akku >= 85 ? "Voll geladen" : akku >= 70 ? "Gut geladen" : akku >= 50 ? "Halb leer" : "Sparmodus"
+        let korrektur = 0.4 * trinken + 0.3 * gehen + 0.3 * min(1, max(0, erholung))
+        let grenze = schlafGrenze(schlafMinuten: schlafMinuten, schlafZiel: schlafZiel)
+        let akku = Int((Double(grenze) * (0.75 + 0.25 * korrektur)).rounded())
+        let urteil = urteil(akku)
         let satz: String
         if min(schlaf, trinken, gehen) >= 1 {
             satz = "Alles im grünen Bereich. So bleibt es."
@@ -43,6 +53,10 @@ enum TagesformLogik {
             satz = "Schritte bremsen dich: noch \(deZahl(schritteZiel - (schritte ?? 0))) bis zum Ziel."
         }
         return Tagesform(akku: akku, urteil: urteil, satz: satz)
+    }
+
+    static func urteil(_ akku: Int) -> String {
+        akku >= 85 ? "Voll geladen" : akku >= 70 ? "Gut geladen" : akku >= 50 ? "Halb leer" : "Sparmodus"
     }
 
     /// Mittlere Erholung 0...1. Teile ohne Training fehlen in `MuskelLogik.erholung` und zählen als 100.
@@ -388,6 +402,8 @@ struct HeuteView: View {
     @State private var befragung = false
     @State private var gewichtOffen = false
     @State private var freitextOffen = false
+    /// Antwort des Coachs zur Tagesform (nur für den Stand `schluessel`); sonst gilt die Regel.
+    @State private var coachForm: TagesformCoach.Antwort?
     @State private var offeneHinweise: Set<String> = []
     @Namespace private var zoom
     @Environment(\.dynamicTypeSize) private var schrift
@@ -430,6 +446,10 @@ struct HeuteView: View {
                                        partner: heute == echtHeute ? (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))) : nil)
                     }
                     .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .task(id: tagesformEingabe.schluessel) {
+                        guard heute == echtHeute else { return }
+                        coachForm = await TagesformCoach.laden(tagesformEingabe)
+                    }
                     ZyklusHinweisEinhang(person: ich, tag: heute)
                     abschnitt(heute == echtHeute ? "Dein Tag" : Datum.anzeige(heute)) { raster }
                     abschnitt("Das fällt mir auf") {
@@ -675,12 +695,24 @@ struct HeuteView: View {
 
     // MARK: Tagesform
 
-    private var tagesform: Tagesform {
+    private var tagesformEingabe: TagesformCoach.Eingabe {
         let erholung = MuskelLogik.erholung(TrainingModell.shared.sessions(ich), jetzt: Date())
-        return TagesformLogik.tagesform(
-            schlafMinuten: health.schlafMinuten(ich, heute), wasser: health.wasserAnzahl(ich, heute),
-            wasserZiel: health.zielWasser(ich), schritte: health.schritteAm(ich, heute), schritteZiel: health.zielSchritte(ich),
-            erholung: TagesformLogik.erholungMittel(erholung), schlafZiel: health.schlafZiel(ich, tag: heute))
+        return TagesformCoach.Eingabe(
+            schlafMinuten: health.schlafMinuten(ich, heute), schlafZiel: health.schlafZiel(ich, tag: heute),
+            wasser: health.wasserAnzahl(ich, heute), wasserZiel: health.zielWasser(ich),
+            schritte: health.schritteAm(ich, heute), schritteZiel: health.zielSchritte(ich),
+            erholung: TagesformLogik.erholungMittel(erholung))
+    }
+
+    /// Regel als Rückfall; hat der Coach zum selben Stand geantwortet, gilt sein Wert (nie über der Schlaf-Grenze).
+    private var tagesform: Tagesform {
+        let e = tagesformEingabe
+        let regel = TagesformLogik.tagesform(
+            schlafMinuten: e.schlafMinuten, wasser: e.wasser, wasserZiel: e.wasserZiel, schritte: e.schritte,
+            schritteZiel: e.schritteZiel, erholung: e.erholung, schlafZiel: e.schlafZiel)
+        guard let c = coachForm, c.schluessel == e.schluessel, let schlaf = e.schlafMinuten, let wert = c.akku else { return regel }
+        let akku = min(wert, TagesformLogik.schlafGrenze(schlafMinuten: schlaf, schlafZiel: e.schlafZiel))
+        return Tagesform(akku: akku, urteil: TagesformLogik.urteil(akku), satz: c.satz.isEmpty ? regel.satz : c.satz)
     }
 
     // MARK: Dein Tag

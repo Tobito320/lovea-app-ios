@@ -10,6 +10,8 @@ struct FreitextBlatt: View {
     @State private var aus: Set<Int> = []
     @State private var laeuft = false
     @State private var nichtsGefunden = false
+    @State private var gespeichert: [KIEintrag] = []
+    @State private var speicher = EintraegeSpeicher()
     @FocusState private var fokus: Bool
     @Environment(\.dismiss) private var dismiss
 
@@ -27,7 +29,20 @@ struct FreitextBlatt: View {
                     Button(laeuft ? "Lese …" : "Erkennen", action: erkennen)
                         .disabled(laeuft || text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 } footer: {
-                    Text("Schlaf, Gewicht, Wasser und Creatin. Du siehst alles, bevor es gespeichert wird.")
+                    Text("Essen, Wasser, Training, Schlaf und Stimmung liest die KI und speichert sofort, mit Rückgängig. Ohne Netz: Schlaf, Gewicht, Wasser und Creatin, erst nach Sichern.")
+                }
+                if !gespeichert.isEmpty {
+                    Section("Gespeichert") {
+                        ForEach(gespeichert.indices, id: \.self) { i in
+                            Label(EintraegeLogik.beschreibung(gespeichert[i]), systemImage: EintraegeLogik.symbol(gespeichert[i]))
+                        }
+                        Button("Rückgängig", role: .destructive) {
+                            speicher.rueckgaengig()
+                            speicher = EintraegeSpeicher()
+                            gespeichert = []
+                            Haptik.erfolg()
+                        }
+                    }
                 }
                 if !eintraege.isEmpty {
                     Section("Stimmt das?") {
@@ -57,12 +72,23 @@ struct FreitextBlatt: View {
     private func erkennen() {
         let eingabe = text
         aus = []
-        eintraege = FreitextLogik.lesen(eingabe, tag: tag)
+        eintraege = []
+        gespeichert = []
         nichtsGefunden = false
-        guard eintraege.isEmpty else { return }
         laeuft = true
         Task {
-            eintraege = await FreitextKI.lesen(eingabe, tag: tag)
+            if let liste = await EintraegeServer.lesen(eingabe, tag: tag), !liste.isEmpty {
+                var neu = EintraegeSpeicher()
+                neu.speichern(liste)
+                speicher = neu
+                gespeichert = liste
+                text = ""
+                laeuft = false
+                Haptik.erfolg()
+                return
+            }
+            eintraege = FreitextLogik.lesen(eingabe, tag: tag)
+            if eintraege.isEmpty { eintraege = await FreitextKI.lesen(eingabe, tag: tag) }
             nichtsGefunden = eintraege.isEmpty
             laeuft = false
         }

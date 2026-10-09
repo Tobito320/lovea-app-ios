@@ -20,33 +20,60 @@ final class RenderGalerieHeuteTests: XCTestCase {
     }
 
     func testAkkuGewichtung() {
-        // Je die Hälfte: 0,5 · (0,4 + 0,2 + 0,15 + 0,25) = 50, Gleichstand bremst der Schlaf.
+        // Schlaf halb: Grenze 58. Rest je halb: Korrektur 0,5 -> 58 · 0,875 = 51. Gleichstand bremst der Schlaf.
         let f = form(schlaf: 240, wasser: 4, schritte: 5000, erholung: 0.5)
-        XCTAssertEqual(f.akku, 50)
+        XCTAssertEqual(f.akku, 51)
         XCTAssertEqual(f.urteil, "Halb leer")
         XCTAssertTrue(f.satz.hasPrefix("Schlaf bremst"))
     }
 
     func testAkkuBremstWasser() {
-        let f = form(schlaf: 480, wasser: 2, schritte: 10_000, erholung: 1)
-        XCTAssertEqual(f.akku, 85)
-        XCTAssertEqual(f.satz, "Wasser bremst dich: noch 6 Gläser bis zum Ziel.")
+        // Schlaf voll (Grenze 100), Wasser 0: Korrektur 0,6 -> 90.
+        let f = form(schlaf: 480, wasser: 0, schritte: 10_000, erholung: 1)
+        XCTAssertEqual(f.akku, 90)
+        XCTAssertEqual(f.satz, "Wasser bremst dich: noch 8 Gläser bis zum Ziel.")
     }
 
     func testAkkuSparmodusUndGrenzen() {
         let f = form(schlaf: 0, wasser: 0, schritte: 0, erholung: 0)
-        XCTAssertEqual(f.akku, 0)
+        XCTAssertEqual(f.akku, 11)
         XCTAssertEqual(f.urteil, "Sparmodus")
-        // 70 = Gut geladen: Schlaf voll (40) + Erholung voll (25) + Wasser halb (10) = 75 → schritte 0.
-        XCTAssertEqual(form(schlaf: 480, wasser: 4, schritte: 0, erholung: 1).urteil, "Gut geladen")
+        // Schlaf voll, Wasser halb, nichts sonst: Korrektur 0,2 -> 80.
+        XCTAssertEqual(form(schlaf: 480, wasser: 4, schritte: 0, erholung: 0).urteil, "Gut geladen")
         // Werte über dem Ziel zählen nicht mehr als das Ziel.
         XCTAssertEqual(form(schlaf: 900, wasser: 20, schritte: 50_000, erholung: 3).akku, 100)
     }
 
-    func testAkkuOhneDatenIstLeer() {
+    func testWenigSchlafVielWasserBleibtNiedrig() {
+        // Der gemeldete Fehler: Wasser hob die Tagesform trotz kaum Schlaf.
+        let f = form(schlaf: 120, wasser: 16, schritte: 20_000, erholung: 1)
+        XCTAssertLessThanOrEqual(f.akku ?? 100, TagesformLogik.schlafGrenze(schlafMinuten: 120, schlafZiel: 480))
+        XCTAssertLessThanOrEqual(f.akku ?? 100, 40)
+        XCTAssertEqual(f.urteil, "Sparmodus")
+    }
+
+    func testOhneSchlafKeinWertWasserAendertNichts() {
         XCTAssertNil(form(schlaf: nil, wasser: 0, schritte: nil, erholung: 1).akku)
-        // Schon ein Glas Wasser reicht für eine Rechnung.
-        XCTAssertNotNil(form(schlaf: nil, wasser: 1, schritte: nil, erholung: 1).akku)
+        XCTAssertEqual(form(schlaf: nil, wasser: 0, schritte: 0, erholung: 1),
+                       form(schlaf: nil, wasser: 20, schritte: 30_000, erholung: 1))
+    }
+
+    func testWasserHebtNurKleinUndNieUeberDieGrenze() {
+        let ohne = form(schlaf: 300, wasser: 0, schritte: 0, erholung: 0).akku ?? 0
+        let mit = form(schlaf: 300, wasser: 8, schritte: 0, erholung: 0).akku ?? 0
+        let grenze = TagesformLogik.schlafGrenze(schlafMinuten: 300, schlafZiel: 480)
+        XCTAssertGreaterThan(mit, ohne)
+        XCTAssertLessThanOrEqual(mit - ohne, 12)
+        XCTAssertLessThanOrEqual(mit, grenze)
+    }
+
+    func testMehrSchlafNieWenigerAkku() {
+        var letzter = -1
+        for minuten in stride(from: 0, through: 480, by: 60) {
+            let a = form(schlaf: minuten, wasser: 4, schritte: 5000, erholung: 0.5).akku ?? -1
+            XCTAssertGreaterThanOrEqual(a, letzter)
+            letzter = a
+        }
     }
 
     func testErholungMittel() {
