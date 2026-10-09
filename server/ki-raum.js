@@ -4,6 +4,7 @@
 // also keine Migration. Erreichbar nur über /ki-intern/* -- index.js sperrt
 // diesen Pfad nach außen, ki.js ruft ihn über den DO-Stub auf.
 import { merkerLesen, merkerSchreiben } from "./raum-logic.js";
+import { kostenBuchen, kostenStand } from "./ki-kosten.js";
 
 const PERSONEN = ["ahmed", "annika"];
 const ARTEN = new Set(["essen", "coach", "bericht"]);
@@ -143,6 +144,14 @@ export async function kiIntern(sql, request, person) {
     }
     case "/ki-intern/korrektur":
       return json({ gespeichert: portionenKorrigieren(sql, person, body.items) });
+    case "/ki-intern/kosten": {
+      const r = kostenBuchen(sql, body);
+      if (!r) return json({ fehler: "ungueltig" }, 400);
+      // raum.js macht aus dem Header eine einmalige Push-Warnung an Ahmed.
+      return Response.json(r, { status: 200, headers: r.warnen ? { "X-Ki-Warnung": "1" } : {} });
+    }
+    case "/ki-intern/kosten-stand":
+      return json(kostenStand(sql, String(body.monat)));
     case "/ki-intern/portionen":
       return json({ portionen: portionenLesen(sql, person) });
     default:

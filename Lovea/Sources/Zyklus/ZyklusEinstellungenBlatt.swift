@@ -81,6 +81,7 @@ struct ZyklusEinstellungenBlatt: View {
     @State private var erinnerung = ErinnerungsEinstellung.laden()
     @AppStorage(ZyklusSchalter.imTraining) private var imTraining = false
     @AppStorage(ZyklusSchalter.waerme) private var waerme = false
+    @AppStorage(ZyklusSchalter.ki) private var fuerKi = false
     @AppStorage(ZyklusZeitraum.schluessel) private var zeitraumWahl = -1
     @State private var loeschenFrage = false
     @Environment(\.dismiss) private var dismiss
@@ -161,6 +162,17 @@ struct ZyklusEinstellungenBlatt: View {
                     }
                     .tint(ZyklusFarbe.himbeere.farbe(schema))
                     .onChange(of: waerme) { _, _ in AlltagSpeicher.shared.waermePruefen() }
+                }
+                ZyklusKarte {
+                    Toggle(isOn: $fuerKi) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Zyklus im Coach").font(.system(.headline, design: .rounded).weight(.bold))
+                            Text("Coach und Tagesbericht kennen Zyklustag und Phase und passen Tipps zu Essen und Training daran an. Ohne diesen Schalter verlaesst kein Zyklus-Wert dein Handy.")
+                                .font(.footnote)
+                                .foregroundStyle(ZyklusFarbe.tinteLeise(schema))
+                        }
+                    }
+                    .tint(ZyklusFarbe.himbeere.farbe(schema))
                 }
             }
             ZyklusKarte {

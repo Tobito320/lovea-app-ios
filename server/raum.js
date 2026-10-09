@@ -97,7 +97,7 @@ export class Raum {
     if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request, url, person);
     if (url.pathname === "/fl" && request.method === "POST") return this.#flHttp(request, person);
     if (teile[0] === "medien") return this.#medien(request, teile, person);
-    if (teile[0] === "ki-intern") return kiIntern(this.sql, request, person);
+    if (teile[0] === "ki-intern") return this.#kiIntern(request, person);
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
     if (url.pathname === "/spotify/status" && request.method === "GET") return this.#spotifyStatus(person);
@@ -107,6 +107,21 @@ export class Raum {
     if (url.pathname === "/coach/tagesform" && request.method === "POST") return this.#coachTagesform(request, person);
     if (teile[0] === "agent" && request.method === "GET") return this.#agent(teile[1], url, person);
     return new Response("not found", { status: 404 });
+  }
+
+  // Der KI-Zustand liegt in ki-raum.js. Reisst das Monatsbudget, meldet die Antwort
+  // das per Header -- dann geht einmal pro Monat eine Mitteilung an Ahmed.
+  async #kiIntern(request, person) {
+    const res = await kiIntern(this.sql, request, person);
+    if (res.headers.get("X-Ki-Warnung") === "1") {
+      await this.#pushAn("ahmed", {
+        stufe: "normal",
+        titel: "KI-Budget fast aufgebraucht",
+        text: "Die Tagesberichte pausieren bis zum Monatswechsel. Foto und Coach laufen weiter.",
+        daten: { art: "ki.budget" },
+      });
+    }
+    return res;
   }
 
   // Nur-Lese-Diagnose für KI-Agenten (server/mcp.mjs), Logik in agent.js.
