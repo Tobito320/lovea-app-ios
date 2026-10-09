@@ -41,4 +41,10 @@ final class ZimmerPlatzLogikTests: XCTestCase {
             XCTAssertEqual(rect.maxY, ZimmerPlatzLogik.bodenLinie, accuracy: 0.5, "\(name) steht nicht auf der Bodenlinie")
         }
     }
+
+    func testLampenkabelBleibtKurzImZimmer() {
+        // Das Kabel hängt an einer Halterung oben im Bild statt aus dem Kopfbereich herab.
+        XCTAssertGreaterThanOrEqual(ZimmerMoebel.lampenDecke, 0)
+        XCTAssertLessThan(ZimmerMoebel.lampenDecke, ZuhauseZeichnung.lampe.y - 50, "Kabel muss über dem höchsten Schirm enden")
+    }
 }

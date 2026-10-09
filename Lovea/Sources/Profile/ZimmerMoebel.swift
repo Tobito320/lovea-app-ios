@@ -58,11 +58,16 @@ enum ZimmerMoebel {
 
     // MARK: Lamp
 
-    /// The hanging lamp: its cord comes from above the picture, `ort` is where the bulb hangs.
+    /// Top of the lamp's short cord: a small ceiling mount at the top of the design space, so a stretched
+    /// header never shows a cord running up out of the room.
+    static let lampenDecke: CGFloat = 14
+
+    /// The hanging lamp: its short cord hangs from a small mount (`lampenDecke`), `ort` is where the bulb hangs.
     static func lampe(_ g: GraphicsContext, ort: CGPoint, _ t: ZimmerTeil) {
         let f = FigurFarbe(t.farbe)
         let ende: CGFloat = t.muster == .laterne ? 50 : (t.muster == .rattan ? 44 : 28)
-        linie(g, strich(P(ort.x, -2000), P(ort.x, ort.y - ende)), Pal.dunkel.farbe.opacity(0.55), 2)
+        linie(g, strich(P(ort.x, lampenDecke), P(ort.x, ort.y - ende)), Pal.dunkel.farbe.opacity(0.55), 2)
+        teil(g, box(ort.x - 9, lampenDecke - 5, 18, 6, 3), FigurFarbe(t.zweit).mal(0.8), 1.5)
         let birne = FigurFarbe(t.muster == .schirm ? t.zweit : 0xFFF8DC).farbe
         switch t.muster {
         case .rattan:
