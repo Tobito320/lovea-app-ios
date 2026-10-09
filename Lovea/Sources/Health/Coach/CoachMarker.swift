@@ -23,7 +23,18 @@ enum CoachMarker {
         }
     }
 
+    /// `[[essen: Name | mahlzeit | kcal | Eiweiß | Kohlenhydrate | Fett]]`, die letzten drei optional.
+    struct Essen: Equatable, Sendable {
+        let name: String
+        let art: MahlzeitArt?
+        let kcal: Int
+        let protein: Double?
+        let kohlenhydrate: Double?
+        let fett: Double?
+    }
+
     enum Art: Equatable, Sendable {
+        case essen(Essen)
         case weiter([String])
         case chart(titel: String, punkte: [Punkt])
         case fortschritt(label: String, aktuell: Double, ziel: Double)
@@ -67,7 +78,7 @@ enum CoachMarker {
 
     // MARK: - Einzelne Marker
 
-    private static let schluessel: Set<String> = ["weiter", "chart", "fortschritt", "gehe", "erinnerung", "ziel"]
+    private static let schluessel: Set<String> = ["weiter", "chart", "fortschritt", "gehe", "erinnerung", "ziel", "essen"]
     private static let verbotenImZiel = ["kg", "abnehm", "kcal", "kalor", "gewicht", "defizit", "körperfett"]
 
     /// `name: argument` mit einem Namen aus Buchstaben. Alles andere ist kein Marker und bleibt Text.
@@ -113,6 +124,12 @@ enum CoachMarker {
             guard let ziel = Ziel(rawValue: teile[0].lowercased()) else { return nil }
             let beschriftung = teile.count > 1 ? String(teile[1].prefix(24)) : ""
             return .gehe(ziel: ziel, beschriftung: beschriftung.isEmpty ? ziel.standardText : beschriftung)
+        case "essen":
+            guard teile.count >= 3, !teile[0].isEmpty, let kcal = zahl(teile[2]), (1...5000).contains(kcal.rounded()) else { return nil }
+            let werte = teile.dropFirst(3).prefix(3).map { zahl($0).map { min(max($0, 0), 1000) } }
+            func wert(_ i: Int) -> Double? { i < werte.count ? werte[i] : nil }
+            return .essen(Essen(name: String(teile[0].prefix(60)), art: mahlzeitArt(teile[1]), kcal: Int(kcal.rounded()),
+                                protein: wert(0), kohlenhydrate: wert(1), fett: wert(2)))
         case "erinnerung":
             guard teile.count >= 2, let uhrzeit = uhrzeit(teile[0]) else { return nil }
             let text = String(teile[1...].joined(separator: " ").prefix(60))
@@ -122,6 +139,16 @@ enum CoachMarker {
             let klein = text.lowercased()
             guard !text.isEmpty, !verbotenImZiel.contains(where: { klein.contains($0) }) else { return nil }
             return .ziel(text)
+        }
+    }
+
+    private static func mahlzeitArt(_ text: String) -> MahlzeitArt? {
+        switch text.lowercased() {
+        case "fruehstueck", "frühstück": .fruehstueck
+        case "mittag", "mittagessen": .mittag
+        case "abend", "abendessen": .abend
+        case "snack": .snack
+        default: nil
         }
     }
 
@@ -147,6 +174,13 @@ enum CoachMarker {
 // MARK: - Zugriff für die Ansicht
 
 extension CoachMarker.Zerlegt {
+    var essen: [CoachMarker.Essen] {
+        marker.compactMap { art -> CoachMarker.Essen? in
+            if case .essen(let e) = art { return e }
+            return nil
+        }
+    }
+
     var folgefragen: [String] {
         for art in marker { if case .weiter(let fragen) = art { return fragen } }
         return []

@@ -157,4 +157,43 @@ final class CoachMarkerTests: XCTestCase {
         XCTAssertNil(zerlegt("[[ziel: 1800 kcal am Tag]]").vorgeschlagenesZiel)
         XCTAssertNil(zerlegt("[[ziel: ]]").vorgeschlagenesZiel)
     }
+
+    // MARK: - essen
+
+    func testEssenMarkerMitAllenFeldern() {
+        let z = zerlegt("Hab ich eingetragen, grob geschätzt.\n[[essen: Pizza Spicy | mittag | 1000 | 40 | 120,5 | 38]]")
+        XCTAssertEqual(z.text, "Hab ich eingetragen, grob geschätzt.")
+        XCTAssertEqual(z.essen.count, 1)
+        XCTAssertEqual(z.essen[0].name, "Pizza Spicy")
+        XCTAssertEqual(z.essen[0].art, .mittag)
+        XCTAssertEqual(z.essen[0].kcal, 1000)
+        XCTAssertEqual(z.essen[0].protein, 40)
+        XCTAssertEqual(z.essen[0].kohlenhydrate, 120.5)
+        XCTAssertEqual(z.essen[0].fett, 38)
+    }
+
+    func testEssenMarkerNurNameArtKcal() {
+        let e = zerlegt("[[essen: Apfel | snack | 80]]").essen
+        XCTAssertEqual(e.first?.kcal, 80)
+        XCTAssertNil(e.first?.protein)
+        XCTAssertNil(e.first?.fett)
+    }
+
+    func testEssenMarkerUnbekannteArtWirdNil() {
+        XCTAssertEqual(zerlegt("[[essen: Brot | frühstück | 200]]").essen.first?.art, .fruehstueck)
+        XCTAssertNil(zerlegt("[[essen: Brot | irgendwann | 200]]").essen.first?.art)
+        XCTAssertEqual(zerlegt("[[essen: Brot | irgendwann | 200]]").essen.count, 1)
+    }
+
+    func testEssenMarkerKaputtFaelltWeg() {
+        XCTAssertTrue(zerlegt("[[essen: | mittag | 500]]").essen.isEmpty)
+        XCTAssertTrue(zerlegt("[[essen: Pizza | mittag | viel]]").essen.isEmpty)
+        XCTAssertTrue(zerlegt("[[essen: Pizza | mittag | 0]]").essen.isEmpty)
+        XCTAssertTrue(zerlegt("[[essen: Pizza | mittag | 99999]]").essen.isEmpty)
+        XCTAssertTrue(zerlegt("[[essen: Pizza | mittag]]").essen.isEmpty)
+    }
+
+    func testEssenMarkerHalbAbgeschnittenBleibtNichtImText() {
+        XCTAssertEqual(zerlegt("Eingetragen.\n[[essen: Pizza | mit").text, "Eingetragen.")
+    }
 }
