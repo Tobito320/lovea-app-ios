@@ -34,7 +34,9 @@ final class ShopKatalogTests: XCTestCase {
         XCTAssertFalse(alle.contains { $0.id.hasPrefix("pose.") || $0.name.contains("Tanz") || $0.name.contains("Pose") })
         for k in ["mode", "schmuck", "tasche", "tier", "zimmer"] {
             let n = alle.filter { $0.kategorie == k }.count
-            XCTAssertTrue((4...10).contains(n), "\(k): \(n) Teile, erwartet 4 bis 10")
+            // p65 D: Mode ist der große Kleiderschrank (nur ca. 5 Teile je Person sind frei), der Rest bleibt klein.
+            let erlaubt = k == "mode" ? 50...90 : 4...10
+            XCTAssertTrue(erlaubt.contains(n), "\(k): \(n) Teile, erwartet \(erlaubt)")
         }
     }
 
@@ -94,15 +96,16 @@ final class ShopKatalogTests: XCTestCase {
         XCTAssertFalse(alle.contains { $0.kategorie == "chatTheme" || $0.kategorie == "flamme" })
     }
 
-    /// Luxury mode pieces are shop-only: their index must be hidden from the free editor.
+    /// p65 D: every mode piece is shop-only (only the free kit is outside the shop sets), so its index must be
+    /// hidden from the free editor.
     func testLuxusModeNurImShop() {
         typealias A = FigurAussehen
         for (id, e) in A.shopTeile {
             switch e.feld {
-            case .oberteil: XCTAssertTrue(A.oberteileShop.contains(e.index) || e.index < 14, id)
-            case .jacke: XCTAssertTrue(A.jackenShop.contains(e.index) || e.index < 6, id)
-            case .hose: XCTAssertTrue(A.hosenShop.contains(e.index) || e.index < 10, id)
-            case .schuhe: XCTAssertTrue(A.schuheShop.contains(e.index) || e.index < 8, id)
+            case .oberteil: XCTAssertTrue(A.oberteileShop.contains(e.index), id)
+            case .jacke: XCTAssertTrue(A.jackenShop.contains(e.index), id)
+            case .hose: XCTAssertTrue(A.hosenShop.contains(e.index), id)
+            case .schuhe: XCTAssertTrue(A.schuheShop.contains(e.index), id)
             case .brille: break
             }
         }

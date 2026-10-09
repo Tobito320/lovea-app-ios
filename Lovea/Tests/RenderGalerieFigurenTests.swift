@@ -218,11 +218,72 @@ final class RenderGalerieFigurenTests: XCTestCase {
         // AirPods check: header size close-up and the small chat avatar size.
         zellen.append((titel: "AirPods groß", ansicht: figur(a, groesse: 360)))
         zellen.append((titel: "Avatar-Größe", ansicht: figur(a, groesse: 44)))
-        if let cap = A.outfits.first(where: { $0.name == "Cap Look" }) {
-            var b = a
-            b.anziehen(outfit: cap)
-            zellen.append((titel: "Cap Look", ansicht: figur(b, groesse: 240)))
-        }
+        // p65 D: "Cap Look" is no free preset any more (the trucker cap is not part of the kit), so set it by hand.
+        var cap = a
+        cap.kopfbedeckung = 8
+        cap.muetzenfarbe = 18
+        zellen.append((titel: "Cap Look", ansicht: figur(cap, groesse: 240)))
         RenderTafel.speichern("figuren-ahmed-vergleich", spalten: 4, zellen: zellen)
+    }
+
+    /// p65 D: the whole shop wardrobe, each piece on its person (Ahmed: neutral and men's cuts, Annika: women's cuts).
+    func testKleiderschrank() {
+        func tag(_ feld: ShopFeld, _ i: Int) -> FigurGeschlecht {
+            switch feld {
+            case .oberteil: A.oberteileGeschlecht[i]
+            case .jacke: A.jackenGeschlecht[i]
+            case .hose: A.hosenGeschlecht[i]
+            case .schuhe: A.schuheGeschlecht[i]
+            case .brille: .n
+            }
+        }
+        var ahmed: [Zelle] = []
+        var annika: [Zelle] = []
+        for id in A.shopTeile.keys.sorted() where id.hasPrefix("mode.") && ShopErstattung.entfernt[id] == nil {
+            guard let e = A.shopTeile[id] else { continue }
+            let frau = tag(e.feld, e.index) == .w
+            var a = A.standard(for: frau ? .annika : .ahmed)
+            a.jacke = 0
+            a.anziehen(id)
+            let zelle: Zelle = (titel: String(id.dropFirst(5)), ansicht: figur(a, groesse: 150, ganz: true))
+            if frau { annika.append(zelle) } else { ahmed.append(zelle) }
+        }
+        RenderTafel.speichern("figuren-kleiderschrank-ahmed", spalten: 8, zellen: ahmed)
+        RenderTafel.speichern("figuren-kleiderschrank-annika", spalten: 8, zellen: annika)
+    }
+
+    /// p65 D: close-ups of the brand logos (chests) and the new shoes (feet), big enough to read the vector marks.
+    func testMarkenNah() {
+        var zellen: [Zelle] = []
+        let oberteile = ["mode.rl-polo-marine", "mode.adidas-tee-schwarz", "mode.carhartt-tee", "mode.tnf-tee",
+                         "mode.nike-tech-hoodie", "mode.gymshark-tee", "mode.nike-sport-top"]
+        for id in oberteile {
+            var a = A.standard(for: id == "mode.nike-sport-top" ? .annika : .ahmed)
+            a.jacke = 0
+            a.anziehen(id)
+            zellen.append((titel: String(id.dropFirst(5)), ansicht: figur(a, groesse: 240)))
+        }
+        // Brand jackets (chest) and pants (whole body) were drawn in Z-39.1; the board proves they show the brand.
+        for id in ["mode.adidas-trainingsjacke", "mode.tnf-puffer", "mode.carhartt-jacke"] {
+            var a = A.standard(for: .ahmed)
+            a.anziehen(id)
+            zellen.append((titel: String(id.dropFirst(5)), ansicht: figur(a, groesse: 240)))
+        }
+        for id in ["mode.adidas-trainingshose", "mode.levis-501", "mode.nike-tech-jogger", "mode.puma-leggings"] {
+            var a = A.standard(for: id == "mode.puma-leggings" ? .annika : .ahmed)
+            a.jacke = 0
+            a.anziehen(id)
+            zellen.append((titel: String(id.dropFirst(5)), ansicht: figur(a, groesse: 360, ganz: true)))
+        }
+        let schuhe = ["mode.nike-af1", "mode.adidas-samba", "mode.new-balance-550", "mode.jordan-1-rot",
+                      "mode.jordan-1-schwarz", "mode.nike-dunk-panda"]
+        for id in schuhe {
+            var a = A.standard(for: .ahmed)
+            a.hose = 16  // Gym-Shorts, so the shoes are not hidden by a hem
+            a.anziehen(id)
+            let fuesse = AnyView(FigurView(a, zustand: .ruhig, groesse: 420, animiert: false, ganzkoerper: true).frame(width: 150, height: 100, alignment: .bottom).clipped())
+            zellen.append((titel: String(id.dropFirst(5)), ansicht: fuesse))
+        }
+        RenderTafel.speichern("figuren-marken-nah", spalten: 4, zellen: zellen)
     }
 }

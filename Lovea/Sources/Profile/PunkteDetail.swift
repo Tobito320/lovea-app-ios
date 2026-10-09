@@ -133,53 +133,63 @@ enum PunkteRegeln {
     ]
 }
 
-// MARK: - Punkte-Knopf (ersetzt `PunkteChip` dort, wo man tippen soll)
+// MARK: - Profil-Karte: Kontostand, Woche, Shop
 
-struct PunkteKnopf: View {
-    let person: Person
-    @State private var offen = false
-
-    var body: some View {
-        Button { offen = true } label: { PunkteChip(person: person) }
-            .buttonStyle(.plain)
-            .accessibilityHint("Zeigt, woraus die Punkte bestehen")
-            .sheet(isPresented: $offen) { PunkteDetailBlatt(person: person) }
-    }
-}
-
-// MARK: - Profil-Karte "Punkte diese Woche"
-
+/// The one place the own profile shows points: the spendable balance (same number as Health and the Shop),
+/// this week's bars, and the way into the Shop. The top part opens the breakdown; the Shop is its own button.
 struct ProfilPunkteKarte: View {
     let person: Person
     @State private var offen = false
+    @State private var shopOffen = false
 
     var body: some View {
         let eintraege = PunkteModell.shared.verlauf.filter { $0.von == person }
         let woche = PunkteAufschluesselung.woche(eintraege, montag: Datum.montagDerWoche(Datum.text(Date())))
         let summe = woche.reduce(0) { $0 + $1.punkte }
-        Button { offen = true } label: {
-            VStack(alignment: .leading, spacing: 10) {
-                HStack {
-                    Label("Punkte diese Woche", systemImage: "star.circle.fill")
-                        .font(.subheadline.weight(.semibold))
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text("+\(summe)")
-                        .font(.title3.weight(.bold).monospacedDigit())
-                        .fontDesign(.rounded)
-                        .contentTransition(.numericText(value: Double(summe)))
-                    Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                }
-                WochenBalken(woche: woche, farbe: .yellow, hoehe: 64)
+        let stand = PunkteModell.shared.verfuegbar(person)
+        VStack(alignment: .leading, spacing: 12) {
+            Button { offen = true } label: { kopf(stand: stand, summe: summe, woche: woche) }
+                .buttonStyle(.plain)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("\(stand) Punkte, diese Woche plus \(summe)")
+                .accessibilityHint("Zeigt, woraus die Punkte bestehen")
+            Button { shopOffen = true } label: {
+                Label("Zum Shop", systemImage: "bag.fill")
+                    .font(.subheadline.weight(.semibold))
+                    .frame(maxWidth: .infinity, minHeight: ProfilLayout.tippMinimum)
             }
-            .padding(16)
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .buttonStyle(.bordered)
+            .buttonBorderShape(.capsule)
+            .controlSize(.large)
+            .tint(Color.loveaRose)
         }
-        .buttonStyle(.plain)
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel("Punkte diese Woche: \(summe)")
-        .accessibilityHint("Zeigt, woraus die Punkte bestehen")
+        .padding(16)
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .sheet(isPresented: $offen) { PunkteDetailBlatt(person: person) }
+        .sheet(isPresented: $shopOffen) { ShopView(ziel: person) }
+    }
+
+    private func kopf(stand: Int, summe: Int, woche: [(tag: String, punkte: Int)]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("\(stand)")
+                        .font(.largeTitle.weight(.bold).monospacedDigit())
+                        .fontDesign(.rounded)
+                        .contentTransition(.numericText(value: Double(stand)))
+                    Text("Punkte zum Ausgeben")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Text("+\(summe) diese Woche")
+                    .font(.subheadline.weight(.semibold).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                Image(systemName: "chevron.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
+            }
+            WochenBalken(woche: woche, farbe: .yellow, hoehe: 64)
+        }
+        .contentShape(Rectangle())
     }
 }
 

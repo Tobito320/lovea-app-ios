@@ -82,6 +82,9 @@ private struct ChallengeKarte: Identifiable {
 struct LaufendeChallengesCard: View {
     private var punkte: PunkteModell { PunkteModell.shared }
 
+    /// p69: whether the card has anything to show; the profile leaves its tab out instead of drawing nothing.
+    static var vorhanden: Bool { !LaufendeChallengesCard().challengeKarten.isEmpty }
+
     var body: some View {
         let karten = challengeKarten
         if !karten.isEmpty {

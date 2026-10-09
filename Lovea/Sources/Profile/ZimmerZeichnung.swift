@@ -277,9 +277,9 @@ enum SzenenZeichnung {
         rahmenRects.indices.contains(slot) ? rahmenRects[slot].insetBy(dx: 7, dy: 7) : nil
     }
 
-    static func raum(_ g: GraphicsContext, _ size: CGSize) -> GraphicsContext {
+    static func raum(_ g: GraphicsContext, _ size: CGSize, welt: ProfilWelt = .einzel) -> GraphicsContext {
         var r = g
-        let s = size.width / breite
+        let s = size.width / welt.breite
         r.translateBy(x: 0, y: size.height - hoehe * s)
         r.scaleBy(x: s, y: s)
         return r
@@ -1243,7 +1243,7 @@ enum SzenenZeichnung {
 
     /// Blanket up to the chin with the sheet folded over it, the bed frame in front; `herz` sits
     /// between two heads.
-    static func bettVorn(_ g: GraphicsContext, _ i: Int, herz: Bool, decke: UInt32? = nil) {
+    static func bettVorn(_ g: GraphicsContext, _ i: Int, herz: Bool, decke: UInt32? = nil, gemacht: Bool = true) {
         let s = stil(i)
         let d = FigurFarbe(decke ?? s.decke)
         let kante = Path { p in
@@ -1264,6 +1264,17 @@ enum SzenenZeichnung {
         }
         if i == 2 && decke == nil {
             for x in stride(from: CGFloat(16), to: 290, by: 28) { innen.fill(kreis(P(x, 180), 2.5), with: .color(.white.opacity(0.7))) }
+        }
+        if !gemacht {
+            // Ungemacht: zerknitterte Falten quer über die Decke und eine zurückgeschlagene Ecke.
+            for x in [CGFloat(30), 96, 170, 236] { linie(innen, bogen(P(x, 156), P(x + 34, 200), P(x + 20, 172)), d.mal(0.78).farbe, 2.5) }
+            let ecke = Path { p in
+                p.move(to: P(214, 154))
+                p.addLine(to: P(296, 156))
+                p.addLine(to: P(280, 186))
+                p.closeSubpath()
+            }
+            teil(g, ecke, Pal.weiss, 2)
         }
         linie(g, kante, Pal.weiss.kontur, 17)
         linie(g, kante, Pal.weiss.farbe, 13)

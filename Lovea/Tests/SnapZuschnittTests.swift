@@ -67,6 +67,28 @@ final class SnapZuschnittTests: XCTestCase {
         XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back, spiegeln: true), .right)
     }
 
+    /// iPad dreht mit: jeder Vorschau-Winkel bekommt sein Tag. Gespiegelt (nur vorne, nur bei AN) heißt
+    /// erst um den Winkel drehen, dann links/rechts tauschen. 90 bleibt wie vor der iPad-Drehung.
+    func testAusrichtungJeWinkel() {
+        let erwartetHinten: [CGFloat: UIImage.Orientation] = [0: .up, 90: .right, 180: .down, 270: .left]
+        let erwartetVorneGespiegelt: [CGFloat: UIImage.Orientation] = [0: .upMirrored, 90: .leftMirrored, 180: .downMirrored, 270: .rightMirrored]
+        for (winkel, tag) in erwartetHinten {
+            XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back, spiegeln: true, winkel: winkel), tag)
+            XCTAssertEqual(SnapBildAusrichtung.fuer(position: .front, spiegeln: false, winkel: winkel), tag)
+        }
+        for (winkel, tag) in erwartetVorneGespiegelt {
+            XCTAssertEqual(SnapBildAusrichtung.fuer(position: .front, spiegeln: true, winkel: winkel), tag)
+        }
+    }
+
+    /// Winkel außerhalb 0...359 oder zwischen den Vierteln rutschen nie in ein falsches Tag.
+    func testAusrichtungWinkelWirdNormalisiert() {
+        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back, spiegeln: false, winkel: -90), .left)
+        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back, spiegeln: false, winkel: 450), .right)
+        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back, spiegeln: false, winkel: 359.6), .up)
+        XCTAssertEqual(SnapBildAusrichtung.fuer(position: .back, spiegeln: false, winkel: 45), .right)
+    }
+
     /// Standard ohne gesetzten Wert ist AUS: das Foto kommt ungespiegelt.
     func testSchalterStandardIstAus() {
         let suite = UserDefaults(suiteName: "SnapZuschnittTests.\(UUID().uuidString)")!

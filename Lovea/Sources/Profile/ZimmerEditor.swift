@@ -61,7 +61,7 @@ struct ZimmerEditor: View {
             ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
         }
         .onChange(of: fotoAuswahl) { _, neu in fotoUebernehmen(neu) }
-        .sheet(item: $straeusseBlatt) { StraeusseBlatt(stelle: $0, auswahl: $straeusse) }
+        .sheet(item: $straeusseBlatt) { StraeusseBlatt(stelle: $0, auswahl: $straeusse, person: person) }
     }
 
     // MARK: - Preview (the own header's scene, scaled down whole)
@@ -78,9 +78,26 @@ struct ZimmerEditor: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Vorschau deines Zimmers")
         .overlay(alignment: .topTrailing) { if ort == .zuhause { nachtKnopf } }
+        .overlay(alignment: .bottomLeading) { blumenVorschau }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
         .background(LinearGradient(colors: [Color.loveaRose.opacity(0.16), Color.loveaRose.opacity(0.02)], startPoint: .top, endPoint: .bottom))
+    }
+
+    /// p68: the chosen bouquets in a little glass strip over the preview (the preview itself is the old
+    /// room without a dresser or board); empty without a choice or away from home.
+    @ViewBuilder private var blumenVorschau: some View {
+        let alle = straeusse.schrank + (straeusse.vase.map { [$0] } ?? [])
+        if ort == .zuhause, !alle.isEmpty {
+            HStack(spacing: 2) {
+                ForEach(alle) { StraussBild(art: $0, breite: 30) }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(.ultraThinMaterial, in: Capsule())
+            .padding(8)
+            .accessibilityHidden(true)
+        }
     }
 
     /// Floats over the picture, so glass fits here.
@@ -102,8 +119,8 @@ struct ZimmerEditor: View {
     /// Brief S: the gym has no Möbel, Wand or Boden to pick (fixed backdrop) and no wall frames.
     private var tabs: [Tab] { ort == .gym ? [.deko, .poster] : Tab.allCases.filter { $0 != .blumen || blumenOption } }
 
-    /// p59: Annika furnishes flowers in her home; the dresser and the vase are the home scene's.
-    private var blumenOption: Bool { ort == .zuhause && person == .annika }
+    /// p59: flowers at home. p68: for both, Annika's stand on the dresser and the table, Ahmed's on his board.
+    private var blumenOption: Bool { ort == .zuhause }
 
     private var tabLeiste: some View {
         ScrollView(.horizontal, showsIndicators: false) {
@@ -294,15 +311,17 @@ struct ZimmerEditor: View {
         }
     }
 
-    // MARK: - Blumen (p59: up to 3 bouquets on the dresser, 1 in the vase)
+    // MARK: - Blumen (p59: up to 3 bouquets on the dresser, 1 in the vase; p68: Ahmed's go on his board)
 
     private var blumen: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Blumen für dein Zimmer: bis zu drei auf dem Schrank, eine in der Vase auf dem Tisch.")
+            Text(person == .ahmed
+                 ? "Blumen für dein Zimmer: bis zu drei auf deinem Bord, eine in der kleinen Vase daneben."
+                 : "Blumen für dein Zimmer: bis zu drei auf dem Schrank, eine in der Vase auf dem Tisch.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
-            blumenZeile("Auf dem Schrank", stelle: .schrank, liste: straeusse.schrank)
-            blumenZeile("In der Vase", stelle: .vase, liste: straeusse.vase.map { [$0] } ?? [])
+            blumenZeile(person == .ahmed ? "Auf dem Bord" : "Auf dem Schrank", stelle: .schrank, liste: straeusse.schrank)
+            blumenZeile(person == .ahmed ? "In der Vase am Bord" : "In der Vase", stelle: .vase, liste: straeusse.vase.map { [$0] } ?? [])
         }
     }
 

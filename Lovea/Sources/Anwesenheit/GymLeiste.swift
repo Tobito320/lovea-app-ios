@@ -125,6 +125,7 @@ struct GymLeisteView: View {
             .leistenRahmen()
         }
         .buttonStyle(.plain)
+        .tabWischSperre()
         .simultaneousGesture(DragGesture(minimumDistance: 20).onEnded { w in
             guard let s = GymLeisteLogik.seite(wisch: w.translation) else { return }
             Haptik.leicht()

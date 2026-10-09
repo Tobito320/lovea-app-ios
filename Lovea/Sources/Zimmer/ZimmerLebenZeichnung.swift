@@ -119,14 +119,15 @@ enum ZimmerLebenZeichnung {
 
     // MARK: Pokalregal (7)
 
-    static func pokale(_ g: GraphicsContext, _ liste: [ZimmerPokal]) {
+    static func pokale(_ g: GraphicsContext, _ liste: [ZimmerPokal], punkte: Int = 0) {
         var k = g
         k.translateBy(x: ZimmerLebenLayout.pokale.minX, y: ZimmerLebenLayout.pokale.minY)
         for x: CGFloat in [10, 69] { teil(k, box(x, 42, 5, 7, 1), Pal.holz, 1.5) }
         teil(k, box(0, 38, 84, 6, 2), Pal.holz, 2)
-        let cups = Array(liste.prefix(3))
+        // Spielsiege und Punkte zusammen, die höchste Stufe zuerst (ZimmerZustandLogik).
+        let cups = ZimmerZustandLogik.pokale(spiel: liste.map(\.stufe), punkte: punkte)
         if cups.isEmpty { pokal(k, 42, nil) }
-        for (i, p) in cups.enumerated() { pokal(k, 42 + (CGFloat(i) - CGFloat(cups.count - 1) / 2) * 26, p.stufe) }
+        for (i, stufe) in cups.enumerated() { pokal(k, 42 + (CGFloat(i) - CGFloat(cups.count - 1) / 2) * 26, stufe) }
     }
 
     /// A cup standing on the board at `x`; `nil` is the empty, pale one.
@@ -259,6 +260,19 @@ enum ZimmerLebenZeichnung {
         }
         teil(k, topf, farbe(0xE59A74), 2.5)
         teil(k, box(-13, -20, 26, 6, 3), farbe(0xEDAE8C), 2.5)
+        kerze(k, flamme: ZimmerKerze.flamme(serie: s.serie))
+    }
+
+    /// p70 (41): the streak candle on the sill, right of the pot. Out without a streak, the flame grows with it.
+    private static func kerze(_ k: GraphicsContext, flamme: Int) {
+        teil(k, box(16, -15, 8, 15, 2), farbe(0xF6EEDC), 2)
+        linie(k, strich(P(20, -15), P(20, -18)), Pal.dunkel.farbe, 1.6)
+        guard flamme > 0 else { return }
+        let hoehe: CGFloat = [0, 6, 9, 12][min(flamme, 3)]
+        let mitte = P(20, -19 - hoehe / 2)
+        k.fill(kreis(mitte, hoehe * 1.1), with: .color(Pal.gelb.farbe.opacity(0.25)))
+        teil(k, oval(mitte, 2.8, hoehe / 2), Pal.gelb, 1.4)
+        k.fill(oval(P(20, mitte.y + hoehe * 0.15), 1.1, hoehe * 0.22), with: .color(Pal.gold.farbe))
     }
 
     // MARK: Ziel (9)

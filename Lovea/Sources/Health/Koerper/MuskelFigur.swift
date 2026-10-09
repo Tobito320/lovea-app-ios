@@ -169,6 +169,7 @@ struct MuskelFigur: View {
         // The gesture sits outside the turning view, so its coordinates do not turn with it.
         .contentShape(Rectangle())
         // ponytail: simultaneous, so a vertical drag on the figure still scrolls the page.
+        .tabWischSperre()
         .simultaneousGesture(geste(groesse))
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("\(person.name), Muskeln von \(vorne ? "vorne" : "hinten")")

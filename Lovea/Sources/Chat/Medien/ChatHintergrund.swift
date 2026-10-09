@@ -119,7 +119,7 @@ struct BackdropPartikel: View {
         Group {
             if art == .keine {
                 Color.clear
-            } else if animiert && !reduceMotion {
+            } else if animiert && !reduceMotion && LeistungEffekte.an() {
                 // Chat-Tempo: frozen while the message list moves (nothing jumps, it just holds).
                 TimelineView(.animation(minimumInterval: 1.0 / 30, paused: !sichtbar || scenePhase != .active || ChatTempo.pausiert())) { kontext in
                     leinwand(kontext.date.timeIntervalSinceReferenceDate)

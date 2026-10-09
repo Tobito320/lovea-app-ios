@@ -92,6 +92,9 @@ final class WidgetStandSchreiber {
         challengeEintragen(&stand)
         partnerEintragen(&stand, partner: ich.partner)
         tagEintragen(&stand, partner: ich.partner)
+        let treffen = KalenderModell.shared.naechstesTreffen
+        stand.naechstesTreffen = treffen?.datum
+        stand.treffenUhrzeit = treffen?.uhrzeit
         stand.frageDesTages = FrageDesTages.waehlen(vorrat: FrageDesTages.vorrat, tag: Datum.text(Date()))?.text
         return stand
     }
@@ -108,11 +111,18 @@ final class WidgetStandSchreiber {
         let verfuegbar = PunkteModell.shared.einkaufsStand(preis: { ShopKatalog.artikel($0)?.preis }).verfuegbar
         var km: [String: Double] = [:]
         var etagen: [String: Int] = [:]
-        defer { stand.kmHeute = km; stand.etagenHeute = etagen }
+        var schlaf: [String: Int] = [:]
+        var schlafZiel: [String: Int] = [:]
+        defer {
+            stand.kmHeute = km; stand.etagenHeute = etagen
+            stand.schlafMinutenHeute = schlaf; stand.zielSchlafMinuten = schlafZiel
+        }
         for person in Person.allCases {
             stand.schritteHeute[person.rawValue] = health.heuteSchritte(person)
             km[person.rawValue] = health.kmAm(person, heute)
             etagen[person.rawValue] = health.etagenAm(person, heute)
+            if let minuten = health.schlafMinuten(person, heute) { schlaf[person.rawValue] = minuten }
+            schlafZiel[person.rawValue] = health.schlafZielMinuten(person)
             stand.zielSchritte[person.rawValue] = health.zielSchritte(person)
             stand.zielGymWoche[person.rawValue] = health.zielGym(person)
             stand.gymLetzte7[person.rawValue] = (0..<7).map { versatz in

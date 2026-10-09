@@ -47,13 +47,13 @@ final class ZimmerRenderTests: XCTestCase {
     }
 
     /// The cat alone on a floor strip, `s` 1.6 so the details show.
-    private func katzeAllein(_ zustand: KatzenZustand, wuenscht: Bool, geht: Bool = false, streichelt: Int? = nil, rechts: Bool = false) -> AnyView {
+    private func katzeAllein(_ zustand: KatzenZustand, wuenscht: Bool, geht: Bool = false, streichelt: Int? = nil, rechts: Bool = false, hunger: Bool = false, schnurrt: Bool = false) -> AnyView {
         let s: CGFloat = 1.6
         let szene = KatzenSzene(zustand: zustand, ort: CGPoint(x: 75, y: 118), nachRechts: rechts)
         return AnyView(
             ZStack(alignment: .topLeading) {
                 Color(red: 0.98, green: 0.94, blue: 0.88)
-                ZimmerKatzeSicht(id: ZimmerKatze.standardId, szene: szene, wuenscht: wuenscht, geht: geht, streichelt: streichelt, s: s, oben: 0, tippen: {})
+                ZimmerKatzeSicht(id: ZimmerKatze.standardId, szene: szene, wuenscht: wuenscht, geht: geht, streichelt: streichelt, s: s, oben: 0, hunger: hunger, schnurrt: schnurrt, tippen: {})
             }
             .frame(width: 240, height: 200)
             .clipped()
@@ -92,6 +92,8 @@ final class ZimmerRenderTests: XCTestCase {
             (titel: "Katze: gestreichelt, +10", ansicht: katzeAllein(.will, wuenscht: false, streichelt: KatzeLogik.punkte)),
             (titel: "Katze: nochmal gestreichelt, ohne Punkte", ansicht: katzeAllein(.will, wuenscht: false, streichelt: 0)),
             (titel: "Katze: läuft mit Annika", ansicht: katzeAllein(.folgt, wuenscht: true, geht: true, rechts: true)),
+            (titel: "Katze: hat Hunger, Fischblase", ansicht: katzeAllein(.will, wuenscht: false, hunger: true)),
+            (titel: "Katze: schnurrt, Herzen am Kopf", ansicht: katzeAllein(.will, wuenscht: false, schnurrt: true)),
         ]
         RenderTafel.speichern("p62-gestalten", spalten: 4, zellen: zellen)
     }

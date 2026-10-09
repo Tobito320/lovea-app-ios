@@ -95,6 +95,11 @@ async function main() {
   const bytes = new Uint8Array(await geholt.arrayBuffer());
   pruefe("Medium herunterladen liefert die richtigen Bytes", geholt.status === 200 && bytes.length === 8 && bytes[0] === 1 && bytes[7] === 8);
 
+  // 4) Health-Coach: leerer Text kostet nie einen Modellaufruf. Ohne OPENAI_API_KEY antwortet der Server
+  // 503 "nicht eingerichtet", mit Schlüssel 400 (Text fehlt) -- in beiden Fällen ist die Route da.
+  const coach = await fetch(`${basisUrl}/coach/frage`, { method: "POST", headers: { ...headers, "content-type": "application/json" }, body: JSON.stringify({ text: "" }) });
+  pruefe("POST /coach/frage ist erreichbar (503 nicht eingerichtet oder 400 leerer Text)", coach.status === 503 || coach.status === 400);
+
   console.log(`\n${bestanden} bestanden, ${fehlgeschlagen} fehlgeschlagen`);
   process.exit(fehlgeschlagen === 0 ? 0 : 1);
 }

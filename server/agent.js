@@ -10,7 +10,7 @@ const ANFANG = 300;
 
 export function agentStatistik(sql) {
   const jeArt = sql
-    .exec(`SELECT art, COUNT(*) AS anzahl, SUM(length(d)) AS bytes, MAX(zeit) AS letzte FROM ops GROUP BY art ORDER BY anzahl DESC`)
+    .exec(`SELECT art, COUNT(*) AS anzahl, SUM(length(d)) AS bytes, MAX(zeit) AS letzte FROM ops WHERE art NOT LIKE 'coach.%' GROUP BY art ORDER BY anzahl DESC`)
     .toArray();
   const jePerson = {};
   for (const r of sql.exec(`SELECT von, COUNT(*) AS n FROM ops GROUP BY von`)) jePerson[r.von] = r.n;
@@ -29,7 +29,7 @@ export function agentStatistik(sql) {
     geraete[p] = sql.exec(`SELECT 1 FROM geraete WHERE person = ? AND token IS NOT NULL AND token != ''`, p).toArray().length > 0;
     standort[p] = sql.exec(`SELECT zeit FROM standort WHERE person = ?`, p).toArray()[0]?.zeit ?? null;
   }
-  const merker = sql.exec(`SELECT schluessel FROM merker ORDER BY schluessel`).toArray().map((r) => r.schluessel);
+  const merker = sql.exec(`SELECT schluessel FROM merker WHERE schluessel NOT LIKE 'coach.%' AND schluessel NOT LIKE 'alarm.coachMorgen.%' ORDER BY schluessel`).toArray().map((r) => r.schluessel);
 
   return {
     ops: { anzahl: gesamt.anzahl, letzteSeq: gesamt.letzteSeq ?? 0, bytes: gesamt.bytes ?? 0, jePerson, jeArt },
@@ -50,7 +50,7 @@ export function agentStatistik(sql) {
 // limit (1-200, Standard 50), aufsteigend (sonst neueste zuerst), voll (große d nicht kürzen).
 // `fuer`: private Arten der anderen Person bleiben unsichtbar, wie in opsSeit.
 export function agentOps(sql, f, fuer) {
-  const wo = [`NOT ((art = ? OR art LIKE 'galerie.%' OR art LIKE 'geschenkbox.%') AND von != ?)`];
+  const wo = [`NOT ((art = ? OR art LIKE 'galerie.%' OR art LIKE 'geschenkbox.%' OR art LIKE 'coach.%') AND von != ?)`];
   const werte = [NUR_FUER_ABSENDER, fuer];
   if (f.art) {
     const praefix = f.art.endsWith(".") || f.art.endsWith("*");
@@ -84,7 +84,7 @@ export function agentOps(sql, f, fuer) {
 }
 
 export function agentMerker(sql, schluessel) {
-  if (schluessel.startsWith("spotify.token.")) return { fehler: "gesperrt" };
+  if (schluessel.startsWith("spotify.token.") || schluessel.startsWith("coach.") || schluessel.startsWith("alarm.coachMorgen.")) return { fehler: "gesperrt" };
   const wert = sql.exec(`SELECT wert FROM merker WHERE schluessel = ?`, schluessel).toArray()[0]?.wert ?? null;
   return { schluessel, wert };
 }

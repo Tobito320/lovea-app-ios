@@ -10,10 +10,22 @@ final class BannerZentrale {
     static let shared = BannerZentrale()
 
     struct Banner: Identifiable, Equatable, Sendable {
-        enum Aktion: Equatable, Sendable { case keine, zeichnung(String) }
+        /// p71: `outfitZurueck` carries the look to restore ("Ahmed hat dein Outfit geändert", button "Zurück").
+        enum Aktion: Equatable, Sendable {
+            case keine, zeichnung(String), outfitZurueck(FigurAussehen)
+
+            var hinweis: String {
+                switch self {
+                case .keine, .outfitZurueck: "Schließt den Hinweis"
+                case .zeichnung: "Öffnet die Zeichnung"
+                }
+            }
+        }
         let id = UUID()
         var text: String
         var aktion: Aktion = .keine
+        /// How long it stays (a notice with a button needs longer than 3 s).
+        var sekunden: Double = 3
     }
 
     private(set) var aktuell: Banner?
@@ -22,8 +34,13 @@ final class BannerZentrale {
     private var letztesOnlineBanner = Date.distantPast
     private var vorherPartnerDa = false
     private var vorherZeichnungDrin: String?
+    private static let fremdGesehenSchluessel = "p71.fremdesOutfitGesehen"
 
     private init() {
+        // p71: day outfit and hearts of the partner (`LookSpeicher`).
+        LookSpeicher.shared.aufFrisch = { [weak self] text in
+            self?.zeigenFallsErlaubt(Banner(text: text), kategorie: nil)
+        }
         FigurenModell.shared.aufFrischeGeste = { [weak self] person, art in
             guard person != Raum.shared.ich else { return }
             let text: String
@@ -59,6 +76,14 @@ final class BannerZentrale {
             zeigenFallsErlaubt(Banner(text: "\(partner) zeichnet gerade an „\(name)“ – zuschauen?", aktion: .zeichnung(drin)), kategorie: "zeichnen")
         }
         vorherZeichnungDrin = drin
+
+        // p71 (31): the other one changed my look; tell me once per change, with a way back.
+        let standard = UserDefaults.standard
+        if let f = FigurenModell.shared.fremdesOutfit, f.opId != standard.string(forKey: Self.fremdGesehenSchluessel),
+           Date().timeIntervalSince(f.zeit) < 2 * 86400 {
+            standard.set(f.opId, forKey: Self.fremdGesehenSchluessel)
+            zeigenFallsErlaubt(Banner(text: "\(f.von.name) hat dein Outfit geändert", aktion: .outfitZurueck(f.vorher), sekunden: 8), kategorie: nil)
+        }
     }
 
     private func zeigenFallsErlaubt(_ banner: Banner, kategorie: String?) {
@@ -69,10 +94,17 @@ final class BannerZentrale {
         if voiceOver { UIAccessibility.post(notification: .announcement, argument: banner.text) }
         ausblendenTask?.cancel()
         ausblendenTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: .seconds(voiceOver ? 10 : 3))
+            try? await Task.sleep(for: .seconds(voiceOver ? max(10, banner.sekunden) : banner.sekunden))
             guard !Task.isCancelled, let self, self.aktuell?.id == banner.id else { return }
             self.aktuell = nil
         }
+    }
+
+    /// p71 (31): "Zurück" on the notice puts the look from before the change back (saved as the own look).
+    func outfitZurueck() {
+        if case .outfitZurueck(let look) = aktuell?.aktion { FigurenModell.shared.aussehenSichern(look) }
+        ausblendenTask?.cancel()
+        aktuell = nil
     }
 
     /// Tapped or dismissed — always clears, tap on a drawing banner also runs `aufZeichnung`.
@@ -98,6 +130,11 @@ struct InAppBannerView: View {
                 Text(banner.text)
                     .font(.subheadline.weight(.medium))
                     .lineLimit(3)
+                if case .outfitZurueck = banner.aktion {
+                    Button("Zurück") { zentrale.outfitZurueck() }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.small)
+                }
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
@@ -108,7 +145,10 @@ struct InAppBannerView: View {
             .onTapGesture { zentrale.antippen(aufZeichnung: aufZeichnungGetippt) }
             .accessibilityElement(children: .combine)
             .accessibilityAddTraits(.isButton)
-            .accessibilityHint(banner.aktion == .keine ? "Schließt den Hinweis" : "Öffnet die Zeichnung")
+            .accessibilityHint(banner.aktion.hinweis)
+            .accessibilityActions {
+                if case .outfitZurueck = banner.aktion { Button("Zurück") { zentrale.outfitZurueck() } }
+            }
             .transition(reduceMotion ? AnyTransition.opacity : AnyTransition.move(edge: .top).combined(with: .opacity))
             .animation(reduceMotion ? nil : .spring(duration: 0.3), value: zentrale.aktuell?.id)
             .id(banner.id)

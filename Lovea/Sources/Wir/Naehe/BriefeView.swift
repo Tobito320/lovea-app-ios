@@ -94,6 +94,7 @@ private struct BriefZeile: View {
     }
 
     private func untertitel(_ offen: Date?) -> String {
+        if meine, let a = brief.ankunft, BriefeLogik.unterwegs(brief) { return "Unterwegs, kommt am \(NaeheDatum.kurz(a)) an" }
         if let offen { return meine ? "Geöffnet am \(NaeheDatum.kurz(offen))" : "Geöffnet" }
         return meine ? "Noch versiegelt" : "Versiegelt von \(brief.von.name)"
     }
@@ -208,6 +209,8 @@ private struct BriefSchreibenBlatt: View {
     @State private var aufnahme: SprachEntwurf?
     @State private var sendet = false
     @State private var mikroFehler = false
+    @State private var langsam = false
+    @State private var tage = 2
 
     private var gueltig: Bool {
         BriefeLogik.titel(fuer: titel) != nil && (!text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || aufnahme != nil)
@@ -240,6 +243,15 @@ private struct BriefSchreibenBlatt: View {
 
                 Section("Brief") {
                     TextEditor(text: $text).frame(minHeight: 160)
+                }
+
+                Section {
+                    Toggle("Langsam senden", isOn: $langsam)
+                    if langsam {
+                        Stepper("Kommt in \(tage) \(tage == 1 ? "Tag" : "Tagen") an", value: $tage, in: 1...3)
+                    }
+                } footer: {
+                    Text("Der Brief reist per Flugzeug und kommt erst nach 1 bis 3 Tagen im Briefkasten an.")
                 }
 
                 Section("Stimme (optional)") {
@@ -286,7 +298,7 @@ private struct BriefSchreibenBlatt: View {
         sendet = true
         var medienId: String?
         if let aufnahme { medienId = await ChatMedien.entwurfSprachHochladen(aufnahme.url) }
-        if speicher.schreiben(titel: titel, text: text, sprache: medienId, dauer: medienId == nil ? nil : aufnahme?.dauer, pegel: medienId == nil ? nil : aufnahme?.pegel) != nil {
+        if speicher.schreiben(titel: titel, text: text, sprache: medienId, dauer: medienId == nil ? nil : aufnahme?.dauer, pegel: medienId == nil ? nil : aufnahme?.pegel, ankunft: langsam ? BriefeLogik.ankunft(tage: tage, ab: Date()) : nil) != nil {
             steuerung.zuruecksetzen()
             Haptik.erfolg()
             dismiss()

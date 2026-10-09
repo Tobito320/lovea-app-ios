@@ -169,6 +169,7 @@ struct ChatListenZeile: View {
 struct ChatBlaetter {
     var profil = false
     var kamera = false
+    var galerie = false
     var bearbeiten: ChatModell.Nachricht?
     var reaktionen: ChatModell.Nachricht?
     var snap: ChatModell.Nachricht?
@@ -244,7 +245,7 @@ private struct Unterhaltung: View {
 
     private var oben: some View {
         VStack(spacing: 6) {
-            ChatKopf(partner: ich.partner, modell: modell, onZurueck: zurueck) { blatt.profil = true }
+            ChatKopf(partner: ich.partner, modell: modell, onZurueck: zurueck, onProfil: { blatt.profil = true }, onGalerie: { blatt.galerie = true })
             TipView(ChatNachrichtGesteTip())
             if let toast {
                 Text(toast)
@@ -274,6 +275,7 @@ private struct Unterhaltung: View {
 
     private var unten: some View {
         VStack(spacing: 0) {
+            AhmedHilfeLeiste(ich: ich, modell: modell)
             PartnerFigurLeiste(partner: ich.partner)
             ChatEingabeleiste(ich: ich, antwortAuf: $antwortAuf)
         }
@@ -342,6 +344,7 @@ private struct UnterhaltungBlaetter: ViewModifier {
             .fullScreenCover(isPresented: $blatt.kamera) {
                 SnapKameraFluss(ich: ich, antwortAuf: nil) { blatt.kamera = false }
             }
+            .sheet(isPresented: $blatt.galerie) { GalerieView() }
             .fullScreenCover(item: $blatt.snap) { SnapViewer(nachricht: $0, ich: ich) }
             .sheet(item: $blatt.bearbeiten) { BearbeitenBlatt(nachricht: $0) }
             .sheet(item: $blatt.reaktionen) { ReaktionenBlatt(nachricht: $0, ich: ich) }

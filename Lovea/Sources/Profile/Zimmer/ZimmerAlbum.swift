@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// p63: das Erinnerungsalbum im Regal. Ein Blatt je Monat aus gespeicherten Snaps und den Chat-Highlights
-/// (gemerkte und angeheftete Nachrichten). Liebesbriefe (p60) sind noch nicht dabei. Nur lesen, nichts doppelt speichern.
+/// (gemerkte und angeheftete Nachrichten); p70: dazu die Liebesbriefe (p60), die schon gelesen wurden. Nur lesen, nichts doppelt speichern.
 struct AlbumFoto: Equatable, Identifiable, Sendable {
     let medium: ChatModell.MedienEintrag
     let eigene: Bool
@@ -12,6 +12,8 @@ struct AlbumSatz: Equatable, Identifiable, Sendable {
     let id: String
     let text: String
     let von: Person
+    /// p70: a love letter, not a remembered message.
+    var brief = false
 }
 
 struct AlbumMonat: Equatable, Identifiable, Sendable {
@@ -28,7 +30,7 @@ enum ZimmerAlbumLogik {
 
     /// Die Monatsblätter, ältester Monat zuerst. Monate ohne Foto und ohne Satz fehlen.
     /// Je Monat gewinnen die neuesten Einträge (höchstens `maxFotos` und `maxSaetze`).
-    static func monate(aus nachrichten: [ChatModell.Nachricht], ich: Person?) -> [AlbumMonat] {
+    static func monate(aus nachrichten: [ChatModell.Nachricht], ich: Person?, briefe: [Brief] = []) -> [AlbumMonat] {
         let k = Calendar.berlin
         var fotos: [String: [AlbumFoto]] = [:]
         var saetze: [String: [AlbumSatz]] = [:]
@@ -47,10 +49,22 @@ enum ZimmerAlbumLogik {
                 erster[schluessel] = n.zeit
             }
         }
+        for b in briefe.sorted(by: { $0.zeit > $1.zeit }) {
+            let c = k.dateComponents([.year, .month], from: b.zeit)
+            let schluessel = String(format: "%04d-%02d", c.year ?? 0, c.month ?? 0)
+            guard (saetze[schluessel]?.count ?? 0) < maxSaetze else { continue }
+            saetze[schluessel, default: []].append(AlbumSatz(id: b.id, text: b.text.trimmingCharacters(in: .whitespacesAndNewlines), von: b.von, brief: true))
+            if erster[schluessel] == nil { erster[schluessel] = b.zeit }
+        }
         return erster.keys.sorted().compactMap { s in
             guard let zeit = erster[s] else { return nil }
             return AlbumMonat(id: s, titel: monatsTitel(zeit), fotos: fotos[s] ?? [], saetze: saetze[s] ?? [])
         }
+    }
+
+    /// p70 (37): the love letters (not the "Öffne, wenn" ones) the other one has opened, so both have seen them.
+    static func liebesbriefe(_ stand: BriefeStand) -> [Brief] {
+        stand.briefe.values.filter { $0.titel == SignaleLogik.liebesbriefTitel && stand.geoeffnet[$0.id] != nil && !$0.text.isEmpty }
     }
 
     static func monatsTitel(_ datum: Date) -> String {
@@ -95,8 +109,8 @@ struct ZimmerAlbumBlatt: View {
     @State private var monate: [AlbumMonat]
     @State private var seite: String?
 
-    init(nachrichten: [ChatModell.Nachricht], ich: Person?) {
-        let m = ZimmerAlbumLogik.monate(aus: nachrichten, ich: ich)
+    init(nachrichten: [ChatModell.Nachricht], ich: Person?, briefe: [Brief] = []) {
+        let m = ZimmerAlbumLogik.monate(aus: nachrichten, ich: ich, briefe: briefe)
         _monate = State(initialValue: m)
         _seite = State(initialValue: m.last?.id)
     }
@@ -108,7 +122,7 @@ struct ZimmerAlbumBlatt: View {
                 VStack(spacing: 10) {
                     Image(systemName: "book.closed").font(.largeTitle).foregroundStyle(Color.loveaRose)
                     Text("Noch leer").font(.headline)
-                    Text("Gemerkte Nachrichten und gespeicherte Snaps landen hier, ein Blatt je Monat.")
+                    Text("Gemerkte Nachrichten, gespeicherte Snaps und gelesene Liebesbriefe landen hier, ein Blatt je Monat.")
                         .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 }
                 .padding(32)
@@ -171,7 +185,7 @@ struct ZimmerAlbumSeite: View {
                 ForEach(monat.saetze) { s in
                     VStack(alignment: .leading, spacing: 2) {
                         Text("\u{201E}\(s.text)\u{201C}").font(.system(.body, design: .serif)).italic().lineLimit(3)
-                        Text(s.von.name).font(.caption).foregroundStyle(.secondary)
+                        Text(s.brief ? "Liebesbrief von \(s.von.name)" : s.von.name).font(.caption).foregroundStyle(.secondary)
                     }
                 }
             }

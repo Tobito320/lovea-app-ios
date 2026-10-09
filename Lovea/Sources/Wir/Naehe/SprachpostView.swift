@@ -95,6 +95,7 @@ private struct SprachpostAufnehmen: View {
                 .scaleEffect(steuerung.laeuft && !reduceMotion ? 1.12 : 1)
                 .animation(Feder.federnd, value: steuerung.laeuft)
                 .contentShape(.circle)
+                .tabWischSperre()
                 .gesture(halten)
                 .opacity(sendet ? 0.4 : 1)
                 .accessibilityElement(children: .ignore)

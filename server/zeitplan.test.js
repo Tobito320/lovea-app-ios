@@ -189,3 +189,18 @@ test("naechsterAlarm: keine kapselOeffnet- und streakWarnung-Kandidaten mehr", (
   const { faellig } = naechsterAlarm(kontext, Date.parse("2026-09-23T19:30:00.000Z")); // 21:30 Berlin
   assert.ok(!faellig.some((f) => f.art === "kapselOeffnet" || f.art === "streakWarnung"));
 });
+
+// Health-Coach: optionale Morgen-Nachricht um 08:00 Berlin. Nur ein Kandidat, wenn jemand sie eingeschaltet hat
+// (und der Schlüssel da ist) -- ohne Opt-in weckt sie den Raum nicht zusätzlich.
+test("naechsterAlarm: coachMorgen nur mit Opt-in; heute 08:00 solange offen (auch rückwirkend), sonst morgen", () => {
+  const spaet = Date.parse("2026-06-15T07:30:00.000Z"); // 09:30 Berlin
+  const art = (kontext) => naechsterAlarm(kontext, spaet).faellig.some((f) => f.art === "coachMorgen");
+  assert.equal(art({ erinnerungenHeute: { frage: true } }), false, "ohne Opt-in kein Kandidat");
+  assert.equal(art({ erinnerungenHeute: { frage: true }, coachMorgen: { aktiv: false, erledigt: false } }), false);
+  const offen = naechsterAlarm({ erinnerungenHeute: { frage: true }, coachMorgen: { aktiv: true, erledigt: false } }, spaet);
+  const k = offen.faellig.find((f) => f.art === "coachMorgen");
+  assert.equal(new Date(k.zeitMs).toISOString(), "2026-06-15T06:00:00.000Z", "08:00 Berlin (Sommerzeit)");
+  const erledigt = naechsterAlarm({ erinnerungenHeute: { frage: true }, coachMorgen: { aktiv: true, erledigt: true } }, spaet);
+  assert.ok(!erledigt.faellig.some((f) => f.art === "coachMorgen"));
+  assert.ok(erledigt.naechste <= Date.parse("2026-06-16T06:00:00.000Z"), "morgen 08:00 bleibt als Wach-Zeitpunkt");
+});

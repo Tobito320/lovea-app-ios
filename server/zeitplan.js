@@ -182,6 +182,9 @@ export function naechsterAlarm(kontext, jetztMs) {
   // oder morgen (falls heute schon erledigt). So bleibt immer ein Wach-
   // Zeitpunkt geplant, auch wenn sonst nichts ansteht.
   kandidaten.push({ art: "frageDesTages", zeitMs: naechsteFaelligeTageszeit(jetztMs, 18, 0, kontext.erinnerungenHeute?.frage) });
+  // Health-Coach: Morgen-Nachricht 08:00 Berlin, nur mit Opt-in (sonst weckt sie den Raum nicht extra).
+  // Wie die Frage des Tages: heute (auch rückwirkend), solange offen, danach morgen.
+  if (kontext.coachMorgen?.aktiv) kandidaten.push({ art: "coachMorgen", zeitMs: naechsteFaelligeTageszeit(jetztMs, 8, 0, kontext.coachMorgen.erledigt) });
   // Duell der Woche + Gemeinsam Woche/Monat laufen immer, kein Op-Kontext nötig.
   const ce = kontext.challengeErledigt ?? {};
   kandidaten.push({ art: "challengeEndspurtWoche", zeitMs: naechsteWoechentlicheChallengeZeit(jetztMs, challengeEndspurtWocheZeit, ce.endspurtWoche) });

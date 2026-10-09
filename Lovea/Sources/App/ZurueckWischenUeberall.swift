@@ -60,6 +60,14 @@ extension UINavigationController: @retroactive UIGestureRecognizerDelegate {
         let istZurueckGeste = gestureRecognizer == interactivePopGestureRecognizer
             || (responds(to: inhaltsWischen) && gestureRecognizer === (value(forKey: "interactiveContentPopGestureRecognizer") as? UIGestureRecognizer))
         guard istZurueckGeste else { return true }
-        return viewControllers.count > 1
+        guard viewControllers.count > 1 else { return false }
+        // Der Inhalts-Wisch (iOS 26) gilt auf der ganzen Fläche: Eine innere horizontale Scroll-Fläche,
+        // die nach rechts noch zurückscrollen kann (Karussell, Chips), behält die Berührung. Der
+        // Rand-Wisch bleibt davon unberührt.
+        if gestureRecognizer !== interactivePopGestureRecognizer {
+            let punkt = gestureRecognizer.location(in: nil)
+            if TabWischSperre.shared.innenBelegt(wurzel: view, punkt: punkt, fingerNachLinks: false) { return false }
+        }
+        return true
     }
 }

@@ -87,6 +87,7 @@ struct ChatKopf: View {
     let modell: ChatModell
     let onZurueck: () -> Void
     let onProfil: () -> Void
+    var onGalerie: (() -> Void)?
     @State private var hinweis: String?
     @State private var adresse: String?
 
@@ -95,6 +96,7 @@ struct ChatKopf: View {
             HStack(spacing: 2) {
                 zurueckKnopf
                 profilKnopf
+                galerieKnopf
                 anrufKnopf(audio: true)
                 anrufKnopf(audio: false)
             }
@@ -174,6 +176,24 @@ struct ChatKopf: View {
         .accessibilityLabel("\(partner.name), \(status)")
         .accessibilityHint("Profil öffnen")
         .accessibilityAddTraits(.isButton)
+    }
+
+    @ViewBuilder private var galerieKnopf: some View {
+        if let onGalerie {
+            Button {
+                Haptik.leicht()
+                onGalerie()
+            } label: {
+                Image(systemName: "photo.on.rectangle.angled")
+                    .font(.system(size: 15, weight: .semibold))
+                    .frame(width: 36, height: 36)
+                    .background(Color.primary.opacity(0.1), in: .circle)
+                    .frame(width: 44, height: 44)
+                    .contentShape(.circle)
+            }
+            .buttonStyle(.federnd)
+            .accessibilityLabel("Galerie")
+        }
     }
 
     /// Compact icon button inside the capsule: a tinted circle, not a second glass layer (no glass on glass).

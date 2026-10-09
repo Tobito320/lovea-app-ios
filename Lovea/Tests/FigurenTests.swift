@@ -145,11 +145,11 @@ final class FigurenTests: XCTestCase {
     func testStandardFiguren() {
         // Fix round 4: Ahmed's real everyday look (photos + ChatGPT stickers).
         let ahmed = FigurAussehen.standard(for: .ahmed)
-        XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "Schwarzes Rundhals-Tee")
-        XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Hellgraue Baggy-Jeans")
-        XCTAssertEqual(FigurAussehen.schuhArten[ahmed.schuhe], "Weiße Low-Top-Sneaker")
-        XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Mushroom Taper")
-        XCTAssertEqual(FigurAussehen.haarfarben[ahmed.haarfarbe].name, "Fast schwarz")
+        XCTAssertEqual(FigurAussehen.oberteile[ahmed.oberteil], "T-Shirt schwarz")
+        XCTAssertEqual(FigurAussehen.hosen[ahmed.hose], "Baggy Jeans hellgrau")
+        XCTAssertEqual(FigurAussehen.schuhArten[ahmed.schuhe], "Sneaker weiß")
+        XCTAssertEqual(FigurAussehen.frisuren[ahmed.frisur], "Welliger Seitenschwung")
+        XCTAssertEqual(FigurAussehen.haarfarben[ahmed.haarfarbe].name, "Dunkelbraun")
         XCTAssertEqual(FigurAussehen.hautToene[ahmed.haut].name, "Hell warm")
         XCTAssertEqual(FigurAussehen.gesichtsformen[ahmed.gesichtsform], "Schmal markant") // Brief F2: option B
         XCTAssertEqual(FigurAussehen.augenbrauen[ahmed.brauen], "Dick gerade")
@@ -318,16 +318,18 @@ final class FigurenTests: XCTestCase {
         XCTAssertEqual(FigurAussehen.uhrenAlltag.count, alltagsUhren.count + 1)
     }
 
-    /// Brand pieces for women only are hidden for Ahmed (Zara top, Puma leggings).
+    /// Brand pieces for women only never fit Ahmed (Zara top, Puma leggings); since p65 D every brand piece is
+    /// shop-only, so the free editor offers none of them.
     func testMarkenGeschlecht() {
         typealias A = FigurAussehen
         let zara = A.oberteile.firstIndex(of: "Zara Rippstrick-Top")!
         let leggings = A.hosen.firstIndex(of: "Puma Leggings")!
-        XCTAssertFalse(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: .ahmed).contains(zara))
-        XCTAssertTrue(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: .annika).contains(zara))
-        XCTAssertFalse(A.erlaubt(A.hosen, geschlecht: A.hosenGeschlecht, shop: A.hosenShop, fuer: .ahmed).contains(leggings))
         let nike = A.oberteile.firstIndex(of: "Nike Tech Fleece")!
-        XCTAssertTrue(A.erlaubt(A.oberteile, geschlecht: A.oberteileGeschlecht, shop: A.oberteileShop, fuer: .ahmed).contains(nike))
+        XCTAssertFalse(A.passt(zara, A.oberteileGeschlecht, fuer: .ahmed))
+        XCTAssertTrue(A.passt(zara, A.oberteileGeschlecht, fuer: .annika))
+        XCTAssertFalse(A.passt(leggings, A.hosenGeschlecht, fuer: .ahmed))
+        XCTAssertTrue(A.passt(nike, A.oberteileGeschlecht, fuer: .ahmed))
+        XCTAssertTrue(A.oberteileShop.contains(zara) && A.oberteileShop.contains(nike) && A.hosenShop.contains(leggings))
     }
 
     /// Raw names are the wire format of `geste` ops and chat reactions (B1 maps onto them).
@@ -365,8 +367,9 @@ final class FigurenTests: XCTestCase {
             XCTAssertEqual(a.bart, basis.bart)
         }
         let namen = A.outfits(fuer: .ahmed).map(\.name)
-        for n in ["Pink Knit", "All Black", "Pink & Black", "Gym Black", "Oben ohne Gym", "Grey Denim", "Gymshark Black", "Gymshark White", "Cap Look"] { XCTAssertTrue(namen.contains(n), n) }
-        XCTAssertFalse(A.outfits(fuer: .annika).contains { $0.name == "Oben ohne Gym" })
+        for n in ["All Black", "All White", "Pink", "Grey Denim", "Oben ohne"] { XCTAssertTrue(namen.contains(n), n) }
+        XCTAssertFalse(A.outfits(fuer: .annika).contains { $0.name == "Oben ohne" })
+        XCTAssertEqual(Set(A.outfits.map(\.name)).count, A.outfits.count, "Outfit-Namen sind die ID")
     }
 
     /// Fix round 3: the goatee field decodes as "none" from older JSON and round-trips.

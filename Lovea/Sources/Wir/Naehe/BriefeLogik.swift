@@ -12,6 +12,8 @@ struct Brief: Codable, Hashable, Identifiable, Sendable {
     var pegel: [Float]?
     var von: Person
     var zeit: Date
+    /// "Langsam senden": erst ab diesem Zeitpunkt zugestellt. nil = sofort.
+    var ankunft: Date?
 }
 
 /// `brief.geoeffnet`: kommt von der Empfängerin. Die erste Öffnung zählt.
@@ -55,7 +57,7 @@ enum BriefeLogik {
             switch op.art {
             case artNeu:
                 guard let b = op.daten(BriefNeuD.self) else { continue }
-                z.briefe[b.id] = Brief(id: b.id, titel: b.titel, text: b.text, sprache: b.sprache, dauer: b.dauer, pegel: b.pegel, von: op.von, zeit: op.zeit)
+                z.briefe[b.id] = Brief(id: b.id, titel: b.titel, text: b.text, sprache: b.sprache, dauer: b.dauer, pegel: b.pegel, von: op.von, zeit: op.zeit, ankunft: b.ankunft.map { Date(timeIntervalSince1970: $0) })
             case artGeoeffnet:
                 // Kommt von der Empfängerin (`oeffnen` sendet nur dort). Die früheste Öffnung zählt.
                 guard let d = op.daten(BriefGeoeffnetD.self) else { continue }
@@ -71,8 +73,8 @@ enum BriefeLogik {
     static func geoeffnetAm(_ brief: Brief, _ stand: BriefeStand) -> Date? { stand.geoeffnet[brief.id] }
 
     /// Für mich: an mich gerichtet, ungeöffnete zuerst, dann neueste zuerst.
-    static func erhalten(_ stand: BriefeStand, ich: Person) -> [Brief] {
-        stand.briefe.values.filter { $0.von != ich }.sorted { a, b in
+    static func erhalten(_ stand: BriefeStand, ich: Person, jetzt: Date = Date()) -> [Brief] {
+        stand.briefe.values.filter { $0.von != ich && !unterwegs($0, jetzt: jetzt) }.sorted { a, b in
             let ua = stand.geoeffnet[a.id] == nil, ub = stand.geoeffnet[b.id] == nil
             if ua != ub { return ua }
             return a.zeit != b.zeit ? a.zeit > b.zeit : a.id < b.id
@@ -85,8 +87,27 @@ enum BriefeLogik {
         }
     }
 
-    static func ungeoeffnet(_ stand: BriefeStand, ich: Person) -> Int {
-        stand.briefe.values.filter { $0.von != ich && stand.geoeffnet[$0.id] == nil }.count
+    static func ungeoeffnet(_ stand: BriefeStand, ich: Person, jetzt: Date = Date()) -> Int {
+        stand.briefe.values.filter { $0.von != ich && stand.geoeffnet[$0.id] == nil && !unterwegs($0, jetzt: jetzt) }.count
+    }
+
+    /// Langsam gesendet und noch nicht angekommen.
+    static func unterwegs(_ brief: Brief, jetzt: Date = Date()) -> Bool {
+        guard let a = brief.ankunft else { return false }
+        return a > jetzt
+    }
+
+    /// Meine Briefe, die gerade noch fliegen.
+    static func fliegende(_ stand: BriefeStand, ich: Person, jetzt: Date = Date()) -> [Brief] {
+        geschrieben(stand, ich: ich).filter { unterwegs($0, jetzt: jetzt) }
+    }
+
+    /// Ankunft nach 1 bis 3 Tagen (Tage außerhalb werden geklemmt), morgens um 8 Uhr Berliner Zeit.
+    static func ankunft(tage: Int, ab start: Date) -> Date {
+        let t = min(3, max(1, tage))
+        let kal = Calendar.berlin
+        let tag = kal.date(byAdding: .day, value: t, to: kal.startOfDay(for: start)) ?? start
+        return kal.date(bySettingHour: 8, minute: 0, second: 0, of: tag) ?? tag
     }
 }
 
@@ -97,6 +118,8 @@ private struct BriefNeuD: Codable {
     var sprache: String?
     var dauer: Double?
     var pegel: [Float]?
+    /// Epochensekunden; fehlt bei sofort zugestellten Briefen.
+    var ankunft: Double?
 }
 
 /// Stand der Briefe. Gespeichert wird im Op-Log, `Raum.beobachtenStapel` spielt beim Start alles ein.
@@ -125,14 +148,15 @@ final class BriefeSpeicher {
     var erhalten: [Brief] { wer().map { BriefeLogik.erhalten(stand, ich: $0) } ?? [] }
     var geschrieben: [Brief] { wer().map { BriefeLogik.geschrieben(stand, ich: $0) } ?? [] }
     var ungeoeffnet: Int { wer().map { BriefeLogik.ungeoeffnet(stand, ich: $0) } ?? 0 }
+    var fliegende: [Brief] { wer().map { BriefeLogik.fliegende(stand, ich: $0) } ?? [] }
 
     /// Neuer Brief. Leerer Titel oder Text (ohne Sprache): nil. `frei`: der Titel steht so da, ohne "Öffne, wenn" (Liebesbrief im Zimmer).
     @discardableResult
-    func schreiben(titel: String, text: String, sprache: String? = nil, dauer: Double? = nil, pegel: [Float]? = nil, frei: Bool = false) -> Brief? {
+    func schreiben(titel: String, text: String, sprache: String? = nil, dauer: Double? = nil, pegel: [Float]? = nil, frei: Bool = false, ankunft: Date? = nil) -> Brief? {
         let t = text.trimmingCharacters(in: .whitespacesAndNewlines)
         let name: String? = frei ? titel.trimmingCharacters(in: .whitespacesAndNewlines) : BriefeLogik.titel(fuer: titel)
         guard let titel = name, !titel.isEmpty, !t.isEmpty || sprache != nil, let ich = wer() else { return nil }
-        let op = Op.neu(BriefeLogik.artNeu, BriefNeuD(id: "brief-" + UUID().uuidString, titel: titel, text: t, sprache: sprache, dauer: dauer, pegel: pegel), von: ich)
+        let op = Op.neu(BriefeLogik.artNeu, BriefNeuD(id: "brief-" + UUID().uuidString, titel: titel, text: t, sprache: sprache, dauer: dauer, pegel: pegel, ankunft: ankunft?.timeIntervalSince1970), von: ich)
         stand = BriefeLogik.anwenden([op], auf: stand)
         senden(op)
         return stand.briefe[op.daten(BriefNeuD.self)?.id ?? ""]

@@ -68,4 +68,13 @@ struct WidgetStand: Codable, Sendable, Equatable {
     var partnerLetzterMoment: String?
     var herzHeute: Int?
     var herzDatum: String?
+
+    /// Sperrbildschirm "Wiedersehen": nächster gemeinsamer Treffen-Tag (yyyy-MM-dd) und Uhrzeit.
+    /// Das Widget rechnet die Tage selbst gegen `WidgetDatum.heute()`, damit sie über Mitternacht stimmen.
+    var naechstesTreffen: String?
+    var treffenUhrzeit: String?
+
+    /// Sperrbildschirm "Schlaf": Minuten der letzten Nacht und Ziel je Person (`nil` = keine Daten).
+    var schlafMinutenHeute: [String: Int]?
+    var zielSchlafMinuten: [String: Int]?
 }
