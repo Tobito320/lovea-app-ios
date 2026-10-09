@@ -49,7 +49,7 @@ struct PartnerProfilView: View {
 }
 
 private enum ProfilBlatt: String, Identifiable {
-    case wallpaper, medien, zimmer, sterne
+    case zimmer, chatDetails
     var id: String { rawValue }
 }
 
@@ -81,10 +81,8 @@ private struct ProfilInhalt: View {
     @State private var blatt: ProfilBlatt?
     /// p60: das offene Blatt der Paar-Signale im Zimmer (Stimmung, Brief, Zettel, Geschenkbox).
     @State private var signale: SignaleBlatt?
-    @State private var backdropOffen = false
-    /// Idee 6: the chat settings sit behind one "Chat-Details" row; their own sheets live inside that sheet.
-    @State private var chatDetailsOffen = false
-    @State private var chatBlatt: ProfilBlatt?
+    /// Unser Zimmer: wessen Zahlen das kleine Blatt zeigt (Avatar im Kopf der Szene).
+    @State private var statistik: ZimmerStatistikZiel?
     /// Z-19.1: Karte ist kein Tab mehr, sie öffnet sich vollflächig über die Karten-Vorschau.
     @State private var karteOffen = false
     // Z-25.1: eigenes Profil. p65 C: "Profil" opens Meine Figur, "Kleidung" the wardrobe (with the Shop button).
@@ -122,6 +120,7 @@ private struct ProfilInhalt: View {
         .sensoryFeedback(.impact(weight: .medium), trigger: tipps)
         .sensoryFeedback(.warning, trigger: nummerFehlt)
         .sheet(item: $blatt) { b in blattInhalt(b) }
+        .zimmerStatistik($statistik)
         .fullScreenCover(isPresented: $karteOffen) { KarteTab(schliessen: { karteOffen = false }) }
         .sheet(isPresented: $figurBearbeitenOffen) { NavigationStack { FigurEditorSeite(person: person) } }
         .sheet(isPresented: $kleidungOffen) { NavigationStack { FigurEditorSeite(person: person, bereich: .kleidung) } }
@@ -173,7 +172,6 @@ private struct ProfilInhalt: View {
                 ProfilAbschnitt("aktionen", .zimmer) { eigeneAktionen },
                 ProfilAbschnitt("zyklus", .wir) { ZyklusProfilZeile(person: person) },
                 ProfilAbschnitt("bilanz", .wir, titel: "Spiele-Bilanz", sichtbar: !bilanz.isEmpty) { spieleAbschnittInhalt },
-                ProfilAbschnitt("punkte", .quests) { ProfilPunkteKarte(person: person) },
                 challenges,
             ]
         }
@@ -185,7 +183,6 @@ private struct ProfilInhalt: View {
             // Z-19.1 / Spec 2: Karte öffnet sich nur über das Partner-Profil, nicht das eigene.
             ProfilAbschnitt("karte", .wir, titel: "Die Karte") { dieKarte },
             ProfilAbschnitt("wir", .wir, titel: "Wir") { wir },
-            ProfilAbschnitt("chat", .erinnerungen) { chatDetailsZeile },
             challenges,
         ]
     }
@@ -195,10 +192,12 @@ private struct ProfilInhalt: View {
     @ViewBuilder
     private func blattInhalt(_ b: ProfilBlatt) -> some View {
         switch b {
-        case .wallpaper: WallpaperAuswahl(partner: gegenueber)
-        case .medien: MedienUebersicht(ich: ich)
         case .zimmer: NavigationStack { ZimmerEditor(person: person, ort: zimmerOrt) }
-        case .sterne: SterneBlatt(ich: ich) { zurNachricht($0) }
+        case .chatDetails: ZimmerChatDetailsBlatt(ich: ich) { suche, ziel in
+            blatt = nil
+            if let ziel { AppNavigation.shared.chatZiel = ziel }
+            navigieren("chat", suche: suche)
+        }
         }
     }
 
@@ -209,8 +208,30 @@ private struct ProfilInhalt: View {
     /// `oben` is the status bar the wall bleeds into (and the Gym bar while it shows); both sit just under it.
     private func schwebend(oben: CGFloat) -> some View {
         HStack(alignment: .top) {
-            ProfilOnlineChip(person: gegenueber, online: Raum.shared.partnerDa)
+            zimmerKopf
             Spacer(minLength: 8)
+            Button { tipps += 1; blatt = .chatDetails } label: {
+                Image(systemName: "bubble.left.and.text.bubble.right")
+                    .font(.body.weight(.semibold))
+                    .foregroundStyle(.primary)
+                    .frame(width: 44, height: 44)
+                    .background(.ultraThinMaterial, in: Circle())
+                    .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel("Chat-Details")
+            if istEigenes {
+                Button { tipps += 1; zimmerGestalten() } label: {
+                    Image(systemName: "paintbrush.pointed.fill")
+                        .font(.body.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .frame(width: 44, height: 44)
+                        .background(.ultraThinMaterial, in: Circle())
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Zimmer bearbeiten")
+            }
             if let session, person == session.person {
                 NavigationLink { EinstellungenView(person: person, session: session) } label: {
                     Image(systemName: "gearshape.fill")
@@ -258,9 +279,35 @@ private struct ProfilInhalt: View {
         // p62: the room's living objects (wall, shelf, plant, goal); their taps sit on top, small.
         .overlay { ZimmerLebenTippen(zimmer: zimmer, person: person, welt: .panorama) }
         .overlay { PaarSignaleEbene(blatt: $signale, welt: .panorama) }
+        .overlay { ZimmerSpielEbene(signale: $signale, welt: .panorama) }
         .overlay { AlltagEbene(welt: .panorama) }
-        // p71: Briefkasten und Telefon (Briefe, Sprachpost), nur im eigenen Profil.
-        .overlay { if istEigenes { PostObjekte() } }
+        .overlay { ZimmerObjekteEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerKleidungEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerRitualeEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerErinnerungEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerAnlassEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerSchreibenEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerSammlungEbene(welt: .panorama, eigen: istEigenes) }
+        .overlay { ZimmerNaeheEbene(welt: .panorama, eigen: istEigenes) }
+    }
+
+    /// Unser Zimmer: ein gemeinsamer Raum für beide. Die zwei Avatare öffnen je ein kleines Blatt mit den Zahlen der Person;
+    /// der Punkt am Avatar zeigt, wer online ist (ersetzt den alten Online-Chip).
+    private var zimmerKopf: some View {
+        HStack(spacing: 6) {
+            Text("unser Zimmer").font(.caption.weight(.semibold)).padding(.leading, 4)
+            ForEach(Person.allCases, id: \.self) { p in
+                Button { tipps += 1; statistik = ZimmerStatistikZiel(person: p) } label: {
+                    ProfilAvatar(person: p, online: p == ich ? Raum.shared.verbunden : Raum.shared.partnerDa, d: 30)
+                        .frame(minWidth: 44, minHeight: 44)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("Zahlen von \(p.name)")
+            }
+        }
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background(.ultraThinMaterial, in: Capsule())
     }
 
     /// A walker, sitter or sleeper of the home scene: their own look and badges, the state and size
@@ -404,8 +451,6 @@ private struct ProfilInhalt: View {
     private var eigeneAktionen: some View {
         HStack(spacing: 8) {
             beschriftet("person.crop.square", "Profil") { figurBearbeitenOffen = true }
-            beschriftet("bed.double.fill", "Zimmer") { zimmerGestalten() }
-            beschriftet("tshirt.fill", "Kleidung") { kleidungOffen = true }
         }
     }
 
@@ -535,67 +580,6 @@ private struct ProfilInhalt: View {
     }
 
     private var trenner: some View { Divider().padding(.leading, 58) }
-
-    /// Idee 6: one row instead of five; the chat settings open in their own sheet.
-    private var chatDetailsZeile: some View {
-        zeile("bubble.left.and.text.bubble.right", "Chat-Details", "Backdrop, Wallpaper, Medien, Sterne") { chatDetailsOffen = true }
-            .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-            .sheet(isPresented: $chatDetailsOffen) { chatDetails }
-    }
-
-    /// The sheet stays put while open, so the backdrop cover and the inner sheets hang on it, not on a lazy row.
-    private var chatDetails: some View {
-        NavigationStack {
-            ScrollView {
-                VStack(spacing: 0) { unserChat }
-                    .background(Color(uiColor: .secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    .padding()
-            }
-            .background(Color(uiColor: .systemGroupedBackground))
-            .navigationTitle("Chat-Details")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { chatDetailsOffen = false } }
-            }
-        }
-        .sheet(item: $chatBlatt) { b in blattInhalt(b) }
-        .fullScreenCover(isPresented: $backdropOffen) { BackdropAuswahl() }
-    }
-
-    /// Z-34.2: Backdrop (full-screen picker, for both), then Medien and Sterne.
-    @ViewBuilder
-    private var unserChat: some View {
-        zeile("photo.artframe", "Backdrop", backdropUntertitel) { backdropOffen = true }
-        trenner
-        zeile("photo.on.rectangle.angled", "Wallpaper", "Du und \(gegenueber.name) seht das Wallpaper.") { chatBlatt = .wallpaper }
-        trenner
-        zeile("photo.stack", "Medien") { chatBlatt = .medien }
-        trenner
-        zeile("star", "Sterne") { chatBlatt = .sterne }
-        trenner
-        zeile("magnifyingglass", "Im Chat suchen") {
-            chatDetailsOffen = false
-            navigieren("chat", suche: true)
-        }
-    }
-
-    private var backdropUntertitel: String {
-        switch Backdrops.wahl {
-        case .vorlage(let id)?: Backdrops.von(id)?.name ?? Backdrops.neutral.name
-        case .foto?: "Eigenes Foto"
-        case .zeichnung?: "Eigene Zeichnung"
-        case nil: "Für euch beide"
-        }
-    }
-
-    /// Sterne: close the sheets, switch to the chat and jump to the message (B1's `chatZiel`).
-    private func zurNachricht(_ id: String) {
-        blatt = nil
-        chatBlatt = nil
-        chatDetailsOffen = false
-        AppNavigation.shared.chatZiel = id
-        navigieren("chat")
-    }
 
     @ViewBuilder
     private var dieKarte: some View {

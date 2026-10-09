@@ -119,14 +119,15 @@ enum ZimmerLebenZeichnung {
 
     // MARK: Pokalregal (7)
 
-    static func pokale(_ g: GraphicsContext, _ liste: [ZimmerPokal]) {
+    static func pokale(_ g: GraphicsContext, _ liste: [ZimmerPokal], punkte: Int = 0) {
         var k = g
         k.translateBy(x: ZimmerLebenLayout.pokale.minX, y: ZimmerLebenLayout.pokale.minY)
         for x: CGFloat in [10, 69] { teil(k, box(x, 42, 5, 7, 1), Pal.holz, 1.5) }
         teil(k, box(0, 38, 84, 6, 2), Pal.holz, 2)
-        let cups = Array(liste.prefix(3))
+        // Spielsiege und Punkte zusammen, die höchste Stufe zuerst (ZimmerZustandLogik).
+        let cups = ZimmerZustandLogik.pokale(spiel: liste.map(\.stufe), punkte: punkte)
         if cups.isEmpty { pokal(k, 42, nil) }
-        for (i, p) in cups.enumerated() { pokal(k, 42 + (CGFloat(i) - CGFloat(cups.count - 1) / 2) * 26, p.stufe) }
+        for (i, stufe) in cups.enumerated() { pokal(k, 42 + (CGFloat(i) - CGFloat(cups.count - 1) / 2) * 26, stufe) }
     }
 
     /// A cup standing on the board at `x`; `nil` is the empty, pale one.

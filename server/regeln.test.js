@@ -147,6 +147,9 @@ test("sprachpost.neu und brief.neu: leise, Kategorie chat, kein Ton", () => {
   const b = regel("brief.neu", "ahmed", { id: "b1" });
   assert.equal(b.stufe, "leise");
   assert.equal(b.text, "Ahmed hat einen Brief für dich versiegelt");
+  // Langsam senden: unterwegs keine Push, nach der Ankunftszeit (Vergangenheit) wie sonst.
+  assert.equal(regel("brief.neu", "ahmed", { id: "b2", ankunft: Date.now() / 1000 + 86400 }), null);
+  assert.equal(regel("brief.neu", "ahmed", { id: "b3", ankunft: Date.now() / 1000 - 60 }).stufe, "leise");
   assert.equal(regel("sprachpost.gehoert", "annika", { id: "s1" }), null);
   assert.equal(regel("brief.geoeffnet", "annika", { id: "b1" }), null);
 });

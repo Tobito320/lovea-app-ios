@@ -109,9 +109,9 @@ enum ZimmerMoebel {
 
     /// The bed in front of the sleepers, with the bedding of the choice: its colour on the blanket and
     /// its pattern on top (the bed's own pattern stays when the standard is in use). Bed space 300 x 220.
-    static func bettVorn(_ g: GraphicsContext, _ stil: Int, _ wahl: ZimmerWahl, herz: Bool) {
+    static func bettVorn(_ g: GraphicsContext, _ stil: Int, _ wahl: ZimmerWahl, herz: Bool, gemacht: Bool = true) {
         let t = wahl.eigenes(.bettwaesche)
-        SzenenZeichnung.bettVorn(g, stil, herz: herz, decke: t?.farbe)
+        SzenenZeichnung.bettVorn(g, stil, herz: herz, decke: t?.farbe, gemacht: gemacht)
         guard let t else { return }
         let ton = FigurFarbe(t.zweit).farbe.opacity(0.75)
         switch t.muster {
@@ -133,10 +133,12 @@ enum ZimmerMoebel {
     // MARK: Wall pieces (tap: the outfit change)
 
     /// A clothes rail on the wall with three pieces on hangers: black tee, cream dress, pink jacket.
-    static func kleiderstange(_ g: GraphicsContext) {
+    /// `buegel: false` draws the bare rail: the hangers are the live outfits of `ZimmerKleidungEbene`.
+    static func kleiderstange(_ g: GraphicsContext, buegel: Bool = true) {
         let r = stange
         linie(g, strich(P(r.minX + 6, r.minY + 8), P(r.maxX - 6, r.minY + 8)), Pal.silber.kontur, 4.5)
         for x in [r.minX + 4, r.maxX - 10] { teil(g, box(x, r.minY + 2, 6, 14, 2), Pal.silber, 1.5) }
+        guard buegel else { return }
         let farben: [UInt32] = [0x3B3A44, 0xF6EBDD, 0xF4B6C6]
         let laengen: [CGFloat] = [32, 42, 36]
         for (i, x) in [r.minX + 22, r.midX, r.maxX - 22].enumerated() {
@@ -149,11 +151,12 @@ enum ZimmerMoebel {
         }
     }
 
-    /// A white wall shelf with three sneakers.
-    static func schuhregal(_ g: GraphicsContext) {
+    /// A white wall shelf with three sneakers; `schuhe: false` leaves it empty (the steps goal is not reached).
+    static func schuhregal(_ g: GraphicsContext, schuhe: Bool = true) {
         let r = regal
         teil(g, box(r.minX + 2, r.minY + 8, r.width - 4, 7, 3), Pal.weiss, 2)
         for x in [r.minX + 10, r.maxX - 16] { teil(g, box(x, r.minY + 15, 5, 6, 1.5), Pal.silber, 1.5) }
+        guard schuhe else { return }
         let farben: [(UInt32, UInt32)] = [(0xC8102E, 0x111111), (0xFFFFFF, 0xC8102E), (0x111111, 0xFFFFFF)]
         for (i, c) in farben.enumerated() {
             let x = r.minX + 8 + CGFloat(i) * 30

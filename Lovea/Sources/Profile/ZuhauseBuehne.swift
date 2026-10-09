@@ -120,12 +120,15 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         _stand = State(initialValue: fest ?? ZuhauseSzenenstand(zeit: jetzt, ZuhauseAblauf.ruhestand(jetzt)))
     }
 
+    /// Zusammen für echt, oder beide haben das Profil gerade offen (Umarmung, `ZimmerUmarmung`).
+    private var paarGemeinsam: Bool { paarDa || (!fest && ZimmerUmarmung.shared.umarmt) }
+
     private var aktiv: Bool { !fest && sichtbar && scenePhase == .active && !sparmodus && !reduceMotion }
 
     /// p70: the partner who is not there sleeps in the bed, whoever is there stands in the room. Not in
     /// the fixed boards and not while they are together for real.
     private var offlineSchlaefer: Person? {
-        guard !fest, !paarDa else { return nil }
+        guard !fest, !paarGemeinsam else { return nil }
         let ich = Raum.shared.ich, verbunden = Raum.shared.verbunden, da = Raum.shared.partnerDa
         return Person.allCases.first { ZuhauseSzeneLogik.schlaeftOffline($0, ich: ich, verbunden: verbunden, partnerDa: da) }
     }
@@ -136,6 +139,22 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
         return ZimmerLebenModell.tagesZiele(ich: ich, heute: Datum.text(Date())).lampenFaktor
     }
 
+    /// Das Zimmer pflegt sich selbst (nur im Panorama, nie in den festen Brettern): die Person, deren Tag zählt,
+    /// ist die, die die App hält. Ohne Gesundheitsdaten bleibt alles wie gehabt (Bett gemacht, Schuhe da).
+    private var zustandPerson: Person? { fest || welt != .panorama ? nil : Raum.shared.ich }
+
+    /// Die Sneaker stehen im Regal, sobald das Schrittziel von heute erreicht ist.
+    private var schuheDa: Bool {
+        guard let p = zustandPerson else { return true }
+        return ZimmerZustandLogik.schuheDa(schritte: HealthModell.shared.heuteSchritte(p), ziel: HealthModell.shared.zielSchritte(p))
+    }
+
+    /// Das Bett ist gemacht, solange die Nacht mindestens 75 % des Schlafziels hatte (oder nichts bekannt ist).
+    private var bettGemacht: Bool {
+        guard let p = zustandPerson else { return true }
+        return ZimmerZustandLogik.bettGemacht(schlafMinuten: HealthModell.shared.schlafMinuten(p, Datum.text(Date())), ziel: HealthModell.shared.schlafZielMinuten(p))
+    }
+
     /// The time of day the room is drawn in: the clock's, or night once both said good night.
     private var sicht: Tageszeit { nacht ? .nacht : stand.zeit }
 
@@ -144,10 +163,10 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             let s = geo.size.width / welt.breite
             let oben = geo.size.height - ZuhauseZeichnung.hoehe * s
             ZStack(alignment: .topLeading) {
-                ZuhauseRaumBild(zeit: sicht, wahl: wahl, welt: welt)
+                ZuhauseRaumBild(zeit: sicht, wahl: wahl, welt: welt, schuhe: schuheDa)
                 wandDinge(sicht)
                 if welt == .einzel { schatten }
-                if let outfit {
+                if let outfit, welt == .einzel {
                     let schrank = welt.versatz(.kleiderschrank)
                     tippflaeche(ZimmerMoebel.stange.offsetBy(dx: schrank.width, dy: schrank.height), "Kleiderstange, Outfit wechseln", outfit, s, oben)
                     tippflaeche(ZimmerMoebel.regal.offsetBy(dx: schrank.width, dy: schrank.height), "Schuhregal, Outfit wechseln", outfit, s, oben)
@@ -162,7 +181,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
                     }
                     personen(sitzend: true, s, oben)
                     ZuhauseSofaVorn(welt: welt)
-                    if paarDa {
+                    if paarGemeinsam {
                         paarSicht(s, oben)
                     } else {
                         personen(sitzend: false, s, oben)
@@ -212,7 +231,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// blanket and frame in front. Empty by day. Bed space 300 x 220 like `SchlafendeFiguren`.
     private func bett(_ s: CGFloat, _ oben: CGFloat) -> some View {
         let k = ZuhauseZeichnung.bettMass * s
-        let liegt = stand.liegt && !paarDa
+        let liegt = stand.liegt && !paarGemeinsam
         let schlaeft = stand.zeit == .nacht || stand.hingelegt
         // p70: the offline partner lies here asleep, also by day and when the other one is up.
         let schlaefer = offlineSchlaefer
@@ -234,7 +253,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
             Canvas { g, _ in
                 var b = g
                 b.scaleBy(x: k, y: k)
-                ZimmerMoebel.bettVorn(b, stil, wahl, herz: liegt)
+                ZimmerMoebel.bettVorn(b, stil, wahl, herz: liegt, gemacht: bettGemacht)
             }
         }
         .frame(width: 300 * k, height: 220 * k)
@@ -302,7 +321,9 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     private func katzeSicht(_ k: ZuhauseKatze, _ s: CGFloat, _ oben: CGFloat) -> some View {
         // p70: Annika asleep in bed (offline) is at the bed for the cat, too.
         let annikaImBett = offlineSchlaefer == .annika
-        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: annikaImBett ? .bett : stand.annika, welt: welt)
+        let szene = ZimmerKatze.szene(zeit: stand.zeit, annika: annikaImBett ? .bett : stand.annika, welt: welt,
+                                       ahmedsSeite: ZimmerNaeheLogik.katzeBeiAhmed(ich: Raum.shared.ich ?? .ahmed, partnerDa: Raum.shared.partnerDa,
+                                                                          partnerZuletzt: FigurenModell.shared.partnerZuletztGesehen[(Raum.shared.ich ?? .ahmed).partner], jetzt: Date()))
         let wuenscht = ZimmerKatze.wuenscht(szene.zustand, gestreichelt: k.gestreichelt)
         // p70 (44): feeding and mood come from the points model; the fixed boards show a content cat as before.
         let punkte = PunkteModell.shared
@@ -328,7 +349,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// Sitters sit behind the sofa's front cushion, everyone else stands in front of it.
     private func personen(sitzend: Bool, _ s: CGFloat, _ oben: CGFloat) -> some View {
         let schlaefer = offlineSchlaefer
-        let wer: [Person] = stand.liegt || paarDa ? [] : [Person.annika, .ahmed].filter { sitzt($0) == sitzend && $0 != schlaefer }
+        let wer: [Person] = stand.liegt || paarGemeinsam ? [] : [Person.annika, .ahmed].filter { sitzt($0) == sitzend && $0 != schlaefer }
         return ForEach(wer, id: \.self) { p in person(p, s, oben) }
     }
 
@@ -390,7 +411,7 @@ struct ZuhauseBuehne<Figur: View, Paar: View>: View {
     /// Both walk to the piece of furniture and stay: at the bed they lie, at the sofa they sit. Ignored
     /// while someone walks, for the pair's real hug and in the fixed boards.
     private func antippen(_ ziel: Platz) {
-        guard !fest, !paarDa, stand.gehende.isEmpty else { return }
+        guard !fest, !paarGemeinsam, stand.gehende.isEmpty else { return }
         if reduceMotion || sparmodus {
             // No walk: they are simply there.
             stand.annika = ziel
@@ -493,13 +514,15 @@ private struct ZuhauseRaumBild: View {
     let zeit: Tageszeit
     let wahl: ZimmerWahl
     var welt: ProfilWelt = .einzel
+    var schuhe = true
 
     var body: some View {
         let zeit = zeit
         let wahl = wahl
         let welt = welt
+        let schuhe = schuhe
         Canvas { g, groesse in
-            ZuhauseZeichnung.raum(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, wahl: wahl, welt: welt)
+            ZuhauseZeichnung.raum(SzenenZeichnung.raum(g, groesse, welt: welt), zeit: zeit, wahl: wahl, welt: welt, schuhe: schuhe)
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
