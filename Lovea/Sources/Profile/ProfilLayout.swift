@@ -48,16 +48,18 @@ enum ProfilLayout {
     /// never reaches up into it, so nothing tappable in the room lies under the gear, the chip or the Gym bar.
     static let chromeBand: CGFloat = tippMinimum + 8
 
-    /// Fein-Profil: the profile is the scene alone (no tabs under it). It takes the whole room the screen
-    /// gives; the world sits at the bottom of it and its top never rises above the chrome band. On a screen
-    /// too short for that, the scene is as tall as band and world need.
+    /// Fein-Profil: the profile is the scene alone (no tabs under it). The scene is only as tall as chrome band
+    /// and world need (the world never rises above the band), so the lamp cable stays short and nothing is
+    /// squeezed. What the screen gives beyond that is `unten`: the floor continues there (`ProfileView`).
     /// `oben`: `Oben.chrome`, below the status bar and the Gym bar.
     static func profil(breite: CGFloat, hoehe: CGFloat, chrome: CGFloat) -> Szene {
         let b = max(0, min(breite, maxSzeneBreite))
         let mindest = chrome + chromeBand + ProfilPanoramaLayout.szeneHoehe(breite: b)
-        let h = max(hoehe, mindest)
-        return Szene(breite: b, hoehe: h, unten: h - mindest, klebt: true)
+        return Szene(breite: b, hoehe: mindest, unten: max(0, hoehe - mindest), klebt: true)
     }
+
+    /// Fein-Profil: the floor under the world, the colour the room's floor ends in (`ZuhauseZeichnung.boden`).
+    static var bodenFortsetzung: Color { FigurFarbe(0xE6C9A0).farbe }
 
     /// Fein-Profil: where the world's top edge lies in a scene of height `hoehe` (measured from the scene's top).
     static func weltOben(breite: CGFloat, hoehe: CGFloat) -> CGFloat {
