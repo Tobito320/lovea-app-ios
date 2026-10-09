@@ -194,7 +194,8 @@ final class ProfilLayoutTests: XCTestCase {
                 let weltOben = L.weltOben(breite: s.breite, hoehe: s.hoehe)
                 // Knopf: 4 pt unter dem Chrome-Anfang, 44 pt hoch.
                 XCTAssertGreaterThanOrEqual(weltOben, o.chrome + 4 + L.tippMinimum, "\(name) Gym \(gym): Welt unter den Knoepfen")
-                XCTAssertGreaterThanOrEqual(s.hoehe, h, "\(name): die Szene nimmt den ganzen Platz")
+                XCTAssertGreaterThanOrEqual(s.hoehe + s.unten, h, "\(name): Szene und Boden nehmen den ganzen Platz")
+                XCTAssertEqual(weltOben, o.chrome + L.chromeBand, accuracy: 0.001, "\(name): Welt haengt unter den Knoepfen, keine leere Wand")
             }
         }
     }
