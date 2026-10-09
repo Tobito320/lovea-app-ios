@@ -13,6 +13,15 @@ final class ChatNachUntenTests: XCTestCase {
         XCTAssertEqual(pfeil.neu, 0)
     }
 
+    func testNachZiehenAmEndeKeinPfeil() {
+        // Ahmed 09.10.: after the first drag the arrow stayed up at the very bottom.
+        var pfeil = ChatNachUnten()
+        pfeil.nutzerZog()
+        pfeil.lage(amEnde: false)
+        pfeil.lage(amEnde: true)
+        XCTAssertFalse(pfeil.sichtbar)
+    }
+
     func testBeimOeffnenKeinFlackern() {
         // First layout pass can report "not at the end" before the bottom anchor settled.
         var pfeil = ChatNachUnten()
