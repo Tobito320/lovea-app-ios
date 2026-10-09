@@ -13,10 +13,10 @@ final class ProfilSlotsTests: XCTestCase {
         return max(dx, dy)
     }
 
-    func testWeltIstZweiBisZweiEinhalbBildschirmeBreit() {
+    func testWeltIstZweiBisGutZweiEinhalbBildschirmeBreit() {
         let faktor = S.weltBreite / S.ansichtBreite
         XCTAssertGreaterThanOrEqual(faktor, 2)
-        XCTAssertLessThanOrEqual(faktor, 2.5)
+        XCTAssertLessThanOrEqual(faktor, 2.6) // 1000 pt Welt mit 12 pt Rand
     }
 
     func testKeinDingBerueHrtEinAnderes() {

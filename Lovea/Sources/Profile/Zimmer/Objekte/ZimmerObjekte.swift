@@ -42,7 +42,7 @@ struct ZimmerObjekteEbene: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     // Mitten der Objekte in der Welt (Entwurfseinheiten, y von oben in den 430).
-    static let briefkastenOrt = CGPoint(x: 34, y: 379)
+    static let briefkastenOrt = CGPoint(x: 36, y: 379)
     static let kalenderOrt = CGPoint(x: 811, y: 28)
     static let rahmenOrt = CGPoint(x: 710, y: 198)
     static let anrufOrt = CGPoint(x: 806, y: 256)
