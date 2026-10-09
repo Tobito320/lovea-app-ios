@@ -456,6 +456,7 @@ struct HeuteView: View {
                         CoachKachel(person: ich, heute: echtHeute)
                         hinweisListe
                     }
+                    EssenCard()
                     punkteZeile
                     abschnitt("Körper") { koerper }
                     verlaufKasten

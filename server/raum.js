@@ -45,6 +45,7 @@ import {
 } from "./raum-logic.js";
 import { agentStatistik, agentOps, agentMerker } from "./agent.js";
 import { push } from "./push.js";
+import { kiIntern } from "./ki-raum.js";
 import { regel } from "./regeln.js";
 import { naechsterAlarm, berlinDatum, montagDerWoche } from "./zeitplan.js";
 import { brauchtErneuerung, cacheGueltig, tokenTauschen, tokenErneuern, jetztSpielt, nachFreigabe, fetchMitGrund } from "./spotify.js";
@@ -96,6 +97,7 @@ export class Raum {
     if (url.pathname === "/ops" && request.method === "POST") return this.#opsBatch(request, url, person);
     if (url.pathname === "/fl" && request.method === "POST") return this.#flHttp(request, person);
     if (teile[0] === "medien") return this.#medien(request, teile, person);
+    if (teile[0] === "ki-intern") return kiIntern(this.sql, request, person);
     if (url.pathname === "/spotify/verbinden" && request.method === "POST") return this.#spotifyVerbinden(request, person);
     if (url.pathname === "/spotify/jetzt" && request.method === "GET") return this.#spotifyJetzt(url);
     if (url.pathname === "/spotify/status" && request.method === "GET") return this.#spotifyStatus(person);
