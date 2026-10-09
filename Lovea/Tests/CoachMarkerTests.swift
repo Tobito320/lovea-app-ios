@@ -161,8 +161,7 @@ final class CoachMarkerTests: XCTestCase {
     // MARK: - essen
 
     func testEssenMarkerMitAllenFeldern() {
-        let z = zerlegt("Hab ich eingetragen, grob geschätzt.
-[[essen: Pizza Spicy | mittag | 1000 | 40 | 120,5 | 38]]")
+        let z = zerlegt("Hab ich eingetragen, grob geschätzt.\n[[essen: Pizza Spicy | mittag | 1000 | 40 | 120,5 | 38]]")
         XCTAssertEqual(z.text, "Hab ich eingetragen, grob geschätzt.")
         XCTAssertEqual(z.essen.count, 1)
         XCTAssertEqual(z.essen[0].name, "Pizza Spicy")
@@ -195,7 +194,6 @@ final class CoachMarkerTests: XCTestCase {
     }
 
     func testEssenMarkerHalbAbgeschnittenBleibtNichtImText() {
-        XCTAssertEqual(zerlegt("Eingetragen.
-[[essen: Pizza | mit").text, "Eingetragen.")
+        XCTAssertEqual(zerlegt("Eingetragen.\n[[essen: Pizza | mit").text, "Eingetragen.")
     }
 }
