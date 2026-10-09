@@ -469,7 +469,7 @@ struct KoerperInhalt: View {
         }
         .padding(.init(top: 14, leading: 16, bottom: 16, trailing: 16))
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color(.secondarySystemBackground), in: RoundedRectangle.loveaKarte)
     }
 
     private var legende: some View {
@@ -720,8 +720,8 @@ struct PushKarte: View {
         .frame(maxWidth: .infinity, alignment: .leading)
         .foregroundStyle(.white)
         .background { hintergrund }
-        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay { RoundedRectangle(cornerRadius: 22, style: .continuous).strokeBorder(Color.loveaRose.opacity(0.24), lineWidth: 1) }
+        .clipShape(RoundedRectangle.loveaKarte)
+        .overlay { RoundedRectangle.loveaKarte.strokeBorder(Color.loveaRose.opacity(0.24), lineWidth: 1) }
     }
 
     private var hintergrund: some View {

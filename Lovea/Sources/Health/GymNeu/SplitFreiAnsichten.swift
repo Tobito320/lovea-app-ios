@@ -19,7 +19,7 @@ struct PlantagKarteInhalt: View {
         }
         .padding(.horizontal, 16)
         .frame(maxWidth: .infinity, minHeight: 64, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle.loveaKarte)
         .contentShape(.rect)
         .accessibilityElement(children: .combine)
     }

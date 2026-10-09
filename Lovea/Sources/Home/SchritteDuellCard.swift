@@ -20,7 +20,7 @@ struct SchritteDuellCard: View {
         }
         .padding(16)
         .healthKarte()
-        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .contentShape(RoundedRectangle.loveaKarte)
         .onTapGesture { oeffneHealth() }
         .accessibilityElement(children: .contain)
     }
