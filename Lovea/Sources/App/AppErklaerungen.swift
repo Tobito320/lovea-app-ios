@@ -100,8 +100,8 @@ struct KachelGesteTip: Erklaerung {
 }
 
 struct SatzWischenTip: Erklaerung {
-    var title: Text { Text("Satz löschen") }
-    var message: Text? { Text("Nach links wischen löscht einen Satz.") }
+    var title: Text { Text("Satz kopieren oder löschen") }
+    var message: Text? { Text("Nach rechts wischen kopiert einen Satz, nach links löscht ihn. Rückgängig geht kurz danach.") }
 }
 
 struct ErnaehrungMehrTip: Erklaerung {

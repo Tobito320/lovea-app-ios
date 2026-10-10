@@ -179,6 +179,17 @@ enum WorkoutLogik {
         return saetze[i].kuerzel ?? String(saetze[...i].filter { $0.typ != "w" }.count)
     }
 
+    /// Kopie von Satz `i` direkt darunter: gleiche Art, Wdh und kg, ohne Haken und Zeiten.
+    static func kopieren(_ saetze: [PlanSatz], _ i: Int) -> [PlanSatz] {
+        guard saetze.indices.contains(i) else { return saetze }
+        var neu = saetze
+        neu.insert(saetze[i].alsPlan, at: i + 1)
+        return neu
+    }
+
+    /// Pausenziel nach "+15 s" / "−15 s": nie unter 15 Sekunden.
+    static func pauseZiel(_ ziel: Int, um sek: Int) -> Int { max(15, ziel + sek) }
+
     /// Scheiben pro Seite für `kg` auf der Stange, schwerste zuerst.
     static func scheiben(kg: Double, stange: Double = 20) -> [Double] {
         var rest = (kg - stange) / 2
@@ -227,6 +238,49 @@ enum WorkoutLogik {
     }
 }
 
+/// Anstrengung eines Satzes nach RIR (Wiederholungen, die noch gegangen wären), Stufen wie in openGym.
+/// Gespeichert wird als RPE = 10 − RIR in `PlanSatz.rpe`.
+enum Anstrengung: CaseIterable, Sendable {
+    case versagen, fastVersagen, eineNoch, zweiNoch, dreiNoch, leicht
+
+    var rir: Double {
+        switch self {
+        case .versagen: 0
+        case .fastVersagen: 0.5
+        case .eineNoch: 1
+        case .zweiNoch: 2
+        case .dreiNoch: 3
+        case .leicht: 4
+        }
+    }
+
+    var rpe: Double { 10 - rir }
+    var rirText: String { self == .leicht ? "4+" : TrainingLogik.kgText(rir) }
+
+    var titel: String {
+        switch self {
+        case .versagen: "Nichts mehr drin, bis zum Versagen"
+        case .fastVersagen: "Vielleicht eine halbe Wiederholung übrig"
+        case .eineNoch: "Eine Wiederholung noch drin"
+        case .zweiNoch: "Zwei Wiederholungen noch drin"
+        case .dreiNoch: "Drei Wiederholungen noch drin"
+        case .leicht: "Leicht, Aufwärm-Bereich"
+        }
+    }
+
+    /// Die Stufe, in die ein gespeicherter RPE fällt (auch 8,5 aus der alten Eingabe).
+    static func stufe(rpe: Double) -> Anstrengung {
+        switch 10 - rpe {
+        case ...0: .versagen
+        case ...0.5: .fastVersagen
+        case ...1: .eineNoch
+        case ...2: .zweiNoch
+        case ...3: .dreiNoch
+        default: .leicht
+        }
+    }
+}
+
 /// Was gerade läuft: ein Satz oder die Pause danach. Nur auf diesem Gerät (kein Op): gespeichert
 /// werden Zeitpunkte, die Anzeige rechnet daraus. Kein Timer im Hintergrund (Akku-Regel).
 @MainActor @Observable
@@ -267,6 +321,15 @@ final class WorkoutUhr {
         stand = neu
         UserDefaults.standard.set(neu.flatMap { try? JSONEncoder().encode($0) }, forKey: Self.schluessel)
         GymLive.abgleichen()
+    }
+
+    /// ±15 s auf das Ziel der laufenden Pause. Eine schon geplante Mitteilung stimmt dann nicht mehr;
+    /// beim nächsten Hintergrund wird neu geplant.
+    func pauseAendern(um sek: Int) {
+        guard var s = stand, s.pause, s.ziel > 0 else { return }
+        s.ziel = WorkoutLogik.pauseZiel(s.ziel, um: sek)
+        setzen(s)
+        mitteilungLoeschen()
     }
 
     func satzStarten(session: String, plan: String, satz: Int) {
