@@ -244,4 +244,34 @@ final class ChatMedienTests: XCTestCase {
         ])
         XCTAssertEqual(modell.favoriten(.ahmed), [])
     }
+
+    // MARK: - Medien-Übersicht: Tippen öffnet die Galerie
+
+    @MainActor private func nachricht(_ id: String, von: Person, medien: [(String, String)], text: String? = nil) -> ChatModell.Nachricht {
+        ChatModell.Nachricht(
+            id: id, von: von, zeit: Date(timeIntervalSince1970: 0), text: text,
+            medien: medien.map { ChatModell.MedienEintrag(id: $0.0, typ: $0.1, breite: 10, hoehe: 10, dauer: nil, pegel: nil) }
+        )
+    }
+
+    @MainActor func testGalerieStartetBeimGetipptenUndSpringtUeberSprache() throws {
+        let liste = [
+            nachricht("n1", von: .ahmed, medien: [("a", "foto")]),
+            nachricht("n2", von: .annika, medien: [("s", "sprache")]),
+            nachricht("n3", von: .annika, medien: [("b", "foto"), ("c", "video")]),
+        ]
+        let ziel = try XCTUnwrap(MedienUebersicht.galerieZiel(liste: liste, getippt: liste[2], ich: .ahmed))
+        XCTAssertEqual(ziel.medien.map(\.id), ["a", "b", "c"], "Sprache kommt nicht in die Galerie")
+        XCTAssertEqual(ziel.start, 1)
+        XCTAssertEqual(ziel.eigeneIds, ["a"], "nur eigene Medien lesen aus eigeneQuellen")
+    }
+
+    @MainActor func testGalerieNilBeiSpracheUndLink() {
+        let liste = [
+            nachricht("n1", von: .ahmed, medien: [("s", "sprache")]),
+            nachricht("n2", von: .annika, medien: [], text: "https://example.com"),
+        ]
+        XCTAssertNil(MedienUebersicht.galerieZiel(liste: liste, getippt: liste[0], ich: .ahmed))
+        XCTAssertNil(MedienUebersicht.galerieZiel(liste: liste, getippt: liste[1], ich: .ahmed))
+    }
 }

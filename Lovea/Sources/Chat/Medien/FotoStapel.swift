@@ -70,16 +70,27 @@ struct FotoStapel: View {
 struct MedienGalerie: View {
     let medien: [ChatModell.MedienEintrag]
     let eigene: Bool
+    /// Media overview: gallery over many messages, so ownership is per photo (empty = `eigene` for all).
+    let eigeneIds: Set<String>
     @Environment(\.dismiss) private var dismiss
-    @State private var auswahl = 0
+    @State private var auswahl: Int
     @State private var zieh: CGFloat = 0
+
+    init(medien: [ChatModell.MedienEintrag], eigene: Bool, start: Int = 0, eigeneIds: Set<String> = []) {
+        self.medien = medien
+        self.eigene = eigene
+        self.eigeneIds = eigeneIds
+        _auswahl = State(initialValue: min(max(start, 0), max(medien.count - 1, 0)))
+    }
+
+    private func istEigen(_ medium: ChatModell.MedienEintrag) -> Bool { eigeneIds.isEmpty ? eigene : eigeneIds.contains(medium.id) }
 
     var body: some View {
         ZStack {
             Color.black.opacity(1 - min(zieh / 500, 0.5)).ignoresSafeArea()
             TabView(selection: $auswahl) {
                 ForEach(Array(medien.enumerated()), id: \.element.id) { eintrag in
-                    GalerieSeite(medium: eintrag.element, eigene: eigene).tag(eintrag.offset)
+                    GalerieSeite(medium: eintrag.element, eigene: istEigen(eintrag.element)).tag(eintrag.offset)
                 }
             }
             .tabViewStyle(.page(indexDisplayMode: medien.count > 1 ? .always : .never))
@@ -114,7 +125,7 @@ struct MedienGalerie: View {
         }
         .presentationBackground(.clear)
         .statusBarHidden()
-        .screenshotKontext(.medium(video: false, eigen: eigene))
+        .screenshotKontext(.medium(video: false, eigen: medien.indices.contains(auswahl) ? istEigen(medien[auswahl]) : eigene))
         // Haptik.auswahl(), not `.sensoryFeedback`: the latter ignores the "Haptik" settings switch.
         .onChange(of: auswahl) { _, _ in Haptik.auswahl() }
         .task { FigurenModell.shared.zustandSenden(.init(haupt: .schautBild)) }
