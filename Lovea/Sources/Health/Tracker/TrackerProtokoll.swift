@@ -8,17 +8,70 @@ import Foundation
 /// Zeitindex, kcal, Schritte, Meter); Ahmed hat am 10.10.2026 bestätigt, dass die Schrittzahl stimmt
 /// (Tracker 15.000, iPhone 10.000, der Tracker hat recht).
 /// Nicht belegt: Schlaf, Pulsverlauf, kcal.
-/// Absichtlich nur Lesebefehle, kein freies Senden: Reset und Ausschalten gehören zur selben Familie.
+/// Geschrieben wird nur über `Aenderung` (Puls- und SpO2/Stress/HRV-Dauermessung, Layout aus der
+/// Referenz-Implementierung colmi_r02_client und zwei weiteren, am Gerät noch nicht belegt) und
+/// `findenAnfrage`; Lovea liest danach jede Einstellung zurück. Kein freies Senden: Reset (0xFF) und
+/// Ausschalten (0x08) gehören zur selben Familie und gibt es hier nicht.
 enum TrackerProtokoll {
     static let dienst = "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E"
     static let schreiben = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
     static let antwort = "6E400003-B5A3-F393-E0A9-E50E24DCCA9E"
     static let namenspraefix = "H59"
 
-    enum Befehl: UInt8 {
+    enum Befehl: UInt8, CaseIterable {
         case akku = 0x03
         case pulsEinstellung = 0x16
+        case spo2Einstellung = 0x2C
+        case stressEinstellung = 0x36
+        case hrvEinstellung = 0x38
         case schritte = 0x43
+        case finden = 0x50
+    }
+
+    /// Dauermessung außer Puls: eine Einstellung je Messart, gleiches Layout (Byte 1 = 1 lesen / 2 schreiben,
+    /// Byte 2 = 1 an, 0 aus; die Antwort auf "lesen" ist am Gerät belegt).
+    enum Dauermessung: CaseIterable, Sendable {
+        case spo2, stress, hrv
+
+        var befehl: Befehl {
+            switch self {
+            case .spo2: .spo2Einstellung
+            case .stress: .stressEinstellung
+            case .hrv: .hrvEinstellung
+            }
+        }
+
+        var name: String {
+            switch self {
+            case .spo2: "Blutsauerstoff"
+            case .stress: "Stress"
+            case .hrv: "HRV"
+            }
+        }
+    }
+
+    /// Eine Einstellung, die Lovea am Tracker ändert. `schreiben` setzt sie, `lesen` holt danach, was der
+    /// Tracker wirklich hat.
+    enum Aenderung: Equatable {
+        case puls(an: Bool, minuten: Int)
+        case messung(Dauermessung, an: Bool)
+
+        var schreiben: Data {
+            switch self {
+            case .puls(let an, let minuten):
+                // Puls: 1 = an, 2 = aus (anders als bei den anderen Messarten), dann der Abstand in Minuten.
+                return TrackerProtokoll.paket(.pulsEinstellung, [2, an ? 1 : 2, UInt8(clamping: minuten)])
+            case .messung(let art, let an):
+                return TrackerProtokoll.paket(art.befehl, [2, an ? 1 : 0])
+            }
+        }
+
+        var lesen: Data {
+            switch self {
+            case .puls: TrackerProtokoll.pulsEinstellungAnfrage
+            case .messung(let art, _): TrackerProtokoll.einstellungAnfrage(art)
+            }
+        }
     }
 
     /// 16 Byte: Byte 0 Befehl, dann Nutzdaten, Byte 15 Summe der ersten 15 Byte modulo 256.
@@ -42,6 +95,9 @@ enum TrackerProtokoll {
     static let akkuAnfrage = paket(.akku)
     /// 0x16 mit Byte 1 = 1 liest die Einstellung (am Gerät belegt: Antwort "an, 10 Minuten").
     static let pulsEinstellungAnfrage = paket(.pulsEinstellung, [1])
+    static func einstellungAnfrage(_ art: Dauermessung) -> Data { paket(art.befehl, [1]) }
+    /// Lässt den Tracker vibrieren (Byte 1 und 2 = 0x55, 0xAA laut Referenz); ohne Antwort.
+    static let findenAnfrage = paket(.finden, [0x55, 0xAA])
     /// Schritte eines Tages: Byte 1 = Tage zurück (0 = heute), dann Zeitindex 0 bis 0x5F (96 Viertelstunden).
     static func schritteAnfrage(tagVersatz: Int) -> Data {
         paket(.schritte, [UInt8(clamping: tagVersatz), 0x0F, 0, 0x5F, 1])
@@ -76,6 +132,9 @@ enum TrackerProtokoll {
     enum Antwort: Equatable {
         case akku(Akku)
         case pulsEinstellung(PulsEinstellung)
+        case dauermessung(Dauermessung, an: Bool)
+        /// Antwort auf eine geschriebene Einstellung (Byte 1 = 2): Ob sie gilt, zeigt erst das Zurücklesen.
+        case quittung(UInt8)
         /// Kopfpaket einer Schritt-Antwort (Byte 1 = 0xF0): Zeilen folgen.
         case schritteKopf
         case schritte(SchrittSlot)
@@ -92,7 +151,11 @@ enum TrackerProtokoll {
         case Befehl.akku.rawValue:
             return .akku(Akku(prozent: Int(b[1]), laedt: b[2] != 0))
         case Befehl.pulsEinstellung.rawValue:
+            guard b[1] == 1 else { return .quittung(b[0]) }
             return .pulsEinstellung(PulsEinstellung(an: b[2] == 1, intervallMinuten: Int(b[3])))
+        case Befehl.spo2Einstellung.rawValue, Befehl.stressEinstellung.rawValue, Befehl.hrvEinstellung.rawValue:
+            guard let art = Dauermessung.allCases.first(where: { $0.befehl.rawValue == b[0] }) else { return .unbekannt(b[0]) }
+            return b[1] == 1 ? .dauermessung(art, an: b[2] == 1) : .quittung(b[0])
         case Befehl.schritte.rawValue:
             if b[1] == 0xF0 { return .schritteKopf }
             if b[1] == 0xFF { return .schritteEnde }
