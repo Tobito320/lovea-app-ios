@@ -521,6 +521,7 @@ private struct SchnellEintragenBlatt: View {
                 zahlfeld("Fett (g)", $fett)
             }
             .navigationTitle("Schnell eintragen")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

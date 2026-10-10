@@ -67,8 +67,11 @@ struct EinstellBlatt: View {
             Spacer()
             if let v = wert.wrappedValue {
                 Stepper("\(v)", value: Binding(get: { v }, set: { wert.wrappedValue = max(0, $0) }), in: 0...99).fixedSize()
-                Button { wert.wrappedValue = nil } label: { Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary) }
-                    .buttonStyle(.plain)
+                Button { wert.wrappedValue = nil } label: {
+                    Image(systemName: "xmark.circle.fill").foregroundStyle(.secondary).frame(minWidth: 44, minHeight: 44).contentShape(.rect)
+                }
+                .buttonStyle(.plain)
+                .accessibilityLabel("\(titel) entfernen")
             } else {
                 Button("Setzen") { wert.wrappedValue = 1 }.buttonStyle(.bordered)
             }

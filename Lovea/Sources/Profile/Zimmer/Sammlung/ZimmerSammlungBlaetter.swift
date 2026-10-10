@@ -122,7 +122,7 @@ struct ZimmerRezeptBlatt: View {
                             .buttonStyle(.plain)
                             .accessibilityLabel("\(r.titel) nochmal gekocht")
                         }
-                        .swipeActions {
+                        .swipeActions(allowsFullSwipe: false) {
                             if meine.contains(r.id) {
                                 Button("Löschen", role: .destructive) { SD.rezeptLoeschen(id: r.id) }
                             }
@@ -222,7 +222,7 @@ struct ZimmerWunschrolleBlatt: View {
                         .buttonStyle(.plain)
                         .accessibilityLabel(w.text + (beide ? ", gemeinsam erledigt" : (meine.contains(w.id) ? ", von dir abgehakt" : ", offen")))
                         .accessibilityHint("Antippen zum Abhaken")
-                        .swipeActions {
+                        .swipeActions(allowsFullSwipe: false) {
                             if eigeneIds.contains(w.id) {
                                 Button("Löschen", role: .destructive) { SD.wunschLoeschen(id: w.id) }
                             }

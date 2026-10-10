@@ -30,6 +30,7 @@ struct SchritteEintragenBlatt: View {
     @Environment(\.dismiss) private var dismiss
     @State private var datum = Date()
     @State private var text = ""
+    @FocusState private var fokus: Bool
 
     private var anzahl: Int? { Int(text.filter(\.isNumber)) }
 
@@ -40,9 +41,12 @@ struct SchritteEintragenBlatt: View {
                     .environment(\.locale, Locale(identifier: "de_DE"))
                 TextField("Schritte", text: $text)
                     .keyboardType(.numberPad)
+                    .focused($fokus)
+                    .onAppear { fokus = true }
             }
             .navigationTitle("Schritte eintragen")
             .navigationBarTitleDisplayMode(.inline)
+            .tastaturFertig()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
                 ToolbarItem(placement: .confirmationAction) {

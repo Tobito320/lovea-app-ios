@@ -767,6 +767,7 @@ private struct NewArtworkSheet: View {
                 }
             }
             .navigationTitle("Neue Zeichnung")
+            .tastaturFertig()
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Abbrechen") { dismiss() }

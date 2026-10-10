@@ -80,6 +80,7 @@ struct EigenesLebensmittelEditor: View {
                 }
             }
             .navigationTitle(start == nil ? "Neues Lebensmittel" : "Lebensmittel bearbeiten")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
@@ -342,6 +343,7 @@ private struct ZutatMengeBlatt: View {
                 }
             }
             .navigationTitle("Menge")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

@@ -23,7 +23,7 @@ struct NotizenBlatt: View {
                         .frame(minHeight: 44)
                     }
                     .buttonStyle(.plain)
-                    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                    .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                         Button(role: .destructive) { speicher.loeschen(notiz.id) } label: {
                             Label("Löschen", systemImage: "trash")
                         }
@@ -54,6 +54,7 @@ private struct NotizEditor: View {
     let speicher = WirNotizSpeicher.shared
     @Environment(\.dismiss) private var dismiss
     @State private var text: String
+    @FocusState private var fokus: Bool
 
     init(notiz: WirNotiz?) {
         self.notiz = notiz
@@ -63,7 +64,10 @@ private struct NotizEditor: View {
     var body: some View {
         NavigationStack {
             TextEditor(text: $text)
+                .focused($fokus)
+                .onAppear { if text.isEmpty { fokus = true } }
                 .padding(12)
+                .interactiveDismissDisabled(text != (notiz?.text ?? "")) // Wisch nach unten verwirft keine Eingabe; Abbrechen bleibt
                 .navigationTitle(notiz == nil ? "Neue Notiz" : "Notiz")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
