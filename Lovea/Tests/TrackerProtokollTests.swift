@@ -121,4 +121,51 @@ final class TrackerProtokollTests: XCTestCase {
         XCTAssertEqual(TrackerProtokoll.namenspraefix, "H59")
         XCTAssertEqual(TrackerProtokoll.dienst, "6E40FFF0-B5A3-F393-E0A9-E50E24DCCA9E")
     }
+
+    // MARK: Einstellungen (Lesen echt vom 08.10.2026, Schreiben nach Referenz, am Gerät ungeprüft)
+
+    private func nullen(_ anzahl: Int) -> String { String(repeating: "0", count: anzahl) }
+
+    func testEchteEinstellungsAnfragenFuerSpo2StressHrv() {
+        XCTAssertEqual(TrackerProtokoll.einstellungAnfrage(.spo2), daten(hex: "2c01" + nullen(26) + "2d"))
+        XCTAssertEqual(TrackerProtokoll.einstellungAnfrage(.stress), daten(hex: "3601" + nullen(26) + "37"))
+        XCTAssertEqual(TrackerProtokoll.einstellungAnfrage(.hrv), daten(hex: "3801" + nullen(26) + "39"))
+    }
+
+    func testEchteAntwortenAufDieEinstellungsAnfragen() {
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "2c01010000000000000000000000002e")), .dauermessung(.spo2, an: true))
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "36010100000000000000000000000038")), .dauermessung(.stress, an: true))
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "3801010000000000000000000000003a")), .dauermessung(.hrv, an: true))
+    }
+
+    func testAusgeschalteteDauermessungWirdAlsAusGelesen() {
+        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.spo2Einstellung, [1, 0])), .dauermessung(.spo2, an: false))
+        // Puls: 2 heißt aus.
+        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.paket(.pulsEinstellung, [1, 2, 30])),
+                       .pulsEinstellung(.init(an: false, intervallMinuten: 30)))
+    }
+
+    func testSchreibpaketeFuerPuls() {
+        XCTAssertEqual(TrackerProtokoll.Aenderung.puls(an: true, minuten: 30).schreiben, daten(hex: "1602011e" + nullen(22) + "37"))
+        XCTAssertEqual(TrackerProtokoll.Aenderung.puls(an: false, minuten: 10).schreiben, daten(hex: "1602020a" + nullen(22) + "24"))
+        XCTAssertEqual(TrackerProtokoll.Aenderung.puls(an: true, minuten: 30).lesen, TrackerProtokoll.pulsEinstellungAnfrage)
+    }
+
+    func testSchreibpaketeFuerSpo2StressHrv() {
+        XCTAssertEqual(TrackerProtokoll.Aenderung.messung(.spo2, an: true).schreiben, daten(hex: "2c0201" + nullen(24) + "2f"))
+        XCTAssertEqual(TrackerProtokoll.Aenderung.messung(.stress, an: false).schreiben, daten(hex: "360200" + nullen(24) + "38"))
+        XCTAssertEqual(TrackerProtokoll.Aenderung.messung(.hrv, an: true).schreiben, daten(hex: "380201" + nullen(24) + "3b"))
+        XCTAssertEqual(TrackerProtokoll.Aenderung.messung(.hrv, an: true).lesen, TrackerProtokoll.einstellungAnfrage(.hrv))
+    }
+
+    func testAntwortAufSchreibenIstEineQuittungUndKeinLesewert() {
+        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.Aenderung.messung(.spo2, an: true).schreiben), .quittung(0x2C))
+        XCTAssertEqual(TrackerProtokoll.lesen(TrackerProtokoll.Aenderung.puls(an: true, minuten: 10).schreiben), .quittung(0x16))
+    }
+
+    func testFindenPaketUndKeinResetOderAusschalten() {
+        XCTAssertEqual(TrackerProtokoll.findenAnfrage, daten(hex: "5055aa" + nullen(24) + "4f"))
+        // Nur diese Befehle kann Lovea überhaupt bauen: Ausschalten (0x08) und Werksreset (0xFF) sind nicht dabei.
+        XCTAssertEqual(Set(TrackerProtokoll.Befehl.allCases.map(\.rawValue)), [0x03, 0x16, 0x2C, 0x36, 0x38, 0x43, 0x50])
+    }
 }

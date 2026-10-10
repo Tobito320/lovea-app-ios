@@ -9,6 +9,9 @@ import Observation
 /// Wann abgefragt wird: bei jeder Verbindung (auch wenn iOS die App dafür im Hintergrund weckt), beim
 /// Start, beim Öffnen der App und danach alle zehn Minuten, solange die Verbindung steht. Der Tracker
 /// selbst sendet nach dem Trennen erst wieder, wenn man ihn antippt; öfter als er will geht es nicht.
+///
+/// Einstellungen ändern (`aendern`): schreiben, danach vom Tracker zurücklesen. Angezeigt wird immer, was
+/// der Tracker meldet, nie, was Lovea geschickt hat; weicht es ab, steht ein Hinweis da.
 @MainActor
 @Observable
 final class TrackerModell {
@@ -36,6 +39,8 @@ final class TrackerModell {
     private(set) var name: String? = UserDefaults.standard.string(forKey: TrackerModell.nameSchluessel)
     private(set) var akku: TrackerProtokoll.Akku?
     private(set) var pulsEinstellung: TrackerProtokoll.PulsEinstellung?
+    private(set) var messungen: [TrackerProtokoll.Dauermessung: Bool] = [:]
+    private(set) var aenderungsHinweis: String?
     private(set) var bandTage = BandTage.laden()
     private(set) var abfrageLaeuft = false
 
@@ -46,6 +51,8 @@ final class TrackerModell {
     private var anfrageNr = 0
     private var planNr = 0
     private var schrittAntwort = false
+    /// Die Einstellung, deren Zurücklesen gerade läuft; `abschliessen` prüft sie gegen das, was der Tracker meldet.
+    private var erwartet: TrackerProtokoll.Aenderung?
     /// Zeilen vom Tracker, die `HealthModell` vielleicht noch nicht kennt. Beim Start gilt Gespeichertes
     /// als ungemeldet: der letzte Lauf kann im Hintergrund geendet sein, bevor die Person bekannt war.
     private var ungemeldet = true
@@ -95,6 +102,8 @@ final class TrackerModell {
         name = nil
         akku = nil
         pulsEinstellung = nil
+        messungen = [:]
+        aenderungsHinweis = nil
         bandTage = BandTage()
         BandTage.loeschen()
         UserDefaults.standard.removeObject(forKey: Self.nameSchluessel)
@@ -108,8 +117,31 @@ final class TrackerModell {
         schrittAntwort = false
         let voll = Date().timeIntervalSince(bandTage.stand ?? .distantPast) > Self.vollNach
         let tage = voll ? Self.tageVoll : Self.tageKurz
-        offeneAnfragen = [TrackerProtokoll.pulsEinstellungAnfrage] + (0..<tage).map { TrackerProtokoll.schritteAnfrage(tagVersatz: $0) }
+        offeneAnfragen = [TrackerProtokoll.pulsEinstellungAnfrage]
+            + TrackerProtokoll.Dauermessung.allCases.map(TrackerProtokoll.einstellungAnfrage)
+            + (0..<tage).map { TrackerProtokoll.schritteAnfrage(tagVersatz: $0) }
         senden(TrackerProtokoll.akkuAnfrage)
+    }
+
+    /// Nur bei stehender Verbindung und ohne laufende Abfrage; die Tracker-Seite sperrt sonst ihre Schalter.
+    var einstellbar: Bool { zustand == .verbunden && !abfrageLaeuft }
+
+    /// Schreibt eine Einstellung und liest sie danach zurück (die Antwort kommt über `antwortVerarbeiten`,
+    /// bei Schweigen geht das Zurücklesen nach `ruhe` von selbst raus).
+    func aendern(_ aenderung: TrackerProtokoll.Aenderung) {
+        guard einstellbar else { return }
+        abfrageLaeuft = true
+        schrittAntwort = false
+        erwartet = aenderung
+        aenderungsHinweis = nil
+        offeneAnfragen = [aenderung.lesen]
+        senden(aenderung.schreiben)
+    }
+
+    /// Lässt den Tracker vibrieren, damit man ihn findet. Keine Antwort, kein Zurücklesen.
+    func finden() {
+        guard zustand == .verbunden else { return }
+        funk?.senden(TrackerProtokoll.findenAnfrage)
     }
 
     // MARK: Anzeige
@@ -172,6 +204,11 @@ final class TrackerModell {
         case .pulsEinstellung(let wert):
             pulsEinstellung = wert
             naechsteAnfrage()
+        case .dauermessung(let art, let an):
+            messungen[art] = an
+            naechsteAnfrage()
+        case .quittung:
+            naechsteAnfrage()
         case .schritteKopf:
             schrittAntwort = true
         case .schritte(let zeile):
@@ -212,6 +249,10 @@ final class TrackerModell {
         abfrageLaeuft = false
         // Ohne eine einzige Schritt-Antwort ist nichts gelesen worden: dann bleibt der Stand alt.
         if schrittAntwort { bandTage.stand = .now }
+        if let erwartet {
+            aenderungsHinweis = stimmt(erwartet) ? nil : "Der Tracker hat die Änderung nicht bestätigt. Angezeigt ist, was er meldet."
+            self.erwartet = nil
+        }
         bandTage.kuerzen(heute: Datum.text(Date()))
         bandTage.speichern()
         bandMelden()
@@ -224,6 +265,10 @@ final class TrackerModell {
         planNr += 1
         abfrageLaeuft = false
         offeneAnfragen = []
+        if erwartet != nil {
+            aenderungsHinweis = "Verbindung abgebrochen, die Änderung ist nicht bestätigt."
+            erwartet = nil
+        }
         bandTage.speichern()
         bandMelden()
     }
@@ -235,6 +280,17 @@ final class TrackerModell {
             try? await Task.sleep(for: Self.intervall)
             guard let self, nr == self.planNr, self.zustand == .verbunden else { return }
             self.abfragen()
+        }
+    }
+
+    /// Hat der Tracker die Änderung übernommen? Beim Ausschalten zählt nur "aus", der Abstand bleibt ihm überlassen.
+    private func stimmt(_ aenderung: TrackerProtokoll.Aenderung) -> Bool {
+        switch aenderung {
+        case .puls(let an, let minuten):
+            guard let puls = pulsEinstellung, puls.an == an else { return false }
+            return !an || puls.intervallMinuten == minuten
+        case .messung(let art, let an):
+            return messungen[art] == an
         }
     }
 
