@@ -163,9 +163,11 @@ struct EssenAnalyse: Decodable, Sendable {
     let gesamt: Gesamt
     let frage: String?
     let bemerkung: String
+    /// Fotos, die heute noch übrig sind (Server zählt mit).
+    let rest: Int?
 
     enum CodingKeys: String, CodingKey {
-        case items, versteckt, gesamt, frage, bemerkung
+        case items, versteckt, gesamt, frage, bemerkung, rest
         case istEssen = "ist_essen"
     }
 

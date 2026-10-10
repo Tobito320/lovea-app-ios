@@ -46,6 +46,8 @@ final class EssenModelleTests: XCTestCase {
         XCTAssertEqual(a.versteckteListe.first?.kcal, 88)
         XCTAssertEqual(a.gesamt.kcalMax, 610)
         XCTAssertNil(a.frage)
+        XCTAssertEqual(a.rest, 39)
+        XCTAssertEqual(a.bemerkung, "Reis mit Hähnchen")
     }
 
     func testBerichtDekodiert() throws {
