@@ -8,6 +8,7 @@ Die Körperumrisse in `Lovea/Sources/Health/Koerper/muskelkarte.json` kommen aus
   `LICENSE-openGym-AGPL-3.0.txt`. Der Besitzer von Lovea hat die Übernahme für die private App freigegeben.
 - Die Geometrie darin stammt von **MuscleMap** von Melih Colpan (https://github.com/melihcolpan/MuscleMap),
   MIT-Lizenz (Text unten). openGym hat die Pfade in ein JSON-Modul umgewandelt und die Untergruppen weggelassen.
+- Das Gym-Training übernimmt von openGym nur Bedienideen (Satz wischen zum Kopieren und Löschen mit Rückgängig, Anstrengung nach RIR mit Farbstufen, Pause ±15 s und Überspringen), keinen Code und keine Texte.
 - Aus openGym ist nur `body-paths.js` übernommen. Keine Übungsbilder oder GIFs (ExerciseDB), keine
   weiteren openGym-Dateien.
 
