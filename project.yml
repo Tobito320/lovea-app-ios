@@ -44,13 +44,14 @@ targets:
           - location
           - remote-notification
           - audio
+          - bluetooth-central
         NSCameraUsageDescription: "Lovea nutzt die Kamera, damit du Fotos und Videos für den Chat und die Snaps aufnehmen und Barcodes von Lebensmitteln scannen und Essen für die Kalorien-Schätzung fotografieren kannst."
         NSMicrophoneUsageDescription: "Lovea nutzt das Mikrofon für Sprachnachrichten und Videos im Chat."
         NSPhotoLibraryUsageDescription: "Lovea liest Fotos, damit du sie im Chat oder als Zeichen-Vorlage nutzen kannst."
         NSPhotoLibraryAddUsageDescription: "Lovea speichert deine fertigen Bilder in Fotos."
         NSLocationWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auf der Karte, solange du die App offen hast."
         NSLocationAlwaysAndWhenInUseUsageDescription: "Lovea zeigt deinem Partner deinen Standort auch im Hintergrund und meldet Ankunft und Abfahrt an euren Orten."
-        NSBluetoothAlwaysUsageDescription: "Lovea verbindet sich auf deinen Wunsch mit deinem Fitness-Tracker und zeigt dir dessen Akku und Werte. Alles bleibt auf deinem iPhone."
+        NSBluetoothAlwaysUsageDescription: "Lovea verbindet sich auf deinen Wunsch mit deinem Fitness-Tracker, liest seine Schritte und Werte auch im Hintergrund und zeigt dir Akku und Einstellungen. Die Rohdaten bleiben auf deinem iPhone."
         NSMotionUsageDescription: "Lovea erkennt Bewegung wie Laufen oder Fahren, damit eure Figuren euren Alltag zeigen."
         LSApplicationQueriesSchemes:
           - x-apple-health

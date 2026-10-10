@@ -44,6 +44,8 @@ private struct CoachFrageBody: Encodable {
     let text: String
     /// Die App versteht die Marker am Antwort-Ende (`CoachMarker`); ältere Builds schicken das Feld nicht.
     let marker: Bool
+    /// Health- und Tracker-Zahlen, nur für Ahmed und nur mit eingeschaltetem Schalter (`CoachGesundheit`).
+    let gesundheit: CoachGesundheitBericht?
 }
 private struct CoachAntwortBody: Decodable { let text: String }
 
@@ -273,8 +275,9 @@ final class CoachModell {
     /// `POST coach/frage` `{ "text" }` -> `{ "text" }`. Status 0 = keine Antwort (Netz, Zeitlimit, Raum nicht
     /// eingerichtet). Ein Erfolg mit unlesbarem Body zählt als Erfolg ohne Blase; die Antwort kommt dann über die Op.
     private func senden(_ text: String) async -> (status: Int, antwort: String?) {
+        let gesundheit = await CoachGesundheit.bericht()
         guard let konfig = Raum.shared.httpKonfiguration(),
-              let body = try? JSONEncoder().encode(CoachFrageBody(text: text, marker: true)) else { return (0, nil) }
+              let body = try? JSONEncoder().encode(CoachFrageBody(text: text, marker: true, gesundheit: gesundheit)) else { return (0, nil) }
         var anfrage = URLRequest(url: konfig.basis.appendingPathComponent("coach/frage"))
         anfrage.httpMethod = "POST"
         anfrage.timeoutInterval = Self.wartezeit

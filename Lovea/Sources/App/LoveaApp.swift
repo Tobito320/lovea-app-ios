@@ -124,6 +124,7 @@ struct LoveaApp: App {
         if phase == .active {
             SchlafSignale.aktivMelden()
             WidgetPendingOpsMerge.abholen()
+            TrackerModell.shared.fortsetzen()
             StartProtokoll.marke("gym.abgleichen.start")
             GymLive.abgleichen() // z. B. auf dem iPad eingecheckt, oder die Einheit ist abgelaufen
             StartProtokoll.marke("workoutuhr.mitteilungLoeschen.vor")
@@ -199,6 +200,8 @@ enum AppStart {
         // Observer/Background-Delivery erneut, falls die Berechtigung früher schon erteilt wurde.
         // Die Replay-Kette existiert schon (Registrierung oben); `Raum.shared.leer()` im Handler wartet darauf.
         HealthModell.shared.beobachtenStartenFallsErlaubt()
+        // Tracker: wieder verbinden, wenn gekoppelt (auch ein Hintergrund-Start durch iOS, `willRestoreState`).
+        TrackerModell.shared.fortsetzen()
         // Z-28.2: Widget-Stand-Schreiber, damit auch ein Hintergrund-Start das Widget aktualisiert.
         if spaeter {
             Task { @MainActor in

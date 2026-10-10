@@ -3,7 +3,7 @@ import XCTest
 
 /// Paket-Codec des iSo-Tech-Trackers. `echt` sind Antworten, die am 08.10.2026 um 20:28 vom Gerät
 /// mitgeschnitten wurden (Firmware 1.00.13, nur Lesebefehle). Alles andere ist synthetisch, aus
-/// `paket` oder Hand-Bytes gebaut. Die Schrittzahlen sind noch nicht mit QWatch Pro verglichen.
+/// `paket` oder Hand-Bytes gebaut. Dass die Schrittzahl stimmt, hat Ahmed am 10.10.2026 bestätigt.
 final class TrackerProtokollTests: XCTestCase {
     private func daten(hex: String) -> Data {
         var ergebnis = Data()
@@ -26,6 +26,14 @@ final class TrackerProtokollTests: XCTestCase {
         XCTAssertEqual(TrackerProtokoll.schritteHeuteAnfrage, daten(hex: "43000f005f01000000000000000000b2"))
     }
 
+    func testSchrittAnfrageFuerVortageSetztNurByteEinsUndPruefsumme() {
+        let gestern = bytes(TrackerProtokoll.schritteAnfrage(tagVersatz: 1))
+        XCTAssertEqual(gestern.count, 16)
+        XCTAssertEqual(Array(gestern[0..<6]), [0x43, 0x01, 0x0F, 0x00, 0x5F, 0x01])
+        XCTAssertEqual(gestern[15], 0xB3)
+        XCTAssertTrue(TrackerProtokoll.istGueltig(Data(gestern)))
+    }
+
     func testEchteAkkuAntwort() {
         XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "031b000000000000000000000000001e")),
                        .akku(.init(prozent: 27, laedt: false)))
@@ -38,15 +46,37 @@ final class TrackerProtokollTests: XCTestCase {
 
     func testEchteSchrittAntwortZeilen() {
         // Kopfpaket (Byte 1 = 0xF0, vier Zeilen folgen) ist keine Zeile.
-        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43f00401000000000000000000000038")), .unbekannt(0x43))
-        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43261008440004cd0180004d00000064")),
-                       .schritte(.init(slot: 0x44, kcal: 461, schritte: 128, meter: 77)))
-        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "432610084c0204b003e1009f00000006")),
-                       .schritte(.init(slot: 0x4C, kcal: 944, schritte: 225, meter: 159)))
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43f00401000000000000000000000038")), .schritteKopf)
+        let erste = TrackerProtokoll.SchrittSlot(tag: "2026-10-08", slot: 0x44, index: 0, anzahl: 4, kcal: 461, schritte: 128, meter: 77)
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43261008440004cd0180004d00000064")), .schritte(erste))
+        let dritte = TrackerProtokoll.SchrittSlot(tag: "2026-10-08", slot: 0x4C, index: 2, anzahl: 4, kcal: 944, schritte: 225, meter: 159)
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "432610084c0204b003e1009f00000006")), .schritte(dritte))
+        XCTAssertFalse(erste.letzte)
+        XCTAssertFalse(dritte.letzte)
     }
 
     func testEchtesSchlussPaketIstKeineZeile() {
-        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43ff0000000000000000000000000042")), .unbekannt(0x43))
+        XCTAssertEqual(TrackerProtokoll.lesen(daten(hex: "43ff0000000000000000000000000042")), .schritteEnde)
+    }
+
+    func testLetzteZeileErkenntDasEndeDerAntwort() {
+        let zeile = TrackerProtokoll.SchrittSlot(tag: "2026-10-08", slot: 1, index: 3, anzahl: 4, kcal: 0, schritte: 1, meter: 1)
+        XCTAssertTrue(zeile.letzte)
+        var einzige = zeile
+        einzige.index = 0
+        einzige.anzahl = 1
+        XCTAssertTrue(einzige.letzte)
+    }
+
+    func testSchrittZeileMitUngueltigemDatumOderSlotIstKeineZeile() {
+        // Monat 0x1A ist keine BCD-Zahl.
+        var roh: [UInt8] = [0x43, 0x26, 0x1A, 0x08, 0x44, 0, 4, 1, 0, 1, 0, 1, 0, 0, 0, 0]
+        roh[15] = TrackerProtokoll.pruefsumme(Array(roh[0..<15]))
+        XCTAssertEqual(TrackerProtokoll.lesen(Data(roh)), .unbekannt(0x43))
+        // Zeitindex 96 gibt es nicht (0 bis 95).
+        roh = [0x43, 0x26, 0x10, 0x08, 96, 0, 4, 1, 0, 1, 0, 1, 0, 0, 0, 0]
+        roh[15] = TrackerProtokoll.pruefsumme(Array(roh[0..<15]))
+        XCTAssertEqual(TrackerProtokoll.lesen(Data(roh)), .unbekannt(0x43))
     }
 
     // MARK: Synthetisch

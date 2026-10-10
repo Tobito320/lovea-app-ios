@@ -175,6 +175,22 @@ enum HealthLogik {
             .max { $0.minuten < $1.minuten }
     }
 
+    // MARK: - Tracker und Health zusammen
+
+    /// Schritte eines Tages aus beiden Quellen: der größere Wert. Der Tracker sitzt am Handgelenk, das
+    /// iPhone liegt oft herum (Ahmed, 10.10.2026: Tracker 15.000, Health 10.000, der Tracker stimmt).
+    /// Nie die Summe: beide zählen dieselben Schritte. `nil` nur, wenn keine Quelle etwas hat.
+    static func schritteTag(health: Int?, band: Int?) -> Int? {
+        [health, band].compactMap { $0 }.max()
+    }
+
+    /// Strecke in km (zwei Stellen) zur Schrittzahl: Kommt die Zahl vom Tracker, kommt die Strecke
+    /// auch von ihm. Bei Gleichstand oder ohne Tracker-Meter bleibt die von Health.
+    static func kmTag(health: Double?, healthSchritte: Int?, bandSchritte: Int?, bandMeter: Int?) -> Double? {
+        guard let bandSchritte, let bandMeter, bandMeter > 0, bandSchritte > (healthSchritte ?? 0) else { return health }
+        return (Double(bandMeter) / 10).rounded() / 100
+    }
+
     // MARK: - Senden nur bei Änderung (Z-20.1)
 
     /// Gleiche Schwelle wie bisher für Schritte: sofort bei neuem Tag oder Sprung ≥50, sonst

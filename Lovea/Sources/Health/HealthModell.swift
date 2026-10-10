@@ -64,11 +64,17 @@ final class HealthModell {
     private var schlafLaeuft = false
     private var zuletztGesendetSchritte: (datum: String, anzahl: Int)?
     private var zuletztGesendetUm = Date.distantPast
+    /// Läuft gerade eine Neuberechnung nach neuen Tracker-Zahlen (`bandSchritteNeu`)? Kommt währenddessen noch
+    /// etwas, läuft sie danach einmal mehr.
+    private var bandLaeuft = false
+    private var bandErneut = false
+    private var bandAufgabe = UIBackgroundTaskIdentifier.invalid
 
     /// A new key per new set of types, so the prompt appears once more (v3: distance and floors,
-    /// v4: active energy and exercise time). Background observers still start on any older flag.
-    private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt.v5"
-    private static let alteSchluessel = ["lovea.health.berechtigungAngefragt", "lovea.health.berechtigungAngefragt.v3", "lovea.health.berechtigungAngefragt.v4"]
+    /// v4: active energy and exercise time, v6: the Coach's Health types for Ahmed). Background observers
+    /// still start on any older flag.
+    private static let angefragtSchluessel = "lovea.health.berechtigungAngefragt.v6"
+    private static let alteSchluessel = ["lovea.health.berechtigungAngefragt", "lovea.health.berechtigungAngefragt.v3", "lovea.health.berechtigungAngefragt.v4", "lovea.health.berechtigungAngefragt.v5"]
     private static let nachgetragenSchluessel = "lovea.health.schritteNachgetragen.v1"
 
     /// Für den "Health nicht erlaubt"-Hinweis (Z-21.1/Z-21.3, Review-Fokus 4): unterscheidet "noch
@@ -362,8 +368,11 @@ final class HealthModell {
     /// `requestAuthorization` meldet nur, ob die Anfrage abgeschlossen wurde, nie ob sie gewährt
     /// wurde (Apples Privacy-Design für Lesezugriffe) — deshalb wird trotzdem versucht zu lesen.
     private func berechtigungAnfragen() async -> Bool {
-        await withCheckedContinuation { fortsetzung in
-            store.requestAuthorization(toShare: [], read: [stepType, distanzType, etagenType, energieType, bewegungType, sleepType, tonType]) { erfolg, _ in
+        let basis: Set<HKObjectType> = [stepType, distanzType, etagenType, energieType, bewegungType, sleepType, tonType]
+        // Der Coach liest für Ahmed alles Weitere (Puls, HRV, Gewicht, Trainings ...). Bei Annika bleibt es beim Alten.
+        let lesen = Raum.shared.ich == .ahmed ? basis.union(CoachGesundheit.typen) : basis
+        return await withCheckedContinuation { fortsetzung in
+            store.requestAuthorization(toShare: [], read: lesen) { erfolg, _ in
                 fortsetzung.resume(returning: erfolg)
             }
         }
@@ -393,6 +402,32 @@ final class HealthModell {
         }
         store.execute(schlafAbfrage)
         store.enableBackgroundDelivery(for: sleepType, frequency: .hourly) { _, _ in }
+    }
+
+    /// Der Tracker hat neue Schritte geliefert (auch im Hintergrund, wenn iOS die App dafür weckt): die
+    /// Tageswerte neu rechnen und senden. Die Hintergrundaufgabe hält die App wach, bis die Ops draußen sind.
+    func bandSchritteNeu() {
+        guard !bandLaeuft else { bandErneut = true; return }
+        bandLaeuft = true
+        bandAufgabe = UIApplication.shared.beginBackgroundTask(withName: "Lovea-Tracker-Schritte") { [weak self] in
+            MainActor.assumeIsolated { self?.bandAufgabeBeenden() }
+        }
+        Task {
+            repeat {
+                bandErneut = false
+                await Raum.shared.leer()
+                await schritteAktualisierenUndSenden()
+            } while bandErneut
+            await Self.vorMoeglichemHintergrundNachholen()
+            bandLaeuft = false
+            bandAufgabeBeenden()
+        }
+    }
+
+    private func bandAufgabeBeenden() {
+        guard bandAufgabe != .invalid else { return }
+        UIApplication.shared.endBackgroundTask(bandAufgabe)
+        bandAufgabe = .invalid
     }
 
     /// Eine Hintergrund-Zustellung von HealthKit weckt die App unabhängig von jeder Push — ohne das
@@ -446,18 +481,22 @@ final class HealthModell {
     }
 
     /// Steps plus km (2 decimals), floors, active kcal and exercise minutes of one Berlin day;
-    /// `nil` without any step data.
+    /// `nil` without any step data. For Ahmed the tracker's day wins when it is higher than HealthKit's
+    /// (both count the same steps, so never summed: `HealthLogik.schritteTag`).
     private func tageswerte(_ tag: String) async -> (anzahl: Int, extra: SchritteExtra)? {
-        guard let anzahl = await summe(stepType, tag, .anzahl) else { return nil }
+        let gesund = await summe(stepType, tag, .anzahl).map { Int($0) }
+        let band = Raum.shared.ich == .ahmed ? TrackerModell.shared.bandTage.tage[tag] : nil
+        guard let anzahl = HealthLogik.schritteTag(health: gesund, band: band?.schritte) else { return nil }
         let meter = await summe(distanzType, tag, .meter)
         let etagen = await summe(etagenType, tag, .anzahl)
         let kcal = await summe(energieType, tag, .kcal)
         let minuten = await summe(bewegungType, tag, .minuten)
         let extra = SchritteExtra(
-            km: meter.map { ($0 / 10).rounded() / 100 }, etagen: etagen.map { Int($0) },
+            km: HealthLogik.kmTag(health: meter.map { ($0 / 10).rounded() / 100 }, healthSchritte: gesund, bandSchritte: band?.schritte, bandMeter: band?.meter),
+            etagen: etagen.map { Int($0) },
             kcal: kcal.map { Int($0.rounded()) }, aktivMinuten: minuten.map { Int($0.rounded()) }
         )
-        return (Int(anzahl), extra)
+        return (anzahl, extra)
     }
 
     private enum Einheit: Sendable { case anzahl, meter, kcal, minuten }
