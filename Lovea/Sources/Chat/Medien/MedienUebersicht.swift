@@ -8,6 +8,17 @@ struct MedienUebersicht: View {
     @Environment(\.dismiss) private var dismiss
     @State private var nurGesichter = false
     @State private var nurSterne = false
+    @State private var galerie: GalerieZiel?
+    @Environment(\.openURL) private var oeffneURL
+
+    private func tippen(_ nachricht: ChatModell.Nachricht, in liste: [ChatModell.Nachricht]) {
+        if let ziel = Self.galerieZiel(liste: liste, getippt: nachricht, ich: ich) {
+            ChatHaptik.leicht()
+            galerie = ziel
+        } else if !nachricht.medien.contains(where: { $0.typ == "sprache" }), let text = nachricht.text, let url = ersterLink(in: text) {
+            oeffneURL(url)
+        }
+    }
 
     private var eintraege: [ChatModell.Nachricht] {
         ChatModell.shared.nachrichten.filter { nachricht in
@@ -38,6 +49,23 @@ struct MedienUebersicht: View {
         return gefunden
     }
 
+    /// What a tap opens: every photo/video of the shown list as one swipeable gallery, starting at
+    /// the tapped one. Pure, so the order and start index are testable.
+    struct GalerieZiel: Identifiable {
+        let id = UUID()
+        let medien: [ChatModell.MedienEintrag]
+        let start: Int
+        let eigeneIds: Set<String>
+    }
+
+    static func galerieZiel(liste: [ChatModell.Nachricht], getippt: ChatModell.Nachricht, ich: Person) -> GalerieZiel? {
+        func sichtbar(_ medium: ChatModell.MedienEintrag) -> Bool { medium.typ == "foto" || medium.typ == "video" }
+        let alle = liste.flatMap { $0.medien.filter(sichtbar) }
+        guard let erstes = getippt.medien.first(where: sichtbar), let start = alle.firstIndex(where: { $0.id == erstes.id }) else { return nil }
+        let eigene = Set(liste.filter { $0.von == ich }.flatMap { $0.medien.map(\.id) })
+        return GalerieZiel(medien: alle, start: start, eigeneIds: eigene)
+    }
+
     var body: some View {
         let liste = eintraege // one filter pass over the whole history per render, not two
         NavigationStack {
@@ -51,11 +79,17 @@ struct MedienUebersicht: View {
                                 Color.clear.aspectRatio(1, contentMode: .fit)
                                     .overlay { UebersichtKachel(nachricht: nachricht) }
                                     .clipShape(RoundedRectangle(cornerRadius: 8))
+                                    .contentShape(RoundedRectangle(cornerRadius: 8))
+                                    .onTapGesture { tippen(nachricht, in: liste) }
+                                    .accessibilityAddTraits(.isButton)
                             }
                         }
                         .padding(4)
                     }
                 }
+            }
+            .fullScreenCover(item: $galerie) { ziel in
+                MedienGalerie(medien: ziel.medien, eigene: false, start: ziel.start, eigeneIds: ziel.eigeneIds)
             }
             .navigationTitle("Medien")
             .navigationBarTitleDisplayMode(.inline)
