@@ -57,6 +57,7 @@ struct LiebesbriefBlatt: View {
     private let briefe = BriefeSpeicher.shared
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    @FocusState private var fokus: Bool
 
     private var name: String { briefe.ich?.partner.name ?? "dem Schatz" }
     private var kurz: String? { SignaleLogik.kurz(text, hoechstens: SignaleLogik.liebesbriefMaxZeichen) }
@@ -66,6 +67,8 @@ struct LiebesbriefBlatt: View {
             Form {
                 Section {
                     TextField("Ein paar liebe Worte", text: $text, axis: .vertical)
+                        .focused($fokus)
+                        .onAppear { fokus = true }
                         .lineLimit(3...8)
                         .onChange(of: text) { _, neu in
                             if neu.count > SignaleLogik.liebesbriefMaxZeichen { text = String(neu.prefix(SignaleLogik.liebesbriefMaxZeichen)) }
@@ -80,6 +83,7 @@ struct LiebesbriefBlatt: View {
                         .frame(minHeight: 44)
                 }
             }
+            .interactiveDismissDisabled(!text.isEmpty) // Wisch nach unten verwirft den Brief nicht; Schließen bleibt
             .navigationTitle("Liebesbrief")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -154,7 +158,7 @@ struct GeschenkBoxBlatt: View {
                             }
                             .buttonStyle(.plain)
                             .accessibilityValue(g.erledigt ? "geschenkt" : "offen")
-                            .swipeActions { Button("Löschen", role: .destructive) { speicher.geschenkLoeschen(g) } }
+                            .swipeActions(allowsFullSwipe: false) { Button("Löschen", role: .destructive) { speicher.geschenkLoeschen(g) } }
                         }
                     }
                 }

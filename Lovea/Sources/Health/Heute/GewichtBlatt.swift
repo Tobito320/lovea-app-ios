@@ -46,6 +46,7 @@ struct GewichtBlatt: View {
             .scrollDismissesKeyboard(.interactively)
             .onAppear { if text.isEmpty { fokus = true } }
             .navigationTitle("Gewicht")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

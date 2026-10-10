@@ -387,7 +387,7 @@ struct TagEditor: View {
                 } label: { planZeile(u) }
                 // Eigene Wisch-Aktion statt onDelete: der feste editMode oben schaltet onDelete ab
                 // (Übungen ließen sich nicht löschen).
-                .swipeActions {
+                .swipeActions(allowsFullSwipe: false) {
                     if bearbeitbar {
                         Button("Löschen", systemImage: "trash", role: .destructive) { tag.uebungen.removeAll { $0.id == u.id } }
                     }
@@ -509,6 +509,7 @@ struct SaetzeEditor: View {
             }
         }
         .navigationTitle(entwurf.anzeigeName)
+        .tastaturFertig()
         .navigationBarTitleDisplayMode(.inline)
         .navigationBarBackButtonHidden(bearbeitbar)
         // Entwurf wird erst mit "Fertig" übernommen (siehe oben): Zurück-Wischen während des

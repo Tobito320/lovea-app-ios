@@ -102,6 +102,7 @@ struct NaehrwertFotoBlatt: View {
                 }
             }
             .navigationTitle("Nährwerte fotografieren")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

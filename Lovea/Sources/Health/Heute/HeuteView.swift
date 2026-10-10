@@ -123,7 +123,7 @@ enum SchlafLeistung {
 
 private extension View {
     func heuteKarte() -> some View {
-        background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle.loveaKarte)
     }
 }
 
@@ -445,7 +445,7 @@ struct HeuteView: View {
                                        energie: heute == echtHeute ? EnergieLogik.rat(EnergieQuelle.eingabe(ich)) : nil,
                                        partner: heute == echtHeute ? (ich.partner, EnergieLogik.rat(EnergieQuelle.eingabe(ich.partner))) : nil)
                     }
-                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle.loveaKarte)
                     .task(id: tagesformEingabe.schluessel) {
                         guard heute == echtHeute else { return }
                         coachForm = await TagesformCoach.laden(tagesformEingabe)
@@ -689,7 +689,7 @@ struct HeuteView: View {
             .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .heuteKarte()
-            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .contentShape(RoundedRectangle.loveaKarte)
         }
         .buttonStyle(.federnd)
     }
@@ -1003,7 +1003,7 @@ struct HeuteView: View {
             .padding(16)
             .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
             .heuteKarte()
-            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .contentShape(RoundedRectangle.loveaKarte)
         }
         .buttonStyle(.federnd)
         .accessibilityHint("Zeigt, wofür es Punkte gab")

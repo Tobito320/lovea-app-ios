@@ -305,6 +305,7 @@ struct ZimmerSpielZettelBlatt: View {
     let ich: Person
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
+    @FocusState private var fokus: Bool
 
     private static let hoechstens = 80
 
@@ -322,6 +323,7 @@ struct ZimmerSpielZettelBlatt: View {
                 }
                 Section("Für \(ich.partner.name)") {
                     TextField("Kurzer Zettel aufs Bett", text: $text, axis: .vertical)
+                        .focused($fokus)
                         .lineLimit(1...4)
                         .onChange(of: text) { _, neu in
                             if neu.count > Self.hoechstens { text = String(neu.prefix(Self.hoechstens)) }
@@ -342,7 +344,10 @@ struct ZimmerSpielZettelBlatt: View {
             }
         }
         .presentationDetents([.medium])
-        .onAppear { text = ZimmerSpielDaten.zettel(von: ich, tag: heute)?.text ?? "" }
+        .onAppear {
+            text = ZimmerSpielDaten.zettel(von: ich, tag: heute)?.text ?? ""
+            fokus = true
+        }
     }
 }
 

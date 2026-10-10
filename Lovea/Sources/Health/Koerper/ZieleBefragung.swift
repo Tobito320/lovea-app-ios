@@ -112,7 +112,7 @@ struct ZieleBefragung: View {
 
     private func liste<V: View>(@ViewBuilder _ zeilen: () -> V) -> some View {
         VStack(spacing: 0) { zeilen() }
-            .background(Color(.secondarySystemBackground), in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            .background(Color(.secondarySystemBackground), in: RoundedRectangle.loveaKarte)
     }
 
     private func zeile(_ name: String, _ hinweis: String?, an: Bool, _ tippen: @escaping () -> Void) -> some View {

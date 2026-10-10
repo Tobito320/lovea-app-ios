@@ -29,8 +29,7 @@ struct ShopView: View {
             VStack(spacing: 0) {
                 kopf(info)
                 kategorienLeiste
-                Divider()
-                ScrollView { gitter(info).padding(16) }
+                ScrollView { gitter(info).padding(Abstand.l) }
             }
             .navigationTitle("Shop")
             .navigationBarTitleDisplayMode(.inline)
@@ -59,9 +58,9 @@ struct ShopView: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.top, 10)
-        .padding(.bottom, 4)
+        .padding(.horizontal, Abstand.l)
+        .padding(.top, Abstand.s)
+        .padding(.bottom, Abstand.xs)
     }
 
     private func kopfZeile(_ info: (verfuegbar: [Person: Int], besitz: BesitzLogik.Ergebnis)) -> some View {
@@ -109,8 +108,8 @@ struct ShopView: View {
                     .accessibilityAddTraits(k == kategorie ? .isSelected : [])
                 }
             }
-            .padding(.horizontal)
-            .padding(.vertical, 10)
+            .padding(.horizontal, Abstand.l)
+            .padding(.vertical, Abstand.s)
         }
     }
 
@@ -119,7 +118,7 @@ struct ShopView: View {
     private func gitter(_ info: (verfuegbar: [Person: Int], besitz: BesitzLogik.Ergebnis)) -> some View {
         let artikel = ShopKatalog.alle.filter { $0.kategorie == kategorie.rawValue && $0.sichtbar(fuer: ziel) }
         let aussehenZiel = FigurenModell.shared.aussehen(ziel)
-        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: 12)], spacing: 14) {
+        return LazyVGrid(columns: [GridItem(.adaptive(minimum: 84), spacing: Abstand.m)], spacing: Abstand.m) {
             ForEach(artikel) { a in
                 Button { ausgewaehlt = a } label: {
                     ArtikelKachel(artikel: a, besitzt: besitzt(a, info.besitz), vorschauAussehen: aussehenZiel.mitVorschau(a))
@@ -198,7 +197,7 @@ struct ArtikelKachel: View {
             vorschau
                 .frame(width: 84, height: 96)
                 .background(Color(uiColor: .secondarySystemBackground))
-                .clipShape(RoundedRectangle(cornerRadius: 14))
+                .clipShape(.loveaKarte)
                 .overlay(alignment: .topTrailing) {
                     if besitzt {
                         Image(systemName: "checkmark.circle.fill")
@@ -288,7 +287,7 @@ private struct ArtikelDetail: View {
 
     @ViewBuilder private var vorschau: some View {
         if zimmer {
-            ZimmerTeilVorschau(id: artikel.id).clipShape(RoundedRectangle(cornerRadius: 18))
+            ZimmerTeilVorschau(id: artikel.id).clipShape(.loveaKarte)
         } else {
             ArtikelBild(id: artikel.id, aussehen: vorschauAussehen)
         }
@@ -341,7 +340,7 @@ struct ArtikelBild: View {
             if id == "mode.blumen-jeans" || schmuckKatalog[id] != nil {
                 Nahaufnahme(id: id)
                     .frame(width: 180, height: 234)
-                    .background(Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 14))
+                    .background(Color(uiColor: .secondarySystemBackground), in: .loveaKarte)
             }
         }
         .frame(height: 300)

@@ -109,9 +109,15 @@ private struct ProfilInhalt: View {
     /// part under it scrolls. The wall bleeds under the status bar, the scene itself starts below it.
     var body: some View {
         // p72: the inset is read out here, outside `ignoresSafeArea`: inside it reads 0 and the gear sat at the top edge.
-        GeometryReader { aussen in
-            layout(aussenOben: aussen.safeAreaInsets.top)
-                .ignoresSafeArea(edges: .top)
+        Group {
+            if istEigenes {
+                GeometryReader { aussen in
+                    layout(aussenOben: aussen.safeAreaInsets.top)
+                        .ignoresSafeArea(edges: .top)
+                }
+            } else {
+                kompakt
+            }
         }
         .background(Color(uiColor: .systemGroupedBackground))
         .toolbar(istEigenes ? .hidden : .automatic, for: .navigationBar)
@@ -137,14 +143,16 @@ private struct ProfilInhalt: View {
             let oben = ProfilLayout.oben(
                 eigenes: istEigenes, innen: geo.safeAreaInsets.top, aussen: aussenOben, statusleiste: statusleiste
             )
-            // Fein-Profil: the profile is the scene alone. It fills the room down to the tab bar, the world sits at
-            // the bottom and never reaches up under the buttons (`ProfilLayout.chromeBand`); Wir, Quests and the
-            // cards are behind the "Mehr" button (`ProfilBlatt.mehr`).
+            // Fein-Profil: the profile is the scene alone, Wir, Quests and the cards are behind the "Mehr" button
+            // (`ProfilBlatt.mehr`). The scene sits at the top, the world under the buttons (`ProfilLayout.chromeBand`);
+            // the room the screen gives below it is the room's own plank floor, scrolling with it, not an empty wall above.
             let szene = ProfilLayout.profil(breite: geo.size.width, hoehe: geo.size.height, chrome: oben.chrome)
-            ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: szene.breite, hoehe: szene.hoehe) {
-                zuhause(paar: !istEigenes)
-            } schwebend: {
-                schwebend(oben: oben.chrome)
+            VStack(spacing: 0) {
+                ProfilPanorama(wahl: ZimmerWahl.aktuell, breite: szene.breite, hoehe: szene.hoehe, boden: szene.unten) {
+                    zuhause(paar: !istEigenes)
+                } schwebend: {
+                    schwebend(oben: oben.chrome)
+                }
             }
             .frame(width: geo.size.width, height: geo.size.height, alignment: .top)
         }
@@ -152,6 +160,21 @@ private struct ProfilInhalt: View {
         // a tab or a lazy row that comes and goes must not start and stop it, and the row can stay away while empty.
         .task { if !istEigenes { SpotifyModell.shared.schauen() } }
         .onDisappear { if !istEigenes { SpotifyModell.shared.wegschauen() } }
+    }
+
+    /// The partner's profile has no room or scene: a small head (avatar, name) over the calm part, which scrolls as one.
+    private var kompakt: some View {
+        ProfilUnterbau(abschnitte: abschnitte, klebt: false, start: .wir) {
+            VStack(spacing: 6) {
+                ProfilAvatar(person: person, online: Raum.shared.partnerDa, d: 64)
+                Text(person.name).font(.title3.weight(.semibold))
+            }
+            .frame(maxWidth: .infinity)
+            .padding(.top, 8)
+        }
+        // Same as in `layout`: the partner's song is polled while the profile is on screen.
+        .task { SpotifyModell.shared.schauen() }
+        .onDisappear { SpotifyModell.shared.wegschauen() }
     }
 
     /// p72: the real status bar of the active scene, as in `HeuteView.statusleistenHoehe` (`54` when there is no scene).

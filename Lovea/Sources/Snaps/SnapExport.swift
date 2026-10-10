@@ -171,7 +171,7 @@ enum SnapExport {
 
 /// Static re-render of the editor's overlay at a given pixel size, used only for flattening —
 /// same fraction→pixel math as the live editor's interactive layer, just without the gestures.
-private struct SnapUeberlagerung: View {
+struct SnapUeberlagerung: View {
     let linien: [SnapEditor.SnapLinie]
     let sticker: [SnapEditor.SnapSticker]
     let text: SnapEditor.SnapText

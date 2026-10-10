@@ -72,7 +72,7 @@ private struct OrtZeile: View {
                     .foregroundStyle(.secondary)
             }
         }
-        .swipeActions {
+        .swipeActions(allowsFullSwipe: false) {
             Button("Löschen", role: .destructive) { OrteModell.shared.loeschen(ort) }
             Button("Melden") { meldenPerMail() }
                 .tint(.orange)

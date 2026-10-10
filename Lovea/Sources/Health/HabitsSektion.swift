@@ -139,7 +139,7 @@ struct HabitKachel: View {
         .padding(12)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .healthKarte(habit.tint)
-        .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .contentShape(.loveaKarte)
     }
 
     private var untertitel: String {

@@ -8,6 +8,7 @@ struct ZimmerKeksBlatt: View {
     @Environment(\.dismiss) private var dismiss
     @State private var eingabe = ""
     @State private var gespeichert = 0
+    @FocusState private var fokus: Bool
     private let modell = EinstellungenModell.shared
 
     private var ich: Person { RDaten.ich }
@@ -26,6 +27,8 @@ struct ZimmerKeksBlatt: View {
                     } else {
                         TextField("Schreib kurz auf", text: $eingabe, axis: .vertical)
                             .lineLimit(1...4)
+                            .focused($fokus)
+                            .onAppear { fokus = true }
                             .onChange(of: eingabe) { _, neu in
                                 if neu.count > RLogik.antwortMaximum { eingabe = String(neu.prefix(RLogik.antwortMaximum)) }
                             }
@@ -64,6 +67,7 @@ struct ZimmerWunschBlatt: View {
     @Environment(\.dismiss) private var dismiss
     @State private var eingabe = ""
     @State private var tipp = 0
+    @FocusState private var fokus: Bool
     private let modell = EinstellungenModell.shared
 
     private var ich: Person { RDaten.ich }
@@ -91,6 +95,8 @@ struct ZimmerWunschBlatt: View {
                     if meine.count < RLogik.wuenscheMaximum {
                         HStack {
                             TextField("Neuer Wunsch", text: $eingabe)
+                                .focused($fokus)
+                                .submitLabel(.done)
                                 .onChange(of: eingabe) { _, neu in
                                     if neu.count > RLogik.wunschMaximum { eingabe = String(neu.prefix(RLogik.wunschMaximum)) }
                                 }
@@ -138,5 +144,6 @@ struct ZimmerWunschBlatt: View {
         RDaten.schreiben(RDaten.wuensche, neu)
         eingabe = ""
         tipp += 1
+        fokus = true // mehrere Wünsche hintereinander ohne neu tippen
     }
 }

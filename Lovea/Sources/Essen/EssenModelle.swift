@@ -90,6 +90,17 @@ struct EssenMahlzeit: Codable, Identifiable, Equatable, Sendable {
     }
 }
 
+extension EssenMahlzeit {
+    /// Vom Coach eingetragene Mahlzeit: eine Zutat mit 100 g, so stehen die Werte pro 100 g gleich den Gesamtwerten.
+    static func vomCoach(_ e: CoachMarker.Essen, tag: String, zeit: Date = Date()) -> EssenMahlzeit {
+        let zutat = EssenKomponente(
+            name: e.name, gramm: 100, kcalPro100: Double(e.kcal), proteinPro100: e.protein ?? 0,
+            kohlenhydratePro100: e.kohlenhydrate ?? 0, fettPro100: e.fett ?? 0, sicherheit: "niedrig"
+        )
+        return EssenMahlzeit(tag: tag, zeit: zeit, art: e.art ?? .vorschlag(um: zeit), komponenten: [zutat], hinweis: "Vom Coach eingetragen (geschätzt)")
+    }
+}
+
 /// Persönliche Tagesziele. `kcal` hat nach unten eine feste Grenze (siehe Server und Coach).
 struct EssenZiele: Codable, Equatable, Sendable {
     /// "cut", "halten" oder "aufbauen".
@@ -152,9 +163,11 @@ struct EssenAnalyse: Decodable, Sendable {
     let gesamt: Gesamt
     let frage: String?
     let bemerkung: String
+    /// Fotos, die heute noch übrig sind (Server zählt mit).
+    let rest: Int?
 
     enum CodingKeys: String, CodingKey {
-        case items, versteckt, gesamt, frage, bemerkung
+        case items, versteckt, gesamt, frage, bemerkung, rest
         case istEssen = "ist_essen"
     }
 

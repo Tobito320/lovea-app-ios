@@ -316,12 +316,15 @@ private struct SchubladeBlatt: View {
     @State private var zettel = ZimmerNaeheDaten.alleZettel()
     @State private var eingabe = ""
     @State private var gespeichert = 0
+    @FocusState private var fokus: Bool
 
     var body: some View {
         NavigationStack {
             List {
                 Section {
                     TextField("Zettel für die Schublade", text: $eingabe, axis: .vertical)
+                        .focused($fokus)
+                        .onAppear { fokus = true }
                         .lineLimit(1...3)
                     Button("Zettel hineinlegen", action: hinzu)
                         .disabled(ZimmerNaeheLogik.bereinigt(eingabe) == nil)

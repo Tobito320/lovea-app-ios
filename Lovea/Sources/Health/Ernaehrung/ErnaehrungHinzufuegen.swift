@@ -27,6 +27,9 @@ struct HinzufuegenBlatt: View {
     @State private var hinweis: String?
     @State private var barcodeOffen = false
     @State private var schnellOffen = false
+    @State private var kiFotoOffen = false
+    /// "Von Hand eintragen" im Foto-Blatt: erst zumachen, dann das Schnell-Blatt öffnen (zwei Sheets gleichzeitig gehen nicht).
+    @State private var kiVonHand = false
     @State private var eigenesNeuOffen = false
     @State private var eigenesBearbeiten: Lebensmittel?
     @State private var rezeptNeuOffen = false
@@ -117,6 +120,14 @@ struct HinzufuegenBlatt: View {
         .onChange(of: suchtext) { _, neu in suchtextGeaendert(neu) }
         .sheet(isPresented: $barcodeOffen, onDismiss: scannerZu) {
             BarcodeScannerBlatt { code in gescannt = code }
+        }
+        .sheet(isPresented: $kiFotoOffen, onDismiss: kiFotoZu) {
+            KiFotoBlatt(mahlzeit: mahlzeit, datum: datum,
+                        fertig: { name in
+                            zeigeHinweis(name)
+                            zaehler += 1
+                        },
+                        vonHand: { kiVonHand = true; kiFotoOffen = false })
         }
         .sheet(isPresented: $schnellOffen) {
             SchnellEintragenBlatt(mahlzeit: mahlzeit, datum: datum) { l in
@@ -282,7 +293,7 @@ struct HinzufuegenBlatt: View {
     private func kachel(_ k: HinzuKachel) {
         switch k {
         case .suche: suchModus = true
-        case .kamera: kommtBald = "KI-Kalorien-Tracking"
+        case .kamera: kiFotoOffen = true
         case .barcode: scanZweck = .suchen; barcodeOffen = true
         case .sprache: kommtBald = "Sprache und Text"
         case .mehr: erstellenOffen = true
@@ -393,6 +404,12 @@ struct HinzufuegenBlatt: View {
     private func zeigeHinweis(_ name: String) {
         Haptik.erfolg()
         zeigeText("\(name) eingetragen")
+    }
+
+    private func kiFotoZu() {
+        guard kiVonHand else { return }
+        kiVonHand = false
+        schnellOffen = true
     }
 
     private func scannerZu() {
@@ -521,6 +538,7 @@ private struct SchnellEintragenBlatt: View {
                 zahlfeld("Fett (g)", $fett)
             }
             .navigationTitle("Schnell eintragen")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

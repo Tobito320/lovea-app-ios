@@ -10,6 +10,8 @@ struct CoachView: View {
     @State private var antwortet = false
     @State private var fehlerText: String?
     @State private var aufgabe: Task<Void, Never>?
+    /// Vom Coach eingetragene Mahlzeiten je Coach-Nachricht (für "Rückgängig").
+    @State private var eingetragen: [UUID: [EssenMahlzeit]] = [:]
 
     private var ich: Person { Raum.shared.ich ?? .ahmed }
     private let vorschlaege = ["Was esse ich heute noch?", "Wie läuft mein Tag?", "Was kann ich statt Süßem essen?"]
@@ -58,18 +60,47 @@ struct CoachView: View {
 
     private func blase(_ n: EssenCoachNachricht) -> some View {
         let vonMir = n.rolle == "nutzer"
-        return HStack {
-            if vonMir { Spacer(minLength: 40) }
-            Text(n.text.isEmpty ? "…" : n.text)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .foregroundStyle(vonMir ? Color.personText(ich) : Color.primary)
-                .background(vonMir ? Color.person(ich) : Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
-                .textSelection(.enabled)
-            if !vonMir { Spacer(minLength: 40) }
+        let text = vonMir ? n.text : CoachMarker.zerlegen(n.text).text
+        return VStack(alignment: vonMir ? .trailing : .leading, spacing: 4) {
+            HStack {
+                if vonMir { Spacer(minLength: 40) }
+                Text(text.isEmpty ? "…" : text)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .foregroundStyle(vonMir ? Color.personText(ich) : Color.primary)
+                    .background(vonMir ? Color.person(ich) : Color(uiColor: .secondarySystemBackground), in: RoundedRectangle(cornerRadius: 16))
+                    .textSelection(.enabled)
+                if !vonMir { Spacer(minLength: 40) }
+            }
+            .accessibilityElement(children: .combine)
+            .accessibilityLabel("\(vonMir ? "Du" : "Coach"): \(text)")
+            ForEach(eingetragen[n.id] ?? []) { m in
+                HStack(spacing: 8) {
+                    Label("Eingetragen: \(m.titel), \(m.kcal) kcal", systemImage: "checkmark.circle.fill")
+                        .font(.footnote)
+                        .foregroundStyle(.green)
+                    Button("Rückgängig") { rueckgaengig(m, in: n.id) }
+                        .font(.footnote)
+                }
+            }
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(vonMir ? "Du" : "Coach"): \(n.text)")
+    }
+
+    /// Trägt die Mahlzeiten aus den Markern der fertigen Antwort ein und ersetzt den Text durch die bereinigte Fassung.
+    private func eintragen(inLetzterNachricht person: Person) {
+        guard let i = nachrichten.indices.last, nachrichten[i].rolle == "coach" else { return }
+        let zerlegt = CoachMarker.zerlegen(nachrichten[i].text)
+        nachrichten[i].text = zerlegt.text
+        guard !zerlegt.essen.isEmpty else { return }
+        let jetzt = Date()
+        let neu = zerlegt.essen.map { EssenMahlzeit.vomCoach($0, tag: Datum.text(jetzt), zeit: jetzt) }
+        neu.forEach { EssenStore.shared.speichern($0, fuer: person) }
+        eingetragen[nachrichten[i].id] = neu
+    }
+
+    private func rueckgaengig(_ m: EssenMahlzeit, in nachricht: UUID) {
+        EssenStore.shared.loeschen(m.id, fuer: ich)
+        eingetragen[nachricht]?.removeAll { $0.id == m.id }
     }
 
     private var eingabeleiste: some View {
@@ -102,14 +133,16 @@ struct CoachView: View {
         let person = ich
         let profil = EssenKontext.profil(person)
         let tag = EssenKontext.tag(person, tag: Datum.text(Date()))
+        let kontext = EssenKontext.gesundheitsZeilen(person, heute: Datum.text(Date()))
         aufgabe = Task {
             do {
-                for try await stueck in KiClient.coach(nachrichten: verlauf, profil: profil, tag: tag) {
+                for try await stueck in KiClient.coach(nachrichten: verlauf, profil: profil, tag: tag, kontext: kontext) {
                     if let i = nachrichten.indices.last { nachrichten[i].text += stueck }
                 }
             } catch {
                 fehlerText = (error as? LocalizedError)?.errorDescription ?? "Das hat nicht geklappt."
             }
+            eintragen(inLetzterNachricht: person)
             if nachrichten.last?.rolle == "coach", nachrichten.last?.text.isEmpty == true { nachrichten.removeLast() }
             antwortet = false
         }

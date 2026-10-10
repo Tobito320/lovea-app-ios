@@ -74,22 +74,38 @@ enum ZuhauseZeichnung {
         g.fill(box(0, 150, breite, 150), with: .linearGradient(Gradient(colors: [.clear, .black.opacity(0.07)]), startPoint: P(0, 150), endPoint: P(0, 300)))
     }
 
-    private static func boden(_ g: GraphicsContext, _ wahl: ZimmerWahl, _ welt: ProfilWelt) {
-        let breite = welt.breite
-        let holz = FigurFarbe(0xE6C9A0)
-        g.fill(box(0, 300, breite, 500), with: .linearGradient(Gradient(colors: [holz.mal(0.9).farbe, holz.farbe]), startPoint: P(0, 300), endPoint: P(0, 430)))
-        // Rows get taller toward the viewer: a little perspective without a full grid.
+    static let holz = FigurFarbe(0xE6C9A0)
+
+    /// The plank joints from the skirting (y 300) down to `bis`. Rows get taller toward the viewer: a little
+    /// perspective without a full grid. Below the scene the profile draws the same rows on (`bodenUnten`).
+    static func dielen(_ g: GraphicsContext, breite: CGFloat, bis: CGFloat) {
         let fuge = holz.mal(0.84).farbe
         var y: CGFloat = 300
         var h: CGFloat = 9
         var reihe = 0
-        while y < 430 {
+        while y < bis {
             linie(g, strich(P(0, y), P(breite, y)), fuge, 1.5)
             for x in stride(from: CGFloat(reihe % 3) * 47, to: breite, by: 140) { linie(g, strich(P(x, y), P(x, y + h)), fuge, 1.5) }
             y += h
-            h *= 1.28
+            // Past the scene the rows stop growing, or one plank would fill a tall screen.
+            h = min(h * 1.28, 48)
             reihe += 1
         }
+    }
+
+    /// Fein-Profil: the floor under the world, `hoehe` design units of it, the very planks of `boden` carried on
+    /// (the world ends at 430, so its last row runs on here). `breite`: the world's width.
+    static func bodenUnten(_ g: GraphicsContext, breite: CGFloat, hoehe: CGFloat) {
+        var w = g
+        w.translateBy(x: 0, y: -SzenenZeichnung.hoehe)
+        w.fill(box(0, SzenenZeichnung.hoehe, breite, hoehe), with: .color(holz.farbe))
+        dielen(w, breite: breite, bis: SzenenZeichnung.hoehe + hoehe)
+    }
+
+    private static func boden(_ g: GraphicsContext, _ wahl: ZimmerWahl, _ welt: ProfilWelt) {
+        let breite = welt.breite
+        g.fill(box(0, 300, breite, 500), with: .linearGradient(Gradient(colors: [holz.mal(0.9).farbe, holz.farbe]), startPoint: P(0, 300), endPoint: P(0, 430)))
+        dielen(g, breite: breite, bis: 430)
         teil(g, box(-4, 292, breite + 8, 10, 2), Pal.weiss, 2)
 
         // The rug under the table (a round pink one unless the shop's is chosen).

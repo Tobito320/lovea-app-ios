@@ -52,7 +52,7 @@ struct XOSpiel: View {
             k.setzen(i)
         } label: {
             ZStack {
-                RoundedRectangle(cornerRadius: 22)
+                RoundedRectangle.loveaKarte
                     .fill(linie.contains(i) ? Color.loveaRose.opacity(0.2) : Color(.tertiarySystemBackground))
                 if let p = s.feld[i] {
                     FigurKopf(person: p, groesse: 76, zustand: linie.contains(i) ? .lacht : .ruhig)

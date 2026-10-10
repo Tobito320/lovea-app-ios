@@ -96,14 +96,14 @@ struct ChatListenZeile: View {
     var animiert = true
 
     var body: some View {
-        HStack(spacing: 14) {
-            KopfFigur(person: partner, groesse: 58, animiert: animiert)
-                .padding(4)
-                .overlay(Circle().strokeBorder(online ? Color.green : Color.clear, lineWidth: 2.5))
-            VStack(alignment: .leading, spacing: 3) {
+        HStack(spacing: Abstand.m) {
+            KopfFigur(person: partner, groesse: 44, animiert: animiert)
+                .padding(3)
+                .overlay(Circle().strokeBorder(online ? Color.green : Color.clear, lineWidth: 2))
+            VStack(alignment: .leading, spacing: 2) {
                 HStack(alignment: .firstTextBaseline) {
-                    Text(partner.name).font(.title3.weight(.semibold)).foregroundStyle(.primary)
-                    Spacer(minLength: 8)
+                    Text(partner.name).font(.headline).foregroundStyle(.primary)
+                    Spacer(minLength: Abstand.s)
                     if let zeit {
                         Text(zeit).font(.caption).foregroundStyle(ungelesen > 0 ? Color.loveaRose : Color.secondary)
                     }
@@ -139,10 +139,11 @@ struct ChatListenZeile: View {
                 }
             }
         }
-        .padding(14)
+        .padding(.horizontal, Abstand.l)
+        .padding(.vertical, Abstand.m)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .rect(cornerRadius: 22))
-        .contentShape(.rect(cornerRadius: 22))
+        .background(Color(uiColor: .secondarySystemGroupedBackground), in: .loveaKarte)
+        .contentShape(.loveaKarte)
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(beschreibung)
         .accessibilityHint("Chat öffnen")
@@ -521,6 +522,9 @@ private struct NachrichtenListe: View {
     // R7: true while the user is actively dragging the list — including an interactive keyboard
     // dismiss, which is the same drag. See `ListenAutoScroll`.
     @State private var nutzerZiehtGerade = false
+    /// p66: round "down" arrow. Written from the scroll callbacks, not from `ListenLage`, which is
+    /// compared every frame.
+    @State private var pfeil = ChatNachUnten()
 
     var body: some View {
         let alle = modell.nachrichten
@@ -533,6 +537,11 @@ private struct NachrichtenListe: View {
                     ForEach(Array(gruppen.enumerated()), id: \.element.id) { eintrag in
                         zeile(eintrag.offset, gruppen: gruppen, status: status)
                     }
+                    // "At the bottom" = this end row is on screen. The old offset math broke when
+                    // header and input became `safeAreaBar`s: it read "not at the end" at the very
+                    // bottom, so the arrow stayed up for good after the first drag.
+                    Color.clear.frame(height: 1)
+                        .onScrollVisibilityChange(threshold: 0.01) { pfeil.lage(amEnde: $0) }
                 }
                 .padding(.vertical, 8)
             }
@@ -556,6 +565,7 @@ private struct NachrichtenListe: View {
             // user's own gesture right now" for `ListenAutoScroll` below.
             .onScrollPhaseChange { _, neu in
                 nutzerZiehtGerade = neu == .tracking || neu == .interacting
+                if nutzerZiehtGerade { pfeil.nutzerZog() }
                 // Chat-Tempo: the leaf views that animate (particles, figures, GIFs) calm down while it moves.
                 if ChatTempo.an { ChatTempo.shared.phase(neu) }
             }
@@ -586,13 +596,11 @@ private struct NachrichtenListe: View {
             // Chat", keyboard). The inset alone keeps the offset, so the newest messages slid under
             // the bar; if the list was at the bottom before, it stays there.
             .onScrollGeometryChange(for: ListenLage.self) { geo in
-                ListenLage(
-                    sichtbar: geo.containerSize.height - geo.contentInsets.top - geo.contentInsets.bottom,
-                    amEnde: geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24
-                )
+                ListenLage(sichtbar: geo.containerSize.height - geo.contentInsets.top - geo.contentInsets.bottom)
             } action: { alt, neu in
+                // `pfeil.amEnde` still holds the state before this bar change (visibility updates after layout).
                 guard ListenAutoScroll.sollNachUntenSpringen(
-                    sichtbarGeaendert: alt.sichtbar != neu.sichtbar, warAmEnde: alt.amEnde, nutzerZiehtGerade: nutzerZiehtGerade
+                    sichtbarGeaendert: alt.sichtbar != neu.sichtbar, warAmEnde: pfeil.amEnde, nutzerZiehtGerade: nutzerZiehtGerade
                 ), zielID == nil, let letzte = modell.nachrichten.last?.id else { return }
                 withAnimation(Feder.schnell) { proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom) }
             }
@@ -601,6 +609,26 @@ private struct NachrichtenListe: View {
             .onAppear { ChatPerf.shared.ersteListeSichtbar() }
             // Diagnose: Server-Bestätigung verarbeitet (schließt jeden Trace einmalig ab).
             .onChange(of: ChatPerf.shared.antwortZaehler) { _, _ in ChatPerf.shared.gerendert() }
+            // p66: arrow bottom right, only while the list sits away from its bottom.
+            .overlay(alignment: .bottomTrailing) {
+                ZStack {
+                    if pfeil.sichtbar {
+                        ChatNachUntenKnopf(neu: pfeil.neu) {
+                            guard let letzte = modell.nachrichten.last?.id else { return }
+                            Haptik.leicht()
+                            withAnimation(Feder.schnell) { proxy.scrollTo(gruppeID(fuer: letzte), anchor: .bottom) }
+                        }
+                        .padding(.trailing, 16)
+                        .padding(.bottom, 8)
+                        .transition(.scale(scale: 0.6).combined(with: .opacity))
+                    }
+                }
+                .animation(Feder.schnell, value: pfeil.sichtbar)
+            }
+            .onChange(of: modell.nachrichten.count) { alt, neu in
+                guard neu > alt else { return }
+                pfeil.eingetroffen(vomPartner: ChatNachUnten.vomPartner(Array(modell.nachrichten.suffix(neu - alt)), ich: ich))
+            }
             .onChange(of: modell.nachrichten.last?.id) { _, id in
                 if let id { ChatPerf.shared.lokalSichtbar(messageId: id) }
                 guard let id, let letzte = modell.nachrichten.last, letzte.von == ich, letzte.system == nil else { return }
@@ -668,8 +696,7 @@ private struct NachrichtenListe: View {
 }
 
 /// Width and window origin of the conversation (the photo cap and the left-edge swipe need them).
-/// Visible height between the bars, and whether the list sits at its bottom.
+/// Visible height between the bars.
 private struct ListenLage: Equatable {
     let sichtbar: CGFloat
-    let amEnde: Bool
 }

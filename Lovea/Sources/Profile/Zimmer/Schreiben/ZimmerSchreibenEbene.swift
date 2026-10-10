@@ -391,6 +391,7 @@ private struct ZimmerKapselBlatt: View {
     @Environment(\.dismiss) private var dismiss
     @State private var text = ""
     @State private var vergraben = 0
+    @FocusState private var fokus: Bool
     private typealias L = ZimmerSchreibenLogik
 
     private var ich: Person { Raum.shared.ich ?? .ahmed }
@@ -412,6 +413,8 @@ private struct ZimmerKapselBlatt: View {
                     }
                     Text("Neue Kapsel: öffnet am selben Tag im nächsten Jahr.").font(.footnote).foregroundStyle(.secondary)
                     TextField("Was soll dein zukünftiges Ich lesen?", text: $text, axis: .vertical)
+                        .focused($fokus)
+                        .onAppear { fokus = true }
                         .lineLimit(2...5)
                         .textFieldStyle(.roundedBorder)
                     Button {

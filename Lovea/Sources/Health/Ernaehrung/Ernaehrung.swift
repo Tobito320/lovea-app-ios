@@ -58,7 +58,7 @@ enum Einheit: String, Codable, Sendable, CaseIterable {
 /// Ein Lebensmittel mit Werten pro 100 g (oder 100 ml bei `fluessig`). Jeder Eintrag speichert eine
 /// Kopie, dadurch gehen "Zuletzt" und das Tagebuch auch offline.
 struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
-    /// "off-<barcode>", "eigen-<uuid>", "rezept-<uuid>" oder "schnell-<uuid>".
+    /// "off-<barcode>", "eigen-<uuid>", "rezept-<uuid>", "schnell-<uuid>" oder "ki-<uuid>".
     var id: String
     var name: String
     var marke: String?
@@ -105,6 +105,8 @@ struct Lebensmittel: Codable, Equatable, Hashable, Sendable, Identifiable {
     var basisEinheit: Einheit { fluessig ? .ml : .g }
 
     var istRezept: Bool { id.hasPrefix("rezept-") }
+    /// Schnell-Einträge und Foto-Schätzungen gehören zu genau einer Mahlzeit, nicht in Zuletzt oder Häufig.
+    var istEinmalig: Bool { id.hasPrefix("schnell-") || id.hasPrefix("ki-") }
     var anzeigeName: String { marke.map { "\(name) · \($0)" } ?? name }
 }
 
@@ -444,7 +446,7 @@ struct ErnaehrungFaltung: Sendable {
         var liste: [Lebensmittel] = []
         for s in (essen[p] ?? [:]).values.sorted(by: { $0.zeit > $1.zeit }) where s.wert.geloescht != true {
             let l = s.wert.lebensmittel
-            guard !l.id.hasPrefix("schnell-"), gesehen.insert(l.id).inserted else { continue }
+            guard !l.istEinmalig, gesehen.insert(l.id).inserted else { continue }
             liste.append(l)
             if liste.count == anzahl { break }
         }
@@ -455,7 +457,7 @@ struct ErnaehrungFaltung: Sendable {
     func haeufig(_ p: Person, anzahl: Int = 40) -> [Lebensmittel] {
         let grenze = Datum.addTage(Datum.text(Date()), -90)
         var zahl: [String: (n: Int, zeit: Date, l: Lebensmittel)] = [:]
-        for s in (essen[p] ?? [:]).values where s.wert.geloescht != true && s.wert.datum >= grenze && !s.wert.lebensmittel.id.hasPrefix("schnell-") {
+        for s in (essen[p] ?? [:]).values where s.wert.geloescht != true && s.wert.datum >= grenze && !s.wert.lebensmittel.istEinmalig {
             let alt = zahl[s.wert.lebensmittel.id]
             zahl[s.wert.lebensmittel.id] = ((alt?.n ?? 0) + 1, max(alt?.zeit ?? .distantPast, s.zeit), s.wert.lebensmittel)
         }

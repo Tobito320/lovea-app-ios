@@ -90,7 +90,7 @@ private struct ZimmerFilmBlatt: View {
                             }
                         }
                         .tint(.primary)
-                        .swipeActions { Button("Löschen", role: .destructive) { setzen(ZimmerFilme.entfernen(liste, id: f.id)) } }
+                        .swipeActions(allowsFullSwipe: false) { Button("Löschen", role: .destructive) { setzen(ZimmerFilme.entfernen(liste, id: f.id)) } }
                     }
                 }
             }
@@ -121,6 +121,7 @@ private struct ZimmerZielBlatt: View {
                 }
             }
             .navigationTitle("Unser Ziel")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

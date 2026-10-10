@@ -55,8 +55,8 @@ final class ProfilLayoutTests: XCTestCase {
     }
 
     func testBreiteWirdBeiMaximumGekappt() {
-        XCTAssertEqual(L.szene(breite: 429, hoehe: 800, oben: 47).breite, 429)
-        XCTAssertEqual(L.szene(breite: 431, hoehe: 800, oben: 47).breite, L.maxSzeneBreite)
+        XCTAssertEqual(L.szene(breite: 439, hoehe: 800, oben: 47).breite, 439)
+        XCTAssertEqual(L.szene(breite: 441, hoehe: 800, oben: 47).breite, L.maxSzeneBreite)
         XCTAssertEqual(L.szene(breite: 5000, hoehe: 800, oben: 47).breite, L.maxSzeneBreite)
     }
 
@@ -194,7 +194,8 @@ final class ProfilLayoutTests: XCTestCase {
                 let weltOben = L.weltOben(breite: s.breite, hoehe: s.hoehe)
                 // Knopf: 4 pt unter dem Chrome-Anfang, 44 pt hoch.
                 XCTAssertGreaterThanOrEqual(weltOben, o.chrome + 4 + L.tippMinimum, "\(name) Gym \(gym): Welt unter den Knoepfen")
-                XCTAssertGreaterThanOrEqual(s.hoehe, h, "\(name): die Szene nimmt den ganzen Platz")
+                XCTAssertGreaterThanOrEqual(s.hoehe + s.unten, h, "\(name): Szene und Boden nehmen den ganzen Platz")
+                XCTAssertEqual(weltOben, o.chrome + L.chromeBand, accuracy: 0.001, "\(name): Welt haengt unter den Knoepfen, keine leere Wand")
             }
         }
     }

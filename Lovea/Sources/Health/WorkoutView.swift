@@ -35,24 +35,38 @@ struct WorkoutLeiste: View {
     let knopf: String
     /// Nur die sichtbare Leiste vibriert am Pausenende (die Übersicht liegt unter der Einzelansicht).
     var vibriert = true
+    /// Laufende Pause mit Ziel: ±15 s und Überspringen (wie openGym). nil = keine Knöpfe.
+    var pauseAendern: ((Int) -> Void)? = nil
+    var pauseUeberspringen: (() -> Void)? = nil
     let aktion: () -> Void
 
     @State private var abgelaufen = false
 
     var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(titel).font(.subheadline.weight(.semibold)).lineLimit(1)
-                Text(unter).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(titel).font(.subheadline.weight(.semibold)).lineLimit(1)
+                    Text(unter).font(.footnote).foregroundStyle(.secondary).lineLimit(1)
+                }
+                .layoutPriority(1)
+                Spacer(minLength: 4)
+                zeit
+                Button(action: aktion) {
+                    Text(knopf).font(.subheadline.weight(.semibold)).lineLimit(1).fixedSize().frame(minHeight: 36)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
             }
-            .layoutPriority(1)
-            Spacer(minLength: 4)
-            zeit
-            Button(action: aktion) {
-                Text(knopf).font(.subheadline.weight(.semibold)).lineLimit(1).fixedSize().frame(minHeight: 36)
+            if uhr?.pauseEnde != nil, let pauseAendern, let pauseUeberspringen {
+                HStack(spacing: 8) {
+                    Button { pauseAendern(-15) } label: { Text("−15 s").frame(maxWidth: .infinity, minHeight: 30) }
+                    Button { pauseAendern(15) } label: { Text("+15 s").frame(maxWidth: .infinity, minHeight: 30) }
+                    Button(action: pauseUeberspringen) { Text("Überspringen").frame(maxWidth: .infinity, minHeight: 30) }
+                }
+                .buttonStyle(.bordered)
+                .font(.subheadline.weight(.medium))
             }
-            .buttonStyle(.borderedProminent)
-            .tint(.blue)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -559,6 +573,8 @@ struct WorkoutUebungView: View {
     @State private var geladen = false
     @State private var animation: Uebung?
     @State private var scheibenOffen = false
+    @State private var anstrengungSatz: Int?
+    @State private var rueckgaengig: SatzRueckgaengig?
     @AppStorage("gym.rpe") private var rpeAn = true
     @AppStorage(WorkoutLogik.satzzeitSchluessel) private var satzzeitAn = false
     @FocusState private var fokus: Bool
@@ -615,8 +631,19 @@ struct WorkoutUebungView: View {
                 Button("Fertig") { fokus = false }
             }
         }
+        .overlay(alignment: .bottom) {
+            if let rueckgaengig {
+                toast(rueckgaengig, u).padding(.horizontal, 16).padding(.bottom, 8).transition(.move(edge: .bottom).combined(with: .opacity))
+            }
+        }
+        .animation(.snappy, value: rueckgaengig)
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if !nachtrag { leiste(u, liste) }
+        }
+        .sheet(isPresented: Binding(get: { anstrengungSatz != nil }, set: { if !$0 { anstrengungSatz = nil } })) {
+            AnstrengungBlatt(rpe: anstrengungSatz.flatMap { saetze.indices.contains($0) ? saetze[$0].rpe : nil }) { neu in
+                if let i = anstrengungSatz, saetze.indices.contains(i) { saetze[i].rpe = neu }
+            }
         }
         .sheet(item: $animation) { a in
             NavigationStack { UebungDetail(uebung: a) }.presentationDetents([.medium, .large])
@@ -709,12 +736,18 @@ struct WorkoutUebungView: View {
                 if saetze.indices.contains(i) { saetze[i].setzeTyp(t) }
                 Haptik.auswahl()
             },
-            haken: { haken(u, i) }
+            haken: { haken(u, i) },
+            kopieren: { kopieren(u, i) },
+            loeschen: { loeschen(u, i) },
+            anstrengung: { anstrengungSatz = i }
         )
         .listRowInsets(EdgeInsets(top: 3, leading: 12, bottom: 3, trailing: 12))
         .listRowSeparator(.hidden)
         .listRowBackground(fertig ? Color.green.opacity(0.2) : Color.clear)
-        .swipeActions {
+        .swipeActions(edge: .leading) {
+            Button("Kopieren", systemImage: "plus.square.on.square") { kopieren(u, i) }.tint(.blue)
+        }
+        .swipeActions(edge: .trailing, allowsFullSwipe: false) {
             Button("Löschen", role: .destructive) { loeschen(u, i) }
         }
     }
@@ -762,7 +795,9 @@ struct WorkoutUebungView: View {
                 titel: saetze.isEmpty ? "Übung ausgelassen" : "Übung fertig",
                 unter: naechste.map { "Weiter mit \($0.planUebung.anzeigeName)" } ?? "Zurück zur Übersicht",
                 uhr: stand,
-                knopf: naechste == nil ? "Übersicht" : "Nächste Übung"
+                knopf: naechste == nil ? "Übersicht" : "Nächste Übung",
+                pauseAendern: pauseAendern,
+                pauseUeberspringen: { pauseUeberspringen(u) }
             ) {
                 wechseln(naechste?.id)
             }
@@ -770,7 +805,7 @@ struct WorkoutUebungView: View {
         let laufend = laufenderSatz.flatMap { saetze.indices.contains($0) ? $0 : nil }
         let ziel = laufend ?? offener
         let knopf = laufend != nil ? "Satz fertig" : offener == 0 ? "Übung starten" : "Nächster Satz"
-        return WorkoutLeiste(titel: "Satz \(ziel + 1) von \(saetze.count)", unter: WorkoutLogik.satzText(saetze[ziel]), uhr: stand, knopf: knopf) {
+        return WorkoutLeiste(titel: "Satz \(ziel + 1) von \(saetze.count)", unter: WorkoutLogik.satzText(saetze[ziel]), uhr: stand, knopf: knopf, pauseAendern: pauseAendern, pauseUeberspringen: { pauseUeberspringen(u) }) {
             if laufend != nil {
                 haken(u, ziel)
             } else {
@@ -848,8 +883,56 @@ struct WorkoutUebungView: View {
 
     private func loeschen(_ u: WorkoutUebung, _ i: Int) {
         guard saetze.indices.contains(i) else { return }
+        rueckgaengig = SatzRueckgaengig(text: "Satz \(WorkoutLogik.nummer(saetze, i)) gelöscht.", vorher: saetze)
         uhrAus()
         saetze.remove(at: i)
+        modell.saetzeSenden(sessionId, u.planUebung, saetze)
+        Haptik.leicht()
+    }
+
+    private func kopieren(_ u: WorkoutUebung, _ i: Int) {
+        guard saetze.indices.contains(i) else { return }
+        rueckgaengig = SatzRueckgaengig(text: "Satz kopiert.", vorher: saetze)
+        uhrAus()
+        saetze = WorkoutLogik.kopieren(saetze, i)
+        modell.saetzeSenden(sessionId, u.planUebung, saetze)
+        Haptik.leicht()
+    }
+
+    private func zurueckholen(_ r: SatzRueckgaengig, _ u: WorkoutUebung) {
+        uhrAus()
+        saetze = r.vorher
+        rueckgaengig = nil
+        modell.saetzeSenden(sessionId, u.planUebung, saetze)
+        Haptik.leicht()
+    }
+
+    /// Fünf Sekunden eingeblendet; die Aufgabe endet mit der Ansicht (kein Timer im Hintergrund).
+    private func toast(_ r: SatzRueckgaengig, _ u: WorkoutUebung) -> some View {
+        HStack {
+            Text(r.text).font(.subheadline)
+            Spacer(minLength: 8)
+            Button("Rückgängig") { zurueckholen(r, u) }.font(.subheadline.weight(.semibold))
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .shadow(color: .black.opacity(0.15), radius: 6, y: 2)
+        .task(id: r.id) {
+            try? await Task.sleep(for: .seconds(5))
+            if !Task.isCancelled { rueckgaengig = nil }
+        }
+    }
+
+    private func pauseAendern(_ sek: Int) {
+        WorkoutUhr.shared.pauseAendern(um: sek)
+        Haptik.leicht()
+    }
+
+    /// Pause beenden: ihre Länge geht an den Satz, die Mitteilung "Pause vorbei" entfällt.
+    private func pauseUeberspringen(_ u: WorkoutUebung) {
+        saetze = WorkoutAktion.pauseAbschliessen(sessionId, u.planUebung, saetze)
+        WorkoutUhr.shared.mitteilungLoeschen()
         modell.saetzeSenden(sessionId, u.planUebung, saetze)
         Haptik.leicht()
     }
@@ -898,6 +981,9 @@ struct WorkoutSatzZeile: View {
     var rekord: String? = nil
     var typ: (String) -> Void = { _ in }
     var haken: () -> Void = {}
+    var kopieren: () -> Void = {}
+    var loeschen: () -> Void = {}
+    var anstrengung: () -> Void = {}
 
     private var fertig: Bool { satz.ok == true }
     private static let kachel = RoundedRectangle(cornerRadius: 9, style: .continuous)
@@ -917,8 +1003,19 @@ struct WorkoutSatzZeile: View {
                 feld(TextField("0", value: $satz.wdh, format: .number).keyboardType(.numberPad), 50)
                     .accessibilityLabel("Wiederholungen")
                 if rpe {
-                    feld(TextField("–", value: $satz.rpe, format: .number).keyboardType(.decimalPad), 44)
-                        .accessibilityLabel("RPE")
+                    feld(
+                        Button(action: anstrengung) {
+                            Text(satz.rpe.map(TrainingLogik.kgText) ?? "–")
+                                .font(.headline.monospacedDigit())
+                                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                                .background((satz.rpe.map { Anstrengung.stufe(rpe: $0).farbe } ?? .clear).opacity(0.3), in: Self.kachel)
+                        }
+                        .buttonStyle(.borderless)
+                        .foregroundStyle(.primary),
+                        44
+                    )
+                    .accessibilityLabel("RPE")
+                    .accessibilityHint("Anstrengung wählen")
                 }
                 Button(action: haken) {
                     Image(systemName: "checkmark")
@@ -948,6 +1045,9 @@ struct WorkoutSatzZeile: View {
             Button("Aufwärmen (W)") { typ("w") }
             Button("Dropsatz (D)") { typ("d") }
             Button("Bis zum Versagen (F)") { typ("f") }
+            Divider()
+            Button("Satz kopieren", systemImage: "plus.square.on.square", action: kopieren)
+            Button("Satz löschen", systemImage: "trash", role: .destructive, action: loeschen)
         } label: {
             Text(nummer)
                 .font(.headline)
@@ -973,6 +1073,74 @@ struct WorkoutSatzZeile: View {
     private var zeiten: String? {
         guard fertig else { return nil }
         return WorkoutLogik.zeitenText(sek: satz.sek, pause: satz.pause, satzzeit: satzzeit)
+    }
+}
+
+/// Merkt den Stand vor Löschen oder Kopieren für "Rückgängig" (`id` startet die Ausblend-Aufgabe neu).
+struct SatzRueckgaengig: Equatable {
+    let id = UUID()
+    let text: String
+    let vorher: [PlanSatz]
+}
+
+extension Anstrengung {
+    var farbe: Color {
+        switch self {
+        case .versagen: .purple
+        case .fastVersagen: .red
+        case .eineNoch: .orange
+        case .zweiNoch: .yellow
+        case .dreiNoch: .green
+        case .leicht: .gray
+        }
+    }
+}
+
+/// Anstrengung wählen wie in openGym: Stufen nach RIR mit Farbe, gespeichert als RPE (10 − RIR).
+struct AnstrengungBlatt: View {
+    let rpe: Double?
+    let waehlen: (Double?) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        NavigationStack {
+            List {
+                Section {
+                    ForEach(Anstrengung.allCases, id: \.self) { a in
+                        Button {
+                            waehlen(a.rpe)
+                            Haptik.auswahl()
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 12) {
+                                Circle().fill(a.farbe).frame(width: 14, height: 14)
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(a.titel).foregroundStyle(.primary)
+                                    Text("RIR \(a.rirText) · RPE \(TrainingLogik.kgText(a.rpe))").font(.footnote).foregroundStyle(.secondary)
+                                }
+                                Spacer(minLength: 0)
+                                if let rpe, Anstrengung.stufe(rpe: rpe) == a { Image(systemName: "checkmark").foregroundStyle(Color.blue) }
+                            }
+                            .contentShape(.rect)
+                        }
+                    }
+                } footer: {
+                    Text("RIR: Wiederholungen, die noch gegangen wären. RPE = 10 minus RIR.")
+                }
+                if rpe != nil {
+                    Button("Angabe entfernen", role: .destructive) {
+                        waehlen(nil)
+                        dismiss()
+                    }
+                }
+            }
+            .navigationTitle("Anstrengung")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("Fertig") { dismiss() } }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 }
 

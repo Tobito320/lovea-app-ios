@@ -121,10 +121,9 @@ struct SpielKarte: View {
 
     private func rahmen<Inhalt: View>(@ViewBuilder _ inhalt: () -> Inhalt) -> some View {
         inhalt()
-            .padding(14)
+            .padding(Abstand.m)
             .frame(maxWidth: 340, alignment: .leading)
-            .background(RoundedRectangle(cornerRadius: 22).fill(Color(.secondarySystemBackground)))
-            .overlay(RoundedRectangle(cornerRadius: 22).strokeBorder(Color.loveaRose.opacity(0.35), lineWidth: 1))
+            .background(Color(.secondarySystemBackground), in: .loveaKarte)
     }
 }
 

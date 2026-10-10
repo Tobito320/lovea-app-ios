@@ -102,6 +102,7 @@ struct ZyklusEintragBlatt: View {
             ZyklusEintragInhalt(entwurf: $entwurf, datum: datum, fertig: fertig, abbrechen: zu)
         }
         .scrollDismissesKeyboard(.interactively)
+        .tastaturFertig()
         .background(ZyklusHintergrund(deko: false).ignoresSafeArea())
     }
 

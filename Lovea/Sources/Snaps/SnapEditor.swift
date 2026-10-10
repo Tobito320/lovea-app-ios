@@ -57,8 +57,7 @@ struct SnapEditor: View {
     @State private var sticker: [SnapSticker] = []
     @State private var auswahl: Auswahl?
 
-    @State private var linien: [SnapLinie] = []
-    @State private var aktuelleLinie: [CGPoint] = []
+    @State private var doodle = SnapDoodle()
     @State private var doodleFarbe = Color.white
 
     @State private var panel: SnapPanel?
@@ -119,6 +118,7 @@ struct SnapEditor: View {
         }
         .background(Color.black.ignoresSafeArea())
         .animation(.easeOut(duration: 0.2), value: panel)
+        .onChange(of: panel) { _, _ in doodle.abbrechen() }
         .task { await vorbereiten() }
         .task(id: spielt) { await wiedergabeSchleife() }
         .onChange(of: filterStaerke) { _, _ in vorschauAktualisieren() }
@@ -199,8 +199,8 @@ struct SnapEditor: View {
 
     @ViewBuilder private func lebendigeUeberlagerung(groesse: CGSize) -> some View {
         Canvas { context, _ in
-            for linie in linien { zeichnePfad(linie, in: &context, groesse: groesse) }
-            if aktuelleLinie.count > 1 { zeichnePfad(SnapLinie(punkte: aktuelleLinie, farbe: doodleFarbe), in: &context, groesse: groesse) }
+            for linie in doodle.linien { zeichnePfad(linie, in: &context, groesse: groesse) }
+            if doodle.laufend.count > 1 { zeichnePfad(SnapLinie(punkte: doodle.laufend, farbe: doodleFarbe), in: &context, groesse: groesse) }
         }
         .allowsHitTesting(false)
 
@@ -260,13 +260,9 @@ struct SnapEditor: View {
         DragGesture(minimumDistance: 0)
             .onChanged { wert in
                 guard groesse.width > 0, groesse.height > 0 else { return }
-                aktuelleLinie.append(CGPoint(x: wert.location.x / groesse.width, y: wert.location.y / groesse.height))
+                doodle.punkt(CGPoint(x: wert.location.x / groesse.width, y: wert.location.y / groesse.height))
             }
-            .onEnded { _ in
-                guard aktuelleLinie.count > 1 else { aktuelleLinie = []; return }
-                linien.append(SnapLinie(punkte: aktuelleLinie, farbe: doodleFarbe))
-                aktuelleLinie = []
-            }
+            .onEnded { _ in doodle.abschliessen(farbe: doodleFarbe) }
     }
 
     // MARK: - Wiedergabe
@@ -461,8 +457,8 @@ struct SnapEditor: View {
         VStack(spacing: 10) {
             SnapFarbReihe(farbe: $doodleFarbe)
             HStack {
-                SnapPanelKnopf(titel: "Rückgängig", symbol: "arrow.uturn.backward") { _ = linien.popLast() }
-                    .disabled(linien.isEmpty)
+                SnapPanelKnopf(titel: "Rückgängig", symbol: "arrow.uturn.backward") { doodle.zurueck() }
+                    .disabled(!doodle.kannZurueck)
                 Spacer()
             }
             .padding(.horizontal, 16)
@@ -629,7 +625,7 @@ struct SnapEditor: View {
             // ponytail: tray mode edits photos only (videos in the tray aren't editable yet).
             guard case .foto(let bild) = inhalt else { onFertig(); return }
             Task {
-                if let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke) { onUebernehmen(jpeg) }
+                if let jpeg = await SnapExport.foto(quelle: bild, linien: doodle.linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke) { onUebernehmen(jpeg) }
                 onFertig()
             }
             return
@@ -637,7 +633,7 @@ struct SnapEditor: View {
         switch inhalt {
         case .foto(let bild):
             Task {
-                let jpeg = await SnapExport.foto(quelle: bild, linien: linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke)
+                let jpeg = await SnapExport.foto(quelle: bild, linien: doodle.linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke)
                 onFertig()
                 if let jpeg { await ChatMedien.snapFotoSenden(jpeg: jpeg, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
@@ -654,7 +650,7 @@ struct SnapEditor: View {
                     quelle = geschnitten
                 }
                 defer { onFertig() }
-                guard let exportURL = await SnapExport.video(quelle: quelle, linien: linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke) else { return }
+                guard let exportURL = await SnapExport.video(quelle: quelle, linien: doodle.linien, sticker: sticker, text: text, filter: filter, filterStaerke: staerke) else { return }
                 Task { await ChatMedien.snapVideoSenden(quelle: exportURL, bleibt: bleibt, antwortAuf: antwortAuf) }
             }
         }

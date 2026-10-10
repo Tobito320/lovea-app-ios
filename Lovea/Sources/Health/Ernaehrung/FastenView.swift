@@ -39,7 +39,7 @@ struct FastenView: View {
                 Section("Verlauf") {
                     ForEach(beendete) { e in
                         verlaufZeile(e)
-                            .swipeActions {
+                            .swipeActions(allowsFullSwipe: false) {
                                 Button("Löschen", systemImage: "trash", role: .destructive) { modell.loeschen(e) }
                             }
                     }
