@@ -34,7 +34,7 @@ struct MahlzeitView: View {
                 }
                 ForEach(liste) { e in
                     EssenZeile(eintrag: e) { offen = EintragZiel(id: e.id) }
-                        .swipeActions {
+                        .swipeActions(allowsFullSwipe: false) {
                             if bearbeitbar {
                                 Button("Löschen", systemImage: "trash", role: .destructive) { modell.loeschen(e) }
                             }
@@ -99,7 +99,7 @@ struct MahlzeitenUebersicht: View {
                     }
                     ForEach(liste) { e in
                         EssenZeile(eintrag: e) { offen = EintragZiel(id: e.id) }
-                            .swipeActions {
+                            .swipeActions(allowsFullSwipe: false) {
                                 if bearbeitbar {
                                     Button("Löschen", systemImage: "trash", role: .destructive) { modell.loeschen(e) }
                                 }

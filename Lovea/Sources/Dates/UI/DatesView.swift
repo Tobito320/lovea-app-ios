@@ -31,7 +31,7 @@ struct DatesView: View {
                         beiOeffnen: { blatt = DatesBlattZiel(idee: idee) }
                     )
                     .listRow()
-                    .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    .swipeActions(edge: .leading, allowsFullSwipe: false) {
                         Button(role: .destructive) { loeschen(idee) } label: {
                             Label("Löschen", systemImage: "trash")
                         }

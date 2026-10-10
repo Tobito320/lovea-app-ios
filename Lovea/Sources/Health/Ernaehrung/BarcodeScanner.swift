@@ -27,6 +27,7 @@ struct BarcodeScannerBlatt: View {
                 eingabe
             }
             .navigationTitle("Barcode scannen")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

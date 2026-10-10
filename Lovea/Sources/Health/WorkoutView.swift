@@ -714,7 +714,7 @@ struct WorkoutUebungView: View {
         .listRowInsets(EdgeInsets(top: 3, leading: 12, bottom: 3, trailing: 12))
         .listRowSeparator(.hidden)
         .listRowBackground(fertig ? Color.green.opacity(0.2) : Color.clear)
-        .swipeActions {
+        .swipeActions(allowsFullSwipe: false) {
             Button("Löschen", role: .destructive) { loeschen(u, i) }
         }
     }

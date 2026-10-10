@@ -55,6 +55,16 @@ struct HealthKarte: ViewModifier {
 
 extension View {
     func healthKarte(_ farbe: Color = .gray) -> some View { modifier(HealthKarte(farbe: farbe)) }
+
+    /// Zahlentastaturen haben keine Eingabetaste: "Fertig" über der Tastatur schließt sie. Auf das Blatt setzen, nicht auf das Feld.
+    func tastaturFertig() -> some View {
+        toolbar {
+            ToolbarItemGroup(placement: .keyboard) {
+                Spacer()
+                Button("Fertig") { ChatTastatur.schliessen() }
+            }
+        }
+    }
 }
 
 /// Months side by side, swipe to page, the last page is the current month (never the future).

@@ -136,6 +136,7 @@ struct MessungBlatt: View {
                 }
             }
             .navigationTitle("Messung erfassen")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

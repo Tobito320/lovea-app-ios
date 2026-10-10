@@ -149,6 +149,7 @@ struct CardioFormular: View {
                 }
             }
             .navigationTitle(eintrag.titel)
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button(bearbeitbar ? "Abbrechen" : "Fertig") { dismiss() } }

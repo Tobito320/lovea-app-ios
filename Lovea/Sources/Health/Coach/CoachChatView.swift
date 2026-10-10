@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // Health-Coach: Chat und Kachel für Heute. Die Kachel zeigt höchstens eine Regel-Karte aus `CoachRegeln`, der Chat
 // fragt über `CoachModell` den Server (KI). Beides respektiert die Pause (`CoachSchluessel.pause`).
@@ -97,6 +98,8 @@ struct CoachChatView: View {
     @State private var amEnde = true
     @State private var ungelesen = false
     @State private var sprung: CoachSprung?
+    @FocusState private var feldFokus: Bool
+    @State private var tastaturOffen = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.colorScheme) private var schema
 
@@ -364,7 +367,8 @@ struct CoachChatView: View {
                 .animation(reduceMotion ? nil : Feder.weich, value: modell.sendet)
             }
             .defaultScrollAnchor(.bottom)
-            .scrollDismissesKeyboard(.interactively)
+            // ponytail: sofort statt interaktiv; das interaktive Ziehen kann den Fokus ohne sichtbare Tastatur zurücklassen.
+            .scrollDismissesKeyboard(.immediately)
             .onScrollGeometryChange(for: Bool.self) { geo in
                 geo.contentOffset.y + geo.containerSize.height - geo.contentInsets.bottom >= geo.contentSize.height - 24
             } action: { _, neu in
@@ -574,6 +578,15 @@ struct CoachChatView: View {
                     .padding(.vertical, 10)
                     .frame(minHeight: 44)
                     .glassEffect(.regular, in: .rect(cornerRadius: 22))
+                    .focused($feldFokus)
+                    // Fokus steht, Tastatur fehlt: ein Tipp setzt den Fokus neu und holt sie zurück.
+                    .simultaneousGesture(TapGesture().onEnded {
+                        guard feldFokus, !tastaturOffen else { return }
+                        feldFokus = false
+                        Task { feldFokus = true }
+                    })
+                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in tastaturOffen = true }
+                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in tastaturOffen = false }
                     .onChange(of: entwurf) { _, neu in
                         if neu.count > CoachModell.maxZeichen { entwurf = String(neu.prefix(CoachModell.maxZeichen)) }
                         modell.entwurfSpeichern(neu)

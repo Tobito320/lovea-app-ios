@@ -413,7 +413,7 @@ struct KuehlschrankBlatt: View {
         } preview: {
             ZettelVorschau(zettel: z)
         }
-        .swipeActions { Button("Wegnehmen", role: .destructive) { speicher.zettelLoeschen(z) } }
+        .swipeActions(allowsFullSwipe: false) { Button("Wegnehmen", role: .destructive) { speicher.zettelLoeschen(z) } }
     }
 
     private func haengen() {

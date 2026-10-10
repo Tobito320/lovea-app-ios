@@ -40,6 +40,7 @@ struct KoerperwerteBlatt: View {
             }
             .fontDesign(.rounded)
             .navigationTitle(tagTitel(tag))
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }

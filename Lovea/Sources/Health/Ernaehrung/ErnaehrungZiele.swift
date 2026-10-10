@@ -73,6 +73,7 @@ struct ErnaehrungZieleView: View {
                 flexibleTageSection
             }
             .navigationTitle("Ziele")
+            .tastaturFertig()
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("Abbrechen") { dismiss() } }
