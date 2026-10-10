@@ -146,8 +146,8 @@ struct CoachChatView: View {
     private var hintergrund: some View {
         ZStack {
             Color(uiColor: .systemBackground)
-            RadialGradient(colors: [HabitFarbe.mint.farbe.opacity(schema == .dark ? 0.28 : 0.2), Color.clear], center: .top, startRadius: 0, endRadius: 460)
-            RadialGradient(colors: [HabitFarbe.himmel.farbe.opacity(schema == .dark ? 0.18 : 0.12), Color.clear], center: .bottomTrailing, startRadius: 0, endRadius: 380)
+            RadialGradient(colors: [HabitFarbe.mint.farbe.opacity(schema == .dark ? 0.2 : 0.12), Color.clear], center: .top, startRadius: 0, endRadius: 460)
+            RadialGradient(colors: [HabitFarbe.himmel.farbe.opacity(schema == .dark ? 0.12 : 0.07), Color.clear], center: .bottomTrailing, startRadius: 0, endRadius: 380)
         }
         .ignoresSafeArea()
     }
@@ -220,7 +220,7 @@ struct CoachChatView: View {
 
     private var pauseAnsicht: some View {
         VStack(spacing: 16) {
-            Image(systemName: "pause.circle").font(.system(size: 44)).foregroundStyle(.secondary)
+            Image(systemName: "pause.circle").font(.largeTitle).foregroundStyle(.secondary)
             Text("Coach pausiert").font(.title3.weight(.semibold))
             Text("Kachel und Karten in Heute sind aus. Der Coach lädt und sendet nichts.")
                 .font(.subheadline)
@@ -269,15 +269,6 @@ struct CoachChatView: View {
 
     // MARK: Leer
 
-    private static func symbol(fuer frage: String) -> String {
-        if frage == CoachLokal.wochenrueckblick { return "calendar" }
-        if frage == CoachLokal.luecken { return "checklist" }
-        if frage.contains("Training") { return "figure.strengthtraining.traditional" }
-        if frage.contains("essen") { return "fork.knife" }
-        if frage.contains("Tagesbericht") { return "doc.text.magnifyingglass" }
-        return "sparkles"
-    }
-
     private func leerAnsicht(_ fragen: [String]) -> some View {
         ScrollView {
             VStack(spacing: 8) {
@@ -290,9 +281,12 @@ struct CoachChatView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .multilineTextAlignment(.center)
-                VStack(spacing: 10) {
-                    ForEach(fragen, id: \.self) { frage in
-                        frageKarte(frage, symbol: Self.symbol(fuer: frage))
+                CoachChipFluss {
+                    ForEach(CoachVorschlag.leerFragen(fragen), id: \.self) { frage in
+                        CoachVorschlagChip(frage: frage, symbol: CoachVorschlag.symbol(fuer: frage)) {
+                            absenden(frage, ausFeld: false)
+                        }
+                        .disabled(modell.sendet)
                     }
                 }
                 .padding(.top, 24)
@@ -303,33 +297,6 @@ struct CoachChatView: View {
         }
         .defaultScrollAnchor(.center)
         .scrollIndicators(.hidden)
-    }
-
-    private func frageKarte(_ frage: String, symbol: String) -> some View {
-        Button { absenden(frage, ausFeld: false) } label: {
-            HStack(spacing: 12) {
-                Image(systemName: symbol)
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(HabitFarbe.mint.farbe)
-                    .frame(width: 36, height: 36)
-                    .background(HabitFarbe.mint.farbe.opacity(0.16), in: Circle())
-                    .accessibilityHidden(true)
-                Text(frage)
-                    .font(.body.weight(.medium))
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                Spacer(minLength: 8)
-                Image(systemName: "arrow.up.right").font(.footnote.weight(.semibold)).foregroundStyle(.tertiary)
-                    .accessibilityHidden(true)
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 10)
-            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-            .healthKarte(HabitFarbe.mint.farbe)
-            .contentShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        }
-        .buttonStyle(.federnd)
-        .disabled(modell.sendet)
     }
 
     // MARK: Verlauf
@@ -450,9 +417,9 @@ struct CoachChatView: View {
             if let fehler = modell.fehler { fehlerZeile(fehler) }
             if !leer && !amEnde { nachUntenKnopf }
             if !modell.vorschlag.isEmpty || !modell.eingetragenListe.isEmpty { eintragsKarte }
-            if !leer { schnellfragenLeiste(fragen) }
-            if entwurf.count >= 800 { zaehler }
-            eingabe(fragen)
+            schnellfragenLeiste(fragen)
+            if CoachVorschlag.zaehlerSichtbar(anzahl: entwurf.count, maximal: CoachModell.maxZeichen) { zaehler }
+            eingabe
             Text("KI-Coach, kein Arzt")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -486,20 +453,30 @@ struct CoachChatView: View {
         .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
     }
 
+    /// Rund und ruhig; erst bei einer ungelesenen Antwort wird daraus eine Kapsel mit Text.
     private var nachUntenKnopf: some View {
         Button {
             Haptik.auswahl()
             sprung = .ende
         } label: {
-            Label(ungelesen ? "Neue Antwort" : "Nach unten", systemImage: "arrow.down")
-                .font(.footnote.weight(.semibold))
-                .padding(.horizontal, 14)
-                .frame(minHeight: 44)
-                .contentShape(.capsule)
+            Group {
+                if ungelesen {
+                    Label("Neue Antwort", systemImage: "arrow.down")
+                        .font(.footnote.weight(.semibold))
+                        .padding(.horizontal, 14)
+                } else {
+                    Image(systemName: "arrow.down")
+                        .font(.footnote.weight(.bold))
+                        .frame(width: 44)
+                }
+            }
+            .frame(minHeight: 44)
+            .contentShape(.capsule)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.primary)
         .glassEffect(.regular.interactive(), in: .capsule)
+        .accessibilityLabel(ungelesen ? "Neue Antwort, nach unten" : "Nach unten")
         .frame(maxWidth: .infinity, alignment: .trailing)
         .transition(.opacity)
     }
@@ -536,17 +513,8 @@ struct CoachChatView: View {
             GlassEffectContainer(spacing: 8) {
                 HStack(spacing: 8) {
                     ForEach(fragen, id: \.self) { frage in
-                        Button { absenden(frage, ausFeld: false) } label: {
-                            Text(frage)
-                                .font(.subheadline.weight(.medium))
-                                .padding(.horizontal, 16)
-                                .frame(minHeight: 44)
-                                .contentShape(.capsule)
-                        }
-                        .buttonStyle(.plain)
-                        .foregroundStyle(.primary)
-                        .glassEffect(.regular.interactive(), in: .capsule)
-                        .disabled(modell.sendet)
+                        CoachVorschlagChip(frage: frage) { absenden(frage, ausFeld: false) }
+                            .disabled(modell.sendet)
                     }
                 }
                 .animation(reduceMotion ? nil : Feder.weich, value: fragen)
@@ -560,7 +528,7 @@ struct CoachChatView: View {
         Text("\(entwurf.count) von \(CoachModell.maxZeichen)")
             .font(.caption)
             .monospacedDigit()
-            .foregroundStyle(entwurf.count >= CoachModell.maxZeichen - 50 ? HabitFarbe.amber.farbe : Color.secondary)
+            .foregroundStyle(CoachVorschlag.zaehlerWarnt(anzahl: entwurf.count, maximal: CoachModell.maxZeichen) ? HabitFarbe.amber.farbe : Color.secondary)
             .frame(maxWidth: .infinity, alignment: .trailing)
             .padding(.trailing, 8)
     }
@@ -569,48 +537,48 @@ struct CoachChatView: View {
         !entwurf.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty && !modell.sendet
     }
 
-    private func eingabe(_ fragen: [String]) -> some View {
-        GlassEffectContainer(spacing: 8) {
-            HStack(alignment: .bottom, spacing: 8) {
-                TextField("Frag den Coach", text: $entwurf, axis: .vertical)
-                    .lineLimit(1...5)
-                    .padding(.horizontal, 16)
-                    .padding(.vertical, 10)
-                    .frame(minHeight: 44)
-                    .glassEffect(.regular, in: .rect(cornerRadius: 22))
-                    .focused($feldFokus)
-                    // Fokus steht, Tastatur fehlt: ein Tipp setzt den Fokus neu und holt sie zurück.
-                    .simultaneousGesture(TapGesture().onEnded {
-                        guard feldFokus, !tastaturOffen else { return }
-                        feldFokus = false
-                        Task { feldFokus = true }
-                    })
-                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in tastaturOffen = true }
-                    .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in tastaturOffen = false }
-                    .onChange(of: entwurf) { _, neu in
-                        if neu.count > CoachModell.maxZeichen { entwurf = String(neu.prefix(CoachModell.maxZeichen)) }
-                        modell.entwurfSpeichern(neu)
-                    }
-                // Nicht gesperrt, damit das Menü mit den Schnellfragen auch bei leerem Feld aufgeht; `absenden` prüft selbst.
-                Button { absenden(entwurf, ausFeld: true) } label: {
-                    Image(systemName: "arrow.up")
-                        .font(.system(size: 17, weight: .bold))
-                        .foregroundStyle(kannSenden ? Color.personText(ich) : Color.secondary)
-                        .frame(width: 44, height: 44)
-                        .contentShape(.circle)
-                }
-                .buttonStyle(.plain)
-                .glassEffect(.regular.tint(kannSenden ? Color.person(ich) : nil).interactive(), in: .circle)
-                .animation(reduceMotion ? nil : Feder.schnell, value: kannSenden)
-                .contextMenu {
-                    ForEach(fragen, id: \.self) { frage in
-                        Button(frage) { absenden(frage, ausFeld: false) }
-                    }
-                }
-                .accessibilityLabel("Senden")
-                .accessibilityHint("Gedrückt halten für Schnellfragen")
+    /// Eine Glas-Pille; der runde Senden-Knopf sitzt als Overlay unten rechts darin. Alles rund um Fokus und Tastatur
+    /// hängt unverändert am Textfeld, das Overlay kommt erst danach.
+    private var eingabe: some View {
+        TextField("Frag den Coach", text: $entwurf, axis: .vertical)
+            .lineLimit(1...5)
+            .padding(.leading, 16)
+            .padding(.trailing, 52)
+            .padding(.vertical, 10)
+            .frame(minHeight: 44)
+            .glassEffect(.regular, in: .rect(cornerRadius: 22))
+            .focused($feldFokus)
+            // Fokus steht, Tastatur fehlt: ein Tipp setzt den Fokus neu und holt sie zurück.
+            .simultaneousGesture(TapGesture().onEnded {
+                guard feldFokus, !tastaturOffen else { return }
+                feldFokus = false
+                Task { feldFokus = true }
+            })
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in tastaturOffen = true }
+            .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in tastaturOffen = false }
+            .onChange(of: entwurf) { _, neu in
+                if neu.count > CoachModell.maxZeichen { entwurf = String(neu.prefix(CoachModell.maxZeichen)) }
+                modell.entwurfSpeichern(neu)
             }
+            .overlay(alignment: .bottomTrailing) { sendeKnopf }
+    }
+
+    /// Flach in der Personenfarbe, solange etwas zu senden ist; sonst gesperrt und blass. 44 pt Trefferfläche.
+    private var sendeKnopf: some View {
+        let aktiv = kannSenden
+        return Button { absenden(entwurf, ausFeld: true) } label: {
+            Image(systemName: "arrow.up")
+                .font(.callout.weight(.bold))
+                .foregroundStyle(aktiv ? Color.personText(ich) : Color.secondary)
+                .frame(width: 36, height: 36)
+                .background(aktiv ? Color.person(ich) : Color.secondary.opacity(0.18), in: Circle())
+                .frame(width: 44, height: 44)
+                .contentShape(.circle)
         }
+        .buttonStyle(.federnd)
+        .disabled(!aktiv)
+        .animation(reduceMotion ? nil : Feder.schnell, value: aktiv)
+        .accessibilityLabel("Senden")
     }
 
     /// Bei einem Fehler legt die Eingabe den Text zurück ins Feld, aber nur, wenn dort inzwischen nichts Neues steht.
@@ -757,7 +725,7 @@ private struct CoachZeile: View {
                     .foregroundStyle(Color.personText(person))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(LinearGradient(colors: [Color.person(person), Color.person(person).opacity(0.88)], startPoint: .top, endPoint: .bottom),
+                    .background(Color.person(person),
                                 in: UnevenRoundedRectangle(topLeadingRadius: 22, bottomLeadingRadius: 22, bottomTrailingRadius: 6, topTrailingRadius: 22))
             }
             if zeigtZeit { zeitZeile }
