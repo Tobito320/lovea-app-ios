@@ -19,9 +19,12 @@ enum TrackerEreignis: Sendable {
 /// `starten()` angelegt, nie beim App-Start, weil schon das Anlegen die Bluetooth-Abfrage zeigt.
 ///
 /// Der Tracker nimmt nur eine Verbindung und sendet nach dem Trennen nicht mehr, bis man ihn antippt.
-/// Darum bleibt ein `connect` offen: iOS verbindet von selbst, sobald er wieder sendet.
+/// Darum bleibt ein `connect` offen: iOS verbindet von selbst, sobald er wieder sendet. Mit dem
+/// Hintergrundmodus `bluetooth-central` und der Wiederherstellungs-Kennung weckt iOS die App dafür
+/// auch dann, wenn sie beendet wurde (`willRestoreState`).
 final class TrackerFunk: NSObject, CBCentralManagerDelegate, CBPeripheralDelegate, @unchecked Sendable {
     static let kennungSchluessel = "lovea.tracker.kennung"
+    private static let wiederherstellung = "com.onlyus.lovea.tracker.zentrale"
 
     private let queue = DispatchQueue(label: "com.onlyus.lovea.tracker.ble")
     private let melden: @Sendable (TrackerEreignis) -> Void
@@ -54,7 +57,8 @@ final class TrackerFunk: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
             if let zentrale = self.zentrale {
                 if zentrale.state == .poweredOn { self.verbindenOderSuchen(zentrale) }
             } else {
-                self.zentrale = CBCentralManager(delegate: self, queue: self.queue)
+                self.zentrale = CBCentralManager(delegate: self, queue: self.queue,
+                                                 options: [CBCentralManagerOptionRestoreIdentifierKey: Self.wiederherstellung])
             }
         }
     }
@@ -101,6 +105,15 @@ final class TrackerFunk: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         }
     }
 
+    /// iOS hat die App für den Tracker neu gestartet oder geweckt und gibt das Gerät zurück. Der Rest
+    /// läuft wie beim normalen Start (`verbindenOderSuchen`, dann Dienste und Benachrichtigung).
+    func centralManager(_ central: CBCentralManager, willRestoreState dict: [String: Any]) {
+        guard let wiederhergestellt = (dict[CBCentralManagerRestoredStatePeripheralsKey] as? [CBPeripheral])?.first else { return }
+        geraet = wiederhergestellt
+        wiederhergestellt.delegate = self
+        melden(.verbindet)
+    }
+
     private func verbindenOderSuchen(_ zentrale: CBCentralManager) {
         if let kennung = Self.gemerkteKennung, let bekannt = zentrale.retrievePeripherals(withIdentifiers: [kennung]).first {
             verbinden(bekannt, ueber: zentrale)
@@ -121,7 +134,11 @@ final class TrackerFunk: NSObject, CBCentralManagerDelegate, CBPeripheralDelegat
         geraet = peripheral
         peripheral.delegate = self
         melden(.verbindet)
-        zentrale.connect(peripheral)
+        if peripheral.state == .connected {
+            peripheral.discoverServices([dienstUUID]) // schon verbunden (wiederhergestellt): nicht noch einmal verbinden
+        } else {
+            zentrale.connect(peripheral)
+        }
     }
 
     func centralManager(_ central: CBCentralManager, didDiscover peripheral: CBPeripheral,

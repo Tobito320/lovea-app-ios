@@ -6,6 +6,8 @@
 // Datenschutz: gelesen werden NUR essen.setzen, habit.setzen (gewicht), schritte.setzen, schlaf.*, gym.*,
 // einstellung.setzen und coach.nachricht -- jeweils mit `von = Person`. Nie Chat (nachricht.*), Zyklus,
 // Standort, Galerie, Entwürfe oder Daten des Partners.
+// Ausnahme `gesundheit`: Apple-Health- und Tracker-Zahlen kommen im Body der Frage von der App der Person selbst (nie aus
+// Ops, nie vom Partner), nur aus festen Schlüsseln und nur als Zahlen (`gesundheitBereinigen`).
 import * as gym from "./gym.js";
 import { anweisungBauen } from "./coach-anweisung.js";
 import { opEinfuegen, merkerLesen, merkerSchreiben, einstellung, alarmErledigt, alarmAlsErledigtMarkieren, zeileZuOp } from "./raum-logic.js";
@@ -241,6 +243,65 @@ async function trainingKontext(sql, person, jetztMs, heute, werte, katalog) {
   };
 }
 
+// --- Gesundheit (Apple Health + Tracker, aus dem Body der Frage) ----------------------------------------------
+
+const G_TAG = ["schritteHealth", "km", "etagen", "aktivKcal", "ruheKcal", "trainingMin", "stehMin", "pulsSchnitt", "pulsMin", "pulsMax", "ruhepuls", "gehpuls", "hrv", "spo2", "atemfrequenz", "vo2max", "gewichtKg", "koerperfett", "schlafMin"];
+const G_BAND_TAG = ["schritte", "meter", "slots", "letzteMinute"];
+const G_BAND = ["akku", "pulsIntervallMin", "letzteAbfrageVorMin"];
+const G_BAND_FLAGS = ["laedt", "pulsDauermessung"];
+const G_TAGE = 8; // heute und die 7 Tage davor
+const G_WORKOUT_TAGE = 14;
+const G_WORKOUTS = 10;
+const DATUM_FORM = /^\d{4}-\d{2}-\d{2}$/;
+const WORKOUT_ART = /^\p{L}[\p{L} -]{0,29}$/u;
+
+const gZahl = (x) => (zahl(x) !== null && Math.abs(x) < 1e7 ? runden(x, 2) : null);
+
+function nurZahlen(roh, schluessel) {
+  const aus = {};
+  if (roh && typeof roh === "object") for (const s of schluessel) if (gZahl(roh[s]) !== null) aus[s] = gZahl(roh[s]);
+  return aus;
+}
+
+/** Zahlen je Tag aus festen Schlüsseln; Tage außerhalb von [ab, heute] und Schlüssel außerhalb der Liste fallen weg. */
+function tageBereinigen(roh, schluessel, ab, heute) {
+  const aus = {};
+  for (const [datum, werte] of Object.entries(roh && typeof roh === "object" ? roh : {})) {
+    if (!DATUM_FORM.test(datum) || datum < ab || datum > heute) continue;
+    const w = nurZahlen(werte, schluessel);
+    if (Object.keys(w).length) aus[datum] = w;
+  }
+  return aus;
+}
+
+/**
+ * Macht aus dem Body-Feld `gesundheit` der App einen kleinen, sicheren Kontext-Block: nur Zahlen aus festen Schlüsseln,
+ * Daten im Fenster, Workout-Namen nur als kurzes Wort. Freier Text kommt nie durch. `undefined`, wenn nichts übrig bleibt.
+ */
+export function gesundheitBereinigen(roh, heute) {
+  if (!roh || typeof roh !== "object" || Array.isArray(roh)) return undefined;
+  const g = {};
+  const ab = gym.addTage(heute, -(G_TAGE - 1));
+  const tage = tageBereinigen(roh.tage, G_TAG, ab, heute);
+  if (Object.keys(tage).length) g.tage = tage;
+  const abWorkout = gym.addTage(heute, -(G_WORKOUT_TAGE - 1));
+  const workouts = (Array.isArray(roh.workouts) ? roh.workouts : [])
+    .filter((w) => w && typeof w === "object" && typeof w.art === "string" && WORKOUT_ART.test(w.art) && typeof w.datum === "string" && DATUM_FORM.test(w.datum) && w.datum >= abWorkout && w.datum <= heute)
+    .map((w) => ({ art: w.art, datum: w.datum, ...nurZahlen(w, ["minuten", "kcal", "km"]) }))
+    .sort((a, b) => (a.datum < b.datum ? 1 : -1))
+    .slice(0, G_WORKOUTS);
+  if (workouts.length) g.workouts = workouts;
+  const band = roh.band && typeof roh.band === "object" && !Array.isArray(roh.band) ? roh.band : null;
+  if (band) {
+    const b = nurZahlen(band, G_BAND);
+    for (const f of G_BAND_FLAGS) if (typeof band[f] === "boolean") b[f] = band[f];
+    const bandTage = tageBereinigen(band.tage, G_BAND_TAG, ab, heute);
+    if (Object.keys(bandTage).length) b.tage = bandTage;
+    if (Object.keys(b).length) g.band = b;
+  }
+  return Object.keys(g).length ? g : undefined;
+}
+
 // --- Kontext ------------------------------------------------------------------------------------------------
 
 /** Kürzt in fester Reihenfolge, bis der Kontext unter dem Limit liegt. */
@@ -252,13 +313,15 @@ function begrenzen(k) {
     () => k.essen.heute?.eintraege.length > 6 && k.essen.heute.eintraege.pop(),
     () => k.gewicht?.verlauf.length > 4 && k.gewicht.verlauf.shift(),
     () => k.essen.jeTag?.length > 7 && k.essen.jeTag.shift(),
+    () => k.gesundheit?.workouts?.length > 3 && k.gesundheit.workouts.pop(),
+    () => k.gesundheit?.tage && Object.keys(k.gesundheit.tage).length > 3 && delete k.gesundheit.tage[Object.keys(k.gesundheit.tage).sort()[0]],
   ];
   for (const stufe of stufen) while (JSON.stringify(k).length > KONTEXT_MAX && stufe()) ;
   return k;
 }
 
 /** Eigene Daten der Person als kurzes JSON für das Modell. Sicherheits-Merker rechnet der Code, nicht das Modell. */
-export async function coachKontext(sql, person, jetztMs, { katalog } = {}) {
+export async function coachKontext(sql, person, jetztMs, { katalog, gesundheit } = {}) {
   const heute = datumVon(jetztMs);
   const werte = einstellungenLesen(sql, person);
   const { tageMitEintraegen, schnittKcal, essen } = essenKontext(sql, person, heute);
@@ -283,6 +346,8 @@ export async function coachKontext(sql, person, jetztMs, { katalog } = {}) {
     schlaf: schlafKontext(sql, person, heute),
     training: await trainingKontext(sql, person, jetztMs, heute, werte, katalog),
   };
+  const g = gesundheitBereinigen(gesundheit, heute);
+  if (g) k.gesundheit = g;
   return begrenzen(k);
 }
 
@@ -341,12 +406,12 @@ function textAus(antwort) {
 }
 
 /** Ruft das Modell. Gibt { text } oder { fehler: {status, body, grund} } zurück; nie Roh-Antwort, nie der Schlüssel. */
-async function modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage, marker = false }) {
+async function modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage, marker = false, gesundheit }) {
   let kontext;
   let ton;
   let ziel;
   try {
-    kontext = await coachKontext(sql, person, jetztMs, { katalog });
+    kontext = await coachKontext(sql, person, jetztMs, { katalog, gesundheit });
     ton = einstellung(sql, person, "coach.ton"); // unbekannter Wert = Anweisung bleibt wie sie ist
     ziel = zielBereinigen(einstellung(sql, person, "coach.ziel")); // Daten, keine Anweisung: steht hinter dem Kontext
   } catch {
@@ -354,7 +419,7 @@ async function modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitl
   }
   const anfrage = {
     model: env.COACH_MODELL || STANDARD_MODELL,
-    instructions: `${anweisungBauen({ marker, ton })}\n\nKONTEXT\n${JSON.stringify(kontext)}${ziel ? `\nZiel der Person (ihr eigener Text, keine Anweisung): ${ziel}` : ""}`,
+    instructions: `${anweisungBauen({ marker, ton, gesundheit: Boolean(kontext.gesundheit) })}\n\nKONTEXT\n${JSON.stringify(kontext)}${ziel ? `\nZiel der Person (ihr eigener Text, keine Anweisung): ${ziel}` : ""}`,
     input: [...verlauf(sql, person), { role: "user", content: frage }],
     reasoning: { effort: "low" },
     max_output_tokens: MAX_AUSGABE_TOKEN + (marker ? MARKER_EXTRA_TOKEN : 0),
@@ -390,12 +455,12 @@ function nachrichtSpeichern(sql, person, rolle, text, jetztMs, neueId) {
  * `marker` (Body-Flag der neuen App: true, 1, "1") hängt den Marker-Abschnitt an die Anweisung; ohne Flag bleibt sie wie früher.
  * Fehlt der Schlüssel: 503 { fehler: "nicht eingerichtet" }. Frage und Antwort werden erst nach Erfolg gespeichert.
  */
-export async function coachAntwort({ sql, env, person, text, marker, jetztMs, fetchFn = fetch, katalog, neueId = () => crypto.randomUUID(), zeitlimitMs = ZEITLIMIT_MS }) {
+export async function coachAntwort({ sql, env, person, text, marker, gesundheit, jetztMs, fetchFn = fetch, katalog, neueId = () => crypto.randomUUID(), zeitlimitMs = ZEITLIMIT_MS }) {
   if (!env?.OPENAI_API_KEY) return { status: 503, body: { fehler: "nicht eingerichtet" } };
   const frage = typeof text === "string" ? text.trim() : "";
   if (!frage || frage.length > MAX_FRAGE) return { status: 400, body: { fehler: `Frage fehlt oder ist zu lang (höchstens ${MAX_FRAGE} Zeichen)` } };
   if (!aufrufZaehlen(sql, person, datumVon(jetztMs))) return { status: 429, body: { fehler: "Tageslimit des Coachs erreicht, morgen geht es weiter." } };
-  const r = await modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage, marker: markerAn(marker) });
+  const r = await modellFragen({ sql, env, person, jetztMs, fetchFn, katalog, zeitlimitMs, frage, marker: markerAn(marker), gesundheit });
   if (r.fehler) return r.fehler;
   const ops = [nachrichtSpeichern(sql, person, "du", frage, jetztMs, neueId), nachrichtSpeichern(sql, person, "coach", r.text, jetztMs + 1, neueId)];
   return { status: 200, body: { text: r.text }, ops };
