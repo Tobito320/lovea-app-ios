@@ -41,10 +41,18 @@ export const TON_ZEILEN = {
   direkt: `Ton: klar und ohne Umschweife, aber freundlich. ${SICHERHEIT_VOR}`,
 };
 
-/** System-Anweisung: ANWEISUNG, dann (nur mit Flag) der Marker-Abschnitt, dann (nur bei gültigem Ton) die Ton-Zeile. */
-export function anweisungBauen({ marker = false, ton } = {}) {
+// Gesundheit: nur wenn die App Apple-Health- und Tracker-Zahlen mitschickt (Body-Feld `gesundheit`).
+export const GESUNDHEIT_ANWEISUNG = `GESUNDHEIT (Zusatz für diese App-Version)
+- Unter KONTEXT.gesundheit stehen Messwerte vom iPhone (Apple Health) und vom Fitness-Tracker, je Datum: tage (schritteHealth, km, etagen, aktivKcal, ruheKcal, trainingMin, stehMin, pulsSchnitt, pulsMin, pulsMax, ruhepuls, gehpuls, hrv in ms, spo2 in Prozent, atemfrequenz pro Minute, vo2max, gewichtKg, koerperfett in Prozent, schlafMin), workouts (art, datum, minuten, kcal, km) und band (akku, laedt, pulsDauermessung, tage mit schritte, meter, slots, letzteMinute).
+- Schritte: Der Tracker zählt genauer als das iPhone. Der Wert unter schritte im Kontext ist schon der gültige. schritteHealth ist nur die iPhone-Zahl, nenne sie nur, wenn die Person danach fragt.
+- Fehlt ein Wert, gab es keine Messung: nichts schätzen. Der heutige Tag ist angefangen.
+- Das sind Messwerte, keine Diagnose. Leite nie Krankheiten ab, bei Auffälligem rate zum Arzt. ${SICHERHEIT_VOR}`;
+
+/** System-Anweisung: ANWEISUNG, dann (nur mit Flag) der Marker-Abschnitt, dann (nur mit Gesundheitsdaten) deren Abschnitt, dann (nur bei gültigem Ton) die Ton-Zeile. */
+export function anweisungBauen({ marker = false, ton, gesundheit = false } = {}) {
   const teile = [ANWEISUNG];
   if (marker) teile.push(MARKER_ANWEISUNG);
+  if (gesundheit) teile.push(GESUNDHEIT_ANWEISUNG);
   if (typeof ton === "string" && Object.hasOwn(TON_ZEILEN, ton)) teile.push(TON_ZEILEN[ton]);
   return teile.join("\n\n");
 }

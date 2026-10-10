@@ -633,7 +633,7 @@ export class Raum {
   async #coachFrage(request, person) {
     if (!PERSONEN.includes(person)) return new Response("bad request", { status: 400 });
     const body = await request.json().catch(() => null);
-    const r = await coachAntwort({ sql: this.sql, env: this.env, person, text: body?.text, marker: body?.marker, jetztMs: Date.now(), katalog: coachKatalog });
+    const r = await coachAntwort({ sql: this.sql, env: this.env, person, text: body?.text, marker: body?.marker, gesundheit: body?.gesundheit, jetztMs: Date.now(), katalog: coachKatalog });
     if (r.grund) this.#log("Coach", person, r.grund); // nur der kurze Grund, nie Rohantwort oder Schlüssel
     if (r.ops) this.#coachVerteilen(person, r.ops);
     return Response.json(r.body, { status: r.status });
